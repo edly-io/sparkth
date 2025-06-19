@@ -1,6 +1,6 @@
+use crate::prompts;
 use rmcp::{
-    Error,
-    ServerHandler,
+    Error, ServerHandler,
     model::{
         CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
@@ -8,7 +8,6 @@ use rmcp::{
     tool,
 };
 use serde::Deserialize;
-use crate::prompts;
 
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
@@ -36,10 +35,14 @@ impl SparkthMCPServer {
         #[tool(aggr)] CourseGenerationPromptRequest {
             course_name,
             course_duration,
-            course_description
+            course_description,
         }: CourseGenerationPromptRequest,
     ) -> Result<CallToolResult, Error> {
-        let prompt = prompts::get_course_generation_prompt(&course_name, &course_duration, &course_description);
+        let prompt = prompts::get_course_generation_prompt(
+            &course_name,
+            &course_duration,
+            &course_description,
+        );
         Ok(CallToolResult::success(vec![Content::text(prompt)]))
     }
 }
@@ -52,7 +55,7 @@ impl ServerHandler for SparkthMCPServer {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation::from_build_env(),
             instructions: Some(
-                "This server provides a tool to generate a prompt for creatimg a course structure based on the provided course name and duration."
+                "This server provides a tool to generate a prompt for creating a course structure based on the provided course name and duration."
                     .to_string(),
             ),
         }
