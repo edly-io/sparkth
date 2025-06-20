@@ -1,143 +1,76 @@
 # Sparkth
 
-Sparkth is a free, open source, extensible, science-driven, AI-first learning platform. It is under active development by 
-[Arbisoft](https://arbisoft.com). 
+Sparkth is a free, open source, extensible, science-driven, AI-first learning platform. It is under active development by
+[Edly](https://edly.io).
 
+With Sparkth, users can create create courses from the chat UI of AI providers such as Claude or ChatGPT. Integration with these generative AI providers is achieved by the Model Context Protocol ([MCP](https://modelcontextprotocol.io/)) standard.
 
-## Usage
-In Sparkth v1.0, we will enable users to create courses from the chat UI of AI providers such as Claude or ChatGPT.
+Features:
 
-Integration with AI providers will be done via [MCP](https://modelcontextprotocol.io/).
+- MCP endpoints that make it possible to use Sparkth as an external tool in Claude/ChatGPT/Gemini.
+- Course generation prompt template that follows good instructional design principles.
 
-In this first iteration, Sparkth users are course authors, who might not necessarily be instructional design experts. Users will leverage the combined strengths of LLMs and Sparkth to create courses.
+Roadmap:
 
-### Use case #1: AI guidelines Course Creation
-1. Enable Sparkth MCP server in the Claude settings. MCP should be available for users of Claude Desktop even in the free version. Follow these steps to enable MCP.
+- Filter/Event API for extensive customisation of Sparkth.
+- Native Rust API for integration of Sparkth into other applications.
+- Synchronization of generated course content with 3rd-party learning management systems (LMS).
+- Development of a new webassembly-based standard for the creation of next-gen learning experiences.
 
-2. Launch a new chat for course creation: 
-> **User**: generate an intro-level course on the ethical use of AI.
->
-> **Claude**: \<queries the Sparkth MCP to fetch a good prompt for course creation. This prompt includes good principles of instructional design to optimize student learning>
->
-> **Claude**: \<generate a course outline and content, formatted as markdown>
->
-> **User**: split chapter 2 into multiple sections, to have smaller units of learning. Conclude chapter 3 with a project that makes use of Replit.
->
-> **Claude**: \<updates the course content according to spec>
->
-> **User**: this looks good to me. Publish this course on my Open edX instance. The LMS url is http://sandbox.openedx.edly.io. My credentials are: username=admin password=admin
+## Requirements
 
-## How to Set Up
+- Rust ([documentation](https://doc.rust-lang.org/book/ch01-01-installation.html)):
 
-### Clone the Repository
-Navigate to your desired directory and clone the repository:
+  curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
 
-```bash
+- uvx, for MCP integration ([documentation](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)):
 
-# Clone using HTTPS
-git clone https://github.com/edly-io/sparkth.git
+  curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Or clone using SSH (if you have SSH keys set up)
-git clone git@github.com:edly-io/sparkth.git
+## Installation
 
-# Navigate into the project directory
-cd sparkth
+Checkout the code:
 
-```
+    git clone git@github.com:edly-io/sparkth.git
+    cd sparkth
 
-In the project directory, you should see:
+Build the application:
 
-* `Cargo.toml` - Sparkth manifest file (dependencies, metadata)
-* `Cargo.lock` - Dependency lock file (don't modify manually)
-* `src/` - Source code directory
-* `README.md` - Sparkth documentation
+    cargo build --release
 
-### Install Dependencies
-Cargo will automatically download and compile dependencies:
+The compiled executable will be in `target/release`. Add this executable as an external tool to Claude Desktop: File 🠂 Settings 🠂 Developer 🠂 Edit Config. This will edit the Claude configuration file:
 
-```bash
-cargo build
-```
+    # macOS
+    ~/Library/Application\ Support/Claude/claude_desktop_config.json
+    # Windows
+    %APPDATA%\Claude\claude_desktop_config.json
+    # Linux
+    ~/.config/Claude/claude_desktop_config.json
 
-For a release build (optimized):
+Add the Sparkth server, such that your configuration looks like the following:
 
-```bash 
-cargo build --release
-```
-
-Run tests to verify everything works
-
-```bash
-cargo test
-```
-
-If you have compiled in release mode, it builds a standard input/output Sparkth MCP server binary at `target/release`.
-
-We can test the server from an existing MCP host, Claude for Desktop.
-
-## Test the Server with Claude for Desktop
-
-### Install Claude for Desktop
-First, make sure you have Claude for Desktop installed. [Install the latest version from here](https://claude.ai/download). If you already have Claude for Desktop, make sure it’s updated to the latest version.
-
-### Configuration
-We’ll need to configure Claude for Desktop for whichever MCP servers you want to use. To do this, we will update the Claude for Desktop App configuration. Open your `claude_desktop_configuration.json` file in a text editor, making sure to create the file if it doesn’t exist.
-
-For example, if you have [VS Code](https://code.visualstudio.com/) installed:
-
-#### MacOS/Linux
-
-```bash
-code ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-#### Windows
-
-```powershell
-code $env:AppData\Claude\claude_desktop_config.json
-```
-
-We will then add our server in the mcpServers key. In this case, we’ll add our Sparkth MCP server like so:
-
-#### MacOS/Linux
-```
-{
-  "mcpServers": {
-    "sparkth": {
-      "command": "/ABSOLUTE/PATH/TO/PARENT/FOLDER/target/release/sparkth",
-      "args": []
+    {
+      "mcpServers": {
+        "Sparkth": {
+          "command": "/<PATH TO SPARKTH REPOSITORY>/target/release/sparkth"
+        }
+      }
     }
-  }
-}
-```
 
-#### Windows
-```
-{
-  "mcpServers": {
-    "sparkth": {
-      "command": "/ABSOLUTE/PATH/TO/PARENT/FOLDER/target/release/sparkth.exe",
-      "args": []
-    }
-  }
-}
-```
+Restart Claude Desktop. Ensure that the Sparkth tools appear in the "Search and tools" menu. Then start a new chat and generate a course:
 
-> **NOTE:** Make sure you pass in the absolute path to your server.
+> Use Sparkth to generate a very short course (~1 hour) on the literary merits of Hamlet, by Shakespeare.
 
-This tells Claude for Desktop:
+Sparkth will generate a prompt that will help Claude generate this course.
 
-1. There's an MCP server named `sparkth`
-2. To launch it by running `./ABSOLUTE/PATH/TO/PARENT/FOLDER/target/release/sparkth` on MacOS/Linux and `./ABSOLUTE/PATH/TO/PARENT/FOLDER/target/release/sparkth.exe` on Windows.
+## Development
 
-**Ensure that the MCP UI elements appear in Claude Desktop.** The MCP UI elements will only show up in Claude for Desktop if at least one server is properly configured. 
+Build in development mode:
 
-It may require to restart Claude for Desktop.
+    cargo build
 
-## Test with commands
+Run tests:
 
-**Once Claude Desktop is running,** try chatting:
+    cargo test
 
-```
-Create a 3-hour course on "Rust Programming for Beginners".
-```
+⚠️ Note that in stdio mode, you will need to restart Claude Desktop every time you recompile, otherwise changes will not be automatically picked up.
