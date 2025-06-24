@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 pub trait Plugin<T> {
     fn name(&self) -> &str;
@@ -10,7 +10,7 @@ pub struct PluginManager<T> {
     execution_order: Vec<String>,
 }
 
-impl<T> Default for PluginManager<T> {
+impl Default for PluginManager {
     fn default() -> Self {
         Self {
             plugins: HashMap::new(),
@@ -19,7 +19,7 @@ impl<T> Default for PluginManager<T> {
     }
 }
 
-impl<T> PluginManager<T> {
+impl PluginManager {
     pub fn new() -> Self {
         Self::default()
     }
@@ -34,25 +34,20 @@ impl<T> PluginManager<T> {
         
         Ok(())
     }
-    
-    pub fn process(&self, mut data: T) -> Result<T, String> {
+
+    pub fn process(
+        &self,
+        mut data: Vec<(String, String)>,
+    ) -> Result<Vec<(String, String)>, String> {
         // TODO: Use indexing instead of vector for execution order
         for plugin_name in self.execution_order.iter() {
             if let Some(plugin) = self.plugins.get(plugin_name) {
                 plugin.transform(&mut data)?;
             }
         }
-        
+
         Ok(data)
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct CourseArgs {
-    pub course_duration: String,
-    pub course_name: String,
-    pub course_description: String,
-    pub others: HashMap<String, String>,
 }
 
 pub struct AssessmentPlugin;
