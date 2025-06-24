@@ -1,14 +1,14 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
-pub trait Plugin<T> {
-    fn transform(&self, data: &mut T) -> Result<(), String>;
+pub trait Plugin {
+    fn transform(&self, data: &mut Vec<(String, String)>) -> Result<(), String>;
 }
 
-pub struct PluginManager<T> {
-    plugins: Vec<Box<dyn Plugin<T>>>,
+pub struct PluginManager {
+    plugins: Vec<Box<dyn Plugin>>,
 }
 
-impl<T> Default for PluginManager<T> {
+impl Default for PluginManager {
     fn default() -> Self {
         Self {
             plugins: Vec::new(),
@@ -16,49 +16,47 @@ impl<T> Default for PluginManager<T> {
     }
 }
 
-impl<T> PluginManager<T> {
+impl PluginManager {
     pub fn new() -> Self {
         Self::default()
     }
-    
-    pub fn register<P: Plugin<T> + 'static>(&mut self, plugin: P) -> Result<(), String> {
+
+    pub fn register<P: Plugin + 'static>(&mut self, plugin: P) -> Result<(), String> {
         self.plugins.push(Box::new(plugin));
-        
+
         Ok(())
     }
-    
-    pub fn process(&self, mut data: T) -> Result<T, String> {
+
+    pub fn process(
+        &self,
+        mut data: Vec<(String, String)>,
+    ) -> Result<Vec<(String, String)>, String> {
         // TODO: Use indexing instead of vector for execution order
         for plugin in self.plugins.iter() {
             plugin.transform(&mut data)?;
         }
-        
+
         Ok(data)
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CourseArgs {
-    pub course_duration: String,
-    pub course_name: String,
-    pub course_description: String,
-    pub others: HashMap<String, String>,
-}
-
 pub struct AssessmentPlugin;
 
-impl Plugin<CourseArgs> for AssessmentPlugin {
-    fn transform(&self, data: &mut CourseArgs) -> Result<(), String> {
-        data.others.insert("include_assessments".to_string(), "true".to_string());
+impl Plugin for AssessmentPlugin {
+    fn transform(&self, data: &mut Vec<(String, String)>) -> Result<(), String> {
+        data.push(("include_assessments".to_string(), "true".to_string()));
         Ok(())
     }
 }
 
 pub struct ModifyCourseNamePlugin;
 
-impl Plugin<CourseArgs> for ModifyCourseNamePlugin {
-    fn transform(&self, data: &mut CourseArgs) -> Result<(), String> {
-        data.course_name = String::from("new course name");
+impl Plugin for ModifyCourseNamePlugin {
+    fn transform(&self, data: &mut Vec<(String, String)>) -> Result<(), String> {
+        let val = data.iter().position(|(key, _)| key == "course_name");
+        if let Some(index) = val {
+            data[index].1 = String::from("Modified Course Name");
+        }
         Ok(())
     }
 }
