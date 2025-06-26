@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 pub trait Plugin {
     fn transform(&self, data: &mut Vec<(String, String)>) -> Result<(), String>;
 }
@@ -31,7 +29,6 @@ impl PluginManager {
         &self,
         mut data: Vec<(String, String)>,
     ) -> Result<Vec<(String, String)>, String> {
-        // TODO: Use indexing instead of vector for execution order
         for plugin in self.plugins.iter() {
             plugin.transform(&mut data)?;
         }
@@ -40,6 +37,7 @@ impl PluginManager {
     }
 }
 
+// Example plugins
 pub struct AssessmentPlugin;
 
 impl Plugin for AssessmentPlugin {
