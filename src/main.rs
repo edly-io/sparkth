@@ -1,4 +1,5 @@
 mod mcp_server;
+mod plugins;
 mod prompts;
 
 use crate::mcp_server::SparkthMCPServer;
