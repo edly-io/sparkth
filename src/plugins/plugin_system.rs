@@ -75,7 +75,7 @@ pub trait Plugin {
 /// let mut manager = PluginManager::new();
 /// manager.register(AssessmentPlugin).unwrap();
 /// manager.register(ModifyCourseNamePlugin).unwrap();
-/// let result = manager.process(data).unwrap();
+/// manager.process(&mut data).unwrap();
 ///
 /// assert_eq!(data, vec![
 ///    ("course_name".to_string(), "Modified Course Name".to_string()),
@@ -107,15 +107,11 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn process(
-        &self,
-        mut data: Vec<(String, String)>,
-    ) -> Result<Vec<(String, String)>, String> {
+    pub fn process(&self, data: &mut Vec<(String, String)>) -> Result<(), String> {
         for plugin in self.plugins.iter() {
-            plugin.transform(&mut data)?;
+            plugin.transform(data)?;
         }
-
-        Ok(data)
+        Ok(())
     }
 }
 
@@ -146,17 +142,17 @@ mod tests {
 
     #[test]
     fn test_include_assessment_plugin() {
-        let data: Vec<(String, String)> = vec![
+        let mut data: Vec<(String, String)> = vec![
             ("course_name".to_string(), "abc".to_string()),
             ("course_duration".to_string(), "1 hour".to_string()),
         ];
 
         let mut manager = PluginManager::new();
         manager.register(AssessmentPlugin).unwrap();
-        let result = manager.process(data).unwrap();
+        manager.process(&mut data).unwrap();
 
         assert_eq!(
-            result,
+            data,
             vec![
                 ("course_name".to_string(), "abc".to_string()),
                 ("course_duration".to_string(), "1 hour".to_string()),
@@ -167,17 +163,17 @@ mod tests {
 
     #[test]
     fn test_modify_course_name_plugin() {
-        let data: Vec<(String, String)> = vec![
+        let mut data: Vec<(String, String)> = vec![
             ("course_name".to_string(), "abc".to_string()),
             ("course_duration".to_string(), "1 hour".to_string()),
         ];
 
         let mut manager = PluginManager::new();
         manager.register(ModifyCourseNamePlugin).unwrap();
-        let result = manager.process(data).unwrap();
+        manager.process(&mut data).unwrap();
 
         assert_eq!(
-            result,
+            data,
             vec![
                 (
                     "course_name".to_string(),

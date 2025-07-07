@@ -16,7 +16,7 @@
 /// - `new()` - Creates a new empty filter chain
 /// - `add_filter(filter)` - Adds a filter function or closure to the chain
 /// - `process(data, ...)` - Applies all filters in sequence to the provided data
-/// - `filter_count()` - Returns the number of filters in the chain
+/// - `get_filter_count()` - Returns the number of filters in the chain
 ///
 ///
 /// # Examples
@@ -44,7 +44,7 @@
 ///
 /// chain.process(&mut items);   
 ///
-/// assert_eq!(chain.filter_count(), 2);
+/// assert_eq!(chain.get_filter_count(), 2);
 /// assert_eq!(items, vec!["HELLO", "WORLD", "NEW ITEM"]);
 ///
 /// ```
