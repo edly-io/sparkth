@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::Arc};
+
 use crate::{canvas::client::CanvasClient, prompts};
 use rmcp::{
     Error, ServerHandler,
@@ -12,11 +14,11 @@ use serde::Deserialize;
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
     #[schemars(description = "the duration of the course")]
-    course_duration: String,
+    pub course_duration: String,
     #[schemars(description = "the name of the course")]
-    course_name: String,
+    pub course_name: String,
     #[schemars(description = "a brief description of the course")]
-    course_description: String,
+    pub course_description: String,
 }
 
 #[derive(JsonSchema, Deserialize)]
@@ -37,104 +39,168 @@ pub struct CourseCreationRequest {
     sis_course_id: Option<String>,
 }
 
+pub trait Tool: Send + Sync {
+    fn name(&self) -> &str;
+    fn description(&self) -> &str;
+    fn call(&self) -> Result<CallToolResult, Error>;
+}
+
+
+pub struct ToolRegistry {
+    tools: HashMap<String, Box<dyn Tool>>,
+}
+
+impl ToolRegistry {
+    pub fn new() -> Self {
+        Self {
+            tools: HashMap::new(),
+        }
+    }
+
+    pub fn register(&mut self, tool: Box<dyn Tool>) {
+        self.tools.insert(tool.name().to_string(), tool);
+    }
+
+    pub fn list_tools(&self) -> Vec<String> {
+        self.tools.keys().cloned().collect()
+    }
+
+    pub fn call(&self, name: &str) -> Option<Result<CallToolResult, Error>> {
+        self.tools.get(name).map(|t| t.call())
+    }
+}
+
+pub struct GreetTool;
+
+impl Tool for GreetTool {
+    fn name(&self) -> &str {
+        "greet"
+    }
+
+    fn description(&self) -> &str {
+        "Greets the user warmly."
+    }
+
+    fn call(&self) -> Result<CallToolResult, Error> {
+        Ok(CallToolResult::success(vec![Content::text(
+            "Hello from the greet tool!".to_string(),
+        )]))
+    }
+}
+
+pub struct GoodbyeTool;
+
+impl Tool for GoodbyeTool {
+    fn name(&self) -> &str {
+        "goodbye"
+    }
+
+    fn description(&self) -> &str {
+        "say goodbye to the user."
+    }
+
+    fn call(&self) -> Result<CallToolResult, Error> {
+        Ok(CallToolResult::success(vec![Content::text(
+            "Goodbye from the greet tool!".to_string(),
+        )]))
+    }
+}
+
 #[derive(Clone)]
 pub struct SparkthMCPServer {
-    canvas_client: CanvasClient,
+    tool_registry: Arc<ToolRegistry>,
 }
 
 #[tool(tool_box)]
 impl SparkthMCPServer {
-    pub fn new(api_url: String, api_token: String) -> Self {
+    pub fn new_with_registry(registry: ToolRegistry) -> Self {
         Self {
-            canvas_client: CanvasClient::new(api_url, api_token),
+            tool_registry: Arc::new(registry),
         }
     }
 
     #[tool(
-        description = "Generates a prompt for creating a course structure based on the course name, description and duration passed as the arguments. The course should follow instructional design principles."
+        description = "call a tool by name."
     )]
-    pub fn get_course_generation_prompt(
+    pub fn dispatch_tool(
         &self,
-        #[tool(aggr)] CourseGenerationPromptRequest {
-            course_name,
-            course_duration,
-            course_description,
-        }: CourseGenerationPromptRequest,
+        #[tool(aggr)] tool_name: String,
     ) -> Result<CallToolResult, Error> {
-        let prompt = prompts::get_course_generation_prompt(
-            &course_name,
-            &course_duration,
-            &course_description,
-        );
-        Ok(CallToolResult::success(vec![Content::text(prompt)]))
-    }
-
-    #[tool(description = "Returns a list of all available courses in the Canvas instance.")]
-    pub async fn get_courses(&self) -> Result<CallToolResult, Error> {
-        match self.canvas_client.get_courses(None).await {
-            Ok(courses) => Ok(CallToolResult::success(vec![Content::text(
-                serde_json::to_string(&courses).unwrap(),
+        match self.tool_registry.call(&tool_name) {
+            Some(result) => result,
+            None => Ok(CallToolResult::success(vec![Content::text(
+                format!("Tool '{}' not found.", tool_name),
             )])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error fetching courses: {}",
-                e
-            ))])),
         }
     }
 
-    #[tool(description = "Returns the couse based on the course id")]
-    pub async fn get_course(
-        &self,
-        #[tool(aggr)] CourseRetrievalRequest { course_id }: CourseRetrievalRequest,
-    ) -> Result<CallToolResult, Error> {
-        match self.canvas_client.get_course(&course_id).await {
-            Ok(courses) => Ok(CallToolResult::success(vec![Content::text(
-                serde_json::to_string(&courses).unwrap(),
-            )])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error fetching the course: {}",
-                e
-            ))])),
-        }
-    }
 
-    #[tool(description = "")]
-    pub async fn create_course(
-        &self,
-        #[tool(aggr)] CourseCreationRequest {
-            account_id,
-            name,
-            course_code,
-            sis_course_id,
-        }: CourseCreationRequest,
-    ) -> Result<CallToolResult, Error> {
-        match self
-            .canvas_client
-            .create_course(account_id, name, course_code, sis_course_id)
-            .await
-        {
-            Ok(course) => Ok(CallToolResult::success(vec![Content::text(
-                serde_json::to_string(&course).unwrap(),
-            )])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error creating the course: {}",
-                e
-            ))])),
-        }
-    }
+
 }
 
+
+
+
+// #[derive(Clone)]
+// pub struct SparkthMCPServer;
+
+// #[tool(tool_box)]
+// impl SparkthMCPServer {
+//     pub fn new() -> Self {
+//         Self { }
+//     }
+
+//     #[tool(
+//         description = "Generates a prompt for creating a course structure based on the course name, description and duration passed as the arguments. The course should follow instructional design principles."
+//     )]
+//     pub fn get_course_generation_prompt(
+//         &self,
+//         #[tool(aggr)] CourseGenerationPromptRequest {
+//             course_name,
+//             course_duration,
+//             course_description,
+//         }: CourseGenerationPromptRequest,
+//     ) -> Result<CallToolResult, Error> {
+
+//         let prompt = prompts::get_course_generation_prompt(
+//             &course_name,
+//             &course_duration,
+//             &course_description,
+//         );
+//         Ok(CallToolResult::success(vec![Content::text(prompt)]))
+//     }
+// }
+
 #[tool(tool_box)]
+// impl ServerHandler for SparkthMCPServer {
+//     fn get_info(&self) -> ServerInfo {
+//         ServerInfo {
+//             protocol_version: ProtocolVersion::V_2024_11_05,
+//             capabilities: ServerCapabilities::builder().enable_tools().build(),
+//             server_info: Implementation::from_build_env(),
+//             instructions: Some(
+//                 "This server provides a tool to generate a prompt for creating a course structure based on the provided course name and duration."
+//                     .to_string(),
+//             ),
+//         }
+//     }
+// }
 impl ServerHandler for SparkthMCPServer {
     fn get_info(&self) -> ServerInfo {
+        let tool_list = self
+            .tool_registry
+            .list_tools()
+            .join(", ");
+
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some(
-                "This server provides a tool to generate a prompt for creating a course structure based on the provided course name and duration."
-                    .to_string(),
-            ),
+            instructions: Some(format!(
+                "This server provides tools: {}.",
+                tool_list
+            )),
         }
     }
 }
+

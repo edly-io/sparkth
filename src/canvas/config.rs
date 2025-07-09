@@ -8,8 +8,6 @@ pub enum ConfigError {
     EnvVarNotFound(String),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    #[error("Invalid configuration: {0}")]
-    InvalidConfig(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
