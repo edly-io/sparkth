@@ -25,6 +25,17 @@ pub enum CanvasResponse {
     Multiple(Vec<Value>),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Enrollment {
+    pub enrollment_state: String,
+    pub limit_privileges_to_course_section: bool,
+    pub role: String,
+    pub role_id: u64,
+    #[serde(rename = "type")]
+    pub enrollment_type: String,
+    pub user_id: u64,
+}
+
 /// Canvas course data structure
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Course {
@@ -34,6 +45,7 @@ pub struct Course {
     pub sis_course_id: Option<String>,
     pub account_id: Option<u64>,
     pub workflow_state: Option<String>,
+    pub enrollments: Vec<Enrollment>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }

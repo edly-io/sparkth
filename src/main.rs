@@ -1,3 +1,4 @@
+mod filter_chains;
 mod mcp_server;
 mod plugins;
 mod prompts;
