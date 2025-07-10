@@ -20,13 +20,13 @@ pub enum CanvasError {
 /// Canvas API response that can be either a single object or an array
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-pub enum CanvasResponse {
+enum CanvasResponse {
     Single(Value),
     Multiple(Vec<Value>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Enrollment {
+struct Enrollment {
     pub enrollment_state: String,
     pub limit_privileges_to_course_section: bool,
     pub role: String,
@@ -38,7 +38,7 @@ pub struct Enrollment {
 
 /// Canvas course data structure
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Course {
+struct Course {
     pub id: Option<u64>,
     pub name: String,
     pub course_code: Option<String>,

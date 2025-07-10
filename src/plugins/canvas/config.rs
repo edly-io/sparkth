@@ -8,6 +8,8 @@ pub enum ConfigError {
     EnvVarNotFound(String),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("env not found")]
+    EnvNotFound(#[from] dotenvy::Error),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
