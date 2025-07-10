@@ -1,2 +1,2 @@
-pub mod filter_chain;
+pub mod canvas;
 pub mod plugin_system;
