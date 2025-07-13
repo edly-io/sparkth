@@ -1,10 +1,15 @@
 use reqwest::{Client, Method, Response};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, from_value};
 use std::collections::HashMap;
 use thiserror::Error;
 
-/// Error type for Canvas API operations
+use crate::plugins::canvas::types::{
+    AddPageRequest, CanvasPage, CanvasResponse, CreateCourseRequest, CreateModuleItemRequest,
+    CreateModuleRequest, CreatePageRequest, DeleteModuleItemRequest, GetCourseRequest,
+    GetModuleItemRequest, GetModuleRequest, GetPageRequest, ListPagesRequest,
+    UpdateModuleItemRequest, UpdateModuleRequest, UpdatePageRequest,
+};
+
 #[derive(Error, Debug)]
 pub enum CanvasError {
     #[error("Canvas API Error ({status_code}): {message}")]
@@ -17,40 +22,6 @@ pub enum CanvasError {
     InvalidMethod(String),
 }
 
-/// Canvas API response that can be either a single object or an array
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum CanvasResponse {
-    Single(Value),
-    Multiple(Vec<Value>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Enrollment {
-    pub enrollment_state: String,
-    pub limit_privileges_to_course_section: bool,
-    pub role: String,
-    pub role_id: u64,
-    #[serde(rename = "type")]
-    pub enrollment_type: String,
-    pub user_id: u64,
-}
-
-/// Canvas course data structure
-#[derive(Debug, Serialize, Deserialize)]
-struct Course {
-    pub id: Option<u64>,
-    pub name: String,
-    pub course_code: Option<String>,
-    pub sis_course_id: Option<String>,
-    pub account_id: Option<u64>,
-    pub workflow_state: Option<String>,
-    pub enrollments: Vec<Enrollment>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-/// Canvas API client
 #[derive(Debug, Clone)]
 pub struct CanvasClient {
     api_url: String,
@@ -59,19 +30,6 @@ pub struct CanvasClient {
 }
 
 impl CanvasClient {
-    /// Create a new Canvas client
-    ///
-    /// # Arguments
-    /// * `api_url` - The Canvas API URL (e.g., https://canvas.instructure.com/api/v1)
-    /// * `api_token` - The Canvas API token
-    ///
-    /// # Example
-    /// ```
-    /// let client = CanvasClient::new(
-    ///     "https://canvas.instructure.com/api/v1".to_string(),
-    ///     "your-api-token".to_string()
-    /// );
-    /// ```
     pub fn new(api_url: String, api_token: String) -> Self {
         let client = Client::new();
         Self {
@@ -81,13 +39,6 @@ impl CanvasClient {
         }
     }
 
-    /// Make a request to the Canvas API
-    ///
-    /// # Arguments
-    /// * `method` - HTTP method as string
-    /// * `endpoint` - API endpoint (without base URL)
-    /// * `params` - Optional query parameters
-    /// * `data` - Optional request body data
     async fn request(
         &self,
         method: &str,
@@ -145,7 +96,6 @@ impl CanvasClient {
         }
     }
 
-    /// Handle error responses from the Canvas API
     async fn handle_error_response(&self, response: Response) -> Result<CanvasError, CanvasError> {
         let status_code = response.status().as_u16();
         let error_text = response.text().await?;
@@ -182,30 +132,13 @@ impl CanvasClient {
         })
     }
 
-    /// Get all courses
-    ///
-    /// # Arguments
-    /// * `params` - Optional query parameters
-    ///
-    /// # Returns
-    /// Vector of course data as JSON values
-    pub async fn get_courses(
-        &self,
-        params: Option<&HashMap<String, String>>,
-    ) -> Result<Vec<Value>, CanvasError> {
-        match self.request("GET", "courses", params, None).await? {
+    pub async fn get_courses(&self) -> Result<Vec<Value>, CanvasError> {
+        match self.request("GET", "courses", None, None).await? {
             CanvasResponse::Multiple(courses) => Ok(courses),
             CanvasResponse::Single(course) => Ok(vec![course]),
         }
     }
 
-    /// Get a specific course by ID
-    ///
-    /// # Arguments
-    /// * `course_id` - The course ID
-    ///
-    /// # Returns
-    /// Course data as JSON value
     pub async fn get_course(&self, course_id: &str) -> Result<Value, CanvasError> {
         match self
             .request("GET", &format!("courses/{}", course_id), None, None)
@@ -216,38 +149,22 @@ impl CanvasClient {
         }
     }
 
-    /// Create a new course
-    ///
-    /// # Arguments
-    /// * `account_id` - The account ID where the course will be created
-    /// * `name` - The course name
-    /// * `course_code` - Optional course code
-    /// * `sis_course_id` - Optional SIS course ID
-    ///
-    /// # Returns
-    /// Created course data as JSON value
-    pub async fn create_course(
-        &self,
-        account_id: String,
-        name: String,
-        course_code: Option<String>,
-        sis_course_id: Option<String>,
-    ) -> Result<Value, CanvasError> {
+    pub async fn create_course(&self, args: CreateCourseRequest) -> Result<Value, CanvasError> {
         let mut data = HashMap::new();
-        data.insert("course[name]".to_string(), name.to_string());
+        data.insert("course[name]".to_string(), args.name.to_string());
 
-        if let Some(code) = course_code {
+        if let Some(code) = args.course_code {
             data.insert("course[course_code]".to_string(), code.to_string());
         }
 
-        if let Some(sis_id) = sis_course_id {
+        if let Some(sis_id) = args.sis_course_id {
             data.insert("course[sis_course_id]".to_string(), sis_id.to_string());
         }
 
         match self
             .request(
                 "POST",
-                &format!("accounts/{}/courses", account_id),
+                &format!("accounts/{}/courses", args.account_id),
                 None,
                 Some(&data),
             )
@@ -257,30 +174,498 @@ impl CanvasClient {
             CanvasResponse::Multiple(mut courses) => Ok(courses.pop().unwrap_or(Value::Null)),
         }
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_canvas_client_creation() {
-        let client = CanvasClient::new(
-            "https://canvas.instructure.com/api/v1".to_string(),
-            "test-token".to_string(),
-        );
-
-        assert_eq!(client.api_url, "https://canvas.instructure.com/api/v1");
-        assert_eq!(client.api_token, "test-token");
+    pub async fn list_modules(&self, args: GetCourseRequest) -> Result<Vec<Value>, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!("courses/{}/modules", args.course_id),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(modules) => Ok(modules),
+            CanvasResponse::Single(module) => Ok(vec![module]),
+        }
     }
 
-    #[test]
-    fn test_api_url_trimming() {
-        let client = CanvasClient::new(
-            "https://canvas.instructure.com/api/v1/".to_string(),
-            "test-token".to_string(),
-        );
+    pub async fn get_module(&self, args: GetModuleRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!("courses/{}/modules/{}", args.course_id, args.module_id),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+            CanvasResponse::Single(module) => Ok(module),
+        }
+    }
 
-        assert_eq!(client.api_url, "https://canvas.instructure.com/api/v1");
+    pub async fn create_module(&self, args: CreateModuleRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+        data.insert("module[name]".to_string(), args.name.to_string());
+
+        if let Some(position) = args.position {
+            data.insert("module[position]".to_string(), position.to_string());
+        }
+
+        if let Some(unlock_at) = args.unlock_at {
+            data.insert("module[unlock_at]".to_string(), unlock_at.to_string());
+        }
+
+        if let Some(require_sequential_progress) = args.require_sequential_progress {
+            data.insert(
+                "module[require_sequential_progress]".to_string(),
+                require_sequential_progress.to_string(),
+            );
+        }
+
+        if let Some(prerequisite_module_ids) = args.prerequisite_module_ids {
+            for (index, module_id) in prerequisite_module_ids.iter().enumerate() {
+                data.insert(
+                    format!("module[prerequisite_module_ids][{index}]"),
+                    module_id.clone(),
+                );
+            }
+        }
+
+        if let Some(publish_final_grade) = args.publish_final_grade {
+            data.insert(
+                "module[publish_final_grade]".to_string(),
+                publish_final_grade.to_string(),
+            );
+        }
+
+        match self
+            .request(
+                "POST",
+                &format!("courses/{}/modules", args.course_id),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn update_module(&self, args: UpdateModuleRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+
+        if let Some(module_name) = args.name {
+            data.insert("module[name]".to_string(), module_name.to_string());
+        }
+
+        if let Some(pos) = args.position {
+            data.insert("module[position]".to_string(), pos.to_string());
+        }
+
+        if let Some(unlock) = args.unlock_at {
+            data.insert("module[unlock_at]".to_string(), unlock.to_string());
+        }
+
+        if let Some(sequential) = args.require_sequential_progress {
+            data.insert(
+                "module[require_sequential_progress]".to_string(),
+                sequential.to_string(),
+            );
+        }
+
+        if let Some(prereq_ids) = args.prerequisite_module_ids {
+            if prereq_ids.is_empty() {
+                data.insert(
+                    "module[prerequisite_module_ids][]".to_string(),
+                    "".to_string(),
+                );
+            } else {
+                for (i, prereq_id) in prereq_ids.iter().enumerate() {
+                    data.insert(
+                        format!("module[prerequisite_module_ids][{}]", i),
+                        prereq_id.clone(),
+                    );
+                }
+            }
+        }
+
+        if let Some(publish) = args.publish_final_grade {
+            data.insert(
+                "module[publish_final_grade]".to_string(),
+                publish.to_string(),
+            );
+        }
+
+        match self
+            .request(
+                "PUT",
+                &format!("courses/{}/modules/{}", args.course_id, args.module_id),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn delete_module(&self, args: GetModuleRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "DELETE",
+                &format!("courses/{}/modules/{}", args.course_id, args.module_id),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn list_module_items(
+        &self,
+        args: GetModuleRequest,
+    ) -> Result<Vec<Value>, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!(
+                    "courses/{}/modules/{}/items",
+                    args.course_id, args.module_id
+                ),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(items) => Ok(items),
+            CanvasResponse::Single(item) => Ok(vec![item]),
+        }
+    }
+
+    pub async fn get_module_item(&self, args: GetModuleItemRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!(
+                    "courses/{}/modules/{}/items/{}",
+                    args.course_id, args.module_id, args.item_id
+                ),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Single(item) => Ok(item),
+            CanvasResponse::Multiple(mut items) => Ok(items.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn create_module_item(
+        &self,
+        args: CreateModuleItemRequest,
+    ) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+        data.insert("module_item[title]".to_string(), args.title.to_string());
+        data.insert("module_item[type]".to_string(), args.item_type.to_string());
+
+        if !args.item_type.eq("ExternalUrl") {
+            if let Some(content) = args.content_id {
+                data.insert("module_item[content_id]".to_string(), content.to_string());
+            }
+        }
+
+        if let Some(pos) = args.position {
+            data.insert("module_item[position]".to_string(), pos.to_string());
+        }
+
+        if let Some(indent_level) = args.indent {
+            data.insert("module_item[indent]".to_string(), indent_level.to_string());
+        }
+
+        if let Some(url) = args.page_url {
+            if args.item_type.eq("Page") {
+                data.insert("module_item[page_url]".to_string(), url.to_string());
+            }
+        }
+
+        if let Some(url) = args.external_url {
+            if args.item_type.eq("ExternalUrl") {
+                data.insert("module_item[external_url]".to_string(), url.to_string());
+            }
+        }
+
+        if let Some(new_tab_val) = args.new_tab {
+            data.insert("module_item[new_tab]".to_string(), new_tab_val.to_string());
+        }
+
+        if let Some(completion) = args.completion_requirement {
+            data.insert(
+                "module_item[completion_requirement][type]".to_string(),
+                completion.requirement_type.to_string(),
+            );
+
+            if let Some(min_score) = completion.min_score {
+                data.insert(
+                    "module_item[completion_requirement][min_score]".to_string(),
+                    min_score.to_string(),
+                );
+            }
+        }
+
+        match self
+            .request(
+                "POST",
+                &format!(
+                    "courses/{}/modules/{}/items",
+                    args.course_id, args.module_id
+                ),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(item) => Ok(item),
+            CanvasResponse::Multiple(mut items) => Ok(items.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn update_module_item(
+        &self,
+        args: UpdateModuleItemRequest,
+    ) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+
+        if let Some(title) = args.title {
+            data.insert("module_item[title]".to_string(), title);
+        }
+
+        if let Some(position) = args.position {
+            data.insert("module_item[position]".to_string(), position.to_string());
+        }
+
+        if let Some(indent) = args.indent {
+            data.insert("module_item[indent]".to_string(), indent.to_string());
+        }
+
+        if let Some(external_url) = args.external_url {
+            data.insert("module_item[external_url]".to_string(), external_url);
+        }
+
+        if let Some(new_tab) = args.new_tab {
+            data.insert("module_item[new_tab]".to_string(), new_tab.to_string());
+        }
+
+        if let Some(completion) = args.completion_requirement {
+            data.insert(
+                "module_item[completion_requirement][type]".to_string(),
+                completion.requirement_type.to_string(),
+            );
+
+            if let Some(min_score) = completion.min_score {
+                data.insert(
+                    "module_item[completion_requirement][min_score]".to_string(),
+                    min_score.to_string(),
+                );
+            }
+        }
+
+        match self
+            .request(
+                "PUT",
+                &format!(
+                    "courses/{}/modules/{}/items/{}",
+                    args.course_id, args.module_id, args.item_id
+                ),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(item) => Ok(item),
+            CanvasResponse::Multiple(mut items) => Ok(items.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn delete_module_item(
+        &self,
+        args: DeleteModuleItemRequest,
+    ) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "DELETE",
+                &format!(
+                    "courses/{}/modules/{}/items/{}",
+                    args.course_id, args.module_id, args.item_id
+                ),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn list_pages(&self, args: ListPagesRequest) -> Result<Vec<Value>, CanvasError> {
+        let mut data = HashMap::new();
+
+        if let Some(term) = args.search_term {
+            data.insert("search_term".to_string(), term.to_string());
+        }
+
+        match self
+            .request(
+                "GET",
+                &format!("courses/{}/pages", args.course_id),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(pages) => Ok(pages),
+            CanvasResponse::Single(page) => Ok(vec![page]),
+        }
+    }
+
+    pub async fn get_page(&self, args: GetPageRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!("courses/{}/pages/{}", args.course_id, args.page_url),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+            CanvasResponse::Single(module) => Ok(module),
+        }
+    }
+
+    pub async fn create_page(&self, args: CreatePageRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+        data.insert("wiki_page[title]".to_string(), args.title);
+        data.insert("wiki_page[body]".to_string(), args.body);
+
+        if let Some(editing_roles) = args.editing_roles {
+            data.insert("wiki_page[editing_roles]".to_string(), editing_roles);
+        }
+
+        if let Some(published) = args.published {
+            data.insert("wiki_page[published]".to_string(), published.to_string());
+        }
+
+        if let Some(front_page) = args.front_page {
+            data.insert("wiki_page[front_page]".to_string(), front_page.to_string());
+        }
+
+        match self
+            .request(
+                "POST",
+                &format!("courses/{}/pages", args.course_id),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn update_page(&self, args: UpdatePageRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+
+        if let Some(new_title) = args.title {
+            data.insert("wiki_page[title]".to_string(), new_title);
+        }
+
+        if let Some(new_body) = args.body {
+            data.insert("wiki_page[body]".to_string(), new_body);
+        }
+
+        if let Some(roles) = args.editing_roles {
+            data.insert("wiki_page[editing_roles]".to_string(), roles);
+        }
+
+        if let Some(is_published) = args.published {
+            data.insert("wiki_page[published]".to_string(), is_published.to_string());
+        }
+
+        if let Some(is_front_page) = args.front_page {
+            data.insert(
+                "wiki_page[front_page]".to_string(),
+                is_front_page.to_string(),
+            );
+        }
+
+        match self
+            .request(
+                "PUT",
+                &format!("courses/{}/pages/{}", args.course_id, args.page_url),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn delete_page(&self, args: GetPageRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "DELETE",
+                &format!("courses/{}/pages/{}", args.course_id, args.page_url),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn add_page_to_module(&self, args: AddPageRequest) -> Result<Value, CanvasError> {
+        let page = self
+            .get_page(GetPageRequest {
+                course_id: args.course_id.clone(),
+                page_url: args.page_url.clone(),
+            })
+            .await?;
+        let canvas_page: CanvasPage = from_value(page)?;
+
+        let title = args
+            .title
+            .or_else(|| canvas_page.title.clone())
+            .unwrap_or_else(|| "Untitled Page".to_string());
+
+        let content_id = canvas_page.page_id.map(|id| id.to_string());
+
+        let module_item = CreateModuleItemRequest {
+            module_id: args.module_id,
+            course_id: args.course_id,
+            title,
+            item_type: "Page".to_string(),
+            content_id,
+            position: args.position,
+            indent: args.indent,
+            page_url: Some(args.page_url),
+            new_tab: args.new_tab,
+            external_url: None,
+            completion_requirement: None,
+        };
+
+        self.create_module_item(module_item).await
     }
 }

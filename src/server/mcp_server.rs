@@ -5,7 +5,8 @@ use rmcp::{
     Error, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
     model::{
-        CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
+        CallToolResult, Content, ErrorCode, Implementation, ProtocolVersion, ServerCapabilities,
+        ServerInfo,
     },
     schemars::{self, JsonSchema},
     tool, tool_handler, tool_router,
@@ -56,12 +57,12 @@ impl SparkthMCPServer {
                 Ok(tool_result) => Ok(tool_result),
                 Err(e) => {
                     let msg = format!("Error while calling tool '{}': {}", tool_name, e);
-                    Ok(CallToolResult::success(vec![Content::text(msg)]))
+                    Err(Error::new(ErrorCode::INTERNAL_ERROR, msg, None))
                 }
             },
             None => {
                 let msg = format!("Tool '{}' not found.", tool_name);
-                Ok(CallToolResult::success(vec![Content::text(msg)]))
+                Err(Error::new(ErrorCode::METHOD_NOT_FOUND, msg, None))
             }
         }
     }
@@ -87,7 +88,7 @@ impl SparkthMCPServer {
 
     #[tool(description = "list all the available tools.")]
     pub fn list_tools(&self) -> Result<CallToolResult, Error> {
-        let tool_list = self.tool_registry.list_tools().join(", ");
+        let tool_list = self.tool_registry.list_tools().join("\n");
         Ok(CallToolResult::success(vec![Content::text(tool_list)]))
     }
 }

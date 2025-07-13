@@ -84,16 +84,9 @@ pub trait Plugin {
 /// ]);
 ///
 /// ```
+#[derive(Default)]
 pub struct PluginManager {
     plugins: Vec<Box<dyn Plugin>>,
-}
-
-impl Default for PluginManager {
-    fn default() -> Self {
-        Self {
-            plugins: Vec::new(),
-        }
-    }
 }
 
 impl PluginManager {

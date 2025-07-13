@@ -1,7 +1,7 @@
 use rmcp::model::CallToolResult;
 use serde_json::Value;
 
-use crate::server::tool::{Tool, ToolError};
+use crate::server::tool_trait::{Tool, ToolError};
 
 pub struct ToolRegistry {
     tools: Vec<Box<dyn Tool>>,
@@ -34,6 +34,6 @@ impl ToolRegistry {
                 return Some(tool.call(args).await);
             }
         }
-        return None;
+        None
     }
 }
