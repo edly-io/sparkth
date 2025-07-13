@@ -12,19 +12,10 @@ pub enum ConfigError {
     EnvNotFound(#[from] dotenvy::Error),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasConfig {
     pub api_url: String,
     pub api_token: String,
-}
-
-impl Default for CanvasConfig {
-    fn default() -> Self {
-        Self {
-            api_url: String::new(),
-            api_token: String::new(),
-        }
-    }
 }
 
 impl CanvasConfig {
