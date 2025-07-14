@@ -29,7 +29,11 @@ struct ServerConfigArgs {
     mode: Mode,
 }
 
-async fn run_sse_server(host: String, port: u16, tools_registry: ToolRegistry) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_sse_server(
+    host: String,
+    port: u16,
+    tools_registry: ToolRegistry,
+) -> Result<(), Box<dyn std::error::Error>> {
     let bind_address = format!("{}:{}", host, port);
 
     let config = SseServerConfig {
@@ -55,7 +59,7 @@ async fn run_stdio_server(tools_registry: ToolRegistry) -> Result<(), Box<dyn st
     let service = SparkthMCPServer::new(tools_registry)
         .serve(stdio())
         .await
-        .inspect_err(|err| println!("{err}"))?;
+        .inspect_err(|err| eprintln!("{err}"))?;
 
     service.waiting().await?;
 
@@ -64,18 +68,18 @@ async fn run_stdio_server(tools_registry: ToolRegistry) -> Result<(), Box<dyn st
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut registry = ToolRegistry::new();
-    canvas_plugin_setup(&mut registry)?;
-    
-    let args = ServerConfigArgs::parse();
-
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "debug".to_string().into()),
         )
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .init();
+
+    let mut registry = ToolRegistry::new();
+    canvas_plugin_setup(&mut registry)?;
+
+    let args = ServerConfigArgs::parse();
 
     match args.mode {
         Mode::Sse => run_sse_server(args.host, args.port, registry).await?,
