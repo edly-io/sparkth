@@ -1,11 +1,8 @@
 use crate::prompts;
 use rmcp::{
-    Error, ServerHandler,
-    model::{
+    handler::server::tool::{Parameters, ToolRouter}, model::{
         CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
-    },
-    schemars::{self, JsonSchema},
-    tool,
+    }, schemars::{self, JsonSchema}, tool, tool_handler, tool_router, Error, ServerHandler
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -50,11 +47,16 @@ pub struct Response {
 }
 
 #[derive(Clone)]
-pub struct SparkthMCPServer;
-#[tool(tool_box)]
+pub struct SparkthMCPServer {
+    tool_router: ToolRouter<Self>,
+}
+
+#[tool_router]
 impl SparkthMCPServer {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            tool_router: Self::tool_router(),
+        }
     }
 
     // #[tool(
@@ -81,7 +83,7 @@ impl SparkthMCPServer {
     )]
     pub fn fetch(
         &self,
-        #[tool(aggr)] FetchRequest { id }: FetchRequest,
+        Parameters(FetchRequest { id }): Parameters<FetchRequest>,
     ) -> Result<CallToolResult, Error> {
         let prompt = prompts::get_course_generation_prompt(
             "Rust for Beginners",
@@ -106,7 +108,7 @@ impl SparkthMCPServer {
     )]
     pub fn search(
         &self,
-        #[tool(aggr)] SearchRequest { query } : SearchRequest,
+        Parameters(SearchRequest { query }): Parameters<SearchRequest>,
     ) -> Result<CallToolResult, Error> {
         let prompt = prompts::get_course_generation_prompt(
             "Rust for Beginners",
@@ -124,7 +126,7 @@ impl SparkthMCPServer {
     }
 }
 
-#[tool(tool_box)]
+#[tool_handler]
 impl ServerHandler for SparkthMCPServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
