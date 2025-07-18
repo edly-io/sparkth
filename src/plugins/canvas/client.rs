@@ -142,6 +142,7 @@ impl CanvasClient {
     pub async fn create_course(&self, args: CreateCourseRequest) -> Result<Value, CanvasError> {
         let mut data = HashMap::new();
         data.insert("course[name]".to_string(), args.name.to_string());
+        data.insert("enroll_me".to_string(), "true".to_string());
 
         if let Some(code) = args.course_code {
             data.insert("course[course_code]".to_string(), code.to_string());
