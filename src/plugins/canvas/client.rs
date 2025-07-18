@@ -1,26 +1,16 @@
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_value};
 use std::collections::HashMap;
-use thiserror::Error;
 
-use crate::plugins::canvas::types::{
-    AddPageRequest, CanvasPage, CanvasResponse, CreateCourseRequest, CreateModuleItemRequest,
-    CreateModuleRequest, CreatePageRequest, DeleteModuleItemRequest, GetCourseRequest,
-    GetModuleItemRequest, GetModuleRequest, GetPageRequest, ListPagesRequest,
-    UpdateModuleItemRequest, UpdateModuleRequest, UpdatePageRequest,
+use crate::server::{
+    error::CanvasError,
+    types::{
+        AddPageRequest, CanvasPage, CanvasResponse, CreateCourseRequest, CreateModuleItemRequest,
+        CreateModuleRequest, CreatePageRequest, DeleteModuleItemRequest, GetCourseRequest,
+        GetModuleItemRequest, GetModuleRequest, GetPageRequest, ListPagesRequest,
+        UpdateModuleItemRequest, UpdateModuleRequest, UpdatePageRequest,
+    },
 };
-
-#[derive(Error, Debug)]
-pub enum CanvasError {
-    #[error("Canvas API Error ({status_code}): {message}")]
-    ApiError { status_code: u16, message: String },
-    #[error("HTTP request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
-    #[error("JSON parsing failed: {0}")]
-    JsonError(#[from] serde_json::Error),
-    #[error("Invalid HTTP method: {0}")]
-    InvalidMethod(String),
-}
 
 #[derive(Debug, Clone)]
 pub struct CanvasClient {

@@ -1,19 +1,18 @@
+use std::sync::Arc;
+
 use rmcp::model::CallToolResult;
 use serde_json::Value;
 
 use crate::server::tool_trait::{Tool, ToolError};
 
+#[derive(Default, Clone)]
 pub struct ToolRegistry {
-    tools: Vec<Box<dyn Tool>>,
+    tools: Vec<Arc<dyn Tool>>,
 }
 
 impl ToolRegistry {
-    pub fn new() -> Self {
-        Self { tools: Vec::new() }
-    }
-
-    pub fn register(&mut self, tool: Box<dyn Tool>) -> &mut Self {
-        self.tools.push(tool);
+    pub fn register<T: Tool + 'static>(&mut self, tool: T) -> &mut Self {
+        self.tools.push(Arc::new(tool));
         self
     }
 

@@ -1,16 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::env;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum ConfigError {
-    #[error("Environment variable not found: {0}")]
-    EnvVarNotFound(String),
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("env not found")]
-    EnvNotFound(#[from] dotenvy::Error),
-}
+use crate::server::error::ConfigError;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasConfig {

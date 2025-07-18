@@ -1,10 +1,12 @@
-mod filters;
+mod filter_macro;
 mod plugins;
 mod prompts;
 mod server;
+mod tools;
 
-use crate::plugins::canvas::canvas_plugin::canvas_plugin_setup;
+use crate::plugins::canvas::canvas_plugin::Canvas;
 use crate::server::mcp_server::SparkthMCPServer;
+use crate::server::plugin::PluginContext;
 use crate::server::tool_registry::ToolRegistry;
 use clap::{Parser, ValueEnum, arg};
 use rmcp::transport::sse_server::{SseServer, SseServerConfig};
@@ -32,7 +34,7 @@ struct ServerConfigArgs {
 async fn run_sse_server(
     host: String,
     port: u16,
-    tools_registry: ToolRegistry,
+    mcp: SparkthMCPServer,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let bind_address = format!("{}:{}", host, port);
 
@@ -44,19 +46,17 @@ async fn run_sse_server(
         sse_keep_alive: None,
     };
 
-    let sparkth_mcp = SparkthMCPServer::new(tools_registry);
-
     let ct = SseServer::serve_with_config(config)
         .await?
-        .with_service(move || sparkth_mcp.clone());
+        .with_service(move || mcp.clone());
     tokio::signal::ctrl_c().await?;
     ct.cancel();
 
     Ok(())
 }
 
-async fn run_stdio_server(tools_registry: ToolRegistry) -> Result<(), Box<dyn std::error::Error>> {
-    let service = SparkthMCPServer::new(tools_registry)
+async fn run_stdio_server(mcp: SparkthMCPServer) -> Result<(), Box<dyn std::error::Error>> {
+    let service = mcp
         .serve(stdio())
         .await
         .inspect_err(|err| eprintln!("{err}"))?;
@@ -76,14 +76,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .init();
 
-    let mut registry = ToolRegistry::new();
-    canvas_plugin_setup(&mut registry)?;
-
+    let plugin_context = PluginContext::default();
     let args = ServerConfigArgs::parse();
 
+    let mut sparkth_mcp = SparkthMCPServer::new(plugin_context);
+    sparkth_mcp.load(Canvas)?;
+
     match args.mode {
-        Mode::Sse => run_sse_server(args.host, args.port, registry).await?,
-        Mode::Stdio => run_stdio_server(registry).await?,
+        Mode::Sse => run_sse_server(args.host, args.port, sparkth_mcp).await?,
+        Mode::Stdio => run_stdio_server(sparkth_mcp).await?,
     }
 
     Ok(())

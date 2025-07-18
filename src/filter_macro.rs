@@ -52,8 +52,9 @@
 macro_rules! define_filter_chain {
 
     ($struct_name:ident, fn(&mut $data_type:ty $(, $arg_name:ident: $arg_type:ty)*)) => {
+        #[derive(Default)]
         pub struct $struct_name {
-            filters: Vec<Box<dyn Fn(&mut $data_type, $($arg_type),*)>>,
+            filters: Vec<Box<dyn Fn(&mut $data_type, $($arg_type),*) + Send + Sync>>,
         }
 
         impl $struct_name {
@@ -65,7 +66,7 @@ macro_rules! define_filter_chain {
 
             pub fn add_filter<F>(&mut self, filter: F) -> &mut Self
             where
-                F: Fn(&mut $data_type, $($arg_type),*) + 'static,
+                F: Fn(&mut $data_type, $($arg_type),*) + Send + Sync +'static,
             {
                 self.filters.push(Box::new(filter));
                 self
