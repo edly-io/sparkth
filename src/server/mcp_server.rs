@@ -1,6 +1,10 @@
-use std::sync::Arc;
-
-use crate::{prompts, server::tool_registry::ToolRegistry};
+use crate::{
+    prompts,
+    server::{
+        error::ConfigError,
+        plugin::{Plugin, PluginContext},
+    },
+};
 use rmcp::{
     Error, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
@@ -13,6 +17,7 @@ use rmcp::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use std::sync::{Arc, Mutex};
 
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
@@ -34,17 +39,29 @@ pub struct DispatchRequest {
 
 #[derive(Clone)]
 pub struct SparkthMCPServer {
-    tool_registry: Arc<ToolRegistry>,
+    plugins: Arc<Mutex<Vec<Box<dyn Plugin>>>>,
+    plugin_context: Arc<Mutex<PluginContext>>,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl SparkthMCPServer {
-    pub fn new(registry: ToolRegistry) -> Self {
+    pub fn new(plugin_context: PluginContext) -> Self {
         Self {
-            tool_registry: Arc::new(registry),
+            plugins: Arc::new(Mutex::new(Vec::new())),
+            plugin_context: Arc::new(Mutex::new(plugin_context)),
             tool_router: Self::tool_router(),
         }
+    }
+
+    pub fn load<P: Plugin + 'static>(&mut self, plugin: P) -> Result<(), ConfigError> {
+        let mut context = self.plugin_context.lock().unwrap();
+        plugin.register(&mut context)?;
+
+        let mut plugins = self.plugins.lock().unwrap();
+        plugins.push(Box::new(plugin));
+
+        Ok(())
     }
 
     #[tool(description = "call a tool by name.")]
@@ -52,7 +69,8 @@ impl SparkthMCPServer {
         &self,
         Parameters(DispatchRequest { tool_name, args }): Parameters<DispatchRequest>,
     ) -> Result<CallToolResult, Error> {
-        match self.tool_registry.call(&tool_name, args).await {
+        let tools = self.plugin_context.lock().unwrap().tools.clone();
+        match tools.call(&tool_name, args).await {
             Some(result) => match result {
                 Ok(tool_result) => Ok(tool_result),
                 Err(e) => {
@@ -88,21 +106,28 @@ impl SparkthMCPServer {
 
     #[tool(description = "list all the available tools.")]
     pub fn list_tools(&self) -> Result<CallToolResult, Error> {
-        let tool_list = self.tool_registry.list_tools().join("\n");
-        Ok(CallToolResult::success(vec![Content::text(tool_list)]))
+        let tools = self
+            .plugin_context
+            .lock()
+            .unwrap()
+            .tools
+            .list_tools()
+            .join("\n");
+        Ok(CallToolResult::success(vec![Content::text(tools)]))
     }
 }
 
 #[tool_handler]
 impl ServerHandler for SparkthMCPServer {
     fn get_info(&self) -> ServerInfo {
-        let tool_list = self.tool_registry.list_tools();
-
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some(format!("This server provides tools: {:?}.", tool_list)),
+            instructions: Some(format!(
+                "This server provides the following tools:\n{:?}.",
+                self.list_tools()
+            )),
         }
     }
 }

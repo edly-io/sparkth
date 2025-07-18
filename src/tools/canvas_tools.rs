@@ -1,6 +1,7 @@
 use crate::{
-    plugins::canvas::{
-        client::CanvasClient,
+    plugins::canvas::client::CanvasClient,
+    server::{
+        tool_trait::{Tool, ToolError},
         types::{
             AddPageRequest, CreateCourseRequest, CreateModuleItemRequest, CreateModuleRequest,
             CreatePageRequest, DeleteModuleItemRequest, GetCourseRequest, GetModuleItemRequest,
@@ -8,7 +9,6 @@ use crate::{
             UpdateModuleRequest, UpdatePageRequest,
         },
     },
-    server::tool_trait::{Tool, ToolError},
 };
 use async_trait::async_trait;
 use rmcp::model::{CallToolResult, Content, ErrorCode};

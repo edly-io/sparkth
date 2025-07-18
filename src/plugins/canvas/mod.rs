@@ -1,5 +1,3 @@
 pub mod canvas_plugin;
-mod client;
+pub mod client;
 mod config;
-mod tools;
-mod types;
