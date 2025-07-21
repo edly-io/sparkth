@@ -171,3 +171,86 @@ pub struct CanvasPage {
     pub page_id: Option<u64>,
     pub title: Option<String>,
 }
+
+#[derive(Deserialize)]
+pub struct GetQuizRequest {
+    pub course_id: String,
+    pub quiz_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreateQuizRequest {
+    pub course_id: String,
+    pub title: String,
+    pub description: String,
+    pub quiz_type: String,
+    pub time_limit: Option<i32>,
+    pub published: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateQuizRequest {
+    pub course_id: String,
+    pub quiz_id: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub quiz_type: Option<String>,
+    pub notify_of_update: bool,
+    pub time_limit: Option<i32>,
+    pub published: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct AddQuizRequest {
+    pub course_id: String,
+    pub module_id: String,
+    pub quiz_id: String,
+    pub title: Option<String>,
+    pub position: Option<u32>,
+    pub indent: Option<u32>,
+    pub new_tab: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct Quiz {
+    pub title: Option<String>,
+    pub quiz_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct GetQuestionRequest {
+    pub course_id: String,
+    pub quiz_id: String,
+    pub question_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Answer {
+    pub answer_id: Option<u32>,
+    pub text: String,
+    pub weight: u32,
+    pub answer_comments: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateQuestionRequest {
+    pub course_id: String,
+    pub quiz_id: String,
+    pub name: String,
+    pub text: String,
+    pub question_type: Option<String>,
+    pub points_possible: Option<f64>,
+    pub answers: Vec<Answer>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateQuestionRequest {
+    pub course_id: String,
+    pub quiz_id: String,
+    pub question_id: String,
+    pub name: Option<String>,
+    pub text: Option<String>,
+    pub question_type: Option<String>,
+    pub points_possible: Option<f64>,
+    pub answers: Option<Vec<Answer>>,
+}
