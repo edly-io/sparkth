@@ -3,9 +3,11 @@ use crate::plugins::canvas::config::CanvasConfig;
 use crate::server::error::ConfigError;
 use crate::server::plugin::{Plugin, PluginContext};
 use crate::tools::canvas_tools::{
-    AddPageToModule, CreateCourse, CreateModule, CreateModuleItem, CreatePage, DeleteModule,
-    DeleteModuleItem, DeletePage, GetCourse, GetCourses, GetModule, GetModuleItem, GetPage,
-    ListModuleItems, ListModules, ListPages, UpdateModule, UpdateModuleItem, UpdatePage,
+    AddPageToModule, AddQuizToModule, CreateCourse, CreateModule, CreateModuleItem, CreatePage,
+    CreateQuestion, CreateQuiz, DeleteModule, DeleteModuleItem, DeletePage, DeleteQuestion,
+    DeleteQuiz, GetCourse, GetCourses, GetModule, GetModuleItem, GetPage, GetQuestion, GetQuiz,
+    ListModuleItems, ListModules, ListPages, ListQuestions, ListQuizzes, UpdateModule,
+    UpdateModuleItem, UpdatePage, UpdateQuestion, UpdateQuiz,
 };
 
 pub struct Canvas;
@@ -83,6 +85,39 @@ impl Plugin for Canvas {
                 canvas_client: canvas_client.clone(),
             })
             .register(AddPageToModule {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(ListQuizzes {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(GetQuiz {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(CreateQuiz {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(UpdateQuiz {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(DeleteQuiz {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(AddQuizToModule {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(ListQuestions {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(GetQuestion {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(CreateQuestion {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(UpdateQuestion {
+                canvas_client: canvas_client.clone(),
+            })
+            .register(DeleteQuestion {
                 canvas_client: canvas_client.clone(),
             });
 
