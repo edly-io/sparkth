@@ -1,14 +1,16 @@
 use reqwest::{Client, Method, Response};
-use serde_json::{Value, from_value};
+use serde_json::{Value, from_value, to_string};
 use std::collections::HashMap;
 
 use crate::server::{
     error::CanvasError,
     types::{
-        AddPageRequest, CanvasPage, CanvasResponse, CreateCourseRequest, CreateModuleItemRequest,
-        CreateModuleRequest, CreatePageRequest, DeleteModuleItemRequest, GetCourseRequest,
-        GetModuleItemRequest, GetModuleRequest, GetPageRequest, ListPagesRequest,
-        UpdateModuleItemRequest, UpdateModuleRequest, UpdatePageRequest,
+        AddPageRequest, AddQuizRequest, CanvasPage, CanvasResponse, CreateCourseRequest,
+        CreateModuleItemRequest, CreateModuleRequest, CreatePageRequest, CreateQuestionRequest,
+        CreateQuizRequest, DeleteModuleItemRequest, GetCourseRequest, GetModuleItemRequest,
+        GetModuleRequest, GetPageRequest, GetQuestionRequest, GetQuizRequest, ListPagesRequest,
+        ModuleItemCompletionRequirement, Quiz, UpdateModuleItemRequest, UpdateModuleRequest,
+        UpdatePageRequest, UpdateQuestionRequest, UpdateQuizRequest,
     },
 };
 
@@ -658,5 +660,298 @@ impl CanvasClient {
         };
 
         self.create_module_item(module_item).await
+    }
+
+    pub async fn list_quizzes(&self, args: GetCourseRequest) -> Result<Vec<Value>, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!("courses/{}/quizzes", args.course_id),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(pages) => Ok(pages),
+            CanvasResponse::Single(page) => Ok(vec![page]),
+        }
+    }
+
+    pub async fn get_quiz(&self, args: GetQuizRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!("courses/{}/quizzes/{}", args.course_id, args.quiz_id),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+            CanvasResponse::Single(module) => Ok(module),
+        }
+    }
+
+    pub async fn create_quiz(&self, args: CreateQuizRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+        data.insert("quiz[title]".to_string(), args.title);
+        data.insert("quiz[description]".to_string(), args.description);
+        data.insert("quiz[quiz_type]".to_string(), args.quiz_type);
+
+        if let Some(published) = args.published {
+            data.insert("quiz[published]".to_string(), published.to_string());
+        }
+
+        if let Some(time_limit) = args.time_limit {
+            data.insert("quiz[time_limit]".to_string(), time_limit.to_string());
+        }
+
+        match self
+            .request(
+                "POST",
+                &format!("courses/{}/quizzes", args.course_id),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(quiz) => Ok(quiz),
+            CanvasResponse::Multiple(mut quizzes) => Ok(quizzes.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn update_quiz(&self, args: UpdateQuizRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+        data.insert(
+            "quiz[notify_of_update]".to_string(),
+            args.notify_of_update.to_string(),
+        );
+
+        if let Some(new_title) = args.title {
+            data.insert("quiz[title]".to_string(), new_title);
+        }
+
+        if let Some(new_description) = args.description {
+            data.insert("quiz[description]".to_string(), new_description);
+        }
+
+        if let Some(quiz_type) = args.quiz_type {
+            data.insert("quiz[quiz_type]".to_string(), quiz_type);
+        }
+
+        if let Some(published) = args.published {
+            data.insert("quiz[published]".to_string(), published.to_string());
+        }
+
+        if let Some(time_limit) = args.time_limit {
+            data.insert("quiz[time_limit]".to_string(), time_limit.to_string());
+        }
+
+        match self
+            .request(
+                "PUT",
+                &format!("courses/{}/quizzes/{}", args.course_id, args.quiz_id),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn delete_quiz(&self, args: GetQuizRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "DELETE",
+                &format!("courses/{}/quizzes/{}", args.course_id, args.quiz_id),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn add_quiz_to_module(&self, args: AddQuizRequest) -> Result<Value, CanvasError> {
+        let quiz = self
+            .get_quiz(GetQuizRequest {
+                course_id: args.course_id.clone(),
+                quiz_id: args.quiz_id.clone(),
+            })
+            .await?;
+
+        let quiz: Quiz = from_value(quiz)?;
+
+        let title = args
+            .title
+            .or_else(|| quiz.title.clone())
+            .unwrap_or_else(|| "Untitled Quiz".to_string());
+
+        let content_id = quiz.quiz_id.map(|id| id.to_string());
+
+        let quiz_module_item = CreateModuleItemRequest {
+            module_id: args.module_id,
+            course_id: args.course_id,
+            title,
+            item_type: "Quiz".to_string(),
+            content_id,
+            position: args.position,
+            indent: args.indent,
+            page_url: None,
+            new_tab: args.new_tab,
+            external_url: None,
+            completion_requirement: Some(ModuleItemCompletionRequirement {
+                requirement_type: "must_submit".to_string(),
+                min_score: None,
+            }),
+        };
+
+        self.create_module_item(quiz_module_item).await
+    }
+
+    pub async fn list_questions(&self, args: GetQuizRequest) -> Result<Vec<Value>, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!(
+                    "courses/{}/quizzes/{}/questions",
+                    args.course_id, args.quiz_id
+                ),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(pages) => Ok(pages),
+            CanvasResponse::Single(page) => Ok(vec![page]),
+        }
+    }
+
+    pub async fn get_question(&self, args: GetQuestionRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "GET",
+                &format!(
+                    "courses/{}/quizzes/{}/questions/{}",
+                    args.course_id, args.quiz_id, args.question_id
+                ),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+            CanvasResponse::Single(module) => Ok(module),
+        }
+    }
+
+    pub async fn create_question(&self, args: CreateQuestionRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+        data.insert("question[question_name]".to_string(), args.name);
+        data.insert("question[question_text]".to_string(), args.text);
+        data.insert(
+            "question[question_type]".to_string(),
+            "multiple_choice_question".to_string(),
+        );
+
+        for (i, answer) in args.answers.iter().enumerate() {
+            data.insert(
+                format!("question[answers][{i}]"),
+                to_string(&answer).unwrap(),
+            );
+        }
+
+        if let Some(points_possible) = args.points_possible {
+            data.insert(
+                "question[points_possible]".to_string(),
+                points_possible.to_string(),
+            );
+        }
+
+        match self
+            .request(
+                "POST",
+                &format!(
+                    "courses/{}/quizzes/{}/questions",
+                    args.course_id, args.quiz_id
+                ),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(quiz) => Ok(quiz),
+            CanvasResponse::Multiple(mut quizzes) => Ok(quizzes.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn update_question(&self, args: UpdateQuestionRequest) -> Result<Value, CanvasError> {
+        let mut data = HashMap::new();
+
+        if let Some(name) = args.name {
+            data.insert("question[question_name]".to_string(), name);
+        }
+
+        if let Some(text) = args.text {
+            data.insert("question[question_text]".to_string(), text);
+        }
+
+        if let Some(question_type) = args.question_type {
+            data.insert("question[question_type]".to_string(), question_type);
+        }
+
+        if let Some(points_possible) = args.points_possible {
+            data.insert(
+                "question[points_possible]".to_string(),
+                points_possible.to_string(),
+            );
+        }
+
+        if let Some(answers) = args.answers {
+            for (i, answer) in answers.into_iter().enumerate() {
+                data.insert(
+                    format!("question[answers][{i}]"),
+                    to_string(&answer).unwrap(),
+                );
+            }
+        }
+
+        match self
+            .request(
+                "PUT",
+                &format!(
+                    "courses/{}/quizzes/{}/questions/{}",
+                    args.course_id, args.quiz_id, args.question_id
+                ),
+                None,
+                Some(&data),
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
+    }
+
+    pub async fn delete_question(&self, args: GetQuestionRequest) -> Result<Value, CanvasError> {
+        match self
+            .request(
+                "DELETE",
+                &format!(
+                    "courses/{}/quizzes/{}/questions/{}",
+                    args.course_id, args.quiz_id, args.question_id
+                ),
+                None,
+                None,
+            )
+            .await?
+        {
+            CanvasResponse::Single(module) => Ok(module),
+            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
+        }
     }
 }
