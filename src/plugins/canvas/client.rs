@@ -1,5 +1,5 @@
 use reqwest::{Client, Method, Response};
-use serde_json::{Value, from_value, to_string};
+use serde_json::{Value, from_value};
 use std::collections::HashMap;
 
 use crate::server::{
@@ -860,9 +860,20 @@ impl CanvasClient {
 
         for (i, answer) in args.answers.iter().enumerate() {
             data.insert(
-                format!("question[answers][{i}]"),
-                to_string(&answer).unwrap(),
+                format!("question[answers][{i}][answer_text]"),
+                answer.answer_text.clone(),
             );
+            data.insert(
+                format!("question[answers][{i}][answerweight]"),
+                answer.answer_weight.to_string(),
+            );
+
+            if let Some(comments) = &answer.answer_comments {
+                data.insert(
+                    format!("question[answers][{i}][answer_comments]"),
+                    comments.clone(),
+                );
+            }
         }
 
         if let Some(points_possible) = args.points_possible {
@@ -912,11 +923,22 @@ impl CanvasClient {
         }
 
         if let Some(answers) = args.answers {
-            for (i, answer) in answers.into_iter().enumerate() {
+            for (i, answer) in answers.iter().enumerate() {
                 data.insert(
-                    format!("question[answers][{i}]"),
-                    to_string(&answer).unwrap(),
+                    format!("question[answers][{i}][answer_text]"),
+                    answer.answer_text.clone(),
                 );
+                data.insert(
+                    format!("question[answers][{i}][answerweight]"),
+                    answer.answer_weight.to_string(),
+                );
+
+                if let Some(comments) = &answer.answer_comments {
+                    data.insert(
+                        format!("question[answers][{i}][answer_comments]"),
+                        comments.clone(),
+                    );
+                }
             }
         }
 
