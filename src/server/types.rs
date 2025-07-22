@@ -226,9 +226,8 @@ pub struct GetQuestionRequest {
 
 #[derive(Serialize, Deserialize)]
 pub struct Answer {
-    pub answer_id: Option<u32>,
-    pub text: String,
-    pub weight: u32,
+    pub answer_text: String,
+    pub answer_weight: u32,
     pub answer_comments: Option<String>,
 }
 

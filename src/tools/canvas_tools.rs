@@ -1059,7 +1059,7 @@ impl Tool for CreateQuestion {
         let create_question_args: CreateQuestionRequest =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
-                args: "course_id: String, quiz_id: String, name: String, text: String, answers: Vec<Answer>. Answer type has {text: String, weight: u8}. Weight is 0 for incorrect answers, 100 for the correct one.".into(),
+                args: "course_id: String, quiz_id: String, name: String, text: String, answers: Vec<Answer>. Answer type has {answer_text: String, answer_weight: u8}. Weight is 0 for incorrect answers, 100 for the correct one.".into(),
             })?;
 
         match self
