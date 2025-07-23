@@ -2,6 +2,7 @@
 name = "sparkth"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/edly-io/sparkth"
 
 [dependencies]
 rmcp = { version = "0.2.1", features = [
@@ -22,3 +23,7 @@ tracing-subscriber = { version = "0.3.19", features = [
 clap = { version = "4.5.41", features = ["derive"] }
 tokio-util = "0.7.15"
 strum = { version = "0.27", features = ["derive"] }
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
