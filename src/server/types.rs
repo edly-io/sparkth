@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use strum::Display;
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -178,12 +179,28 @@ pub struct GetQuizRequest {
     pub quiz_id: String,
 }
 
+#[derive(Debug, Deserialize, Display)]
+pub enum QuizType {
+    #[serde(rename = "assignment")]
+    #[strum(to_string = "assignment")]
+    Assignment,
+    #[serde(rename = "practice_quiz")]
+    #[strum(to_string = "practice_quiz")]
+    PracticeQuiz,
+    #[serde(rename = "graded_survey")]
+    #[strum(to_string = "graded_survey")]
+    GradedSurvey,
+    #[serde(rename = "survey")]
+    #[strum(to_string = "survey")]
+    Survey,
+}
+
 #[derive(Deserialize)]
 pub struct CreateQuizRequest {
     pub course_id: String,
     pub title: String,
     pub description: String,
-    pub quiz_type: String,
+    pub quiz_type: QuizType,
     pub time_limit: Option<i32>,
     pub published: Option<bool>,
 }
