@@ -1,5 +1,6 @@
 use crate::plugins::canvas::client::CanvasClient;
 use crate::plugins::canvas::config::CanvasConfig;
+use crate::register_tools;
 use crate::server::error::ConfigError;
 use crate::server::plugin::{Plugin, PluginContext};
 use crate::tools::canvas_tools::{
@@ -28,98 +29,42 @@ impl Plugin for Canvas {
                 payload.name = format!("[Canvas] {} ({})", payload.name, username);
             });
 
-        context
-            .tools
-            .register(CreateCourse {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetCourse {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetCourses {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(ListModules {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetModule {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(CreateModule {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(UpdateModule {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(DeleteModule {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(ListModuleItems {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetModuleItem {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(CreateModuleItem {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(UpdateModuleItem {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(DeleteModuleItem {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(ListPages {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetPage {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(CreatePage {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(UpdatePage {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(DeletePage {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(AddPageToModule {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(ListQuizzes {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetQuiz {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(CreateQuiz {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(UpdateQuiz {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(DeleteQuiz {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(AddQuizToModule {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(ListQuestions {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(GetQuestion {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(CreateQuestion {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(UpdateQuestion {
-                canvas_client: canvas_client.clone(),
-            })
-            .register(DeleteQuestion {
-                canvas_client: canvas_client.clone(),
-            });
+        register_tools!(
+            context,
+            canvas_client,
+            [
+                CreateCourse,
+                GetCourse,
+                GetCourses,
+                ListModules,
+                GetModule,
+                CreateModule,
+                UpdateModule,
+                DeleteModule,
+                ListModuleItems,
+                GetModuleItem,
+                CreateModuleItem,
+                UpdateModuleItem,
+                DeleteModuleItem,
+                ListPages,
+                GetPage,
+                CreatePage,
+                UpdatePage,
+                DeletePage,
+                AddPageToModule,
+                ListQuizzes,
+                GetQuiz,
+                CreateQuiz,
+                UpdateQuiz,
+                DeleteQuiz,
+                AddQuizToModule,
+                ListQuestions,
+                GetQuestion,
+                CreateQuestion,
+                UpdateQuestion,
+                DeleteQuestion,
+            ]
+        );
 
         Ok(())
     }

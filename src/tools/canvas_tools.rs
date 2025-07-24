@@ -946,7 +946,7 @@ impl Tool for AddQuizToModule {
         let add_quiz_args: AddQuizRequest =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
-                args: "course_id: String, module_id: String, page_url: String".into(),
+                args: "course_id: String, module_id: String, quiz_id: String".into(),
             })?;
 
         match self.canvas_client.add_quiz_to_module(add_quiz_args).await {

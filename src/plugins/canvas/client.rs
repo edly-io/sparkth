@@ -33,7 +33,7 @@ impl CanvasClient {
 
     async fn request(
         &self,
-        method: &str,
+        http_method: Method,
         endpoint: &str,
         params: Option<&HashMap<String, String>>,
         data: Option<&HashMap<String, String>>,
@@ -42,16 +42,8 @@ impl CanvasClient {
 
         eprintln!(
             "Canvas API request: url={} method={} params={:?} data={:?}",
-            url, method, params, data
+            url, http_method, params, data
         );
-
-        let http_method = match method.to_uppercase().as_str() {
-            "GET" => Method::GET,
-            "POST" => Method::POST,
-            "PUT" => Method::PUT,
-            "DELETE" => Method::DELETE,
-            _ => return Err(CanvasError::InvalidMethod(method.to_string())),
-        };
 
         let mut request = self
             .client
@@ -124,21 +116,36 @@ impl CanvasClient {
         })
     }
 
-    pub async fn get_courses(&self) -> Result<Vec<Value>, CanvasError> {
-        match self.request("GET", "courses", None, None).await? {
-            CanvasResponse::Multiple(courses) => Ok(courses),
-            CanvasResponse::Single(course) => Ok(vec![course]),
+    fn unwrap_canvas_response_single(
+        &self,
+        response: CanvasResponse,
+    ) -> Result<Value, CanvasError> {
+        match response {
+            CanvasResponse::Single(val) => Ok(val),
+            CanvasResponse::Multiple(mut vals) => Ok(vals.pop().unwrap_or(Value::Null)),
         }
     }
 
-    pub async fn get_course(&self, course_id: &str) -> Result<Value, CanvasError> {
-        match self
-            .request("GET", &format!("courses/{}", course_id), None, None)
-            .await?
-        {
-            CanvasResponse::Single(course) => Ok(course),
-            CanvasResponse::Multiple(mut courses) => Ok(courses.pop().unwrap_or(Value::Null)),
+    fn unwrap_canvas_response_vec(
+        &self,
+        response: CanvasResponse,
+    ) -> Result<Vec<Value>, CanvasError> {
+        match response {
+            CanvasResponse::Single(val) => Ok(vec![val]),
+            CanvasResponse::Multiple(vals) => Ok(vals),
         }
+    }
+
+    pub async fn get_courses(&self) -> Result<Vec<Value>, CanvasError> {
+        let response = self.request(Method::GET, "courses", None, None).await?;
+        self.unwrap_canvas_response_vec(response)
+    }
+
+    pub async fn get_course(&self, course_id: &str) -> Result<Value, CanvasError> {
+        let response = self
+            .request(Method::GET, &format!("courses/{}", course_id), None, None)
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn create_course(&self, args: CreateCourseRequest) -> Result<Value, CanvasError> {
@@ -154,48 +161,39 @@ impl CanvasClient {
             data.insert("course[sis_course_id]".to_string(), sis_id.to_string());
         }
 
-        match self
+        let response = self
             .request(
-                "POST",
+                Method::POST,
                 &format!("accounts/{}/courses", args.account_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(course) => Ok(course),
-            CanvasResponse::Multiple(mut courses) => Ok(courses.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn list_modules(&self, args: GetCourseRequest) -> Result<Vec<Value>, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!("courses/{}/modules", args.course_id),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(modules) => Ok(modules),
-            CanvasResponse::Single(module) => Ok(vec![module]),
-        }
+            .await?;
+        self.unwrap_canvas_response_vec(response)
     }
 
     pub async fn get_module(&self, args: GetModuleRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!("courses/{}/modules/{}", args.course_id, args.module_id),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-            CanvasResponse::Single(module) => Ok(module),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn create_module(&self, args: CreateModuleRequest) -> Result<Value, CanvasError> {
@@ -233,18 +231,15 @@ impl CanvasClient {
             );
         }
 
-        match self
+        let response = self
             .request(
-                "POST",
+                Method::POST,
                 &format!("courses/{}/modules", args.course_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn update_module(&self, args: UpdateModuleRequest) -> Result<Value, CanvasError> {
@@ -292,42 +287,36 @@ impl CanvasClient {
             );
         }
 
-        match self
+        let response = self
             .request(
-                "PUT",
+                Method::PUT,
                 &format!("courses/{}/modules/{}", args.course_id, args.module_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn delete_module(&self, args: GetModuleRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "DELETE",
+                Method::DELETE,
                 &format!("courses/{}/modules/{}", args.course_id, args.module_id),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn list_module_items(
         &self,
         args: GetModuleRequest,
     ) -> Result<Vec<Value>, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!(
                     "courses/{}/modules/{}/items",
                     args.course_id, args.module_id
@@ -335,17 +324,14 @@ impl CanvasClient {
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(items) => Ok(items),
-            CanvasResponse::Single(item) => Ok(vec![item]),
-        }
+            .await?;
+        self.unwrap_canvas_response_vec(response)
     }
 
     pub async fn get_module_item(&self, args: GetModuleItemRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!(
                     "courses/{}/modules/{}/items/{}",
                     args.course_id, args.module_id, args.item_id
@@ -353,11 +339,8 @@ impl CanvasClient {
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Single(item) => Ok(item),
-            CanvasResponse::Multiple(mut items) => Ok(items.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn create_module_item(
@@ -412,9 +395,9 @@ impl CanvasClient {
             }
         }
 
-        match self
+        let response = self
             .request(
-                "POST",
+                Method::POST,
                 &format!(
                     "courses/{}/modules/{}/items",
                     args.course_id, args.module_id
@@ -422,11 +405,8 @@ impl CanvasClient {
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(item) => Ok(item),
-            CanvasResponse::Multiple(mut items) => Ok(items.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn update_module_item(
@@ -469,9 +449,9 @@ impl CanvasClient {
             }
         }
 
-        match self
+        let response = self
             .request(
-                "PUT",
+                Method::PUT,
                 &format!(
                     "courses/{}/modules/{}/items/{}",
                     args.course_id, args.module_id, args.item_id
@@ -479,20 +459,17 @@ impl CanvasClient {
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(item) => Ok(item),
-            CanvasResponse::Multiple(mut items) => Ok(items.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn delete_module_item(
         &self,
         args: DeleteModuleItemRequest,
     ) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "DELETE",
+                Method::DELETE,
                 &format!(
                     "courses/{}/modules/{}/items/{}",
                     args.course_id, args.module_id, args.item_id
@@ -500,11 +477,8 @@ impl CanvasClient {
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn list_pages(&self, args: ListPagesRequest) -> Result<Vec<Value>, CanvasError> {
@@ -514,33 +488,27 @@ impl CanvasClient {
             data.insert("search_term".to_string(), term.to_string());
         }
 
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!("courses/{}/pages", args.course_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Multiple(pages) => Ok(pages),
-            CanvasResponse::Single(page) => Ok(vec![page]),
-        }
+            .await?;
+        self.unwrap_canvas_response_vec(response)
     }
 
     pub async fn get_page(&self, args: GetPageRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!("courses/{}/pages/{}", args.course_id, args.page_url),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-            CanvasResponse::Single(module) => Ok(module),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn create_page(&self, args: CreatePageRequest) -> Result<Value, CanvasError> {
@@ -560,18 +528,15 @@ impl CanvasClient {
             data.insert("wiki_page[front_page]".to_string(), front_page.to_string());
         }
 
-        match self
+        let response = self
             .request(
-                "POST",
+                Method::POST,
                 &format!("courses/{}/pages", args.course_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn update_page(&self, args: UpdatePageRequest) -> Result<Value, CanvasError> {
@@ -600,33 +565,27 @@ impl CanvasClient {
             );
         }
 
-        match self
+        let response = self
             .request(
-                "PUT",
+                Method::PUT,
                 &format!("courses/{}/pages/{}", args.course_id, args.page_url),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn delete_page(&self, args: GetPageRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "DELETE",
+                Method::DELETE,
                 &format!("courses/{}/pages/{}", args.course_id, args.page_url),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn add_page_to_module(&self, args: AddPageRequest) -> Result<Value, CanvasError> {
@@ -663,40 +622,34 @@ impl CanvasClient {
     }
 
     pub async fn list_quizzes(&self, args: GetCourseRequest) -> Result<Vec<Value>, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!("courses/{}/quizzes", args.course_id),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(pages) => Ok(pages),
-            CanvasResponse::Single(page) => Ok(vec![page]),
-        }
+            .await?;
+        self.unwrap_canvas_response_vec(response)
     }
 
     pub async fn get_quiz(&self, args: GetQuizRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!("courses/{}/quizzes/{}", args.course_id, args.quiz_id),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-            CanvasResponse::Single(module) => Ok(module),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn create_quiz(&self, args: CreateQuizRequest) -> Result<Value, CanvasError> {
         let mut data = HashMap::new();
         data.insert("quiz[title]".to_string(), args.title);
         data.insert("quiz[description]".to_string(), args.description);
-        data.insert("quiz[quiz_type]".to_string(), args.quiz_type);
+        data.insert("quiz[quiz_type]".to_string(), args.quiz_type.to_string());
 
         if let Some(published) = args.published {
             data.insert("quiz[published]".to_string(), published.to_string());
@@ -706,18 +659,15 @@ impl CanvasClient {
             data.insert("quiz[time_limit]".to_string(), time_limit.to_string());
         }
 
-        match self
+        let response = self
             .request(
-                "POST",
+                Method::POST,
                 &format!("courses/{}/quizzes", args.course_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(quiz) => Ok(quiz),
-            CanvasResponse::Multiple(mut quizzes) => Ok(quizzes.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn update_quiz(&self, args: UpdateQuizRequest) -> Result<Value, CanvasError> {
@@ -747,33 +697,27 @@ impl CanvasClient {
             data.insert("quiz[time_limit]".to_string(), time_limit.to_string());
         }
 
-        match self
+        let response = self
             .request(
-                "PUT",
+                Method::PUT,
                 &format!("courses/{}/quizzes/{}", args.course_id, args.quiz_id),
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn delete_quiz(&self, args: GetQuizRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "DELETE",
+                Method::DELETE,
                 &format!("courses/{}/quizzes/{}", args.course_id, args.quiz_id),
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn add_quiz_to_module(&self, args: AddQuizRequest) -> Result<Value, CanvasError> {
@@ -814,9 +758,9 @@ impl CanvasClient {
     }
 
     pub async fn list_questions(&self, args: GetQuizRequest) -> Result<Vec<Value>, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!(
                     "courses/{}/quizzes/{}/questions",
                     args.course_id, args.quiz_id
@@ -824,17 +768,14 @@ impl CanvasClient {
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(pages) => Ok(pages),
-            CanvasResponse::Single(page) => Ok(vec![page]),
-        }
+            .await?;
+        self.unwrap_canvas_response_vec(response)
     }
 
     pub async fn get_question(&self, args: GetQuestionRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "GET",
+                Method::GET,
                 &format!(
                     "courses/{}/quizzes/{}/questions/{}",
                     args.course_id, args.quiz_id, args.question_id
@@ -842,11 +783,8 @@ impl CanvasClient {
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-            CanvasResponse::Single(module) => Ok(module),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn create_question(&self, args: CreateQuestionRequest) -> Result<Value, CanvasError> {
@@ -883,9 +821,9 @@ impl CanvasClient {
             );
         }
 
-        match self
+        let response = self
             .request(
-                "POST",
+                Method::POST,
                 &format!(
                     "courses/{}/quizzes/{}/questions",
                     args.course_id, args.quiz_id
@@ -893,11 +831,8 @@ impl CanvasClient {
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(quiz) => Ok(quiz),
-            CanvasResponse::Multiple(mut quizzes) => Ok(quizzes.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn update_question(&self, args: UpdateQuestionRequest) -> Result<Value, CanvasError> {
@@ -942,9 +877,9 @@ impl CanvasClient {
             }
         }
 
-        match self
+        let response = self
             .request(
-                "PUT",
+                Method::PUT,
                 &format!(
                     "courses/{}/quizzes/{}/questions/{}",
                     args.course_id, args.quiz_id, args.question_id
@@ -952,17 +887,14 @@ impl CanvasClient {
                 None,
                 Some(&data),
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 
     pub async fn delete_question(&self, args: GetQuestionRequest) -> Result<Value, CanvasError> {
-        match self
+        let response = self
             .request(
-                "DELETE",
+                Method::DELETE,
                 &format!(
                     "courses/{}/quizzes/{}/questions/{}",
                     args.course_id, args.quiz_id, args.question_id
@@ -970,10 +902,7 @@ impl CanvasClient {
                 None,
                 None,
             )
-            .await?
-        {
-            CanvasResponse::Single(module) => Ok(module),
-            CanvasResponse::Multiple(mut modules) => Ok(modules.pop().unwrap_or(Value::Null)),
-        }
+            .await?;
+        self.unwrap_canvas_response_single(response)
     }
 }
