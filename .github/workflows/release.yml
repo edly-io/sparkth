@@ -1,0 +1,119 @@
+name: Build and Publish Rust Binaries
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  CARGO_TERM_COLOR: always
+  BUILD_PROFILE: dist
+  ARTIFACT_DIR: artifacts
+
+jobs:
+  build:
+    name: Build for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust
+        run: |
+          rustup update stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Get binary name and extension
+        id: binary_info
+        shell: bash
+        run: |
+          BINARY_NAME=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].name')
+          VERSION="${{ github.ref_name }}"
+          BINARY_EXT=""
+          [[ "${{ matrix.target }}" == *"windows"* ]] && BINARY_EXT=".exe"
+
+          echo "binary_name=${BINARY_NAME}" >> $GITHUB_OUTPUT
+          echo "binary_ext=${BINARY_EXT}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        run: |
+          cargo build --profile=${{ env.BUILD_PROFILE }} --target=${{ matrix.target }}
+
+      - name: Prepare binary
+        shell: bash
+        run: |
+          BINARY_NAME="${{ steps.binary_info.outputs.binary_name }}"
+          BINARY_EXT="${{ steps.binary_info.outputs.binary_ext }}"
+          TARGET="${{ matrix.target }}"
+          VERSION="${{ steps.binary_info.outputs.version }}"
+
+          mkdir -p "$ARTIFACT_DIR"
+          cp "target/${TARGET}/${{ env.BUILD_PROFILE }}/${BINARY_NAME}${BINARY_EXT}" "$ARTIFACT_DIR/"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.binary_info.outputs.binary_name }}-${{ steps.binary_info.outputs.version }}-${{ matrix.target }}
+          path: ${{ env.ARTIFACT_DIR }}/*
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Package artifacts (.zip, .tar.gz) and create checksums
+        run: |
+          mkdir -p packaged
+
+          for dir in downloaded-artifacts/*; do
+            artifact_name=$(basename "$dir")
+            bin_path="$dir"/*
+
+            # Create .zip archive
+            zip -j "packaged/${artifact_name}.zip" $bin_path
+
+            # Create .tar.gz archive
+            tar -czf "packaged/${artifact_name}.tar.gz" -C "$dir" .
+
+            # Generate checksums
+            sha256sum "packaged/${artifact_name}.zip" > "packaged/${artifact_name}.zip.sha256"
+            sha256sum "packaged/${artifact_name}.tar.gz" > "packaged/${artifact_name}.tar.gz.sha256"
+          done
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --generate-notes \
+            packaged/*
