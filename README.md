@@ -146,9 +146,9 @@ Deploying Sparkth in production involves the following steps:
       Name=Sparkth SSE
       Remote MCP server URL=https://<yourdomainname.com>/
 
-## Options
+### Options
 
-### Transport mode: server-sent events (SSE) / stdio
+#### Transport mode: server-sent events (SSE) / stdio
 
 Sparkth MCP server can run in two modes, selectable via the `--mode` flag:
 
@@ -179,3 +179,7 @@ Run tests:
     cargo test
 
 ⚠️ Note that in stdio mode, you will need to restart Claude Desktop every time you recompile, otherwise changes will not be automatically picked up.
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
