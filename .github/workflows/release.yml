@@ -8,7 +8,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   BUILD_PROFILE: dist
-  ARTIFACT_DIR: artifacts
 
 jobs:
   build:
@@ -69,14 +68,14 @@ jobs:
           TARGET="${{ matrix.target }}"
           VERSION="${{ steps.binary_info.outputs.version }}"
 
-          mkdir -p "$ARTIFACT_DIR"
-          cp "target/${TARGET}/${{ env.BUILD_PROFILE }}/${BINARY_NAME}${BINARY_EXT}" "$ARTIFACT_DIR/"
+          mkdir -p artifacts
+          cp "target/${TARGET}/${{ env.BUILD_PROFILE }}/${BINARY_NAME}${BINARY_EXT}" artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.binary_info.outputs.binary_name }}-${{ steps.binary_info.outputs.version }}-${{ matrix.target }}
-          path: ${{ env.ARTIFACT_DIR }}/*
+          path: artifacts/*
 
   release:
     name: Create GitHub Release
@@ -91,7 +90,7 @@ jobs:
         with:
           path: downloaded-artifacts
 
-      - name: Package artifacts (.zip, .tar.gz) and create checksums
+      - name: Package artifacts
         run: |
           mkdir -p packaged
 
@@ -99,15 +98,13 @@ jobs:
             artifact_name=$(basename "$dir")
             bin_path="$dir"/*
 
-            # Create .zip archive
-            zip -j "packaged/${artifact_name}.zip" $bin_path
-
-            # Create .tar.gz archive
-            tar -czf "packaged/${artifact_name}.tar.gz" -C "$dir" .
-
-            # Generate checksums
-            sha256sum "packaged/${artifact_name}.zip" > "packaged/${artifact_name}.zip.sha256"
-            sha256sum "packaged/${artifact_name}.tar.gz" > "packaged/${artifact_name}.tar.gz.sha256"
+            if [[ "$artifact_name" == *"windows"* ]]; then
+              # Create .zip archive for Windows
+              zip -j "packaged/${artifact_name}.zip" $bin_path
+            else
+              # Create .tar.gz archive for Linux/macOS
+              tar -pcvzf "packaged/${artifact_name}.tar.gz" -C "$dir" .
+            fi
           done
 
       - name: Create GitHub Release
