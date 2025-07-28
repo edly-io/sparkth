@@ -21,3 +21,4 @@ tracing-subscriber = { version = "0.3.19", features = [
 ] }
 clap = { version = "4.5.41", features = ["derive"] }
 tokio-util = "0.7.15"
+chrono = "0.4.41"

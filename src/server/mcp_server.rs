@@ -5,6 +5,7 @@ use crate::{
         plugin::{Plugin, PluginContext},
     },
 };
+use chrono::{DateTime, Utc};
 use rmcp::{
     Error, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
@@ -27,6 +28,10 @@ pub struct CourseGenerationPromptRequest {
     pub course_name: String,
     #[schemars(description = "a brief description of the course")]
     pub course_description: String,
+    #[schemars(description = "the start date of the course")]
+    pub start_at: DateTime<Utc>,
+    #[schemars(description = "the end date of the course")]
+    pub end_at: DateTime<Utc>,
 }
 
 #[derive(JsonSchema, Deserialize)]
@@ -990,7 +995,7 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Generates a prompt for creating a course structure based on the course name, description and duration passed as the arguments. The course should follow instructional design principles."
+        description = "Generates a prompt for creating a course based on the parameters required. If any of the parameters is not provided, always ask for it instead of assuming values."
     )]
     pub fn get_course_generation_prompt(
         &self,
@@ -998,12 +1003,16 @@ impl SparkthMCPServer {
             course_name,
             course_duration,
             course_description,
+            start_at,
+            end_at,
         }): Parameters<CourseGenerationPromptRequest>,
     ) -> Result<CallToolResult, Error> {
         let prompt = prompts::get_course_generation_prompt(
             &course_name,
             &course_duration,
             &course_description,
+            start_at,
+            end_at,
         );
         Ok(CallToolResult::success(vec![Content::text(prompt)]))
     }

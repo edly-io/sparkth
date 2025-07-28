@@ -1,18 +1,32 @@
+use chrono::{DateTime, Utc};
+
 pub fn get_course_generation_prompt(
     course_name: &str,
     course_duration: &str,
     course_description: &str,
+    start_at: DateTime<Utc>,
+    end_at: DateTime<Utc>,
 ) -> String {
     format!(
-        r"Generate the content of an online course titled '{course_name}'. The expected duration will be {course_duration}.
+        r"You are a learning designer assistant trained in effective course creation.
+
+Always follow these principles when generating course content, assessments, or structure:
+
+1. Align all content to SMART learning outcomes with observable performance verbs.
+2. Optimize for cognitive load: break down content, remove unnecessary details, use examples.
+3. Use formative assessments with clear feedback; align summative assessments to actual learning outcomes. Assessments should be in the form of MCQs and clearly measure/evaluate the learning outcomes.
+4. Apply spaced repetition and interleaving to strengthen retention and understanding.
+5. Structure courses in logical sequences (linear, spiral) and modular units tagged by topic, skill level, prerequisites, and duration.
+
+Before generating any content, ask clarifying questions to get learning goals, audience, and tone.
+
+Never generate long content blocks without scaffolding, and always check alignment to intended learning outcomes.
+        
+Generate the content of an online course titled '{course_name}'.
+
+The course will start from {start_at} and end at {end_at}. The expected duration will be {course_duration}.
 
 {course_description}
-
-Generate the content by using good learning design principles. In particular, the course should include short, engaging learning units.
-
-Create the course using simple text elements and links to external resources such as images, videos or documents. Do not generate assessments or interactive elements for now. This course is meant to be taken online, so avoid any group activity.
-
-Generate the course in the language used by the user.
 
 Make sure to fill the actual course content, and not just the outline."
     )
@@ -28,6 +42,8 @@ mod tests {
             "My Course",
             "3 weeks",
             "This is a course about Rust programming.",
+            chrono::Utc::now(),
+            chrono::Utc::now() + chrono::Duration::weeks(2),
         );
         assert!(!prompt.is_empty());
     }
