@@ -1,15 +1,8 @@
 use crate::{
     plugins::canvas::client::CanvasClient,
     server::{
-        tool_trait::{Tool, ToolError},
-        types::{
-            AddPageRequest, AddQuizRequest, CreateCourseRequest, CreateModuleItemRequest,
-            CreateModuleRequest, CreatePageRequest, CreateQuestionRequest, CreateQuizRequest,
-            DeleteModuleItemRequest, GetCourseRequest, GetModuleItemRequest, GetModuleRequest,
-            GetPageRequest, GetQuestionRequest, GetQuizRequest, ListPagesRequest,
-            UpdateModuleItemRequest, UpdateModuleRequest, UpdatePageRequest, UpdateQuestionRequest,
-            UpdateQuizRequest,
-        },
+        tool_trait::{Tool, ToolError}, types::{CourseParams, CoursePayload, EnrollmentPayload, ListPagesPayload, ListUsersParams, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload, PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload, UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload, UpdateQuizPayload, UserPayload},
+        
     },
 };
 use async_trait::async_trait;
@@ -52,7 +45,7 @@ impl Tool for GetCourse {
 
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String")?;
-        let get_course_args: GetCourseRequest =
+        let get_course_args: CourseParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id".into(),
@@ -60,7 +53,7 @@ impl Tool for GetCourse {
 
         match self
             .canvas_client
-            .get_course(&get_course_args.course_id)
+            .get_course(get_course_args.course_id)
             .await
         {
             Ok(result) => Ok(CallToolResult::success(vec![Content::text(
@@ -125,7 +118,7 @@ impl Tool for CreateCourse {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "account_id: String, name: String")?;
 
-        let create_course_args: CreateCourseRequest =
+        let create_course_args: CoursePayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "account_id: String, name: String".into(),
@@ -159,7 +152,7 @@ impl Tool for ListModules {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String")?;
 
-        let course_args: GetCourseRequest =
+        let course_args: CourseParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String".into(),
@@ -200,7 +193,7 @@ impl Tool for GetModule {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
 
-        let get_module_args: GetModuleRequest =
+        let get_module_args: ModuleParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String".into(),
@@ -234,7 +227,7 @@ impl Tool for CreateModule {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, name: String")?;
 
-        let create_module_args: CreateModuleRequest =
+        let create_module_args: ModulePayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, name: String".into(),
@@ -268,7 +261,7 @@ impl Tool for UpdateModule {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
 
-        let update_module_args: UpdateModuleRequest =
+        let update_module_args: UpdateModulePayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String".into(),
@@ -302,7 +295,7 @@ impl Tool for DeleteModule {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
 
-        let delete_module_args: GetModuleRequest =
+        let delete_module_args: ModuleParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String".into(),
@@ -336,7 +329,7 @@ impl Tool for ListModuleItems {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
 
-        let list_mod_items_args: GetModuleRequest =
+        let list_mod_items_args: ModuleParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String".into(),
@@ -381,7 +374,7 @@ impl Tool for GetModuleItem {
             "course_id: String, module_id: String, item_id: String",
         )?;
 
-        let get_item_args: GetModuleItemRequest =
+        let get_item_args: ModuleItemParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String, item_id: String".into(),
@@ -419,7 +412,7 @@ impl Tool for CreateModuleItem {
             "course_id: String, module_id: String, item_type: String, title: String",
         )?;
 
-        let create_item_args: CreateModuleItemRequest =
+        let create_item_args: ModuleItemPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String, item_type: String, title: String"
@@ -462,7 +455,7 @@ impl Tool for UpdateModuleItem {
             "course_id: String, module_id: String, item_id: String",
         )?;
 
-        let update_module_item_args: UpdateModuleItemRequest =
+        let update_module_item_args: UpdateModuleItemPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String, item_id: String".into(),
@@ -504,7 +497,7 @@ impl Tool for DeleteModuleItem {
             "course_id: String, module_id: String, item_id: String",
         )?;
 
-        let delete_module_item_args: DeleteModuleItemRequest =
+        let delete_module_item_args: ModuleItemParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, module_id: String, item_id: String".into(),
@@ -546,7 +539,7 @@ impl Tool for ListPages {
             "course_id: String, search_term: Option<String>",
         )?;
 
-        let list_pages_args: ListPagesRequest =
+        let list_pages_args: ListPagesPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, search_term: Option<String>".into(),
@@ -583,7 +576,7 @@ impl Tool for GetPage {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, page_url: String")?;
 
-        let get_page: GetPageRequest =
+        let get_page: PageParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, page_url: String".into(),
@@ -621,7 +614,7 @@ impl Tool for CreatePage {
             "course_id: String, title: String, body: String",
         )?;
 
-        let create_page_args: CreatePageRequest =
+        let create_page_args: PagePayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, title: String, body: String".into(),
@@ -655,7 +648,7 @@ impl Tool for UpdatePage {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, page_url: String")?;
 
-        let update_page_args: UpdatePageRequest =
+        let update_page_args: UpdatePagePayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, page_url: String".into(),
@@ -689,7 +682,7 @@ impl Tool for DeletePage {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, page_url: String")?;
 
-        let delete_page_args: GetPageRequest =
+        let delete_page_args: PageParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, page_url: String".into(),
@@ -710,43 +703,43 @@ impl Tool for DeletePage {
     }
 }
 
-pub struct AddPageToModule {
-    pub canvas_client: CanvasClient,
-}
+// pub struct AddPageToModule {
+//     pub canvas_client: CanvasClient,
+// }
 
-#[async_trait]
-impl Tool for AddPageToModule {
-    fn name(&self) -> &str {
-        "add_page_to_module"
-    }
+// #[async_trait]
+// impl Tool for AddPageToModule {
+//     fn name(&self) -> &str {
+//         "add_page_to_module"
+//     }
 
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, module_id: String, page_url: String",
-        )?;
+//     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
+//         let parsed_args = parse_args(
+//             self.name(),
+//             args,
+//             "course_id: String, module_id: String, page_url: String",
+//         )?;
 
-        let add_page_args: AddPageRequest =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String, page_url: String".into(),
-            })?;
+//         let add_page_args: AddPageRequest =
+//             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
+//                 name: self.name().into(),
+//                 args: "course_id: String, module_id: String, page_url: String".into(),
+//             })?;
 
-        match self.canvas_client.add_page_to_module(add_page_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error adding page to module: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
+//         match self.canvas_client.add_page_to_module(add_page_args).await {
+//             Ok(result) => Ok(CallToolResult::success(vec![Content::text(
+//                 result.to_string(),
+//             )])),
+//             Err(err) => {
+//                 let message = format!("Error adding page to module: {:?}", err);
+//                 Err(ToolError::InternalError {
+//                     error_code: ErrorCode::INTERNAL_ERROR,
+//                     message,
+//                 })
+//             }
+//         }
+//     }
+// }
 
 pub struct ListQuizzes {
     pub canvas_client: CanvasClient,
@@ -761,7 +754,7 @@ impl Tool for ListQuizzes {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String")?;
 
-        let list_quizzes_args: GetCourseRequest =
+        let list_quizzes_args: CourseParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String".into(),
@@ -798,7 +791,7 @@ impl Tool for GetQuiz {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
 
-        let get_quiz: GetQuizRequest =
+        let get_quiz: QuizParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String".into(),
@@ -836,7 +829,7 @@ impl Tool for CreateQuiz {
             "course_id: String, title: String, description: String, quiz_type: String",
         )?;
 
-        let create_quiz_args: CreateQuizRequest =
+        let create_quiz_args: QuizPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, title: String, description: String, quiz_type: String"
@@ -871,7 +864,7 @@ impl Tool for UpdateQuiz {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
 
-        let update_quiz_args: UpdateQuizRequest =
+        let update_quiz_args: UpdateQuizPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String".into(),
@@ -905,7 +898,7 @@ impl Tool for DeleteQuiz {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
 
-        let delete_quiz_args: GetQuizRequest =
+        let delete_quiz_args: QuizParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String".into(),
@@ -926,43 +919,43 @@ impl Tool for DeleteQuiz {
     }
 }
 
-pub struct AddQuizToModule {
-    pub canvas_client: CanvasClient,
-}
+// pub struct AddQuizToModule {
+//     pub canvas_client: CanvasClient,
+// }
 
-#[async_trait]
-impl Tool for AddQuizToModule {
-    fn name(&self) -> &str {
-        "add_quiz_to_module"
-    }
+// #[async_trait]
+// impl Tool for AddQuizToModule {
+//     fn name(&self) -> &str {
+//         "add_quiz_to_module"
+//     }
 
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, module_id: String, quiz_id: String",
-        )?;
+//     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
+//         let parsed_args = parse_args(
+//             self.name(),
+//             args,
+//             "course_id: String, module_id: String, quiz_id: String",
+//         )?;
 
-        let add_quiz_args: AddQuizRequest =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String, quiz_id: String".into(),
-            })?;
+//         let add_quiz_args: AddQuizRequest =
+//             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
+//                 name: self.name().into(),
+//                 args: "course_id: String, module_id: String, quiz_id: String".into(),
+//             })?;
 
-        match self.canvas_client.add_quiz_to_module(add_quiz_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error adding quiz to module: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
+//         match self.canvas_client.add_quiz_to_module(add_quiz_args).await {
+//             Ok(result) => Ok(CallToolResult::success(vec![Content::text(
+//                 result.to_string(),
+//             )])),
+//             Err(err) => {
+//                 let message = format!("Error adding quiz to module: {:?}", err);
+//                 Err(ToolError::InternalError {
+//                     error_code: ErrorCode::INTERNAL_ERROR,
+//                     message,
+//                 })
+//             }
+//         }
+//     }
+// }
 
 pub struct ListQuestions {
     pub canvas_client: CanvasClient,
@@ -977,7 +970,7 @@ impl Tool for ListQuestions {
     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
         let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
 
-        let list_questions_args: GetQuizRequest =
+        let list_questions_args: QuizParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String".into(),
@@ -1018,7 +1011,7 @@ impl Tool for GetQuestion {
             "course_id: String, quiz_id: String, question_id: String",
         )?;
 
-        let get_question: GetQuestionRequest =
+        let get_question: QuestionParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String, question_id: String".into(),
@@ -1056,7 +1049,7 @@ impl Tool for CreateQuestion {
             "course_id: String, title: String, description: String, quiz_type: String",
         )?;
 
-        let create_question_args: CreateQuestionRequest =
+        let create_question_args: QuestionPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String, name: String, text: String, answers: Vec<Answer>. Answer type has {answer_text: String, answer_weight: u8}. Weight is 0 for incorrect answers, 100 for the correct one.".into(),
@@ -1098,7 +1091,7 @@ impl Tool for UpdateQuestion {
             "course_id: String, quiz_id: String, question_id: String",
         )?;
 
-        let update_question_args: UpdateQuestionRequest =
+        let update_question_args: UpdateQuestionPayload =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String, question_id: String".into(),
@@ -1140,7 +1133,7 @@ impl Tool for DeleteQuestion {
             "course_id: String, quiz_id: String, question_id: String",
         )?;
 
-        let delete_question_args: GetQuestionRequest =
+        let delete_question_args: QuestionParams =
             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
                 name: self.name().into(),
                 args: "course_id: String, quiz_id: String, question_id: String".into(),
@@ -1156,6 +1149,127 @@ impl Tool for DeleteQuestion {
             )])),
             Err(err) => {
                 let message = format!("Error deleting the question: {:?}", err);
+                Err(ToolError::InternalError {
+                    error_code: ErrorCode::INTERNAL_ERROR,
+                    message,
+                })
+            }
+        }
+    }
+}
+
+pub struct ListUsers {
+    pub canvas_client: CanvasClient,
+}
+
+#[async_trait]
+impl Tool for ListUsers {
+    fn name(&self) -> &str {
+        "list_users"
+    }
+
+    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
+        let parsed_args = parse_args(self.name(), args, "account_id: String")?;
+
+        let list_users_args: ListUsersParams =
+            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
+                name: self.name().into(),
+                args: "account_id: String".into(),
+            })?;
+
+        match self.canvas_client.list_users(list_users_args).await {
+            Ok(result) => {
+                let items: Vec<String> = result.into_iter().map(|item| item.to_string()).collect();
+                Ok(CallToolResult::success(vec![Content::text(
+                    items.join("\n"),
+                )]))
+            }
+            Err(err) => {
+                let message = format!("Error listing the users: {:?}", err);
+                Err(ToolError::InternalError {
+                    error_code: ErrorCode::INTERNAL_ERROR,
+                    message,
+                })
+            }
+        }
+    }
+}
+
+pub struct CreateUser {
+    pub canvas_client: CanvasClient,
+}
+
+#[async_trait]
+impl Tool for CreateUser {
+    fn name(&self) -> &str {
+        "create_user"
+    }
+
+    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
+        let parsed_args = parse_args(
+            self.name(),
+            args,
+            "account_id: String, name: String, unique_id: String, short_name: Option<String>, sortable_name: Option<String>, send_confirmation: Option<bool>, communication_type: Option<String>, communication_address: Option<String>",
+        )?;
+
+        let create_user: UserPayload =
+            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
+                name: self.name().into(),
+                args: "account_id: String, name: String, unique_id: String, short_name: Option<String>, sortable_name: Option<String>, send_confirmation: Option<bool>, communication_type: Option<String>, communication_address: Option<String>".into(),
+            })?;
+
+        match self
+            .canvas_client
+            .create_user(create_user)
+            .await
+        {
+            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
+                result.to_string(),
+            )])),
+            Err(err) => {
+                let message = format!("Error creating the user: {:?}", err);
+                Err(ToolError::InternalError {
+                    error_code: ErrorCode::INTERNAL_ERROR,
+                    message,
+                })
+            }
+        }
+    }
+}
+
+pub struct EnrollUser {
+    pub canvas_client: CanvasClient,
+}
+
+#[async_trait]
+impl Tool for EnrollUser {
+    fn name(&self) -> &str {
+        "enroll_user"
+    }
+
+    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
+        let parsed_args = parse_args(
+            self.name(),
+            args,
+            "course_id: String, user_id: String, enrollment_type: EnrollmentType {StudentEnrollment, TeacherEnrollment, TaEnrollment, ObserverEnrollment, DesignerEnrollment}, enrollment_state: {active, inactive, invited}",
+        )?;
+
+        let enroll_user: EnrollmentPayload =
+            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
+                name: self.name().into(),
+                args: "course_id: String, user_id: String, enrollment_type: EnrollmentType {StudentEnrollment, TeacherEnrollment, TaEnrollment, ObserverEnrollment, DesignerEnrollment}, enrollment_state: {active, inactive, invited}".into(),
+            })?;
+
+        match self
+            .canvas_client
+            .enroll_user(enroll_user)
+            .await
+        {
+            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
+                result.to_string(),
+            )])),
+            Err(err) => {
+                let message = format!("Error enrolling the user: {:?}", err);
                 Err(ToolError::InternalError {
                     error_code: ErrorCode::INTERNAL_ERROR,
                     message,
