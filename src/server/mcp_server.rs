@@ -995,7 +995,29 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Generates a prompt for creating a course based on the parameters required. If any of the parameters is not provided, always ask for it instead of assuming values."
+        description = "Generates a prompt for creating a course based on the parameters required. 
+        If any of the parameters is not provided, always ask for it instead of assuming values.
+
+        When generating the actual course content, follow the checklist:
+- ILO & Curriculum Alignment
+Are there 3-5 SMART learning outcomes?
+Does each content block map to at least one ILO?
+Are assessments aligned to intended performance outcomes (not just recall)?
+
+- Cognitive Load
+Are lessons broken into manageable chunks (max 5-7 min read time)?
+Are complex concepts split and scaffolded across lessons? 
+
+- Assessment Quality
+Are formative assessments present throughout the course (knowledge checks)?
+Do summative assessments target higher-order thinking (where applicable)?
+
+- Spaced Repetition / Interleaving
+Are key concepts revisited in later modules?
+Are practice questions interleaved with related topics?
+
+Cross-question the user to get the required and correct information. In case of any confusion, ask for clarification.   
+        "
     )]
     pub fn get_course_generation_prompt(
         &self,
