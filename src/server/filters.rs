@@ -1,8 +1,8 @@
-use crate::{define_filter_chain, server::types::CreateCourseRequest};
+use crate::{define_filter_chain, server::types::CoursePayload};
 
 define_filter_chain!(
     CoursePayloadFilterChain,
-    fn(&mut CreateCourseRequest, username: &str)
+    fn(&mut CoursePayload, username: &str)
 );
 
 #[derive(Default)]

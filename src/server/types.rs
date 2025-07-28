@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use strum::Display;
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -9,157 +9,213 @@ pub enum CanvasResponse {
     Multiple(Vec<Value>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Enrollment {
-    pub enrollment_state: String,
-    pub limit_privileges_to_course_section: bool,
-    pub role: String,
-    pub role_id: u64,
-    #[serde(rename = "type")]
-    pub enrollment_type: String,
-    pub user_id: u64,
+#[derive(Deserialize)]
+pub struct CourseParams {
+    pub course_id: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Course {
-    pub id: Option<u64>,
     pub name: String,
-    pub course_code: Option<String>,
-    pub sis_course_id: Option<String>,
-    pub account_id: Option<u64>,
-    pub workflow_state: Option<String>,
-    pub enrollments: Vec<Enrollment>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    course_code: Option<String>,
+    sis_course_id: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CoursePayload {
+    pub course: Course,
+    pub enroll_me: bool,
+    pub account_id: u32,
 }
 
 #[derive(Deserialize)]
-pub struct GetCourseRequest {
-    pub course_id: String,
+pub struct ModuleParams {
+    pub course_id: u32,
+    pub module_id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Module {
+    name: String,
+    position: Option<u8>,
+    unlock_at: Option<DateTime<Utc>>,
+    require_sequential_progress: Option<bool>,
+    prerequisite_module_ids: Option<Vec<u32>>,
+    publish_final_grade: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ModulePayload {
+    pub module: Module,
+    pub course_id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatedModule {
+name: Option<String>,
+position: Option<u8>,
+unlock_at: Option<DateTime<Utc>>,
+require_sequential_progress: Option<bool>,
+prerequisite_module_ids: Option<Vec<u32>>,
+publish_final_grade: Option<bool>,
+published: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdateModulePayload {
+    pub module: UpdatedModule,
+    pub course_id: u32,
+    pub module_id: u32,
 }
 
 #[derive(Deserialize)]
-pub struct CreateCourseRequest {
-    pub account_id: String,
-    pub name: String,
-    pub course_code: Option<String>,
-    pub sis_course_id: Option<String>,
+pub struct ModuleItemParams {
+    pub course_id: u32,
+    pub module_id: u32,
+    pub item_id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ModuleItemCompletionRequirement {
+    requirement_type: String,
+    min_score: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize)]
+enum ModuleItemType {
+    File,
+    Page,
+    Discussion,
+    Assignment,
+    Quiz,
+    SubHeader,
+    ExternalUrl,
+    ExternalTool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ModuleItem {
+title: String,
+    #[serde(rename = "type")]
+item_type: ModuleItemType,
+content_id: Option<String>,
+position: Option<u32>,
+indent: Option<u32>,
+page_url: Option<String>,
+external_url: Option<String>,
+new_tab: Option<bool>,
+completion_requirement: Option<ModuleItemCompletionRequirement>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ModuleItemPayload {
+    pub module_id: u32,
+    pub course_id: u32,
+    pub module_item: ModuleItem,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatedModuleItem {
+    title: Option<String>,
+    position: Option<u32>,
+    indent: Option<u32>,
+    external_url: Option<String>,
+    new_tab: Option<bool>,
+    completion_requirement: Option<ModuleItemCompletionRequirement>,
+    module_id: Option<u32>,
+    published: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdateModuleItemPayload {
+    pub module_id: u32,
+    pub course_id: u32,
+    pub item_id: u32,
+    pub module_item: UpdatedModuleItem,
+}
+
+#[derive(Serialize, Deserialize)]
+enum SortBy {
+    #[serde(rename_all = "snake_case")]
+    Title,
+    #[serde(rename = "created_at")]
+    CreatedAt,
+    #[serde(rename = "updated_at")]
+    UpdatedAt,
+}
+
+#[derive(Serialize, Deserialize)]enum Order {
+    #[serde(rename = "asc")]
+    Ascending,
+    #[serde(rename = "desc")]
+    Descending,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ListPagesPayload {
+    pub course_id: u32,
+    search_term: Option<String>,
+    sort: Option<SortBy>,
+    order: Option<Order>,
+    published: Option<bool>,
+    include: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
-pub struct GetModuleRequest {
-    pub course_id: String,
-    pub module_id: String,
-}
-
-#[derive(Deserialize)]
-pub struct CreateModuleRequest {
-    pub course_id: String,
-    pub name: String,
-    pub position: Option<u8>,
-    pub unlock_at: Option<String>,
-    pub require_sequential_progress: Option<bool>,
-    pub prerequisite_module_ids: Option<Vec<String>>,
-    pub publish_final_grade: Option<bool>,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateModuleRequest {
-    pub course_id: String,
-    pub module_id: String,
-    pub name: Option<String>,
-    pub position: Option<u32>,
-    pub unlock_at: Option<String>,
-    pub require_sequential_progress: Option<bool>,
-    pub prerequisite_module_ids: Option<Vec<String>>,
-    pub publish_final_grade: Option<bool>,
-}
-
-#[derive(Deserialize)]
-pub struct GetModuleItemRequest {
-    pub course_id: String,
-    pub module_id: String,
-    pub item_id: String,
-}
-
-#[derive(Deserialize)]
-pub struct ModuleItemCompletionRequirement {
-    pub requirement_type: String,
-    pub min_score: Option<f64>,
-}
-
-#[derive(Deserialize)]
-pub struct CreateModuleItemRequest {
-    pub module_id: String,
-    pub course_id: String,
-    pub title: String,
-    pub item_type: String,
-    pub content_id: Option<String>,
-    pub position: Option<u32>,
-    pub indent: Option<u32>,
-    pub page_url: Option<String>,
-    pub external_url: Option<String>,
-    pub new_tab: Option<bool>,
-    pub completion_requirement: Option<ModuleItemCompletionRequirement>,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateModuleItemRequest {
-    pub module_id: String,
-    pub course_id: String,
-    pub item_id: String,
-    pub title: Option<String>,
-    pub position: Option<u32>,
-    pub indent: Option<u32>,
-    pub external_url: Option<String>,
-    pub new_tab: Option<bool>,
-    pub completion_requirement: Option<ModuleItemCompletionRequirement>,
-}
-
-#[derive(Deserialize)]
-pub struct DeleteModuleItemRequest {
-    pub module_id: String,
-    pub course_id: String,
-    pub item_id: String,
-}
-
-#[derive(Deserialize)]
-pub struct ListPagesRequest {
-    pub course_id: String,
-    pub search_term: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct GetPageRequest {
-    pub course_id: String,
+pub struct PageParams {
+    pub course_id: u32,
     pub page_url: String,
 }
 
-#[derive(Deserialize)]
-pub struct CreatePageRequest {
-    pub course_id: String,
-    pub title: String,
-    pub body: String,
-    pub editing_roles: Option<String>,
-    pub published: Option<bool>,
-    pub front_page: Option<bool>,
+#[derive(Serialize, Deserialize, Default)]
+enum EditingRoles {
+    #[serde(rename_all = "lowercase")]
+    #[default]
+    Teachers,
+    Students,
+    Members,
+    Public,
 }
 
-#[derive(Deserialize)]
-pub struct UpdatePageRequest {
-    pub course_id: String,
-    pub page_url: String,
+#[derive(Default, Serialize, Deserialize)]
+struct Page {
+    title: String,
+    editing_roles: EditingRoles,
+    body: Option<String>,
+    notify_of_update: Option<bool>,
+    published: Option<bool>,
+    front_page: Option<bool>,
+    publish_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PagePayload {
+    pub course_id: u32,
+    pub wiki_page: Page,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatedPage {
     pub title: Option<String>,
     pub body: Option<String>,
-    pub editing_roles: Option<String>,
+    pub editing_roles: Option<EditingRoles>,
+    pub notify_of_update: Option<bool>,
     pub published: Option<bool>,
+    pub publish_at: Option<DateTime<Utc>>,
     pub front_page: Option<bool>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct UpdatePagePayload {
+    pub course_id: u32,
+    pub url_or_id: String,
+    pub wiki_page: UpdatedPage,
+}
+
 #[derive(Deserialize)]
-pub struct AddPageRequest {
-    pub course_id: String,
-    pub module_id: String,
+pub struct AddPageParams {
+    pub course_id: u32,
+    pub module_id: u32,
     pub page_url: String,
     pub title: Option<String>,
     pub position: Option<u32>,
@@ -174,68 +230,121 @@ pub struct CanvasPage {
 }
 
 #[derive(Deserialize)]
-pub struct GetQuizRequest {
-    pub course_id: String,
-    pub quiz_id: String,
+pub struct QuizParams {
+    pub course_id: u32,
+    pub quiz_id: u32,
 }
 
-#[derive(Debug, Deserialize, Display)]
+#[derive(Serialize, Deserialize)]
 pub enum QuizType {
-    #[serde(rename = "assignment")]
-    #[strum(to_string = "assignment")]
+    #[serde(rename_all = "snake_case")]
     Assignment,
-    #[serde(rename = "practice_quiz")]
-    #[strum(to_string = "practice_quiz")]
     PracticeQuiz,
-    #[serde(rename = "graded_survey")]
-    #[strum(to_string = "graded_survey")]
     GradedSurvey,
-    #[serde(rename = "survey")]
-    #[strum(to_string = "survey")]
     Survey,
 }
 
-#[derive(Deserialize)]
-pub struct CreateQuizRequest {
-    pub course_id: String,
+#[derive(Serialize, Deserialize)]
+pub enum HideResults {
+    #[serde(rename_all = "snake_case")]
+    Always,
+    UntilAfterLastAttempt,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum ScoringPolicy {
+    #[serde(rename_all = "snake_case")]
+    KeepHighest,
+    KeepLatest,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Quiz {
     pub title: String,
     pub description: String,
     pub quiz_type: QuizType,
+    pub assignment_group_id: Option<i32>,
     pub time_limit: Option<i32>,
+    pub shuffle_answers: Option<bool>,
+    pub hide_results: Option<HideResults>,
+    pub show_correct_answers: Option<bool>,
+    pub show_correct_answers_last_attempt: Option<bool>,
+    pub show_correct_answers_at: Option<DateTime<Utc>>,
+    pub hide_correct_answers_at: Option<DateTime<Utc>>,
+    pub allowed_attempts: Option<u8>,
+    pub scoring_policy: Option<ScoringPolicy>,
+    pub one_question_at_a_time: Option<bool>,
+    pub cant_go_back: Option<bool>,
+    pub access_code: Option<String>,
+    pub ip_filter: Option<String>,
+    pub due_at: Option<DateTime<Utc>>,
+    pub lock_at: Option<DateTime<Utc>>,
+    pub unlock_at: Option<DateTime<Utc>>,
     pub published: Option<bool>,
+    pub one_time_results: Option<bool>,
+    pub only_visible_to_overrides: Option<bool>,
 }
 
-#[derive(Deserialize)]
-pub struct UpdateQuizRequest {
-    pub course_id: String,
-    pub quiz_id: String,
+#[derive(Serialize, Deserialize)]
+pub struct QuizPayload {
+    pub course_id: u32,
+    pub quiz: Quiz,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatedQuiz {
     pub title: Option<String>,
     pub description: Option<String>,
-    pub quiz_type: Option<String>,
-    pub notify_of_update: bool,
+    pub quiz_type: Option<QuizType>,
+    pub assignment_group_id: Option<i32>,
     pub time_limit: Option<i32>,
+    pub shuffle_answers: Option<bool>,
+    pub hide_results: Option<HideResults>,
+    pub show_correct_answers: Option<bool>,
+    pub show_correct_answers_last_attempt: Option<bool>,
+    pub show_correct_answers_at: Option<DateTime<Utc>>,
+    pub hide_correct_answers_at: Option<DateTime<Utc>>,
+    pub allowed_attempts: Option<u8>,
+    pub scoring_policy: Option<ScoringPolicy>,
+    pub one_question_at_a_time: Option<bool>,
+    pub cant_go_back: Option<bool>,
+    pub access_code: Option<String>,
+    pub ip_filter: Option<String>,
+    pub due_at: Option<DateTime<Utc>>,
+    pub lock_at: Option<DateTime<Utc>>,
+    pub unlock_at: Option<DateTime<Utc>>,
     pub published: Option<bool>,
+    pub one_time_results: Option<bool>,
+    pub only_visible_to_overrides: Option<bool>,
+    pub notify_of_update: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
+pub struct UpdateQuizPayload {
+    pub course_id: u32,
+    pub quiz_id: u32,
+    pub quiz: UpdatedQuiz,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct AddQuizRequest {
-    pub course_id: String,
-    pub module_id: String,
-    pub quiz_id: String,
+    pub course_id: u32,
+    pub module_id: u32,
+    pub quiz_id: u32,
     pub title: Option<String>,
     pub position: Option<u32>,
     pub indent: Option<u32>,
     pub new_tab: Option<bool>,
 }
 
-#[derive(Deserialize)]
-pub struct Quiz {
-    pub title: Option<String>,
-    pub quiz_id: Option<String>,
-}
+// #[derive(Deserialize)]
+// pub struct QuizParams {
+//     pub title: Option<String>,
+//     pub quiz_id: Option<String>,
+// }
 
 #[derive(Deserialize)]
-pub struct GetQuestionRequest {
+pub struct QuestionParams {
     pub course_id: String,
     pub quiz_id: String,
     pub question_id: String,
@@ -248,25 +357,146 @@ pub struct Answer {
     pub answer_comments: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct CreateQuestionRequest {
-    pub course_id: String,
-    pub quiz_id: String,
-    pub name: String,
-    pub text: String,
-    pub question_type: Option<String>,
+#[derive(Serialize, Deserialize)]
+pub enum QuestionType {
+    #[serde(rename_all = "snake_case")]
+    CalculatedQuestion,
+    EssayQuestion,
+    FileUploadQuestion,
+    FillInMultipleBlanksQuestion,
+    MatchingQuestion,
+    MultipleAnswersQuestion,
+    MultipleChoiceQuestion,
+    MultipleDropdownsQuestion,
+    NumericalQuestion,
+    ShortAnswerQuestion,
+    TextOnlyQuestion,
+    TrueFalseQuestion,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Question {
+    pub question_name: String,
+    pub question_text: String,
+    pub quiz_group_id: Option<u32>,
+    pub question_type: Option<QuestionType>,
+    pub position: Option<u8>,
     pub points_possible: Option<f64>,
-    pub answers: Vec<Answer>,
+    pub correct_comments: Option<String>,
+    pub incorrect_comments: Option<String>,
+    pub neutral_comments: Option<String>,
+    pub text_after_answers: Option<String>,
+    pub answers: Option<Vec<Answer>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct QuestionPayload {
+    pub question: Question,
+    pub course_id: u32,
+    pub quiz_id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatedQuestion {
+    pub question_name: Option<String>,
+    pub question_text: Option<String>,
+    pub quiz_group_id: Option<u32>,
+    pub question_type: Option<QuestionType>,
+    pub position: Option<u8>,
+    pub points_possible: Option<f64>,
+    pub correct_comments: Option<String>,
+    pub incorrect_comments: Option<String>,
+    pub neutral_comments: Option<String>,
+    pub text_after_answers: Option<String>,
+    pub answers: Option<Vec<Answer>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdateQuestionPayload {
+    pub question: UpdatedQuestion,
+    pub course_id: u32,
+    pub quiz_id: u32,
+    pub question_id: u32,
 }
 
 #[derive(Deserialize)]
-pub struct UpdateQuestionRequest {
-    pub course_id: String,
-    pub quiz_id: String,
-    pub question_id: String,
-    pub name: Option<String>,
-    pub text: Option<String>,
-    pub question_type: Option<String>,
-    pub points_possible: Option<f64>,
-    pub answers: Option<Vec<Answer>>,
+pub struct ListUsersParams {
+    pub account_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreateUserRequest {
+    pub account_id: String,
+    pub name: String,
+    pub unique_id: String,
+    pub short_name: Option<String>,
+    pub sortable_name: Option<String>,
+    pub send_confirmation: Option<bool>,
+    pub communication_type: Option<String>,
+    pub communication_address: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct User {
+    pub name: String,
+    pub terms_of_use: bool,
+    pub skip_registration: bool,
+    pub short_name: Option<String>,
+    pub sortable_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Pseudonym {
+    pub unique_id: String,
+    pub send_confirmation: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserPayload {
+    pub account_id: String,
+    pub user: User,
+    pub pseudonym: Pseudonym,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum EnrollmentType {
+    StudentEnrollment,
+    TeacherEnrollment,
+    TaEnrollment,
+    ObserverEnrollment,
+    DesignerEnrollment,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum EnrollmentState {
+    #[serde(rename_all = "lowercase")]
+    Active,
+    Inactive,
+    Invited,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Enrollment {
+    pub user_id: u32,
+    #[serde(rename = "type")]
+    pub enrollment_type: EnrollmentType,
+    pub start_at: Option<DateTime<Utc>>,
+    pub end_at: Option<DateTime<Utc>>,
+    pub role_id: Option<u32>,
+    pub enrollment_state: Option<EnrollmentState>,
+    pub course_section_id: Option<u32>,
+    pub limit_privileges_to_course_section: Option<bool>,
+    pub notify: Option<bool>,
+    pub self_enrollment_code: Option<String>,
+    pub self_enrolled: Option<bool>,
+    pub associated_user_id: Option<u32>,
+    pub sis_user_id: Option<String>,
+    pub integration_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EnrollmentPayload {
+    pub course_id: u32,
+    pub enrollment: Enrollment,
+    pub root_account: Option<String>,
 }

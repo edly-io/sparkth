@@ -3,13 +3,7 @@ use crate::plugins::canvas::config::CanvasConfig;
 use crate::register_tools;
 use crate::server::error::ConfigError;
 use crate::server::plugin::{Plugin, PluginContext};
-use crate::tools::canvas_tools::{
-    AddPageToModule, AddQuizToModule, CreateCourse, CreateModule, CreateModuleItem, CreatePage,
-    CreateQuestion, CreateQuiz, DeleteModule, DeleteModuleItem, DeletePage, DeleteQuestion,
-    DeleteQuiz, GetCourse, GetCourses, GetModule, GetModuleItem, GetPage, GetQuestion, GetQuiz,
-    ListModuleItems, ListModules, ListPages, ListQuestions, ListQuizzes, UpdateModule,
-    UpdateModuleItem, UpdatePage, UpdateQuestion, UpdateQuiz,
-};
+use crate::tools::canvas_tools::{CreateCourse, CreateModule, CreateModuleItem, CreatePage, CreateQuestion, CreateQuiz, CreateUser, DeleteModule, DeleteModuleItem, DeletePage, DeleteQuestion, DeleteQuiz, EnrollUser, GetCourse, GetCourses, GetModule, GetModuleItem, GetPage, GetQuestion, GetQuiz, ListModuleItems, ListModules, ListPages, ListQuestions, ListQuizzes, ListUsers, UpdateModule, UpdateModuleItem, UpdatePage, UpdateQuestion, UpdateQuiz};
 
 pub struct Canvas;
 
@@ -26,7 +20,7 @@ impl Plugin for Canvas {
             .filters
             .course_filter_chain
             .add_filter(|payload, username| {
-                payload.name = format!("[Canvas] {} ({})", payload.name, username);
+                payload.course.name = format!("[Canvas] {} ({})", payload.course.name, username);
             });
 
         register_tools!(
@@ -51,18 +45,21 @@ impl Plugin for Canvas {
                 CreatePage,
                 UpdatePage,
                 DeletePage,
-                AddPageToModule,
+                // AddPageToModule,
                 ListQuizzes,
                 GetQuiz,
                 CreateQuiz,
                 UpdateQuiz,
                 DeleteQuiz,
-                AddQuizToModule,
+                // AddQuizToModule,
                 ListQuestions,
                 GetQuestion,
                 CreateQuestion,
                 UpdateQuestion,
                 DeleteQuestion,
+                ListUsers,
+                CreateUser,
+                EnrollUser
             ]
         );
 
