@@ -1,5 +1,8 @@
 use crate::{define_filter_chain, server::types::CoursePayload};
 
+// TODO: Create filters for plugins 
+// Add the filters to the plugin context
+
 define_filter_chain!(
     CoursePayloadFilterChain,
     fn(&mut CoursePayload, username: &str)
@@ -7,5 +10,5 @@ define_filter_chain!(
 
 #[derive(Default)]
 pub struct Filters {
-    pub course_filter_chain: CoursePayloadFilterChain,
+    pub _course_filter_chain: CoursePayloadFilterChain,
 }

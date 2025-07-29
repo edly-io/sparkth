@@ -1,1279 +1,854 @@
-use crate::{
-    plugins::canvas::client::CanvasClient,
-    server::{
-        tool_trait::{Tool, ToolError}, types::{CourseParams, CoursePayload, EnrollmentPayload, ListPagesPayload, ListUsersParams, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload, PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload, UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload, UpdateQuizPayload, UserPayload},
-        
+use reqwest::Method;
+use rmcp::{
+    ErrorData,
+    handler::server::tool::Parameters,
+    model::{CallToolResult, Content, ErrorCode},
+    tool, tool_router,
+};
+use serde_json::{Value, to_value};
+
+use crate::server::{
+    mcp_server::SparkthMCPServer,
+    types::{
+        CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload, ListPagesPayload,
+        ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload, PageParams, PagePayload,
+        QuestionParams, QuestionPayload, QuizParams, QuizPayload, UpdateModuleItemPayload,
+        UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload, UpdateQuizPayload,
+        UserPayload,
     },
 };
-use async_trait::async_trait;
-use rmcp::model::{CallToolResult, Content, ErrorCode};
-use serde_json::{Value, from_value};
 
-fn parse_args(
-    tool_name: &str,
-    args: Option<Value>,
-    expected_args: &str,
-) -> Result<Value, ToolError> {
-    let args_value = match args {
-        Some(Value::String(s)) => {
-            serde_json::from_str::<Value>(&s).map_err(|_| ToolError::InvalidArgs {
-                name: tool_name.to_string(),
-                args: expected_args.to_string(),
-            })?
-        }
-        Some(val) => val,
-        None => {
-            return Err(ToolError::MissingArgs {
-                name: tool_name.to_string(),
-                args: expected_args.to_string(),
-            });
-        }
-    };
+#[tool_router(router = canvas_tools_router, vis = "pub")]
+impl SparkthMCPServer {
+    fn handle_response_single(&self, response: CanvasResponse) -> CallToolResult {
+        let result = match response {
+            CanvasResponse::Single(val) => val,
+            CanvasResponse::Multiple(mut vals) => vals.pop().unwrap_or(Value::Null),
+        };
 
-    Ok(args_value)
-}
-
-pub struct GetCourse {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetCourse {
-    fn name(&self) -> &str {
-        "get_course"
+        CallToolResult::success(vec![Content::text(result.to_string())])
     }
 
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String")?;
-        let get_course_args: CourseParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id".into(),
-            })?;
+    fn handle_response_vec(&self, response: CanvasResponse) -> CallToolResult {
+        let results = match response {
+            CanvasResponse::Single(val) => vec![val],
+            CanvasResponse::Multiple(vals) => vals,
+        };
 
+        let results: Vec<String> = results
+            .into_iter()
+            .map(|result| result.to_string())
+            .collect();
+
+        CallToolResult::success(vec![Content::text(results.join(","))])
+    }
+
+    #[tool(description = "Get all courses from Canvas account")]
+    pub async fn canvas_get_courses(&self) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .get_course(get_course_args.course_id)
+            .request(Method::GET, "courses", None)
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_vec(response)),
             Err(err) => {
-                let message = format!(
-                    "Error fetching course {}: {:?}",
-                    get_course_args.course_id, err
+                let msg = format!("Error while fetching all courses: {err}");
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Get a single course from Canvas account. Always prompt for missing required parameters."
+    )]
+    pub async fn canvas_get_course(
+        &self,
+        Parameters(CourseParams { course_id }): Parameters<CourseParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(Method::GET, &format!("courses/{course_id}"), None)
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!("Error while fetching course {}: {err}", course_id);
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Create a new course on Canvas. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_course(
+        &self,
+        Parameters(payload): Parameters<CoursePayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::POST,
+                &format!("accounts/{}/courses", payload.account_id),
+                Some(to_value(payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!("Error while creating the course: {err}");
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Get all modules of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_list_modules(
+        &self,
+        Parameters(CourseParams { course_id }): Parameters<CourseParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(Method::GET, &format!("courses/{}/modules", course_id), None)
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_vec(response)),
+            Err(err) => {
+                let msg = format!("Error while fetching all courses: {err}");
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Get a single module of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_get_module(
+        &self,
+        Parameters(ModuleParams {
+            course_id,
+            module_id,
+        }): Parameters<ModuleParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::GET,
+                &format!("courses/{}/modules/{}", course_id, module_id),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while getting module {module_id} for course {course_id}: {err}",
                 );
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct GetCourses {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetCourses {
-    fn name(&self) -> &str {
-        "get_courses"
-    }
-
-    async fn call(&self, _args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        match self.canvas_client.get_courses().await {
-            Ok(result) => {
-                let courses: Vec<String> = result
-                    .into_iter()
-                    .map(|course| course.to_string())
-                    .collect();
-                Ok(CallToolResult::success(vec![Content::text(
-                    courses.join(","),
-                )]))
-            }
-            Err(err) => {
-                let message = format!("Error fetching the courses: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreateCourse {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreateCourse {
-    fn name(&self) -> &str {
-        "create_course"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "account_id: String, name: String")?;
-
-        let create_course_args: CoursePayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "account_id: String, name: String".into(),
-            })?;
-
-        match self.canvas_client.create_course(create_course_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error creating a new course: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct ListModules {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for ListModules {
-    fn name(&self) -> &str {
-        "list_modules"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String")?;
-
-        let course_args: CourseParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String".into(),
-            })?;
-
-        match self.canvas_client.list_modules(course_args).await {
-            Ok(result) => {
-                let modules: Vec<String> = result
-                    .into_iter()
-                    .map(|module| module.to_string())
-                    .collect();
-
-                Ok(CallToolResult::success(vec![Content::text(
-                    modules.join(","),
-                )]))
-            }
-            Err(err) => {
-                let message = format!("Error listing the modules: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct GetModule {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetModule {
-    fn name(&self) -> &str {
-        "get_module"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
-
-        let get_module_args: ModuleParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String".into(),
-            })?;
-
-        match self.canvas_client.get_module(get_module_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error fetching the requested module: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreateModule {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreateModule {
-    fn name(&self) -> &str {
-        "create_module"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, name: String")?;
-
-        let create_module_args: ModulePayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, name: String".into(),
-            })?;
-
-        match self.canvas_client.create_module(create_module_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error creating a new module: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct UpdateModule {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for UpdateModule {
-    fn name(&self) -> &str {
-        "update_module"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
-
-        let update_module_args: UpdateModulePayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String".into(),
-            })?;
-
-        match self.canvas_client.update_module(update_module_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error updating the module: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct DeleteModule {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for DeleteModule {
-    fn name(&self) -> &str {
-        "delete_module"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
-
-        let delete_module_args: ModuleParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String".into(),
-            })?;
-
-        match self.canvas_client.delete_module(delete_module_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error deleting the module: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct ListModuleItems {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for ListModuleItems {
-    fn name(&self) -> &str {
-        "list_module_items"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, module_id: String")?;
-
-        let list_mod_items_args: ModuleParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String".into(),
-            })?;
-
+    #[tool(
+        description = "Create a new module for a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_module(
+        &self,
+        Parameters(payload): Parameters<ModulePayload>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .list_module_items(list_mod_items_args)
+            .request(
+                Method::POST,
+                &format!("courses/{}/modules", payload.course_id),
+                Some(to_value(&payload).unwrap()),
+            )
             .await
         {
-            Ok(result) => {
-                let items: Vec<String> = result.into_iter().map(|item| item.to_string()).collect();
-                Ok(CallToolResult::success(vec![Content::text(
-                    items.join("\n"),
-                )]))
-            }
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error listing the modules: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while creating a new module for course {}: {err}",
+                    payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct GetModuleItem {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetModuleItem {
-    fn name(&self) -> &str {
-        "get_module_item"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, module_id: String, item_id: String",
-        )?;
-
-        let get_item_args: ModuleItemParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String, item_id: String".into(),
-            })?;
-
-        match self.canvas_client.get_module_item(get_item_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error getting the module item: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreateModuleItem {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreateModuleItem {
-    fn name(&self) -> &str {
-        "create_module_item"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, module_id: String, item_type: String, title: String",
-        )?;
-
-        let create_item_args: ModuleItemPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String, item_type: String, title: String"
-                    .into(),
-            })?;
-
+    #[tool(
+        description = "Update a module of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_update_module(
+        &self,
+        Parameters(payload): Parameters<UpdateModulePayload>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .create_module_item(create_item_args)
+            .request(
+                Method::PUT,
+                &format!(
+                    "courses/{}/modules/{}",
+                    payload.course_id, payload.module_id
+                ),
+                Some(to_value(&payload).unwrap()),
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error creating the module item: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while updating module {} for course {}: {err}",
+                    payload.module_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct UpdateModuleItem {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for UpdateModuleItem {
-    fn name(&self) -> &str {
-        "update_module_item"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, module_id: String, item_id: String",
-        )?;
-
-        let update_module_item_args: UpdateModuleItemPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String, item_id: String".into(),
-            })?;
-
+    #[tool(
+        description = "Delete a module of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_delete_module(
+        &self,
+        Parameters(ModuleParams {
+            course_id,
+            module_id,
+        }): Parameters<ModuleParams>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .update_module_item(update_module_item_args)
+            .request(
+                Method::DELETE,
+                &format!("courses/{}/modules/{}", course_id, module_id),
+                None,
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error updating the module item: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while deleting module {module_id} for course {course_id}: {err}",
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct DeleteModuleItem {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for DeleteModuleItem {
-    fn name(&self) -> &str {
-        "delete_module_item"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, module_id: String, item_id: String",
-        )?;
-
-        let delete_module_item_args: ModuleItemParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, module_id: String, item_id: String".into(),
-            })?;
-
+    #[tool(
+        description = "List all modules items of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_list_module_items(
+        &self,
+        Parameters(ModuleParams {
+            course_id,
+            module_id,
+        }): Parameters<ModuleParams>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .delete_module_item(delete_module_item_args)
+            .request(
+                Method::GET,
+                &format!("courses/{}/modules/{}/items", course_id, module_id),
+                None,
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_vec(response)),
             Err(err) => {
-                let message = format!("Error deleting the module item: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while listing module items for module {module_id} of course {course_id}: {err}",
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct ListPages {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for ListPages {
-    fn name(&self) -> &str {
-        "list_pages"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, search_term: Option<String>",
-        )?;
-
-        let list_pages_args: ListPagesPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, search_term: Option<String>".into(),
-            })?;
-
-        match self.canvas_client.list_pages(list_pages_args).await {
-            Ok(result) => {
-                let items: Vec<String> = result.into_iter().map(|item| item.to_string()).collect();
-                Ok(CallToolResult::success(vec![Content::text(
-                    items.join("\n"),
-                )]))
-            }
-            Err(err) => {
-                let message = format!("Error listing the pages: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct GetPage {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetPage {
-    fn name(&self) -> &str {
-        "get_page"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, page_url: String")?;
-
-        let get_page: PageParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, page_url: String".into(),
-            })?;
-
-        match self.canvas_client.get_page(get_page).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error getting the requested page: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreatePage {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreatePage {
-    fn name(&self) -> &str {
-        "create_page"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, title: String, body: String",
-        )?;
-
-        let create_page_args: PagePayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, title: String, body: String".into(),
-            })?;
-
-        match self.canvas_client.create_page(create_page_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error creating the page: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct UpdatePage {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for UpdatePage {
-    fn name(&self) -> &str {
-        "update_page"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, page_url: String")?;
-
-        let update_page_args: UpdatePagePayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, page_url: String".into(),
-            })?;
-
-        match self.canvas_client.update_page(update_page_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error updating the module item: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct DeletePage {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for DeletePage {
-    fn name(&self) -> &str {
-        "delete_page"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, page_url: String")?;
-
-        let delete_page_args: PageParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, page_url: String".into(),
-            })?;
-
-        match self.canvas_client.delete_page(delete_page_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error deleting the page: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-// pub struct AddPageToModule {
-//     pub canvas_client: CanvasClient,
-// }
-
-// #[async_trait]
-// impl Tool for AddPageToModule {
-//     fn name(&self) -> &str {
-//         "add_page_to_module"
-//     }
-
-//     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-//         let parsed_args = parse_args(
-//             self.name(),
-//             args,
-//             "course_id: String, module_id: String, page_url: String",
-//         )?;
-
-//         let add_page_args: AddPageRequest =
-//             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-//                 name: self.name().into(),
-//                 args: "course_id: String, module_id: String, page_url: String".into(),
-//             })?;
-
-//         match self.canvas_client.add_page_to_module(add_page_args).await {
-//             Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-//                 result.to_string(),
-//             )])),
-//             Err(err) => {
-//                 let message = format!("Error adding page to module: {:?}", err);
-//                 Err(ToolError::InternalError {
-//                     error_code: ErrorCode::INTERNAL_ERROR,
-//                     message,
-//                 })
-//             }
-//         }
-//     }
-// }
-
-pub struct ListQuizzes {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for ListQuizzes {
-    fn name(&self) -> &str {
-        "list_quizzes"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String")?;
-
-        let list_quizzes_args: CourseParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String".into(),
-            })?;
-
-        match self.canvas_client.list_quizzes(list_quizzes_args).await {
-            Ok(result) => {
-                let items: Vec<String> = result.into_iter().map(|item| item.to_string()).collect();
-                Ok(CallToolResult::success(vec![Content::text(
-                    items.join("\n"),
-                )]))
-            }
-            Err(err) => {
-                let message = format!("Error listing the quizzes: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct GetQuiz {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetQuiz {
-    fn name(&self) -> &str {
-        "get_quiz"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
-
-        let get_quiz: QuizParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String".into(),
-            })?;
-
-        match self.canvas_client.get_quiz(get_quiz).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error getting the requested quiz: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreateQuiz {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreateQuiz {
-    fn name(&self) -> &str {
-        "create_quiz"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, title: String, description: String, quiz_type: String",
-        )?;
-
-        let create_quiz_args: QuizPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, title: String, description: String, quiz_type: String"
-                    .into(),
-            })?;
-
-        match self.canvas_client.create_quiz(create_quiz_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error creating the quiz: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct UpdateQuiz {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for UpdateQuiz {
-    fn name(&self) -> &str {
-        "update_quiz"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
-
-        let update_quiz_args: UpdateQuizPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String".into(),
-            })?;
-
-        match self.canvas_client.update_quiz(update_quiz_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error updating the quiz: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct DeleteQuiz {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for DeleteQuiz {
-    fn name(&self) -> &str {
-        "delete_quiz"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
-
-        let delete_quiz_args: QuizParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String".into(),
-            })?;
-
-        match self.canvas_client.delete_quiz(delete_quiz_args).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error deleting the quiz: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-// pub struct AddQuizToModule {
-//     pub canvas_client: CanvasClient,
-// }
-
-// #[async_trait]
-// impl Tool for AddQuizToModule {
-//     fn name(&self) -> &str {
-//         "add_quiz_to_module"
-//     }
-
-//     async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-//         let parsed_args = parse_args(
-//             self.name(),
-//             args,
-//             "course_id: String, module_id: String, quiz_id: String",
-//         )?;
-
-//         let add_quiz_args: AddQuizRequest =
-//             from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-//                 name: self.name().into(),
-//                 args: "course_id: String, module_id: String, quiz_id: String".into(),
-//             })?;
-
-//         match self.canvas_client.add_quiz_to_module(add_quiz_args).await {
-//             Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-//                 result.to_string(),
-//             )])),
-//             Err(err) => {
-//                 let message = format!("Error adding quiz to module: {:?}", err);
-//                 Err(ToolError::InternalError {
-//                     error_code: ErrorCode::INTERNAL_ERROR,
-//                     message,
-//                 })
-//             }
-//         }
-//     }
-// }
-
-pub struct ListQuestions {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for ListQuestions {
-    fn name(&self) -> &str {
-        "list_questions"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "course_id: String, quiz_id: String")?;
-
-        let list_questions_args: QuizParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String".into(),
-            })?;
-
-        match self.canvas_client.list_questions(list_questions_args).await {
-            Ok(result) => {
-                let items: Vec<String> = result.into_iter().map(|item| item.to_string()).collect();
-                Ok(CallToolResult::success(vec![Content::text(
-                    items.join("\n"),
-                )]))
-            }
-            Err(err) => {
-                let message = format!("Error listing the questions: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct GetQuestion {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for GetQuestion {
-    fn name(&self) -> &str {
-        "get_question"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, quiz_id: String, question_id: String",
-        )?;
-
-        let get_question: QuestionParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String, question_id: String".into(),
-            })?;
-
-        match self.canvas_client.get_question(get_question).await {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
-            Err(err) => {
-                let message = format!("Error getting the requested question: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreateQuestion {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreateQuestion {
-    fn name(&self) -> &str {
-        "create_question"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, title: String, description: String, quiz_type: String",
-        )?;
-
-        let create_question_args: QuestionPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String, name: String, text: String, answers: Vec<Answer>. Answer type has {answer_text: String, answer_weight: u8}. Weight is 0 for incorrect answers, 100 for the correct one.".into(),
-            })?;
-
+    #[tool(
+        description = "Get a single module item of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_get_module_item(
+        &self,
+        Parameters(ModuleItemParams {
+            course_id,
+            module_id,
+            item_id,
+        }): Parameters<ModuleItemParams>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .create_question(create_question_args)
+            .request(
+                Method::GET,
+                &format!(
+                    "courses/{}/modules/{}/items/{}",
+                    course_id, module_id, item_id
+                ),
+                None,
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error creating the question: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while fetching module item {item_id} for module {module_id} of course {course_id}: {err}",
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct UpdateQuestion {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for UpdateQuestion {
-    fn name(&self) -> &str {
-        "update_question"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, quiz_id: String, question_id: String",
-        )?;
-
-        let update_question_args: UpdateQuestionPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String, question_id: String".into(),
-            })?;
-
+    #[tool(
+        description = "Create a new module item for a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_module_item(
+        &self,
+        Parameters(payload): Parameters<ModuleItemPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .update_question(update_question_args)
+            .request(
+                Method::POST,
+                &format!(
+                    "courses/{}/modules/{}/items",
+                    payload.course_id, payload.module_id
+                ),
+                Some(to_value(&payload).unwrap()),
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error updating the question: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while creating new module item for module {} of course {}: {err}",
+                    payload.module_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct DeleteQuestion {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for DeleteQuestion {
-    fn name(&self) -> &str {
-        "delete_question"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, quiz_id: String, question_id: String",
-        )?;
-
-        let delete_question_args: QuestionParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, quiz_id: String, question_id: String".into(),
-            })?;
-
+    #[tool(
+        description = "Update a module item of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_update_module_item(
+        &self,
+        Parameters(payload): Parameters<UpdateModuleItemPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .delete_question(delete_question_args)
+            .request(
+                Method::PUT,
+                &format!(
+                    "courses/{}/modules/{}/items/{}",
+                    payload.course_id, payload.module_id, payload.item_id
+                ),
+                Some(to_value(&payload).unwrap()),
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error deleting the question: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while updating module item {} for module {} of course {}: {err}",
+                    payload.item_id, payload.module_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct ListUsers {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for ListUsers {
-    fn name(&self) -> &str {
-        "list_users"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(self.name(), args, "account_id: String")?;
-
-        let list_users_args: ListUsersParams =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "account_id: String".into(),
-            })?;
-
-        match self.canvas_client.list_users(list_users_args).await {
-            Ok(result) => {
-                let items: Vec<String> = result.into_iter().map(|item| item.to_string()).collect();
-                Ok(CallToolResult::success(vec![Content::text(
-                    items.join("\n"),
-                )]))
-            }
-            Err(err) => {
-                let message = format!("Error listing the users: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
-            }
-        }
-    }
-}
-
-pub struct CreateUser {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for CreateUser {
-    fn name(&self) -> &str {
-        "create_user"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "account_id: String, name: String, unique_id: String, short_name: Option<String>, sortable_name: Option<String>, send_confirmation: Option<bool>, communication_type: Option<String>, communication_address: Option<String>",
-        )?;
-
-        let create_user: UserPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "account_id: String, name: String, unique_id: String, short_name: Option<String>, sortable_name: Option<String>, send_confirmation: Option<bool>, communication_type: Option<String>, communication_address: Option<String>".into(),
-            })?;
-
+    #[tool(
+        description = "Delete a module item of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_delete_module_item(
+        &self,
+        Parameters(ModuleItemParams {
+            course_id,
+            module_id,
+            item_id,
+        }): Parameters<ModuleItemParams>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .create_user(create_user)
+            .request(
+                Method::DELETE,
+                &format!(
+                    "courses/{}/modules/{}/items/{}",
+                    course_id, module_id, item_id
+                ),
+                None,
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let message = format!("Error creating the user: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error in deleting module item {item_id} for module {module_id} of course {course_id}: {err}",
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }
-}
 
-pub struct EnrollUser {
-    pub canvas_client: CanvasClient,
-}
-
-#[async_trait]
-impl Tool for EnrollUser {
-    fn name(&self) -> &str {
-        "enroll_user"
-    }
-
-    async fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed_args = parse_args(
-            self.name(),
-            args,
-            "course_id: String, user_id: String, enrollment_type: EnrollmentType {StudentEnrollment, TeacherEnrollment, TaEnrollment, ObserverEnrollment, DesignerEnrollment}, enrollment_state: {active, inactive, invited}",
-        )?;
-
-        let enroll_user: EnrollmentPayload =
-            from_value(parsed_args).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "course_id: String, user_id: String, enrollment_type: EnrollmentType {StudentEnrollment, TeacherEnrollment, TaEnrollment, ObserverEnrollment, DesignerEnrollment}, enrollment_state: {active, inactive, invited}".into(),
-            })?;
-
+    #[tool(
+        description = "List all pages of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_list_pages(
+        &self,
+        Parameters(payload): Parameters<ListPagesPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .enroll_user(enroll_user)
+            .request(
+                Method::GET,
+                &format!("courses/{}/pages", payload.course_id),
+                Some(to_value(&payload).unwrap()),
+            )
             .await
         {
-            Ok(result) => Ok(CallToolResult::success(vec![Content::text(
-                result.to_string(),
-            )])),
+            Ok(response) => Ok(self.handle_response_vec(response)),
             Err(err) => {
-                let message = format!("Error enrolling the user: {:?}", err);
-                Err(ToolError::InternalError {
-                    error_code: ErrorCode::INTERNAL_ERROR,
-                    message,
-                })
+                let msg = format!(
+                    "Error while listing pages for course {}: {err}",
+                    payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Get a single page of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_get_page(
+        &self,
+        Parameters(PageParams {
+            course_id,
+            page_url,
+        }): Parameters<PageParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::GET,
+                &format!("courses/{}/pages/{}", course_id, page_url),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg =
+                    format!("Error while fetching page {page_url} for course {course_id}: {err}");
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Create a new page for a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_page(
+        &self,
+        Parameters(payload): Parameters<PagePayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::POST,
+                &format!("courses/{}/pages", payload.course_id),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while creating a new page for course {}: {err}",
+                    payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Update a page of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_update_page(
+        &self,
+        Parameters(payload): Parameters<UpdatePagePayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::PUT,
+                &format!("courses/{}/pages/{}", payload.course_id, payload.url_or_id),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while updating page {} for course {}: {err}",
+                    payload.url_or_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Delete a page of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_delete_page(
+        &self,
+        Parameters(PageParams {
+            course_id,
+            page_url,
+        }): Parameters<PageParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::DELETE,
+                &format!("courses/{}/pages/{}", course_id, page_url),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg =
+                    format!("Error while deleting page {page_url} of course {course_id}: {err}",);
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "List all quizzes of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_list_quizzes(
+        &self,
+        Parameters(CourseParams { course_id }): Parameters<CourseParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(Method::GET, &format!("courses/{}/quizzes", course_id), None)
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_vec(response)),
+            Err(err) => {
+                let msg = format!("Error while listing quizzes for course {course_id}: {err}",);
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Get a single quiz of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_get_quiz(
+        &self,
+        Parameters(QuizParams { course_id, quiz_id }): Parameters<QuizParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::GET,
+                &format!("courses/{}/quizzes/{}", course_id, quiz_id),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg =
+                    format!("Error while fetching quiz {quiz_id} of course {course_id}: {err}",);
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Create a new quiz for a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_quiz(
+        &self,
+        Parameters(payload): Parameters<QuizPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::POST,
+                &format!("courses/{}/quizzes", payload.course_id),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while creating a new quiz for course {}: {err}",
+                    payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Update a quiz of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_update_quiz(
+        &self,
+        Parameters(payload): Parameters<UpdateQuizPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::PUT,
+                &format!("courses/{}/quizzes/{}", payload.course_id, payload.quiz_id),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while updating quiz {} for course {}: {err}",
+                    payload.quiz_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Delete a quiz of a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_delete_quiz(
+        &self,
+        Parameters(QuizParams { course_id, quiz_id }): Parameters<QuizParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::DELETE,
+                &format!("courses/{}/quizzes/{}", course_id, quiz_id),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg =
+                    format!("Error while deleting quiz {quiz_id} of course {course_id}: {err}");
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "List all questions of a quiz. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_list_questions(
+        &self,
+        Parameters(QuizParams { course_id, quiz_id }): Parameters<QuizParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::GET,
+                &format!("courses/{course_id}/quizzes/{quiz_id}/questions",),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_vec(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while listing questions for quiz {quiz_id} of course {course_id}: {err}"
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Get a single question of a quiz. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_get_question(
+        &self,
+        Parameters(QuestionParams {
+            course_id,
+            quiz_id,
+            question_id,
+        }): Parameters<QuestionParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::GET,
+                &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while listing question {question_id} for quiz {quiz_id} of course {course_id}: {err}"
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Create a new question for a quiz. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_question(
+        &self,
+        Parameters(payload): Parameters<QuestionPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::POST,
+                &format!(
+                    "courses/{}/quizzes/{}/questions",
+                    payload.course_id, payload.quiz_id
+                ),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while creating a new question for quiz {} of course {}: {err}",
+                    payload.quiz_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Update a question of a quiz. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_update_question(
+        &self,
+        Parameters(payload): Parameters<UpdateQuestionPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::PUT,
+                &format!(
+                    "courses/{}/quizzes/{}/questions/{}",
+                    payload.course_id, payload.quiz_id, payload.question_id
+                ),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while updating question {} for quiz {} of course {}: {err}",
+                    payload.question_id, payload.quiz_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Delete a question of a quiz. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_delete_question(
+        &self,
+        Parameters(QuestionParams {
+            course_id,
+            quiz_id,
+            question_id,
+        }): Parameters<QuestionParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::DELETE,
+                &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
+                None,
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while deleting question {question_id} for quiz {quiz_id} of course {course_id}: {err}"
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Create a new user in a Canvas account. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_create_user(
+        &self,
+        Parameters(payload): Parameters<UserPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::POST,
+                &format!("accounts/{}/users", payload.account_id),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while creating new user with id {} for account {}: {err}",
+                    payload.pseudonym.unique_id, payload.account_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Enroll a user in a Canvas course. Always prompt for any missing required parameters."
+    )]
+    pub async fn canvas_enroll_user(
+        &self,
+        Parameters(payload): Parameters<EnrollmentPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self
+            .canvas_client
+            .request(
+                Method::POST,
+                &format!("courses/{}/enrollments", payload.course_id),
+                Some(to_value(&payload).unwrap()),
+            )
+            .await
+        {
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(err) => {
+                let msg = format!(
+                    "Error while enrolling user {} to course {}: {err}",
+                    payload.enrollment.user_id, payload.course_id
+                );
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
     }

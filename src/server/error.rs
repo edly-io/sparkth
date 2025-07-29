@@ -8,8 +8,6 @@ pub enum CanvasError {
     RequestError(#[from] reqwest::Error),
     #[error("JSON parsing failed: {0}")]
     JsonError(#[from] serde_json::Error),
-    #[error("Invalid HTTP method: {0}")]
-    InvalidMethod(String),
 }
 
 #[derive(Error, Debug)]

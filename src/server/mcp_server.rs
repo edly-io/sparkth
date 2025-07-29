@@ -1,119 +1,92 @@
 use crate::{
+    plugins::canvas::{client::CanvasClient, config::CanvasConfig},
     prompts,
-    server::{
-        error::ConfigError,
-        plugin::{Plugin, PluginContext},
-    },
+    server::plugin::PluginContext,
 };
+use chrono::{DateTime, Local};
 use rmcp::{
-    Error, ServerHandler,
+    ErrorData, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
     model::{
-        CallToolResult, Content, ErrorCode, Implementation, ProtocolVersion, ServerCapabilities,
-        ServerInfo,
+        CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
     schemars::{self, JsonSchema},
     tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
-use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
-    #[schemars(description = "the duration of the course")]
+    #[schemars(description = "The duration of the course. Should be provided by the user")]
     pub course_duration: String,
-    #[schemars(description = "the name of the course")]
+    #[schemars(description = "The name of the course")]
     pub course_name: String,
-    #[schemars(description = "a brief description of the course")]
+    #[schemars(description = "A brief description of the course")]
     pub course_description: String,
-}
-
-#[derive(JsonSchema, Deserialize)]
-pub struct DispatchRequest {
-    #[schemars(description = "the name of the tool to be dispatched")]
-    tool_name: String,
-    #[schemars(description = "the args to be passed to the tool")]
-    args: Option<Value>,
+    #[schemars(description = "the start date of the course in local timezone in ISO8601 format")]
+    pub start_at: Option<DateTime<Local>>,
+    #[schemars(description = "the end date of the course in local timezone ISO8601 format")]
+    pub end_at: Option<DateTime<Local>>,
 }
 
 #[derive(Clone)]
 pub struct SparkthMCPServer {
-    plugins: Arc<Mutex<Vec<Box<dyn Plugin>>>>,
+    // TODO: Use plugin context for extensions (filters and actions)
     plugin_context: Arc<Mutex<PluginContext>>,
+
     tool_router: ToolRouter<Self>,
+    pub canvas_client: CanvasClient,
 }
 
 #[tool_router]
 impl SparkthMCPServer {
-    pub fn new(plugin_context: PluginContext) -> Self {
+    pub fn new(plugin_context: PluginContext, config: CanvasConfig) -> Self {
+        let tool_router = ToolRouter::new()
+            + SparkthMCPServer::tool_router()
+            + SparkthMCPServer::canvas_tools_router();
+
         Self {
-            plugins: Arc::new(Mutex::new(Vec::new())),
             plugin_context: Arc::new(Mutex::new(plugin_context)),
-            tool_router: Self::tool_router(),
+            tool_router,
+            canvas_client: CanvasClient::new(config.api_url, config.api_token),
         }
     }
 
-    pub fn load<P: Plugin + 'static>(&mut self, plugin: P) -> Result<(), ConfigError> {
-        let mut context = self.plugin_context.lock().unwrap();
-        plugin.register(&mut context)?;
-
-        let mut plugins = self.plugins.lock().unwrap();
-        plugins.push(Box::new(plugin));
-
-        Ok(())
-    }
-
-    #[tool(description = "call a tool by name.")]
-    pub async fn dispatch_tool(
-        &self,
-        Parameters(DispatchRequest { tool_name, args }): Parameters<DispatchRequest>,
-    ) -> Result<CallToolResult, Error> {
-        let tools = self.plugin_context.lock().unwrap().tools.clone();
-        match tools.call(&tool_name, args).await {
-            Some(result) => match result {
-                Ok(tool_result) => Ok(tool_result),
-                Err(e) => {
-                    let msg = format!("Error while calling tool '{}': {}", tool_name, e);
-                    Err(Error::new(ErrorCode::INTERNAL_ERROR, msg, None))
-                }
-            },
-            None => {
-                let msg = format!("Tool '{}' not found.", tool_name);
-                Err(Error::new(ErrorCode::METHOD_NOT_FOUND, msg, None))
-            }
-        }
-    }
-
-    #[tool(
-        description = "Generates a prompt for creating a course structure based on the course name, description and duration passed as the arguments. The course should follow instructional design principles."
-    )]
+    #[tool(description = "Generates a prompt for creating a course. 
+Figure out the course name and description from the context and information.
+Seek clarification whenever user responses are unclear or incomplete.")]
     pub fn get_course_generation_prompt(
         &self,
         Parameters(CourseGenerationPromptRequest {
             course_name,
             course_duration,
             course_description,
+            start_at,
+            end_at,
         }): Parameters<CourseGenerationPromptRequest>,
-    ) -> Result<CallToolResult, Error> {
+    ) -> Result<CallToolResult, ErrorData> {
         let prompt = prompts::get_course_generation_prompt(
             &course_name,
             &course_duration,
             &course_description,
+            start_at,
+            end_at,
         );
         Ok(CallToolResult::success(vec![Content::text(prompt)]))
     }
 
     #[tool(description = "list all the available tools.")]
-    pub fn list_tools(&self) -> Result<CallToolResult, Error> {
-        let tools = self
-            .plugin_context
-            .lock()
-            .unwrap()
-            .tools
-            .list_tools()
-            .join("\n");
-        Ok(CallToolResult::success(vec![Content::text(tools)]))
+    pub fn list_tools(&self) -> Result<CallToolResult, ErrorData> {
+        let tools: Vec<String> = self
+            .tool_router
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .collect();
+        Ok(CallToolResult::success(vec![Content::text(
+            tools.join("\n"),
+        )]))
     }
 }
 
