@@ -11,7 +11,6 @@ pub struct CanvasConfig {
 
 impl CanvasConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
-        dotenvy::dotenv()?;
         let api_url = env::var("CANVAS_API_URL")
             .map_err(|_| ConfigError::EnvVarNotFound("CANVAS_API_URL".to_string()))?;
         let api_token = env::var("CANVAS_API_TOKEN")

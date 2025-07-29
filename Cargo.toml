@@ -6,7 +6,7 @@ repository = "https://github.com/edly-io/sparkth"
 license = "MIT"
 
 [dependencies]
-rmcp = { version = "0.2.1", features = [
+rmcp = { version = "0.3.0", features = [
     "server",
     "transport-io", 
     "transport-sse-server",
@@ -25,6 +25,7 @@ clap = { version = "4.5.41", features = ["derive"] }
 tokio-util = "0.7.15"
 strum = { version = "0.27", features = ["derive"] }
 chrono = "0.4.41"
+schemars = "1.0.4"
 
 [profile.dist]
 inherits = "release"
