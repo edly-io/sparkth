@@ -3,7 +3,7 @@ name: Build and Publish Sparkth Docker Image
 on:
   push:
     branches:
-      - dev
+      - main
 
 jobs:
   build-and-publish:
