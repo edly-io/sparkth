@@ -853,3 +853,15 @@ impl SparkthMCPServer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::server::mcp_server::SparkthMCPServer;
+
+    #[test]
+    fn test_canvas_tool_router() {
+        let canvas_tools = SparkthMCPServer::canvas_tools_router().list_all();
+
+        assert_eq!(canvas_tools.len(), 30);
+    }
+}

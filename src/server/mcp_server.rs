@@ -1,7 +1,6 @@
 use crate::{
     plugins::canvas::{client::CanvasClient, config::CanvasConfig},
     prompts,
-    server::plugin::PluginContext,
 };
 use chrono::{DateTime, Local};
 use rmcp::{
@@ -14,7 +13,6 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
 
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
@@ -33,21 +31,18 @@ pub struct CourseGenerationPromptRequest {
 #[derive(Clone)]
 pub struct SparkthMCPServer {
     // TODO: Use plugin context for extensions (filters and actions)
-    plugin_context: Arc<Mutex<PluginContext>>,
-
-    tool_router: ToolRouter<Self>,
+    pub tool_router: ToolRouter<Self>,
     pub canvas_client: CanvasClient,
 }
 
 #[tool_router]
 impl SparkthMCPServer {
-    pub fn new(plugin_context: PluginContext, config: CanvasConfig) -> Self {
+    pub fn new(config: CanvasConfig) -> Self {
         let tool_router = ToolRouter::new()
             + SparkthMCPServer::tool_router()
             + SparkthMCPServer::canvas_tools_router();
 
         Self {
-            plugin_context: Arc::new(Mutex::new(plugin_context)),
             tool_router,
             canvas_client: CanvasClient::new(config.api_url, config.api_token),
         }
