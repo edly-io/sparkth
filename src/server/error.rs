@@ -3,11 +3,11 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum CanvasError {
     #[error("Canvas API Error ({status_code}): {message}")]
-    ApiError { status_code: u16, message: String },
+    Api { status_code: u16, message: String },
     #[error("HTTP request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
+    Request(#[from] reqwest::Error),
     #[error("JSON parsing failed: {0}")]
-    JsonError(#[from] serde_json::Error),
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Error, Debug)]

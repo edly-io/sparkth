@@ -1,4 +1,3 @@
-mod filter_macro;
 mod plugins;
 mod prompts;
 mod server;
@@ -34,7 +33,7 @@ async fn run_sse_server(
     port: u16,
     mcp: SparkthMCPServer,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let bind_address = format!("{}:{}", host, port);
+    let bind_address = format!("{host}:{port}");
 
     let config = SseServerConfig {
         bind: bind_address.parse()?,
