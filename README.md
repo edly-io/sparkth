@@ -5,14 +5,19 @@ Sparkth is a free, open source, extensible, science-driven, AI-first learning pl
 
 With Sparkth, users can create create courses from the chat UI of AI providers such as Claude or ChatGPT. Integration with these generative AI providers is achieved by the Model Context Protocol ([MCP](https://modelcontextprotocol.io/)) standard.
 
-Features:
+**Features**:
 
 - Filter/Event API for extensive customisation of Sparkth.
 - MCP endpoints that make it possible to use Sparkth as an external tool in Claude/ChatGPT/Gemini.
 - Course generation prompt template that follows good instructional design principles.
 - Synchronization of generated course content with 3rd-party learning management systems (LMS), such as [Canvas](https://canvas.instructure.com/).
 
-Roadmap:
+**Tool Development Guide**:
+
+The tool development guide can be found [here](src/plugins/README.md).
+
+
+**Roadmap**:
 
 - Native Rust API for integration of Sparkth into other applications.
 - Development of a new webassembly-based standard for the creation of next-gen learning experiences.
