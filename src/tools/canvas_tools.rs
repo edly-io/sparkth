@@ -72,7 +72,7 @@ impl SparkthMCPServer {
         {
             Ok(response) => Ok(self.handle_response_single(response)),
             Err(err) => {
-                let msg = format!("Error while fetching course {}: {err}", course_id);
+                let msg = format!("Error while fetching course {course_id}: {err}");
                 Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
             }
         }
@@ -111,7 +111,7 @@ impl SparkthMCPServer {
     ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .request(Method::GET, &format!("courses/{}/modules", course_id), None)
+            .request(Method::GET, &format!("courses/{course_id}/modules"), None)
             .await
         {
             Ok(response) => Ok(self.handle_response_vec(response)),
@@ -136,7 +136,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::GET,
-                &format!("courses/{}/modules/{}", course_id, module_id),
+                &format!("courses/{course_id}/modules/{module_id}"),
                 None,
             )
             .await
@@ -222,7 +222,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::DELETE,
-                &format!("courses/{}/modules/{}", course_id, module_id),
+                &format!("courses/{course_id}/modules/{module_id}"),
                 None,
             )
             .await
@@ -251,7 +251,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::GET,
-                &format!("courses/{}/modules/{}/items", course_id, module_id),
+                &format!("courses/{course_id}/modules/{module_id}/items"),
                 None,
             )
             .await
@@ -281,10 +281,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::GET,
-                &format!(
-                    "courses/{}/modules/{}/items/{}",
-                    course_id, module_id, item_id
-                ),
+                &format!("courses/{course_id}/modules/{module_id}/items/{item_id}"),
                 None,
             )
             .await
@@ -374,10 +371,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::DELETE,
-                &format!(
-                    "courses/{}/modules/{}/items/{}",
-                    course_id, module_id, item_id
-                ),
+                &format!("courses/{course_id}/modules/{module_id}/items/{item_id}",),
                 None,
             )
             .await
@@ -433,7 +427,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::GET,
-                &format!("courses/{}/pages/{}", course_id, page_url),
+                &format!("courses/{course_id}/pages/{page_url}"),
                 None,
             )
             .await
@@ -515,7 +509,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::DELETE,
-                &format!("courses/{}/pages/{}", course_id, page_url),
+                &format!("courses/{course_id}/pages/{page_url}"),
                 None,
             )
             .await
@@ -538,7 +532,7 @@ impl SparkthMCPServer {
     ) -> Result<CallToolResult, ErrorData> {
         match self
             .canvas_client
-            .request(Method::GET, &format!("courses/{}/quizzes", course_id), None)
+            .request(Method::GET, &format!("courses/{course_id}/quizzes"), None)
             .await
         {
             Ok(response) => Ok(self.handle_response_vec(response)),
@@ -560,7 +554,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::GET,
-                &format!("courses/{}/quizzes/{}", course_id, quiz_id),
+                &format!("courses/{course_id}/quizzes/{quiz_id}"),
                 None,
             )
             .await
@@ -639,7 +633,7 @@ impl SparkthMCPServer {
             .canvas_client
             .request(
                 Method::DELETE,
-                &format!("courses/{}/quizzes/{}", course_id, quiz_id),
+                &format!("courses/{course_id}/quizzes/{quiz_id}"),
                 None,
             )
             .await

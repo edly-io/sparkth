@@ -90,7 +90,7 @@ impl CanvasClient {
             error_text
         };
 
-        CanvasError::ApiError {
+        CanvasError::Api {
             status_code,
             message: error_message,
         }

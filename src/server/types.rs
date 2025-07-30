@@ -339,20 +339,17 @@ struct Answer {
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 enum QuestionType {
-    CalculatedQuestion,
-    EssayQuestion,
-    FileUploadQuestion,
-    FillInMultipleBlanksQuestion,
-    MatchingQuestion,
-    MultipleAnswersQuestion,
-    MultipleChoiceQuestion,
-    MultipleDropdownsQuestion,
-    NumericalQuestion,
-    ShortAnswerQuestion,
-    TextOnlyQuestion,
-    TrueFalseQuestion,
+    #[serde(rename = "calculated_question")]
+    Calculated,
+    #[serde(rename = "fill_in_multiple_blanks_question")]
+    FillInMultipleBlanks,
+    #[serde(rename = "multiple_choice_question")]
+    MultipleChoice,
+    #[serde(rename = "text_only_question")]
+    TextOnly,
+    #[serde(rename = "true_false_question")]
+    TrueFalse,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -424,11 +421,16 @@ pub struct UserPayload {
 
 #[derive(JsonSchema, Serialize, Deserialize)]
 enum EnrollmentType {
-    StudentEnrollment,
-    TeacherEnrollment,
-    TaEnrollment,
-    ObserverEnrollment,
-    DesignerEnrollment,
+    #[serde(rename = "StudentEnrollment")]
+    Student,
+    #[serde(rename = "TeacherEnrollment")]
+    Teacher,
+    #[serde(rename = "TaEnrollment")]
+    Ta,
+    #[serde(rename = "ObserverEnrollment")]
+    Observer,
+    #[serde(rename = "DesignerEnrollment")]
+    Designer,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
