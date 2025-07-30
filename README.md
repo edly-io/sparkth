@@ -33,18 +33,21 @@ Download from the CLI:
 export sparkth_version=$(curl -s https://api.github.com/repos/edly-io/sparkth/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
 
 # Linux
-curl -LO -o sparkth.zip https://github.com/edly-io/sparkth/releases/download/$sparkth_version$/sparkth-$sparkth_version$-x86_64-unknown-linux-gnu.zip
+curl -LO -o sparkth.tar.gz https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-x86_64-unknown-linux-gnu.tar.gz
 # macOS arm64
-curl -LO -o sparkth.zip https://github.com/edly-io/sparkth/releases/download/$sparkth_version$/sparkth-$sparkth_version$-aarch64-apple-darwin.zip
+curl -LO -o sparkth.tar.gz https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-aarch64-apple-darwin.tar.gz
 # macOS x86_64
-curl -LO -o sparkth.zip https://github.com/edly-io/sparkth/releases/download/$sparkth_version$/sparkth-$sparkth_version$-x86_64-apple-darwin.zip
+curl -LO -o sparkth.tar.gz https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-x86_64-apple-darwin.tar.gz
 # Windows
-curl -LO -o sparkth.zip https://github.com/edly-io/sparkth/releases/download/$sparkth_version$/sparkth-$sparkth_version$-x86_64-apple-darwin.zip
+curl -LO -o sparkth.zip https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-x86_64-pc-windows-msvc.zip
 
 # Decompress
+# For Linux/macOS:
+tar -xzf sparkth.tar.gz
+# For Windows:
 unzip sparkth.zip
 
-# Set execution mode
+# Set execution mode (Linux/macOS only)
 chmod a+x sparkth
 
 # Smoke test
