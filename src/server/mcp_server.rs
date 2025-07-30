@@ -51,7 +51,7 @@ Seek clarification whenever user responses are unclear or incomplete.")]
         Parameters(CourseGenerationPromptRequest {
             course_name,
             course_description,
-            course_duration
+            course_duration,
         }): Parameters<CourseGenerationPromptRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let prompt = prompts::get_course_generation_prompt(
