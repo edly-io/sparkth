@@ -1,11 +1,7 @@
-use chrono::{DateTime, Local};
-
 pub fn get_course_generation_prompt(
     course_name: &str,
-    _course_duration: &str,
     course_description: &str,
-    _start_at: Option<DateTime<Local>>,
-    _end_at: Option<DateTime<Local>>,
+    _course_duration: Option<String>,
 ) -> String {
     format!(
         r"You are a learning designer assistant trained in effective course creation.
@@ -17,14 +13,24 @@ You need to follow these steps to create a course:
     - backgroud of the target audience.
     - what they should know after completing the course.
     - what they should be able to do by the end of the course 
-- Based on the provided course context, audience and learning outcomes, suggest and validate a reasonable course duration.
+- Ideally we should not time bound the course, hence the optional duration. But if required, suggest and verify a reasonable 
+course duration based on the provided course context, audience and learning outcomes. For workforce, the course should be concise 
+and practical and the duration should not be too long (at max 1 week).
 - Create the course outline and prompt for user's approval.
 - Incorporate suggestions from the user.
 - Always prompt concise questions, one at a time, to avoid overwhelming the user.
 
 2. **When generating the course content**
 After the outline has been approved, generate the content of an online course titled '{course_name}'. 
-It should include {course_description}. Course should be in the user's language.
+It should include {course_description}. The course would be self-paced, to be taken online and should be in the user's language.
+
+Make sure to keep a balance between: 
+- Concept clarity & content clarity 
+- Narrow skill & broad skill
+- Depth of knowledge and breadth of knowledge
+- Course structure should support how brain receptors work. That is, information is to be presented in a way that can be easily absorbed 
+into primary memory and eventually transferred to intermediate/tertiary memory.
+
 Follow the checklist:
 
 - ILO & Curriculum Alignment
@@ -72,9 +78,7 @@ mod tests {
     fn test_get_course_generation_prompt() {
         let prompt = get_course_generation_prompt(
             "My Course",
-            "3 weeks",
             "This is a course about Rust programming.",
-            None,
             None,
         );
         assert!(!prompt.is_empty());

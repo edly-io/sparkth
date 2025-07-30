@@ -2,14 +2,13 @@ use crate::{
     plugins::canvas::{client::CanvasClient, config::CanvasConfig},
     prompts,
 };
-use chrono::{DateTime, Local};
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
     model::{
         CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
     },
-    schemars::{self, JsonSchema},
+    schemars::JsonSchema,
     tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
@@ -17,15 +16,11 @@ use serde::Deserialize;
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
     #[schemars(description = "The duration of the course. Should be provided by the user")]
-    pub course_duration: String,
+    pub course_duration: Option<String>,
     #[schemars(description = "The name of the course")]
     pub course_name: String,
     #[schemars(description = "A brief description of the course")]
     pub course_description: String,
-    #[schemars(description = "the start date of the course in local timezone in ISO8601 format")]
-    pub start_at: Option<DateTime<Local>>,
-    #[schemars(description = "the end date of the course in local timezone ISO8601 format")]
-    pub end_at: Option<DateTime<Local>>,
 }
 
 #[derive(Clone)]
@@ -55,18 +50,14 @@ Seek clarification whenever user responses are unclear or incomplete.")]
         &self,
         Parameters(CourseGenerationPromptRequest {
             course_name,
-            course_duration,
             course_description,
-            start_at,
-            end_at,
+            course_duration
         }): Parameters<CourseGenerationPromptRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let prompt = prompts::get_course_generation_prompt(
             &course_name,
-            &course_duration,
             &course_description,
-            start_at,
-            end_at,
+            course_duration,
         );
         Ok(CallToolResult::success(vec![Content::text(prompt)]))
     }
