@@ -1,169 +1,176 @@
-# Sparkth MCP Plugin Development Guide
+# Sparkth MCP Tools Development Guide
 
-Welcome to the **Sparkth MCP Plugin System!**
+This guide provides a walkthrough for creating custom tools and integrating them into the Sparkth MCP (Model Context Protocol) server.
 
-This guide explains:
+## Overview
 
-- How to create your own **tools**  
-- How to register tools into the MCP server  
-- How to build a full **plugin** (e.g. an LMS integration)  
-- How to wire plugins into the MCP server
+The Sparkth MCP server uses a modular tool system where each tool is:
+- Defined as a method in an implementation block
+- Automatically registered through the `tool_router` macro
+- Integrated into the main server router 
 
----
+## Creating Your First Tool
 
-# MCP Tool 
+### Step 1: Set Up the Module Structure
 
-All tools implement the `Tool` trait:
+Create a new module file in the `src/tools/` directory:
+
+```bash
+touch src/tools/my_lms_tools.rs
+```
+
+Add your module in `src/tools/mod.rs`:
 
 ```rust
-pub trait Tool: Send + Sync {
-    fn name(&self) -> &str;
-    fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError>;
+pub mod my_lms_tools;
+```
+
+### Step 2: Define the Tool Router
+
+In your `my_lms_tools.rs` file, create the basic structure:
+
+```rust
+use rmcp::{tool, tool_router};
+use crate::server::mcp_server::SparkthMCPServer;
+
+#[tool_router(router = my_lms_tools_router, vis = "pub")]
+impl SparkthMCPServer {}
+```
+
+**Tool Router Configuration:**
+
+| Field  | Type       | Description                                                              |
+|--------|------------|--------------------------------------------------------------------------|
+| router | Ident      | Name of the generated router function (defaults to `tool_router`)       |
+| vis    | Visibility | Visibility modifier for the router function (defaults to private)       |
+
+The `vis = "pub"` parameter is important as we need to combine multiple routers in the main server.
+
+### Step 3: Implement Your Tool
+
+Add a tool method within the implementation block. Every tool must be marked with the `#[tool]` attribute:
+
+```rust
+use rmcp::{
+    ErrorData,
+    model::{CallToolResult, Content},
+    tool, tool_router
+};
+use crate::server::mcp_server::SparkthMCPServer;
+
+#[tool_router(router = my_lms_tools_router, vis = "pub")]
+impl SparkthMCPServer {
+    
+    #[tool]
+    pub fn greet(&self) -> Result<CallToolResult, ErrorData> {
+        let greeting = String::from("Hello from Sparkth MCP!");
+        Ok(CallToolResult::success(vec![Content::text(greeting)]))
+    }
 }
 ```
 
-## How to Build a Tool
-Let’s walk through creating a simple tool.
+**Note**
+- To return from the tool, return type should be `Result<CallToolResult, ErrorData>`
+- Use `CallToolResult::success()` for successful operations
 
-#### 1. Define the argument Struct
 
-Suppose you want a tool to greet someone. Define its arguments:
+
+To add description to your tool, we can use tool attributes:
+
+```rust
+
+#[tool(description = "A simple greeting tool that returns a friendly message.")]
+pub fn greet(&self) -> Result<CallToolResult, ErrorData> {
+    let greeting = String::from("Hello from Sparkth MCP!");
+    Ok(CallToolResult::success(vec![Content::text(greeting)]))
+}
+
+```
+
+You can read more about the tool attributes [here](https://docs.rs/rmcp/latest/rmcp/attr.tool.html).
+
+
+### Step 4: Add Tool Parameters
+
+For tools that accept parameters, we must define a struct that implements `serde::Deserialize` and `schemars::JsonSchema`:
+
 
 ```rust
 use serde::Deserialize;
+use schemars::JsonSchema;
 
-#[derive(Debug, Deserialize)]
-pub struct SayHelloRequest {
-    pub name: String,
-}
-```
-
-#### 2. Implement the Tool Trait
-```rust
-pub struct SayHelloTool;
-
-impl Tool for SayHelloTool {
-    fn name(&self) -> &str {
-        "say_hello"
-    }
-
-    fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed = parse_args(
-            self.name(),
-            args,
-            "name: String",
-        )?;
-
-        let req: SayHelloRequest =
-            from_value(parsed).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "name: String".into(),
-            })?;
-
-        let message = format!("Hello, {}!", req.name);
-
-        Ok(CallToolResult::success(vec![
-            Content::text(message)
-        ]))
-    }
-}
-
-```
-
-#### 3. Register Your Tool
-Register your tool with the MCP’s tool registry:
-```rust
-tools.register(SayHelloTool);
-```
-
-# How to Build a Plugin
-A plugin:
-
-- Defines one or more tools
-- Registers them into the MCP
-- Optionally connects to external systems (like Canvas)
-
-## Example Plugin — “My LMS”
-Suppose you want to build a plugin for your custom LMS.
-
-#### 1. Define Your Tool
-`my_lms/tools.rs:`
-
-```rust
-#[derive(Debug, Deserialize)]
-pub struct CreateCourseRequest {
+#[derive(Deserialize, JsonSchema)]
+struct ToolParams {
     pub name: String,
 }
 
-pub struct CreateCourseTool;
-
-impl Tool for CreateCourseTool {
-    fn name(&self) -> &str {
-        "my_lms.create_course"
-    }
-
-    fn call(&self, args: Option<Value>) -> Result<CallToolResult, ToolError> {
-        let parsed = parse_args(
-            self.name(),
-            args,
-            "name: String",
-        )?;
-
-        let req: SayHelloRequest =
-            from_value(parsed).map_err(|_| ToolError::InvalidArgs {
-                name: self.name().into(),
-                args: "name: String".into(),
-            })?;
-
-        println!("Creating course: {}", req.name);
-
-        Ok(CallToolResult::success(vec![
-            Content::text(format!("Course '{}' created!", req.name))
-        ]))
-    }
-}
-
 ```
 
-#### 2. Create Plugin Setup
-In `my_lms/plugin.rs` file:
+Update your tool function arguments to use the `Parameters` extractor.
 
 ```rust
-pub fn my_lms_plugin_setup(tools: &mut ToolRegistry) {
-    tools.register_tool(CreateCourseTool);
-    println!("My LMS plugin tools registered!");
+use rmcp::{
+    ErrorData,
+    handler::server::tool::Parameters,
+    model::{CallToolResult, Content},
+    tool, tool_router
+};
+
+#[tool_router(router = my_lms_tools_router, vis = "pub")]
+impl SparkthMCPServer {
+    
+    #[tool(description = "A simple greeting tool that returns a friendly message.")]
+    pub fn greet(
+        &self,
+        Parameters(ToolParams { name }): Parameters<ToolParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let greeting = format!("Hello {name} from Sparkth MCP!");
+        Ok(CallToolResult::success(vec![Content::text(greeting)]))
+    }
 }
 ```
 
-## Connect Plugins to MCP Server
-In `main.rs`:
+### Step 5: Test Your Tools
+
+Create a simple test in the same module to ensure your tool works correctly:
 
 ```rust
-fn main() {
-    let mut server = SparkthMCPServer::new();
+#[cfg(test)]
+mod tests {
+    use crate::server::mcp_server::SparkthMCPServer;
 
-    // setup your plugin
-    my_lms_plugin_setup(&mut server.tool_registry);
-
-    // Now your tools are available!
+    #[test]
+    fn test_my_lms_tool_router() {
+        let tools = SparkthMCPServer::my_lms_tools_router().list_all();
+        // Verify the expected number of tools are registered
+        assert_eq!(tools.len(), 1); // greet 
+    }
 }
 ```
 
-# Calling Your Tool
-When a client sends:
+**Running Tests:**
+
+```bash
+# Run all tests
+cargo test
+
+# Run specific test
+cargo test test_my_lms_tool_router
 
 ```
-Create a course on Programming Fundamentals
-```
 
-The server parses the request in the required format:
-```json
-{
-  "tool_name": "create_course",
-  "args": {
-    "name": "Programming Fundamentals"
-  }
+### Step 6: Integrate with the Server
+
+Navigate to `src/server/mcp_server.rs` and locate the `new()` method. Add your router to the tool router chain:
+
+```rust
+pub fn new(...) -> Self {
+    let tool_router = ToolRouter::new()
+        + SparkthMCPServer::tool_router()
+        + SparkthMCPServer::my_lms_tools_router(); // Add your router here
+    
+    // Rest of the implementation...
 }
 ```
 
-and the calls the `dispatch` tool. The `dispatch` tool looks for the requested tool in the registry and, if found, calls it by passing the `args`.
+Your tools are now ready to extend the Sparkth MCP server's capabilities!

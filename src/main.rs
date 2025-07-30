@@ -6,7 +6,6 @@ mod tools;
 
 use crate::plugins::canvas::config::CanvasConfig;
 use crate::server::mcp_server::SparkthMCPServer;
-use crate::server::plugin::PluginContext;
 use clap::{Parser, ValueEnum, arg};
 use rmcp::transport::sse_server::{SseServer, SseServerConfig};
 use rmcp::{ServiceExt, transport::stdio};
@@ -75,11 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .init();
 
-    let plugin_context = PluginContext::default();
     let args = ServerConfigArgs::parse();
 
     let canvas_config = CanvasConfig::from_env()?;
-    let sparkth_mcp = SparkthMCPServer::new(plugin_context, canvas_config);
+    let sparkth_mcp = SparkthMCPServer::new(canvas_config);
 
     match args.mode {
         Mode::Sse => run_sse_server(args.host, args.port, sparkth_mcp).await?,
