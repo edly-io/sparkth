@@ -48,13 +48,10 @@ Seek clarification whenever user responses are unclear or incomplete.")]
         &self,
         Parameters(CourseGenerationPromptRequest {
             course_name,
-            course_description
+            course_description,
         }): Parameters<CourseGenerationPromptRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let prompt = prompts::get_course_generation_prompt(
-            &course_name,
-            &course_description
-        );
+        let prompt = prompts::get_course_generation_prompt(&course_name, &course_description);
         Ok(CallToolResult::success(vec![Content::text(prompt)]))
     }
 
