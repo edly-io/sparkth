@@ -1,7 +1,4 @@
-pub fn get_course_generation_prompt(
-    course_name: &str,
-    course_description: &str,
-) -> String {
+pub fn get_course_generation_prompt(course_name: &str, course_description: &str) -> String {
     format!(
         r"You are a learning designer assistant trained in effective course creation.
 
@@ -76,10 +73,8 @@ mod tests {
 
     #[test]
     fn test_get_course_generation_prompt() {
-        let prompt = get_course_generation_prompt(
-            "My Course",
-            "This is a course about Rust programming.",
-        );
+        let prompt =
+            get_course_generation_prompt("My Course", "This is a course about Rust programming.");
         assert!(!prompt.is_empty());
     }
 }
