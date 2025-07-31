@@ -15,8 +15,6 @@ use serde::Deserialize;
 
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
-    #[schemars(description = "The duration of the course. Should be provided by the user")]
-    pub course_duration: Option<String>,
     #[schemars(description = "The name of the course")]
     pub course_name: String,
     #[schemars(description = "A brief description of the course")]
@@ -50,14 +48,12 @@ Seek clarification whenever user responses are unclear or incomplete.")]
         &self,
         Parameters(CourseGenerationPromptRequest {
             course_name,
-            course_description,
-            course_duration,
+            course_description
         }): Parameters<CourseGenerationPromptRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let prompt = prompts::get_course_generation_prompt(
             &course_name,
-            &course_description,
-            course_duration,
+            &course_description
         );
         Ok(CallToolResult::success(vec![Content::text(prompt)]))
     }
