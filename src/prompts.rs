@@ -1,7 +1,6 @@
 pub fn get_course_generation_prompt(
     course_name: &str,
     course_description: &str,
-    _course_duration: Option<String>,
 ) -> String {
     format!(
         r"You are a learning designer assistant trained in effective course creation.
@@ -11,13 +10,14 @@ You need to follow these steps to create a course:
 1. **Before generating any content**
 - If not already provided, prompt users to understand the target audience:
     - backgroud of the target audience.
-    - what they should know after completing the course.
-    - what they should be able to do by the end of the course 
-- Ideally we should not time bound the course, hence the optional duration. But if required, suggest and verify a reasonable 
-course duration based on the provided course context, audience and learning outcomes. For workforce, the course should be concise 
-and practical and the duration should not be too long (at max 1 week).
-- Create the course outline and prompt for user's approval.
-- Incorporate suggestions from the user.
+    - what they should know and be able to do after completing the course.
+- Do not time bound the course.
+- For workforce/organization training:
+    - the course should be concise, engaging and practical.
+    - If you are provided with source content, make sure that the course duration should not be more than the time 
+    taken to read through the source content. 
+    - For example, 10 pages = 15 min, reading time → ~40 mins max course duration
+- Finally, create the course outline and prompt for user's approval.
 - Always prompt concise questions, one at a time, to avoid overwhelming the user.
 
 2. **When generating the course content**
@@ -79,7 +79,6 @@ mod tests {
         let prompt = get_course_generation_prompt(
             "My Course",
             "This is a course about Rust programming.",
-            None,
         );
         assert!(!prompt.is_empty());
     }
