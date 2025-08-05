@@ -1,7 +1,7 @@
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_str};
 
-use crate::server::{error::CanvasError, types::CanvasResponse};
+use crate::{plugins::canvas::types::CanvasResponse, server::error::CanvasError};
 
 #[derive(Debug, Clone)]
 pub struct CanvasClient {

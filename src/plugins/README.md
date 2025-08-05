@@ -11,6 +11,25 @@ The Sparkth MCP server uses a modular tool system where each tool is:
 
 ## Creating Your First Tool
 
+Ideally, we want to have tools for connecting our LMS endpoints with the MCP server. This requires an implementation of all the endpoints that our MCP tools can access.
+
+The `src/plugins/` directory will have all the implementions for LMS clients. For now, we have one for `Canvas` in the `/canvas/` directory.
+
+The directory structure is defined as:
+
+```
+src/plugins/
+├── mod.rs              # Plugin exports
+├── canvas/             # Canvas implementation
+│   ├── mod.rs
+│   ├── client.rs       # CanvasClient struct and endpoints
+│   └── types.rs        # Canvas-specific types
+└── [new_lms]/          # Template for new LMS
+
+```
+### Step 0: Implement LMS endpoints
+
+
 ### Step 1: Set Up the Module Structure
 
 Create a new module file in the `src/tools/` directory:

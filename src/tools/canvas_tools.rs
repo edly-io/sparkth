@@ -7,16 +7,13 @@ use rmcp::{
 };
 use serde_json::{Value, to_value};
 
-use crate::server::{
-    mcp_server::SparkthMCPServer,
-    types::{
-        CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload, ListPagesPayload,
-        ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload, PageParams, PagePayload,
-        QuestionParams, QuestionPayload, QuizParams, QuizPayload, UpdateModuleItemPayload,
-        UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload, UpdateQuizPayload,
-        UserPayload,
-    },
+use crate::plugins::canvas::types::{
+    CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload, ListPagesPayload,
+    ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload, PageParams, PagePayload,
+    QuestionParams, QuestionPayload, QuizParams, QuizPayload, UpdateModuleItemPayload,
+    UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload, UpdateQuizPayload, UserPayload,
 };
+use crate::server::mcp_server::SparkthMCPServer;
 
 #[tool_router(router = canvas_tools_router, vis = "pub")]
 impl SparkthMCPServer {
