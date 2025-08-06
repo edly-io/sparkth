@@ -23,6 +23,8 @@ impl SparkthMCPServer {
             CanvasResponse::Multiple(mut vals) => vals.pop().unwrap_or(Value::Null),
         };
 
+        
+
         CallToolResult::success(vec![Content::text(result.to_string())])
     }
 
@@ -82,6 +84,7 @@ impl SparkthMCPServer {
         &self,
         Parameters(payload): Parameters<CoursePayload>,
     ) -> Result<CallToolResult, ErrorData> {
+
         match self
             .canvas_client
             .request(

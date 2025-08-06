@@ -25,7 +25,7 @@ pub struct CourseGenerationPromptRequest {
 pub struct SparkthMCPServer {
     // TODO: Use plugin context for extensions (filters and actions)
     pub tool_router: ToolRouter<Self>,
-    pub canvas_client: CanvasClient,
+    pub canvas_client: CanvasClient, // 1. Discuss multiple-client mechanism
 }
 
 #[tool_router]

@@ -19,3 +19,5 @@ impl CanvasConfig {
         Ok(Self { api_url, api_token })
     }
 }
+
+

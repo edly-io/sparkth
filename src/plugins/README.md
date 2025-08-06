@@ -23,11 +23,45 @@ src/plugins/
 ├── canvas/             # Canvas implementation
 │   ├── mod.rs
 │   ├── client.rs       # CanvasClient struct and endpoints
+|   ├── config.rs       # Configuration management for a Canvas LMS integration
 │   └── types.rs        # Canvas-specific types
 └── [new_lms]/          # Template for new LMS
+```
+
+### Step 0: Implement Your LMS Client
+
+Create your LMS implementation in `src/plugins/your_lms/`:
+
+Create modules for `client`, `config` and `types` for you LMS.
+
+In `src/plugins/your_lms/mod.rs`:
+
+```rust
+pub mod client;
+pub mod config;
+pub mod types;
+```
+
+Add your LMS-specific types in `src/plugins/your_lms/types.rs`:
+
+```rust
+use serde::{Deserialize, Serialize};
+use crate::plugins::traits::*;
+
+// Your LMS-specific types
+#[derive(Debug, Deserialize)]
+pub struct YourLMSCourse {
+    pub id: u64,
+    pub title: String,
+    pub description: Option<String>,
+    // LMS-specific fields...
+}
+
+// Define other LMS-specific types and conversions...
 
 ```
-### Step 0: Implement LMS endpoints
+
+
 
 
 ### Step 1: Set Up the Module Structure
