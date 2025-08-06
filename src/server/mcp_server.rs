@@ -1,7 +1,4 @@
-use crate::{
-    plugins::canvas::{client::CanvasClient, config::CanvasConfig},
-    prompts,
-};
+use crate::{plugins::canvas::client::CanvasClient, prompts};
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
@@ -30,14 +27,14 @@ pub struct SparkthMCPServer {
 
 #[tool_router]
 impl SparkthMCPServer {
-    pub fn new(config: CanvasConfig) -> Self {
+    pub fn new() -> Self {
         let tool_router = ToolRouter::new()
             + SparkthMCPServer::tool_router()
             + SparkthMCPServer::canvas_tools_router();
 
         Self {
             tool_router,
-            canvas_client: CanvasClient::new(config.api_url, config.api_token),
+            canvas_client: CanvasClient::default(),
         }
     }
 

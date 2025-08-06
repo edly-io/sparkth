@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_str};
 
@@ -5,18 +7,44 @@ use crate::server::{error::CanvasError, types::CanvasResponse};
 
 #[derive(Debug, Clone)]
 pub struct CanvasClient {
-    api_url: String,
-    api_token: String,
+    api_url: Arc<Mutex<String>>,
+    api_token: Arc<Mutex<Option<String>>>,
     client: Client,
 }
 
 impl CanvasClient {
-    pub fn new(api_url: String, api_token: String) -> Self {
-        let client = Client::new();
+    pub fn default() -> Self {
         Self {
-            api_url: api_url.trim_end_matches('/').to_string(),
-            api_token,
-            client,
+            api_url: Arc::new(Mutex::new(String::new())),
+            api_token: Arc::new(Mutex::new(None)),
+            client: Client::new(),
+        }
+    }
+
+    pub async fn authenticate(
+        &self,
+        new_api_url: String,
+        new_api_token: String,
+    ) -> Result<(), CanvasError> {
+        let response = self
+            .client
+            .get(format!("{new_api_url}/users/self"))
+            .bearer_auth(&new_api_token)
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            let mut api_url = self.api_url.lock().unwrap();
+            *api_url = new_api_url;
+
+            let mut api_token = self.api_token.lock().unwrap();
+            *api_token = Some(new_api_token);
+
+            Ok(())
+        } else {
+            Err(CanvasError::Authentication(String::from(
+                "Invalid API URL or token",
+            )))
         }
     }
 
@@ -26,12 +54,22 @@ impl CanvasClient {
         endpoint: &str,
         payload: Option<Value>,
     ) -> Result<CanvasResponse, CanvasError> {
-        let url = format!("{}/{}", self.api_url, endpoint.trim_start_matches('/'));
+        let url = {
+            let api_url = self.api_url.lock().unwrap();
+            format!("{}/{}", *api_url, endpoint.trim_start_matches('/'))
+        };
+
+        let api_token = {
+            let api_token = self.api_token.lock().unwrap();
+            api_token
+                .clone()
+                .ok_or(CanvasError::Authentication("API Token not found".into()))?
+        };
 
         let mut request = self
             .client
             .request(http_method, &url)
-            .header("Authorization", format!("Bearer {}", self.api_token));
+            .header("Authorization", format!("Bearer {}", api_token));
 
         if let Some(payload) = payload {
             request = request.json(&payload);

@@ -11,6 +11,12 @@ pub enum CanvasResponse {
 }
 
 #[derive(Deserialize, JsonSchema)]
+pub struct AuthorizationPayload {
+    pub api_url: String,
+    pub api_token: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
 pub struct CourseParams {
     pub course_id: u32,
 }

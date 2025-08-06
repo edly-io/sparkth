@@ -3,7 +3,6 @@ mod prompts;
 mod server;
 mod tools;
 
-use crate::plugins::canvas::config::CanvasConfig;
 use crate::server::mcp_server::SparkthMCPServer;
 use clap::{Parser, ValueEnum, arg};
 use rmcp::transport::sse_server::{SseServer, SseServerConfig};
@@ -74,9 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args = ServerConfigArgs::parse();
-
-    let canvas_config = CanvasConfig::from_env()?;
-    let sparkth_mcp = SparkthMCPServer::new(canvas_config);
+    let sparkth_mcp = SparkthMCPServer::new();
 
     match args.mode {
         Mode::Sse => run_sse_server(args.host, args.port, sparkth_mcp).await?,
