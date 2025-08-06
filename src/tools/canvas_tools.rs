@@ -10,11 +10,11 @@ use serde_json::{Value, to_value};
 use crate::server::{
     mcp_server::SparkthMCPServer,
     types::{
-        CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload, ListPagesPayload,
-        ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload, PageParams, PagePayload,
-        QuestionParams, QuestionPayload, QuizParams, QuizPayload, UpdateModuleItemPayload,
-        UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload, UpdateQuizPayload,
-        UserPayload,
+        AuthorizationPayload, CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload,
+        ListPagesPayload, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload,
+        PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload,
+        UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload,
+        UpdateQuizPayload, UserPayload,
     },
 };
 
@@ -41,6 +41,22 @@ impl SparkthMCPServer {
             .collect();
 
         CallToolResult::success(vec![Content::text(results.join(","))])
+    }
+
+    #[tool(description = "Store the API URL and token from the user to authenticate requests")]
+    pub async fn authenticate_user(
+        &self,
+        Parameters(AuthorizationPayload { api_url, api_token }): Parameters<AuthorizationPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match self.canvas_client.authenticate(api_url, api_token).await {
+            Ok(_) => Ok(CallToolResult::success(vec![Content::text(
+                "User authorized successfuly!",
+            )])),
+            Err(err) => {
+                let msg = format!("Error while authorization: {err}");
+                Err(ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, msg, None))
+            }
+        }
     }
 
     #[tool(description = "Get all courses from Canvas account")]
@@ -856,6 +872,6 @@ mod tests {
     fn test_canvas_tool_router() {
         let canvas_tools = SparkthMCPServer::canvas_tools_router().list_all();
 
-        assert_eq!(canvas_tools.len(), 30);
+        assert_eq!(canvas_tools.len(), 31);
     }
 }
