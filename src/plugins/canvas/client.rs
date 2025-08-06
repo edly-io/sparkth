@@ -69,7 +69,7 @@ impl CanvasClient {
         let mut request = self
             .client
             .request(http_method, &url)
-            .header("Authorization", format!("Bearer {}", api_token));
+            .header("Authorization", format!("Bearer {api_token}"));
 
         if let Some(payload) = payload {
             request = request.json(&payload);
