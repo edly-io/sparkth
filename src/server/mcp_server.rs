@@ -1,4 +1,4 @@
-use crate::{plugins::canvas::client::CanvasClient, prompts};
+use crate::prompts;
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::tool::{Parameters, ToolRouter},
@@ -20,9 +20,7 @@ pub struct CourseGenerationPromptRequest {
 
 #[derive(Clone)]
 pub struct SparkthMCPServer {
-    // TODO: Use plugin context for extensions (filters and actions)
     pub tool_router: ToolRouter<Self>,
-    pub canvas_client: CanvasClient,
 }
 
 #[tool_router]
@@ -32,10 +30,7 @@ impl SparkthMCPServer {
             + SparkthMCPServer::tool_router()
             + SparkthMCPServer::canvas_tools_router();
 
-        Self {
-            tool_router,
-            canvas_client: CanvasClient::default(),
-        }
+        Self { tool_router }
     }
 
     #[tool(description = "Generates a prompt for creating a course. 
