@@ -101,6 +101,10 @@ pub struct MyLMSClient {
 Create an implementation block for your client
 
 ```rust
+use reqwest::Method;
+use serde_json::Value;
+
+use crate::plugins::my_lms::{error::MyLMSError, types::MyLMSResponse};
 
 impl MyLMSClient {
     pub fn new(api_token: String) -> Self {
@@ -118,9 +122,9 @@ impl MyLMSClient {
 
     pub async fn request(
         &self,
-        http_method: Method,
-        endpoint: &str,
-        payload: Option<Value>,
+        http_method: Method,        // GET, POST, PUT, DELETE, etc.
+        endpoint: &str,             // endpoint to hit
+        payload: Option<Value>,     // Optional payload. None for GET and DELETE requests, Some(...) for POST, PUT etc.
     ) -> Result<MyLMSResponse, MyLMSError> {
         // Add implementation for sending requests to the endpoint and returning appropriate responses...
     }
@@ -167,6 +171,8 @@ The `vis = "pub"` parameter is important as we need to combine multiple routers 
 
 Add a tool method within the implementation block. Every tool must be marked with the `#[tool]` attribute:
 
+We will prefix the tool's name with the LMS name, e.g., `canvas_get_courses`.
+
 ```rust
 use rmcp::{
     ErrorData,
@@ -179,7 +185,7 @@ use crate::server::mcp_server::SparkthMCPServer;
 impl SparkthMCPServer {
     
     #[tool]
-    pub fn greet(&self) -> Result<CallToolResult, ErrorData> {
+    pub fn my_lms_greet(&self) -> Result<CallToolResult, ErrorData> {
         let greeting = String::from("Hello from Sparkth MCP!");
         Ok(CallToolResult::success(vec![Content::text(greeting)]))
     }
@@ -197,7 +203,7 @@ To add description to your tool, we can use tool attributes:
 ```rust
 
 #[tool(description = "A simple greeting tool that returns a friendly message.")]
-pub fn greet(&self) -> Result<CallToolResult, ErrorData> {
+pub fn my_lms_greet(&self) -> Result<CallToolResult, ErrorData> {
     let greeting = String::from("Hello from Sparkth MCP!");
     Ok(CallToolResult::success(vec![Content::text(greeting)]))
 }
@@ -237,7 +243,7 @@ use rmcp::{
 impl SparkthMCPServer {
     
     #[tool(description = "A simple greeting tool that returns a friendly message.")]
-    pub fn greet(
+    pub fn my_lms_greet(
         &self,
         Parameters(ToolParams { name }): Parameters<ToolParams>,
     ) -> Result<CallToolResult, ErrorData> {
@@ -274,7 +280,7 @@ The tool signature will become
 
 ```rust
 #[tool(description = "A simple greeting tool that returns a friendly message.")]
-pub fn greet(
+pub fn my_lms_greet(
     &self,
     Parameters(ToolParams { name, auth }): Parameters<ToolParams>,
 ) -> Result<CallToolResult, ErrorData> {
@@ -291,14 +297,14 @@ We will need our tools to call the LMS endpoints. For this purpose, our tools wi
 
 ```rust
 #[tool(description = "Example tool to connect to LMS.")]
-pub fn lms_tool(
+pub fn my_lms_tool(
     &self,
     Parameters(ToolParams { name, auth }): Parameters<ToolParams>,
 ) -> Result<CallToolResult, ErrorData> {
 
     let client = MyLMSClient::new(auth.api_token); 
 
-    match client.request(Method::GET, "greet").await {
+    match client.request(Method::GET, "greet", None).await {
         Ok(...) => todo!(),
         Err(...) => todo!(),
 
@@ -320,7 +326,7 @@ mod tests {
     fn test_my_lms_tool_router() {
         let tools = SparkthMCPServer::my_lms_tools_router().list_all();
         // Verify the expected number of tools are registered
-        assert_eq!(tools.len(), 1); // greet 
+        assert_eq!(tools.len(), 2); // my_lms_greet, my_lms_tool 
     }
 }
 ```
