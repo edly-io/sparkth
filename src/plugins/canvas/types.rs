@@ -10,8 +10,8 @@ pub enum CanvasResponse {
     Multiple(Vec<Value>),
 }
 
-#[derive(Deserialize, JsonSchema)]
-pub struct AuthorizationPayload {
+#[derive(Deserialize, JsonSchema, Clone, Debug, Serialize)]
+pub struct AuthenticationPayload {
     pub api_url: String,
     pub api_token: String,
 }
@@ -19,6 +19,7 @@ pub struct AuthorizationPayload {
 #[derive(Deserialize, JsonSchema)]
 pub struct CourseParams {
     pub course_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -48,12 +49,14 @@ pub struct CoursePayload {
     offer: Option<bool>,
     enable_sis_reactivation: Option<bool>,
     pub account_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(Deserialize, JsonSchema)]
 pub struct ModuleParams {
     pub course_id: u32,
     pub module_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -70,6 +73,7 @@ pub struct Module {
 pub struct ModulePayload {
     module: Module,
     pub course_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -88,6 +92,7 @@ pub struct UpdateModulePayload {
     module: UpdatedModule,
     pub course_id: u32,
     pub module_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Deserialize)]
@@ -95,6 +100,7 @@ pub struct ModuleItemParams {
     pub course_id: u32,
     pub module_id: u32,
     pub item_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -134,6 +140,7 @@ pub struct ModuleItemPayload {
     pub module_id: u32,
     pub course_id: u32,
     module_item: ModuleItem,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -154,6 +161,7 @@ pub struct UpdateModuleItemPayload {
     pub course_id: u32,
     pub item_id: u32,
     module_item: UpdatedModuleItem,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -174,6 +182,7 @@ enum Order {
 
 #[derive(JsonSchema, Serialize, Deserialize)]
 pub struct ListPagesPayload {
+    pub auth: AuthenticationPayload,
     pub course_id: u32,
     search_term: Option<String>,
     sort: Option<SortBy>,
@@ -186,6 +195,7 @@ pub struct ListPagesPayload {
 pub struct PageParams {
     pub course_id: u32,
     pub page_url: String,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
@@ -211,6 +221,7 @@ struct Page {
 
 #[derive(JsonSchema, Serialize, Deserialize)]
 pub struct PagePayload {
+    pub auth: AuthenticationPayload,
     pub course_id: u32,
     wiki_page: Page,
 }
@@ -228,6 +239,7 @@ struct UpdatedPage {
 
 #[derive(JsonSchema, Serialize, Deserialize)]
 pub struct UpdatePagePayload {
+    pub auth: AuthenticationPayload,
     pub course_id: u32,
     pub url_or_id: String,
     wiki_page: UpdatedPage,
@@ -237,6 +249,7 @@ pub struct UpdatePagePayload {
 pub struct QuizParams {
     pub course_id: u32,
     pub quiz_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -291,6 +304,7 @@ struct Quiz {
 
 #[derive(JsonSchema, Serialize, Deserialize)]
 pub struct QuizPayload {
+    pub auth: AuthenticationPayload,
     pub course_id: u32,
     quiz: Quiz,
 }
@@ -325,6 +339,7 @@ struct UpdatedQuiz {
 
 #[derive(JsonSchema, Serialize, Deserialize)]
 pub struct UpdateQuizPayload {
+    pub auth: AuthenticationPayload,
     pub course_id: u32,
     pub quiz_id: u32,
     quiz: UpdatedQuiz,
@@ -335,6 +350,7 @@ pub struct QuestionParams {
     pub course_id: String,
     pub quiz_id: String,
     pub question_id: String,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -378,6 +394,7 @@ pub struct QuestionPayload {
     question: Question,
     pub course_id: u32,
     pub quiz_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -401,6 +418,7 @@ pub struct UpdateQuestionPayload {
     pub course_id: u32,
     pub quiz_id: u32,
     pub question_id: u32,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -423,6 +441,7 @@ pub struct UserPayload {
     pub account_id: String,
     user: User,
     pub pseudonym: Pseudonym,
+    pub auth: AuthenticationPayload,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize)]
@@ -471,4 +490,5 @@ pub struct EnrollmentPayload {
     pub course_id: u32,
     pub enrollment: Enrollment,
     pub root_account: Option<String>,
+    pub auth: AuthenticationPayload,
 }

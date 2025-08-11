@@ -11,7 +11,124 @@ The Sparkth MCP server uses a modular tool system where each tool is:
 
 ## Creating Your First Tool
 
-### Step 1: Set Up the Module Structure
+Ideally, we want to have tools for connecting our LMS endpoints with the MCP server. This requires an implementation of all the endpoints that our MCP tools can access.
+
+The `src/plugins/` directory will have all the implementions for LMS clients. For now, we have one for `Canvas` in the `/canvas/` directory.
+
+The directory structure is defined as:
+
+```
+src/plugins/
+├── mod.rs              # Plugin exports
+├── canvas/             # Canvas implementation
+│   ├── mod.rs
+│   ├── client.rs       # CanvasClient struct and request method
+|   ├── error.rs        # CanvasError enum
+│   └── types.rs        # Canvas-specific types
+└── [new_lms]/          # Template for new LMS
+```
+
+### Step 1: Implementing Your LMS Client
+
+Create your LMS implementation in `src/plugins/your_lms/`:
+
+#### 1.1. Create modules 
+
+Create modules for `types`, `client` and `error` for your LMS.
+
+Then register them in `src/plugins/your_lms/mod.rs`:
+
+```rust
+pub mod client;
+pub mod error
+pub mod types;
+```
+
+#### 1.2. Define types
+Add your LMS-specific types in `src/plugins/your_lms/types.rs`:
+
+```rust
+use serde::{Deserialize, Serialize};
+use crate::plugins::traits::*;
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum MyLMSResponse {
+   // LMS-specific response format
+}
+
+// Your LMS-specific types
+#[derive(Debug, Deserialize)]
+pub struct YourLMSCourse {
+    pub id: u64,
+    pub title: String,
+    pub description: Option<String>,
+    // LMS-specific fields...
+}
+
+// Define other LMS-specific types and conversions...
+
+```
+
+#### 1.3. Define error enum
+Define your error enum In `src/plugins/your_lms/error.rs`:
+
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum MyLMSError {
+    #[error("Authentication failed: {0}")]
+    Authentication(String),
+    #[error("My_LMS API Error ({status_code}): {message}")]
+    Api { status_code: u16, message: String },
+
+    // Add other errors as required
+    
+}
+```
+
+#### 1.3. Implement your client
+Add your LMS client implementation in `src/plugins/your_lms/client.rs`:
+
+```rust
+pub struct MyLMSClient {
+    api_token: Option<String>,          // Add other credential fields as required
+    client: Client,
+}
+```
+
+Create an implementation block for your client
+
+```rust
+
+impl MyLMSClient {
+    pub fn new(api_token: String) -> Self {
+        Self {
+            api_token: Some(api_token), // Initialize other fields if present 
+            client: Client::new(),
+        }
+    }
+
+    pub async fn authenticate(
+        new_api_token: String,
+    ) -> Result<(), MyLMSError> {
+        // Add implementation for authenticating your credentials...
+    }
+
+    pub async fn request(
+        &self,
+        http_method: Method,
+        endpoint: &str,
+        payload: Option<Value>,
+    ) -> Result<MyLMSResponse, MyLMSError> {
+        // Add implementation for sending requests to the endpoint and returning appropriate responses...
+    }
+
+}
+```
+
+### Step 2: Set Up the Module Structure
 
 Create a new module file in the `src/tools/` directory:
 
@@ -25,7 +142,7 @@ Add your module in `src/tools/mod.rs`:
 pub mod my_lms_tools;
 ```
 
-### Step 2: Define the Tool Router
+### Step 3: Define the Tool Router
 
 In your `my_lms_tools.rs` file, create the basic structure:
 
@@ -46,7 +163,7 @@ impl SparkthMCPServer {}
 
 The `vis = "pub"` parameter is important as we need to combine multiple routers in the main server.
 
-### Step 3: Implement Your Tool
+### Step 4: Implement Your Tool
 
 Add a tool method within the implementation block. Every tool must be marked with the `#[tool]` attribute:
 
@@ -90,7 +207,7 @@ pub fn greet(&self) -> Result<CallToolResult, ErrorData> {
 You can read more about the tool attributes [here](https://docs.rs/rmcp/latest/rmcp/attr.tool.html).
 
 
-### Step 4: Add Tool Parameters
+### Step 5: Add Tool Parameters 
 
 For tools that accept parameters, we must define a struct that implements `serde::Deserialize` and `schemars::JsonSchema`:
 
@@ -130,7 +247,67 @@ impl SparkthMCPServer {
 }
 ```
 
-### Step 5: Test Your Tools
+#### Authentication Parameters
+Tools that connect to the third-party APIs will require authentication credentials, which we can pass directly to the tool.
+
+Define the params
+
+```rust
+#[derive(Deserialize, JsonSchema)]
+struct AuthParams {
+    pub token: String,      // Add other params as required
+}
+```
+
+Update your `ToolParams`:
+
+```rust
+#[derive(Deserialize, JsonSchema)]
+struct ToolParams {
+    pub name: String,
+    pub auth: AuthParams,
+}
+
+```
+
+The tool signature will become
+
+```rust
+#[tool(description = "A simple greeting tool that returns a friendly message.")]
+pub fn greet(
+    &self,
+    Parameters(ToolParams { name, auth }): Parameters<ToolParams>,
+) -> Result<CallToolResult, ErrorData> {
+
+    /* Do something with the credentials, e.g., initialize an API client */
+
+    let greeting = format!("Hello {name} from Sparkth MCP!");
+    Ok(CallToolResult::success(vec![Content::text(greeting)]))
+}
+```
+
+#### Example tool with LMS
+We will need our tools to call the LMS endpoints. For this purpose, our tools will create an LMS Client instance.
+
+```rust
+#[tool(description = "Example tool to connect to LMS.")]
+pub fn lms_tool(
+    &self,
+    Parameters(ToolParams { name, auth }): Parameters<ToolParams>,
+) -> Result<CallToolResult, ErrorData> {
+
+    let client = MyLMSClient::new(auth.api_token); 
+
+    match client.request(Method::GET, "greet").await {
+        Ok(...) => todo!(),
+        Err(...) => todo!(),
+
+    }
+}
+```
+
+
+### Step 6: Test Your Tools
 
 Create a simple test in the same module to ensure your tool works correctly:
 
@@ -159,12 +336,12 @@ cargo test test_my_lms_tool_router
 
 ```
 
-### Step 6: Integrate with the Server
+### Step 7: Integrate with the Server
 
 Navigate to `src/server/mcp_server.rs` and locate the `new()` method. Add your router to the tool router chain:
 
 ```rust
-pub fn new(...) -> Self {
+pub fn new() -> Self {
     let tool_router = ToolRouter::new()
         + SparkthMCPServer::tool_router()
         + SparkthMCPServer::my_lms_tools_router(); // Add your router here

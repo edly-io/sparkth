@@ -7,15 +7,18 @@ use rmcp::{
 };
 use serde_json::{Value, to_value};
 
-use crate::server::{
-    mcp_server::SparkthMCPServer,
-    types::{
-        AuthorizationPayload, CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload,
-        ListPagesPayload, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload,
-        PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload,
-        UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload,
-        UpdateQuizPayload, UserPayload,
+use crate::{
+    plugins::canvas::{
+        client::CanvasClient,
+        types::{
+            AuthenticationPayload, CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload,
+            ListPagesPayload, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload,
+            PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload,
+            UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload,
+            UpdateQuizPayload, UserPayload,
+        },
     },
+    server::mcp_server::SparkthMCPServer,
 };
 
 #[tool_router(router = canvas_tools_router, vis = "pub")]
@@ -46,26 +49,29 @@ impl SparkthMCPServer {
     #[tool(description = "Store the API URL and token from the user to authenticate requests")]
     pub async fn authenticate_user(
         &self,
-        Parameters(AuthorizationPayload { api_url, api_token }): Parameters<AuthorizationPayload>,
+        Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self.canvas_client.authenticate(api_url, api_token).await {
+        match CanvasClient::authenticate(api_url, api_token).await {
             Ok(_) => Ok(CallToolResult::success(vec![Content::text(
-                "User authorized successfuly!",
+                "User authenticated successfuly!",
             )])),
             Err(err) => {
-                let msg = format!("Error while authorization: {err}");
+                let msg = format!("Error while authentication: {err}");
                 Err(ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, msg, None))
             }
         }
     }
 
-    #[tool(description = "Get all courses from Canvas account")]
-    pub async fn canvas_get_courses(&self) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
-            .request(Method::GET, "courses", None)
-            .await
-        {
+    #[tool(
+        description = "Get all courses from Canvas account. Don't proceed until credentials are authenticated."
+    )]
+    pub async fn canvas_get_courses(
+        &self,
+        Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let client = CanvasClient::new(api_url, api_token);
+
+        match client.request(Method::GET, "courses", None).await {
             Ok(response) => Ok(self.handle_response_vec(response)),
             Err(err) => {
                 let msg = format!("Error while fetching all courses: {err}");
@@ -75,14 +81,14 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single course from Canvas account. Always prompt for missing required parameters."
+        description = "Get a single course from Canvas account. Don't proceed until credentials are authenticated."
     )]
     pub async fn canvas_get_course(
         &self,
-        Parameters(CourseParams { course_id }): Parameters<CourseParams>,
+        Parameters(CourseParams { course_id, auth }): Parameters<CourseParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+        match client
             .request(Method::GET, &format!("courses/{course_id}"), None)
             .await
         {
@@ -95,14 +101,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new course on Canvas. Always prompt for any missing required parameters."
+        description = "Create a new course on Canvas. Don't proceed until credentials are authenticated. Don't proceed until credentials are authenticated. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_course(
         &self,
         Parameters(payload): Parameters<CoursePayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!("accounts/{}/courses", payload.account_id),
@@ -119,14 +127,15 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get all modules of a Canvas course. Always prompt for any missing required parameters."
+        description = "Get all modules of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_list_modules(
         &self,
-        Parameters(CourseParams { course_id }): Parameters<CourseParams>,
+        Parameters(CourseParams { course_id, auth }): Parameters<CourseParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(Method::GET, &format!("courses/{course_id}/modules"), None)
             .await
         {
@@ -139,17 +148,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single module of a Canvas course. Always prompt for any missing required parameters."
+        description = "Get a single module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_get_module(
         &self,
         Parameters(ModuleParams {
             course_id,
             module_id,
+            auth,
         }): Parameters<ModuleParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}"),
@@ -168,14 +179,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new module for a Canvas course. Always prompt for any missing required parameters."
+        description = "Create a new module for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_module(
         &self,
         Parameters(payload): Parameters<ModulePayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!("courses/{}/modules", payload.course_id),
@@ -195,14 +208,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a module of a Canvas course. Always prompt for any missing required parameters."
+        description = "Update a module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_update_module(
         &self,
         Parameters(payload): Parameters<UpdateModulePayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::PUT,
                 &format!(
@@ -225,17 +240,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a module of a Canvas course. Always prompt for any missing required parameters."
+        description = "Delete a module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_delete_module(
         &self,
         Parameters(ModuleParams {
             course_id,
             module_id,
+            auth,
         }): Parameters<ModuleParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::DELETE,
                 &format!("courses/{course_id}/modules/{module_id}"),
@@ -254,17 +271,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all modules items of a Canvas course. Always prompt for any missing required parameters."
+        description = "List all modules items of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_list_module_items(
         &self,
         Parameters(ModuleParams {
             course_id,
             module_id,
+            auth,
         }): Parameters<ModuleParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}/items"),
@@ -283,7 +302,7 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single module item of a Canvas course. Always prompt for any missing required parameters."
+        description = "Get a single module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_get_module_item(
         &self,
@@ -291,10 +310,12 @@ impl SparkthMCPServer {
             course_id,
             module_id,
             item_id,
+            auth,
         }): Parameters<ModuleItemParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}/items/{item_id}"),
@@ -313,14 +334,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new module item for a Canvas course. Always prompt for any missing required parameters."
+        description = "Create a new module item for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_module_item(
         &self,
         Parameters(payload): Parameters<ModuleItemPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!(
@@ -343,14 +366,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a module item of a Canvas course. Always prompt for any missing required parameters."
+        description = "Update a module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_update_module_item(
         &self,
         Parameters(payload): Parameters<UpdateModuleItemPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::PUT,
                 &format!(
@@ -373,7 +398,7 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a module item of a Canvas course. Always prompt for any missing required parameters."
+        description = "Delete a module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_delete_module_item(
         &self,
@@ -381,10 +406,12 @@ impl SparkthMCPServer {
             course_id,
             module_id,
             item_id,
+            auth,
         }): Parameters<ModuleItemParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::DELETE,
                 &format!("courses/{course_id}/modules/{module_id}/items/{item_id}",),
@@ -403,14 +430,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all pages of a Canvas course. Always prompt for any missing required parameters."
+        description = "List all pages of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_list_pages(
         &self,
         Parameters(payload): Parameters<ListPagesPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{}/pages", payload.course_id),
@@ -430,17 +459,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single page of a Canvas course. Always prompt for any missing required parameters."
+        description = "Get a single page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_get_page(
         &self,
         Parameters(PageParams {
             course_id,
             page_url,
+            auth,
         }): Parameters<PageParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/pages/{page_url}"),
@@ -458,14 +489,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new page for a Canvas course. Always prompt for any missing required parameters."
+        description = "Create a new page for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_page(
         &self,
         Parameters(payload): Parameters<PagePayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!("courses/{}/pages", payload.course_id),
@@ -485,14 +518,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a page of a Canvas course. Always prompt for any missing required parameters."
+        description = "Update a page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_update_page(
         &self,
         Parameters(payload): Parameters<UpdatePagePayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::PUT,
                 &format!("courses/{}/pages/{}", payload.course_id, payload.url_or_id),
@@ -512,17 +547,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a page of a Canvas course. Always prompt for any missing required parameters."
+        description = "Delete a page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_delete_page(
         &self,
         Parameters(PageParams {
             course_id,
             page_url,
+            auth,
         }): Parameters<PageParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::DELETE,
                 &format!("courses/{course_id}/pages/{page_url}"),
@@ -540,14 +577,15 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all quizzes of a Canvas course. Always prompt for any missing required parameters."
+        description = "List all quizzes of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_list_quizzes(
         &self,
-        Parameters(CourseParams { course_id }): Parameters<CourseParams>,
+        Parameters(CourseParams { course_id, auth }): Parameters<CourseParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(Method::GET, &format!("courses/{course_id}/quizzes"), None)
             .await
         {
@@ -560,14 +598,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single quiz of a Canvas course. Always prompt for any missing required parameters."
+        description = "Get a single quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_get_quiz(
         &self,
-        Parameters(QuizParams { course_id, quiz_id }): Parameters<QuizParams>,
+        Parameters(QuizParams {
+            course_id,
+            quiz_id,
+            auth,
+        }): Parameters<QuizParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}"),
@@ -585,14 +628,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new quiz for a Canvas course. Always prompt for any missing required parameters."
+        description = "Create a new quiz for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_quiz(
         &self,
         Parameters(payload): Parameters<QuizPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!("courses/{}/quizzes", payload.course_id),
@@ -612,14 +657,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a quiz of a Canvas course. Always prompt for any missing required parameters."
+        description = "Update a quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_update_quiz(
         &self,
         Parameters(payload): Parameters<UpdateQuizPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::PUT,
                 &format!("courses/{}/quizzes/{}", payload.course_id, payload.quiz_id),
@@ -639,14 +686,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a quiz of a Canvas course. Always prompt for any missing required parameters."
+        description = "Delete a quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_delete_quiz(
         &self,
-        Parameters(QuizParams { course_id, quiz_id }): Parameters<QuizParams>,
+        Parameters(QuizParams {
+            course_id,
+            quiz_id,
+            auth,
+        }): Parameters<QuizParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::DELETE,
                 &format!("courses/{course_id}/quizzes/{quiz_id}"),
@@ -664,14 +716,19 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all questions of a quiz. Always prompt for any missing required parameters."
+        description = "List all questions of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_list_questions(
         &self,
-        Parameters(QuizParams { course_id, quiz_id }): Parameters<QuizParams>,
+        Parameters(QuizParams {
+            course_id,
+            quiz_id,
+            auth,
+        }): Parameters<QuizParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions",),
@@ -690,7 +747,7 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single question of a quiz. Always prompt for any missing required parameters."
+        description = "Get a single question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_get_question(
         &self,
@@ -698,10 +755,12 @@ impl SparkthMCPServer {
             course_id,
             quiz_id,
             question_id,
+            auth,
         }): Parameters<QuestionParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
@@ -720,14 +779,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new question for a quiz. Always prompt for any missing required parameters."
+        description = "Create a new question for a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_question(
         &self,
         Parameters(payload): Parameters<QuestionPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!(
@@ -750,14 +811,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a question of a quiz. Always prompt for any missing required parameters."
+        description = "Update a question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_update_question(
         &self,
         Parameters(payload): Parameters<UpdateQuestionPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::PUT,
                 &format!(
@@ -780,7 +843,7 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a question of a quiz. Always prompt for any missing required parameters."
+        description = "Delete a question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_delete_question(
         &self,
@@ -788,10 +851,12 @@ impl SparkthMCPServer {
             course_id,
             quiz_id,
             question_id,
+            auth,
         }): Parameters<QuestionParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client = CanvasClient::new(auth.api_url, auth.api_token);
+
+        match client
             .request(
                 Method::DELETE,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
@@ -810,14 +875,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new user in a Canvas account. Always prompt for any missing required parameters."
+        description = "Create a new user in a Canvas account. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_create_user(
         &self,
         Parameters(payload): Parameters<UserPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!("accounts/{}/users", payload.account_id),
@@ -837,14 +904,16 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Enroll a user in a Canvas course. Always prompt for any missing required parameters."
+        description = "Enroll a user in a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
     )]
     pub async fn canvas_enroll_user(
         &self,
         Parameters(payload): Parameters<EnrollmentPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        match self
-            .canvas_client
+        let client =
+            CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
+
+        match client
             .request(
                 Method::POST,
                 &format!("courses/{}/enrollments", payload.course_id),
