@@ -28,7 +28,9 @@ impl SparkthMCPServer {
     pub fn new() -> Self {
         let tool_router = ToolRouter::new()
             + SparkthMCPServer::tool_router()
-            + SparkthMCPServer::canvas_tools_router();
+            + SparkthMCPServer::canvas_tools_router()
+            + SparkthMCPServer::openedx_tools_router();
+
 
         Self { tool_router }
     }
