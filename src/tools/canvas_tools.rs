@@ -1,12 +1,4 @@
-use reqwest::Method;
-use rmcp::{
-    ErrorData,
-    handler::server::tool::Parameters,
-    model::{CallToolResult, Content, ErrorCode},
-    tool, tool_router,
-};
-use serde_json::{Value, to_value};
-
+use crate::utils::cached_schema_for_type;
 use crate::{
     plugins::canvas::{
         client::CanvasClient,
@@ -20,6 +12,14 @@ use crate::{
     },
     server::mcp_server::SparkthMCPServer,
 };
+use reqwest::Method;
+use rmcp::{
+    ErrorData,
+    handler::server::tool::Parameters,
+    model::{CallToolResult, Content, ErrorCode},
+    tool, tool_router,
+};
+use serde_json::{Value, to_value};
 
 #[tool_router(router = canvas_tools_router, vis = "pub")]
 impl SparkthMCPServer {
@@ -46,7 +46,10 @@ impl SparkthMCPServer {
         CallToolResult::success(vec![Content::text(results.join(","))])
     }
 
-    #[tool(description = "Store the API URL and token from the user to authenticate requests")]
+    #[tool(
+        description = "Store the API URL and token from the user to authenticate requests",
+        input_schema = cached_schema_for_type::<AuthenticationPayload>())
+    ]
     pub async fn authenticate_user(
         &self,
         Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
@@ -63,7 +66,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get all courses from Canvas account. Don't proceed until credentials are authenticated."
+        description = "Get all courses from Canvas account. Don't proceed until credentials are authenticated.",
+        input_schema = cached_schema_for_type::<AuthenticationPayload>()
     )]
     pub async fn canvas_get_courses(
         &self,
@@ -81,7 +85,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single course from Canvas account. Don't proceed until credentials are authenticated."
+        description = "Get a single course from Canvas account. Don't proceed until credentials are authenticated.",
+        input_schema = cached_schema_for_type::<CourseParams>()
     )]
     pub async fn canvas_get_course(
         &self,
@@ -101,7 +106,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new course on Canvas. Don't proceed until credentials are authenticated. Don't proceed until credentials are authenticated. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new course on Canvas. Don't proceed until credentials are authenticated. Don't proceed until credentials are authenticated. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<CoursePayload>()
     )]
     pub async fn canvas_create_course(
         &self,
@@ -127,7 +133,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get all modules of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Get all modules of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<CourseParams>()
     )]
     pub async fn canvas_list_modules(
         &self,
@@ -148,7 +155,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Get a single module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModuleParams>()
     )]
     pub async fn canvas_get_module(
         &self,
@@ -179,7 +187,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new module for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new module for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModulePayload>()
     )]
     pub async fn canvas_create_module(
         &self,
@@ -208,7 +217,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Update a module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<UpdateModulePayload>()
     )]
     pub async fn canvas_update_module(
         &self,
@@ -240,7 +250,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Delete a module of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModuleParams>()
     )]
     pub async fn canvas_delete_module(
         &self,
@@ -271,7 +282,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all modules items of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "List all modules items of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModuleParams>()
     )]
     pub async fn canvas_list_module_items(
         &self,
@@ -302,7 +314,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Get a single module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModuleItemParams>()
     )]
     pub async fn canvas_get_module_item(
         &self,
@@ -334,7 +347,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new module item for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new module item for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModuleItemPayload>()
     )]
     pub async fn canvas_create_module_item(
         &self,
@@ -366,7 +380,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Update a module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<UpdateModuleItemPayload>()
     )]
     pub async fn canvas_update_module_item(
         &self,
@@ -398,7 +413,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Delete a module item of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ModuleItemParams>()
     )]
     pub async fn canvas_delete_module_item(
         &self,
@@ -430,7 +446,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all pages of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "List all pages of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<ListPagesPayload>()
     )]
     pub async fn canvas_list_pages(
         &self,
@@ -459,7 +476,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Get a single page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<PageParams>()
     )]
     pub async fn canvas_get_page(
         &self,
@@ -489,7 +507,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new page for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new page for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<PagePayload>()
     )]
     pub async fn canvas_create_page(
         &self,
@@ -518,7 +537,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Update a page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<UpdatePagePayload>()
     )]
     pub async fn canvas_update_page(
         &self,
@@ -547,7 +567,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Delete a page of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<PageParams>()
     )]
     pub async fn canvas_delete_page(
         &self,
@@ -577,7 +598,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all quizzes of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "List all quizzes of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<CourseParams>()
     )]
     pub async fn canvas_list_quizzes(
         &self,
@@ -598,7 +620,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Get a single quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuizParams>()
     )]
     pub async fn canvas_get_quiz(
         &self,
@@ -628,7 +651,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new quiz for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new quiz for a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuizPayload>()
     )]
     pub async fn canvas_create_quiz(
         &self,
@@ -657,7 +681,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Update a quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<UpdateQuizPayload>()
     )]
     pub async fn canvas_update_quiz(
         &self,
@@ -686,7 +711,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Delete a quiz of a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuizParams>()
     )]
     pub async fn canvas_delete_quiz(
         &self,
@@ -716,7 +742,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "List all questions of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "List all questions of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuizParams>()
     )]
     pub async fn canvas_list_questions(
         &self,
@@ -747,7 +774,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Get a single question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Get a single question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuestionParams>()
     )]
     pub async fn canvas_get_question(
         &self,
@@ -779,7 +807,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new question for a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new question for a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuestionPayload>()
     )]
     pub async fn canvas_create_question(
         &self,
@@ -811,7 +840,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Update a question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Update a question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<UpdateQuestionPayload>()
     )]
     pub async fn canvas_update_question(
         &self,
@@ -843,7 +873,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Delete a question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Delete a question of a quiz. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<QuestionParams>()
     )]
     pub async fn canvas_delete_question(
         &self,
@@ -875,7 +906,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a new user in a Canvas account. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Create a new user in a Canvas account. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<UserPayload>()
     )]
     pub async fn canvas_create_user(
         &self,
@@ -904,7 +936,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Enroll a user in a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters."
+        description = "Enroll a user in a Canvas course. Don't proceed until credentials are authenticated. Always prompt for any missing required parameters.",
+        input_schema = cached_schema_for_type::<EnrollmentPayload>()
     )]
     pub async fn canvas_enroll_user(
         &self,
