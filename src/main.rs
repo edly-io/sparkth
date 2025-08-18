@@ -2,6 +2,7 @@ mod plugins;
 mod prompts;
 mod server;
 mod tools;
+mod utils;
 
 use crate::server::mcp_server::SparkthMCPServer;
 use clap::{Parser, ValueEnum, arg};
@@ -42,9 +43,10 @@ async fn run_sse_server(
         sse_keep_alive: None,
     };
 
-    let ct = SseServer::serve_with_config(config)
-        .await?
-        .with_service(move || mcp.clone());
+    let server = SseServer::serve_with_config(config).await?;
+
+    eprintln!("🚀 SSE server listening on http://{bind_address}");
+    let ct = server.with_service(move || mcp.clone());
     tokio::signal::ctrl_c().await?;
     ct.cancel();
 
@@ -57,6 +59,7 @@ async fn run_stdio_server(mcp: SparkthMCPServer) -> Result<(), Box<dyn std::erro
         .await
         .inspect_err(|err| eprintln!("{err}"))?;
 
+    eprintln!("🚀 Stdio server listening (waiting for messages)");
     service.waiting().await?;
 
     Ok(())
