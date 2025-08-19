@@ -1,3 +1,3 @@
 pub(crate) mod client;
 mod error;
-mod types;
+pub(crate) mod types;
