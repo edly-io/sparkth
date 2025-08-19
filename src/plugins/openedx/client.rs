@@ -5,7 +5,8 @@ use crate::plugins::openedx::{error::OpenEdxError, types::OpenEdxResponse};
 
 #[derive(Debug, Clone)]
 pub struct OpenEdxClient {
-    base_url: String,
+    lms_url: String,
+    studio_url: String,
     client_id: String,
     client: Client,
     access_token: Option<String>,
@@ -13,19 +14,14 @@ pub struct OpenEdxClient {
 }
 
 impl OpenEdxClient {
-    pub fn new(base_url: impl Into<String>) -> Self {
+    pub fn new(lms_url: impl Into<String>, studio_url: impl Into<String>) -> Self {
         Self {
-            base_url: base_url.into().trim_end_matches('/').to_string(),
+            lms_url: lms_url.into().trim_end_matches('/').to_string(),
+            studio_url: studio_url.into().trim_end_matches('/').to_string(),
             client_id: "login-service-client-id".to_string(),
             client: Client::new(),
             access_token: None,
             username: None,
-        }
-    }
-    pub fn with_client_id(base_url: impl Into<String>, client_id: impl Into<String>) -> Self {
-        Self {
-            client_id: client_id.into(),
-            ..Self::new(base_url)
         }
     }
 
@@ -34,7 +30,7 @@ impl OpenEdxClient {
         username: impl AsRef<str>,
         password: impl AsRef<str>,
     ) -> Result<String, OpenEdxError> {
-        let auth_url = format!("{}/oauth2/access_token", self.base_url);
+        let auth_url = format!("{}/oauth2/access_token", self.lms_url);
         let form = [
             ("client_id", self.client_id.as_str()),
             ("grant_type", "password"),
@@ -54,24 +50,26 @@ impl OpenEdxClient {
 
         self.access_token = Some(token.clone());
 
-        // Validate by fetching user info
-        let me = self.get_user_info().await?;
-        self.username = me.get("username").and_then(|v| v.as_str()).map(|s| s.to_string());
-
         Ok(token)
     }
 
-    pub async fn get_user_info(&self) -> Result<Value, OpenEdxError> {
-        let token = self
-            .access_token
-            .as_ref()
-            .ok_or_else(|| OpenEdxError::Authentication("API token not set".into()))?;
+    pub async fn openedx_authenticate(
+        &self,
+        access_token: impl AsRef<str>,
+    ) -> Result<Value, OpenEdxError> {
+        let me_url = format!("{}/api/user/v1/me", self.lms_url);
 
-        let url = format!("{}/api/user/v1/me", self.base_url);
-        let resp = self.client.request(Method::GET, &url).bearer_auth(token).send().await?;
+        let resp = self
+            .client
+            .request(Method::GET, &me_url)
+            .bearer_auth(access_token.as_ref())
+            .send()
+            .await?;
+
         if !resp.status().is_success() {
             return Err(self.handle_error_response(resp).await);
         }
+
         let text = resp.text().await?;
         if text.is_empty() {
             return Ok(Value::Object(serde_json::Map::new()));
@@ -96,7 +94,74 @@ impl OpenEdxClient {
         OpenEdxError::Api { status_code, message }
     }
 
+    /// LMS-style auth (e.g., /api/user/v1/me)
+    pub async fn request_bearer(
+        &self,
+        http_method: Method,
+        endpoint: &str,
+        payload: Option<Value>,
+    ) -> Result<OpenEdxResponse, OpenEdxError> {
+        self.request_with_auth("Bearer", http_method, endpoint, payload).await
+    }
+
+    /// Studio-style auth (e.g., /api/v1/course_runs/)
+    pub async fn request_jwt(
+        &self,
+        http_method: Method,
+        endpoint: &str,
+        payload: Option<Value>,
+    ) -> Result<OpenEdxResponse, OpenEdxError> {
+        self.request_with_auth("JWT", http_method, endpoint, payload).await
+    }
+
+    async fn request_with_auth(
+        &self,
+        auth_prefix: &str,
+        http_method: Method,
+        endpoint: &str,
+        payload: Option<Value>,
+    ) -> Result<OpenEdxResponse, OpenEdxError> {
+        let token = self
+            .access_token
+            .as_ref()
+            .ok_or_else(|| OpenEdxError::Authentication("API token not set".into()))?;
+
+
+
+        let url = if endpoint.starts_with("http") {
+            endpoint.to_string()
+        } else {
+            format!("{}/{}", self.lms_url, endpoint.trim_start_matches('/'))
+        };
+
+        let mut req = self
+            .client
+            .request(http_method, &url)
+            .header("Authorization", format!("{auth_prefix} {token}"));
+
+        if let Some(p) = payload {
+            req = req.json(&p);
+        }
+
+        let resp = req.send().await?;
+        if !resp.status().is_success() {
+            return Err(self.handle_error_response(resp).await);
+        }
+
+        let text = resp.text().await?;
+        if text.is_empty() {
+            return Ok(OpenEdxResponse::Single(Value::Object(serde_json::Map::new())));
+        }
+
+        let json_value: Value = from_str(&text)?;
+        Ok(match json_value {
+            Value::Array(arr) => OpenEdxResponse::Multiple(arr),
+            single => OpenEdxResponse::Single(single),
+        })
+    }
+
     pub fn token(&self) -> Option<&str> { self.access_token.as_deref() }
     pub fn username(&self) -> Option<&str> { self.username.as_deref() }
-    pub fn base_url(&self) -> &str { &self.base_url }
+    pub fn lms_url(&self) -> &str { &self.lms_url }
+    pub fn studio_url(&self) -> &str { &self.studio_url }
 }
