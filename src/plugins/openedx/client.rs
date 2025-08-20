@@ -14,13 +14,13 @@ pub struct OpenEdxClient {
 }
 
 impl OpenEdxClient {
-    pub fn new(lms_url: impl Into<String>, studio_url: impl Into<String>) -> Self {
+    pub fn new(lms_url: &str, studio_url: &str, access_token: Option<String>) -> Self {
         Self {
-            lms_url: lms_url.into().trim_end_matches('/').to_string(),
-            studio_url: studio_url.into().trim_end_matches('/').to_string(),
+            lms_url: lms_url.trim_end_matches('/').to_string(),
+            studio_url: studio_url.trim_end_matches('/').to_string(),
             client_id: "login-service-client-id".to_string(),
             client: Client::new(),
-            access_token: None,
+            access_token,
             username: None,
         }
     }
@@ -34,6 +34,7 @@ impl OpenEdxClient {
         let form = [
             ("client_id", self.client_id.as_str()),
             ("grant_type", "password"),
+            ("token_type", "jwt"),
             ("username", username.as_ref()),
             ("password", password.as_ref()),
         ];
@@ -53,16 +54,13 @@ impl OpenEdxClient {
         Ok(token)
     }
 
-    pub async fn openedx_authenticate(
-        &self,
-        access_token: impl AsRef<str>,
-    ) -> Result<Value, OpenEdxError> {
+    pub async fn openedx_authenticate(&self, access_token: &str) -> Result<Value, OpenEdxError> {
         let me_url = format!("{}/api/user/v1/me", self.lms_url);
 
         let resp = self
             .client
             .request(Method::GET, &me_url)
-            .bearer_auth(access_token.as_ref())
+            .bearer_auth(access_token)
             .send()
             .await?;
 
@@ -91,7 +89,10 @@ impl OpenEdxClient {
         } else {
             text
         };
-        OpenEdxError::Api { status_code, message }
+        OpenEdxError::Api {
+            status_code,
+            message,
+        }
     }
 
     /// LMS-style auth (e.g., /api/user/v1/me)
@@ -101,17 +102,19 @@ impl OpenEdxClient {
         endpoint: &str,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
-        self.request_with_auth("Bearer", http_method, endpoint, payload).await
+        self.request_with_auth("Bearer", http_method, endpoint, payload)
+            .await
     }
 
-    /// Studio-style auth (e.g., /api/v1/course_runs/)
+   // Studio-style auth (e.g., /api/v1/course_runs/)
     pub async fn request_jwt(
         &self,
         http_method: Method,
         endpoint: &str,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
-        self.request_with_auth("JWT", http_method, endpoint, payload).await
+        self.request_with_auth("JWT", http_method, endpoint, payload)
+            .await
     }
 
     async fn request_with_auth(
@@ -124,9 +127,7 @@ impl OpenEdxClient {
         let token = self
             .access_token
             .as_ref()
-            .ok_or_else(|| OpenEdxError::Authentication("API token not set".into()))?;
-
-
+            .ok_or_else(|| OpenEdxError::Authentication("Access token not set".into()))?;
 
         let url = if endpoint.starts_with("http") {
             endpoint.to_string()
@@ -139,18 +140,23 @@ impl OpenEdxClient {
             .request(http_method, &url)
             .header("Authorization", format!("{auth_prefix} {token}"));
 
+        eprintln!("request: {:?}", req);
+
         if let Some(p) = payload {
             req = req.json(&p);
         }
 
         let resp = req.send().await?;
+
         if !resp.status().is_success() {
             return Err(self.handle_error_response(resp).await);
         }
 
         let text = resp.text().await?;
         if text.is_empty() {
-            return Ok(OpenEdxResponse::Single(Value::Object(serde_json::Map::new())));
+            return Ok(OpenEdxResponse::Single(Value::Object(
+                serde_json::Map::new(),
+            )));
         }
 
         let json_value: Value = from_str(&text)?;
@@ -160,8 +166,16 @@ impl OpenEdxClient {
         })
     }
 
-    pub fn token(&self) -> Option<&str> { self.access_token.as_deref() }
-    pub fn username(&self) -> Option<&str> { self.username.as_deref() }
-    pub fn lms_url(&self) -> &str { &self.lms_url }
-    pub fn studio_url(&self) -> &str { &self.studio_url }
+    pub fn token(&self) -> Option<&str> {
+        self.access_token.as_deref()
+    }
+    pub fn username(&self) -> Option<&str> {
+        self.username.as_deref()
+    }
+    pub fn lms_url(&self) -> &str {
+        &self.lms_url
+    }
+    pub fn studio_url(&self) -> &str {
+        &self.studio_url
+    }
 }
