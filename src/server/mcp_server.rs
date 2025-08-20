@@ -31,7 +31,6 @@ impl SparkthMCPServer {
             + SparkthMCPServer::canvas_tools_router()
             + SparkthMCPServer::openedx_tools_router();
 
-
         Self { tool_router }
     }
 
