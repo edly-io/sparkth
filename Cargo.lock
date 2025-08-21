@@ -1636,6 +1636,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
