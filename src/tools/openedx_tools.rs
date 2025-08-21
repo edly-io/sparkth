@@ -1,16 +1,16 @@
 use reqwest::Method;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use rmcp::{
     ErrorData,
     handler::server::tool::Parameters,
     model::{CallToolResult, Content, ErrorCode},
     tool, tool_router,
 };
-use serde_json::{json, to_value, Value};
+use serde_json::{Value, json, to_value};
+use url::Url;
 
 use crate::plugins::openedx::types::{
     OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload, OpenEdxCreateCourseArgs,
-    OpenEdxListCourseRunsArgs, OpenEdxResponse,
+    OpenEdxListCourseRunsArgs, OpenEdxResponse, OpenEdxXBlockPayload,
 };
 use crate::{plugins::openedx::client::OpenEdxClient, server::mcp_server::SparkthMCPServer};
 
@@ -88,82 +88,31 @@ impl SparkthMCPServer {
     #[tool(description = "Create an Open edX course run. Authenticate the user first ")]
     pub async fn openedx_create_course_run(
         &self,
-        Parameters(OpenEdxCreateCourseArgs {
-            auth,
-            org, 
-            number,
-            run, 
-            title, 
-            pacing_type,
-            team
-        }): Parameters<OpenEdxCreateCourseArgs>,
+        Parameters(OpenEdxCreateCourseArgs { auth, course }): Parameters<OpenEdxCreateCourseArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        
-        // let client = OpenEdxClient::new(
-        //     &auth.lms_url,
-        //     &auth.studio_url,
-        //     Some(auth.access_token.clone()),
-        // );
-        
-        let create_url = format!("{}/api/v1/course_runs/", auth.studio_url);
-
-        // match client.request_jwt(Method::POST, &create_url, Some(to_value(course).unwrap())).await {
-        //     Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
-        //     Ok(OpenEdxResponse::Multiple(arr)) => {
-        //         Ok(self.openedx_handle_response_vec(Value::Array(arr)))
-        //     }
-        //     Err(e) => Err(ErrorData::new(
-        //         ErrorCode::INTERNAL_ERROR,
-        //         format!("List course runs failed: {e}"),
-        //         None,
-        //     )),
-        // }
-
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("JWT {}", auth.access_token))
-                .map_err(|e| ErrorData::new(ErrorCode::INVALID_REQUEST, e.to_string(), None))?,
+        let client = OpenEdxClient::new(
+            &auth.lms_url,
+            &auth.studio_url,
+            Some(auth.access_token.clone()),
         );
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-        let payload = json!({
-            "org": org,
-            "number": number,
-            "run": run,
-            "title": title,
-            "pacing_type": pacing_type.unwrap_or_else(|| "instructor_paced".to_string()),
-            "team": team.unwrap_or_default(),
-        });
+        let create_url = format!("{}/api/v1/course_runs/", auth.studio_url);
+        let url = Url::parse(&create_url).unwrap();
 
-        let http = reqwest::Client::new();
-        let resp = http
-            .post(&create_url)
-            .headers(headers)
-            .json(&payload)
-            .send()
+        match client
+            .request_jwt(Method::POST, url, Some(to_value(course).unwrap()))
             .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(ErrorData::new(
+        {
+            Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
+            Ok(OpenEdxResponse::Multiple(arr)) => {
+                Ok(self.openedx_handle_response_vec(Value::Array(arr)))
+            }
+            Err(e) => Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!("Create course run failed ({status}): {text}"),
+                format!("List course runs failed: {e}"),
                 None,
-            ));
+            )),
         }
-
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-        let body: Value = serde_json::from_str(&text).unwrap_or_else(|_| json!({ "raw": text }));
-
-        Ok(CallToolResult::success(vec![Content::text(
-            body.to_string(),
-        )]))
     }
 
     #[tool(description = "List Open edX course runs. Don't proceed if user is not authenticated.")]
@@ -182,8 +131,9 @@ impl SparkthMCPServer {
         let p = page.unwrap_or(1);
         let ps = page_size.unwrap_or(20);
         let endpoint = format!("{}/api/v1/course_runs/?page={}&page_size={}", studio, p, ps);
+        let url = Url::parse(&endpoint).unwrap();
 
-        match client.request_jwt(Method::GET, &endpoint, None).await {
+        match client.request_jwt(Method::GET, url, None).await {
             Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
             Ok(OpenEdxResponse::Multiple(arr)) => {
                 Ok(self.openedx_handle_response_vec(Value::Array(arr)))
@@ -194,6 +144,40 @@ impl SparkthMCPServer {
                 None,
             )),
         }
-        
+    }
+
+    #[tool(
+        description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit). Don't proceed if user is not authenticated."
+    )]
+    pub async fn openedx_create_xblock(
+        &self,
+        Parameters(OpenEdxXBlockPayload {
+            auth,
+            xblock,
+            course_id,
+        }): Parameters<OpenEdxXBlockPayload>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let client = OpenEdxClient::new(&auth.lms_url, &auth.studio_url, Some(auth.access_token));
+
+        let endpoint = format!(
+            "{}/api/contentstore/v0/xblock/{}",
+            auth.studio_url, course_id
+        );
+        let url = Url::parse(&endpoint).unwrap();
+
+        match client
+            .request_jwt(Method::POST, url, Some(to_value(xblock).unwrap()))
+            .await
+        {
+            Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
+            Ok(OpenEdxResponse::Multiple(arr)) => {
+                Ok(self.openedx_handle_response_vec(Value::Array(arr)))
+            }
+            Err(e) => Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("XBlock creation failed: {e}"),
+                None,
+            )),
+        }
     }
 }

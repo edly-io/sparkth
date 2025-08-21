@@ -1,4 +1,3 @@
-use chrono::{DateTime, Local, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -26,17 +25,17 @@ pub struct OpenEdxAccessTokenPayload {
 
 #[derive(Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CourseArgs {
+    pub org: String,
+    pub number: String,
+    pub run: String,
+    pub title: String,
+    pub pacing_type: String,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
 pub struct OpenEdxCreateCourseArgs {
     pub auth: OpenEdxAccessTokenPayload,
-    pub org: String,
-    pub number: String,
-    pub run: String,
-    pub title: String,
-    pub pacing_type: Option<String>,
-    pub team: Option<Vec<String>>,
+    pub course: CourseArgs,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -44,4 +43,32 @@ pub struct OpenEdxListCourseRunsArgs {
     pub auth: OpenEdxAccessTokenPayload,
     pub page: Option<u32>,
     pub page_size: Option<u32>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct OpenEdxRootUsageKeyArgs {
+    pub auth: OpenEdxAccessTokenPayload,
+    pub course_id: String,
+}
+
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum XBlockCategory {
+    Chapter,
+    Sequential,
+    Vertical,
+}
+
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+pub struct OpenEdxCreateXBlock {
+    parent_locator: String,
+    category: XBlockCategory,
+    display_name: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct OpenEdxXBlockPayload {
+    pub auth: OpenEdxAccessTokenPayload,
+    pub xblock: OpenEdxCreateXBlock,
+    pub course_id: String,
 }

@@ -1,5 +1,6 @@
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_str};
+use url::Url;
 
 use crate::plugins::openedx::{error::OpenEdxError, types::OpenEdxResponse};
 
@@ -99,18 +100,18 @@ impl OpenEdxClient {
     pub async fn request_bearer(
         &self,
         http_method: Method,
-        endpoint: &str,
+        endpoint: Url,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
         self.request_with_auth("Bearer", http_method, endpoint, payload)
             .await
     }
 
-   // Studio-style auth (e.g., /api/v1/course_runs/)
+    // Studio-style auth (e.g., /api/v1/course_runs/)
     pub async fn request_jwt(
         &self,
         http_method: Method,
-        endpoint: &str,
+        endpoint: Url,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
         self.request_with_auth("JWT", http_method, endpoint, payload)
@@ -121,7 +122,7 @@ impl OpenEdxClient {
         &self,
         auth_prefix: &str,
         http_method: Method,
-        endpoint: &str,
+        endpoint: Url,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
         let token = self
@@ -129,18 +130,10 @@ impl OpenEdxClient {
             .as_ref()
             .ok_or_else(|| OpenEdxError::Authentication("Access token not set".into()))?;
 
-        let url = if endpoint.starts_with("http") {
-            endpoint.to_string()
-        } else {
-            format!("{}/{}", self.lms_url, endpoint.trim_start_matches('/'))
-        };
-
         let mut req = self
             .client
-            .request(http_method, &url)
+            .request(http_method, endpoint)
             .header("Authorization", format!("{auth_prefix} {token}"));
-
-        eprintln!("request: {:?}", req);
 
         if let Some(p) = payload {
             req = req.json(&p);
