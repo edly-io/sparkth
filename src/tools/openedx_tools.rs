@@ -8,10 +8,7 @@ use rmcp::{
 use serde_json::{Value, json, to_value};
 use url::Url;
 
-use crate::plugins::openedx::types::{
-    OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload, OpenEdxCreateCourseArgs,
-    OpenEdxListCourseRunsArgs, OpenEdxResponse, OpenEdxXBlockPayload,
-};
+use crate::plugins::openedx::types::{OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload, OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs, OpenEdxResponse, OpenEdxXBlockPayload};
 use crate::{plugins::openedx::client::OpenEdxClient, server::mcp_server::SparkthMCPServer};
 
 impl SparkthMCPServer {
@@ -28,8 +25,102 @@ impl SparkthMCPServer {
             other => CallToolResult::success(vec![Content::text(other.to_string())]),
         }
     }
-}
+    async fn openedx_create_basic_component(
+        &self,
+        auth: &OpenEdxAccessTokenPayload,
+        course_id: &str,
+        unit_locator: &str,
+        kind: &str,            // "problem" | "html"
+        display_name: &str,
+    ) -> Result<String, ErrorData> {
+        if kind != "problem" && kind != "html" {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "kind must be 'problem' or 'html'",
+                None,
+            ));
+        }
 
+        let studio = auth.studio_url.trim_end_matches('/').to_string();
+        let client = OpenEdxClient::new(&auth.lms_url, &studio, Some(auth.access_token.clone()));
+        let create_url = Url::parse(&format!("{}/api/contentstore/v0/xblock/{}", studio, course_id))
+            .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e.to_string(), None))?;
+
+        let payload = json!({
+            "category": kind,
+            "parent_locator": unit_locator,
+            "display_name": display_name
+        });
+
+        let created = client
+            .request_jwt(Method::POST, create_url, Some(payload))
+            .await
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Create component failed: {e}"), None))?;
+
+        let locator = match created {
+            OpenEdxResponse::Single(ref v) => v
+                .get("locator")
+                .or_else(|| v.get("usage_key"))
+                .or_else(|| v.get("id"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string()),
+            OpenEdxResponse::Multiple(ref arr) => arr.get(0)
+                .and_then(|v| v.get("locator").or_else(|| v.get("usage_key")).or_else(|| v.get("id")))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string()),
+        }.ok_or_else(|| ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "Server did not return a new block locator",
+            None,
+        ))?;
+
+        Ok(locator)
+    }
+
+    async fn openedx_update_xblock_content(
+        &self,
+        auth: &OpenEdxAccessTokenPayload,
+        course_id: &str,
+        locator: &str,
+        data: Option<String>,    // OLX for problem; HTML for html component
+        metadata: Option<Value>, // e.g. {"display_name":"...", "weight":1}
+    ) -> Result<OpenEdxResponse, ErrorData> {
+        if data.is_none() && metadata.is_none() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Nothing to update: provide `data` and/or `metadata`",
+                None,
+            ));
+        }
+
+        let studio = auth.studio_url.trim_end_matches('/').to_string();
+        let client = OpenEdxClient::new(&auth.lms_url, &studio, Some(auth.access_token.clone()));
+
+        let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
+        let update_url = Url::parse(&format!(
+            "{}/api/contentstore/v0/xblock/{}/{}",
+            studio, course_id, encoded
+        ))
+            .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e.to_string(), None))?;
+
+        let mut body = serde_json::Map::new();
+        if let Some(d) = data { body.insert("data".to_string(), Value::String(d)); }
+        if let Some(m) = metadata { body.insert("metadata".to_string(), m); }
+        let payload = Value::Object(body);
+
+        match client.request_jwt(Method::PUT, update_url.clone(), Some(payload.clone())).await {
+            Ok(r) => Ok(r),
+            Err(e1) => client
+                .request_jwt(Method::PATCH, update_url, Some(payload))
+                .await
+                .map_err(|e2| ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Update failed (PUT and PATCH): {e1}; {e2}"),
+                    None,
+                )),
+        }
+    }
+}
 #[tool_router(router = openedx_tools_router, vis = "pub")]
 impl SparkthMCPServer {
     #[tool(
@@ -179,5 +270,69 @@ impl SparkthMCPServer {
                 None,
             )),
         }
+    }
+
+    #[tool(
+        description = "Create a Problem or HTML component in a unit, then immediately update it with content.\n\
+        • `kind`: \"problem\" (OLX problem) or \"html\" (HTML component). Default: \"problem\".\n\
+        • Provide `data` with OLX/HTML to fully control content, OR set `mcq_boilerplate=true` (for problems) to use a minimal MCQ template.\n\
+        • Optional `metadata` supports fields like `display_name`, `weight`, `max_attempts`, etc.\n\
+        • Minimal MCQ OLX template used when `mcq_boilerplate=true` and no `data`:\n\
+<problem>\n  <p>Your question here</p>\n  <multiplechoiceresponse>\n    <choicegroup type=\"MultipleChoice\" shuffle=\"true\">\n      <choice correct=\"true\">Correct</choice>\n      <choice correct=\"false\">Incorrect</choice>\n    </choicegroup>\n  </multiplechoiceresponse>\n</problem>"
+    )]
+    pub async fn openedx_create_problem_or_html(
+        &self,
+        Parameters(OpenEdxCreateProblemOrHtmlArgs {
+                       auth,
+                       course_id,
+                       unit_locator,
+                       kind,
+                       display_name,
+                       data,
+                       metadata,
+                       mcq_boilerplate,
+                   }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let k = kind.unwrap_or_else(|| "problem".into());
+        let name = display_name.unwrap_or_else(|| if k == "problem" { "New Problem" } else { "New HTML" }.into());
+
+        // 1) Create base component
+        let locator = self
+            .openedx_create_basic_component(&auth, &course_id, &unit_locator, &k, &name)
+            .await?;
+
+        // 2) Choose content to update with
+        let final_data = if data.is_some() {
+            data
+            } else if k == "problem" && mcq_boilerplate.unwrap_or(false) {
+                Some(r#"<problem>
+                  <p>Your question here</p>
+                  <multiplechoiceresponse>
+                    <choicegroup type="MultipleChoice" shuffle="true">
+                      <choice correct="true">Correct</choice>
+                      <choice correct="false">Incorrect</choice>
+                    </choicegroup>
+                  </multiplechoiceresponse>
+                </problem>"#.to_string())
+        } else {
+            None
+        };
+
+        // 3) Update (if we have content and/or metadata)
+        let result_value = if final_data.is_some() || metadata.is_some() {
+            let updated = self
+                .openedx_update_xblock_content(&auth, &course_id, &locator, final_data, metadata)
+                .await?;
+
+            match updated {
+                OpenEdxResponse::Single(v) => v,
+                OpenEdxResponse::Multiple(arr) => Value::Array(arr),
+            }
+        } else {
+            json!({"detail": "Component created; no content/metadata to update"})
+        };
+
+        let out = json!({ "locator": locator, "result": result_value });
+        Ok(CallToolResult::success(vec![Content::text(out.to_string())]))
     }
 }
