@@ -72,3 +72,16 @@ pub struct OpenEdxXBlockPayload {
     pub xblock: OpenEdxCreateXBlock,
     pub course_id: String,
 }
+
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+pub struct OpenEdxCreateProblemOrHtmlArgs {
+    pub auth: OpenEdxAccessTokenPayload,
+    pub course_id: String,
+    pub unit_locator: String,
+    pub kind: Option<String>,
+    pub display_name: Option<String>,
+    pub data: Option<String>,
+    pub metadata: Option<Value>,
+    pub mcq_boilerplate: Option<bool>,
+}
