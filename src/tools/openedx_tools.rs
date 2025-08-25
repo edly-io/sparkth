@@ -25,6 +25,7 @@ impl SparkthMCPServer {
             other => CallToolResult::success(vec![Content::text(other.to_string())]),
         }
     }
+    
     async fn openedx_create_basic_component(
         &self,
         auth: &OpenEdxAccessTokenPayload,
@@ -238,7 +239,9 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit). Don't proceed if user is not authenticated."
+        description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit). 
+The course locator should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
+Don't proceed if user is not authenticated."
     )]
     pub async fn openedx_create_xblock(
         &self,
@@ -273,11 +276,12 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create a Problem or HTML component in a unit, then immediately update it with content.\n\
-        • `kind`: \"problem\" (OLX problem) or \"html\" (HTML component). Default: \"problem\".\n\
-        • Provide `data` with OLX/HTML to fully control content, OR set `mcq_boilerplate=true` (for problems) to use a minimal MCQ template.\n\
-        • Optional `metadata` supports fields like `display_name`, `weight`, `max_attempts`, etc.\n\
-        • Minimal MCQ OLX template used when `mcq_boilerplate=true` and no `data`:\n\
+        description = "Create a Problem or HTML. The HTML component should be in the same unit, while the Problem component should be in a separate unit.
+Then immediately update the component with content.\n\
+• `kind`: \"problem\" (OLX problem) or \"html\" (HTML component). Default: \"problem\".\n\
+• Provide `data` with OLX/HTML to fully control content, OR set `mcq_boilerplate=true` (for problems) to use a minimal MCQ template.\n\
+• Optional `metadata` supports fields like `display_name`, `weight`, `max_attempts`, etc.\n\
+• Minimal MCQ OLX template used when `mcq_boilerplate=true` and no `data`:\n\
 <problem>\n  <p>Your question here</p>\n  <multiplechoiceresponse>\n    <choicegroup type=\"MultipleChoice\" shuffle=\"true\">\n      <choice correct=\"true\">Correct</choice>\n      <choice correct=\"false\">Incorrect</choice>\n    </choicegroup>\n  </multiplechoiceresponse>\n</problem>"
     )]
     pub async fn openedx_create_problem_or_html(
