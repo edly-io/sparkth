@@ -65,7 +65,7 @@ impl SparkthMCPServer {
                 .or_else(|| v.get("id"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
-            OpenEdxResponse::Multiple(ref arr) => arr.get(0)
+            OpenEdxResponse::Multiple(ref arr) => arr.first()
                 .and_then(|v| v.get("locator").or_else(|| v.get("usage_key")).or_else(|| v.get("id")))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
@@ -240,7 +240,7 @@ impl SparkthMCPServer {
 
     #[tool(
         description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit). 
-The course locator should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
+The parent locator for should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
 Don't proceed if user is not authenticated."
     )]
     pub async fn openedx_create_xblock(

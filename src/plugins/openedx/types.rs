@@ -61,6 +61,7 @@ pub enum XBlockCategory {
 
 #[derive(Serialize, Deserialize, schemars::JsonSchema)]
 pub struct OpenEdxCreateXBlock {
+    #[schemars(description="The parent locator for course should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`")]
     parent_locator: String,
     category: XBlockCategory,
     display_name: String,
