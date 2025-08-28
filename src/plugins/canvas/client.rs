@@ -1,7 +1,12 @@
-use reqwest::{Client, Method, Response};
-use serde_json::{Value, from_str};
+use reqwest::{Client, Method};
+use serde_json::Value;
+use url::Url;
 
-use crate::plugins::canvas::{error::CanvasError, types::CanvasResponse};
+use crate::plugins::{
+    errors::LMSError,
+    request::{Auth, request},
+    response::LMSResponse,
+};
 
 #[derive(Debug, Clone)]
 pub struct CanvasClient {
@@ -19,10 +24,7 @@ impl CanvasClient {
         }
     }
 
-    pub async fn authenticate(
-        new_api_url: String,
-        new_api_token: String,
-    ) -> Result<(), CanvasError> {
+    pub async fn authenticate(new_api_url: String, new_api_token: String) -> Result<(), LMSError> {
         let client = Client::new();
         let response = client
             .get(format!("{new_api_url}/users/self"))
@@ -33,90 +35,37 @@ impl CanvasClient {
         if response.status().is_success() {
             Ok(())
         } else {
-            Err(CanvasError::Authentication(String::from(
+            Err(LMSError::Authentication(String::from(
                 "Invalid API URL or token",
             )))
         }
     }
 
-    pub async fn request(
+    pub async fn request_bearer(
         &self,
         http_method: Method,
         endpoint: &str,
         payload: Option<Value>,
-    ) -> Result<CanvasResponse, CanvasError> {
+    ) -> Result<LMSResponse, LMSError> {
         if self.api_token.is_none() {
-            return Err(CanvasError::Authentication("API Token not found".into()));
+            return Err(LMSError::Authentication("API Token not found".into()));
         }
 
-        let url = format!("{}/{}", self.api_url, endpoint.trim_start_matches('/'));
+        let url = Url::parse(&format!(
+            "{}/{}",
+            self.api_url,
+            endpoint.trim_start_matches('/')
+        ))?;
         let api_token = self.api_token.clone().unwrap();
 
-        let mut request = self
-            .client
-            .request(http_method, &url)
-            .header("Authorization", format!("Bearer {api_token}"));
-
-        if let Some(payload) = payload {
-            request = request.json(&payload);
-        }
-
-        let response = request.send().await?;
-
-        if !response.status().is_success() {
-            return Err(self.handle_error_response(response).await);
-        }
-
-        let response_text = response.text().await?;
-
-        if response_text.is_empty() {
-            return Ok(CanvasResponse::Single(
-                Value::Object(serde_json::Map::new()),
-            ));
-        }
-
-        let json_value: Value = from_str(&response_text)?;
-
-        match json_value {
-            Value::Array(arr) => Ok(CanvasResponse::Multiple(arr)),
-            single => Ok(CanvasResponse::Single(single)),
-        }
-    }
-
-    async fn handle_error_response(&self, response: Response) -> CanvasError {
-        let status_code = response.status().as_u16();
-        let error_text = response.text().await.unwrap();
-
-        let error_message = if let Ok(error_json) = from_str::<Value>(&error_text) {
-            if let Some(errors) = error_json.get("errors") {
-                match errors {
-                    Value::Object(obj) => obj
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(&error_text)
-                        .to_string(),
-
-                    Value::Array(arr) => {
-                        if let Some(first_error) = arr.first() {
-                            first_error.as_str().unwrap_or(&error_text).to_string()
-                        } else {
-                            error_text
-                        }
-                    }
-                    _ => error_text,
-                }
-            } else if let Some(message) = error_json.get("message") {
-                message.as_str().unwrap_or(&error_text).to_string()
-            } else {
-                error_text
-            }
-        } else {
-            error_text
-        };
-
-        CanvasError::Api {
-            status_code,
-            message: error_message,
-        }
+        request(
+            Auth::Bearer,
+            &api_token,
+            http_method,
+            url,
+            payload,
+            &self.client,
+        )
+        .await
     }
 }

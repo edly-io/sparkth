@@ -7,44 +7,25 @@ use rmcp::{
 };
 use serde_json::{Value, json, to_value};
 
-use crate::plugins::openedx::types::{
-    OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload, OpenEdxCreateCourseArgs,
-    OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs, OpenEdxResponse,
-    OpenEdxXBlockPayload,
+use crate::plugins::{
+    openedx::types::{
+        Component, OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload,
+        OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs,
+        OpenEdxXBlockPayload,
+    },
+    response::LMSResponse,
 };
 use crate::{plugins::openedx::client::OpenEdxClient, server::mcp_server::SparkthMCPServer};
 
 impl SparkthMCPServer {
-    fn openedx_handle_response_single(&self, value: Value) -> CallToolResult {
-        CallToolResult::success(vec![Content::text(value.to_string())])
-    }
-
-    fn openedx_handle_response_vec(&self, value: Value) -> CallToolResult {
-        match value {
-            Value::Array(arr) => {
-                let s: Vec<String> = arr.into_iter().map(|v| v.to_string()).collect();
-                CallToolResult::success(vec![Content::text(s.join(","))])
-            }
-            other => CallToolResult::success(vec![Content::text(other.to_string())]),
-        }
-    }
-
     async fn openedx_create_basic_component(
         &self,
         auth: &OpenEdxAccessTokenPayload,
         course_id: &str,
         unit_locator: &str,
-        kind: &str, // "problem" | "html"
+        kind: &Component,
         display_name: &str,
     ) -> Result<String, ErrorData> {
-        if kind != "problem" && kind != "html" {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "kind must be 'problem' or 'html'",
-                None,
-            ));
-        }
-
         let studio = auth.studio_url.trim_end_matches('/').to_string();
         let client = OpenEdxClient::new(&auth.lms_url, &studio, Some(auth.access_token.clone()));
         let create_url = format!("api/contentstore/v0/xblock/{course_id}");
@@ -67,13 +48,13 @@ impl SparkthMCPServer {
             })?;
 
         let locator = match created {
-            OpenEdxResponse::Single(ref v) => v
+            LMSResponse::Single(ref v) => v
                 .get("locator")
                 .or_else(|| v.get("usage_key"))
                 .or_else(|| v.get("id"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
-            OpenEdxResponse::Multiple(ref arr) => arr
+            LMSResponse::Multiple(ref arr) => arr
                 .first()
                 .and_then(|v| {
                     v.get("locator")
@@ -101,7 +82,7 @@ impl SparkthMCPServer {
         locator: &str,
         data: Option<String>,    // OLX for problem; HTML for html component
         metadata: Option<Value>, // e.g. {"display_name":"...", "weight":1}
-    ) -> Result<OpenEdxResponse, ErrorData> {
+    ) -> Result<LMSResponse, ErrorData> {
         if data.is_none() && metadata.is_none() {
             return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
@@ -148,7 +129,7 @@ impl SparkthMCPServer {
     #[tool(
         description = "Store the LMS URL and credentials; fetch an access token and validate it"
     )]
-    pub async fn openedx_authenticate_user(
+    pub async fn openedx_authenticate(
         &self,
         Parameters(OpenEdxAuthenticationPayload {
             lms_url,
@@ -165,13 +146,11 @@ impl SparkthMCPServer {
                     "access_token": token,
                     "message": format!("Successfully authenticated as {who}")
                 });
-                Ok(CallToolResult::success(vec![Content::text(
-                    body.to_string(),
-                )]))
+                Ok(CallToolResult::success(vec![Content::json(body).unwrap()]))
             }
             Err(err) => {
                 let msg = format!("Open edX authentication failed: {err}");
-                Err(ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, msg, None))
+                Err(ErrorData::resource_not_found(msg, None))
             }
         }
     }
@@ -189,9 +168,8 @@ impl SparkthMCPServer {
     ) -> Result<CallToolResult, ErrorData> {
         let client = OpenEdxClient::new(&lms_url, &studio_url, Some(access_token.clone()));
         match client.openedx_authenticate(&access_token).await {
-            Ok(json) => Ok(self.openedx_handle_response_single(json)),
-            Err(e) => Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
+            Ok(json) => Ok(CallToolResult::success(vec![Content::json(json).unwrap()])),
+            Err(e) => Err(ErrorData::internal_error(
                 format!("Fetching user info failed: {e}"),
                 None,
             )),
@@ -217,13 +195,9 @@ impl SparkthMCPServer {
             )
             .await
         {
-            Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
-            Ok(OpenEdxResponse::Multiple(arr)) => {
-                Ok(self.openedx_handle_response_vec(Value::Array(arr)))
-            }
-            Err(e) => Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("List course runs failed: {e}"),
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(e) => Err(ErrorData::internal_error(
+                format!("Create course runs failed: {e}"),
                 None,
             )),
         }
@@ -247,12 +221,8 @@ impl SparkthMCPServer {
         let endpoint = format!("api/v1/course_runs/?page={p}&page_size={ps}");
 
         match client.request_jwt(Method::GET, &endpoint, None).await {
-            Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
-            Ok(OpenEdxResponse::Multiple(arr)) => {
-                Ok(self.openedx_handle_response_vec(Value::Array(arr)))
-            }
-            Err(e) => Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
+            Ok(response) => Ok(self.handle_response_vec(response)),
+            Err(e) => Err(ErrorData::internal_error(
                 format!("List course runs failed: {e}"),
                 None,
             )),
@@ -280,12 +250,8 @@ Don't proceed if user is not authenticated."
             .request_jwt(Method::POST, &endpoint, Some(to_value(xblock).unwrap()))
             .await
         {
-            Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
-            Ok(OpenEdxResponse::Multiple(arr)) => {
-                Ok(self.openedx_handle_response_vec(Value::Array(arr)))
-            }
-            Err(e) => Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
+            Ok(response) => Ok(self.handle_response_single(response)),
+            Err(e) => Err(ErrorData::internal_error(
                 format!("XBlock creation failed: {e}"),
                 None,
             )),
@@ -314,25 +280,24 @@ Then immediately update the component with content.\n\
             mcq_boilerplate,
         }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let k = kind.unwrap_or_else(|| "problem".into());
+        let component = kind.unwrap_or(Component::Problem);
         let name = display_name.unwrap_or_else(|| {
-            if k == "problem" {
-                "New Problem"
-            } else {
-                "New HTML"
+            match component {
+                Component::Problem => "New Problem",
+                Component::Html => "New HTML",
             }
             .into()
         });
 
         // 1) Create base component
         let locator = self
-            .openedx_create_basic_component(&auth, &course_id, &unit_locator, &k, &name)
+            .openedx_create_basic_component(&auth, &course_id, &unit_locator, &component, &name)
             .await?;
 
         // 2) Choose content to update with
         let final_data = if data.is_some() {
             data
-        } else if k == "problem" && mcq_boilerplate.unwrap_or(false) {
+        } else if component == Component::Problem && mcq_boilerplate.unwrap_or(false) {
             Some(
                 r#"<problem>
                   <p>Your question here</p>
@@ -356,8 +321,8 @@ Then immediately update the component with content.\n\
                 .await?;
 
             match updated {
-                OpenEdxResponse::Single(v) => v,
-                OpenEdxResponse::Multiple(arr) => Value::Array(arr),
+                LMSResponse::Single(v) => v,
+                LMSResponse::Multiple(arr) => Value::Array(arr),
             }
         } else {
             json!({"detail": "Component created; no content/metadata to update"})

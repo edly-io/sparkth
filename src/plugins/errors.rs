@@ -1,13 +1,15 @@
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum CanvasError {
+#[derive(Debug, Error)]
+pub enum LMSError {
     #[error("Authentication failed: {0}")]
     Authentication(String),
-    #[error("Canvas API Error ({status_code}): {message}")]
+    #[error("({status_code}): {message}")]
     Api { status_code: u16, message: String },
     #[error("HTTP request failed: {0}")]
     Request(#[from] reqwest::Error),
     #[error("JSON parsing failed: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("Url parsing failed: {0}")]
+    UrlParse(#[from] url::ParseError),
 }

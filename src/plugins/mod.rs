@@ -1,2 +1,5 @@
 pub mod canvas;
-pub(crate) mod openedx;
+pub mod errors;
+pub mod openedx;
+pub mod request;
+pub mod response;
