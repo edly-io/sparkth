@@ -96,22 +96,11 @@ impl OpenEdxClient {
         }
     }
 
-    /// LMS-style auth (e.g., /api/user/v1/me)
-    pub async fn request_bearer(
-        &self,
-        http_method: Method,
-        endpoint: Url,
-        payload: Option<Value>,
-    ) -> Result<OpenEdxResponse, OpenEdxError> {
-        self.request_with_auth("Bearer", http_method, endpoint, payload)
-            .await
-    }
-
     // Studio-style auth (e.g., /api/v1/course_runs/)
     pub async fn request_jwt(
         &self,
         http_method: Method,
-        endpoint: Url,
+        endpoint: &str,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
         self.request_with_auth("JWT", http_method, endpoint, payload)
@@ -122,7 +111,7 @@ impl OpenEdxClient {
         &self,
         auth_prefix: &str,
         http_method: Method,
-        endpoint: Url,
+        endpoint: &str,
         payload: Option<Value>,
     ) -> Result<OpenEdxResponse, OpenEdxError> {
         let token = self
@@ -130,9 +119,12 @@ impl OpenEdxClient {
             .as_ref()
             .ok_or_else(|| OpenEdxError::Authentication("Access token not set".into()))?;
 
+        let url = Url::parse(&format!("{}/{endpoint}", self.studio_url))
+            .map_err(OpenEdxError::UrlParse)?;
+
         let mut req = self
             .client
-            .request(http_method, endpoint)
+            .request(http_method, url)
             .header("Authorization", format!("{auth_prefix} {token}"));
 
         if let Some(p) = payload {
@@ -159,16 +151,7 @@ impl OpenEdxClient {
         })
     }
 
-    pub fn token(&self) -> Option<&str> {
-        self.access_token.as_deref()
-    }
     pub fn username(&self) -> Option<&str> {
         self.username.as_deref()
-    }
-    pub fn lms_url(&self) -> &str {
-        &self.lms_url
-    }
-    pub fn studio_url(&self) -> &str {
-        &self.studio_url
     }
 }
