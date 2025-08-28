@@ -9,21 +9,21 @@ pub enum OpenEdxResponse {
     Multiple(Vec<Value>),
 }
 
-#[derive(Deserialize, schemars::JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxAuthenticationPayload {
     pub lms_url: String,
     pub studio_url: String,
     pub username: String,
     pub password: String,
 }
-#[derive(Deserialize, schemars::JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxAccessTokenPayload {
     pub access_token: String,
     pub lms_url: String,
     pub studio_url: String,
 }
 
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct CourseArgs {
     pub org: String,
     pub number: String,
@@ -32,26 +32,20 @@ pub struct CourseArgs {
     pub pacing_type: String,
 }
 
-#[derive(Deserialize, schemars::JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxCreateCourseArgs {
     pub auth: OpenEdxAccessTokenPayload,
     pub course: CourseArgs,
 }
 
-#[derive(Deserialize, schemars::JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxListCourseRunsArgs {
     pub auth: OpenEdxAccessTokenPayload,
     pub page: Option<u32>,
     pub page_size: Option<u32>,
 }
 
-#[derive(Deserialize, schemars::JsonSchema)]
-pub struct OpenEdxRootUsageKeyArgs {
-    pub auth: OpenEdxAccessTokenPayload,
-    pub course_id: String,
-}
-
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum XBlockCategory {
     Chapter,
@@ -59,23 +53,24 @@ pub enum XBlockCategory {
     Vertical,
 }
 
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct OpenEdxCreateXBlock {
-    #[schemars(description="The parent locator for course should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`")]
+    #[schemars(
+        description = "The parent locator for course should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`"
+    )]
     parent_locator: String,
     category: XBlockCategory,
     display_name: String,
 }
 
-#[derive(Deserialize, schemars::JsonSchema)]
+#[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxXBlockPayload {
     pub auth: OpenEdxAccessTokenPayload,
     pub xblock: OpenEdxCreateXBlock,
     pub course_id: String,
 }
 
-
-#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[derive(serde::Deserialize, JsonSchema)]
 pub struct OpenEdxCreateProblemOrHtmlArgs {
     pub auth: OpenEdxAccessTokenPayload,
     pub course_id: String,

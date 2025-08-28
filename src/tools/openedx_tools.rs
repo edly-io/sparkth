@@ -6,9 +6,12 @@ use rmcp::{
     tool, tool_router,
 };
 use serde_json::{Value, json, to_value};
-use url::Url;
 
-use crate::plugins::openedx::types::{OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload, OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs, OpenEdxResponse, OpenEdxXBlockPayload};
+use crate::plugins::openedx::types::{
+    OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload, OpenEdxCreateCourseArgs,
+    OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs, OpenEdxResponse,
+    OpenEdxXBlockPayload,
+};
 use crate::{plugins::openedx::client::OpenEdxClient, server::mcp_server::SparkthMCPServer};
 
 impl SparkthMCPServer {
@@ -25,13 +28,13 @@ impl SparkthMCPServer {
             other => CallToolResult::success(vec![Content::text(other.to_string())]),
         }
     }
-    
+
     async fn openedx_create_basic_component(
         &self,
         auth: &OpenEdxAccessTokenPayload,
         course_id: &str,
         unit_locator: &str,
-        kind: &str,            // "problem" | "html"
+        kind: &str, // "problem" | "html"
         display_name: &str,
     ) -> Result<String, ErrorData> {
         if kind != "problem" && kind != "html" {
@@ -44,8 +47,7 @@ impl SparkthMCPServer {
 
         let studio = auth.studio_url.trim_end_matches('/').to_string();
         let client = OpenEdxClient::new(&auth.lms_url, &studio, Some(auth.access_token.clone()));
-        let create_url = Url::parse(&format!("{}/api/contentstore/v0/xblock/{}", studio, course_id))
-            .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e.to_string(), None))?;
+        let create_url = format!("api/contentstore/v0/xblock/{course_id}");
 
         let payload = json!({
             "category": kind,
@@ -54,9 +56,15 @@ impl SparkthMCPServer {
         });
 
         let created = client
-            .request_jwt(Method::POST, create_url, Some(payload))
+            .request_jwt(Method::POST, &create_url, Some(payload))
             .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Create component failed: {e}"), None))?;
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Create component failed: {e}"),
+                    None,
+                )
+            })?;
 
         let locator = match created {
             OpenEdxResponse::Single(ref v) => v
@@ -65,15 +73,23 @@ impl SparkthMCPServer {
                 .or_else(|| v.get("id"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
-            OpenEdxResponse::Multiple(ref arr) => arr.first()
-                .and_then(|v| v.get("locator").or_else(|| v.get("usage_key")).or_else(|| v.get("id")))
+            OpenEdxResponse::Multiple(ref arr) => arr
+                .first()
+                .and_then(|v| {
+                    v.get("locator")
+                        .or_else(|| v.get("usage_key"))
+                        .or_else(|| v.get("id"))
+                })
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
-        }.ok_or_else(|| ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            "Server did not return a new block locator",
-            None,
-        ))?;
+        }
+        .ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Server did not return a new block locator",
+                None,
+            )
+        })?;
 
         Ok(locator)
     }
@@ -98,27 +114,32 @@ impl SparkthMCPServer {
         let client = OpenEdxClient::new(&auth.lms_url, &studio, Some(auth.access_token.clone()));
 
         let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
-        let update_url = Url::parse(&format!(
-            "{}/api/contentstore/v0/xblock/{}/{}",
-            studio, course_id, encoded
-        ))
-            .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e.to_string(), None))?;
+        let endpoint = format!("api/contentstore/v0/xblock/{course_id}/{encoded}");
 
         let mut body = serde_json::Map::new();
-        if let Some(d) = data { body.insert("data".to_string(), Value::String(d)); }
-        if let Some(m) = metadata { body.insert("metadata".to_string(), m); }
+        if let Some(d) = data {
+            body.insert("data".to_string(), Value::String(d));
+        }
+        if let Some(m) = metadata {
+            body.insert("metadata".to_string(), m);
+        }
         let payload = Value::Object(body);
 
-        match client.request_jwt(Method::PUT, update_url.clone(), Some(payload.clone())).await {
+        match client
+            .request_jwt(Method::PUT, &endpoint, Some(payload.clone()))
+            .await
+        {
             Ok(r) => Ok(r),
             Err(e1) => client
-                .request_jwt(Method::PATCH, update_url, Some(payload))
+                .request_jwt(Method::PATCH, &endpoint, Some(payload))
                 .await
-                .map_err(|e2| ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Update failed (PUT and PATCH): {e1}; {e2}"),
-                    None,
-                )),
+                .map_err(|e2| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Update failed (PUT and PATCH): {e1}; {e2}"),
+                        None,
+                    )
+                }),
         }
     }
 }
@@ -188,11 +209,12 @@ impl SparkthMCPServer {
             Some(auth.access_token.clone()),
         );
 
-        let create_url = format!("{}/api/v1/course_runs/", auth.studio_url);
-        let url = Url::parse(&create_url).unwrap();
-
         match client
-            .request_jwt(Method::POST, url, Some(to_value(course).unwrap()))
+            .request_jwt(
+                Method::POST,
+                "/api/v1/course_runs/",
+                Some(to_value(course).unwrap()),
+            )
             .await
         {
             Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
@@ -222,10 +244,9 @@ impl SparkthMCPServer {
 
         let p = page.unwrap_or(1);
         let ps = page_size.unwrap_or(20);
-        let endpoint = format!("{}/api/v1/course_runs/?page={}&page_size={}", studio, p, ps);
-        let url = Url::parse(&endpoint).unwrap();
+        let endpoint = format!("api/v1/course_runs/?page={p}&page_size={ps}");
 
-        match client.request_jwt(Method::GET, url, None).await {
+        match client.request_jwt(Method::GET, &endpoint, None).await {
             Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
             Ok(OpenEdxResponse::Multiple(arr)) => {
                 Ok(self.openedx_handle_response_vec(Value::Array(arr)))
@@ -253,14 +274,10 @@ Don't proceed if user is not authenticated."
     ) -> Result<CallToolResult, ErrorData> {
         let client = OpenEdxClient::new(&auth.lms_url, &auth.studio_url, Some(auth.access_token));
 
-        let endpoint = format!(
-            "{}/api/contentstore/v0/xblock/{}",
-            auth.studio_url, course_id
-        );
-        let url = Url::parse(&endpoint).unwrap();
+        let endpoint = format!("api/contentstore/v0/xblock/{course_id}");
 
         match client
-            .request_jwt(Method::POST, url, Some(to_value(xblock).unwrap()))
+            .request_jwt(Method::POST, &endpoint, Some(to_value(xblock).unwrap()))
             .await
         {
             Ok(OpenEdxResponse::Single(v)) => Ok(self.openedx_handle_response_single(v)),
@@ -287,18 +304,25 @@ Then immediately update the component with content.\n\
     pub async fn openedx_create_problem_or_html(
         &self,
         Parameters(OpenEdxCreateProblemOrHtmlArgs {
-                       auth,
-                       course_id,
-                       unit_locator,
-                       kind,
-                       display_name,
-                       data,
-                       metadata,
-                       mcq_boilerplate,
-                   }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
+            auth,
+            course_id,
+            unit_locator,
+            kind,
+            display_name,
+            data,
+            metadata,
+            mcq_boilerplate,
+        }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let k = kind.unwrap_or_else(|| "problem".into());
-        let name = display_name.unwrap_or_else(|| if k == "problem" { "New Problem" } else { "New HTML" }.into());
+        let name = display_name.unwrap_or_else(|| {
+            if k == "problem" {
+                "New Problem"
+            } else {
+                "New HTML"
+            }
+            .into()
+        });
 
         // 1) Create base component
         let locator = self
@@ -308,8 +332,9 @@ Then immediately update the component with content.\n\
         // 2) Choose content to update with
         let final_data = if data.is_some() {
             data
-            } else if k == "problem" && mcq_boilerplate.unwrap_or(false) {
-                Some(r#"<problem>
+        } else if k == "problem" && mcq_boilerplate.unwrap_or(false) {
+            Some(
+                r#"<problem>
                   <p>Your question here</p>
                   <multiplechoiceresponse>
                     <choicegroup type="MultipleChoice" shuffle="true">
@@ -317,7 +342,9 @@ Then immediately update the component with content.\n\
                       <choice correct="false">Incorrect</choice>
                     </choicegroup>
                   </multiplechoiceresponse>
-                </problem>"#.to_string())
+                </problem>"#
+                    .to_string(),
+            )
         } else {
             None
         };
@@ -337,6 +364,8 @@ Then immediately update the component with content.\n\
         };
 
         let out = json!({ "locator": locator, "result": result_value });
-        Ok(CallToolResult::success(vec![Content::text(out.to_string())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            out.to_string(),
+        )]))
     }
 }
