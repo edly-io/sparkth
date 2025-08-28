@@ -2,13 +2,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum OpenEdxResponse {
-    Single(Value),
-    Multiple(Vec<Value>),
-}
-
 #[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxAuthenticationPayload {
     pub lms_url: String,
@@ -70,12 +63,19 @@ pub struct OpenEdxXBlockPayload {
     pub course_id: String,
 }
 
-#[derive(serde::Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Component {
+    Problem,
+    Html,
+}
+
+#[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxCreateProblemOrHtmlArgs {
     pub auth: OpenEdxAccessTokenPayload,
     pub course_id: String,
     pub unit_locator: String,
-    pub kind: Option<String>,
+    pub kind: Option<Component>,
     pub display_name: Option<String>,
     pub data: Option<String>,
     pub metadata: Option<Value>,

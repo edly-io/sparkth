@@ -2,7 +2,11 @@ use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_str};
 use url::Url;
 
-use crate::plugins::openedx::{error::OpenEdxError, types::OpenEdxResponse};
+use crate::plugins::{
+    errors::LMSError,
+    request::{Auth, request},
+    response::LMSResponse,
+};
 
 #[derive(Debug, Clone)]
 pub struct OpenEdxClient {
@@ -26,18 +30,14 @@ impl OpenEdxClient {
         }
     }
 
-    pub async fn get_token(
-        &mut self,
-        username: impl AsRef<str>,
-        password: impl AsRef<str>,
-    ) -> Result<String, OpenEdxError> {
+    pub async fn get_token(&mut self, username: &str, password: &str) -> Result<String, LMSError> {
         let auth_url = format!("{}/oauth2/access_token", self.lms_url);
         let form = [
             ("client_id", self.client_id.as_str()),
             ("grant_type", "password"),
             ("token_type", "jwt"),
-            ("username", username.as_ref()),
-            ("password", password.as_ref()),
+            ("username", username),
+            ("password", password),
         ];
         let resp = self.client.post(&auth_url).form(&form).send().await?;
         if !resp.status().is_success() {
@@ -47,7 +47,7 @@ impl OpenEdxClient {
         let token = auth_json
             .get("access_token")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| OpenEdxError::Authentication("missing access_token".into()))?
+            .ok_or_else(|| LMSError::Authentication("missing access_token".into()))?
             .to_string();
 
         self.access_token = Some(token.clone());
@@ -55,7 +55,7 @@ impl OpenEdxClient {
         Ok(token)
     }
 
-    pub async fn openedx_authenticate(&self, access_token: &str) -> Result<Value, OpenEdxError> {
+    pub async fn openedx_authenticate(&self, access_token: &str) -> Result<Value, LMSError> {
         let me_url = format!("{}/api/user/v1/me", self.lms_url);
 
         let resp = self
@@ -76,7 +76,7 @@ impl OpenEdxClient {
         Ok(from_str(&text)?)
     }
 
-    async fn handle_error_response(&self, response: Response) -> OpenEdxError {
+    async fn handle_error_response(&self, response: Response) -> LMSError {
         let status_code = response.status().as_u16();
         let text = response.text().await.unwrap_or_default();
         let message = if let Ok(json) = from_str::<Value>(&text) {
@@ -90,7 +90,7 @@ impl OpenEdxClient {
         } else {
             text
         };
-        OpenEdxError::Api {
+        LMSError::Api {
             status_code,
             message,
         }
@@ -102,53 +102,14 @@ impl OpenEdxClient {
         http_method: Method,
         endpoint: &str,
         payload: Option<Value>,
-    ) -> Result<OpenEdxResponse, OpenEdxError> {
-        self.request_with_auth("JWT", http_method, endpoint, payload)
-            .await
-    }
-
-    async fn request_with_auth(
-        &self,
-        auth_prefix: &str,
-        http_method: Method,
-        endpoint: &str,
-        payload: Option<Value>,
-    ) -> Result<OpenEdxResponse, OpenEdxError> {
+    ) -> Result<LMSResponse, LMSError> {
         let token = self
             .access_token
             .as_ref()
-            .ok_or_else(|| OpenEdxError::Authentication("Access token not set".into()))?;
+            .ok_or_else(|| LMSError::Authentication("Access token not set".into()))?;
 
-        let url = Url::parse(&format!("{}/{endpoint}", self.studio_url))
-            .map_err(OpenEdxError::UrlParse)?;
-
-        let mut req = self
-            .client
-            .request(http_method, url)
-            .header("Authorization", format!("{auth_prefix} {token}"));
-
-        if let Some(p) = payload {
-            req = req.json(&p);
-        }
-
-        let resp = req.send().await?;
-
-        if !resp.status().is_success() {
-            return Err(self.handle_error_response(resp).await);
-        }
-
-        let text = resp.text().await?;
-        if text.is_empty() {
-            return Ok(OpenEdxResponse::Single(Value::Object(
-                serde_json::Map::new(),
-            )));
-        }
-
-        let json_value: Value = from_str(&text)?;
-        Ok(match json_value {
-            Value::Array(arr) => OpenEdxResponse::Multiple(arr),
-            single => OpenEdxResponse::Single(single),
-        })
+        let url = Url::parse(&format!("{}/{endpoint}", self.studio_url))?;
+        request(Auth::Jwt, token, http_method, url, payload, &self.client).await
     }
 
     pub fn username(&self) -> Option<&str> {

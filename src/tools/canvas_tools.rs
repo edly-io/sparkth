@@ -1,14 +1,17 @@
 use crate::utils::cached_schema_for_type;
 use crate::{
-    plugins::canvas::{
-        client::CanvasClient,
-        types::{
-            AuthenticationPayload, CanvasResponse, CourseParams, CoursePayload, EnrollmentPayload,
-            ListPagesPayload, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload,
-            PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload,
-            UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload, UpdateQuestionPayload,
-            UpdateQuizPayload, UserPayload,
+    plugins::{
+        canvas::{
+            client::CanvasClient,
+            types::{
+                AuthenticationPayload, CourseParams, CoursePayload, EnrollmentPayload,
+                ListPagesPayload, ModuleItemParams, ModuleItemPayload, ModuleParams, ModulePayload,
+                PageParams, PagePayload, QuestionParams, QuestionPayload, QuizParams, QuizPayload,
+                UpdateModuleItemPayload, UpdateModulePayload, UpdatePagePayload,
+                UpdateQuestionPayload, UpdateQuizPayload, UserPayload,
+            },
         },
+        response::LMSResponse,
     },
     server::mcp_server::SparkthMCPServer,
 };
@@ -23,19 +26,19 @@ use serde_json::{Value, to_value};
 
 #[tool_router(router = canvas_tools_router, vis = "pub")]
 impl SparkthMCPServer {
-    fn handle_response_single(&self, response: CanvasResponse) -> CallToolResult {
+    pub fn handle_response_single(&self, response: LMSResponse) -> CallToolResult {
         let result = match response {
-            CanvasResponse::Single(val) => val,
-            CanvasResponse::Multiple(mut vals) => vals.pop().unwrap_or(Value::Null),
+            LMSResponse::Single(val) => val,
+            LMSResponse::Multiple(mut vals) => vals.pop().unwrap_or(Value::Null),
         };
 
         CallToolResult::success(vec![Content::text(result.to_string())])
     }
 
-    fn handle_response_vec(&self, response: CanvasResponse) -> CallToolResult {
+    pub fn handle_response_vec(&self, response: LMSResponse) -> CallToolResult {
         let results = match response {
-            CanvasResponse::Single(val) => vec![val],
-            CanvasResponse::Multiple(vals) => vals,
+            LMSResponse::Single(val) => vec![val],
+            LMSResponse::Multiple(vals) => vals,
         };
 
         let results: Vec<String> = results
@@ -50,7 +53,7 @@ impl SparkthMCPServer {
         description = "Store the API URL and token from the user to authenticate requests",
         input_schema = cached_schema_for_type::<AuthenticationPayload>())
     ]
-    pub async fn authenticate_user(
+    pub async fn authenticate(
         &self,
         Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
     ) -> Result<CallToolResult, ErrorData> {
@@ -75,7 +78,7 @@ impl SparkthMCPServer {
     ) -> Result<CallToolResult, ErrorData> {
         let client = CanvasClient::new(api_url, api_token);
 
-        match client.request(Method::GET, "courses", None).await {
+        match client.request_bearer(Method::GET, "courses", None).await {
             Ok(response) => Ok(self.handle_response_vec(response)),
             Err(err) => {
                 let msg = format!("Error while fetching all courses: {err}");
@@ -94,7 +97,7 @@ impl SparkthMCPServer {
     ) -> Result<CallToolResult, ErrorData> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
         match client
-            .request(Method::GET, &format!("courses/{course_id}"), None)
+            .request_bearer(Method::GET, &format!("courses/{course_id}"), None)
             .await
         {
             Ok(response) => Ok(self.handle_response_single(response)),
@@ -117,7 +120,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!("accounts/{}/courses", payload.account_id),
                 Some(to_value(payload).unwrap()),
@@ -143,7 +146,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(Method::GET, &format!("courses/{course_id}/modules"), None)
+            .request_bearer(Method::GET, &format!("courses/{course_id}/modules"), None)
             .await
         {
             Ok(response) => Ok(self.handle_response_vec(response)),
@@ -169,7 +172,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}"),
                 None,
@@ -198,7 +201,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!("courses/{}/modules", payload.course_id),
                 Some(to_value(&payload).unwrap()),
@@ -228,7 +231,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::PUT,
                 &format!(
                     "courses/{}/modules/{}",
@@ -264,7 +267,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/modules/{module_id}"),
                 None,
@@ -296,7 +299,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}/items"),
                 None,
@@ -329,7 +332,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}/items/{item_id}"),
                 None,
@@ -358,7 +361,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!(
                     "courses/{}/modules/{}/items",
@@ -391,7 +394,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::PUT,
                 &format!(
                     "courses/{}/modules/{}/items/{}",
@@ -428,7 +431,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/modules/{module_id}/items/{item_id}",),
                 None,
@@ -457,7 +460,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{}/pages", payload.course_id),
                 Some(to_value(&payload).unwrap()),
@@ -490,7 +493,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/pages/{page_url}"),
                 None,
@@ -518,7 +521,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!("courses/{}/pages", payload.course_id),
                 Some(to_value(&payload).unwrap()),
@@ -548,7 +551,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::PUT,
                 &format!("courses/{}/pages/{}", payload.course_id, payload.url_or_id),
                 Some(to_value(&payload).unwrap()),
@@ -581,7 +584,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/pages/{page_url}"),
                 None,
@@ -608,7 +611,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(Method::GET, &format!("courses/{course_id}/quizzes"), None)
+            .request_bearer(Method::GET, &format!("courses/{course_id}/quizzes"), None)
             .await
         {
             Ok(response) => Ok(self.handle_response_vec(response)),
@@ -634,7 +637,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}"),
                 None,
@@ -662,7 +665,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!("courses/{}/quizzes", payload.course_id),
                 Some(to_value(&payload).unwrap()),
@@ -692,7 +695,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::PUT,
                 &format!("courses/{}/quizzes/{}", payload.course_id, payload.quiz_id),
                 Some(to_value(&payload).unwrap()),
@@ -725,7 +728,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/quizzes/{quiz_id}"),
                 None,
@@ -756,7 +759,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions",),
                 None,
@@ -789,7 +792,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
                 None,
@@ -818,7 +821,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!(
                     "courses/{}/quizzes/{}/questions",
@@ -851,7 +854,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::PUT,
                 &format!(
                     "courses/{}/quizzes/{}/questions/{}",
@@ -888,7 +891,7 @@ impl SparkthMCPServer {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
         match client
-            .request(
+            .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
                 None,
@@ -917,7 +920,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!("accounts/{}/users", payload.account_id),
                 Some(to_value(&payload).unwrap()),
@@ -947,7 +950,7 @@ impl SparkthMCPServer {
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
         match client
-            .request(
+            .request_bearer(
                 Method::POST,
                 &format!("courses/{}/enrollments", payload.course_id),
                 Some(to_value(&payload).unwrap()),
