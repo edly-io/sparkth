@@ -7,15 +7,18 @@ use rmcp::{
 };
 use serde_json::{Value, json, to_value};
 
-use crate::plugins::{
-    openedx::types::{
-        Component, OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload,
-        OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs,
-        OpenEdxXBlockPayload,
-    },
-    response::LMSResponse,
-};
 use crate::{plugins::openedx::client::OpenEdxClient, server::mcp_server::SparkthMCPServer};
+use crate::{
+    plugins::{
+        openedx::types::{
+            Component, OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload,
+            OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs,
+            OpenEdxXBlockPayload,
+        },
+        response::LMSResponse,
+    },
+    utils::cached_schema_for_type,
+};
 
 impl SparkthMCPServer {
     async fn openedx_create_basic_component(
@@ -127,7 +130,8 @@ impl SparkthMCPServer {
 #[tool_router(router = openedx_tools_router, vis = "pub")]
 impl SparkthMCPServer {
     #[tool(
-        description = "Store the LMS URL and credentials; fetch an access token and validate it"
+        description = "Store the LMS URL and credentials; fetch an access token and validate it",
+        input_schema = cached_schema_for_type::<OpenEdxAuthenticationPayload>()
     )]
     pub async fn openedx_authenticate(
         &self,
@@ -156,7 +160,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Fetch current Open edX user info (/api/user/v1/me) using an existing access token"
+        description = "Fetch current Open edX user info (/api/user/v1/me) using an existing access token",
+        input_schema = cached_schema_for_type::<OpenEdxAccessTokenPayload>()
     )]
     pub async fn openedx_get_user_info(
         &self,
@@ -176,7 +181,9 @@ impl SparkthMCPServer {
         }
     }
 
-    #[tool(description = "Create an Open edX course run. Authenticate the user first ")]
+    #[tool(description = "Create an Open edX course run. Authenticate the user first.",
+        input_schema = cached_schema_for_type::<OpenEdxCreateCourseArgs>()
+    )]
     pub async fn openedx_create_course_run(
         &self,
         Parameters(OpenEdxCreateCourseArgs { auth, course }): Parameters<OpenEdxCreateCourseArgs>,
@@ -203,7 +210,9 @@ impl SparkthMCPServer {
         }
     }
 
-    #[tool(description = "List Open edX course runs. Don't proceed if user is not authenticated.")]
+    #[tool(description = "List Open edX course runs. Don't proceed if user is not authenticated.",
+        input_schema = cached_schema_for_type::<OpenEdxListCourseRunsArgs>()
+    )]
     pub async fn openedx_list_course_runs(
         &self,
         Parameters(OpenEdxListCourseRunsArgs {
@@ -232,7 +241,8 @@ impl SparkthMCPServer {
     #[tool(
         description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit). 
 The parent locator for should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
-Don't proceed if user is not authenticated."
+Don't proceed if user is not authenticated.",
+        input_schema = cached_schema_for_type::<OpenEdxXBlockPayload>()
     )]
     pub async fn openedx_create_xblock(
         &self,
@@ -265,7 +275,8 @@ Then immediately update the component with content.\n\
 • Provide `data` with OLX/HTML to fully control content, OR set `mcq_boilerplate=true` (for problems) to use a minimal MCQ template.\n\
 • Optional `metadata` supports fields like `display_name`, `weight`, `max_attempts`, etc.\n\
 • Minimal MCQ OLX template used when `mcq_boilerplate=true` and no `data`:\n\
-<problem>\n  <p>Your question here</p>\n  <multiplechoiceresponse>\n    <choicegroup type=\"MultipleChoice\" shuffle=\"true\">\n      <choice correct=\"true\">Correct</choice>\n      <choice correct=\"false\">Incorrect</choice>\n    </choicegroup>\n  </multiplechoiceresponse>\n</problem>"
+<problem>\n  <p>Your question here</p>\n  <multiplechoiceresponse>\n    <choicegroup type=\"MultipleChoice\" shuffle=\"true\">\n      <choice correct=\"true\">Correct</choice>\n      <choice correct=\"false\">Incorrect</choice>\n    </choicegroup>\n  </multiplechoiceresponse>\n</problem>",
+        input_schema = cached_schema_for_type::<OpenEdxCreateProblemOrHtmlArgs>()
     )]
     pub async fn openedx_create_problem_or_html(
         &self,
