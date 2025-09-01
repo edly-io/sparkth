@@ -53,7 +53,7 @@ impl SparkthMCPServer {
         description = "Store the API URL and token from the user to authenticate requests",
         input_schema = cached_schema_for_type::<AuthenticationPayload>())
     ]
-    pub async fn authenticate(
+    pub async fn canvas_authenticate(
         &self,
         Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
     ) -> Result<CallToolResult, ErrorData> {
