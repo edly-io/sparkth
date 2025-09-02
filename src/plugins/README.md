@@ -23,8 +23,10 @@ src/plugins/
 ├── canvas/             # Canvas implementation
 │   ├── mod.rs
 │   ├── client.rs       # CanvasClient struct and request method
-|   ├── error.rs        # CanvasError enum
 │   └── types.rs        # Canvas-specific types
+├── request.rs          # Shared request logic with error handling
+├── response.rs         # LMSResponse enum (Single/Multiple JSON values)
+├── errors.rs           # LMSError enum with detailed error variants
 └── [new_lms]/          # Template for new LMS
 ```
 
@@ -34,13 +36,12 @@ Create your LMS implementation in `src/plugins/your_lms/`:
 
 #### 1.1. Create modules 
 
-Create modules for `types`, `client` and `error` for your LMS.
+Create modules for `types` and `client` for your LMS.
 
 Then register them in `src/plugins/your_lms/mod.rs`:
 
 ```rust
 pub mod client;
-pub mod error
 pub mod types;
 ```
 
@@ -50,12 +51,6 @@ Add your LMS-specific types in `src/plugins/your_lms/types.rs`:
 ```rust
 use serde::{Deserialize, Serialize};
 use crate::plugins::traits::*;
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum MyLMSResponse {
-   // LMS-specific response format
-}
 
 // Your LMS-specific types
 #[derive(Debug, Deserialize)]
@@ -68,24 +63,6 @@ pub struct YourLMSCourse {
 
 // Define other LMS-specific types and conversions...
 
-```
-
-#### 1.3. Define error enum
-Define your error enum In `src/plugins/your_lms/error.rs`:
-
-```rust
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum MyLMSError {
-    #[error("Authentication failed: {0}")]
-    Authentication(String),
-    #[error("My_LMS API Error ({status_code}): {message}")]
-    Api { status_code: u16, message: String },
-
-    // Add other errors as required
-    
-}
 ```
 
 #### 1.3. Implement your client
@@ -104,7 +81,11 @@ Create an implementation block for your client
 use reqwest::Method;
 use serde_json::Value;
 
-use crate::plugins::my_lms::{error::MyLMSError, types::MyLMSResponse};
+use crate::plugins::{
+    errors::LMSError,
+    request::{Auth, request},
+    response::LMSResponse,
+};
 
 impl MyLMSClient {
     pub fn new(api_token: String) -> Self {
@@ -120,13 +101,26 @@ impl MyLMSClient {
         // Add implementation for authenticating your credentials...
     }
 
-    pub async fn request(
+    // Method to set the required Auth method (JWT/Bearer)
+    pub async fn request_<method>(
         &self,
         http_method: Method,        // GET, POST, PUT, DELETE, etc.
         endpoint: &str,             // endpoint to hit
         payload: Option<Value>,     // Optional payload. None for GET and DELETE requests, Some(...) for POST, PUT etc.
-    ) -> Result<MyLMSResponse, MyLMSError> {
-        // Add implementation for sending requests to the endpoint and returning appropriate responses...
+    ) -> Result<LMSResponse, LMSError> {
+        
+        /* Validate the token here ... */
+
+        request(
+            Auth::<Method>,  // Bearer / Jwt
+            &api_token,
+            http_method,
+            url,
+            payload,
+            &self.client,
+        )
+        .await
+
     }
 
 }
