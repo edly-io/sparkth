@@ -63,6 +63,7 @@ impl CanvasClient {
             &api_token,
             http_method,
             url,
+            None,
             payload,
             &self.client,
         )
