@@ -11,7 +11,6 @@ use crate::plugins::{
 #[derive(Debug, Clone)]
 pub struct OpenEdxClient {
     lms_url: String,
-    studio_url: String,
     client_id: String,
     client: Client,
     access_token: Option<String>,
@@ -19,10 +18,9 @@ pub struct OpenEdxClient {
 }
 
 impl OpenEdxClient {
-    pub fn new(lms_url: &str, studio_url: &str, access_token: Option<String>) -> Self {
+    pub fn new(lms_url: &str, access_token: Option<String>) -> Self {
         Self {
             lms_url: lms_url.trim_end_matches('/').to_string(),
-            studio_url: studio_url.trim_end_matches('/').to_string(),
             client_id: "login-service-client-id".to_string(),
             client: Client::new(),
             access_token,
@@ -101,15 +99,26 @@ impl OpenEdxClient {
         &self,
         http_method: Method,
         endpoint: &str,
+        params: Option<Value>,
         payload: Option<Value>,
+        base_url: &str,
     ) -> Result<LMSResponse, LMSError> {
         let token = self
             .access_token
             .as_ref()
             .ok_or_else(|| LMSError::Authentication("Access token not set".into()))?;
 
-        let url = Url::parse(&format!("{}/{endpoint}", self.studio_url))?;
-        request(Auth::Jwt, token, http_method, url, payload, &self.client).await
+        let url = Url::parse(&format!("{}/{endpoint}", base_url))?;
+        request(
+            Auth::Jwt,
+            token,
+            http_method,
+            url,
+            params,
+            payload,
+            &self.client,
+        )
+        .await
     }
 
     pub fn username(&self) -> Option<&str> {

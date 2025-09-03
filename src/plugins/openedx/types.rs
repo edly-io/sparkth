@@ -81,3 +81,9 @@ pub struct OpenEdxCreateProblemOrHtmlArgs {
     pub metadata: Option<Value>,
     pub mcq_boilerplate: Option<bool>,
 }
+
+#[derive(Deserialize, JsonSchema)]
+pub struct OpenEdxCourseTreeRequest {
+    pub auth: OpenEdxAccessTokenPayload,
+    pub course_id: String,
+}
