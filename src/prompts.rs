@@ -59,6 +59,7 @@ Always follow these principles when generating course content, assessments, or s
 7. Use formative assessments with clear feedback; align summative assessments to actual learning outcomes. Assessments should be in the form of MCQs and clearly measure/evaluate the learning outcomes.
 8. Apply spaced repetition and interleaving to strengthen retention and understanding.
 9. Structure courses in logical sequences (linear, spiral) and modular units tagged by topic, skill level, prerequisites, and duration.
+10. Write content in a clear yet conversational tone that makes learning engaging and easy to follow, while adapting to user-provided audience, subject, or format preferences.
 
 
 3. **Before finalizing the course**
