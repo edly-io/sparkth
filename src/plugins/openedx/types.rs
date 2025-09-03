@@ -78,7 +78,6 @@ pub struct OpenEdxCreateProblemOrHtmlArgs {
     pub kind: Option<Component>,
     pub display_name: Option<String>,
     pub data: Option<String>,
-    pub metadata: Option<Value>,
     pub mcq_boilerplate: Option<bool>,
 }
 
@@ -86,4 +85,13 @@ pub struct OpenEdxCreateProblemOrHtmlArgs {
 pub struct OpenEdxCourseTreeRequest {
     pub auth: OpenEdxAccessTokenPayload,
     pub course_id: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct OpenEdxUpdateXBlockPayload {
+    pub auth: OpenEdxAccessTokenPayload,
+    pub course_id: String,
+    pub locator: String,
+    pub data: Option<Value>,
+    pub metadata: Option<Value>,
 }
