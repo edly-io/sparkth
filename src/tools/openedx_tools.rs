@@ -18,8 +18,8 @@ use crate::{
     plugins::{
         openedx::types::{
             Component, OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload,
-            OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs,
-            OpenEdxXBlockPayload,OpenEdxGetBlockContentArgs
+            OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxGetBlockContentArgs,
+            OpenEdxListCourseRunsArgs, OpenEdxXBlockPayload,
         },
         response::LMSResponse,
     },
@@ -300,15 +300,15 @@ Then immediately update the component with content.\n\
     pub async fn openedx_create_problem_or_html(
         &self,
         Parameters(OpenEdxCreateProblemOrHtmlArgs {
-                       auth,
-                       course_id,
-                       unit_locator,
-                       kind,
-                       display_name,
-                       data,
-                       metadata,
-                       mcq_boilerplate,
-                   }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
+            auth,
+            course_id,
+            unit_locator,
+            kind,
+            display_name,
+            data,
+            metadata,
+            mcq_boilerplate,
+        }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let component = kind.unwrap_or(Component::Problem);
         let name = display_name.unwrap_or_else(|| {
@@ -316,7 +316,7 @@ Then immediately update the component with content.\n\
                 Component::Problem => "New Problem",
                 Component::Html => "New HTML",
             }
-                .into()
+            .into()
         });
 
         // 1) Create a base component
@@ -474,7 +474,11 @@ Don't proceed if user is not authenticated.",
     )]
     pub async fn openedx_get_block_contentstore(
         &self,
-        Parameters(OpenEdxGetBlockContentArgs { auth, course_id, locator }): Parameters<OpenEdxGetBlockContentArgs>,
+        Parameters(OpenEdxGetBlockContentArgs {
+            auth,
+            course_id,
+            locator,
+        }): Parameters<OpenEdxGetBlockContentArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         // Hard-require a non-empty locator
         if locator.trim().is_empty() {

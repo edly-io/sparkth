@@ -1,8 +1,6 @@
-use std::fs::Metadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing_subscriber::field::display::Messages;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxAuthenticationPayload {
