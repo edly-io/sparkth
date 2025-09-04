@@ -1,6 +1,8 @@
+use std::fs::Metadata;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing_subscriber::field::display::Messages;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxAuthenticationPayload {
@@ -78,6 +80,7 @@ pub struct OpenEdxCreateProblemOrHtmlArgs {
     pub kind: Option<Component>,
     pub display_name: Option<String>,
     pub data: Option<String>,
+    pub metadata: Option<Value>,
     pub mcq_boilerplate: Option<bool>,
 }
 
@@ -94,4 +97,11 @@ pub struct OpenEdxUpdateXBlockPayload {
     pub locator: String,
     pub data: Option<Value>,
     pub metadata: Option<Value>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+pub struct OpenEdxGetBlockContentArgs {
+    pub auth: OpenEdxAccessTokenPayload,
+    pub course_id: String,
+    pub locator: String,
 }
