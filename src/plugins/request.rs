@@ -1,4 +1,4 @@
-use reqwest::{Client, Method, Response, header::AUTHORIZATION};
+use reqwest::{Client, Method, Response, header::{AUTHORIZATION, ACCEPT}};
 use serde::Deserialize;
 use serde_json::{Value, from_str};
 use url::Url;
@@ -22,7 +22,9 @@ pub async fn request(
 ) -> Result<LMSResponse, LMSError> {
     let mut request = client
         .request(http_method, url)
-        .header(AUTHORIZATION, format!("{:?} {token}", auth));
+        .header(AUTHORIZATION, format!("{:?} {token}", auth))
+        .header(ACCEPT, "application/json")
+        .header("CONTENT_TYPE", "application/json");
 
     if let Some(params) = params {
         request = request.query(&params);

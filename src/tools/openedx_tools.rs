@@ -19,7 +19,7 @@ use crate::{
         openedx::types::{
             Component, OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload,
             OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxListCourseRunsArgs,
-            OpenEdxXBlockPayload,
+            OpenEdxXBlockPayload,OpenEdxGetBlockContentArgs
         },
         response::LMSResponse,
     },
@@ -84,60 +84,60 @@ impl SparkthMCPServer {
         Ok(locator)
     }
 
-    // async fn openedx_update_xblock_content(
-    //     &self,
-    //     auth: &OpenEdxAccessTokenPayload,
-    //     course_id: &str,
-    //     locator: &str,
-    //     data: Option<String>,    // OLX for problem; HTML for html component
-    //     metadata: Option<Value>, // e.g. {"display_name":"...", "weight":1}
-    // ) -> Result<LMSResponse, ErrorData> {
-    //     if data.is_none() && metadata.is_none() {
-    //         return Err(ErrorData::new(
-    //             ErrorCode::INVALID_PARAMS,
-    //             "Nothing to update: provide `data` and/or `metadata`",
-    //             None,
-    //         ));
-    //     }
+    async fn openedx_update_xblock_content(
+        &self,
+        auth: &OpenEdxAccessTokenPayload,
+        course_id: &str,
+        locator: &str,
+        data: Option<String>,    // OLX for problem; HTML for html component
+        metadata: Option<Value>, // e.g. {"display_name":"...", "weight":1}
+    ) -> Result<LMSResponse, ErrorData> {
+        if data.is_none() && metadata.is_none() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Nothing to update: provide `data` and/or `metadata`",
+                None,
+            ));
+        }
 
-    //     let studio = auth.studio_url.trim_end_matches('/').to_string();
-    //     let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
+        let studio = auth.studio_url.trim_end_matches('/').to_string();
+        let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
 
-    //     let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
-    //     let endpoint = format!("api/contentstore/v0/xblock/{course_id}/{encoded}");
+        let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
+        let endpoint = format!("api/contentstore/v0/xblock/{course_id}/{encoded}");
 
-    //     let mut body = serde_json::Map::new();
-    //     if let Some(d) = data {
-    //         body.insert("data".to_string(), Value::String(d));
-    //     }
-    //     if let Some(m) = metadata {
-    //         body.insert("metadata".to_string(), m);
-    //     }
-    //     let payload = Value::Object(body);
+        let mut body = serde_json::Map::new();
+        if let Some(d) = data {
+            body.insert("data".to_string(), Value::String(d));
+        }
+        if let Some(m) = metadata {
+            body.insert("metadata".to_string(), m);
+        }
+        let payload = Value::Object(body);
 
-    //     match client
-    //         .request_jwt(Method::PUT, &endpoint, None, Some(payload.clone()), &studio)
-    //         .await
-    //     {
-    //         Ok(r) => Ok(r),
-    //         Err(e1) => client
-    //             .request_jwt(
-    //                 Method::PATCH,
-    //                 &endpoint,
-    //                 None,
-    //                 Some(payload),
-    //                 &auth.studio_url,
-    //             )
-    //             .await
-    //             .map_err(|e2| {
-    //                 ErrorData::new(
-    //                     ErrorCode::INTERNAL_ERROR,
-    //                     format!("Update failed (PUT and PATCH): {e1}; {e2}"),
-    //                     None,
-    //                 )
-    //             }),
-    //     }
-    // }
+        match client
+            .request_jwt(Method::PUT, &endpoint, None, Some(payload.clone()), &studio)
+            .await
+        {
+            Ok(r) => Ok(r),
+            Err(e1) => client
+                .request_jwt(
+                    Method::PATCH,
+                    &endpoint,
+                    None,
+                    Some(payload),
+                    &auth.studio_url,
+                )
+                .await
+                .map_err(|e2| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Update failed (PUT and PATCH): {e1}; {e2}"),
+                        None,
+                    )
+                }),
+        }
+    }
 }
 #[tool_router(router = openedx_tools_router, vis = "pub")]
 impl SparkthMCPServer {
@@ -252,7 +252,7 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-        description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit). 
+        description = "Create an XBlock (chapter/section, sequential/subsection, vertical/unit).
 The parent locator for should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
 Don't proceed if user is not authenticated.",
         input_schema = cached_schema_for_type::<OpenEdxXBlockPayload>()
@@ -300,14 +300,15 @@ Then immediately update the component with content.\n\
     pub async fn openedx_create_problem_or_html(
         &self,
         Parameters(OpenEdxCreateProblemOrHtmlArgs {
-            auth,
-            course_id,
-            unit_locator,
-            kind,
-            display_name,
-            data,
-            mcq_boilerplate,
-        }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
+                       auth,
+                       course_id,
+                       unit_locator,
+                       kind,
+                       display_name,
+                       data,
+                       metadata,
+                       mcq_boilerplate,
+                   }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let component = kind.unwrap_or(Component::Problem);
         let name = display_name.unwrap_or_else(|| {
@@ -315,19 +316,20 @@ Then immediately update the component with content.\n\
                 Component::Problem => "New Problem",
                 Component::Html => "New HTML",
             }
-            .into()
+                .into()
         });
 
-        // 1) Create base component
+        // 1) Create a base component
         let locator = self
             .openedx_create_basic_component(&auth, &course_id, &unit_locator, &component, &name)
             .await?;
 
         // 2) Choose content to update with
         let final_data = if data.is_some() {
-            data.unwrap()
+            data
         } else if component == Component::Problem && mcq_boilerplate.unwrap_or(false) {
-            r#"<problem>
+            Some(
+                r#"<problem>
                   <p>Your question here</p>
                   <multiplechoiceresponse>
                     <choicegroup type="MultipleChoice" shuffle="true">
@@ -336,33 +338,34 @@ Then immediately update the component with content.\n\
                     </choicegroup>
                   </multiplechoiceresponse>
                 </problem>"#
-                .to_string()
+                    .to_string(),
+            )
         } else {
-            "".to_string()
+            None
         };
 
         // 3) Update (if we have content and/or metadata)
-        // let result_value = if final_data.is_some() || metadata.is_some() {
-        //     let updated = self
-        //         .openedx_update_xblock_content(&auth, &course_id, &locator, final_data, metadata)
-        //         .await?;
+        let result_value = if final_data.is_some() || metadata.is_some() {
+            let updated = self
+                .openedx_update_xblock_content(&auth, &course_id, &locator, final_data, metadata)
+                .await?;
 
-        //     match updated {
-        //         LMSResponse::Single(v) => v,
-        //         LMSResponse::Multiple(arr) => Value::Array(arr),
-        //     }
-        // } else {
-        //     json!({"detail": "Component created; no content/metadata to update"})
-        // };
+            match updated {
+                LMSResponse::Single(v) => v,
+                LMSResponse::Multiple(arr) => Value::Array(arr),
+            }
+        } else {
+            json!({"detail": "Component created; no content/metadata to update"})
+        };
 
-        let out = json!({ "data": final_data, "locator": locator });
+        let out = json!({ "locator": locator, "result": result_value });
         Ok(CallToolResult::success(vec![Content::text(
             out.to_string(),
         )]))
     }
 
     #[tool(
-        description = "Update an XBlock (chapter/section, sequential/subsection, vertical/unit). 
+        description = "Update an XBlock (chapter/section, sequential/subsection, vertical/unit).
 The parent locator for should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
 Don't proceed if user is not authenticated.",
         input_schema = cached_schema_for_type::<OpenEdxUpdateXBlockPayload>()
@@ -408,7 +411,7 @@ Don't proceed if user is not authenticated.",
             Err(e1) => {
                 match client
                     .request_jwt(
-                        Method::PATCH,
+                        Method::PUT,
                         &endpoint,
                         None,
                         Some(payload),
@@ -459,6 +462,42 @@ Don't proceed if user is not authenticated.",
             Ok(response) => Ok(self.handle_response_single(response)),
             Err(e) => Err(ErrorData::internal_error(
                 format!("Failed to get course tree: {e}"),
+                None,
+            )),
+        }
+    }
+
+    #[tool(
+    description = "Read a specific block from Studio ContentStore (REQUIRES locator).\n\
+    Use this if user ask to update the content of xblock specially MCQs and html.",
+    input_schema = cached_schema_for_type::<OpenEdxGetBlockContentArgs>()
+    )]
+    pub async fn openedx_get_block_contentstore(
+        &self,
+        Parameters(OpenEdxGetBlockContentArgs { auth, course_id, locator }): Parameters<OpenEdxGetBlockContentArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        // Hard-require a non-empty locator
+        if locator.trim().is_empty() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "locator is required and cannot be empty".to_string(),
+                None,
+            ));
+        }
+
+        let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
+
+        let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
+        let endpoint = format!("api/contentstore/v0/xblock/{course_id}/{encoded}");
+
+        match client
+            .request_jwt(Method::GET, &endpoint, None, None, &auth.studio_url)
+            .await
+        {
+            Ok(resp) => Ok(self.handle_response_single(resp)),
+            Err(e) => Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Fetching block from ContentStore failed: {e}"),
                 None,
             )),
         }
