@@ -1,4 +1,7 @@
-use reqwest::{Client, Method, Response, header::{AUTHORIZATION, ACCEPT}};
+use reqwest::{
+    Client, Method, Response,
+    header::{ACCEPT, AUTHORIZATION},
+};
 use serde::Deserialize;
 use serde_json::{Value, from_str};
 use url::Url;
