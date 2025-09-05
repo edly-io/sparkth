@@ -97,7 +97,7 @@ impl MyLMSClient {
 
     pub async fn authenticate(
         new_api_token: String,
-    ) -> Result<(), MyLMSError> {
+    ) -> Result<(), LMSError> {
         // Add implementation for authenticating your credentials...
     }
 
@@ -106,6 +106,7 @@ impl MyLMSClient {
         &self,
         http_method: Method,        // GET, POST, PUT, DELETE, etc.
         endpoint: &str,             // endpoint to hit
+        params: Option<Value>           
         payload: Option<Value>,     // Optional payload. None for GET and DELETE requests, Some(...) for POST, PUT etc.
     ) -> Result<LMSResponse, LMSError> {
         
@@ -116,6 +117,7 @@ impl MyLMSClient {
             &api_token,
             http_method,
             url,
+            params,
             payload,
             &self.client,
         )
