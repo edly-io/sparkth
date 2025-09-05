@@ -3,12 +3,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Deserialize, JsonSchema)]
-pub struct OpenEdxAuthenticationPayload {
+pub struct OpenEdxAuth {
     pub lms_url: String,
     pub studio_url: String,
     pub username: String,
     pub password: String,
 }
+
+#[derive(Deserialize, JsonSchema)]
+pub struct OpenEdxLMSAccess {
+    pub access_token: String,
+    pub lms_url: String,
+}
+
 #[derive(Deserialize, JsonSchema)]
 pub struct OpenEdxAccessTokenPayload {
     pub access_token: String,
@@ -93,7 +100,7 @@ pub struct OpenEdxUpdateXBlockPayload {
     pub auth: OpenEdxAccessTokenPayload,
     pub course_id: String,
     pub locator: String,
-    pub data: Option<Value>,
+    pub data: Option<String>,
     pub metadata: Option<Value>,
 }
 
