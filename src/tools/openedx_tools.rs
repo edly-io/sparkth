@@ -10,16 +10,18 @@ use serde_json::{Value, json, to_value};
 use crate::{
     plugins::openedx::{
         client::OpenEdxClient,
-        types::{OpenEdxCourseTreeRequest, OpenEdxUpdateXBlockPayload},
+        types::{
+            OpenEdxAuth, OpenEdxCourseTreeRequest, OpenEdxLMSAccess, OpenEdxUpdateXBlockPayload,
+        },
     },
     server::mcp_server::SparkthMCPServer,
 };
 use crate::{
     plugins::{
         openedx::types::{
-            Component, OpenEdxAccessTokenPayload, OpenEdxAuthenticationPayload,
-            OpenEdxCreateCourseArgs, OpenEdxCreateProblemOrHtmlArgs, OpenEdxGetBlockContentArgs,
-            OpenEdxListCourseRunsArgs, OpenEdxXBlockPayload,
+            Component, OpenEdxAccessTokenPayload, OpenEdxCreateCourseArgs,
+            OpenEdxCreateProblemOrHtmlArgs, OpenEdxGetBlockContentArgs, OpenEdxListCourseRunsArgs,
+            OpenEdxXBlockPayload,
         },
         response::LMSResponse,
     },
@@ -116,13 +118,19 @@ impl SparkthMCPServer {
         let payload = Value::Object(body);
 
         match client
-            .request_jwt(Method::PUT, &endpoint, None, Some(payload.clone()), &studio)
+            .request_jwt(
+                Method::PATCH,
+                &endpoint,
+                None,
+                Some(payload.clone()),
+                &studio,
+            )
             .await
         {
             Ok(r) => Ok(r),
             Err(e1) => client
                 .request_jwt(
-                    Method::PATCH,
+                    Method::PUT,
                     &endpoint,
                     None,
                     Some(payload),
@@ -139,27 +147,30 @@ impl SparkthMCPServer {
         }
     }
 }
+
 #[tool_router(router = openedx_tools_router, vis = "pub")]
 impl SparkthMCPServer {
     #[tool(
         description = "Store the LMS URL and credentials; fetch an access token and validate it",
-        input_schema = cached_schema_for_type::<OpenEdxAuthenticationPayload>()
+        input_schema = cached_schema_for_type::<OpenEdxAuth>()
     )]
     pub async fn openedx_authenticate(
         &self,
-        Parameters(OpenEdxAuthenticationPayload {
+        Parameters(OpenEdxAuth {
             lms_url,
             studio_url,
             username,
             password,
-        }): Parameters<OpenEdxAuthenticationPayload>,
+        }): Parameters<OpenEdxAuth>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut client = OpenEdxClient::new(&lms_url, None);
+
         match client.get_token(&username, &password).await {
             Ok(token) => {
                 let who = client.username().unwrap_or(&username);
                 let body = json!({
                     "access_token": token,
+                    "studio_url": studio_url,
                     "message": format!("Successfully authenticated as {who}")
                 });
                 Ok(CallToolResult::success(vec![Content::json(body).unwrap()]))
@@ -177,11 +188,10 @@ impl SparkthMCPServer {
     )]
     pub async fn openedx_get_user_info(
         &self,
-        Parameters(OpenEdxAccessTokenPayload {
+        Parameters(OpenEdxLMSAccess {
             lms_url,
-            studio_url,
             access_token,
-        }): Parameters<OpenEdxAccessTokenPayload>,
+        }): Parameters<OpenEdxLMSAccess>,
     ) -> Result<CallToolResult, ErrorData> {
         let client = OpenEdxClient::new(&lms_url, Some(access_token.clone()));
         match client.openedx_authenticate(&access_token).await {
@@ -289,7 +299,7 @@ Don't proceed if user is not authenticated.",
 
     #[tool(
         description = "Create a Problem or HTML. The HTML component should be in the same unit, while the Problem component should be in a separate unit.
-Then immediately update the component with content.\n\
+Then call the update Xblock tool to update the XBlock.\n\
 • `kind`: \"problem\" (OLX problem) or \"html\" (HTML component). Default: \"problem\".\n\
 • Provide `data` with OLX/HTML to fully control content, OR set `mcq_boilerplate=true` (for problems) to use a minimal MCQ template.\n\
 • Optional `metadata` supports fields like `display_name`, `weight`, `max_attempts`, etc.\n\
@@ -366,6 +376,7 @@ Then immediately update the component with content.\n\
 
     #[tool(
         description = "Update an XBlock (chapter/section, sequential/subsection, vertical/unit).
+Provide `data` with OLX/HTML to fully control content.
 The parent locator for should be in the format `block-v1:ORG+COURSE+RUN+type@course+block@course`.
 Don't proceed if user is not authenticated.",
         input_schema = cached_schema_for_type::<OpenEdxUpdateXBlockPayload>()
@@ -380,10 +391,10 @@ Don't proceed if user is not authenticated.",
             metadata,
         }): Parameters<OpenEdxUpdateXBlockPayload>,
     ) -> Result<CallToolResult, ErrorData> {
-        if data.is_none() && metadata.is_none() {
+        if data.is_none() {
             return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
-                "Nothing to update: provide `data` and/or `metadata`",
+                "Nothing to update: provide `data`",
                 None,
             ));
         }
@@ -396,36 +407,27 @@ Don't proceed if user is not authenticated.",
 
         let mut body = serde_json::Map::new();
         if let Some(data) = data {
-            body.insert("data".to_string(), data);
+            body.insert("data".to_string(), serde_json::Value::String(data));
         }
+
         if let Some(m) = metadata {
             body.insert("metadata".to_string(), m);
         }
+
         let payload = Value::Object(body);
 
         match client
-            .request_jwt(Method::PUT, &endpoint, None, Some(payload.clone()), &studio)
+            .request_jwt(Method::PATCH, &endpoint, None, Some(payload), &studio)
             .await
         {
             Ok(response) => Ok(self.handle_response_single(response)),
-            Err(e1) => {
-                match client
-                    .request_jwt(
-                        Method::PUT,
-                        &endpoint,
-                        None,
-                        Some(payload),
-                        &auth.studio_url,
-                    )
-                    .await
-                {
-                    Ok(response) => Ok(self.handle_response_single(response)),
-                    Err(e2) => Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Update failed (PUT and PATCH): {e1}; {e2}"),
-                        None,
-                    )),
-                }
+            Err(error) => {
+                eprintln!("UPDATE ERROR: {:?}", error);
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Update failed: {error}"),
+                    None,
+                ))
             }
         }
     }

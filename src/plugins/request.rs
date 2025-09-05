@@ -1,6 +1,6 @@
 use reqwest::{
     Client, Method, Response,
-    header::{ACCEPT, AUTHORIZATION},
+    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
 };
 use serde::Deserialize;
 use serde_json::{Value, from_str};
@@ -27,7 +27,7 @@ pub async fn request(
         .request(http_method, url)
         .header(AUTHORIZATION, format!("{:?} {token}", auth))
         .header(ACCEPT, "application/json")
-        .header("CONTENT_TYPE", "application/json");
+        .header(CONTENT_TYPE, "application/json");
 
     if let Some(params) = params {
         request = request.query(&params);
