@@ -57,39 +57,17 @@ pub async fn request(
     }
 }
 
-async fn handle_error_response(response: Response) -> LMSError {
+pub async fn handle_error_response(response: Response) -> LMSError {
     let status_code = response.status().as_u16();
-    let error_text = response.text().await.unwrap();
+    let error_text = response.text().await.unwrap_or_default();
 
-    let error_message = if let Ok(error_json) = from_str::<Value>(&error_text) {
-        if let Some(errors) = error_json.get("errors") {
-            match errors {
-                Value::Object(obj) => obj
-                    .get("message")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(&error_text)
-                    .to_string(),
-
-                Value::Array(arr) => {
-                    if let Some(first_error) = arr.first() {
-                        first_error.as_str().unwrap_or(&error_text).to_string()
-                    } else {
-                        error_text
-                    }
-                }
-                _ => error_text,
-            }
-        } else if let Some(message) = error_json.get("message") {
-            message.as_str().unwrap_or(&error_text).to_string()
-        } else {
-            error_text
-        }
-    } else {
-        error_text
-    };
+    let message = from_str::<Value>(&error_text)
+        .ok()
+        .and_then(|v| v.get("message")?.as_str().map(|s| s.to_string()))
+        .unwrap_or(error_text);
 
     LMSError::Api {
         status_code,
-        message: error_message,
+        message,
     }
 }

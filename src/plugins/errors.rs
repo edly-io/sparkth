@@ -12,4 +12,8 @@ pub enum LMSError {
     Json(#[from] serde_json::Error),
     #[error("Url parsing failed: {0}")]
     UrlParse(#[from] url::ParseError),
+    #[error("(500) Internal Server Error: {0}")]
+    InternalServerError(String),
+    #[error("(400) Invalid Params: {0}")]
+    InvalidParams(String),
 }

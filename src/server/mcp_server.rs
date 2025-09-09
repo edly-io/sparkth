@@ -1,7 +1,7 @@
 use crate::prompts;
 use rmcp::{
     ErrorData, ServerHandler,
-    handler::server::tool::{Parameters, ToolRouter},
+    handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo,
     },

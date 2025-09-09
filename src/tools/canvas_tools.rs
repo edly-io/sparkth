@@ -16,26 +16,22 @@ use crate::{
     server::mcp_server::SparkthMCPServer,
 };
 use reqwest::Method;
-use rmcp::{
-    ErrorData,
-    handler::server::tool::Parameters,
-    model::{CallToolResult, Content, ErrorCode},
-    tool, tool_router,
-};
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::{tool, tool_router};
 use serde_json::{Value, to_value};
 
 #[tool_router(router = canvas_tools_router, vis = "pub")]
 impl SparkthMCPServer {
-    pub fn handle_response_single(&self, response: LMSResponse) -> CallToolResult {
+    pub fn handle_response_single(&self, response: LMSResponse) -> String {
         let result = match response {
             LMSResponse::Single(val) => val,
             LMSResponse::Multiple(mut vals) => vals.pop().unwrap_or(Value::Null),
         };
 
-        CallToolResult::success(vec![Content::text(result.to_string())])
+        result.to_string()
     }
 
-    pub fn handle_response_vec(&self, response: LMSResponse) -> CallToolResult {
+    pub fn handle_response_vec(&self, response: LMSResponse) -> String {
         let results = match response {
             LMSResponse::Single(val) => vec![val],
             LMSResponse::Multiple(vals) => vals,
@@ -46,7 +42,7 @@ impl SparkthMCPServer {
             .map(|result| result.to_string())
             .collect();
 
-        CallToolResult::success(vec![Content::text(results.join(","))])
+        results.join(",")
     }
 
     #[tool(
@@ -56,16 +52,11 @@ impl SparkthMCPServer {
     pub async fn canvas_authenticate(
         &self,
         Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
-        match CanvasClient::authenticate(api_url, api_token).await {
-            Ok(_) => Ok(CallToolResult::success(vec![Content::text(
-                "User authenticated successfuly!",
-            )])),
-            Err(err) => {
-                let msg = format!("Error while authentication: {err}");
-                Err(ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, msg, None))
-            }
-        }
+    ) -> Result<String, String> {
+        CanvasClient::authenticate(api_url, api_token)
+            .await
+            .map(|_| "User authenticated successfully!".to_string())
+            .map_err(|err| format!("Error while authentication: {err}"))
     }
 
     #[tool(
@@ -75,16 +66,14 @@ impl SparkthMCPServer {
     pub async fn canvas_get_courses(
         &self,
         Parameters(AuthenticationPayload { api_url, api_token }): Parameters<AuthenticationPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(api_url, api_token);
 
-        match client.request_bearer(Method::GET, "courses", None).await {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(err) => {
-                let msg = format!("Error while fetching all courses: {err}");
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+        client
+            .request_bearer(Method::GET, "courses", None)
+            .await
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|err| format!("Error while fetching all courses: {err}"))
     }
 
     #[tool(
@@ -94,18 +83,13 @@ impl SparkthMCPServer {
     pub async fn canvas_get_course(
         &self,
         Parameters(CourseParams { course_id, auth }): Parameters<CourseParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
-        match client
+        client
             .request_bearer(Method::GET, &format!("courses/{course_id}"), None)
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!("Error while fetching course {course_id}: {err}");
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("Error while fetching course {course_id}: {err}"))
     }
 
     #[tool(
@@ -115,24 +99,19 @@ impl SparkthMCPServer {
     pub async fn canvas_create_course(
         &self,
         Parameters(payload): Parameters<CoursePayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!("accounts/{}/courses", payload.account_id),
                 Some(to_value(payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!("Error while creating the course: {err}");
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("Error while creating the course: {err}"))
     }
 
     #[tool(
@@ -142,19 +121,14 @@ impl SparkthMCPServer {
     pub async fn canvas_list_modules(
         &self,
         Parameters(CourseParams { course_id, auth }): Parameters<CourseParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(Method::GET, &format!("courses/{course_id}/modules"), None)
             .await
-        {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(err) => {
-                let msg = format!("Error while fetching all courses: {err}");
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|err| format!("Error while fetching all courses: {err}"))
     }
 
     #[tool(
@@ -168,25 +142,20 @@ impl SparkthMCPServer {
             module_id,
             auth,
         }): Parameters<ModuleParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
-                    "Error while getting module {module_id} for course {course_id}: {err}",
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!("Error while getting module {module_id} for course {course_id}: {err}",)
+            })
     }
 
     #[tool(
@@ -196,27 +165,24 @@ impl SparkthMCPServer {
     pub async fn canvas_create_module(
         &self,
         Parameters(payload): Parameters<ModulePayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!("courses/{}/modules", payload.course_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while creating a new module for course {}: {err}",
-                    payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                    payload.course_id,
+                )
+            })
     }
 
     #[tool(
@@ -226,11 +192,11 @@ impl SparkthMCPServer {
     pub async fn canvas_update_module(
         &self,
         Parameters(payload): Parameters<UpdateModulePayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::PUT,
                 &format!(
@@ -240,16 +206,13 @@ impl SparkthMCPServer {
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while updating module {} for course {}: {err}",
                     payload.module_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -263,25 +226,20 @@ impl SparkthMCPServer {
             module_id,
             auth,
         }): Parameters<ModuleParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/modules/{module_id}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
-                    "Error while deleting module {module_id} for course {course_id}: {err}",
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!("Error while deleting module {module_id} for course {course_id}: {err}",)
+            })
     }
 
     #[tool(
@@ -295,25 +253,20 @@ impl SparkthMCPServer {
             module_id,
             auth,
         }): Parameters<ModuleParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}/items"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(err) => {
-                let msg = format!(
-                    "Error while listing module items for module {module_id} of course {course_id}: {err}",
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|err| format!(
+                      "Error while listing module items for module {module_id} of course {course_id}: {err}",
+                ))
     }
 
     #[tool(
@@ -328,25 +281,20 @@ impl SparkthMCPServer {
             item_id,
             auth,
         }): Parameters<ModuleItemParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/modules/{module_id}/items/{item_id}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
-                    "Error while fetching module item {item_id} for module {module_id} of course {course_id}: {err}",
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!(
+                    "Error while fetching module item {item_id} for module {module_id} of course {course_id}: {err}"
+                ))
     }
 
     #[tool(
@@ -356,11 +304,11 @@ impl SparkthMCPServer {
     pub async fn canvas_create_module_item(
         &self,
         Parameters(payload): Parameters<ModuleItemPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!(
@@ -370,16 +318,13 @@ impl SparkthMCPServer {
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while creating new module item for module {} of course {}: {err}",
                     payload.module_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -389,11 +334,11 @@ impl SparkthMCPServer {
     pub async fn canvas_update_module_item(
         &self,
         Parameters(payload): Parameters<UpdateModuleItemPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::PUT,
                 &format!(
@@ -403,16 +348,13 @@ impl SparkthMCPServer {
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while updating module item {} for module {} of course {}: {err}",
                     payload.item_id, payload.module_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -427,25 +369,20 @@ impl SparkthMCPServer {
             item_id,
             auth,
         }): Parameters<ModuleItemParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/modules/{module_id}/items/{item_id}",),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!(
                     "Error in deleting module item {item_id} for module {module_id} of course {course_id}: {err}",
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                ))
     }
 
     #[tool(
@@ -455,27 +392,24 @@ impl SparkthMCPServer {
     pub async fn canvas_list_pages(
         &self,
         Parameters(payload): Parameters<ListPagesPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{}/pages", payload.course_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|err| {
+                format!(
                     "Error while listing pages for course {}: {err}",
                     payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -489,24 +423,20 @@ impl SparkthMCPServer {
             page_url,
             auth,
         }): Parameters<PageParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/pages/{page_url}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg =
-                    format!("Error while fetching page {page_url} for course {course_id}: {err}");
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!("Error while fetching page {page_url} for course {course_id}: {err}")
+            })
     }
 
     #[tool(
@@ -516,27 +446,24 @@ impl SparkthMCPServer {
     pub async fn canvas_create_page(
         &self,
         Parameters(payload): Parameters<PagePayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!("courses/{}/pages", payload.course_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while creating a new page for course {}: {err}",
                     payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -546,27 +473,24 @@ impl SparkthMCPServer {
     pub async fn canvas_update_page(
         &self,
         Parameters(payload): Parameters<UpdatePagePayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::PUT,
                 &format!("courses/{}/pages/{}", payload.course_id, payload.url_or_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while updating page {} for course {}: {err}",
                     payload.url_or_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -580,24 +504,20 @@ impl SparkthMCPServer {
             page_url,
             auth,
         }): Parameters<PageParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/pages/{page_url}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg =
-                    format!("Error while deleting page {page_url} of course {course_id}: {err}",);
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!("Error while deleting page {page_url} of course {course_id}: {err}")
+            })
     }
 
     #[tool(
@@ -607,19 +527,14 @@ impl SparkthMCPServer {
     pub async fn canvas_list_quizzes(
         &self,
         Parameters(CourseParams { course_id, auth }): Parameters<CourseParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(Method::GET, &format!("courses/{course_id}/quizzes"), None)
             .await
-        {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(err) => {
-                let msg = format!("Error while listing quizzes for course {course_id}: {err}",);
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|err| format!("Error while listing quizzes for course {course_id}: {err}"))
     }
 
     #[tool(
@@ -633,24 +548,20 @@ impl SparkthMCPServer {
             quiz_id,
             auth,
         }): Parameters<QuizParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg =
-                    format!("Error while fetching quiz {quiz_id} of course {course_id}: {err}",);
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!("Error while fetching quiz {quiz_id} of course {course_id}: {err}")
+            })
     }
 
     #[tool(
@@ -660,27 +571,24 @@ impl SparkthMCPServer {
     pub async fn canvas_create_quiz(
         &self,
         Parameters(payload): Parameters<QuizPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!("courses/{}/quizzes", payload.course_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while creating a new quiz for course {}: {err}",
                     payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -690,27 +598,24 @@ impl SparkthMCPServer {
     pub async fn canvas_update_quiz(
         &self,
         Parameters(payload): Parameters<UpdateQuizPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::PUT,
                 &format!("courses/{}/quizzes/{}", payload.course_id, payload.quiz_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while updating quiz {} for course {}: {err}",
                     payload.quiz_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -724,24 +629,20 @@ impl SparkthMCPServer {
             quiz_id,
             auth,
         }): Parameters<QuizParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/quizzes/{quiz_id}"),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg =
-                    format!("Error while deleting quiz {quiz_id} of course {course_id}: {err}");
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!("Error while deleting quiz {quiz_id} of course {course_id}: {err}")
+            })
     }
 
     #[tool(
@@ -755,25 +656,22 @@ impl SparkthMCPServer {
             quiz_id,
             auth,
         }): Parameters<QuizParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions",),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|err| {
+                format!(
                     "Error while listing questions for quiz {quiz_id} of course {course_id}: {err}"
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -788,25 +686,20 @@ impl SparkthMCPServer {
             question_id,
             auth,
         }): Parameters<QuestionParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::GET,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!(
                     "Error while listing question {question_id} for quiz {quiz_id} of course {course_id}: {err}"
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                ))
     }
 
     #[tool(
@@ -816,11 +709,11 @@ impl SparkthMCPServer {
     pub async fn canvas_create_question(
         &self,
         Parameters(payload): Parameters<QuestionPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!(
@@ -830,16 +723,13 @@ impl SparkthMCPServer {
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while creating a new question for quiz {} of course {}: {err}",
                     payload.quiz_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -849,11 +739,11 @@ impl SparkthMCPServer {
     pub async fn canvas_update_question(
         &self,
         Parameters(payload): Parameters<UpdateQuestionPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::PUT,
                 &format!(
@@ -863,16 +753,13 @@ impl SparkthMCPServer {
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while updating question {} for quiz {} of course {}: {err}",
                     payload.question_id, payload.quiz_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -887,25 +774,20 @@ impl SparkthMCPServer {
             question_id,
             auth,
         }): Parameters<QuestionParams>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = CanvasClient::new(auth.api_url, auth.api_token);
 
-        match client
+        client
             .request_bearer(
                 Method::DELETE,
                 &format!("courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}",),
                 None,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
-                    "Error while deleting question {question_id} for quiz {quiz_id} of course {course_id}: {err}"
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!(
+                     "Error while deleting question {question_id} for quiz {quiz_id} of course {course_id}: {err}"
+                ))
     }
 
     #[tool(
@@ -915,27 +797,24 @@ impl SparkthMCPServer {
     pub async fn canvas_create_user(
         &self,
         Parameters(payload): Parameters<UserPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!("accounts/{}/users", payload.account_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while creating new user with id {} for account {}: {err}",
                     payload.pseudonym.unique_id, payload.account_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 
     #[tool(
@@ -945,27 +824,24 @@ impl SparkthMCPServer {
     pub async fn canvas_enroll_user(
         &self,
         Parameters(payload): Parameters<EnrollmentPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client =
             CanvasClient::new(payload.auth.api_url.clone(), payload.auth.api_token.clone());
 
-        match client
+        client
             .request_bearer(
                 Method::POST,
                 &format!("courses/{}/enrollments", payload.course_id),
                 Some(to_value(&payload).unwrap()),
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(err) => {
-                let msg = format!(
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| {
+                format!(
                     "Error while enrolling user {} to course {}: {err}",
                     payload.enrollment.user_id, payload.course_id
-                );
-                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, msg, None))
-            }
-        }
+                )
+            })
     }
 }
 

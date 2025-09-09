@@ -6,7 +6,7 @@ repository = "https://github.com/edly-io/sparkth"
 license = "MIT"
 
 [dependencies]
-rmcp = { version = "0.5.0", features = [
+rmcp = { version = "0.6.3", features = [
     "server",
     "transport-io",
     "transport-sse-server",
