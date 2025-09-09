@@ -1,17 +1,15 @@
 use reqwest::Method;
-use rmcp::{
-    ErrorData,
-    handler::server::tool::Parameters,
-    model::{CallToolResult, Content, ErrorCode},
-    tool, tool_router,
-};
+use rmcp::{handler::server::wrapper::Parameters, tool, tool_router};
 use serde_json::{Value, json, to_value};
 
 use crate::{
-    plugins::openedx::{
-        client::OpenEdxClient,
-        types::{
-            OpenEdxAuth, OpenEdxCourseTreeRequest, OpenEdxLMSAccess, OpenEdxUpdateXBlockPayload,
+    plugins::{
+        errors::LMSError,
+        openedx::{
+            client::OpenEdxClient,
+            types::{
+                OpenEdxAuth, OpenEdxCourseTreeRequest, OpenEdxLMSAccess, OpenEdxUpdateXBlockPayload,
+            },
         },
     },
     server::mcp_server::SparkthMCPServer,
@@ -36,7 +34,7 @@ impl SparkthMCPServer {
         unit_locator: &str,
         kind: &Component,
         display_name: &str,
-    ) -> Result<String, ErrorData> {
+    ) -> Result<String, LMSError> {
         let studio = auth.studio_url.trim_end_matches('/').to_string();
         let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
         let create_url = format!("api/contentstore/v0/xblock/{course_id}");
@@ -49,14 +47,7 @@ impl SparkthMCPServer {
 
         let created = client
             .request_jwt(Method::POST, &create_url, None, Some(payload), &studio)
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Create component failed: {e}"),
-                    None,
-                )
-            })?;
+            .await?;
 
         let locator = match created {
             LMSResponse::Single(ref v) => v
@@ -76,11 +67,7 @@ impl SparkthMCPServer {
                 .map(|s| s.to_string()),
         }
         .ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Server did not return a new block locator",
-                None,
-            )
+            LMSError::InternalServerError("Server did not return a new block locator".to_string())
         })?;
 
         Ok(locator)
@@ -93,13 +80,12 @@ impl SparkthMCPServer {
         locator: &str,
         data: Option<String>,    // OLX for problem; HTML for html component
         metadata: Option<Value>, // e.g. {"display_name":"...", "weight":1}
-    ) -> Result<LMSResponse, ErrorData> {
+    ) -> Result<LMSResponse, String> {
         if data.is_none() && metadata.is_none() {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Nothing to update: provide `data` and/or `metadata`",
-                None,
-            ));
+            return Err(LMSError::InvalidParams(
+                "Nothing to update: provide `data` and/or `metadata`".to_string(),
+            )
+            .to_string());
         }
 
         let studio = auth.studio_url.trim_end_matches('/').to_string();
@@ -117,7 +103,7 @@ impl SparkthMCPServer {
         }
         let payload = Value::Object(body);
 
-        match client
+        let res = client
             .request_jwt(
                 Method::PATCH,
                 &endpoint,
@@ -126,25 +112,9 @@ impl SparkthMCPServer {
                 &studio,
             )
             .await
-        {
-            Ok(r) => Ok(r),
-            Err(e1) => client
-                .request_jwt(
-                    Method::PUT,
-                    &endpoint,
-                    None,
-                    Some(payload),
-                    &auth.studio_url,
-                )
-                .await
-                .map_err(|e2| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Update failed (PUT and PATCH): {e1}; {e2}"),
-                        None,
-                    )
-                }),
-        }
+            .map_err(|err| err.to_string())?;
+
+        Ok(res)
     }
 }
 
@@ -162,29 +132,27 @@ impl SparkthMCPServer {
             username,
             password,
         }): Parameters<OpenEdxAuth>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let mut client = OpenEdxClient::new(&lms_url, None);
 
-        match client.get_token(&username, &password).await {
-            Ok(token) => {
+        client
+            .get_token(&username, &password)
+            .await
+            .map(|token| {
                 let who = client.username().unwrap_or(&username);
-                let body = json!({
+                json!({
                     "access_token": token,
                     "studio_url": studio_url,
                     "message": format!("Successfully authenticated as {who}")
-                });
-                Ok(CallToolResult::success(vec![Content::json(body).unwrap()]))
-            }
-            Err(err) => {
-                let msg = format!("Open edX authentication failed: {err}");
-                Err(ErrorData::resource_not_found(msg, None))
-            }
-        }
+                })
+                .to_string()
+            })
+            .map_err(|err| format!("Open edX authentication failed: {err}"))
     }
 
     #[tool(
         description = "Fetch current Open edX user info (/api/user/v1/me) using an existing access token",
-        input_schema = cached_schema_for_type::<OpenEdxAccessTokenPayload>()
+        input_schema = cached_schema_for_type::<OpenEdxLMSAccess>()
     )]
     pub async fn openedx_get_user_info(
         &self,
@@ -192,15 +160,13 @@ impl SparkthMCPServer {
             lms_url,
             access_token,
         }): Parameters<OpenEdxLMSAccess>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = OpenEdxClient::new(&lms_url, Some(access_token.clone()));
-        match client.openedx_authenticate(&access_token).await {
-            Ok(json) => Ok(CallToolResult::success(vec![Content::json(json).unwrap()])),
-            Err(e) => Err(ErrorData::internal_error(
-                format!("Fetching user info failed: {e}"),
-                None,
-            )),
-        }
+        client
+            .openedx_authenticate()
+            .await
+            .map(|res| self.handle_response_single(res))
+            .map_err(|err| format!("Get user info failed: {err}"))
     }
 
     #[tool(description = "Create an Open edX course run. Authenticate the user first.",
@@ -209,10 +175,10 @@ impl SparkthMCPServer {
     pub async fn openedx_create_course_run(
         &self,
         Parameters(OpenEdxCreateCourseArgs { auth, course }): Parameters<OpenEdxCreateCourseArgs>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
 
-        match client
+        client
             .request_jwt(
                 Method::POST,
                 "/api/v1/course_runs/",
@@ -221,13 +187,8 @@ impl SparkthMCPServer {
                 &auth.studio_url,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(e) => Err(ErrorData::internal_error(
-                format!("Create course runs failed: {e}"),
-                None,
-            )),
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("Create course runs failed: {err}"))
     }
 
     #[tool(description = "List Open edX course runs. Don't proceed if user is not authenticated.",
@@ -240,7 +201,7 @@ impl SparkthMCPServer {
             page,
             page_size,
         }): Parameters<OpenEdxListCourseRunsArgs>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let lms = auth.lms_url.trim_end_matches('/').to_string();
         let studio = auth.studio_url.trim_end_matches('/').to_string();
         let client = OpenEdxClient::new(&lms, Some(auth.access_token));
@@ -249,16 +210,11 @@ impl SparkthMCPServer {
         let ps = page_size.unwrap_or(20);
         let endpoint = format!("api/v1/course_runs/?page={p}&page_size={ps}");
 
-        match client
+        client
             .request_jwt(Method::GET, &endpoint, None, None, &studio)
             .await
-        {
-            Ok(response) => Ok(self.handle_response_vec(response)),
-            Err(e) => Err(ErrorData::internal_error(
-                format!("List course runs failed: {e}"),
-                None,
-            )),
-        }
+            .map(|response| self.handle_response_vec(response))
+            .map_err(|e| format!("List course runs failed: {e}"))
     }
 
     #[tool(
@@ -274,12 +230,12 @@ Don't proceed if user is not authenticated.",
             xblock,
             course_id,
         }): Parameters<OpenEdxXBlockPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token));
 
         let endpoint = format!("api/contentstore/v0/xblock/{course_id}");
 
-        match client
+        client
             .request_jwt(
                 Method::POST,
                 &endpoint,
@@ -288,18 +244,13 @@ Don't proceed if user is not authenticated.",
                 &auth.studio_url,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(e) => Err(ErrorData::internal_error(
-                format!("XBlock creation failed: {e}"),
-                None,
-            )),
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("XBlock creation failed: {err}"))
     }
 
     #[tool(
         description = "Create a Problem or HTML. The HTML component should be in the same unit, while the Problem component should be in a separate unit.
-Then call the update Xblock tool to update the XBlock.\n\
+Then immediately call the update Xblock tool to update the XBlock.\n\
 • `kind`: \"problem\" (OLX problem) or \"html\" (HTML component). Default: \"problem\".\n\
 • Provide `data` with OLX/HTML to fully control content, OR set `mcq_boilerplate=true` (for problems) to use a minimal MCQ template.\n\
 • Optional `metadata` supports fields like `display_name`, `weight`, `max_attempts`, etc.\n\
@@ -319,7 +270,7 @@ Then call the update Xblock tool to update the XBlock.\n\
             metadata,
             mcq_boilerplate,
         }): Parameters<OpenEdxCreateProblemOrHtmlArgs>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let component = kind.unwrap_or(Component::Problem);
         let name = display_name.unwrap_or_else(|| {
             match component {
@@ -332,7 +283,8 @@ Then call the update Xblock tool to update the XBlock.\n\
         // 1) Create a base component
         let locator = self
             .openedx_create_basic_component(&auth, &course_id, &unit_locator, &component, &name)
-            .await?;
+            .await
+            .map_err(|err| err.to_string())?;
 
         // 2) Choose content to update with
         let final_data = if data.is_some() {
@@ -358,7 +310,8 @@ Then call the update Xblock tool to update the XBlock.\n\
         let result_value = if final_data.is_some() || metadata.is_some() {
             let updated = self
                 .openedx_update_xblock_content(&auth, &course_id, &locator, final_data, metadata)
-                .await?;
+                .await
+                .map_err(|err| err.to_string())?;
 
             match updated {
                 LMSResponse::Single(v) => v,
@@ -369,9 +322,7 @@ Then call the update Xblock tool to update the XBlock.\n\
         };
 
         let out = json!({ "locator": locator, "result": result_value });
-        Ok(CallToolResult::success(vec![Content::text(
-            out.to_string(),
-        )]))
+        Ok(out.to_string())
     }
 
     #[tool(
@@ -390,46 +341,17 @@ Don't proceed if user is not authenticated.",
             data,
             metadata,
         }): Parameters<OpenEdxUpdateXBlockPayload>,
-    ) -> Result<CallToolResult, ErrorData> {
-        if data.is_none() {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Nothing to update: provide `data`",
-                None,
+    ) -> Result<String, String> {
+        if data.is_none() && metadata.is_none() {
+            return Err(String::from(
+                "Nothing to update: provide `data` and/or `metadata`",
             ));
         }
 
-        let studio = auth.studio_url.trim_end_matches('/').to_string();
-        let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
-
-        let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
-        let endpoint = format!("api/contentstore/v0/xblock/{course_id}/{encoded}");
-
-        let mut body = serde_json::Map::new();
-        if let Some(data) = data {
-            body.insert("data".to_string(), serde_json::Value::String(data));
-        }
-
-        if let Some(m) = metadata {
-            body.insert("metadata".to_string(), m);
-        }
-
-        let payload = Value::Object(body);
-
-        match client
-            .request_jwt(Method::PATCH, &endpoint, None, Some(payload), &studio)
+        self.openedx_update_xblock_content(&auth, &course_id, &locator, data, metadata)
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(error) => {
-                eprintln!("UPDATE ERROR: {:?}", error);
-                Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Update failed: {error}"),
-                    None,
-                ))
-            }
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("Error updating: {err}"))
     }
 
     #[tool(
@@ -441,7 +363,7 @@ Don't proceed if user is not authenticated.",
         Parameters(OpenEdxCourseTreeRequest { auth, course_id }): Parameters<
             OpenEdxCourseTreeRequest,
         >,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token));
 
         let params = json!({
@@ -451,7 +373,7 @@ Don't proceed if user is not authenticated.",
             "requested_fields": "children,display_name,type,graded,student_view_url,block_id,due,start,format"
         });
 
-        match client
+        client
             .request_jwt(
                 Method::GET,
                 "api/courses/v1/blocks/",
@@ -460,13 +382,8 @@ Don't proceed if user is not authenticated.",
                 &auth.lms_url,
             )
             .await
-        {
-            Ok(response) => Ok(self.handle_response_single(response)),
-            Err(e) => Err(ErrorData::internal_error(
-                format!("Failed to get course tree: {e}"),
-                None,
-            )),
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("Failed to get course tree: {err}"))
     }
 
     #[tool(
@@ -481,14 +398,13 @@ Don't proceed if user is not authenticated.",
             course_id,
             locator,
         }): Parameters<OpenEdxGetBlockContentArgs>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<String, String> {
         // Hard-require a non-empty locator
         if locator.trim().is_empty() {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
+            return Err(LMSError::InvalidParams(
                 "locator is required and cannot be empty".to_string(),
-                None,
-            ));
+            )
+            .to_string());
         }
 
         let client = OpenEdxClient::new(&auth.lms_url, Some(auth.access_token.clone()));
@@ -496,16 +412,10 @@ Don't proceed if user is not authenticated.",
         let encoded: String = form_urlencoded::byte_serialize(locator.as_bytes()).collect();
         let endpoint = format!("api/contentstore/v0/xblock/{course_id}/{encoded}");
 
-        match client
+        client
             .request_jwt(Method::GET, &endpoint, None, None, &auth.studio_url)
             .await
-        {
-            Ok(resp) => Ok(self.handle_response_single(resp)),
-            Err(e) => Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Fetching block from ContentStore failed: {e}"),
-                None,
-            )),
-        }
+            .map(|response| self.handle_response_single(response))
+            .map_err(|err| format!("Fetching block from ContentStore failed: {err}"))
     }
 }

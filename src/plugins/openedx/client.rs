@@ -53,25 +53,9 @@ impl OpenEdxClient {
         Ok(token)
     }
 
-    pub async fn openedx_authenticate(&self, access_token: &str) -> Result<Value, LMSError> {
-        let me_url = format!("{}/api/user/v1/me", self.lms_url);
-
-        let resp = self
-            .client
-            .request(Method::GET, &me_url)
-            .bearer_auth(access_token)
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            return Err(self.handle_error_response(resp).await);
-        }
-
-        let text = resp.text().await?;
-        if text.is_empty() {
-            return Ok(Value::Object(serde_json::Map::new()));
-        }
-        Ok(from_str(&text)?)
+    pub async fn openedx_authenticate(&self) -> Result<LMSResponse, LMSError> {
+        self.request_jwt(Method::GET, "api/user/v1/me", None, None, &self.lms_url)
+            .await
     }
 
     async fn handle_error_response(&self, response: Response) -> LMSError {
