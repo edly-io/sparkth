@@ -189,9 +189,14 @@ impl SparkthMCPServer {
 ```
 
 **Note**
-- To return from the tool, return type should be `Result<CallToolResult, ErrorData>`
-- Use `CallToolResult::success()` for successful operations
 
+- By default, the return type used is `Result<CallToolResult, ErrorData>`. For successful operations, use `CallToolResult::success()` to wrap the result. Errors are typically returned using `ErrorData::new(...)`.
+
+- However, we've observed that ErrorData does not propagate the exact error message to the LLM. Instead, a generic message like "Tool execution failed" may be displayed.
+
+- To ensure the LLM (e.g. Claude) receives and displays the actual error message, return `Result<String, String>` from the tool instead. 
+
+- You can implement your own types for the structured responses. See [example](https://docs.rs/rmcp/latest/rmcp/index.html#structured-output).
 
 
 To add description to your tool, we can use tool attributes:
