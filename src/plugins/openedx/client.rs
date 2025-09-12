@@ -1,12 +1,16 @@
 use reqwest::{Client, Method, Response};
-use serde_json::{Value, from_str};
+use serde_json::{Value, from_str, to_value};
 use url::Url;
-
+use bytes::Bytes;
 use crate::plugins::{
     errors::LMSError,
     request::{Auth, request},
     response::LMSResponse,
+    openedx::{
+        types::TokenResponse,
+    }
 };
+
 
 #[derive(Debug, Clone)]
 pub struct OpenEdxClient {
@@ -14,6 +18,7 @@ pub struct OpenEdxClient {
     client_id: String,
     client: Client,
     access_token: Option<String>,
+    refresh_token: Option<String>,
     username: Option<String>,
 }
 
@@ -24,12 +29,12 @@ impl OpenEdxClient {
             client_id: "login-service-client-id".to_string(),
             client: Client::new(),
             access_token,
+            refresh_token: None,
             username: None,
         }
     }
-
-    pub async fn get_token(&mut self, username: &str, password: &str) -> Result<String, LMSError> {
-        let auth_url = format!("{}/oauth2/access_token", self.lms_url);
+    pub async fn get_token(&mut self, username: &str, password: &str) -> Result<Value, LMSError> {
+        let auth_url = format!("{}/oauth2/access_token", self.lms_url.trim_end_matches('/'));
         let form = [
             ("client_id", self.client_id.as_str()),
             ("grant_type", "password"),
@@ -37,20 +42,59 @@ impl OpenEdxClient {
             ("username", username),
             ("password", password),
         ];
+
         let resp = self.client.post(&auth_url).form(&form).send().await?;
         if !resp.status().is_success() {
             return Err(self.handle_error_response(resp).await);
         }
-        let auth_json: Value = from_str(&resp.text().await?)?;
-        let token = auth_json
-            .get("access_token")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| LMSError::Authentication("missing access_token".into()))?
-            .to_string();
 
-        self.access_token = Some(token.clone());
+        let bytes: Bytes = resp.bytes().await?;
+        let tr: TokenResponse = serde_json::from_slice(&bytes)
+            .map_err(|e| LMSError::Other(format!("failed parsing auth JSON: {e}")))?;
 
-        Ok(token)
+        if tr.access_token.trim().is_empty() {
+            return Err(LMSError::Authentication("empty access_token".into()));
+        }
+
+        // Persist tokens
+        self.access_token = Some(tr.access_token.clone());
+        self.refresh_token = tr.refresh_token.clone();
+
+        // Return full JSON
+        let full = to_value(tr).map_err(|e| LMSError::Other(format!("failed serializing token JSON: {e}")))?;
+        Ok(full)
+    }
+
+    pub async fn refresh_access_token(&mut self, refresh_token: &str) -> Result<Value, LMSError> {
+        let auth_url = format!("{}/oauth2/access_token", self.lms_url.trim_end_matches('/'));
+        let form = [
+            ("client_id", self.client_id.as_str()),
+            ("grant_type", "refresh_token"),
+            ("token_type", "jwt"),
+            ("refresh_token", refresh_token),
+        ];
+
+        let resp = self.client.post(&auth_url).form(&form).send().await?;
+        if !resp.status().is_success() {
+            return Err(self.handle_error_response(resp).await);
+        }
+
+        let bytes: Bytes = resp.bytes().await?;
+        let tr: TokenResponse = serde_json::from_slice(&bytes)
+            .map_err(|e| LMSError::Other(format!("failed parsing refresh JSON: {e}")))?;
+
+        if tr.access_token.trim().is_empty() {
+            return Err(LMSError::Authentication("empty access_token".into()));
+        }
+        self.access_token = Some(tr.access_token.clone());
+        self.refresh_token = tr
+            .refresh_token
+            .clone()
+            .or_else(|| Some(refresh_token.to_string()));
+
+        let full = to_value(tr)
+            .map_err(|e| LMSError::Other(format!("failed serializing refresh JSON: {e}")))?;
+        Ok(full)
     }
 
     pub async fn openedx_authenticate(&self) -> Result<LMSResponse, LMSError> {

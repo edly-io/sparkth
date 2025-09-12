@@ -25,6 +25,7 @@ use crate::{
     },
     utils::cached_schema_for_type,
 };
+use crate::plugins::openedx::types::OpenEdxRefreshTokenPayload;
 
 impl SparkthMCPServer {
     async fn openedx_create_basic_component(
@@ -127,28 +128,79 @@ impl SparkthMCPServer {
     pub async fn openedx_authenticate(
         &self,
         Parameters(OpenEdxAuth {
-            lms_url,
-            studio_url,
-            username,
-            password,
-        }): Parameters<OpenEdxAuth>,
+                       lms_url,
+                       studio_url,
+                       username,
+                       password,
+                   }): Parameters<OpenEdxAuth>,
     ) -> Result<String, String> {
         let mut client = OpenEdxClient::new(&lms_url, None);
 
         client
             .get_token(&username, &password)
             .await
-            .map(|token| {
+            .map(|auth_json| {
                 let who = client.username().unwrap_or(&username);
+                let access_token = auth_json
+                    .get("access_token")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let refresh_token = auth_json
+                    .get("refresh_token")
+                    .and_then(|v| v.as_str());
+
                 json!({
-                    "access_token": token,
-                    "studio_url": studio_url,
-                    "message": format!("Successfully authenticated as {who}")
-                })
-                .to_string()
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "studio_url": studio_url,
+                "message": format!("Successfully authenticated as {who}")
+            })
+                    .to_string()
             })
             .map_err(|err| format!("Open edX authentication failed: {err}"))
     }
+
+
+    #[tool(
+    description = "Refresh an Open edX JWT using a refresh_token and return the new tokens\
+    - Use this when the you are getting Unauthorized errors from other endpoints if you have a refresh token.\
+    ",
+    input_schema = cached_schema_for_type::<OpenEdxRefreshTokenPayload>()
+    )]
+    pub async fn openedx_refresh_access_token(
+        &self,
+        Parameters(OpenEdxRefreshTokenPayload {
+                       lms_url,
+                       studio_url,
+                       refresh_token,
+                   }): Parameters<OpenEdxRefreshTokenPayload>,
+    ) -> Result<String, String> {
+        let mut client = OpenEdxClient::new(&lms_url, None);
+
+        client
+            .refresh_access_token(&refresh_token)
+            .await
+            .map(|auth_json| {
+                let access_token = auth_json
+                    .get("access_token")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+
+                let new_refresh = auth_json
+                    .get("refresh_token")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&refresh_token);
+                json!({
+                "access_token": access_token,
+                "refresh_token": new_refresh,
+                "studio_url": studio_url,
+                "message": "Access token refreshed"
+            })
+                    .to_string()
+            })
+            .map_err(|err| format!("Open edX refresh failed: {err}"))
+    }
+
 
     #[tool(
         description = "Fetch current Open edX user info (/api/user/v1/me) using an existing access token",
