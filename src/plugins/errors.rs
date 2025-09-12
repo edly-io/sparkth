@@ -16,4 +16,6 @@ pub enum LMSError {
     InternalServerError(String),
     #[error("(400) Invalid Params: {0}")]
     InvalidParams(String),
+    #[error("Other: {0}")]
+    Other(String),
 }
