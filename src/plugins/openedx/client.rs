@@ -4,7 +4,6 @@ use crate::plugins::{
     request::{Auth, request},
     response::LMSResponse,
 };
-use bytes::Bytes;
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_str, to_value};
 use url::Url;
