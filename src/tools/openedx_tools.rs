@@ -2,7 +2,7 @@ use reqwest::Method;
 use rmcp::{handler::server::wrapper::Parameters, tool, tool_router};
 use serde_json::{Value, json, to_value};
 
-use crate::plugins::openedx::types::OpenEdxRefreshTokenPayload;
+use crate::plugins::openedx::types::{OpenEdxRefreshTokenPayload, TokenResponse};
 use crate::{
     plugins::{
         errors::LMSError,
@@ -122,8 +122,8 @@ impl SparkthMCPServer {
 #[tool_router(router = openedx_tools_router, vis = "pub")]
 impl SparkthMCPServer {
     #[tool(
-        description = "Store the LMS URL and credentials; fetch an access token and validate it",
-        input_schema = cached_schema_for_type::<OpenEdxAuth>()
+    description = "Store the LMS URL and credentials; fetch an access token and validate it",
+    input_schema = cached_schema_for_type::<OpenEdxAuth>()
     )]
     pub async fn openedx_authenticate(
         &self,
@@ -139,17 +139,15 @@ impl SparkthMCPServer {
         client
             .get_token(&username, &password)
             .await
-            .map(|auth_json| {
+            .and_then(|auth_json| {
+                serde_json::from_value::<TokenResponse>(auth_json)
+                    .map_err(|e| LMSError::Other(format!("failed to parse auth payload: {e}")))
+            })
+            .map(|tr| {
                 let who = client.username().unwrap_or(&username);
-                let access_token = auth_json
-                    .get("access_token")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
-                let refresh_token = auth_json.get("refresh_token").and_then(|v| v.as_str());
-
                 json!({
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
+                    "access_token": tr.access_token,
+                    "refresh_token": tr.refresh_token,
                     "studio_url": studio_url,
                     "message": format!("Successfully authenticated as {who}")
                 })
@@ -159,9 +157,8 @@ impl SparkthMCPServer {
     }
 
     #[tool(
-    description = "Refresh an Open edX JWT using a refresh_token and return the new tokens\
-    - Use this when the you are getting Unauthorized errors from other endpoints if you have a refresh token.\
-    ",
+    description = "Refresh an Open edX JWT using a refresh_token and return the new tokens. \
+Use this when you get Unauthorized errors from other endpoints and you have a refresh token.",
     input_schema = cached_schema_for_type::<OpenEdxRefreshTokenPayload>()
     )]
     pub async fn openedx_refresh_access_token(
@@ -177,18 +174,14 @@ impl SparkthMCPServer {
         client
             .refresh_access_token(&refresh_token)
             .await
-            .map(|auth_json| {
-                let access_token = auth_json
-                    .get("access_token")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
-
-                let new_refresh = auth_json
-                    .get("refresh_token")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(&refresh_token);
+            .and_then(|auth_json| {
+                serde_json::from_value::<TokenResponse>(auth_json)
+                    .map_err(|e| LMSError::Other(format!("failed to parse refresh payload: {e}")))
+            })
+            .map(|tr| {
+                let new_refresh = tr.refresh_token.as_deref().unwrap_or(&refresh_token);
                 json!({
-                    "access_token": access_token,
+                    "access_token": tr.access_token,
                     "refresh_token": new_refresh,
                     "studio_url": studio_url,
                     "message": "Access token refreshed"
