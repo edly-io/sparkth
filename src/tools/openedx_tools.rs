@@ -222,7 +222,7 @@ Use this when you get Unauthorized errors from other endpoints and you have a re
         client
             .request_jwt(
                 Method::POST,
-                "/api/v1/course_runs/",
+                "api/v1/course_runs/",
                 None,
                 Some(to_value(course).unwrap()),
                 &auth.studio_url,
