@@ -128,7 +128,6 @@ pub struct OpenEdxGetBlockContentArgs {
     pub locator: String,
 }
 
-
 pub fn deserialize_metadata_option<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
 where
     D: Deserializer<'de>,

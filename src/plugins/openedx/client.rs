@@ -1,16 +1,13 @@
+use crate::plugins::{
+    errors::LMSError,
+    openedx::types::TokenResponse,
+    request::{Auth, request},
+    response::LMSResponse,
+};
+use bytes::Bytes;
 use reqwest::{Client, Method, Response};
 use serde_json::{Value, from_str, to_value};
 use url::Url;
-use bytes::Bytes;
-use crate::plugins::{
-    errors::LMSError,
-    request::{Auth, request},
-    response::LMSResponse,
-    openedx::{
-        types::TokenResponse,
-    }
-};
-
 
 #[derive(Debug, Clone)]
 pub struct OpenEdxClient {
@@ -61,7 +58,8 @@ impl OpenEdxClient {
         self.refresh_token = tr.refresh_token.clone();
 
         // Return full JSON
-        let full = to_value(tr).map_err(|e| LMSError::Other(format!("failed serializing token JSON: {e}")))?;
+        let full = to_value(tr)
+            .map_err(|e| LMSError::Other(format!("failed serializing token JSON: {e}")))?;
         Ok(full)
     }
 
