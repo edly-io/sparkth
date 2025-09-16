@@ -45,9 +45,7 @@ impl OpenEdxClient {
             return Err(self.handle_error_response(resp).await);
         }
 
-        let bytes: Bytes = resp.bytes().await?;
-        let tr: TokenResponse = serde_json::from_slice(&bytes)
-            .map_err(|e| LMSError::Other(format!("failed parsing auth JSON: {e}")))?;
+        let tr: TokenResponse = resp.json().await?;
 
         if tr.access_token.trim().is_empty() {
             return Err(LMSError::Authentication("empty access_token".into()));
@@ -57,10 +55,7 @@ impl OpenEdxClient {
         self.access_token = Some(tr.access_token.clone());
         self.refresh_token = tr.refresh_token.clone();
 
-        // Return full JSON
-        let full = to_value(tr)
-            .map_err(|e| LMSError::Other(format!("failed serializing token JSON: {e}")))?;
-        Ok(full)
+        Ok(to_value(tr)?)
     }
 
     pub async fn refresh_access_token(&mut self, refresh_token: &str) -> Result<Value, LMSError> {
@@ -76,10 +71,7 @@ impl OpenEdxClient {
         if !resp.status().is_success() {
             return Err(self.handle_error_response(resp).await);
         }
-
-        let bytes: Bytes = resp.bytes().await?;
-        let tr: TokenResponse = serde_json::from_slice(&bytes)
-            .map_err(|e| LMSError::Other(format!("failed parsing refresh JSON: {e}")))?;
+        let tr: TokenResponse = resp.json().await?;
 
         if tr.access_token.trim().is_empty() {
             return Err(LMSError::Authentication("empty access_token".into()));
@@ -89,10 +81,7 @@ impl OpenEdxClient {
             .refresh_token
             .clone()
             .or_else(|| Some(refresh_token.to_string()));
-
-        let full = to_value(tr)
-            .map_err(|e| LMSError::Other(format!("failed serializing refresh JSON: {e}")))?;
-        Ok(full)
+        Ok(to_value(tr)?)
     }
 
     pub async fn openedx_authenticate(&self) -> Result<LMSResponse, LMSError> {
