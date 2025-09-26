@@ -25,7 +25,10 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Install Rust
-      run: rustup update stable && rustup default stable
+      run: |
+        rustup update stable
+        rustup default stable
+        rustup component add rustfmt clippy
 
     - name: Check Formatting
       run: cargo fmt --all -- --check
