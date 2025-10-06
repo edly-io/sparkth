@@ -1,6 +1,6 @@
 use axum::{Router, routing::get};
-use tokio::net::TcpListener;
 use std::{env, error::Error};
+use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -11,9 +11,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let app = Router::new().route("/", get(|| async { "Hello, World!" }));
 
-    let listener = TcpListener::bind(format!("{host}:{port}"))
-        .await
-        .unwrap();
+    let listener = TcpListener::bind(format!("{host}:{port}")).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
