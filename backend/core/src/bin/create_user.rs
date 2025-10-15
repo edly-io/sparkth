@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::{DEFAULT_COST, hash};
 use regex::Regex;
 
 use core::db::db_pool::get_db_pool;
@@ -24,11 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Validate email format
         if !email_regex.is_match(&email) {
-            eprintln!("Error: Invalid email format. Please enter a valid email address (example: user@domain.com).");
+            eprintln!(
+                "Error: Invalid email format. Please enter a valid email address (example: user@domain.com)."
+            );
             continue;
         }
 
-        match User::get_by_email(&email, &db_pool) {
+        match User::get_by_email(&email, db_pool) {
             Ok(_) => {
                 eprintln!("Error: A user with this email already exists. Please try again.");
                 continue;
@@ -77,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Email: {}", user.email);
         }
         Err(e) => {
-            eprintln!("Error creating user: {}", e);
+            eprintln!("Error creating user: {e}");
             return Err(Box::new(e));
         }
     }

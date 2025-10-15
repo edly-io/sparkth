@@ -1,15 +1,3 @@
-use core::service::plugin_service::PluginService;
-
-use axum::{
-    Json,
-    extract::{Path, State},
-    http::{Response, StatusCode},
-    response::IntoResponse,
-};
-use log::{error, info};
-
-use crate::api_response::ApiResponse;
-
 // pub async fn get_plugin(
 //     State(handler): State<PluginService>,
 //     Path(id): Path<i32>,

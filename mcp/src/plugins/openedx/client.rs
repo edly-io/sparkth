@@ -122,7 +122,7 @@ impl OpenEdxClient {
             .as_ref()
             .ok_or_else(|| LMSError::Authentication("Access token not set".into()))?;
 
-        let url = Url::parse(&format!("{}/{endpoint}", base_url))?;
+        let url = Url::parse(&format!("{base_url}/{endpoint}"))?;
         request(
             Auth::Jwt,
             token,
