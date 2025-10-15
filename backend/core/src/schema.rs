@@ -25,6 +25,26 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    users (id) {
+        id -> Int4,
+        #[max_length = 255]
+        username -> Varchar,
+        #[max_length = 255]
+        email -> Varchar,
+        #[max_length = 255]
+        password_hash -> Varchar,
+        #[max_length = 255]
+        first_name -> Nullable<Varchar>,
+        #[max_length = 255]
+        last_name -> Nullable<Varchar>,
+        is_active -> Bool,
+        is_admin -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(plugin_settings -> plugins (plugin_id));
 
-diesel::allow_tables_to_appear_in_same_query!(plugin_settings, plugins,);
+diesel::allow_tables_to_appear_in_same_query!(plugin_settings, plugins, users,);
