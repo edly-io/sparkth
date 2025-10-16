@@ -82,4 +82,20 @@ impl User {
 
         Ok(results)
     }
+
+    pub fn update_password(
+        user_email: &str,
+        new_password_hash: String,
+        db_pool: &DbPool,
+    ) -> Result<(), CoreError> {
+        use crate::schema::users::dsl::*;
+
+        let conn = &mut db_pool.get()?;
+
+        diesel::update(users.filter(email.eq(user_email)))
+            .set(password_hash.eq(new_password_hash))
+            .execute(conn)?;
+
+        Ok(())
+    }
 }
