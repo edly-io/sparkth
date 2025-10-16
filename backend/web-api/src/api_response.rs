@@ -1,37 +1,57 @@
 use core::db::error::CoreError;
 
-use axum::{Json, http::StatusCode};
+use axum::{body::Body, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct ApiResponse<T: Serialize> {
-    pub response_code: u16,
-    pub response_message: String,
-    data: T,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ApiResponse {
+    pub response_data: Option<Value>,
+    pub message: String,
+    pub status: u16,
 }
 
-pub type ApiJsonResult<T> = Result<Json<ApiResponse<T>>, CoreError>;
-
-impl<T: Serialize> ApiResponse<T> {
-    pub fn ok(data: T, response_message: &str) -> ApiJsonResult<T> {
-        Ok(Json(ApiResponse {
-            response_code: StatusCode::OK.as_u16(),
-            response_message: String::from(response_message),
-            data,
-        }))
-    }
-
-    pub fn to_data(self) -> T {
-        self.data
+impl IntoResponse for ApiResponse {
+    fn into_response(self) -> axum::http::Response<Body> {
+        let response_data = serde_json::to_vec(&self).unwrap();
+        axum::http::Response::builder()
+            .status(self.status)
+            .header("Content-Type", "application/json")
+            .body(Body::from(response_data))
+            .unwrap()
     }
 }
 
-impl ApiResponse<()> {
-    pub fn err(status: StatusCode, response_message: &str) -> ApiResponse<()> {
-        ApiResponse {
-            response_code: status.as_u16(),
-            response_message: String::from(response_message),
-            data: (),
+impl ApiResponse {
+    pub fn new(response_data: Option<Value>, message: String, code: StatusCode) -> Self {
+        Self {
+            response_data,
+            message,
+            status: code.as_u16(),
+        }
+    }
+
+    pub fn err(response_data: Option<Value>, error: CoreError) -> Self {
+        let (message, status): (String, StatusCode) = match error {
+            CoreError::NotFound(_) => ("Record not found".to_string(), StatusCode::NOT_FOUND),
+            CoreError::PooledConnection(_) => (
+                "Database connection timed out".to_string(),
+                StatusCode::GATEWAY_TIMEOUT,
+            ),
+            CoreError::QueryBuilder(_) => (
+                "Data is not sent in request".to_string(),
+                StatusCode::NOT_MODIFIED,
+            ),
+            _ => (
+                "Could not process request - Server Error".to_string(),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        };
+
+        Self {
+            response_data,
+            message,
+            status: status.into(),
         }
     }
 }
