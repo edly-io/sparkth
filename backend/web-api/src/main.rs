@@ -1,7 +1,7 @@
 mod api_response;
 mod error;
-mod plugins;
 mod jwt;
+mod plugins;
 
 use axum::{
     Router,

@@ -1,8 +1,4 @@
-use crate::db::{
-    db_pool::get_db_pool,
-    error::CoreError,
-    models::plugin::{NewPlugin, Plugin},
-};
+use crate::{CoreError, NewPlugin, Plugin, get_db_pool};
 
 pub struct PluginService;
 

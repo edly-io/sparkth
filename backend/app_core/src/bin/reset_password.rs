@@ -1,10 +1,8 @@
 use std::io::{self, Write};
 
+use app_core::{User, get_db_pool};
 use bcrypt::{DEFAULT_COST, hash};
 use regex::Regex;
-
-use core::db::db_pool::get_db_pool;
-use core::db::models::users::User;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔑 Welcome to Sparkth Password Reset!");
