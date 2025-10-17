@@ -25,7 +25,7 @@ pub async fn request(
 ) -> Result<LMSResponse, LMSError> {
     let mut request = client
         .request(http_method, url)
-        .header(AUTHORIZATION, format!("{:?} {token}", auth))
+        .header(AUTHORIZATION, format!("{auth:?} {token}"))
         .header(ACCEPT, "application/json")
         .header(CONTENT_TYPE, "application/json");
 

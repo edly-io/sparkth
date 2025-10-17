@@ -1,5 +1,6 @@
 mod api_response;
 mod error;
+mod jwt;
 mod plugins;
 
 use axum::{
