@@ -1,4 +1,4 @@
-use core::db::error::CoreError;
+use app_core::CoreError;
 
 use axum::{Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
@@ -19,10 +19,6 @@ impl<T: Serialize> ApiResponse<T> {
             response_message: String::from(response_message),
             data,
         }))
-    }
-
-    pub fn to_data(self) -> T {
-        self.data
     }
 }
 
