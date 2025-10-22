@@ -1,9 +1,12 @@
+mod plugin;
 mod plugins;
 mod prompts;
 mod server;
 mod tools;
 mod utils;
 
+use crate::plugins::canvas::CanvasToolsRouterPlugin;
+use crate::plugins::openedx::OpenedxToolsRouterPlugin;
 use crate::server::mcp_server::SparkthMCPServer;
 use clap::{Parser, ValueEnum, arg};
 use rmcp::transport::sse_server::{SseServer, SseServerConfig};
@@ -76,7 +79,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args = ServerConfigArgs::parse();
-    let sparkth_mcp = SparkthMCPServer::new();
+    let sparkth_mcp = SparkthMCPServer::new().await?;
+
+    sparkth_mcp
+        .plugin_registry
+        .register(Box::new(CanvasToolsRouterPlugin::new()))
+        .await?;
+    sparkth_mcp
+        .plugin_registry
+        .register(Box::new(OpenedxToolsRouterPlugin::new()))
+        .await?;
 
     match args.mode {
         Mode::Sse => run_sse_server(args.host, args.port, sparkth_mcp).await?,
