@@ -101,25 +101,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "api"
-version = "0.1.0"
-dependencies = [
- "app_core",
- "axum",
- "chrono",
- "dotenvy",
- "jsonwebtoken",
- "log",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tower-http",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "app_core"
 version = "0.1.0"
 dependencies = [
@@ -203,6 +184,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a18ed336352031311f4e0b4dd2ff392d4fbb370777c9d18d7fc9d7359f73871"
 dependencies = [
  "axum-core",
+ "axum-macros",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -246,6 +228,17 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1357,10 +1350,12 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 name = "mcp"
 version = "0.1.0"
 dependencies = [
+ "app_core",
  "async-trait",
  "chrono",
  "clap",
  "form_urlencoded",
+ "paste",
  "reqwest",
  "rmcp",
  "schemars",
@@ -2773,6 +2768,25 @@ checksum = "9367c417a924a74cae129e6a2ae3b47fabb1f8995595ab474029da749a8be120"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "web_api"
+version = "0.1.0"
+dependencies = [
+ "app_core",
+ "axum",
+ "chrono",
+ "dotenvy",
+ "jsonwebtoken",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tower-http",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
