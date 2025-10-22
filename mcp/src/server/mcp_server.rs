@@ -1,4 +1,9 @@
-use crate::prompts;
+use std::sync::Arc;
+
+use crate::{
+    plugin::{PluginRegistry, error::PluginError},
+    prompts,
+};
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
@@ -21,17 +26,23 @@ pub struct CourseGenerationPromptRequest {
 #[derive(Clone)]
 pub struct SparkthMCPServer {
     pub tool_router: ToolRouter<Self>,
+    pub plugin_registry: Arc<PluginRegistry>,
 }
 
 #[tool_router]
 impl SparkthMCPServer {
-    pub fn new() -> Self {
+    pub async fn new() -> Result<Self, PluginError> {
+        let plugin_registry = PluginRegistry::new();
+
         let tool_router = ToolRouter::new()
             + SparkthMCPServer::tool_router()
             + SparkthMCPServer::canvas_tools_router()
             + SparkthMCPServer::openedx_tools_router();
 
-        Self { tool_router }
+        Ok(Self {
+            tool_router,
+            plugin_registry: plugin_registry.into(),
+        })
     }
 
     #[tool(description = "Generates a prompt for creating a course. 

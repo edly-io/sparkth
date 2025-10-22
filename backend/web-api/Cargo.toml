@@ -1,11 +1,11 @@
 [package]
-name = "api"
+name = "web_api"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 app_core = { path = "../app_core" }
-axum = "0.8.6"
+axum = { version = "0.8.6", features = ["macros"] }
 tokio = {version = "1.47.1", features = ["full"]}
 dotenvy = "0.15.7"
 thiserror = "2.0.17"
