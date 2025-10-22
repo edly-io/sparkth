@@ -6,8 +6,8 @@ Sparkth is a free, open source, extensible, science-driven, AI-first learning pl
 This repository is organized as a [Cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html) with three main components:
 
 - `mcp/`: a binary crate that runs the MCP server, responsible for creating courses from the chat UI of AI providers
-- `backend/api/`: a binary crate that serves HTTP APIs
-- `backend/core/`: a library crate for database access (PostgreSQL via Diesel)
+- `backend/web-api/`: a binary crate that serves HTTP APIs
+- `backend/app_core/`: a library crate for database access (PostgreSQL via Diesel)
 
 **Roadmap**:
 

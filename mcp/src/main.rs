@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sparkth_mcp
         .plugin_registry
         .register(Box::new(OpenedxToolsRouterPlugin::new()))
-        .await?;
+        .await?; // register other plugins here
 
     match args.mode {
         Mode::Sse => run_sse_server(args.host, args.port, sparkth_mcp).await?,
