@@ -13,7 +13,7 @@ The Sparkth MCP server uses a modular tool system where each tool is:
 
 Ideally, we want to have tools for connecting our LMS endpoints with the MCP server. This requires an implementation of all the endpoints that our MCP tools can access.
 
-The `src/plugins/` directory will have all the implementions for LMS clients. For now, we have one for `Canvas` in the `/canvas/` directory.
+The `src/plugins/` directory will have all the implementions for LMS clients. For now, we have one for `Canvas` in the `/canvas/` directory and one for `OpenEdX` in the `/openedx` directory.
 
 The directory structure is defined as:
 
@@ -21,7 +21,7 @@ The directory structure is defined as:
 src/plugins/
 ├── mod.rs              # Plugin exports
 ├── canvas/             # Canvas implementation
-│   ├── mod.rs
+│   ├── mod.rs          # Plugin defined through macro
 │   ├── client.rs       # CanvasClient struct and request method
 │   └── types.rs        # Canvas-specific types
 ├── request.rs          # Shared request logic with error handling
@@ -45,7 +45,54 @@ pub mod client;
 pub mod types;
 ```
 
-#### 1.2. Define types
+#### 1.2. Define the plugin
+In `src/plugins/your_lms/mod.rs` file, define your plugin:
+
+```rust
+pub mod client;
+pub mod types;
+
+use crate::define_plugin;
+
+define_plugin! {
+    id: "your_lms",
+    name: "<LMS Name>",
+    description: "<Description>",
+    type: Lms,
+    router: <your_lms>_tools_router // The _tools_router suffix is a convention used for all plugin routers.
+}
+
+```
+
+#### 1.3. Register the plugin
+Add your plugin in the registry defined in `src/main.rs`:
+
+```rust
+use crate::plugins::canvas::CanvasToolsRouterPlugin;
+use crate::plugins::openedx::OpenedxToolsRouterPlugin;
+use crate::plugins::your_lms::YourLMSToolsRouterPlugin;  // your custom plugin
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    // ...
+
+    sparkth_mcp
+        .plugin_registry
+        .register(Box::new(CanvasToolsRouterPlugin::new()))
+        .await?;
+    sparkth_mcp
+        .plugin_registry
+        .register(Box::new(OpenedxToolsRouterPlugin::new()))
+        .await?; // register your plugin here
+
+    // ...
+}
+
+```
+
+
+#### 1.4. Define types
 Add your LMS-specific types in `src/plugins/your_lms/types.rs`:
 
 ```rust
@@ -65,7 +112,7 @@ pub struct YourLMSCourse {
 
 ```
 
-#### 1.3. Implement your client
+#### 1.5. Implement your client
 Add your LMS client implementation in `src/plugins/your_lms/client.rs`:
 
 ```rust
@@ -351,6 +398,7 @@ Navigate to `src/server/mcp_server.rs` and locate the `new()` method. Add your r
 pub fn new() -> Self {
     let tool_router = ToolRouter::new()
         + SparkthMCPServer::tool_router()
+        + SparkthMCPServer::canvas_tools_router()
         + SparkthMCPServer::my_lms_tools_router(); // Add your router here
     
     // Rest of the implementation...
