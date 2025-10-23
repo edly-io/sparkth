@@ -1,6 +1,3 @@
-mod error;
-mod plugins;
-
 use axum::{
     Router,
     http::{HeaderValue, Method, header::CONTENT_TYPE},
