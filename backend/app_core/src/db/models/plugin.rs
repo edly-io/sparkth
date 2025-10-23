@@ -26,13 +26,6 @@ pub struct NewPlugin {
     pub plugin_type: String,
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct PluginSettings {
-//     pub plugin_id: String,
-//     pub settings: serde_json::Value,
-//     pub updated_at: DateTime<Utc>,
-// }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginWithTools {
     #[serde(flatten)]
