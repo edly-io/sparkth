@@ -2,7 +2,8 @@ name: CI
 
 on:
   pull_request:
-
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,29 +13,29 @@ jobs:
     name: Lint, Build and Test
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install Rust
-      run: |
-        rustup update stable
-        rustup default stable
-        rustup component add rustfmt clippy
+      - name: Install Rust
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup component add rustfmt clippy
 
-    - name: Check Formatting
-      run: cargo fmt --all -- --check
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
 
-    - name: Run Tests
-      run: cargo test --all-features --all-targets
+      - name: Run Tests
+        run: cargo test --all-features --all-targets
 
-    - name: Run Clippy
-      run: cargo clippy --all-features --all-targets -- --no-deps --deny warnings
+      - name: Run Clippy
+        run: cargo clippy --all-features --all-targets -- --no-deps --deny warnings
