@@ -1,11 +1,11 @@
-use std::io::{self, Write, BufRead};
+use std::io::{self, BufRead, Write};
 
+use app_core::utils::{check_user_exists, validate_confirm_password, validate_email};
 use app_core::{NewUser, User, get_db_pool};
 use bcrypt::{DEFAULT_COST, hash};
-use app_core::utils::{validate_email,check_user_exists, validate_confirm_password};
+use dotenvy::dotenv;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
-use dotenvy::dotenv;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load environment variables from .env file
@@ -37,7 +37,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break email;
             }
             Err(_) => {
-                error!("Invalid email format or email already exists. Please enter a valid, unique email address.");
+                error!(
+                    "Invalid email format or email already exists. Please enter a valid, unique email address."
+                );
                 continue;
             }
         }

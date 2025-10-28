@@ -1,11 +1,12 @@
-use tracing::error;
+use crate::{CoreError, User, get_db_pool};
 use regex::Regex;
-use crate::{get_db_pool, CoreError, User};
 
 pub fn validate_email(email: &str) -> Result<(), CoreError> {
     let email_regex = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
     if !email_regex.is_match(email) {
-        return Err(CoreError::Database(diesel::result::Error::RollbackTransaction));
+        return Err(CoreError::Database(
+            diesel::result::Error::RollbackTransaction,
+        ));
     }
 
     Ok(())
@@ -20,7 +21,10 @@ pub fn check_user_exists(email: &str) -> bool {
     }
 }
 
-pub fn validate_confirm_password(password: &str, password_confirmation: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn validate_confirm_password(
+    password: &str,
+    password_confirmation: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     if password != password_confirmation {
         return Err("Passwords do not match".into());
     }
