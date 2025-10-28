@@ -60,6 +60,21 @@ define_plugin! {
     description: "<Description>",
     type: Lms,
     router: <your_lms>_tools_router // The _tools_router suffix is a convention used for all plugin routers.
+    config: {
+        config_key_1: {
+        type: "string",
+        description: "Your LMS config key",
+        required: true,
+        default: "https://api.yourlms.com"
+        },
+        config_key_2: {
+        type: "string",
+        description: "Your LMS config key",
+        required: true
+        },
+
+        // add more as per required
+    }
 }
 
 ```
