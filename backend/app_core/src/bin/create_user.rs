@@ -1,17 +1,24 @@
-use std::io::{self, Write};
+use std::io::{self, Write, BufRead};
 
 use app_core::{NewUser, User, get_db_pool};
 use bcrypt::{DEFAULT_COST, hash};
-use regex::Regex;
+use app_core::utils::{validate_email,check_user_exists, validate_confirm_password};
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
+use dotenvy::dotenv;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("👋  Welcome to Sparkth!");
-    println!("Let's create your first user account.");
+    // Load environment variables from .env file
+    dotenv().ok();
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
+    info!("👋  Welcome to Sparkth!");
+    info!("Let's create your first user account.");
 
     let db_pool = get_db_pool();
-
-    // Email regex pattern for basic validation
-    let email_regex = Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")?;
 
     let email = loop {
         print!("1. Enter your email address: ");
@@ -20,21 +27,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         io::stdin().read_line(&mut email_input)?;
         let email = email_input.trim().to_string();
 
-        // Validate email format
-        if !email_regex.is_match(&email) {
-            eprintln!(
-                "Error: Invalid email format. Please enter a valid email address (example: user@domain.com)."
-            );
-            continue;
-        }
-
-        match User::get_by_email(&email, db_pool) {
+        // Validate email using the utility function
+        match validate_email(&email) {
             Ok(_) => {
-                eprintln!("Error: A user with this email already exists. Please try again.");
-                continue;
+                if check_user_exists(&email) {
+                    error!("Email already exists. Please enter a different email address.");
+                    continue;
+                }
+                break email;
             }
             Err(_) => {
-                break email;
+                error!("Invalid email format or email already exists. Please enter a valid, unique email address.");
+                continue;
             }
         }
     };
@@ -44,15 +48,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let password_confirmation = rpassword::prompt_password("3. Confirm your password: ")?;
 
-        if password != password_confirmation {
-            eprintln!("Error: Passwords do not match. Please try again.");
-            continue;
-        }
-
-        // Validate password length
-        if password.len() < 8 {
-            eprintln!("Error: Password must be at least 8 characters long. Please try again.");
-            continue;
+        match validate_confirm_password(&password, &password_confirmation) {
+            Ok(()) => {}
+            Err(e) => {
+                error!("Password validation error: {}", e);
+                continue;
+            }
         }
 
         break password;
@@ -72,12 +73,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match User::insert(new_user, db_pool) {
         Ok(user) => {
-            println!("✅ Account created successfully!");
-            println!("User ID: {}", user.id);
-            println!("Email: {}", user.email);
+            info!("✅ Account created successfully!");
+            info!("User ID: {}", user.id);
+            info!("Email: {}", user.email);
         }
         Err(e) => {
-            eprintln!("Error creating user: {e}");
+            error!("Error creating user: {e}");
             return Err(Box::new(e));
         }
     }

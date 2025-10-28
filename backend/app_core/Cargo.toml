@@ -13,3 +13,5 @@ thiserror = "2.0.17"
 rpassword = "7.3.1"
 bcrypt = "0.15.1"
 regex = "1.10.6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
