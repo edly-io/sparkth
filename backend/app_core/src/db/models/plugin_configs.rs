@@ -5,7 +5,6 @@ use diesel::{
     query_dsl::methods::{FilterDsl, SelectDsl},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
     CoreError,
@@ -37,14 +36,6 @@ pub struct NewPluginConfig {
     pub config_key: String,
     pub config_value: Option<String>,
     pub is_secret: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginWithConfig {
-    #[serde(flatten)]
-    pub plugin: Plugin,
-    pub config: Vec<(String, String)>,
-    pub config_schema: Option<Value>,
 }
 
 impl PluginConfig {
