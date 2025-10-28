@@ -1,5 +1,6 @@
 pub mod db;
 mod schema;
+pub mod utils;
 pub mod service;
 pub mod utils;
 pub use db::{CoreError, NewPlugin, NewUser, Plugin, User, get_db_pool};
