@@ -1,10 +1,14 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    plugin_settings (id) {
+    plugin_configs (id) {
         id -> Int4,
-        plugin_id -> Nullable<Int4>,
-        settings -> Jsonb,
+        plugin_id -> Int4,
+        #[max_length = 255]
+        config_key -> Varchar,
+        config_value -> Nullable<Text>,
+        is_secret -> Bool,
+        created_at -> Timestamp,
         updated_at -> Timestamp,
     }
 }
@@ -45,6 +49,6 @@ diesel::table! {
     }
 }
 
-diesel::joinable!(plugin_settings -> plugins (plugin_id));
+diesel::joinable!(plugin_configs -> plugins (plugin_id));
 
-diesel::allow_tables_to_appear_in_same_query!(plugin_settings, plugins, users,);
+diesel::allow_tables_to_appear_in_same_query!(plugin_configs, plugins, users,);
