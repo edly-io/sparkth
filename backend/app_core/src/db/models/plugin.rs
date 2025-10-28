@@ -1,7 +1,10 @@
 use diesel::{pg, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::db::{db_pool::DbPool, error::CoreError};
+use crate::{
+    db::{db_pool::DbPool, error::CoreError},
+    service::ConfigSchema,
+};
 
 #[derive(Debug, Deserialize, Clone, Queryable, Selectable, Serialize, Identifiable)]
 #[diesel(table_name = crate::schema::plugins)]
@@ -35,6 +38,7 @@ pub struct PluginManifest {
     pub authors: Vec<String>,
     #[serde(rename = "type")]
     pub plugin_type: PluginType,
+    pub config_schema: Option<ConfigSchema>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,45 +62,6 @@ impl Plugin {
             .get_result(conn)?)
     }
 
-    pub fn insert_from_manifest(
-        manifest: &PluginManifest,
-        db_pool: &DbPool,
-    ) -> Result<Plugin, CoreError> {
-        use crate::schema::plugins::dsl::*;
-        use diesel::prelude::*;
-
-        let conn = &mut db_pool.get()?;
-
-        let existing = plugins
-            .filter(name.eq(manifest.id.clone()))
-            .select(Plugin::as_select())
-            .first::<Plugin>(conn)
-            .optional()?;
-
-        match existing {
-            Some(p) if p.version != manifest.version => {
-                diesel::update(plugins.find(p.id))
-                    .set((
-                        version.eq(&manifest.version),
-                        description.eq(&manifest.description),
-                    ))
-                    .execute(conn)?;
-                Plugin::get(p.id, db_pool)
-            }
-            Some(p) => Ok(p),
-            None => {
-                let new_plugin = NewPlugin {
-                    name: manifest.id.clone(),
-                    version: manifest.version.clone(),
-                    description: manifest.description.clone(),
-                    enabled: true,
-                    plugin_type: format!("{:?}", manifest.plugin_type).to_lowercase(),
-                };
-                Plugin::insert(new_plugin, db_pool)
-            }
-        }
-    }
-
     pub fn get(plugin: i32, db_pool: &DbPool) -> Result<Plugin, CoreError> {
         use crate::schema::plugins::dsl::*;
 
@@ -108,6 +73,18 @@ impl Plugin {
             .first(conn)?)
     }
 
+    pub fn get_by_name(plugin: String, db_pool: &DbPool) -> Result<Option<Plugin>, CoreError> {
+        use crate::schema::plugins::dsl::*;
+
+        let conn = &mut db_pool.get()?;
+
+        Ok(plugins
+            .filter(name.eq(plugin))
+            .select(Plugin::as_select())
+            .first::<Plugin>(conn)
+            .optional()?)
+    }
+
     pub fn get_list(db_pool: &DbPool) -> Result<Vec<Plugin>, CoreError> {
         use crate::schema::plugins::dsl::*;
 
@@ -115,5 +92,36 @@ impl Plugin {
         let results = plugins.select(Plugin::as_select()).load::<Plugin>(conn)?;
 
         Ok(results)
+    }
+
+    pub fn update_version(
+        plugin_id: i32,
+        manifest: &PluginManifest,
+        db_pool: &DbPool,
+    ) -> Result<Plugin, CoreError> {
+        use crate::schema::plugins::dsl::*;
+
+        let conn = &mut db_pool.get()?;
+        Ok(diesel::update(plugins.find(plugin_id))
+            .set((
+                version.eq(&manifest.version),
+                description.eq(&manifest.description),
+            ))
+            .returning(Plugin::as_returning())
+            .get_result(conn)?)
+    }
+
+    pub fn set_enabled(
+        plugin_id: i32,
+        is_enabled: bool,
+        db_pool: &DbPool,
+    ) -> Result<Plugin, CoreError> {
+        use crate::schema::plugins::dsl::*;
+
+        let conn = &mut db_pool.get()?;
+        Ok(diesel::update(plugins.find(plugin_id))
+            .set(enabled.eq(is_enabled))
+            .returning(Plugin::as_returning())
+            .get_result(conn)?)
     }
 }

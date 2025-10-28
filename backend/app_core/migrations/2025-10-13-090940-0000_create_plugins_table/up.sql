@@ -10,14 +10,16 @@ CREATE TABLE IF NOT EXISTS plugins (
     "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_plugin_enabled ON plugins(enabled);
 CREATE INDEX IF NOT EXISTS idx_plugin_id on plugins(id);
 
-CREATE TABLE IF NOT EXISTS plugin_settings (
-    "id" SERIAL PRIMARY KEY,
-    "plugin_id" INTEGER REFERENCES plugins(id) ON DELETE CASCADE,
-    "settings" JSONB NOT NULL DEFAULT '{}'::jsonb,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
-);
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
-CREATE INDEX IF NOT EXISTS idx_plugin_settings_id on plugin_settings(id);
-CREATE INDEX IF NOT EXISTS idx_plugin_settings_plugin_id on plugin_settings(plugin_id);
+CREATE TRIGGER update_plugins_updated_at BEFORE UPDATE
+    ON plugins FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
