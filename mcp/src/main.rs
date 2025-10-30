@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args = ServerConfigArgs::parse();
-    let sparkth_mcp = SparkthMCPServer::new().await?;
+    let sparkth_mcp = SparkthMCPServer::new()?;
 
     sparkth_mcp
         .plugin_registry

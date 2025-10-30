@@ -1,5 +1,4 @@
 mod api_response;
-mod jwt;
 mod plugins;
 mod router;
 
