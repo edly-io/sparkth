@@ -31,7 +31,7 @@ pub struct SparkthMCPServer {
 
 #[tool_router]
 impl SparkthMCPServer {
-    pub async fn new() -> Result<Self, PluginError> {
+    pub fn new() -> Result<Self, PluginError> {
         let plugin_registry = PluginRegistry::new();
 
         let tool_router = ToolRouter::new()
