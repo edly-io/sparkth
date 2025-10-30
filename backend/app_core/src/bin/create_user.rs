@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 
 use app_core::utils::{check_user_exists, validate_confirm_password, validate_email};
 use app_core::{NewUser, User, get_db_pool};

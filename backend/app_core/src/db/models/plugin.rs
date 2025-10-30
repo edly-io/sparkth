@@ -26,13 +26,6 @@ pub struct NewPlugin {
     pub plugin_type: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginWithTools {
-    #[serde(flatten)]
-    pub plugin: Plugin,
-    pub available_tools: Vec<String>,
-}
-
 impl Plugin {
     pub fn insert(plugin: NewPlugin, db_pool: &DbPool) -> Result<Plugin, CoreError> {
         use crate::schema::plugins::dsl::*;
