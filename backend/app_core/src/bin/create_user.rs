@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let email = Text::new("1. Enter your email address:")
         .with_validator(|input: &str| {
-            if let Err(_) = validate_email(input) {
+            if validate_email(input).is_err() {
                 return Ok(Validation::Invalid(
                     "Invalid email format. Please enter a valid email address.".into(),
                 ));
