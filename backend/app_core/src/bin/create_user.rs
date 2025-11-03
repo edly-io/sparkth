@@ -1,9 +1,15 @@
-use std::io::{self, Write};
+use app_core::{
+    NewUser, User, get_db_pool,
+    utils::{check_user_exists, validate_email},
+};
 
-use app_core::utils::{check_user_exists, validate_confirm_password, validate_email};
-use app_core::{NewUser, User, get_db_pool};
-use bcrypt::{DEFAULT_COST, hash};
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+};
+
 use dotenvy::dotenv;
+use inquire::{Password, Text, validator::Validation};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -20,48 +26,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_pool = get_db_pool();
 
-    let email = loop {
-        print!("1. Enter your email address: ");
-        io::stdout().flush()?;
-        let mut email_input = String::new();
-        io::stdin().read_line(&mut email_input)?;
-        let email = email_input.trim().to_string();
-
-        // Validate email using the utility function
-        match validate_email(&email) {
-            Ok(_) => {
-                if check_user_exists(&email) {
-                    error!("Email already exists. Please enter a different email address.");
-                    continue;
-                }
-                break email;
+    let email = Text::new("1. Enter your email address:")
+        .with_validator(|input: &str| {
+            if let Err(_) = validate_email(input) {
+                return Ok(Validation::Invalid(
+                    "Invalid email format. Please enter a valid email address.".into(),
+                ));
             }
-            Err(_) => {
-                error!(
-                    "Invalid email format or email already exists. Please enter a valid, unique email address."
-                );
-                continue;
+
+            if check_user_exists(input) {
+                return Ok(Validation::Invalid(
+                    format!(
+                        "User {} already exists. Please enter a different email address.",
+                        input
+                    )
+                    .into(),
+                ));
             }
-        }
-    };
 
-    let password = loop {
-        let password = rpassword::prompt_password("2. Enter your password: ")?;
+            Ok(Validation::Valid)
+        })
+        .prompt()?;
 
-        let password_confirmation = rpassword::prompt_password("3. Confirm your password: ")?;
+    let password = Password::new("2. Enter your password: ")
+        .with_display_mode(inquire::PasswordDisplayMode::Hidden)
+        .prompt()?;
 
-        match validate_confirm_password(&password, &password_confirmation) {
-            Ok(()) => {}
-            Err(e) => {
-                error!("Password validation error: {}", e);
-                continue;
-            }
-        }
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
 
-        break password;
-    };
-
-    let password_hash = hash(password, DEFAULT_COST)?;
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("hashing failed: {:?}", e))?
+        .to_string();
 
     let new_user = NewUser {
         username: email.clone(),
