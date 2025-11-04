@@ -62,3 +62,17 @@ From the project root, run the API crate:
 
     cargo run -p api
 This will start the HTTP server on the address and port defined in your `.env` file
+
+## User Management
+
+You can manage users from the command line using the following commands:
+
+### Create a new user:
+
+    cargo run --bin create_user
+
+### Reset password for an existing user:
+
+    cargo run --bin reset_password
+
+Both commands will prompt you for the necessary information (email, password, etc.).
