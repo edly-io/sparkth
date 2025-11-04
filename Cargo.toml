@@ -3,8 +3,8 @@ resolver = "3"
 
 members = [
     "mcp",
-    "backend/api",
-    "backend/core",
+    "backend/web-api",
+    "backend/app_core",
 ]
 
 [workspace.package]
