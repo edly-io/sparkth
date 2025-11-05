@@ -9,7 +9,7 @@ macro_rules! define_plugin {
         $(, config: {
             $(
                 $config_key:ident: {
-                    type: $config_type:literal,
+                    type: $config_type:ident,
                     description: $config_desc:literal
                     $(, required: $required:literal)?
                     $(, default: $default:expr)?
@@ -19,7 +19,7 @@ macro_rules! define_plugin {
     ) => {
         paste::paste! {
             pub struct [<$router:camel Plugin>] {
-                manifest: app_core::PluginManifest,
+                manifest: crate::plugin::PluginManifest,
             }
 
             impl [<$router:camel Plugin>] {
@@ -32,7 +32,7 @@ macro_rules! define_plugin {
                             properties.push((
                                 stringify!($config_key).to_string(),
                                 app_core::ConfigProperty {
-                                    property_type: $config_type.to_string(),
+                                    property_type: $config_type,
                                     description: $config_desc.to_string(),
                                     default: define_plugin!(@option_default $($default)?),
                                 }
@@ -53,7 +53,7 @@ macro_rules! define_plugin {
                     )?
 
                     Self {
-                        manifest: app_core::PluginManifest {
+                        manifest: crate::plugin::PluginManifest {
                             id: $id.to_string(),
                             name: $name.to_string(),
                             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -68,7 +68,7 @@ macro_rules! define_plugin {
 
             #[async_trait::async_trait]
             impl $crate::plugin::MCPPlugin for [<$router:camel Plugin>] {
-                fn manifest(&self) -> &app_core::PluginManifest {
+                fn manifest(&self) -> &crate::plugin::PluginManifest {
                     &self.manifest
                 }
             }
