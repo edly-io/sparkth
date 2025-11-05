@@ -1,8 +1,8 @@
-use app_core::User;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use app_core::db::{get_db_pool, DbPool, User, CoreError};
 
 pub const JWT_DEFAULT_EXPIRATION_HOURS: i64 = 24;
 pub const JWT_DEFAULT_REFRESH_EXPIRATION_DAYS: i64 = 7;
@@ -19,10 +19,10 @@ pub struct JWTClaims {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JWTRefreshClaims {
-    pub sub: String,      // user id
+    pub sub: String,  // user id
     pub token_id: String, // unique identifier for refresh token
-    pub exp: usize,       // expiration timestamp
-    pub iat: usize,       // issued at timestamp
+    pub exp: usize,   // expiration timestamp
+    pub iat: usize,   // issued at timestamp
 }
 
 #[derive(Debug, Error)]
@@ -51,11 +51,7 @@ pub struct JWTService {
 }
 
 impl JWTService {
-    pub fn new(
-        secret: &str,
-        expiration_hours: Option<i64>,
-        refresh_expiration_days: Option<i64>,
-    ) -> Result<Self, JWTError> {
+    pub fn new(secret: &str, expiration_hours: Option<i64>, refresh_expiration_days: Option<i64>) -> Result<Self, JWTError> {
         if secret.is_empty() {
             return Err(JWTError::MissingSecret);
         }
@@ -64,8 +60,7 @@ impl JWTService {
             encoding_key: EncodingKey::from_secret(secret.as_ref()),
             decoding_key: DecodingKey::from_secret(secret.as_ref()),
             expiration_hours: expiration_hours.unwrap_or(JWT_DEFAULT_EXPIRATION_HOURS),
-            refresh_expiration_days: refresh_expiration_days
-                .unwrap_or(JWT_DEFAULT_REFRESH_EXPIRATION_DAYS),
+            refresh_expiration_days: refresh_expiration_days.unwrap_or(JWT_DEFAULT_REFRESH_EXPIRATION_DAYS),
         })
     }
 
@@ -77,11 +72,7 @@ impl JWTService {
             sub: user.id.to_string(),
             username: user.username.clone(),
             email: user.email.clone(),
-            role: if user.is_admin {
-                "admin".to_string()
-            } else {
-                "user".to_string()
-            },
+            role: if user.is_admin { "admin".to_string() } else { "user".to_string() },
             exp: expire.timestamp() as usize,
             iat: now.timestamp() as usize,
         };
@@ -96,7 +87,7 @@ impl JWTService {
 
         let claims = JWTRefreshClaims {
             sub: user_id.to_string(),
-            token_id: uuid::Uuid::new_v4().to_string(),
+            token_id: uuid::Uuid::new_v4().to_string(), // Need to add uuid dependency
             exp: expire.timestamp() as usize,
             iat: now.timestamp() as usize,
         };
@@ -107,13 +98,11 @@ impl JWTService {
 
     pub fn decode_access_token(&self, token: &str) -> Result<JWTClaims, JWTError> {
         let validation = Validation::new(Algorithm::HS256);
-        let token_data =
-            decode::<JWTClaims>(token, &self.decoding_key, &validation).map_err(|e| {
-                match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => JWTError::ExpiredToken,
-                    jsonwebtoken::errors::ErrorKind::InvalidSignature => JWTError::InvalidSignature,
-                    _ => JWTError::InvalidToken,
-                }
+        let token_data = decode::<JWTClaims>(token, &self.decoding_key, &validation)
+            .map_err(|e| match e.kind() {
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature => JWTError::ExpiredToken,
+                jsonwebtoken::errors::ErrorKind::InvalidSignature => JWTError::InvalidSignature,
+                _ => JWTError::InvalidToken,
             })?;
 
         Ok(token_data.claims)

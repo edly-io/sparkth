@@ -98,4 +98,25 @@ impl User {
 
         Ok(())
     }
+
+    pub fn authenticate(email: &str, password: &str, db_pool: &DbPool) -> Result<User, CoreError> {
+        use crate::schema::users::dsl::*;
+
+        let conn = &mut db_pool.get()?;
+
+        // First, find the user by email
+        let user = users
+            .filter(email.eq(email))
+            .filter(is_active.eq(true))
+            .select(User::as_select())
+            .first(conn)?;
+
+        // Verify the password using bcrypt
+        bcrypt::verify(password, &user.password_hash).map_err(|_| {
+            // Return a generic error for security (don't reveal if email exists but password is wrong)
+            CoreError::AuthenticationError("Invalid credentials".to_string())
+        })?;
+
+        Ok(user)
+    }
 }

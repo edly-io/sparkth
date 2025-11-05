@@ -17,6 +17,9 @@ pub enum CoreError {
 
     #[error("Pooled Connection Error - {0:?}")]
     PooledConnection(#[from] r2d2::PoolError),
+
+    #[error("Authentication Error - {0}")]
+    AuthenticationError(String),
 }
 
 impl From<result::Error> for CoreError {
