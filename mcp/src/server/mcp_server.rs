@@ -1,3 +1,9 @@
+use std::sync::Arc;
+
+use crate::{
+    plugin::{PluginRegistry, error::PluginError},
+    prompts,
+};
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
@@ -8,12 +14,6 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
-use std::sync::Arc;
-
-use crate::{
-    plugin::{PluginRegistry, error::PluginError},
-    prompts,
-};
 
 #[derive(JsonSchema, Deserialize)]
 pub struct CourseGenerationPromptRequest {
@@ -33,6 +33,7 @@ pub struct SparkthMCPServer {
 impl SparkthMCPServer {
     pub fn new() -> Result<Self, PluginError> {
         let plugin_registry = PluginRegistry::new();
+
         let tool_router = ToolRouter::new()
             + SparkthMCPServer::tool_router()
             + SparkthMCPServer::canvas_tools_router()

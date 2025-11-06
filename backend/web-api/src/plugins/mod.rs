@@ -1,4 +1,4 @@
-pub mod api;
-pub mod routes;
+mod api;
+mod routes;
 
 pub use routes::plugin_routes;

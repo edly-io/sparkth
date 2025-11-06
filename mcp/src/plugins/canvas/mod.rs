@@ -1,6 +1,8 @@
 pub mod client;
 pub mod types;
 
+use app_core::ConfigType::String;
+
 use crate::define_plugin;
 
 define_plugin! {
@@ -8,5 +10,19 @@ define_plugin! {
     name: "Canvas LMS",
     description: "Canvas Learning Management System integration with course management, assignments, and student tools",
     type: Lms,
-    router: canvas_tools_router
+    is_builtin: true,
+    router: canvas_tools_router,
+    config: {
+        api_url: {
+            type: String,
+            description: "Canvas API base URL",
+            required: true,
+            default: "https://canvas.instructure.com".to_string()
+        },
+        api_token: {
+            type: String,
+            description: "Canvas API access token",
+            required: true
+        },
+    }
 }
