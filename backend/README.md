@@ -4,8 +4,8 @@ Sparkth is a free, open source, extensible, science-driven, AI-first learning pl
 
 This repository is organized as a [Cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html) with two main components:
 
-- `core/`: a library crate for database access (PostgreSQL via Diesel)
-- `api/`: a binary crate that serves HTTP APIs
+- `app_core/`: a library crate for database access (PostgreSQL via Diesel)
+- `web_api/`: a binary crate that serves HTTP APIs
 
 ## Prerequisites
 
@@ -60,7 +60,7 @@ Before running this step, make sure `diesel_cli` is installed. See the instructi
 
 From the project root, run the API crate:
 
-    cargo run -p api
+    cargo run -p web_api
 This will start the HTTP server on the address and port defined in your `.env` file
 
 ## User Management
