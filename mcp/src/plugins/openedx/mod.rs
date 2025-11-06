@@ -10,6 +10,7 @@ define_plugin! {
     name: "Open edX",
     description: "Open edX Learning Management System integration with course creation and content management",
     type: Lms,
+    is_builtin: true,
     router: openedx_tools_router,
     config: {
         lms_url: {

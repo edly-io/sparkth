@@ -1,7 +1,7 @@
 pub mod client;
 pub mod types;
 
-use app_core::ConfigType::{String, Number};
+use app_core::ConfigType::{Number, String};
 
 use crate::define_plugin;
 
@@ -10,6 +10,7 @@ define_plugin! {
     name: "Canvas LMS",
     description: "Canvas Learning Management System integration with course management, assignments, and student tools",
     type: Lms,
+    is_builtin: true,
     router: canvas_tools_router,
     config: {
         api_url: {

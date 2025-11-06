@@ -1,6 +1,7 @@
 use chrono::{NaiveDateTime, Utc};
 use diesel::{
     Connection, ExpressionMethods, QueryDsl, RunQueryDsl, Selectable, SelectableHelper,
+    pg::Pg,
     prelude::{AsChangeset, Associations, Identifiable, Insertable, Queryable},
 };
 
@@ -10,6 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Queryable, Selectable, Identifiable, Associations)]
+#[diesel(check_for_backend(Pg))]
 #[diesel(belongs_to(Plugin))]
 #[diesel(belongs_to(User))]
 #[diesel(table_name = crate::schema::user_plugins)]

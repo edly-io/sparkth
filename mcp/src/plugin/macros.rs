@@ -5,6 +5,7 @@ macro_rules! define_plugin {
         name: $name:expr,
         description: $desc:expr,
         type: $plugin_type:ident,
+        is_builtin: $is_builtin:literal,
         router: $router:ident
         $(, config: {
             $(
@@ -19,48 +20,36 @@ macro_rules! define_plugin {
     ) => {
         paste::paste! {
             pub struct [<$router:camel Plugin>] {
-                manifest: crate::plugin::PluginManifest,
+                manifest: app_core::PluginManifest,
             }
 
             impl [<$router:camel Plugin>] {
                 pub fn new() -> Self {
                     $(
-                        let mut properties = Vec::new();
-                        let mut required = Vec::new();
+                        let mut plugin_configs = Vec::new();
 
                         $(
-                            properties.push((
-                                stringify!($config_key).to_string(),
-                                app_core::ConfigProperty {
-                                    property_type: $config_type,
-                                    description: $config_desc.to_string(),
-                                    default: define_plugin!(@option_default $($default)?),
-                                }
-                            ));
 
-                            $(
-                                if $required {
-                                    required.push(stringify!($config_key).to_string());
-                                }
-                            )?
+                            plugin_configs.push(app_core::PluginConfigSchema {
+                                config_key: stringify!($config_key).to_string(),
+                                config_type: $config_type,
+                                description: Some($config_desc.to_string()),
+                                is_required: define_plugin!(@bool_required $($required)?),
+                                default_value: define_plugin!(@option_default $($default)?),
+                            });
                         )*
-
-                        let config_schema = Some(app_core::ConfigSchema {
-                            schema_type: "object".to_string(),
-                            properties,
-                            required,
-                        });
                     )?
 
                     Self {
-                        manifest: crate::plugin::PluginManifest {
+                        manifest: app_core::PluginManifest {
                             id: $id.to_string(),
                             name: $name.to_string(),
                             version: env!("CARGO_PKG_VERSION").to_string(),
                             description: Some($desc.to_string()),
-                            authors: vec![env!("CARGO_PKG_AUTHORS").to_string()],
                             plugin_type: app_core::PluginType::$plugin_type,
-                            config_schema
+                            is_builtin: $is_builtin,
+                            created_by_user_id: None,
+                            configs: Some(plugin_configs)
                         },
                     }
                 }
@@ -68,7 +57,7 @@ macro_rules! define_plugin {
 
             #[async_trait::async_trait]
             impl $crate::plugin::MCPPlugin for [<$router:camel Plugin>] {
-                fn manifest(&self) -> &crate::plugin::PluginManifest {
+                fn manifest(&self) -> &app_core::PluginManifest {
                     &self.manifest
                 }
             }
@@ -83,4 +72,10 @@ macro_rules! define_plugin {
     };
     (@option_default $val:expr) => { Some($val) };
     (@option_default) => { None };
+    (@bool_required $required:literal) => {
+        $required
+    };
+    (@bool_required) => {
+        false
+    };
 }

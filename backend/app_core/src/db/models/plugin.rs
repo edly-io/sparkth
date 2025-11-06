@@ -1,7 +1,11 @@
+use chrono::NaiveDateTime;
 use diesel::{pg, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::db::{db_pool::DbPool, error::CoreError};
+use crate::{
+    PluginManifest,
+    db::{db_pool::DbPool, error::CoreError},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, diesel_derive_enum::DbEnum)]
 #[ExistingTypePath = "crate::schema::sql_types::PluginTypeEnum"]
@@ -22,6 +26,8 @@ pub struct Plugin {
     pub plugin_type: PluginType,
     pub is_builtin: bool,
     pub created_by_user_id: Option<i32>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Insertable, Serialize, Deserialize)]
@@ -49,12 +55,12 @@ impl Plugin {
         let conn = &mut db_pool.get()?;
         Ok(diesel::insert_into(plugins)
             .values(&plugin)
-            .on_conflict(name)
-            .do_update()
-            .set(UpdatePlugin {
-                version: Some(plugin.version.clone()),
-                description: plugin.description.clone(),
-            })
+            // .on_conflict(name)
+            // .do_update()
+            // .set(UpdatePlugin {
+            //     version: Some(plugin.version.clone()),
+            //     description: plugin.description.clone(),
+            // })
             .returning(Plugin::as_returning())
             .get_result(conn)?)
     }
@@ -114,5 +120,22 @@ impl Plugin {
             .get_results(conn)?;
 
         Ok(user_plugins)
+    }
+
+    pub fn update_version(
+        plugin_id: i32,
+        manifest: &PluginManifest,
+        db_pool: &DbPool,
+    ) -> Result<Plugin, CoreError> {
+        use crate::schema::plugins::dsl::*;
+
+        let conn = &mut db_pool.get()?;
+        Ok(diesel::update(plugins.find(plugin_id))
+            .set((
+                version.eq(&manifest.version),
+                description.eq(&manifest.description),
+            ))
+            .returning(Plugin::as_returning())
+            .get_result(conn)?)
     }
 }

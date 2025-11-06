@@ -5,6 +5,6 @@ mod models;
 pub use db_pool::{DbPool, get_db_pool};
 pub use error::CoreError;
 pub use models::{
-    ConfigProperty, ConfigSchema, ConfigType, NewPlugin, NewUser, Plugin, PluginConfig,
-    PluginType, User, UserPlugin, UserPluginConfig, UserPluginConfigDto,
+    ConfigType, NewPlugin, NewPluginConfig, NewUser, Plugin, PluginConfig, PluginType, User,
+    UserPlugin, UserPluginConfig, UserPluginConfigDto,
 };

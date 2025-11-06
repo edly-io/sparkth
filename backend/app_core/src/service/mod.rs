@@ -1,4 +1,3 @@
-mod plugin_configs_service;
 mod plugin_service;
 
-pub use plugin_service::PluginService;
+pub use plugin_service::{PluginConfigSchema, PluginManifest, PluginService};

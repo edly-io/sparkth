@@ -1,4 +1,4 @@
-use app_core::PluginConfigService;
+use app_core::PluginService;
 use axum::{
     Router,
     http::{HeaderValue, Method, header::CONTENT_TYPE},
@@ -8,7 +8,7 @@ use tower_http::cors::CorsLayer;
 use crate::plugins::plugin_routes;
 
 pub async fn router() -> Router {
-    let plugin_service = PluginConfigService;
+    let plugin_service = PluginService;
 
     let plugin_router = plugin_routes().with_state(plugin_service);
 

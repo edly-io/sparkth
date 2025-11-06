@@ -6,7 +6,7 @@ CREATE TYPE config_type_enum AS ENUM (
     'json',
     'url',
     'email',
-    'password',
+    'password'
 );
 
 CREATE TABLE IF NOT EXISTS plugin_config_schema (
