@@ -1,167 +1,151 @@
-use std::collections::HashMap;
-
-use chrono::{NaiveDateTime, Utc};
+use chrono::NaiveDateTime;
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, Identifiable, Insertable, JoinOnDsl,
-    NullableExpressionMethods, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable,
-    SelectableHelper,
-    prelude::Associations,
-    r2d2::{ConnectionManager, PooledConnection},
+    AsChangeset, BoolExpressionMethods, ExpressionMethods, Identifiable, Insertable, QueryDsl,
+    Queryable, RunQueryDsl, Selectable, SelectableHelper, prelude::Associations, upsert::excluded,
 };
 use serde::Serialize;
 
-use crate::{CoreError, DbPool, Plugin, db::models::user_plugins::UserPlugin};
+use crate::{CoreError, DbPool, Plugin, User, db::PluginConfig, schema::users};
 
 #[derive(Debug, Clone, Serialize, Queryable, Selectable, Identifiable, Associations)]
-#[diesel(belongs_to(UserPlugin))]
+#[diesel(belongs_to(User))]
+#[diesel(belongs_to(Plugin))]
 #[diesel(table_name = crate::schema::user_plugin_configs)]
 pub struct UserPluginConfig {
     pub id: i32,
-    pub user_plugin_id: i32,
+    pub user_id: i32,
+    pub plugin_id: i32,
     pub config_key: String,
+    pub enabled: bool,
     pub config_value: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
 
-#[derive(Debug, Insertable)]
+#[derive(Insertable, AsChangeset)]
 #[diesel(table_name = crate::schema::user_plugin_configs)]
-pub struct NewUserPluginConfig {
-    pub user_plugin_id: i32,
+pub struct UpsertUserPluginConfig {
+    pub user_id: i32,
+    pub plugin_id: i32,
     pub config_key: String,
-    pub config_value: Option<String>,
+    pub config_value: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct UserPluginConfigDto {
-    pub plugin_id: i32,
-    pub plugin_name: String,
-    pub enabled: bool,
-    pub configs: Vec<UserPluginConfig>,
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::user_plugin_configs)]
+struct NewUserPluginConfig {
+    user_id: i32,
+    plugin_id: i32,
+    config_key: String,
+    config_value: Option<String>,
+    enabled: bool,
 }
 
 impl UserPluginConfig {
-    pub fn insert(
-        u_plugin_id: i32,
-        key: &String,
-        value: &String,
-        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    pub fn upsert(
+        records: Vec<UpsertUserPluginConfig>,
+        db_pool: &DbPool,
     ) -> Result<usize, CoreError> {
-        use crate::schema::user_plugin_configs::dsl::*;
+        use crate::schema::user_plugin_configs::dsl::{
+            config_key, config_value, plugin_id, user_plugin_configs,
+        };
 
-        let res = diesel::insert_into(user_plugin_configs)
-            .values(&NewUserPluginConfig {
-                user_plugin_id: u_plugin_id,
-                config_key: key.to_string(),
-                config_value: Some(value.to_string()),
-            })
-            .on_conflict((user_plugin_id, config_key))
+        let conn = &mut db_pool.get()?;
+        let result = diesel::insert_into(user_plugin_configs)
+            .values(&records)
+            .on_conflict((plugin_id, config_key))
             .do_update()
-            .set((
-                config_value.eq(Some(value)),
-                updated_at.eq(Utc::now().naive_utc()),
-            ))
+            .set(config_value.eq(excluded(config_value)))
             .execute(conn)?;
 
-        Ok(res)
+        Ok(result)
     }
 
-    pub fn get_user_plugin_with_configs(
-        db_pool: &DbPool,
-        p_id: i32,
-    ) -> Result<UserPluginConfigDto, CoreError> {
-        use crate::schema::plugins;
-        use crate::schema::user_plugin_configs;
-        use crate::schema::user_plugins::dsl::*;
-
-        let conn = &mut db_pool.get()?;
-        let result: (i32, bool, i32, String) = user_plugins
-            .inner_join(plugins::table)
-            .filter(plugins::id.eq(p_id))
-            .select((id, enabled, plugins::id, plugins::name))
-            .first(conn)?;
-
-        let (user_plugin_id, is_enabled, p_id, plugin_name) = result;
-
-        let configs: Vec<UserPluginConfig> = user_plugin_configs::table
-            .find(user_plugin_id)
-            .get_results(conn)?;
-
-        Ok(UserPluginConfigDto {
-            plugin_id: p_id,
-            plugin_name,
-            enabled: is_enabled,
-            configs,
-        })
-    }
-
-    pub fn get_user_plugins_with_configs(
-        db_pool: &DbPool,
-        u_id: i32,
-    ) -> Result<Vec<UserPluginConfigDto>, CoreError> {
-        use crate::schema::plugins;
-        use crate::schema::user_plugin_configs;
-        use crate::schema::user_plugins;
-
+    pub fn install_builtin_for_all_users(p_id: i32, db_pool: &DbPool) -> Result<(), CoreError> {
+        use crate::schema::user_plugin_configs::dsl::{
+            config_key, plugin_id, user_id, user_plugin_configs,
+        };
         let conn = &mut db_pool.get()?;
 
-        let plugin_rows: Vec<(Plugin, Option<UserPlugin>)> = plugins::table
-            .left_join(
-                user_plugins::table.on(user_plugins::plugin_id
-                    .eq(plugins::id)
-                    .and(user_plugins::user_id.eq(u_id))),
-            )
-            .filter(
-                plugins::is_builtin
-                    .eq(true)
-                    .or(plugins::created_by_user_id.eq(u_id))
-                    .or(user_plugins::user_id.eq(u_id)),
-            )
-            .select((Plugin::as_select(), user_plugins::all_columns.nullable()))
-            .distinct()
-            .load(conn)?;
+        let user_ids: Vec<i32> = users::table.select(users::id).load(conn)?;
+        if user_ids.is_empty() {
+            return Ok(());
+        }
 
-        let user_plugin_ids: Vec<i32> = plugin_rows
+        let configs = PluginConfig::get_plugin_config_schema(p_id, db_pool)?;
+        if configs.is_empty() {
+            return Ok(());
+        }
+
+        let new_rows: Vec<NewUserPluginConfig> = user_ids
             .iter()
-            .filter_map(|(_, up)| up.as_ref().map(|up| up.id))
-            .collect();
-
-        let user_plugin_configs_map: HashMap<i32, Vec<UserPluginConfig>> =
-            if user_plugin_ids.is_empty() {
-                Default::default()
-            } else {
-                let configs: Vec<UserPluginConfig> = user_plugin_configs::table
-                    .filter(user_plugin_configs::user_plugin_id.eq_any(&user_plugin_ids))
-                    .select(UserPluginConfig::as_select())
-                    .load(conn)?;
-
-                let mut map = HashMap::new();
-                for cfg in configs {
-                    map.entry(cfg.user_plugin_id)
-                        .or_insert_with(Vec::new)
-                        .push(cfg);
-                }
-                map
-            };
-
-        let result: Vec<UserPluginConfigDto> = plugin_rows
-            .into_iter()
-            .map(|(plugin, user_plugin)| {
-                let enabled = user_plugin.as_ref().map(|up| up.enabled).unwrap_or(false);
-                let configs = user_plugin
-                    .as_ref()
-                    .and_then(|up| user_plugin_configs_map.get(&up.id).cloned())
-                    .unwrap_or_default();
-
-                UserPluginConfigDto {
-                    plugin_id: plugin.id,
-                    plugin_name: plugin.name,
-                    enabled,
-                    configs,
-                }
+            .flat_map(|u_id| {
+                configs.iter().map(move |config| NewUserPluginConfig {
+                    user_id: *u_id,
+                    plugin_id: p_id,
+                    config_key: config.config_key.clone(),
+                    config_value: config.default_value.clone(),
+                    enabled: false,
+                })
             })
             .collect();
 
-        Ok(result)
+        diesel::insert_into(user_plugin_configs)
+            .values(&new_rows)
+            .on_conflict((user_id, plugin_id, config_key))
+            .do_nothing()
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn get_user_configs_for_plugin(
+        u_id: i32,
+        p_id: i32,
+        db_pool: &DbPool,
+    ) -> Result<Vec<UserPluginConfig>, CoreError> {
+        use crate::schema::user_plugin_configs::dsl::{plugin_id, user_id, user_plugin_configs};
+
+        let conn = &mut db_pool.get()?;
+        Ok(user_plugin_configs
+            .filter(user_id.eq(u_id).and(plugin_id.eq(p_id)))
+            .select(UserPluginConfig::as_select())
+            .load(conn)?)
+    }
+
+    pub fn get_user_configs_for_plugins_list(
+        u_id: i32,
+        plugin_ids: Vec<i32>,
+        db_pool: &DbPool,
+    ) -> Result<Vec<UserPluginConfig>, CoreError> {
+        use crate::schema::user_plugin_configs::dsl::{plugin_id, user_id, user_plugin_configs};
+
+        let conn = &mut db_pool.get()?;
+
+        let user_configs: Vec<UserPluginConfig> = user_plugin_configs
+            .filter(user_id.eq(u_id).and(plugin_id.eq_any(&plugin_ids)))
+            .select(UserPluginConfig::as_select())
+            .load(conn)?;
+        Ok(user_configs)
+    }
+
+    pub fn update_user_plugin_enabled(
+        db_pool: &DbPool,
+        u_id: i32,
+        p_id: i32,
+        is_enabled: bool,
+    ) -> Result<usize, CoreError> {
+        use crate::schema::user_plugin_configs::dsl::{
+            enabled, plugin_id, user_id, user_plugin_configs,
+        };
+
+        let conn = &mut db_pool.get()?;
+
+        let updated =
+            diesel::update(user_plugin_configs.filter(user_id.eq(u_id).and(plugin_id.eq(p_id))))
+                .set(enabled.eq(is_enabled))
+                .execute(conn)?;
+
+        Ok(updated)
     }
 }

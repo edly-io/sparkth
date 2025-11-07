@@ -1,9 +1,8 @@
 use chrono::NaiveDateTime;
 use diesel::{
-    ExpressionMethods, OptionalExtension, PgConnection, RunQueryDsl, Selectable, SelectableHelper,
+    ExpressionMethods, OptionalExtension, RunQueryDsl, Selectable, SelectableHelper,
     prelude::{Associations, Identifiable, Insertable, Queryable},
     query_dsl::methods::{FilterDsl, SelectDsl},
-    r2d2::{ConnectionManager, PooledConnection},
 };
 use serde::{Deserialize, Serialize};
 
@@ -60,6 +59,8 @@ impl PluginConfig {
         let conn = &mut db_pool.get()?;
         Ok(diesel::insert_into(plugin_config_schema)
             .values(configs)
+            .on_conflict((plugin_id, config_key))
+            .do_nothing()
             .execute(conn)?)
     }
 
@@ -76,21 +77,28 @@ impl PluginConfig {
             .optional()?)
     }
 
-    // fn is_secret_key(key: &str) -> bool {
-    //     let secret_keywords = ["password", "token", "secret", "api_key", "private_key"];
-    //     let key_lower = key.to_lowercase();
-    //     secret_keywords.iter().any(|&kw| key_lower.contains(kw))
-    // }
+    pub fn get_config_list_for_plugins(
+        plugin_ids: &Vec<i32>,
+        db_pool: &DbPool,
+    ) -> Result<Vec<PluginConfig>, CoreError> {
+        use crate::schema::plugin_config_schema::dsl::{plugin_config_schema, plugin_id};
+
+        let conn = &mut db_pool.get()?;
+
+        let schema_list = plugin_config_schema
+            .filter(plugin_id.eq_any(plugin_ids))
+            .load(conn)?;
+        Ok(schema_list)
+    }
 
     pub fn get_plugin_config_schema(
         p_id: i32,
-        conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    ) -> Result<Vec<(String, bool, Option<String>)>, CoreError> {
-        use crate::schema::plugin_config_schema::dsl::*;
+        db_pool: &DbPool,
+    ) -> Result<Vec<PluginConfig>, CoreError> {
+        use crate::schema::plugin_config_schema::dsl::{plugin_config_schema, plugin_id};
 
-        Ok(plugin_config_schema
-            .filter(plugin_id.eq(p_id))
-            .select((config_key, is_required, default_value))
-            .load::<(String, bool, Option<String>)>(conn)?)
+        let conn = &mut db_pool.get()?;
+
+        Ok(plugin_config_schema.filter(plugin_id.eq(p_id)).load(conn)?)
     }
 }

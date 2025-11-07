@@ -29,15 +29,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    plugin_settings (id) {
-        id -> Int4,
-        plugin_id -> Nullable<Int4>,
-        settings -> Jsonb,
-        updated_at -> Timestamp,
-    }
-}
-
-diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::PluginTypeEnum;
 
@@ -60,20 +51,11 @@ diesel::table! {
 diesel::table! {
     user_plugin_configs (id) {
         id -> Int4,
-        user_plugin_id -> Int4,
+        user_id -> Int4,
+        plugin_id -> Int4,
         #[max_length = 255]
         config_key -> Varchar,
         config_value -> Nullable<Text>,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-    }
-}
-
-diesel::table! {
-    user_plugins (id) {
-        id -> Int4,
-        user_id -> Int4,
-        plugin_id -> Int4,
         enabled -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
@@ -101,17 +83,13 @@ diesel::table! {
 }
 
 diesel::joinable!(plugin_config_schema -> plugins (plugin_id));
-diesel::joinable!(plugin_settings -> plugins (plugin_id));
 diesel::joinable!(plugins -> users (created_by_user_id));
-diesel::joinable!(user_plugin_configs -> user_plugins (user_plugin_id));
-diesel::joinable!(user_plugins -> plugins (plugin_id));
-diesel::joinable!(user_plugins -> users (user_id));
+diesel::joinable!(user_plugin_configs -> plugins (plugin_id));
+diesel::joinable!(user_plugin_configs -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     plugin_config_schema,
-    plugin_settings,
     plugins,
     user_plugin_configs,
-    user_plugins,
     users,
 );

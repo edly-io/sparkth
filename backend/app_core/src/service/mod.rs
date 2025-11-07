@@ -1,3 +1,3 @@
 mod plugin_service;
 
-pub use plugin_service::{PluginConfigSchema, PluginManifest, PluginService};
+pub use plugin_service::{NewUserConfigInput, PluginConfigSchema, PluginManifest, PluginService};

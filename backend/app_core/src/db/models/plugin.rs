@@ -55,12 +55,6 @@ impl Plugin {
         let conn = &mut db_pool.get()?;
         Ok(diesel::insert_into(plugins)
             .values(&plugin)
-            // .on_conflict(name)
-            // .do_update()
-            // .set(UpdatePlugin {
-            //     version: Some(plugin.version.clone()),
-            //     description: plugin.description.clone(),
-            // })
             .returning(Plugin::as_returning())
             .get_result(conn)?)
     }
@@ -97,27 +91,32 @@ impl Plugin {
         Ok(results)
     }
 
-    pub fn get_user_plugins(db_pool: DbPool, u_id: i32) -> Result<Vec<Plugin>, CoreError> {
-        use crate::schema::plugins::dsl::*;
-        use crate::schema::user_plugins;
+    pub fn get_plugin_for_user(
+        user_id: i32,
+        plugin_id: i32,
+        db_pool: &DbPool,
+    ) -> Result<Plugin, CoreError> {
+        use crate::schema::plugins::dsl::{created_by_user_id, id, is_builtin, plugins};
 
         let conn = &mut db_pool.get()?;
-
-        let user_plugins = plugins
-            .left_join(
-                user_plugins::table.on(user_plugins::plugin_id
-                    .eq(id)
-                    .and(user_plugins::user_id.eq(u_id))),
-            )
+        let plugin = plugins
             .filter(
-                is_builtin
-                    .eq(true)
-                    .or(created_by_user_id.eq(u_id))
-                    .or(user_plugins::user_id.eq(u_id)),
+                id.eq(plugin_id)
+                    .and(is_builtin.eq(true).or(created_by_user_id.eq(user_id))),
             )
-            .distinct()
             .select(Plugin::as_select())
-            .get_results(conn)?;
+            .first(conn)?;
+        Ok(plugin)
+    }
+
+    pub fn get_list_for_user(user_id: i32, db_pool: &DbPool) -> Result<Vec<Plugin>, CoreError> {
+        use crate::schema::plugins::dsl::{created_by_user_id, is_builtin, plugins};
+
+        let conn = &mut db_pool.get()?;
+        let user_plugins = plugins
+            .filter(is_builtin.eq(true).or(created_by_user_id.eq(user_id)))
+            .select(Plugin::as_select())
+            .load(conn)?;
 
         Ok(user_plugins)
     }

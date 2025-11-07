@@ -1,4 +1,4 @@
-use app_core::PluginService;
+use app_core::{NewUserConfigInput, PluginService};
 use axum::{
     Json, debug_handler,
     extract::{Path, State},
@@ -16,7 +16,7 @@ pub async fn get_plugin(
     State(handler): State<PluginService>,
     Path(plugin_id): Path<i32>,
 ) -> impl IntoResponse {
-    let response = match handler.get_user_plugin_with_configs(plugin_id) {
+    let response = match handler.get_user_plugin(1, plugin_id) {
         Ok(plugin_with_config) => {
             let message = format!(
                 "Plugin {:?} fetched successfully",
@@ -40,7 +40,7 @@ pub async fn list_plugins_for_user(
     Path(user_id): Path<i32>,
     State(handler): State<PluginService>,
 ) -> impl IntoResponse {
-    let response = match handler.get_user_plugins_with_config(user_id) {
+    let response = match handler.get_user_plugins(user_id) {
         Ok(plugins) => {
             let message = format!("Fetched {} plugins", plugins.len());
             info!("GET /plugins - {message}");
@@ -56,32 +56,27 @@ pub async fn list_plugins_for_user(
     Json(response)
 }
 
-// #[derive(Deserialize)]
-// pub struct UpdateConfigRequest {
-//     pub config: Vec<(String, String)>,
-// }
+pub async fn update_plugin_config(
+    State(service): State<PluginService>,
+    Path(plugin_id): Path<i32>,
+    Json(payload): Json<Vec<NewUserConfigInput>>,
+) -> impl IntoResponse {
+    let response = match service.upsert_user_plugin_configs(1, plugin_id, payload) {
+        Ok(response) => {
+            let message = format!("Updated config for plugin {plugin_id}");
+            info!("PATCH /plugins/{plugin_id}/configs - {message}");
+            let res = to_value(response).unwrap();
+            ApiResponse::new(Some(res), message, StatusCode::OK)
+        }
+        Err(err) => {
+            let message = format!("Error updating plugin {plugin_id}: {err}");
+            error!("PATCH /plugins/{plugin_id}/configs - {message}");
+            ApiResponse::err(None, err)
+        }
+    };
 
-// pub async fn update_plugin_config(
-//     State(service): State<PluginService>,
-//     Path(id): Path<i32>,
-//     Json(payload): Json<UpdateConfigRequest>,
-// ) -> impl IntoResponse {
-//     let response = match service.update_configs(id, payload.config) {
-//         Ok(response) => {
-//             let message = format!("Updated config for plugin {id}");
-//             info!("PATCH /plugins/{id}/config - {message}");
-//             let res = to_value(response).unwrap();
-//             ApiResponse::new(Some(res), message, StatusCode::OK)
-//         }
-//         Err(err) => {
-//             let message = format!("Error updating plugin {id}: {err}");
-//             error!("PATCH /plugins/{id}/config - {message}");
-//             ApiResponse::err(None, err)
-//         }
-//     };
-
-//     Json(response)
-// }
+    Json(response)
+}
 
 #[derive(Deserialize)]
 pub struct TogglePluginRequest {
