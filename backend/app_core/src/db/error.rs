@@ -20,6 +20,9 @@ pub enum CoreError {
 
     #[error("Plugin error: {0}")]
     Plugin(String),
+
+    #[error("Authentication error: {0}")]
+    AuthError(String),
 }
 
 impl From<result::Error> for CoreError {

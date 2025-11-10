@@ -9,20 +9,20 @@ pub const JWT_DEFAULT_REFRESH_EXPIRATION_DAYS: i64 = 7;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JWTClaims {
-    pub sub: String, // user id
+    pub sub: String,
     pub username: String,
     pub email: String,
-    pub role: String, // "admin" or "user"
-    pub exp: usize,   // expiration timestamp
-    pub iat: usize,   // issued at timestamp
+    pub role: String,
+    pub exp: usize,
+    pub iat: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JWTRefreshClaims {
-    pub sub: String,      // user id
-    pub token_id: String, // unique identifier for refresh token
-    pub exp: usize,       // expiration timestamp
-    pub iat: usize,       // issued at timestamp
+    pub sub: String,
+    pub token_id: String,
+    pub exp: usize,
+    pub iat: usize,
 }
 
 #[derive(Debug, Error)]
@@ -37,12 +37,9 @@ pub enum JWTError {
     MissingSecret,
     #[error("Encoding failed: {0}")]
     EncodingFailed(String),
-    #[error("Decoding failed: {0}")]
-    DecodingFailed(String),
-    #[error("Invalid claims: {0}")]
-    InvalidClaims(String),
 }
 
+#[derive(Clone)]
 pub struct JWTService {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
@@ -105,20 +102,6 @@ impl JWTService {
             .map_err(|e| JWTError::EncodingFailed(e.to_string()))
     }
 
-    pub fn decode_access_token(&self, token: &str) -> Result<JWTClaims, JWTError> {
-        let validation = Validation::new(Algorithm::HS256);
-        let token_data =
-            decode::<JWTClaims>(token, &self.decoding_key, &validation).map_err(|e| {
-                match e.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => JWTError::ExpiredToken,
-                    jsonwebtoken::errors::ErrorKind::InvalidSignature => JWTError::InvalidSignature,
-                    _ => JWTError::InvalidToken,
-                }
-            })?;
-
-        Ok(token_data.claims)
-    }
-
     pub fn decode_refresh_token(&self, token: &str) -> Result<JWTRefreshClaims, JWTError> {
         let validation = Validation::new(Algorithm::HS256);
         let token_data = decode::<JWTRefreshClaims>(token, &self.decoding_key, &validation)
@@ -131,15 +114,7 @@ impl JWTService {
         Ok(token_data.claims)
     }
 
-    pub fn validate_token(&self, token: &str) -> Result<JWTClaims, JWTError> {
-        self.decode_access_token(token)
-    }
-
     pub fn get_expiration_hours(&self) -> i64 {
         self.expiration_hours
-    }
-
-    pub fn get_refresh_expiration_days(&self) -> i64 {
-        self.refresh_expiration_days
     }
 }
