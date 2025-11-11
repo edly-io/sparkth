@@ -1,7 +1,5 @@
 -- This file should undo anything in `up.sql`
-DROP INDEX idx_plugin_settings_plugin_id;
-DROP INDEX idx_plugin_settings_id;
-DROP INDEX idx_plugin_id;
+DROP INDEX IF EXISTS idx_plugin_id;
 
-DROP TABLE plugin_settings;
-DROP TABLE plugins;
+DROP TABLE IF EXISTS plugins;
+DROP TYPE IF EXISTS plugin_type_enum;

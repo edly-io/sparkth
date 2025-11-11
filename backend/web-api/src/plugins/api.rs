@@ -1,0 +1,116 @@
+use app_core::{NewUserConfigInput, PluginService};
+use axum::{
+    Extension, Json, debug_handler,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use log::{error, info};
+use serde::Deserialize;
+use serde_json::to_value;
+
+use crate::{api_response::ApiResponse, jwt::JWTClaims};
+
+#[debug_handler]
+pub async fn get_plugin(
+    State(handler): State<PluginService>,
+    Extension(claims): Extension<JWTClaims>,
+    Path(plugin_id): Path<i32>,
+) -> impl IntoResponse {
+    let user_id = claims.sub.parse::<i32>().unwrap_or_default();
+    let response = match handler.get_user_plugin(user_id, plugin_id) {
+        Ok(plugin_with_config) => {
+            let message = format!(
+                "Plugin {:?} fetched successfully",
+                plugin_with_config.plugin_id
+            );
+            info!("GET /plugin - {message}");
+            let res = to_value(plugin_with_config).unwrap();
+            ApiResponse::new(Some(res), message, StatusCode::FOUND)
+        }
+        Err(err) => {
+            let message = format!("Error retrieving plugin {plugin_id}: {err}");
+            error!("GET /plugin - {message}");
+            ApiResponse::err(None, err)
+        }
+    };
+    Json(response)
+}
+
+#[debug_handler]
+pub async fn list_plugins_for_user(
+    State(handler): State<PluginService>,
+    Extension(claims): Extension<JWTClaims>,
+) -> impl IntoResponse {
+    let user_id = claims.sub.parse::<i32>().unwrap_or_default();
+
+    let response = match handler.get_user_plugins(user_id) {
+        Ok(plugins) => {
+            let message = format!("Fetched {} plugins", plugins.len());
+            info!("GET /plugins - {message}");
+            let res = to_value(plugins).unwrap();
+            ApiResponse::new(Some(res), message, StatusCode::FOUND)
+        }
+        Err(err) => {
+            let message = format!("Error retrieving plugins: {err}");
+            error!("GET /plugins - {message}");
+            ApiResponse::err(None, err)
+        }
+    };
+    Json(response)
+}
+
+pub async fn update_plugin_config(
+    State(service): State<PluginService>,
+    Extension(claims): Extension<JWTClaims>,
+    Path(plugin_id): Path<i32>,
+    Json(payload): Json<Vec<NewUserConfigInput>>,
+) -> impl IntoResponse {
+    let user_id = claims.sub.parse::<i32>().unwrap_or_default();
+
+    let response = match service.upsert_user_plugin_configs(user_id, plugin_id, payload) {
+        Ok(response) => {
+            let message = format!("Updated config for plugin {plugin_id}");
+            info!("PATCH /plugins/{plugin_id}/configs - {message}");
+            let res = to_value(response).unwrap();
+            ApiResponse::new(Some(res), message, StatusCode::OK)
+        }
+        Err(err) => {
+            let message = format!("Error updating plugin {plugin_id}: {err}");
+            error!("PATCH /plugins/{plugin_id}/configs - {message}");
+            ApiResponse::err(None, err)
+        }
+    };
+
+    Json(response)
+}
+
+#[derive(Deserialize)]
+pub struct TogglePluginRequest {
+    pub enabled: bool,
+}
+
+pub async fn toggle_plugin(
+    State(service): State<PluginService>,
+    Extension(claims): Extension<JWTClaims>,
+    Path(plugin_id): Path<i32>,
+    Json(payload): Json<TogglePluginRequest>,
+) -> impl IntoResponse {
+    let user_id = claims.sub.parse::<i32>().unwrap_or_default();
+
+    let response = match service.set_user_plugin_enabled(user_id, plugin_id, payload.enabled) {
+        Ok(response) => {
+            let message = format!("Updated enabled for plugin {plugin_id}");
+            info!("PATCH /plugins/{plugin_id}/toggle - {message}");
+            let res = to_value(response).unwrap();
+            ApiResponse::new(Some(res), message, StatusCode::OK)
+        }
+        Err(err) => {
+            let message = format!("Error updating plugin {plugin_id}: {err}");
+            error!("PATCH /plugins/{plugin_id}/toggle - {message}");
+            ApiResponse::err(None, err)
+        }
+    };
+
+    Json(response)
+}

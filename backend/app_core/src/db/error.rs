@@ -17,6 +17,15 @@ pub enum CoreError {
 
     #[error("Pooled Connection Error - {0:?}")]
     PooledConnection(#[from] r2d2::PoolError),
+
+    #[error("Plugin error: {0}")]
+    Plugin(String),
+
+    #[error("Authentication error: {0}")]
+    AuthError(String),
+
+    #[error("Permission Denied: {0}")]
+    PermissionDenied(String),
 }
 
 impl From<result::Error> for CoreError {
