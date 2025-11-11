@@ -196,8 +196,7 @@ impl PluginService {
     ) -> Result<bool, CoreError> {
         let plugin = Plugin::get(plugin_id, db_pool)?;
 
-        let can_update =
-            plugin.is_builtin || plugin.created_by_user_id == Some(user_id);
+        let can_update = plugin.is_builtin || plugin.created_by_user_id == Some(user_id);
 
         if !can_update {
             return Err(CoreError::PermissionDenied(format!(
