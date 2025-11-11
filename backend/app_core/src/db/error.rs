@@ -23,6 +23,9 @@ pub enum CoreError {
 
     #[error("Authentication error: {0}")]
     AuthError(String),
+
+    #[error("Permission Denied: {0}")]
+    PermissionDenied(String),
 }
 
 impl From<result::Error> for CoreError {

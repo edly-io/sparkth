@@ -1,3 +1,6 @@
+mod jwt_service;
+pub use jwt_service::init_jwt_service;
+
 use app_core::User;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};

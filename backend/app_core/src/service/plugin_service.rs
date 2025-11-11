@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ConfigType, CoreError, NewPlugin, NewPluginConfig, Plugin, PluginType,
+    ConfigType, CoreError, DbPool, NewPlugin, NewPluginConfig, Plugin, PluginType,
     db::{PluginConfig, UpsertUserPluginConfig, UserPluginConfig},
     get_db_pool,
 };
@@ -103,6 +103,8 @@ impl PluginService {
         is_enabled: bool,
     ) -> Result<usize, CoreError> {
         let db_pool = get_db_pool();
+
+        self.has_permission(user_id, plugin_id, db_pool)?;
         UserPluginConfig::update_user_plugin_enabled(db_pool, user_id, plugin_id, is_enabled)
     }
 
@@ -112,6 +114,9 @@ impl PluginService {
         plugin_id: i32,
         updates: Vec<NewUserConfigInput>,
     ) -> Result<usize, CoreError> {
+        let db_pool = get_db_pool();
+        self.has_permission(user_id, plugin_id, db_pool)?;
+
         let records: Vec<UpsertUserPluginConfig> = updates
             .iter()
             .map(|u| UpsertUserPluginConfig {
@@ -122,7 +127,6 @@ impl PluginService {
             })
             .collect();
 
-        let db_pool = get_db_pool();
         UserPluginConfig::upsert(records, db_pool)
     }
 
@@ -182,5 +186,26 @@ impl PluginService {
             .collect();
 
         Ok(results)
+    }
+
+    pub fn has_permission(
+        &self,
+        user_id: i32,
+        plugin_id: i32,
+        db_pool: &DbPool,
+    ) -> Result<bool, CoreError> {
+        let plugin = Plugin::get(plugin_id, db_pool)?;
+
+        let can_update =
+            plugin.is_builtin || plugin.created_by_user_id == Some(user_id);
+
+        if !can_update {
+            return Err(CoreError::PermissionDenied(format!(
+                "User {} cannot update plugin {}",
+                user_id, plugin_id
+            )));
+        }
+
+        Ok(true)
     }
 }

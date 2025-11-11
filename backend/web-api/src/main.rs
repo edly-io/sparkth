@@ -1,6 +1,7 @@
 mod api_response;
 mod auth;
 mod jwt;
+mod middleware;
 mod plugins;
 mod router;
 
