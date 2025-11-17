@@ -12,7 +12,6 @@ def run_stdio():
 def run_http(host, port):
     mcp.run(transport="http", host=host, port=port)
 
-
 @mcp.tool
 def add(a: int, b: int) -> int:
     return a + b
