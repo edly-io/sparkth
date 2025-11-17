@@ -23,8 +23,8 @@ if __name__ == "__main__":
         choices=[mode.value for mode in TransportMode],
         help="MCP server transport mode"
     )
-    parser.add_argument("--host", default="127.0.0.1", help="MCP server host")
-    parser.add_argument("--port", type=int, default=8000, help="MCP server port")
+    parser.add_argument("--host", default="0.0.0.0", help="MCP server host")
+    parser.add_argument("--port", type=int, default=7727, help="MCP server port")
 
     args = parser.parse_args()
     transport_mode = TransportMode(args.transport)
