@@ -71,7 +71,6 @@ Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
 The default is `http` on host http://0.0.0.0:7727.
 
 
-## Development
 
 All common tasks are wrapped in a `Makefile` for convenience.
 
