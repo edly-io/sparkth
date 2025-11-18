@@ -14,7 +14,7 @@ def run_http(host, port):
 def add(a: int, b: int) -> int:
     return a + b
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -33,4 +33,8 @@ if __name__ == "__main__":
         run_stdio()
     elif transport_mode == TransportMode.HTTP:
         run_http(args.host, args.port)
+
+if __name__ == "__main__":
+    main()
+   
     
