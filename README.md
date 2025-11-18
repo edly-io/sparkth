@@ -71,6 +71,27 @@ Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
 The default is `http` on host http://0.0.0.0:7727.
 
 
+## Development
+
+All common tasks are wrapped in a `Makefile` for convenience.
+
+Just run `make` to see the full list:
+
+```bash
+$ make
+Usage: make <target>
+
+Targets:
+  uv           Install uv if missing
+  dev          Install dev dependencies
+  lock         Update lockfile
+  install      Install exact versions from lockfile
+  test         Run tests
+  cov          Run tests with coverage
+  lint         Lint with ruff
+  fix          Auto-fix + format with ruff
+  build        Build package
+
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
