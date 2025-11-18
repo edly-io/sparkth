@@ -16,7 +16,6 @@ def run_http(host, port):
 def add(a: int, b: int) -> int:
     return a + b
 
-
 def main():
     parser = argparse.ArgumentParser()
 
