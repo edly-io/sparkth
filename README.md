@@ -3,11 +3,12 @@
 Sparkth is a free, open source, extensible, science-driven, AI-first learning platform. It is under active development by
 [Edly](https://edly.io).
 
-This repository is organized as a [Cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html) with three main components:
+This repository is organized with the following main components:
 
-- `mcp/`: a binary crate that runs the MCP server, responsible for creating courses from the chat UI of AI providers
-- `backend/api/`: a binary crate that serves HTTP APIs
-- `backend/core/`: a library crate for database access (PostgreSQL via Diesel)
+- `sparkth_mcp/`
+- `api/`
+- `core/`
+- `models/`
 
 **Roadmap**:
 
@@ -51,23 +52,24 @@ chmod a+x sparkth
 ./sparkth --help
 ```
 
-### Building
 
-The build guides are provided here:
+## Running the MCP Server
 
-1. MCP [documentation](/mcp/README.md)
-2. Backend [documentation](/backend/README.md)
+    uv run python -m sparkth_mcp.main 
 
+Any CLI option supported by Sparkth MCP can be appended to this command.
 
-## Development
+#### Transport mode: http / stdio
 
-Build in development mode:
+Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
 
-    cargo build
+| Mode     | Description                                          |
+| -------- | ---------------------------------------------------- |
+| `stdio`  | Communicates via standard input/output streams.      |
+| `http`   | Starts an HTTP server.       |
 
-Run tests:
+The default is `http` on host http://0.0.0.0:7727.
 
-    cargo test
 
 ## License
 
