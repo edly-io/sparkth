@@ -8,6 +8,9 @@ dependencies = [
     "alembic>=1.17.2",
     "fastapi[standard]>=0.121.2",
     "fastmcp>=2.13.1",
+    "psycopg2-binary>=2.9.11",
+    "python-dotenv>=1.2.1",
     "ruff>=0.14.5",
     "sqlmodel>=0.0.27",
+    "uuid6>=2025.0.1",
 ]
