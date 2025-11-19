@@ -1,7 +1,10 @@
 import os
 from functools import lru_cache
 
+from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
+
+load_dotenv()
 
 
 @lru_cache
