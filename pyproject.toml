@@ -3,7 +3,7 @@ name = "sparkth"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.17.2",
     "fastapi[standard]>=0.121.2",
@@ -13,4 +13,5 @@ dependencies = [
     "ruff>=0.14.5",
     "sqlmodel>=0.0.27",
     "uuid6>=2025.0.1",
+    "passlib[argon2]>=1.7.4",
 ]
