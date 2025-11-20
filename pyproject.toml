@@ -5,10 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aiohttp>=3.13.2",
     "alembic>=1.17.2",
     "fastapi[standard]>=0.121.2",
     "fastmcp>=2.13.1",
-    "psycopg2-binary>=2.9.11",
+    "pydantic>=2.12.4",
+    "ruff>=0.14.5",
     "sqlmodel>=0.0.27",
     "uuid6>=2025.0.1",
     "pyjwt[crypto]>=2.10.1",
