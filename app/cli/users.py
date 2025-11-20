@@ -4,8 +4,8 @@ import typer
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 
-from core.db import get_engine
-from models.user import User
+from app.core.db import get_engine
+from app.models.user import User
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 app = typer.Typer(help="User management commands")
@@ -99,7 +99,3 @@ def reset_password(
             f"Password reset successfully for user: {user.username}",
             fg=typer.colors.GREEN,
         )
-
-
-if __name__ == "__main__":
-    app()
