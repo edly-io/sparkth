@@ -99,39 +99,41 @@ Targets:
 
 Create a new user account. If password is not provided via flag, you'll be prompted to enter it securely.
 
-    python cli.py user create --username john --email john@example.com --name "John Doe"
+    make create-user -- --username john --email john@example.com --name "John Doe"
 
 #### Using short flags
-    python cli.py user create -u john -e john@example.com -n "John Doe"
+    make create-user -- -u john -e john@example.com -n "John Doe"
 
 #### Create superuser
-    python cli.py user create --username admin --email admin@example.com --name "Admin User" --superuser
+    make create-user -- --username admin --email admin@example.com --name "Admin User" --superuser
 
-#### Provide password directly (not recommended for security)
-    python cli.py user create -u john -e john@example.com -n "John Doe" --password "SecurePass123"
+#### Provide password directly
+    make create-user -- -u john -e john@example.com -n "John Doe" --password "SecurePass123"
 
 ##### Options:
-- --username, -u: Username (required)
-- --email, -e: Email address (required)
-- --name, -n: Full name (required)
-- --password, -p: Password (optional, will prompt if not provided)
-- --superuser, -s: Create as superuser (optional, default: false)
+- `--username, -u`: Username (required)
+- `--email, -e`: Email address (required)
+- `--name, -n`: Full name (required)
+- `--password, -p`: Password (optional, will prompt if not provided)
+- `--superuser, -s`: Create as superuser (optional, default: false)
 
 
 ### Reset Password
 Reset a user's password.
 
-    python cli.py user reset-password --username john
+    make reset-password -- --username john
 
 #### Using short flag
-    python cli.py user reset-password -u john
+    make reset-password -- -u john
 
-#### Provide password directly (not recommended)
-    python cli.py user reset-password -u john --password "NewSecurePass123"
+#### Provide password directly
+    make reset-password -- -u john -p "NewSecurePass123"
+    make reset-password -- --username john --password "NewSecurePass123"
 
 ##### Options:
-- --username, -u: Username (required)
-- --password, -p: New password (optional, will prompt if not provided)
+- `--username, -u`: Username (required)
+- `--password, -p`: New password (optional, will prompt if not provided)
+
 
 ## License
 
