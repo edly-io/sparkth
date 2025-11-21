@@ -157,9 +157,9 @@ class PagePayload(BaseModel):
 
 
 class UpdatedPage(BaseModel):
-    title: Optional[str] = None
-    body: Optional[str] = None
-    editing_roles: Optional[EditingRoles] = None
+    title: str
+    body: str
+    editing_roles: EditingRoles = Field(default=EditingRoles.TEACHERS)
     notify_of_update: Optional[bool] = None
     published: Optional[bool] = None
     publish_at: Optional[datetime] = None
