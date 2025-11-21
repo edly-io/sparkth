@@ -1,8 +1,7 @@
 import argparse
-
 from .mode import TransportMode
 from .server import mcp
-from .canvas import tools
+from .canvas import tools  # noqa
 
 
 def run_stdio():
@@ -12,9 +11,6 @@ def run_stdio():
 def run_http(host, port):
     mcp.run(transport="http", host=host, port=port)
 
-@mcp.tool
-def add(a: int, b: int) -> int:
-    return a + b
 
 def main():
     parser = argparse.ArgumentParser()
