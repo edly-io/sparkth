@@ -12,35 +12,31 @@ class CanvasClient:
         self.session = aiohttp.ClientSession()
 
     @staticmethod
-    async def authenticate(new_api_url: str, new_api_token: str) -> bool:
+    async def authenticate(new_api_url: str, new_api_token: str):
         async with aiohttp.ClientSession() as session:
             url = urljoin(new_api_url.rstrip("/") + "/", "users/self")
             headers = {"Authorization": f"Bearer {new_api_token}"}
 
             async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    return True
-                raise AuthenticationError()
-        return False
+                if response.status != 200:
+                    response_message = await response.json()
+                    errors = response_message["errors"][0]["message"]
+                    raise AuthenticationError(response.status, errors)
+        return response.status
 
-    async def request_bearer(
-        self, http_method: str, endpoint: str, payload=None
-    ) -> json:
+    async def request_bearer(self, method: str, endpoint: str, payload=None) -> json:
         if not self.api_token:
-            raise AuthenticationError("API Token not found")
+            raise AuthenticationError(404, "API Token not found")
 
         url = urljoin(self.api_url + "/", endpoint.lstrip("/"))
-
-        print("url = ", url)
-
         return await request(
-            auth=Auth.BEARER,
-            token=self.api_token,
-            http_method=http_method,
-            url=url,
-            params=None,
-            payload=payload,
-            client=self.session,
+            Auth.BEARER,
+            self.api_token,
+            method,
+            url,
+            None,
+            payload,
+            self.session,
         )
 
     async def close(self):

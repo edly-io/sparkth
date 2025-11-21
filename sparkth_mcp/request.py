@@ -12,7 +12,7 @@ class Auth(str, Enum):
 async def request(
     auth: Auth,
     token: str,
-    http_method: str,
+    method: str,
     url: str,
     params=None,
     payload=None,
@@ -28,11 +28,9 @@ async def request(
     }
 
     async with client.request(
-        http_method, url, headers=headers, params=params, json=payload
+        method, url, headers=headers, params=params, json=payload
     ) as response:
         if response.status < 200 or response.status >= 300:
-            print("status = ", response.status)
-
             raise await handle_error_response(response)
 
         text = await response.text()
@@ -42,14 +40,12 @@ async def request(
         try:
             json_value = await response.json()
         except Exception:
-            raise LMSError("Invalid JSON response", response.status)
+            raise LMSError(response.status, "Invalid JSON response")
 
         return json_value
 
 
 async def handle_error_response(response: aiohttp.ClientResponse) -> LMSError:
-    status_code = response.status
-
     try:
         text = await response.text()
     except Exception:
@@ -63,4 +59,4 @@ async def handle_error_response(response: aiohttp.ClientResponse) -> LMSError:
     except Exception:
         pass
 
-    return LMSError(f"Failed with status {status_code}: {message}")
+    return LMSError(response.status, message)
