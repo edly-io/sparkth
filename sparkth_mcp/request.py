@@ -10,10 +10,10 @@ class Auth(str, Enum):
 
 
 async def request(
+    url: str,
     auth: Auth,
     token: str,
-    method: str,
-    url: str,
+    method: str = "GET",
     params=None,
     payload=None,
     client: aiohttp.ClientSession = None,
@@ -39,8 +39,8 @@ async def request(
 
         try:
             json_value = await response.json()
-        except Exception:
-            raise LMSError(response.status, "Invalid JSON response")
+        except aiohttp.ContentTypeError as e:
+            raise LMSError(response.status, e.message)
 
         return json_value
 
@@ -48,7 +48,7 @@ async def request(
 async def handle_error_response(response: aiohttp.ClientResponse) -> LMSError:
     try:
         text = await response.text()
-    except Exception:
+    except aiohttp.ClientPayloadError:
         text = ""
 
     message = text
@@ -56,7 +56,7 @@ async def handle_error_response(response: aiohttp.ClientResponse) -> LMSError:
         json_val = await response.json()
         if isinstance(json_val, dict) and "message" in json_val:
             message = json_val["message"]
-    except Exception:
+    except aiohttp.ContentTypeError:
         pass
 
     return LMSError(response.status, message)
