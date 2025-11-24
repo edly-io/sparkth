@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class UserBase(BaseModel):
@@ -23,6 +25,7 @@ class User(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    expires_at: datetime
 
 
 class TokenData(BaseModel):
