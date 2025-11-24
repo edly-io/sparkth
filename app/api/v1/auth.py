@@ -4,10 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.core import security
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.models.user import User
 from app.schemas import Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
+
+settings = get_settings()
 
 router = APIRouter()
 
@@ -45,7 +48,7 @@ def login_for_access_token(form_data: UserLogin, session: Session = Depends(get_
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token_expires = timedelta(minutes=security.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     utc_now = datetime.now(timezone.utc)
     expires_at = utc_now + access_token_expires
