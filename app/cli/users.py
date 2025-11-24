@@ -1,13 +1,12 @@
 from typing import Optional
 
 import typer
-from passlib.context import CryptContext
 from sqlmodel import Session, select
 
 from app.core.db import get_engine
+from app.core.security import get_password_hash
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 app = typer.Typer(help="User management commands")
 
 
@@ -21,17 +20,13 @@ def get_db_session():
 def create_user(
     username: str = typer.Option(..., "--username", "-u", prompt=True),
     email: str = typer.Option(..., "--email", "-e", prompt=True),
-    password: str = typer.Option(
-        ..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True
-    ),
+    password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True),
     name: Optional[str] = typer.Option(None, "--name", "-n"),
     superuser: bool = typer.Option(False, "--superuser", "--admin", is_flag=True),
 ):
     engine = get_engine()
     with Session(engine) as session:
-        existing = session.exec(
-            select(User).where((User.username == username) | (User.email == email))
-        ).first()
+        existing = session.exec(select(User).where((User.username == username) | (User.email == email))).first()
         if existing:
             typer.secho(
                 f"User with username '{username}' or email '{email}' already exists!",
@@ -39,7 +34,8 @@ def create_user(
             )
             raise typer.Exit(code=1)
 
-        hashed_password = pwd_context.hash(password)
+        hashed_password = get_password_hash(password)
+
         user = User(
             username=username,
             email=email,
@@ -73,11 +69,7 @@ def reset_password(
 ):
     engine = get_engine()
     with Session(engine) as session:
-        user = session.exec(
-            select(User).where(
-                (User.username == identifier) | (User.email == identifier)
-            )
-        ).first()
+        user = session.exec(select(User).where((User.username == identifier) | (User.email == identifier))).first()
 
         if not user:
             typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
@@ -89,7 +81,8 @@ def reset_password(
                 fg=typer.colors.YELLOW,
             )
 
-        hashed_password = pwd_context.hash(new_password)
+        hashed_password = get_password_hash(new_password)
+
         user.hashed_password = hashed_password
         user.update_timestamp()
         session.add(user)
