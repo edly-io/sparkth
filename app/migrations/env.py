@@ -3,18 +3,18 @@ from logging.config import fileConfig
 
 import sqlmodel
 from alembic import context
-from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
+from app.core.config import get_settings
 
 from models import *
 
-load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+settings = get_settings()
+
 
 config = context.config
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 
 # this is the Alembic Config object, which provides

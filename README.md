@@ -94,6 +94,31 @@ Targets:
 
 ```
 
+## Running the API Server
+
+To develop locally, you can run the API server with hot-reloading enabled.
+
+1.  **Ensure dependencies are installed:**
+    ```bash
+    make dev
+    ```
+
+2.  **Start the server:**
+    ```bash
+    make start
+    ```
+    *This runs `uvicorn` on port 8000 with reload enabled.*
+
+### API Documentation
+
+Once the server is running, you can access the interactive API documentation locally:
+
+* **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+    * *Best for testing endpoints interactively.*
+* **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+    * *Best for reading documentation structure.*
+
+
 ## User Management Commands
 ### Create User
 

@@ -34,10 +34,10 @@ install: uv ## Install exact versions from lockfile
 # Development
 # --------------------------------------------------
 test: ## Run tests
-	uv run pytest
+	uv run pytest tests/
 
 cov: ## Run tests with coverage
-	uv run pytest --cov-report=term-missing
+	uv run pytest tests/ --cov-report=term-missing
 
 start: ## Start the API server
 	uv run uvicorn app.main:app --reload
