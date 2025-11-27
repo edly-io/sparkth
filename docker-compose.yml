@@ -1,0 +1,45 @@
+services:
+  # ----------------------------------------
+  # Sparkth API Service
+  # ----------------------------------------
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7727:7727"
+    environment:
+      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+      PORT: "7727"
+    volumes:
+      - ./app:/app/app
+    depends_on:
+      - db
+
+  # ----------------------------------------
+  # Postgres
+  # ----------------------------------------
+  db:
+    image: docker.io/postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sparkth
+      POSTGRES_PASSWORD: sparkth_password
+      POSTGRES_DB: sparkth
+    volumes:
+      - ./data/postgresql:/var/lib/postgresql/data
+
+  # ----------------------------------------
+  # Alembic Migrations
+  # ----------------------------------------
+  migrations:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+    command: >
+      sh -c "
+      echo '⏳ Waiting for DB...' &&
+      alembic upgrade head &&
+      echo '✅ Alembic migrations complete'
+      "
+    depends_on:
+      - db
