@@ -12,23 +12,27 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev
+    uv sync --locked --no-install-project --no-dev
+
+COPY . /app
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
 
 # -------------------
 # Stage 2: Runtime image
 # -------------------
 FROM python:3.14-slim-bookworm
 
-RUN useradd -r appuser
+RUN groupadd --system --gid 999 nonroot \
+ && useradd --system --gid 999 --uid 999 --create-home nonroot
 
-WORKDIR /app
-
-COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-
-COPY --chown=appuser:appuser . .
+COPY --from=builder --chown=nonroot:nonroot /app /app
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-USER appuser
+USER nonroot
+
+WORKDIR /app
 
 CMD ["fastapi", "run", "app/main.py"]
