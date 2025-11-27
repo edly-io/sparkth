@@ -1,45 +1,33 @@
-# Use Rust 1.88 slim image for building
-FROM rust:1.88-slim-bookworm AS builder
+# -------------------
+# Stage 1: Build dependencies
+# -------------------
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
 
-# Set working directory
-WORKDIR /usr/src/sparkth
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_DOWNLOADS=0
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
-# Copy project files
-COPY . .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --no-dev
 
-# Define build profile (default: dist)
-ARG PROFILE=dist
+COPY . /app
 
-# Build and strip binary
-RUN cargo build --profile ${PROFILE} --locked && \
-    strip target/${PROFILE}/sparkth
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
-# Use slim Debian image for runtime
-FROM debian:bookworm-slim
+# -------------------
+# Stage 2: Runtime image
+# -------------------
+FROM python:3.14-slim-bookworm
 
-# Reuse build profile argument
-ARG PROFILE=dist
+COPY --from=builder /app /app
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PORT=80
 
-# Copy built binary from builder stage
-COPY --from=builder /usr/src/sparkth/target/${PROFILE}/sparkth /usr/local/bin/sparkth
-
-# Expose port 7727
-EXPOSE 7727
-
-# Set environment variables for host and port
-ENV HOST=0.0.0.0
-ENV PORT=7727
-
-# Run the application
-CMD ["sh", "-c", "sparkth --host $HOST --port $PORT"]
+CMD ["/bin/sh", "-c", "exec fastapi run app/main.py --port $PORT --host 0.0.0.0"]

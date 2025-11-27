@@ -10,12 +10,6 @@ from app.models.user import User
 app = typer.Typer(help="User management commands")
 
 
-def get_db_session():
-    engine = get_engine()
-    with Session(engine) as session:
-        yield session
-
-
 @app.command()
 def create_user(
     username: str = typer.Option(..., "--username", "-u", prompt=True),
