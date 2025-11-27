@@ -14,9 +14,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
 
-COPY . /app
-
-
 # -------------------
 # Stage 2: Runtime image
 # -------------------
@@ -24,9 +21,12 @@ FROM python:3.14-slim-bookworm
 
 RUN useradd -r appuser
 
-COPY --from=builder --chown=appuser:appuser /app /app
-
 WORKDIR /app
+
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+
+COPY --chown=appuser:appuser . .
+
 ENV PATH="/app/.venv/bin:$PATH"
 
 USER appuser

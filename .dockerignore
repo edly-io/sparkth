@@ -26,5 +26,4 @@ coverage.xml
 LICENSE
 Makefile
 docker-compose.yml
-alembic.ini
 tests/
