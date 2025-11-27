@@ -16,18 +16,19 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY . /app
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
 
 # -------------------
 # Stage 2: Runtime image
 # -------------------
 FROM python:3.14-slim-bookworm
 
-COPY --from=builder /app /app
+RUN useradd -r appuser
+
+COPY --from=builder --chown=appuser:appuser /app /app
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PORT=80
 
-CMD ["/bin/sh", "-c", "exec fastapi run app/main.py --port $PORT --host 0.0.0.0"]
+USER appuser
+
+CMD ["fastapi", "run", "app/main.py"]

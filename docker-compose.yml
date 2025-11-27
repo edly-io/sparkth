@@ -4,13 +4,12 @@ services:
   # ----------------------------------------
   api:
     build: .
-    container_name: api
+    restart: unless-stopped
     ports:
-      - "8000:8080"
+      - "127.0.0.1:7727:7727"
     environment:
-      - DATABASE_URL=postgresql://sparkth:sparkth_password@db:5432/sparkth
-      - PORT=8080
-    working_dir: /app
+      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+      PORT: "7727"
     volumes:
       - ./app:/app/app
     depends_on:
@@ -20,27 +19,22 @@ services:
   # Postgres
   # ----------------------------------------
   db:
-    image: postgres:18-alpine
-    container_name: db
-    restart: always
+    image: docker.io/postgres:18-alpine
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=sparkth
-      - POSTGRES_PASSWORD=sparkth_password
-      - POSTGRES_DB=sparkth
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: sparkth
+      POSTGRES_PASSWORD: sparkth_password
+      POSTGRES_DB: sparkth
     volumes:
-      - sparkth_data:/var/lib/postgresql/data
+      - ./data/postgresql:/var/lib/postgresql/data
 
   # ----------------------------------------
   # Alembic Migrations
   # ----------------------------------------
   migrations:
     build: .
-    container_name: migrations
     environment:
-      - DATABASE_URL=postgresql://sparkth:sparkth_password@db:5432/sparkth
-    working_dir: /app
+      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
     command: >
       sh -c "
       echo '⏳ Waiting for DB...' &&
@@ -49,6 +43,3 @@ services:
       "
     depends_on:
       - db
-
-volumes:
-  sparkth_data:
