@@ -2,26 +2,72 @@
 .DEFAULT_GOAL := help
 
 # --------------------------------------------------
+# VARIABLES
+# --------------------------------------------------
+# Extract arguments for the catch-all targets (create-user, etc.)
+ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+
+# --------------------------------------------------
 # PHONY TARGETS
 # --------------------------------------------------
-.PHONY: help uv dev lock install test cov start lint fix build create-user reset-password
+.PHONY: help uv dev lock install test cov lint fix build \
+        up dev.up down restart logs shell db-shell \
+        create-user reset-password
 
 # --------------------------------------------------
 # HELP
 # --------------------------------------------------
 help: ## Show this help
 	@echo "Usage: make \033[36m<target>\033[0m [options]\n"
-	@echo "\033[1mTargets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\033[1mDocker Targets:\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\n\033[1mLocal Dev Targets:\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|test|cov|lint|fix|build)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\n\033[1mUser Management (In Docker):\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(create-user|reset-password)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo
 
 # --------------------------------------------------
-# Setup
+# Docker Operations
+# --------------------------------------------------
+up: ## Start app and db (Background)
+	docker compose up -d --build
+
+dev.up: ## Start app in dev mode (hot reload)
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+down: ## Stop and remove containers
+	docker compose down
+
+clean: ## Stop and wipe database volume (Fresh Start)
+	docker compose down -v
+
+logs: ## Tail logs for all containers
+	docker compose logs -f
+
+shell: ## Open shell inside the API container
+	docker compose exec api /bin/bash
+
+db-shell: ## Open Postgres shell inside DB container
+	docker compose exec db psql -U sparkth -d sparkth
+
+# --------------------------------------------------
+# User Management (Runs inside Docker)
+# --------------------------------------------------
+# These run inside the container so they can access the DB network
+create-user: ## Create user (make create-user -- --username john)
+	docker compose exec api python -m app.cli.main users create-user $(ARGS)
+
+reset-password: ## Reset password (make reset-password -- username)
+	docker compose exec api python -m app.cli.main users reset-password $(ARGS)
+
+# --------------------------------------------------
+# Local Development (using uv)
 # --------------------------------------------------
 uv: ## Install uv if missing
 	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 
-dev: uv ## Install dev dependencies
+dev: uv ## Install dev dependencies locally
 	uv sync --all-extras --dev
 
 lock: uv ## Update lockfile
@@ -30,46 +76,21 @@ lock: uv ## Update lockfile
 install: uv ## Install exact versions from lockfile
 	uv sync --frozen
 
-# --------------------------------------------------
-# Development
-# --------------------------------------------------
 test: ## Run tests
 	uv run pytest tests/
 
 cov: ## Run tests with coverage
 	uv run pytest tests/ --cov-report=term-missing
 
-start: ## Start the API server
-	uv run uvicorn app.main:app --reload
-
-lint: ## Lint with ruff
+lint: ## Lint with ruff locally
 	uv run ruff check
 
-fix: ## Auto-fix + format with ruff
+fix: ## Auto-fix + format locally
 	uv run ruff check --fix
 	uv run ruff format
 
 # --------------------------------------------------
-# Build
-# --------------------------------------------------
-build: ## Build package
-	uv build
-
-# --------------------------------------------------
-# User Management
-# --------------------------------------------------
-# Use -- to separate make options from command arguments
-
-ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-
-create-user: ## Create a user (usage: make create-user -- --username john)
-	uv run python -m app.cli.main users create-user $(ARGS)
-
-reset-password: ## Reset password (usage: make reset-password -- username)
-	uv run python -m app.cli.main users reset-password $(ARGS)
-
-# --------------------------------------------------
-# Catch-all target for forwarding --flags to commands
+# Catch-all for argument forwarding
 # --------------------------------------------------
 %:
 	@:
