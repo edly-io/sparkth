@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime
 
 
@@ -9,10 +9,16 @@ class AuthenticationPayload(BaseModel):
     api_token: str
 
 
+class CourseParams(BaseModel):
+    page: int
+    course_id: int
+    auth: AuthenticationPayload
+
+
 class CourseFormat(str, Enum):
-    on_campus = "on_campus"
-    online = "online"
-    blended = "blended"
+    ON_CAMPUS = "on_campus"
+    ONLINE = "online"
+    BLENDED = "blended"
 
 
 class Course(BaseModel):
@@ -39,6 +45,7 @@ class ModuleParams(BaseModel):
     auth: AuthenticationPayload
     course_id: int
     module_id: int
+    page: int
 
 
 class Module(BaseModel):
@@ -94,6 +101,11 @@ class ModuleItem(BaseModel):
     title: str
     type: ModuleItemType = Field(alias="type")
     page_url: Optional[str] = None
+    content_id: Optional[str] = None
+    position: Optional[int] = None
+    indent: Optional[int] = None
+    new_tab: Optional[bool] = None
+    completion_requirement: Optional[ModuleItemCompletionRequirement] = None
 
 
 class ModuleItemPayload(BaseModel):
@@ -120,11 +132,6 @@ class UpdateModuleItemPayload(BaseModel):
     item_id: int
     module_item: UpdatedModuleItem
     auth: AuthenticationPayload
-
-
-class ListPagesRequest(BaseModel):
-    auth: AuthenticationPayload
-    course_id: int
 
 
 class PageRequest(BaseModel):
@@ -173,10 +180,11 @@ class UpdatePagePayload(BaseModel):
     wiki_page: UpdatedPage
 
 
-class QuizRequest(BaseModel):
+class QuizParams(BaseModel):
     auth: AuthenticationPayload
     course_id: int
     quiz_id: int
+    page: int
 
 
 class QuizType(str, Enum):
@@ -247,7 +255,7 @@ class UpdateQuizPayload(BaseModel):
     quiz: UpdatedQuiz
 
 
-class QuestionRequest(BaseModel):
+class QuestionParams(BaseModel):
     auth: AuthenticationPayload
     course_id: int
     quiz_id: int
@@ -309,3 +317,18 @@ class UpdateQuestionPayload(BaseModel):
     quiz_id: int
     question_id: int
     auth: AuthenticationPayload
+
+
+PayloadType = Union[
+    CoursePayload,
+    ModulePayload,
+    UpdateModulePayload,
+    ModuleItemPayload,
+    UpdateModuleItemPayload,
+    PagePayload,
+    UpdatePagePayload,
+    QuizPayload,
+    UpdateQuizPayload,
+    QuestionPayload,
+    UpdateQuestionPayload,
+]

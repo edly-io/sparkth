@@ -1,7 +1,8 @@
 from enum import Enum
-import json
+from typing import Any, Dict, Optional
 import aiohttp
-from .types import LMSError
+from sparkth_mcp.types import LMSError
+from sparkth_mcp.canvas.types import PayloadType
 
 
 class Auth(str, Enum):
@@ -14,11 +15,10 @@ async def request(
     auth: Auth,
     token: str,
     method: str = "GET",
-    params=None,
-    payload=None,
-    client: aiohttp.ClientSession = None,
-) -> json:
-    if client is None:
+    payload: Optional[PayloadType] = None,
+    session: aiohttp.ClientSession = None,
+) -> Dict[str, Any]:
+    if session is None:
         raise ValueError("ClientSession instance is required.")
 
     headers = {
@@ -27,11 +27,9 @@ async def request(
         "Content-Type": "application/json",
     }
 
-    async with client.request(
-        method, url, headers=headers, params=params, json=payload
-    ) as response:
+    async with session.request(method, url, headers=headers, json=payload) as response:
         if response.status < 200 or response.status >= 300:
-            raise await handle_error_response(response)
+            raise await handle_error_response(method, url, response)
 
         text = await response.text()
         if not text.strip():
@@ -40,12 +38,14 @@ async def request(
         try:
             json_value = await response.json()
         except aiohttp.ContentTypeError as e:
-            raise LMSError(response.status, e.message)
+            raise LMSError(method, url, response.status, e.message)
 
         return json_value
 
 
-async def handle_error_response(response: aiohttp.ClientResponse) -> LMSError:
+async def handle_error_response(
+    method: str, url: str, response: aiohttp.ClientResponse
+) -> LMSError:
     try:
         text = await response.text()
     except aiohttp.ClientPayloadError:
@@ -59,4 +59,4 @@ async def handle_error_response(response: aiohttp.ClientResponse) -> LMSError:
     except aiohttp.ContentTypeError:
         pass
 
-    return LMSError(response.status, message)
+    return LMSError(method, url, response.status, message)

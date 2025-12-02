@@ -1,12 +1,12 @@
-import json
+from typing import Any, Dict
 
-from .client import CanvasClient
-from ..server import mcp
-from ..types import AuthenticationError
-from .types import (
+from sparkth_mcp.canvas.client import CanvasClient
+from sparkth_mcp.server import mcp
+from sparkth_mcp.types import AuthenticationError
+from sparkth_mcp.canvas.types import (
     AuthenticationPayload,
+    CourseParams,
     CoursePayload,
-    ListPagesRequest,
     ModuleItemParams,
     ModuleItemPayload,
     ModuleParams,
@@ -14,9 +14,9 @@ from .types import (
     PagePayload,
     PageRequest,
     QuestionPayload,
-    QuestionRequest,
+    QuestionParams,
     QuizPayload,
-    QuizRequest,
+    QuizParams,
     UpdateModuleItemPayload,
     UpdateModulePayload,
     UpdatePagePayload,
@@ -26,19 +26,20 @@ from .types import (
 
 
 @mcp.tool
-async def canvas_authenticate(api_url: str, api_token: str) -> json:
+async def canvas_authenticate(auth: AuthenticationPayload) -> Dict[str, Any]:
     """
     Authenticate the provided Canvas API URL and token.
     If either argument is missing, the client must supply it. Default values for required fields are never assumed.
 
     Args:
-        api_url (str): The Canvas API base URL (e.g. https://canvas.instructure.com/api/v1/).
-        api_token (str): The user's Canvas API token used for authentication.
+        payload (AuthenticationPayload): The credentials required for authentication. Include:
+            api_url (str): The Canvas API base URL (e.g. https://canvas.instructure.com/api/v1/).
+            api_token (str): The user's Canvas API token used for authentication.
     """
     res = {}
 
     try:
-        res = await CanvasClient.authenticate(api_url, api_token)
+        res = await CanvasClient.authenticate(auth.api_url, auth.api_token)
     except AuthenticationError as e:
         return {"status": e.status_code, "message": e.message}
 
@@ -46,24 +47,32 @@ async def canvas_authenticate(api_url: str, api_token: str) -> json:
 
 
 @mcp.tool
-async def canvas_get_courses(api_url: str, api_token: str) -> json:
+async def canvas_get_courses(
+    params: AuthenticationPayload, page: int
+) -> Dict[str, Any]:
     """
-    Retrieve all courses for the user.
+    Retrieve a paginated list of courses for the user.
 
     If either argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the course list.
 
     Args:
-        api_url (str): The Canvas API base URL (e.g., https://canvas.instructure.com/api/v1/).
-        api_token (str): The user's Canvas API token used for authentication.
+        params (AuthenticationPayload): The credentials required for authentication. Include:
+            api_url (str): The Canvas API base URL (e.g., https://canvas.instructure.com/api/v1/).
+            api_token (str): The user's Canvas API token used for authentication.
     """
-    canvas_client = CanvasClient(api_url, api_token)
-    return await canvas_client.request_bearer("GET", "courses")
+    canvas_client = CanvasClient(params.api_url, params.api_token)
+    try:
+        courses = await canvas_client.get(f"courses?page={page}")
+    finally:
+        await canvas_client.close()
+
+    return {"courses": courses}
 
 
 @mcp.tool
-async def canvas_get_course(api_url: str, api_token: str, course_id) -> json:
+async def canvas_get_course(params: CourseParams) -> Dict[str, Any]:
     """
     Retrieve a single course for the user by course_id.
 
@@ -72,16 +81,22 @@ async def canvas_get_course(api_url: str, api_token: str, course_id) -> json:
     retrieving the course list.
 
     Args:
-        api_url (str): The Canvas API base URL (e.g., https://canvas.instructure.com/api/v1/).
-        api_token (str): The user's Canvas API token used for authentication.
-        course_id (int): The id for the course to be retrieved
+        params (CourseParams): The parameters to fetch a course. Consist of:
+            auth (AuthenticationPayload): The credentials required for authentication, i.e., api_url and api_token.
+            course_id (int): The id for the course to be retrieved
     """
-    canvas_client = CanvasClient(api_url, api_token)
-    return await canvas_client.request_bearer("GET", f"courses/{course_id}")
+    auth = params.auth
+    canvas_client = CanvasClient(auth.api_url, auth.api_token)
+    try:
+        result = await canvas_client.get(f"courses/{params.course_id}")
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_create_course(payload: CoursePayload) -> json:
+async def canvas_create_course(payload: CoursePayload) -> Dict[str, Any]:
     """
     Create a new course on Canvas.
 
@@ -90,8 +105,6 @@ async def canvas_create_course(payload: CoursePayload) -> json:
     retrieving the course list.
 
     Args:
-        api_url (str): The Canvas API base URL (e.g., https://canvas.instructure.com/api/v1/).
-        api_token (str): The user's Canvas API token used for authentication.
         payload (CoursePayload): The payload to create a course
     """
 
@@ -102,37 +115,47 @@ async def canvas_create_course(payload: CoursePayload) -> json:
     account_id = payload.account_id
     path = f"accounts/{account_id}/courses"
 
-    response = await client.request_bearer(
-        "POST",
-        path,
-        payload.model_dump(),
-    )
+    try:
+        result = await client.post(
+            path,
+            payload.model_dump(),
+        )
+    finally:
+        await client.close()
 
-    return {
-        "success": True,
-        "course": response,
-    }
+    return result
 
 
 @mcp.tool
-async def canvas_list_modules(auth: AuthenticationPayload, course_id: int) -> json:
+async def canvas_list_modules(params: CourseParams) -> Dict[str, Any]:
     """
-    Retrieve all modules for a course
+    Retrieve a paginated list of modules for a course
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the modules list.
 
     Args:
-        auth (AuthenticationPayload): The api_url and api_token needed for authentication
-        course_id (int): The id for the course whose modules are to be retrieved
+         params (CourseParams): The parameters for the couse whose modules are to be fetched. Consist of:
+            auth (AuthenticationPayload): The credentials required for authentication, i.e., api_url and api_token.
+            course_id (int): The id for the course whose modules are to be fetched
+            page (int): The page index
     """
+    auth = params.auth
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", f"courses/{course_id}/modules")
+
+    try:
+        modules = await canvas_client.get(
+            f"courses/{params.course_id}/modules?page={params.page}"
+        )
+    finally:
+        await canvas_client.close()
+
+    return {"modules": modules}
 
 
 @mcp.tool
-async def canvas_list_module(params: ModuleParams) -> json:
+async def canvas_gets_module(params: ModuleParams) -> Dict[str, Any]:
     """
     Retrieve a single module for a course
 
@@ -148,13 +171,16 @@ async def canvas_list_module(params: ModuleParams) -> json:
     module_id = params.module_id
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer(
-        "GET", f"courses/{course_id}/modules/{module_id}"
-    )
+    try:
+        result = await canvas_client.get(f"courses/{course_id}/modules/{module_id}")
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_create_module(payload: ModulePayload) -> json:
+async def canvas_create_module(payload: ModulePayload) -> Dict[str, Any]:
     """
     Create a module for a course
 
@@ -171,11 +197,17 @@ async def canvas_create_module(payload: ModulePayload) -> json:
     path = f"courses/{course_id}/modules"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("POST", path, payload.model_dump())
+
+    try:
+        result = await canvas_client.post(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_update_module(payload: UpdateModulePayload) -> json:
+async def canvas_update_module(payload: UpdateModulePayload) -> Dict[str, Any]:
     """
     Update a module of a course
 
@@ -192,54 +224,72 @@ async def canvas_update_module(payload: UpdateModulePayload) -> json:
     path = f"courses/{course_id}/modules/{module_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("PUT", path, payload.model_dump())
+
+    try:
+        result = await canvas_client.put(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_delete_module(request: ModuleParams) -> json:
+async def canvas_delete_module(params: ModuleParams) -> Dict[str, Any]:
     """
-    Delete a module specified in the request
+    Delete a module specified in the params.
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the modules list.
 
     Args:
-        request (ModuleParams): Consist of auth (api_url, api_token), course_id and module_id
+        params (ModuleParams): Consist of auth (api_url, api_token), course_id and module_id
     """
-    auth = request.auth
-    course_id = request.course_id
-    module_id = request.module_id
+    auth = params.auth
+    course_id = params.course_id
+    module_id = params.module_id
     path = f"courses/{course_id}/modules/{module_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("DELETE", path)
+    try:
+        result = await canvas_client.delete(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_list_module_items(request: ModuleParams) -> json:
+async def canvas_list_module_items(params: ModuleParams) -> Dict[str, Any]:
     """
-    List all module items in a specified module for a course
+    Retrieve a paginated list of module items in a specified module for a course
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the modules list.
 
     Args:
-        request (ModuleParams): Consist of auth (api_url, api_token), course_id and module_id
+        params (ModuleParams): Consist of auth (api_url, api_token), course_id, module_id and page index
     """
-    auth = request.auth
-    course_id = request.course_id
-    module_id = request.module_id
+    auth = params.auth
+    course_id = params.course_id
+    module_id = params.module_id
+    page = params.page
 
-    path = f"courses/{course_id}/modules/{module_id}/items"
+    path = f"courses/{course_id}/modules/{module_id}/items?page={page}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+
+    try:
+        result = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_get_module_item(request: ModuleItemParams) -> json:
+async def canvas_get_module_item(params: ModuleItemParams) -> Dict[str, Any]:
     """
     List a single module item in a specified module for a course
 
@@ -248,21 +298,27 @@ async def canvas_get_module_item(request: ModuleItemParams) -> json:
     retrieving the modules list.
 
     Args:
-        request (ModuleItemParams): Consist of auth (api_url, api_token), course_id, module_id and module_item_id
+        params (ModuleItemParams): Consist of auth (api_url, api_token), course_id, module_id and module_item_id
     """
-    auth = request.auth
-    course_id = request.course_id
-    module_id = request.module_id
-    module_item_id = request.module_item_id
+    auth = params.auth
+    course_id = params.course_id
+    module_id = params.module_id
+    module_item_id = params.module_item_id
 
     path = f"courses/{course_id}/modules/{module_id}/items/{module_item_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+
+    try:
+        result = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_create_module_item(payload: ModuleItemPayload) -> json:
+async def canvas_create_module_item(payload: ModuleItemPayload) -> Dict[str, Any]:
     """
     Create a module item in a specified module for a course
 
@@ -282,11 +338,16 @@ async def canvas_create_module_item(payload: ModuleItemPayload) -> json:
     path = f"courses/{course_id}/modules/{module_id}/items"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("POST", path, payload.model_dump())
+    try:
+        result = await canvas_client.post(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> json:
+async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> Dict[str, Any]:
     """
     Update a specified module item for a course
 
@@ -305,52 +366,69 @@ async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> json:
     path = f"courses/{course_id}/modules/{module_id}/items/{item_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("PUT", path, payload.model_dump())
+    try:
+        result = await canvas_client.put(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_delete_module_item(request: ModuleItemParams) -> json:
+async def canvas_delete_module_item(params: ModuleItemParams) -> Dict[str, Any]:
     """
-    Delete a module item specified in the request
+    Delete a module item specified in the params.
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the modules list.
 
     Args:
-        request (ModuleItemParams): Consist of auth (api_url, api_token), course_id, module_id and module_item_id
-    """
-    auth = request.auth
-    course_id = request.course_id
-    module_id = request.module_id
-    module_item_id = request.module_item_id
-    path = f"courses/{course_id}/modules/{module_id}/items/{module_item_id}"
-
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("DELETE", path)
-
-
-@mcp.tool
-async def canvas_list_pages(params: ListPagesRequest) -> json:
-    """
-    Retrieve all pages for a course
-
-    If any argument is missing, the client must provide it. Default values for required fields are never assumed.
-    If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
-
-    Args:
-        params (ListPagesRequest): Consist of auth (api_url, api_token) and course_id
+        params (ModuleItemParams): Consist of auth (api_url, api_token), course_id, module_id and module_item_id
     """
     auth = params.auth
     course_id = params.course_id
+    module_id = params.module_id
+    module_item_id = params.module_item_id
+    path = f"courses/{course_id}/modules/{module_id}/items/{module_item_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", f"courses/{course_id}/pages")
+    try:
+        result = await canvas_client.delete(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_get_page(params: PageRequest) -> json:
+async def canvas_list_pages(params: CourseParams) -> Dict[str, Any]:
+    """
+    Retrieve a paginated list of pages for a course.
+
+    If any argument is missing, the client must provide it. Default values for required fields are never assumed.
+    If the credentials have not already been authenticated, they must be validated before
+    retrieving the modules list.
+
+    Args:
+        params (CourseParams): Consist of auth (api_url, api_token), course_id and page index
+    """
+    auth = params.auth
+    course_id = params.course_id
+    page = params.page
+
+    canvas_client = CanvasClient(auth.api_url, auth.api_token)
+    try:
+        result = await canvas_client.get(f"courses/{course_id}/pages?page={page}")
+
+    finally:
+        await canvas_client.close()
+
+    return result
+
+
+@mcp.tool
+async def canvas_get_page(params: PageRequest) -> Dict[str, Any]:
     """
     Retrieve a page for a course by page_url
 
@@ -367,11 +445,16 @@ async def canvas_get_page(params: PageRequest) -> json:
     path = f"courses/{course_id}/pages/{page_url}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+    try:
+        result = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_create_page(payload: PagePayload) -> json:
+async def canvas_create_page(payload: PagePayload) -> Dict[str, Any]:
     """
     Create a page for a course
 
@@ -387,11 +470,16 @@ async def canvas_create_page(payload: PagePayload) -> json:
     path = f"courses/{course_id}/pages"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("POST", path, payload.model_dump())
+    try:
+        result = await canvas_client.post(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_update_page(payload: UpdatePagePayload) -> json:
+async def canvas_update_page(payload: UpdatePagePayload) -> Dict[str, Any]:
     """
     Update a page for a course
 
@@ -408,11 +496,16 @@ async def canvas_update_page(payload: UpdatePagePayload) -> json:
     path = f"courses/{course_id}/pages/{page_url}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("PUT", path, payload.model_dump())
+    try:
+        result = await canvas_client.put(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_delete_page(params: PageRequest) -> json:
+async def canvas_delete_page(params: PageRequest) -> Dict[str, Any]:
     """
     Delete a page for a course
 
@@ -429,30 +522,44 @@ async def canvas_delete_page(params: PageRequest) -> json:
     path = f"courses/{course_id}/pages/{page_url}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("DELETE", path)
+    try:
+        result = await canvas_client.delete(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_list_quizzes(auth: AuthenticationPayload, course_id: int) -> json:
+async def canvas_list_quizzes(params: CourseParams) -> Dict[str, Any]:
     """
-    List all quizzes for a course
+    Retrieve a paginated list of quizzes for a course
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the modules list.
 
     Args:
-        auth (AuthenticationPayload): Consist of api_url and api_token
-        course_id (int): The course ID
+        params (CourseParams): The params for the request, consist of
+            auth (AuthenticationPayload): Consist of api_url and api_token
+            course_id (int): The course ID
+            page (int): The page index
+
     """
-    path = f"courses/{course_id}/quizzes"
+    auth = params.auth
+    path = f"courses/{params.course_id}/quizzes?page={params.page}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+    try:
+        quizzes = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return {"quizzes": quizzes}
 
 
 @mcp.tool
-async def canvas_get_quizzes(params: QuizRequest) -> json:
+async def canvas_get_quiz(params: QuizParams) -> Dict[str, Any]:
     """
     Get a single quiz for a course
 
@@ -461,7 +568,7 @@ async def canvas_get_quizzes(params: QuizRequest) -> json:
     retrieving the modules list.
 
     Args:
-        params (QuizRequest): Consist of auth (api_url, api_token), course_id and quiz_id.
+        params (QuizParams): Consist of auth (api_url, api_token), course_id and quiz_id.
     """
     auth = params.auth
     course_id = params.course_id
@@ -469,11 +576,16 @@ async def canvas_get_quizzes(params: QuizRequest) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+    try:
+        result = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_create_quiz(payload: QuizPayload) -> json:
+async def canvas_create_quiz(payload: QuizPayload) -> Dict[str, Any]:
     """
     Create a quiz for a course
 
@@ -489,11 +601,16 @@ async def canvas_create_quiz(payload: QuizPayload) -> json:
     path = f"courses/{course_id}/quizzes"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("POST", path, payload.model_dump())
+    try:
+        result = await canvas_client.post(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_update_quiz(payload: UpdateQuizPayload) -> json:
+async def canvas_update_quiz(payload: UpdateQuizPayload) -> Dict[str, Any]:
     """
     Update a quiz for a course
 
@@ -510,11 +627,16 @@ async def canvas_update_quiz(payload: UpdateQuizPayload) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("PUT", path, payload.model_dump())
+    try:
+        result = await canvas_client.put(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_delete_quiz(params: QuizRequest) -> json:
+async def canvas_delete_quiz(params: QuizParams) -> Dict[str, Any]:
     """
     Delete a quiz for a course
 
@@ -531,32 +653,44 @@ async def canvas_delete_quiz(params: QuizRequest) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("DELETE", path)
+
+    try:
+        result = await canvas_client.delete(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_list_questions(request: QuizRequest) -> json:
+async def canvas_list_questions(params: QuizParams) -> Dict[str, Any]:
     """
-    List all questions in a quiz for a course
+    Retrieve a paginated list of questions in a quiz for a course
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
     retrieving the modules list.
 
     Args:
-        request (QuizRequest): Consist of auth (api_url and api_token), course_id and quiz_id
+        params (QuizRequest): Consist of auth (api_url and api_token), course_id, quiz_id and page index
     """
-    auth = request.auth
-    course_id = request.course_id
-    quiz_id = request.quiz_id
-    path = f"courses/{course_id}/quizzes/{quiz_id}/questions"
+    auth = params.auth
+    course_id = params.course_id
+    quiz_id = params.quiz_id
+    page = params.page
+    path = f"courses/{course_id}/quizzes/{quiz_id}/questions?page={page}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+    try:
+        questions = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return {"questions": questions}
 
 
 @mcp.tool
-async def canvas_get_question(params: QuestionRequest) -> json:
+async def canvas_get_question(params: QuestionParams) -> Dict[str, Any]:
     """
     Get a single question of a quiz for a course
 
@@ -565,7 +699,7 @@ async def canvas_get_question(params: QuestionRequest) -> json:
     retrieving the modules list.
 
     Args:
-        params (QuestionRequest): Consist of auth (api_url, api_token), course_id, quiz_id and question_id.
+        params (QuestionParams): Consist of auth (api_url, api_token), course_id, quiz_id and question_id.
     """
     auth = params.auth
     course_id = params.course_id
@@ -574,11 +708,16 @@ async def canvas_get_question(params: QuestionRequest) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("GET", path)
+    try:
+        result = await canvas_client.get(path)
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_create_question(payload: QuestionPayload) -> json:
+async def canvas_create_question(payload: QuestionPayload) -> Dict[str, Any]:
     """
     Create a question in a quiz for a course
 
@@ -587,7 +726,7 @@ async def canvas_create_question(payload: QuestionPayload) -> json:
     retrieving the modules list.
 
     Args:
-        payload (QuizPayload): Consist of auth (api_url, api_token), course_id, quiz_id and question payload
+        payload (QuestionPayload): Consist of auth (api_url, api_token), course_id, quiz_id and question payload
     """
     auth = payload.auth
     course_id = payload.course_id
@@ -595,11 +734,17 @@ async def canvas_create_question(payload: QuestionPayload) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("POST", path, payload.model_dump())
+
+    try:
+        result = await canvas_client.post(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_update_question(payload: UpdateQuestionPayload) -> json:
+async def canvas_update_question(payload: UpdateQuestionPayload) -> Dict[str, Any]:
     """
     Update a question in a quiz for a course
 
@@ -617,11 +762,17 @@ async def canvas_update_question(payload: UpdateQuestionPayload) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("PUT", path, payload.model_dump())
+
+    try:
+        result = await canvas_client.put(path, payload.model_dump())
+    finally:
+        await canvas_client.close()
+
+    return result
 
 
 @mcp.tool
-async def canvas_delete_question(params: QuestionRequest) -> json:
+async def canvas_delete_question(params: QuestionParams) -> Dict[str, Any]:
     """
     Delete a question in a quiz for a course
 
@@ -630,7 +781,7 @@ async def canvas_delete_question(params: QuestionRequest) -> json:
     retrieving the modules list.
 
     Args:
-        params (QuestionRequest): Consist of auth (api_url, api_token), course_id, quiz_id and question_id.
+        params (QuestionParams): Consist of auth (api_url, api_token), course_id, quiz_id and question_id.
     """
     auth = params.auth
     course_id = params.course_id
@@ -639,4 +790,9 @@ async def canvas_delete_question(params: QuestionRequest) -> json:
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}"
 
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    return await canvas_client.request_bearer("DELETE", path)
+    try:
+        result = await canvas_client.delete(path)
+    finally:
+        await canvas_client.close()
+
+    return result

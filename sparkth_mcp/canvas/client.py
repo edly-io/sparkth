@@ -1,8 +1,10 @@
-import json
+from typing import Any, Dict, Optional
 import aiohttp
 from urllib.parse import urljoin
-from ..types import AuthenticationError
-from ..request import Auth, request
+
+from sparkth_mcp.types import AuthenticationError
+from sparkth_mcp.request import Auth, request
+from sparkth_mcp.canvas.types import PayloadType
 
 
 class CanvasClient:
@@ -24,9 +26,23 @@ class CanvasClient:
                     raise AuthenticationError(response.status, errors)
         return response.status
 
-    async def request_bearer(self, method: str, endpoint: str, payload=None) -> json:
+    async def get(self, endpoint):
+        return await self.request_bearer("get", endpoint)
+
+    async def post(self, endpoint: str, payload: Optional[PayloadType] = None):
+        return await self.request_bearer("post", endpoint, payload)
+
+    async def put(self, endpoint: str, payload: Optional[PayloadType] = None):
+        return await self.request_bearer("put", endpoint, payload)
+
+    async def delete(self, endpoint):
+        return await self.request_bearer("delete", endpoint)
+
+    async def request_bearer(
+        self, method: str, endpoint: str, payload: Optional[PayloadType] = None
+    ) -> Dict[str, Any]:
         if not self.api_token:
-            raise AuthenticationError(404, "API Token not found")
+            raise AuthenticationError(401, "API Token not found")
 
         url = urljoin(self.api_url + "/", endpoint.lstrip("/"))
         return await request(
@@ -34,10 +50,10 @@ class CanvasClient:
             Auth.BEARER,
             self.api_token,
             method,
-            None,
             payload,
             self.session,
         )
 
     async def close(self):
-        await self.session.close()
+        if self.session and not self.session.closed:
+            await self.session.close()

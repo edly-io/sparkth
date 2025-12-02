@@ -1,8 +1,8 @@
 import json
 from fastmcp import FastMCP
 
-from .types import CourseGenerationPromptRequest
-from .prompt import get_course_generation_prompt
+from sparkth_mcp.types import CourseGenerationPromptRequest
+from sparkth_mcp.prompts.prompt import get_course_generation_prompt
 
 mcp = FastMCP("Sparkth")
 
