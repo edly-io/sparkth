@@ -35,3 +35,27 @@ dev = [
     "ruff>=0.14.5",
     "mypy>=1.19.0",
 ]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+exclude = [
+    "migrations",
+    ".venv",
+]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[[tool.mypy.overrides]]
+module = [
+    "sqlmodel.*",
+    "fastmcp.*",
+]
+ignore_missing_imports = true
