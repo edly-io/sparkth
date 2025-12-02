@@ -47,9 +47,7 @@ async def canvas_authenticate(auth: AuthenticationPayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_courses(
-    params: AuthenticationPayload, page: int
-) -> Dict[str, Any]:
+async def canvas_get_courses(params: AuthenticationPayload, page: int) -> Dict[str, Any]:
     """
     Retrieve a paginated list of courses for the user.
 
@@ -145,9 +143,7 @@ async def canvas_list_modules(params: CourseParams) -> Dict[str, Any]:
     canvas_client = CanvasClient(auth.api_url, auth.api_token)
 
     try:
-        modules = await canvas_client.get(
-            f"courses/{params.course_id}/modules?page={params.page}"
-        )
+        modules = await canvas_client.get(f"courses/{params.course_id}/modules?page={params.page}")
     finally:
         await canvas_client.close()
 

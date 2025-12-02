@@ -38,9 +38,7 @@ class CanvasClient:
     async def delete(self, endpoint):
         return await self.request_bearer("delete", endpoint)
 
-    async def request_bearer(
-        self, method: str, endpoint: str, payload: Optional[PayloadType] = None
-    ) -> Dict[str, Any]:
+    async def request_bearer(self, method: str, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
         if not self.api_token:
             raise AuthenticationError(401, "API Token not found")
 

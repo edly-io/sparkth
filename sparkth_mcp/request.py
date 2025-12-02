@@ -43,9 +43,7 @@ async def request(
         return json_value
 
 
-async def handle_error_response(
-    method: str, url: str, response: aiohttp.ClientResponse
-) -> LMSError:
+async def handle_error_response(method: str, url: str, response: aiohttp.ClientResponse) -> LMSError:
     try:
         text = await response.text()
     except aiohttp.ClientPayloadError:

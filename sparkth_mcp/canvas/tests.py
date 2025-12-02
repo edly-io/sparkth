@@ -37,9 +37,7 @@ class TestCanvasClientAuthenticate:
 
         mock_response = AsyncMock()
         mock_response.status = 401
-        mock_response.json = AsyncMock(
-            return_value={"errors": [{"message": "Invalid access token"}]}
-        )
+        mock_response.json = AsyncMock(return_value={"errors": [{"message": "Invalid access token"}]})
         mock_response.__aenter__.return_value = mock_response
         mock_response.__aexit__.return_value = None
 
