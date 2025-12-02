@@ -5,11 +5,11 @@ from sparkth_mcp.mode import TransportMode
 mcp = FastMCP("Sparkth")
 
 
-def run_stdio():
+def run_stdio() -> None:
     mcp.run()
 
 
-def run_http(host, port):
+def run_http(host: str, port: int) -> None:
     mcp.run(transport="http", host=host, port=port)
 
 
@@ -18,7 +18,7 @@ def add(a: int, b: int) -> int:
     return a + b
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
