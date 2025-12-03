@@ -91,7 +91,7 @@ class OpenEdxClient:
             raise AuthenticationError(401, "Access token not set")
 
         url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return await request(url, Auth.Jwt, self.access_token, method, params, payload)
+        return await request(url, self.session, Auth.Jwt, self.access_token, method, payload)
 
     async def close(self):
         await self.session.close()

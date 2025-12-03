@@ -32,7 +32,7 @@ class CanvasClient:
                     raise AuthenticationError(response.status, errors)
         return response.status
 
-    async def get(self, endpoint) -> Dict[str, Any]:
+    async def get(self, endpoint: str) -> Dict[str, Any]:
         return await self.request_bearer("get", endpoint)
 
     async def post(self, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
@@ -41,7 +41,7 @@ class CanvasClient:
     async def put(self, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
         return await self.request_bearer("put", endpoint, payload)
 
-    async def delete(self, endpoint) -> Dict[str, Any]:
+    async def delete(self, endpoint: str) -> Dict[str, Any]:
         return await self.request_bearer("delete", endpoint)
 
     async def request_bearer(self, method: str, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
@@ -51,11 +51,11 @@ class CanvasClient:
         url = urljoin(self.api_url + "/", endpoint.lstrip("/"))
         return await request(
             url,
+            self.session,
             Auth.Bearer,
             self.api_token,
             method,
             payload,
-            self.session,
         )
 
     async def close(self):

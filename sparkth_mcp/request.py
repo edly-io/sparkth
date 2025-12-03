@@ -13,11 +13,11 @@ class Auth(str, Enum):
 
 async def request(
     url: str,
+    session: aiohttp.ClientSession,
     auth: Auth,
     token: str,
     method: str = "GET",
     payload: Optional[PayloadType] = None,
-    session: aiohttp.ClientSession = None,
 ) -> Dict[str, Any]:
     if session is None:
         raise ValueError("ClientSession instance is required.")
