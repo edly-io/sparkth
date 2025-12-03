@@ -1,4 +1,5 @@
-from typing import Optional
+from enum import Enum
+from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 
@@ -51,3 +52,50 @@ class ListCourseRunsArgs(BaseModel):
     auth: AccessTokenPayload
     page: Optional[int] = None
     page_size: Optional[int] = None
+
+
+class XBlock(BaseModel):
+    parent_locator: str
+    category: str
+    display_name: str
+
+
+class XBlockPayload(BaseModel):
+    auth: AccessTokenPayload
+    xblock: XBlock
+    course_id: str
+
+
+class Component(str, Enum):
+    Problem = "Problem"
+    Html = "Html"
+
+
+class ProblemOrHtmlArgs(BaseModel):
+    auth: AccessTokenPayload
+    course_id: str
+    unit_locator: str
+    kind: Optional[Component] = None
+    display_name: Optional[str] = None
+    data: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    mcq_boilerplate: Optional[bool] = None
+
+
+class UpdateXBlockPayload(BaseModel):
+    auth: AccessTokenPayload
+    course_id: str
+    locator: str
+    data: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class CourseTreeRequest(BaseModel):
+    auth: AccessTokenPayload
+    course_id: str
+
+
+class BlockContentArgs(BaseModel):
+    auth: AccessTokenPayload
+    course_id: str
+    locator: str

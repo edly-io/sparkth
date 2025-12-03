@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 import aiohttp
 
 from sparkth_mcp.openedx.types import TokenResponse
-from sparkth_mcp.request import handle_error_response
+from sparkth_mcp.request import Auth, handle_error_response, request
 from sparkth_mcp.types import AuthenticationError, JsonParseError
 
 
@@ -34,7 +34,7 @@ class OpenEdxClient:
                 data = await resp.json()
             except aiohttp.ContentTypeError as e:
                 text = await resp.text()
-                raise JsonParseError(resp.status(), f"Expected JSON, got: {text[:200]}") from e
+                raise JsonParseError(resp.status, f"Expected JSON, got: {text}") from e
 
         token_response = TokenResponse(**data)
         if not token_response.access_token.strip():
@@ -70,7 +70,7 @@ class OpenEdxClient:
         self.refresh_token = token_response.refresh_token or refresh_token
         return token_response.model_dump()
 
-    async def openedx_authenticate(self) -> Dict[str, Any]:
+    async def authenticate(self) -> Dict[str, Any]:
         return await self.request_jwt(
             method="GET",
             endpoint="api/user/v1/me",
@@ -91,23 +91,7 @@ class OpenEdxClient:
             raise AuthenticationError(401, "Access token not set")
 
         url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-
-        headers = {"Authorization": f"JWT {self.access_token}"}
-
-        async with self.session.request(
-            method,
-            url,
-            params=params,
-            json=payload,
-            headers=headers,
-        ) as resp:
-            if not resp.status < 300:
-                raise await handle_error_response(method, url, resp)
-
-            try:
-                return await resp.json()
-            except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
-                raise JsonParseError(resp.status, str(e))
+        return await request(url, Auth.Jwt, self.access_token, method, params, payload)
 
     async def close(self):
         await self.session.close()

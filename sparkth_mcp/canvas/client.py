@@ -51,7 +51,7 @@ class CanvasClient:
         url = urljoin(self.api_url + "/", endpoint.lstrip("/"))
         return await request(
             url,
-            Auth.BEARER,
+            Auth.Bearer,
             self.api_token,
             method,
             payload,

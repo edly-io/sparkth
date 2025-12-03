@@ -1,4 +1,5 @@
 from enum import Enum
+import json
 from typing import Any, Dict, Optional
 import aiohttp
 from sparkth_mcp.types import LMSError
@@ -6,8 +7,8 @@ from sparkth_mcp.canvas.types import PayloadType
 
 
 class Auth(str, Enum):
-    JWT = "Jwt"
-    BEARER = "Bearer"
+    Jwt = "Jwt"
+    Bearer = "Bearer"
 
 
 async def request(
@@ -37,7 +38,7 @@ async def request(
 
         try:
             json_value = await response.json()
-        except aiohttp.ContentTypeError as e:
+        except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
             raise LMSError(method, url, response.status, e.message)
 
         return json_value
