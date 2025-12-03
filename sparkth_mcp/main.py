@@ -1,8 +1,7 @@
 import argparse
-from fastmcp import FastMCP
 from sparkth_mcp.mode import TransportMode
-
-mcp = FastMCP("Sparkth")
+from sparkth_mcp.server import mcp
+from sparkth_mcp.canvas import tools  # noqa
 
 
 def run_stdio():
@@ -11,11 +10,6 @@ def run_stdio():
 
 def run_http(host, port):
     mcp.run(transport="http", host=host, port=port)
-
-
-@mcp.tool
-def add(a: int, b: int) -> int:
-    return a + b
 
 
 def main():
@@ -35,7 +29,7 @@ def main():
 
     if transport_mode == TransportMode.STDIO:
         run_stdio()
-    elif transport_mode == TransportMode.HTTP:
+    else:
         run_http(args.host, args.port)
 
 

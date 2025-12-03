@@ -59,6 +59,46 @@ chmod a+x sparkth
 
 Any CLI option supported by Sparkth MCP can be appended to this command.
 
+## Integrating the MCP Server with Claude
+Add the `sparkth` (or `sparkth.exe`) executable as an external tool to Claude Desktop by editing the Claude configuration file:
+
+```
+# macOS
+~/Library/Application\ Support/Claude/claude_desktop_config.json
+# Windows
+%APPDATA%\Claude\claude_desktop_config.json
+# Linux
+~/.config/Claude/claude_desktop_config.json
+```
+
+Add the Sparkth MCP server, such that your configuration looks like the following:
+```
+{
+  "mcpServers": {
+    "Sparkth stdio": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/<PATH TO SPARKTH REPOSITORY>/sparkth",
+        "run",
+        "-m",
+        "sparkth_mcp.main",
+        "--transport=stdio"
+      ]
+    }
+  }
+}
+
+```
+
+> Note: You may need to put the full path to the `uv` executable in the command field. You can get this by running `which uv` on macOS/Linux or `where uv` on Windows.
+
+Restart Claude Desktop. Ensure that the "Sparkth stdio" tools appear in the "Search and tools" menu. Then start a new chat and generate a course:
+
+> Use Sparkth to generate a very short course (~1 hour) on the literary merits of Hamlet, by Shakespeare.
+
+Sparkth will generate a prompt that will help Claude generate this course.
+
 #### Transport mode: http / stdio
 
 Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
@@ -70,8 +110,7 @@ Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
 
 The default is `http` on host http://0.0.0.0:7727.
 
-
-## Development
+## Makefile
 
 All common tasks are wrapped in a `Makefile` for convenience.
 
