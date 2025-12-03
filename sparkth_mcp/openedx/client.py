@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, Optional
 import aiohttp
 
@@ -55,11 +56,10 @@ class OpenEdxClient:
         async with self.session.post(auth_url, data=form) as resp:
             if not resp.status < 300:
                 raise await handle_error_response("POST", auth_url, resp)
-
             try:
                 data = await resp.json()
-            except Exception as e:
-                raise JsonParseError(resp.status(), str(e))
+            except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
+                raise JsonParseError(resp.status, str(e))
 
         token_response = TokenResponse(**data)
 
@@ -70,7 +70,7 @@ class OpenEdxClient:
         self.refresh_token = token_response.refresh_token or refresh_token
         return token_response.model_dump()
 
-    async def openedx_authenticate(self):
+    async def openedx_authenticate(self) -> Dict[str, Any]:
         return await self.request_jwt(
             method="GET",
             endpoint="api/user/v1/me",
@@ -83,10 +83,10 @@ class OpenEdxClient:
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]],
-        payload: Optional[Dict[str, Any]],
         base_url: str,
-    ):
+        params: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         if not self.access_token:
             raise AuthenticationError(401, "Access token not set")
 
@@ -106,8 +106,8 @@ class OpenEdxClient:
 
             try:
                 return await resp.json()
-            except Exception:
-                raise JsonParseError(resp.status(), "Invalid JSON response")
+            except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
+                raise JsonParseError(resp.status, str(e))
 
     async def close(self):
         await self.session.close()
