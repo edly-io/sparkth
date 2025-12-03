@@ -13,6 +13,13 @@ class AuthenticationError(Exception):
         super().__init__(f"{message} (status_code={status_code})")
 
 
+class JsonParseError(Exception):
+    def __init__(self, status_code, message):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(f"{message} (status_code={status_code})")
+
+
 class LMSError(Exception):
     def __init__(self, method: str, url, status_code, message):
         self.status_code = status_code
