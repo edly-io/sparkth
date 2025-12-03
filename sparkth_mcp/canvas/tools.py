@@ -32,7 +32,7 @@ async def canvas_authenticate(auth: AuthenticationPayload) -> Dict[str, Any]:
     If either argument is missing, the client must supply it. Default values for required fields are never assumed.
 
     Args:
-        payload (AuthenticationPayload): The credentials required for authentication. Include:
+        auth (AuthenticationPayload): The credentials required for authentication. Include:
             api_url (str): The Canvas API base URL (e.g. https://canvas.instructure.com/api/v1/).
             api_token (str): The user's Canvas API token used for authentication.
     """
@@ -47,7 +47,7 @@ async def canvas_authenticate(auth: AuthenticationPayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_courses(params: AuthenticationPayload, page: int) -> Dict[str, Any]:
+async def canvas_get_courses(auth: AuthenticationPayload, page: int) -> Dict[str, Any]:
     """
     Retrieve a paginated list of courses for the user.
 
@@ -56,15 +56,12 @@ async def canvas_get_courses(params: AuthenticationPayload, page: int) -> Dict[s
     retrieving the course list.
 
     Args:
-        params (AuthenticationPayload): The credentials required for authentication. Include:
+        auth (AuthenticationPayload): The credentials required for authentication. Include:
             api_url (str): The Canvas API base URL (e.g., https://canvas.instructure.com/api/v1/).
             api_token (str): The user's Canvas API token used for authentication.
     """
-    canvas_client = CanvasClient(params.api_url, params.api_token)
-    try:
-        courses = await canvas_client.get(f"courses?page={page}")
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        courses = await client.get(f"courses?page={page}")
 
     return {"courses": courses}
 
@@ -84,11 +81,8 @@ async def canvas_get_course(params: CourseParams) -> Dict[str, Any]:
             course_id (int): The id for the course to be retrieved
     """
     auth = params.auth
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.get(f"courses/{params.course_id}")
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(f"courses/{params.course_id}")
 
     return result
 
@@ -108,18 +102,14 @@ async def canvas_create_course(payload: CoursePayload) -> Dict[str, Any]:
 
     api_url = payload.auth.api_url
     api_token = payload.auth.api_token
-
-    client = CanvasClient(api_url, api_token)
     account_id = payload.account_id
     path = f"accounts/{account_id}/courses"
 
-    try:
+    async with CanvasClient(api_url, api_token) as client:
         result = await client.post(
             path,
             payload.model_dump(),
         )
-    finally:
-        await client.close()
 
     return result
 
@@ -140,18 +130,14 @@ async def canvas_list_modules(params: CourseParams) -> Dict[str, Any]:
             page (int): The page index
     """
     auth = params.auth
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        modules = await canvas_client.get(f"courses/{params.course_id}/modules?page={params.page}")
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        modules = await client.get(f"courses/{params.course_id}/modules?page={params.page}")
 
     return {"modules": modules}
 
 
 @mcp.tool
-async def canvas_gets_module(params: ModuleParams) -> Dict[str, Any]:
+async def canvas_get_module(params: ModuleParams) -> Dict[str, Any]:
     """
     Retrieve a single module for a course
 
@@ -166,11 +152,8 @@ async def canvas_gets_module(params: ModuleParams) -> Dict[str, Any]:
     course_id = params.course_id
     module_id = params.module_id
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.get(f"courses/{course_id}/modules/{module_id}")
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(f"courses/{course_id}/modules/{module_id}")
 
     return result
 
@@ -192,12 +175,8 @@ async def canvas_create_module(payload: ModulePayload) -> Dict[str, Any]:
     course_id = payload.course_id
     path = f"courses/{course_id}/modules"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.post(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.post(path, payload.model_dump())
 
     return result
 
@@ -219,12 +198,8 @@ async def canvas_update_module(payload: UpdateModulePayload) -> Dict[str, Any]:
     module_id = payload.module_id
     path = f"courses/{course_id}/modules/{module_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.put(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.put(path, payload.model_dump())
 
     return result
 
@@ -246,11 +221,8 @@ async def canvas_delete_module(params: ModuleParams) -> Dict[str, Any]:
     module_id = params.module_id
     path = f"courses/{course_id}/modules/{module_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.delete(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.delete(path)
 
     return result
 
@@ -274,12 +246,8 @@ async def canvas_list_module_items(params: ModuleParams) -> Dict[str, Any]:
 
     path = f"courses/{course_id}/modules/{module_id}/items?page={page}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(path)
 
     return result
 
@@ -303,12 +271,8 @@ async def canvas_get_module_item(params: ModuleItemParams) -> Dict[str, Any]:
 
     path = f"courses/{course_id}/modules/{module_id}/items/{module_item_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(path)
 
     return result
 
@@ -333,11 +297,8 @@ async def canvas_create_module_item(payload: ModuleItemPayload) -> Dict[str, Any
 
     path = f"courses/{course_id}/modules/{module_id}/items"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.post(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.post(path, payload.model_dump())
 
     return result
 
@@ -361,11 +322,8 @@ async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> Dict[st
 
     path = f"courses/{course_id}/modules/{module_id}/items/{item_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.put(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.put(path, payload.model_dump())
 
     return result
 
@@ -388,11 +346,8 @@ async def canvas_delete_module_item(params: ModuleItemParams) -> Dict[str, Any]:
     module_item_id = params.module_item_id
     path = f"courses/{course_id}/modules/{module_id}/items/{module_item_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.delete(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.delete(path)
 
     return result
 
@@ -413,12 +368,8 @@ async def canvas_list_pages(params: CourseParams) -> Dict[str, Any]:
     course_id = params.course_id
     page = params.page
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.get(f"courses/{course_id}/pages?page={page}")
-
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(f"courses/{course_id}/pages?page={page}")
 
     return result
 
@@ -440,11 +391,8 @@ async def canvas_get_page(params: PageRequest) -> Dict[str, Any]:
     page_url = params.page_url
     path = f"courses/{course_id}/pages/{page_url}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(path)
 
     return result
 
@@ -465,11 +413,8 @@ async def canvas_create_page(payload: PagePayload) -> Dict[str, Any]:
     course_id = payload.course_id
     path = f"courses/{course_id}/pages"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.post(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.post(path, payload.model_dump())
 
     return result
 
@@ -491,11 +436,8 @@ async def canvas_update_page(payload: UpdatePagePayload) -> Dict[str, Any]:
     page_url = payload.url_or_id
     path = f"courses/{course_id}/pages/{page_url}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.put(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.put(path, payload.model_dump())
 
     return result
 
@@ -517,11 +459,8 @@ async def canvas_delete_page(params: PageRequest) -> Dict[str, Any]:
     page_url = params.page_url
     path = f"courses/{course_id}/pages/{page_url}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.delete(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.delete(path)
 
     return result
 
@@ -545,11 +484,8 @@ async def canvas_list_quizzes(params: CourseParams) -> Dict[str, Any]:
     auth = params.auth
     path = f"courses/{params.course_id}/quizzes?page={params.page}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        quizzes = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        quizzes = await client.get(path)
 
     return {"quizzes": quizzes}
 
@@ -571,11 +507,8 @@ async def canvas_get_quiz(params: QuizParams) -> Dict[str, Any]:
     quiz_id = params.quiz_id
     path = f"courses/{course_id}/quizzes/{quiz_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(path)
 
     return result
 
@@ -596,11 +529,8 @@ async def canvas_create_quiz(payload: QuizPayload) -> Dict[str, Any]:
     course_id = payload.course_id
     path = f"courses/{course_id}/quizzes"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.post(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.post(path, payload.model_dump())
 
     return result
 
@@ -622,12 +552,8 @@ async def canvas_update_quiz(payload: UpdateQuizPayload) -> Dict[str, Any]:
     quiz_id = payload.quiz_id
     path = f"courses/{course_id}/quizzes/{quiz_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.put(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
-
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.put(path, payload.model_dump())
     return result
 
 
@@ -641,19 +567,15 @@ async def canvas_delete_quiz(params: QuizParams) -> Dict[str, Any]:
     retrieving the modules list.
 
     Args:
-        params (QuizRequest): Consist of auth (api_url, api_token), course_id and quiz id.
+        params (QuizParams): Consist of auth (api_url, api_token), course_id and quiz id.
     """
     auth = params.auth
     course_id = params.course_id
     quiz_id = params.quiz_id
     path = f"courses/{course_id}/quizzes/{quiz_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.delete(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.delete(path)
 
     return result
 
@@ -668,7 +590,7 @@ async def canvas_list_questions(params: QuizParams) -> Dict[str, Any]:
     retrieving the modules list.
 
     Args:
-        params (QuizRequest): Consist of auth (api_url and api_token), course_id, quiz_id and page index
+        params (QuizParams): Consist of auth (api_url and api_token), course_id, quiz_id and page index
     """
     auth = params.auth
     course_id = params.course_id
@@ -676,11 +598,8 @@ async def canvas_list_questions(params: QuizParams) -> Dict[str, Any]:
     page = params.page
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions?page={page}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        questions = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        questions = await client.get(path)
 
     return {"questions": questions}
 
@@ -703,11 +622,8 @@ async def canvas_get_question(params: QuestionParams) -> Dict[str, Any]:
     question_id = params.question_id
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.get(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.get(path)
 
     return result
 
@@ -729,12 +645,8 @@ async def canvas_create_question(payload: QuestionPayload) -> Dict[str, Any]:
     quiz_id = payload.quiz_id
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.post(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.post(path, payload.model_dump())
 
     return result
 
@@ -757,12 +669,8 @@ async def canvas_update_question(payload: UpdateQuestionPayload) -> Dict[str, An
     question_id = payload.question_id
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-
-    try:
-        result = await canvas_client.put(path, payload.model_dump())
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.put(path, payload.model_dump())
 
     return result
 
@@ -785,10 +693,7 @@ async def canvas_delete_question(params: QuestionParams) -> Dict[str, Any]:
     question_id = params.question_id
     path = f"courses/{course_id}/quizzes/{quiz_id}/questions/{question_id}"
 
-    canvas_client = CanvasClient(auth.api_url, auth.api_token)
-    try:
-        result = await canvas_client.delete(path)
-    finally:
-        await canvas_client.close()
+    async with CanvasClient(auth.api_url, auth.api_token) as client:
+        result = await client.delete(path)
 
     return result

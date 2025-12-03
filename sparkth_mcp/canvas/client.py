@@ -13,6 +13,12 @@ class CanvasClient:
         self.api_token = api_token
         self.session = aiohttp.ClientSession()
 
+    async def __aenter__(self) -> CanvasClient:
+        return self
+
+    async def __aexit__(self, _exc_type, _exc_val, _exc_tb) -> None:
+        await self.close()
+
     @staticmethod
     async def authenticate(new_api_url: str, new_api_token: str):
         async with aiohttp.ClientSession() as session:
@@ -26,16 +32,16 @@ class CanvasClient:
                     raise AuthenticationError(response.status, errors)
         return response.status
 
-    async def get(self, endpoint):
+    async def get(self, endpoint) -> Dict[str, Any]:
         return await self.request_bearer("get", endpoint)
 
-    async def post(self, endpoint: str, payload: Optional[PayloadType] = None):
+    async def post(self, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
         return await self.request_bearer("post", endpoint, payload)
 
-    async def put(self, endpoint: str, payload: Optional[PayloadType] = None):
+    async def put(self, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
         return await self.request_bearer("put", endpoint, payload)
 
-    async def delete(self, endpoint):
+    async def delete(self, endpoint) -> Dict[str, Any]:
         return await self.request_bearer("delete", endpoint)
 
     async def request_bearer(self, method: str, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
