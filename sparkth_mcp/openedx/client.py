@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 import aiohttp
 
 from sparkth_mcp.openedx.types import TokenResponse
@@ -13,10 +13,16 @@ class OpenEdxClient:
         self.client_id = "login-service-client-id"
         self.session = aiohttp.ClientSession()
         self.access_token = access_token
-        self.refresh_token = None
+        self.refresh_token: Optional[str] = None
         self.username = None
 
-    async def get_token(self, username: str, password: str) -> Dict[str, Any]:
+    async def __aenter__(self) -> OpenEdxClient:
+        return self
+
+    async def __aexit__(self, _exc_type, _exc_val, _exc_tb) -> None:
+        await self.close()
+
+    async def get_token(self, username: str, password: str) -> dict[str, Any]:
         auth_url = f"{self.lms_url}/oauth2/access_token"
         form = {
             "client_id": self.client_id,
@@ -44,7 +50,7 @@ class OpenEdxClient:
         self.refresh_token = token_response.refresh_token
         return token_response.model_dump()
 
-    async def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
         auth_url = f"{self.lms_url}/oauth2/access_token"
         form = {
             "client_id": self.client_id,
@@ -70,28 +76,34 @@ class OpenEdxClient:
         self.refresh_token = token_response.refresh_token or refresh_token
         return token_response.model_dump()
 
-    async def authenticate(self) -> Dict[str, Any]:
-        return await self.request_jwt(
-            method="GET",
-            endpoint="api/user/v1/me",
-            params=None,
-            payload=None,
-            base_url=self.lms_url,
-        )
+    async def authenticate(self) -> dict[str, Any]:
+        return await self.get(self.lms_url, "api/user/v1/me")
+
+    async def get(self, base_url: str, endpoint: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        return await self.request_jwt("GET", base_url, endpoint)
+
+    async def post(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self.request_jwt("POST", base_url, endpoint, payload=payload)
+
+    async def patch(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self.request_jwt("PATCH", base_url, endpoint, payload=payload)
+
+    async def delete(self, base_url: str, endpoint: str) -> dict[str, Any]:
+        return await self.request_jwt("DELETE", base_url, endpoint)
 
     async def request_jwt(
         self,
         method: str,
-        endpoint: str,
         base_url: str,
-        params: Optional[Dict[str, Any]] = None,
-        payload: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        endpoint: str,
+        params: Optional[dict[str, Any]] = None,
+        payload: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         if not self.access_token:
             raise AuthenticationError(401, "Access token not set")
 
         url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return await request(url, self.session, Auth.Jwt, self.access_token, method, payload)
+        return await request(method, url, self.session, Auth.Jwt, self.access_token, params, payload)
 
     async def close(self):
         await self.session.close()

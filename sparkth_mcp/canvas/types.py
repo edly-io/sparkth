@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union
+from typing import List, Optional
 from datetime import datetime
 
 
@@ -317,18 +317,3 @@ class UpdateQuestionPayload(BaseModel):
     quiz_id: int
     question_id: int
     auth: AuthenticationPayload
-
-
-PayloadType = Union[
-    CoursePayload,
-    ModulePayload,
-    UpdateModulePayload,
-    ModuleItemPayload,
-    UpdateModuleItemPayload,
-    PagePayload,
-    UpdatePagePayload,
-    QuizPayload,
-    UpdateQuizPayload,
-    QuestionPayload,
-    UpdateQuestionPayload,
-]

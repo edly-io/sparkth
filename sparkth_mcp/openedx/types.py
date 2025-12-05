@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 
@@ -78,7 +78,7 @@ class ProblemOrHtmlArgs(BaseModel):
     kind: Optional[Component] = None
     display_name: Optional[str] = None
     data: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
     mcq_boilerplate: Optional[bool] = None
 
 
@@ -87,7 +87,7 @@ class UpdateXBlockPayload(BaseModel):
     course_id: str
     locator: str
     data: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class CourseTreeRequest(BaseModel):

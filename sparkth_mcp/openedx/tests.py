@@ -34,7 +34,7 @@ class TestOpenEdxClient:
         client = OpenEdxClient(lms_url)
 
         with pytest.raises(AuthenticationError) as exc_info:
-            await client.request_jwt("GET", "api/user/v1/me", base_url=lms_url)
+            await client.request_jwt(lms_url, "api/user/v1/me")
 
         assert exc_info.value.args[0] == "Access token not set (status_code=401)"
 

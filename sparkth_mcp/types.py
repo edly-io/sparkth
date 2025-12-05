@@ -7,7 +7,7 @@ class CourseGenerationPromptRequest(BaseModel):
 
 
 class BaseError(Exception):
-    def __init__(self, status_code, message):
+    def __init__(self, status_code: int, message: str):
         self.message = message
         self.status_code = status_code
         super().__init__(self._format_message())
@@ -25,10 +25,10 @@ class JsonParseError(BaseError):
 
 
 class LMSError(BaseError):
-    def __init__(self, method, url, status_code, message):
+    def __init__(self, method: str, url: str, status_code: int, message: str):
         self.method = method
         self.url = url
-        super().__init__(message, status_code)
+        super().__init__(status_code, message)
 
     def _format_message(self):
         return f"{self.method} {self.url}: {self.message} (status_code={self.status_code})"
