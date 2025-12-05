@@ -67,8 +67,8 @@ class XBlockPayload(BaseModel):
 
 
 class Component(str, Enum):
-    Problem = "Problem"
-    Html = "Html"
+    PROBLEM = "Problem"
+    HTML = "Html"
 
 
 class ProblemOrHtmlArgs(BaseModel):

@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 
 
@@ -53,7 +53,7 @@ class Module(BaseModel):
     position: Optional[int] = None
     unlock_at: Optional[datetime] = None
     require_sequential_progress: Optional[bool] = None
-    prerequisite_module_ids: Optional[List[int]] = None
+    prerequisite_module_ids: Optional[list[int]] = None
     publish_final_grade: Optional[bool] = None
 
 
@@ -68,7 +68,7 @@ class UpdatedModule(BaseModel):
     position: Optional[int] = None
     unlock_at: Optional[datetime] = None
     require_sequential_progress: Optional[bool] = None
-    prerequisite_module_ids: Optional[List[int]] = None
+    prerequisite_module_ids: Optional[list[int]] = None
     publish_final_grade: Optional[bool] = None
     published: Optional[bool] = None
 
@@ -287,7 +287,7 @@ class Question(BaseModel):
     incorrect_comments: Optional[str] = None
     neutral_comments: Optional[str] = None
     text_after_answers: Optional[str] = None
-    answers: Optional[List[Answer]] = None
+    answers: Optional[list[Answer]] = None
 
 
 class QuestionPayload(BaseModel):
@@ -308,7 +308,7 @@ class UpdatedQuestion(BaseModel):
     incorrect_comments: Optional[str] = None
     neutral_comments: Optional[str] = None
     text_after_answers: Optional[str] = None
-    answers: Optional[List[Answer]] = None
+    answers: Optional[list[Answer]] = None
 
 
 class UpdateQuestionPayload(BaseModel):

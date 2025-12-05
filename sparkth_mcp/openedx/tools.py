@@ -131,6 +131,38 @@ async def openedx_authenticate(auth: Auth) -> dict[str, Any]:
 
 @mcp.tool
 async def openedx_refresh_access_token(payload: RefreshTokenPayload) -> dict[str, Any]:
+    """
+    Refresh the Open edX access token using the provided refresh token.
+
+    Args:
+        payload (RefreshTokenPayload):
+            An object containing:
+                - lms_url (str): Base URL of the LMS instance.
+                - studio_url (str): Corresponding Studio URL to include in the response.
+                - refresh_token (str): The refresh token used to obtain a new access token.
+
+    Returns:
+        dict[str, Any]:
+            A dictionary with one of the following shapes:
+
+            Successful response:
+            {
+                "response": {
+                    "access_token": str,
+                    "refresh_token": str,
+                    "studio_url": str,
+                    "message": "Access token refreshed",
+                }
+            }
+
+            Error response:
+            {
+                "error": {
+                    "status_code": int,
+                    "message": str,
+                }
+            }
+    """
     lms_url = payload.lms_url
     studio_url = payload.studio_url
     refresh_token = payload.refresh_token
@@ -156,6 +188,32 @@ async def openedx_refresh_access_token(payload: RefreshTokenPayload) -> dict[str
 
 @mcp.tool
 async def openedx_get_user_info(payload: LMSAccess) -> dict[str, Any]:
+    """
+    Retrieve authenticated user information from an Open edX LMS instance.
+
+    Args:
+        payload (LMSAccess):
+            An object containing:
+                - lms_url (str): Base URL of the LMS instance.
+                - access_token (str): The access token used to authenticate the request.
+
+    Returns:
+        dict[str, Any]:
+            A dictionary with one of the following shapes:
+
+            Successful response:
+            {
+                "response": <user_info_dict>
+            }
+
+            Error response:
+            {
+                "error": {
+                    "status_code": int,
+                    "message": str,
+                }
+            }
+    """
     lms_url = payload.lms_url
     access_token = payload.access_token
 
@@ -175,6 +233,37 @@ async def openedx_get_user_info(payload: LMSAccess) -> dict[str, Any]:
 
 @mcp.tool
 async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]:
+    """
+    Create a new course run in an Open edX Studio instance.
+
+    Args:
+        payload (CreateCourseArgs):
+            An object containing:
+                - auth: Authentication information including:
+                    * lms_url (str): Base LMS URL.
+                    * studio_url (str): Base Studio URL for POST requests.
+                    * access_token (str): Token used to authenticate requests.
+                - course: A Pydantic model with the course run data to submit.
+
+    Returns:
+        dict[str, Any]:
+            A dictionary with one of the following shapes:
+
+            Successful response:
+            {
+                "response": <course_run_response_dict>
+            }
+
+            Error response:
+            {
+                "error": {
+                    "method": "POST",
+                    "endpoint": "api/v1/course_runs/",
+                    "status_code": int,
+                    "message": str,
+                }
+            }
+    """
     auth = payload.auth
     course = payload.course
     endpoint = "api/v1/course_runs/"
@@ -196,6 +285,39 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
 
 @mcp.tool
 async def openedx_list_course_runs(payload: ListCourseRunsArgs) -> dict[str, Any]:
+    """
+    Retrieve a paginated list of course runs from an Open edX Studio instance.
+
+    Args:
+        payload (ListCourseRunsArgs):
+            An object containing:
+                - auth: Authentication data including:
+                    * lms_url (str): LMS base URL.
+                    * studio_url (str): Studio base URL for API access.
+                    * access_token (str): Token used for API authentication.
+                - page (int, optional): Page number for pagination. Defaults to 1.
+                - page_size (int, optional): Number of results per page.
+                  Defaults to 20.
+
+    Returns:
+        dict[str, Any]:
+            A dictionary with one of the following shapes:
+
+            Successful response:
+            {
+                "courses": <list_or_paginated_result_dict>
+            }
+
+            Error response:
+            {
+                "error": {
+                    "method": "GET",
+                    "endpoint": str,
+                    "status_code": int,
+                    "message": str,
+                }
+            }
+    """
     auth = payload.auth
 
     lms = auth.lms_url.rstrip("/")
@@ -222,6 +344,39 @@ async def openedx_list_course_runs(payload: ListCourseRunsArgs) -> dict[str, Any
 
 @mcp.tool
 async def openedx_create_xblock(payload: XBlockPayload) -> dict[str, Any]:
+    """
+    Create a new XBlock within an Open edX course.
+
+    Args:
+        payload (XBlockPayload):
+            An object containing:
+                - auth: Authentication details including:
+                    * lms_url (str): LMS base URL.
+                    * studio_url (str): Studio base URL for API calls.
+                    * access_token (str): Token used for authenticated requests.
+                - xblock: A Pydantic model with the XBlock fields to be created.
+                - course_id (str): The course identifier where the XBlock
+                  should be created.
+
+    Returns:
+        dict[str, Any]:
+            A dictionary with one of the following shapes:
+
+            Successful response:
+            {
+                "response": <xblock_creation_response_dict>
+            }
+
+            Error response:
+            {
+                "error": {
+                    "method": "POST",
+                    "endpoint": str,
+                    "status_code": int,
+                    "message": str,
+                }
+            }
+    """
     auth = payload.auth
     xblock = payload.xblock
     course_id = payload.course_id
@@ -314,12 +469,12 @@ async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str
     metadata = payload.metadata
     mcq_boilerplate = payload.mcq_boilerplate
 
-    component = kind or Component.Problem
+    component = kind or Component.PROBLEM
 
     if display_name:
         name = display_name
     else:
-        name = "New Problem" if component == Component.Problem else "New HTML"
+        name = "New Problem" if component == Component.PROBLEM else "New HTML"
 
     try:
         locator = await openedx_create_basic_component(auth, course_id, unit_locator, component, name)
@@ -335,7 +490,7 @@ async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str
 
     if data is not None:
         final_data = data
-    elif component == Component.Problem and (mcq_boilerplate or False):
+    elif component == Component.PROBLEM and mcq_boilerplate:
         final_data = """<problem>
                   <p>Your question here</p>
                   <multiplechoiceresponse>

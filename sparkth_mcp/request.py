@@ -6,15 +6,15 @@ from sparkth_mcp.types import LMSError
 
 
 class Auth(str, Enum):
-    Jwt = "Jwt"
-    Bearer = "Bearer"
+    JWT = "Jwt"
+    BEARER = "Bearer"
 
 
 async def request(
     method: str = "GET",
     url: str = "",
     session: Optional[ClientSession] = None,
-    auth: Auth = Auth.Bearer,
+    auth: Auth = Auth.BEARER,
     token: str = "",
     params: Optional[dict[str, Any]] = None,
     payload: Optional[dict[str, Any]] = None,
