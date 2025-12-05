@@ -1,10 +1,9 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 import aiohttp
 from urllib.parse import urljoin
 
 from sparkth_mcp.types import AuthenticationError
-from sparkth_mcp.request import Auth, request
-from sparkth_mcp.canvas.types import PayloadType
+from sparkth_mcp.request import request
 
 
 class CanvasClient:
@@ -32,30 +31,31 @@ class CanvasClient:
                     raise AuthenticationError(response.status, errors)
         return response.status
 
-    async def get(self, endpoint) -> Dict[str, Any]:
+    async def get(self, endpoint: str) -> dict[str, Any]:
         return await self.request_bearer("get", endpoint)
 
-    async def post(self, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
+    async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         return await self.request_bearer("post", endpoint, payload)
 
-    async def put(self, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
+    async def put(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         return await self.request_bearer("put", endpoint, payload)
 
-    async def delete(self, endpoint) -> Dict[str, Any]:
+    async def delete(self, endpoint: str) -> dict[str, Any]:
         return await self.request_bearer("delete", endpoint)
 
-    async def request_bearer(self, method: str, endpoint: str, payload: Optional[PayloadType] = None) -> Dict[str, Any]:
+    async def request_bearer(
+        self, method: str, endpoint: str, payload: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         if not self.api_token:
             raise AuthenticationError(401, "API Token not found")
 
         url = urljoin(self.api_url + "/", endpoint.lstrip("/"))
         return await request(
-            url,
-            Auth.BEARER,
-            self.api_token,
             method,
-            payload,
+            url,
             self.session,
+            token=self.api_token,
+            payload=payload,
         )
 
     async def close(self):

@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from sparkth_mcp.canvas.client import CanvasClient
 from sparkth_mcp.server import mcp
@@ -26,7 +26,7 @@ from sparkth_mcp.canvas.types import (
 
 
 @mcp.tool
-async def canvas_authenticate(auth: AuthenticationPayload) -> Dict[str, Any]:
+async def canvas_authenticate(auth: AuthenticationPayload) -> dict[str, Any]:
     """
     Authenticate the provided Canvas API URL and token.
     If either argument is missing, the client must supply it. Default values for required fields are never assumed.
@@ -47,7 +47,7 @@ async def canvas_authenticate(auth: AuthenticationPayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_courses(auth: AuthenticationPayload, page: int) -> Dict[str, Any]:
+async def canvas_get_courses(auth: AuthenticationPayload, page: int) -> dict[str, Any]:
     """
     Retrieve a paginated list of courses for the user.
 
@@ -67,7 +67,7 @@ async def canvas_get_courses(auth: AuthenticationPayload, page: int) -> Dict[str
 
 
 @mcp.tool
-async def canvas_get_course(params: CourseParams) -> Dict[str, Any]:
+async def canvas_get_course(params: CourseParams) -> dict[str, Any]:
     """
     Retrieve a single course for the user by course_id.
 
@@ -88,7 +88,7 @@ async def canvas_get_course(params: CourseParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_create_course(payload: CoursePayload) -> Dict[str, Any]:
+async def canvas_create_course(payload: CoursePayload) -> dict[str, Any]:
     """
     Create a new course on Canvas.
 
@@ -115,7 +115,7 @@ async def canvas_create_course(payload: CoursePayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_modules(params: CourseParams) -> Dict[str, Any]:
+async def canvas_list_modules(params: CourseParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of modules for a course
 
@@ -137,7 +137,7 @@ async def canvas_list_modules(params: CourseParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_module(params: ModuleParams) -> Dict[str, Any]:
+async def canvas_get_module(params: ModuleParams) -> dict[str, Any]:
     """
     Retrieve a single module for a course
 
@@ -159,7 +159,7 @@ async def canvas_get_module(params: ModuleParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_create_module(payload: ModulePayload) -> Dict[str, Any]:
+async def canvas_create_module(payload: ModulePayload) -> dict[str, Any]:
     """
     Create a module for a course
 
@@ -182,7 +182,7 @@ async def canvas_create_module(payload: ModulePayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_update_module(payload: UpdateModulePayload) -> Dict[str, Any]:
+async def canvas_update_module(payload: UpdateModulePayload) -> dict[str, Any]:
     """
     Update a module of a course
 
@@ -205,7 +205,7 @@ async def canvas_update_module(payload: UpdateModulePayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_delete_module(params: ModuleParams) -> Dict[str, Any]:
+async def canvas_delete_module(params: ModuleParams) -> dict[str, Any]:
     """
     Delete a module specified in the params.
 
@@ -228,7 +228,7 @@ async def canvas_delete_module(params: ModuleParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_module_items(params: ModuleParams) -> Dict[str, Any]:
+async def canvas_list_module_items(params: ModuleParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of module items in a specified module for a course
 
@@ -253,7 +253,7 @@ async def canvas_list_module_items(params: ModuleParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_module_item(params: ModuleItemParams) -> Dict[str, Any]:
+async def canvas_get_module_item(params: ModuleItemParams) -> dict[str, Any]:
     """
     List a single module item in a specified module for a course
 
@@ -278,7 +278,7 @@ async def canvas_get_module_item(params: ModuleItemParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_create_module_item(payload: ModuleItemPayload) -> Dict[str, Any]:
+async def canvas_create_module_item(payload: ModuleItemPayload) -> dict[str, Any]:
     """
     Create a module item in a specified module for a course
 
@@ -304,7 +304,7 @@ async def canvas_create_module_item(payload: ModuleItemPayload) -> Dict[str, Any
 
 
 @mcp.tool
-async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> Dict[str, Any]:
+async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> dict[str, Any]:
     """
     Update a specified module item for a course
 
@@ -329,7 +329,7 @@ async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> Dict[st
 
 
 @mcp.tool
-async def canvas_delete_module_item(params: ModuleItemParams) -> Dict[str, Any]:
+async def canvas_delete_module_item(params: ModuleItemParams) -> dict[str, Any]:
     """
     Delete a module item specified in the params.
 
@@ -353,7 +353,7 @@ async def canvas_delete_module_item(params: ModuleItemParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_pages(params: CourseParams) -> Dict[str, Any]:
+async def canvas_list_pages(params: CourseParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of pages for a course.
 
@@ -375,7 +375,7 @@ async def canvas_list_pages(params: CourseParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_page(params: PageRequest) -> Dict[str, Any]:
+async def canvas_get_page(params: PageRequest) -> dict[str, Any]:
     """
     Retrieve a page for a course by page_url
 
@@ -398,7 +398,7 @@ async def canvas_get_page(params: PageRequest) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_create_page(payload: PagePayload) -> Dict[str, Any]:
+async def canvas_create_page(payload: PagePayload) -> dict[str, Any]:
     """
     Create a page for a course
 
@@ -420,7 +420,7 @@ async def canvas_create_page(payload: PagePayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_update_page(payload: UpdatePagePayload) -> Dict[str, Any]:
+async def canvas_update_page(payload: UpdatePagePayload) -> dict[str, Any]:
     """
     Update a page for a course
 
@@ -443,7 +443,7 @@ async def canvas_update_page(payload: UpdatePagePayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_delete_page(params: PageRequest) -> Dict[str, Any]:
+async def canvas_delete_page(params: PageRequest) -> dict[str, Any]:
     """
     Delete a page for a course
 
@@ -466,7 +466,7 @@ async def canvas_delete_page(params: PageRequest) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_quizzes(params: CourseParams) -> Dict[str, Any]:
+async def canvas_list_quizzes(params: CourseParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of quizzes for a course
 
@@ -491,7 +491,7 @@ async def canvas_list_quizzes(params: CourseParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_quiz(params: QuizParams) -> Dict[str, Any]:
+async def canvas_get_quiz(params: QuizParams) -> dict[str, Any]:
     """
     Get a single quiz for a course
 
@@ -514,7 +514,7 @@ async def canvas_get_quiz(params: QuizParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_create_quiz(payload: QuizPayload) -> Dict[str, Any]:
+async def canvas_create_quiz(payload: QuizPayload) -> dict[str, Any]:
     """
     Create a quiz for a course
 
@@ -536,7 +536,7 @@ async def canvas_create_quiz(payload: QuizPayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_update_quiz(payload: UpdateQuizPayload) -> Dict[str, Any]:
+async def canvas_update_quiz(payload: UpdateQuizPayload) -> dict[str, Any]:
     """
     Update a quiz for a course
 
@@ -558,7 +558,7 @@ async def canvas_update_quiz(payload: UpdateQuizPayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_delete_quiz(params: QuizParams) -> Dict[str, Any]:
+async def canvas_delete_quiz(params: QuizParams) -> dict[str, Any]:
     """
     Delete a quiz for a course
 
@@ -581,7 +581,7 @@ async def canvas_delete_quiz(params: QuizParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_questions(params: QuizParams) -> Dict[str, Any]:
+async def canvas_list_questions(params: QuizParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of questions in a quiz for a course
 
@@ -605,7 +605,7 @@ async def canvas_list_questions(params: QuizParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_get_question(params: QuestionParams) -> Dict[str, Any]:
+async def canvas_get_question(params: QuestionParams) -> dict[str, Any]:
     """
     Get a single question of a quiz for a course
 
@@ -629,7 +629,7 @@ async def canvas_get_question(params: QuestionParams) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_create_question(payload: QuestionPayload) -> Dict[str, Any]:
+async def canvas_create_question(payload: QuestionPayload) -> dict[str, Any]:
     """
     Create a question in a quiz for a course
 
@@ -652,7 +652,7 @@ async def canvas_create_question(payload: QuestionPayload) -> Dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_update_question(payload: UpdateQuestionPayload) -> Dict[str, Any]:
+async def canvas_update_question(payload: UpdateQuestionPayload) -> dict[str, Any]:
     """
     Update a question in a quiz for a course
 
@@ -676,7 +676,7 @@ async def canvas_update_question(payload: UpdateQuestionPayload) -> Dict[str, An
 
 
 @mcp.tool
-async def canvas_delete_question(params: QuestionParams) -> Dict[str, Any]:
+async def canvas_delete_question(params: QuestionParams) -> dict[str, Any]:
     """
     Delete a question in a quiz for a course
 

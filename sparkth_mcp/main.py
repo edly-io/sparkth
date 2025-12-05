@@ -1,7 +1,8 @@
 import argparse
 from sparkth_mcp.mode import TransportMode
 from sparkth_mcp.server import mcp
-from sparkth_mcp.canvas import tools  # noqa
+from sparkth_mcp.canvas.tools import *  # noqa
+from sparkth_mcp.openedx.tools import *  # noqa
 
 
 def run_stdio():

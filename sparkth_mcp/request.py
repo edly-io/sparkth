@@ -1,8 +1,8 @@
 from enum import Enum
-from typing import Any, Dict, Optional
-import aiohttp
+import json
+from typing import Any, Optional
+from aiohttp import ClientPayloadError, ClientResponse, ClientSession, ContentTypeError
 from sparkth_mcp.types import LMSError
-from sparkth_mcp.canvas.types import PayloadType
 
 
 class Auth(str, Enum):
@@ -11,13 +11,14 @@ class Auth(str, Enum):
 
 
 async def request(
-    url: str,
-    auth: Auth,
-    token: str,
     method: str = "GET",
-    payload: Optional[PayloadType] = None,
-    session: aiohttp.ClientSession = None,
-) -> Dict[str, Any]:
+    url: str = "",
+    session: Optional[ClientSession] = None,
+    auth: Auth = Auth.BEARER,
+    token: str = "",
+    params: Optional[dict[str, Any]] = None,
+    payload: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     if session is None:
         raise ValueError("ClientSession instance is required.")
 
@@ -27,7 +28,7 @@ async def request(
         "Content-Type": "application/json",
     }
 
-    async with session.request(method, url, headers=headers, json=payload) as response:
+    async with session.request(method, url, headers=headers, params=params, json=payload) as response:
         if response.status < 200 or response.status >= 300:
             raise await handle_error_response(method, url, response)
 
@@ -37,16 +38,16 @@ async def request(
 
         try:
             json_value = await response.json()
-        except aiohttp.ContentTypeError as e:
-            raise LMSError(method, url, response.status, e.message)
+        except (ContentTypeError, json.JSONDecodeError) as e:
+            raise LMSError(method, url, response.status, str(e)) from e
 
         return json_value
 
 
-async def handle_error_response(method: str, url: str, response: aiohttp.ClientResponse) -> LMSError:
+async def handle_error_response(method: str, url: str, response: ClientResponse) -> LMSError:
     try:
         text = await response.text()
-    except aiohttp.ClientPayloadError:
+    except ClientPayloadError:
         text = ""
 
     message = text
@@ -54,7 +55,7 @@ async def handle_error_response(method: str, url: str, response: aiohttp.ClientR
         json_val = await response.json()
         if isinstance(json_val, dict) and "message" in json_val:
             message = json_val["message"]
-    except aiohttp.ContentTypeError:
+    except ContentTypeError:
         pass
 
     return LMSError(method, url, response.status, message)

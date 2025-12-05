@@ -1,4 +1,3 @@
-import json
 from fastmcp import FastMCP
 
 from sparkth_mcp.types import CourseGenerationPromptRequest
@@ -10,7 +9,7 @@ mcp = FastMCP("Sparkth")
 @mcp.tool
 async def get_course_generation_prompt_tool(
     course_params: CourseGenerationPromptRequest,
-) -> json:
+) -> str:
     """
     Generates a prompt for creating a course.
     Figure out the course name and description from the context and information.
