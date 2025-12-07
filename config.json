@@ -1,0 +1,8 @@
+{
+  "sparkth-plugins": {
+    "enabled": [
+      "example_plugin",
+      "tasks_plugin"
+    ]
+  }
+}
