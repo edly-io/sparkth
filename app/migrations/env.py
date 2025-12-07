@@ -6,9 +6,22 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 from app.core.config import get_settings
-
+from app.hooks.catalog import Filters
+from app.plugins import discover_plugins
 from app.models import *
 
+# Import plugin system to discover plugin models
+try:
+    # Trigger plugin discovery to load models
+    discover_plugins()
+    
+    # Import all plugin models into metadata
+    for model_class in Filters.SQLMODEL_MODELS.iterate():
+        # Models are automatically added to SQLModel.metadata when defined
+        pass
+except ImportError:
+    # Plugin system not available yet
+    pass
 
 settings = get_settings()
 
