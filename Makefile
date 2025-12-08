@@ -11,7 +11,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # PHONY TARGETS
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build \
-        up dev.up down restart logs shell db-shell \
+        up dev.up down clean restart logs shell db-shell \
         create-user reset-password \
         api mcp cli
 
@@ -21,7 +21,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 help: ## Show this help
 	@echo "Usage: make \033[36m<target>\033[0m [options]\n"
 	@echo "\033[1mDocker Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mRun Services Locally:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
@@ -42,8 +42,11 @@ dev.up: ## Start app in dev mode (hot reload)
 down: ## Stop and remove containers
 	docker compose down
 
-clean: ## Stop and wipe database volume (Fresh Start)
+clean: ## Stop and wipe database volume (fresh start)
 	docker compose down -v
+
+restart: ## Restart all containers
+	docker compose restart
 
 logs: ## Tail logs for all containers
 	docker compose logs -f
