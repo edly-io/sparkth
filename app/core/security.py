@@ -27,3 +27,22 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+
+def verify_token(token: str) -> str | None:
+    """
+    Verify JWT token and extract username.
+    
+    :param token: JWT token string
+    :return: Username if valid, None otherwise
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        username: str = payload.get("sub")
+        return username
+    except jwt.InvalidTokenError:
+        return None
