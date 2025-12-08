@@ -1,10 +1,11 @@
 import json
 from typing import Any, Optional
+
 import aiohttp
 
-from sparkth_mcp.openedx.types import TokenResponse
-from sparkth_mcp.request import Auth, handle_error_response, request
-from sparkth_mcp.types import AuthenticationError, JsonParseError
+from app.mcp.openedx.types import TokenResponse
+from app.mcp.request import Auth, handle_error_response, request
+from app.mcp.types import AuthenticationError, JsonParseError
 
 
 class OpenEdxClient:

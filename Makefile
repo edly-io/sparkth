@@ -12,7 +12,8 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build \
         up dev.up down restart logs shell db-shell \
-        create-user reset-password
+        create-user reset-password \
+        api mcp cli
 
 # --------------------------------------------------
 # HELP
@@ -21,6 +22,8 @@ help: ## Show this help
 	@echo "Usage: make \033[36m<target>\033[0m [options]\n"
 	@echo "\033[1mDocker Targets:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\n\033[1mRun Services Locally:\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|test|cov|lint|fix|build)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mUser Management (In Docker):\033[0m"
@@ -30,7 +33,7 @@ help: ## Show this help
 # --------------------------------------------------
 # Docker Operations
 # --------------------------------------------------
-up: ## Start app and db (Background)
+up: ## Start app and db (background)
 	docker compose up -d --build
 
 dev.up: ## Start app in dev mode (hot reload)
@@ -76,6 +79,15 @@ lock: uv ## Update lockfile
 install: uv ## Install exact versions from lockfile
 	uv sync --frozen
 
+api: ## Run FastAPI server locally
+	uv run fastapi dev app/main.py --host 0.0.0.0 --port 7727
+
+mcp: ## Run MCP server locally (HTTP mode)
+	uv run python -m app.mcp.main --transport http
+
+cli: ## Run CLI tool (make cli -- users --help)
+	uv run python -m app.cli.main $(ARGS)
+
 test: ## Run tests
 	uv run pytest tests/
 
@@ -83,9 +95,11 @@ cov: ## Run tests with coverage
 	uv run pytest tests/ --cov-report=term-missing
 
 lint: ## Lint with ruff locally
+	uv run ruff check --select I
 	uv run ruff check
 
 fix: ## Auto-fix + format locally
+	uv run ruff check --select I --fix
 	uv run ruff check --fix
 	uv run ruff format
 
