@@ -154,43 +154,42 @@ class PluginManager:
     def get_user_enabled_plugins(self, user_id: int, session) -> list[str]:
         """
         Get plugins enabled for a specific user.
-        
+
         Logic:
         1. Get system-enabled plugins from config.json
         2. For each system-enabled plugin, check user preference
         3. If no user preference, default to enabled
         4. Return list of plugins enabled for this user
-        
+
         :param user_id: User ID
         :param session: Database session
         :return: List of plugin names enabled for this user
         """
-        from sqlmodel import select
-        from app.models.plugin import UserPlugin
-        
+
+
         system_enabled = self.get_enabled_plugins()
-        
+
         # Get user preferences
         user_prefs = session.exec(
             select(UserPlugin).where(UserPlugin.user_id == user_id)
         ).all()
-        
+
         user_pref_map = {pref.plugin_name: pref.enabled for pref in user_prefs}
-        
+
         # Filter based on user preferences (default to enabled if no preference)
         user_enabled = []
         for plugin in system_enabled:
             if user_pref_map.get(plugin, True):
                 user_enabled.append(plugin)
-        
+
         return user_enabled
-    
+
     def set_user_plugin_preference(
         self, user_id: int, plugin_name: str, enabled: bool, session
     ) -> "UserPlugin":
         """
         Set user's plugin preference.
-        
+
         :param user_id: User ID
         :param plugin_name: Plugin name
         :param enabled: Whether to enable or disable
@@ -199,98 +198,90 @@ class PluginManager:
         :raises ValueError: If plugin is not system-enabled
         """
 
-        
+
         # Check if plugin is system-enabled
         if plugin_name not in self.get_enabled_plugins():
             raise ValueError(f"Plugin '{plugin_name}' is not available system-wide")
-        
+
         # Get or create preference
         pref = session.exec(
             select(UserPlugin).where(
                 UserPlugin.user_id == user_id, UserPlugin.plugin_name == plugin_name
             )
         ).first()
-        
+
         if pref:
             pref.enabled = enabled
             pref.updated_at = datetime.utcnow()
         else:
             pref = UserPlugin(user_id=user_id, plugin_name=plugin_name, enabled=enabled)
-        
+
         session.add(pref)
         session.commit()
         session.refresh(pref)
-        
+
         return pref
-    
+
     def get_user_plugin_config(self, user_id: int, plugin_name: str, session) -> dict[str, Any]:
         """
         Get user's configuration for a specific plugin.
-        
+
         :param user_id: User ID
         :param plugin_name: Plugin name
         :param session: Database session
         :return: Plugin configuration dict
         """
-        from sqlmodel import select
-        from app.models.plugin import UserPlugin
-        
+
         pref = session.exec(
             select(UserPlugin).where(
                 UserPlugin.user_id == user_id, UserPlugin.plugin_name == plugin_name
             )
         ).first()
-        
+
         return pref.config if pref else {}
-    
+
     def set_user_plugin_config(
         self, user_id: int, plugin_name: str, config: dict[str, Any], session
     ) -> "UserPlugin":
         """
         Set user's configuration for a specific plugin.
-        
+
         :param user_id: User ID
         :param plugin_name: Plugin name
         :param config: Configuration dict
         :param session: Database session
         :return: User Plugin instance
         """
-        from datetime import datetime
-        from sqlmodel import select
-        from app.models.plugin import UserPlugin
-        
+
         # Get or create preference
         pref = session.exec(
             select(UserPlugin).where(
                 UserPlugin.user_id == user_id, UserPlugin.plugin_name == plugin_name
             )
         ).first()
-        
+
         if pref:
             pref.config = config
             pref.updated_at = datetime.utcnow()
         else:
             pref = UserPlugin(user_id=user_id, plugin_name=plugin_name, config=config)
-        
+
         session.add(pref)
         session.commit()
         session.refresh(pref)
-        
+
         return pref
-    
+
     def get_user_plugin_preferences(self, user_id: int, session) -> dict[str, dict[str, Any]]:
         """
         Get all plugin preferences for a user.
-        
+
         :param user_id: User ID
         :param session: Database session
         :return: Dict mapping plugin name to {enabled, config}
         """
-        from sqlmodel import select
-        from app.models.plugin import UserPlugin
-        
         prefs = session.exec(select(UserPlugin).where(UserPlugin.user_id == user_id)).all()
-        
+
         return {
             pref.plugin_name: {"enabled": pref.enabled, "config": pref.config} for pref in prefs
         }
