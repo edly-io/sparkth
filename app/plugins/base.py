@@ -4,7 +4,7 @@ SparkthPlugin Base Class
 Provides the foundation for all Sparkth plugins with support for:
 - Route registration
 - Database models and migrations
-- MCP tools and resources
+- MCP tools
 - Middleware and dependencies
 - Configuration management
 - Lifecycle hooks
@@ -80,6 +80,13 @@ class SparkthPlugin:
         self.config = config or {}
         self._initialized = False
         self._enabled = False
+        
+        # Internal storage for dynamically added components
+        self._routes: List[APIRouter] = []
+        self._models: List[Type[SQLModel]] = []
+        self._mcp_tools: List[Dict[str, Any]] = []
+        self._middleware: List[Middleware] = []
+        self._dependencies: Dict[str, Callable] = {}
     
     # ==================== Lifecycle Methods ====================
     
@@ -121,28 +128,39 @@ class SparkthPlugin:
     
     # ==================== Route Registration ====================
     
-    def get_routes(self) -> List[APIRouter]:
+    def add_route(self, router: APIRouter) -> None:
         """
-        Return FastAPI routers to be registered with the application.
+        Add a FastAPI router to this plugin.
         
-        Override this method to provide custom API endpoints.
-        
-        Returns:
-            List of APIRouter instances
+        Args:
+            router: APIRouter instance to add
             
         Example:
             ```python
-            def get_routes(self) -> List[APIRouter]:
+            def initialize(self):
+                super().initialize()
                 router = APIRouter(prefix="/tasks", tags=["Tasks"])
                 
                 @router.get("/")
                 def list_tasks():
                     return {"tasks": []}
                 
-                return [router]
+                self.add_route(router)
             ```
         """
-        return []
+        self._routes.append(router)
+    
+    def get_routes(self) -> List[APIRouter]:
+        """
+        Return FastAPI routers to be registered with the application.
+        
+        Override this method to provide custom API endpoints, or use add_route()
+        to register routes dynamically.
+        
+        Returns:
+            List of APIRouter instances
+        """
+        return self._routes.copy()
     
     def get_route_prefix(self) -> Optional[str]:
         """
@@ -167,28 +185,39 @@ class SparkthPlugin:
     
     # ==================== Database Models & Migrations ====================
     
-    def get_models(self) -> List[Type[SQLModel]]:
+    def add_model(self, model: Type[SQLModel]) -> None:
         """
-        Return SQLModel classes to be registered with the application.
+        Add a SQLModel class to this plugin.
         
-        Override this method to provide database models for your plugin.
-        These models will be available for Alembic migrations.
-        
-        Returns:
-            List of SQLModel class types
+        Args:
+            model: SQLModel class to add
             
         Example:
             ```python
-            def get_models(self) -> List[Type[SQLModel]]:
+            def initialize(self):
+                super().initialize()
+                
                 class Task(SQLModel, table=True):
                     id: Optional[int] = Field(primary_key=True)
                     title: str
                     completed: bool = False
                 
-                return [Task]
+                self.add_model(Task)
             ```
         """
-        return []
+        self._models.append(model)
+    
+    def get_models(self) -> List[Type[SQLModel]]:
+        """
+        Return SQLModel classes to be registered with the application.
+        
+        Override this method to provide database models, or use add_model()
+        to register models dynamically.
+        
+        Returns:
+            List of SQLModel class types
+        """
+        return self._models.copy()
     
     def get_migrations_path(self) -> Optional[Path]:
         """
@@ -213,82 +242,126 @@ class SparkthPlugin:
         """
         return []
     
-    # ==================== MCP Tools & Resources ====================
+    # ==================== MCP Tools ====================
+    
+    def add_mcp_tool(
+        self,
+        name: str,
+        handler: Callable,
+        description: str = "",
+        input_schema: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Add an MCP tool to this plugin.
+        
+        Args:
+            name: Tool name
+            handler: Callable that handles the tool invocation
+            description: Tool description
+            input_schema: JSON Schema for tool input parameters
+            
+        Example:
+            ```python
+            def initialize(self):
+                super().initialize()
+                
+                async def create_task_handler(title: str) -> str:
+                    # Create task logic
+                    return f"Created task: {title}"
+                
+                self.add_mcp_tool(
+                    name="create_task",
+                    handler=create_task_handler,
+                    description="Create a new task",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"}
+                        }
+                    }
+                )
+            ```
+        """
+        tool_def = {
+            "name": name,
+            "handler": handler,
+            "description": description,
+        }
+        if input_schema:
+            tool_def["inputSchema"] = input_schema
+        self._mcp_tools.append(tool_def)
     
     def get_mcp_tools(self) -> List[Dict[str, Any]]:
         """
         Return MCP tools to be registered with the MCP server.
         
-        Override this method to provide MCP tools for AI assistants.
+        Override this method to provide MCP tools, or use add_mcp_tool()
+        to register tools dynamically.
         
         Returns:
             List of MCP tool definitions
-            
-        Example:
-            ```python
-            def get_mcp_tools(self) -> List[Dict[str, Any]]:
-                return [{
-                    "name": "create_task",
-                    "description": "Create a new task",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "title": {"type": "string"}
-                        }
-                    },
-                    "handler": self.create_task_handler
-                }]
-            ```
         """
-        return []
-    
-    def get_mcp_resources(self) -> List[Dict[str, Any]]:
-        """
-        Return MCP resources to be registered with the MCP server.
-        
-        Override this method to provide MCP resources.
-        
-        Returns:
-            List of MCP resource definitions
-        """
-        return []
+        return self._mcp_tools.copy()
     
     # ==================== Middleware & Dependencies ====================
     
-    def get_middleware(self) -> List[Middleware]:
+    def add_middleware(self, middleware: Middleware) -> None:
         """
-        Return FastAPI middleware to be added to the application.
+        Add FastAPI middleware to this plugin.
         
-        Override this method to add custom middleware.
-        
-        Returns:
-            List of Middleware instances
+        Args:
+            middleware: Middleware instance to add
             
         Example:
             ```python
-            def get_middleware(self) -> List[Middleware]:
+            def initialize(self):
+                super().initialize()
                 from starlette.middleware.cors import CORSMiddleware
-                return [
+                
+                self.add_middleware(
                     Middleware(
                         CORSMiddleware,
                         allow_origins=["*"],
                         allow_methods=["*"]
                     )
-                ]
+                )
             ```
         """
-        return []
+        self._middleware.append(middleware)
+    
+    def add_dependency(self, name: str, dependency: Callable) -> None:
+        """
+        Add a FastAPI dependency to this plugin.
+        
+        Args:
+            name: Dependency name
+            dependency: Callable dependency function
+        """
+        self._dependencies[name] = dependency
+    
+    def get_middleware(self) -> List[Middleware]:
+        """
+        Return FastAPI middleware to be added to the application.
+        
+        Override this method to provide middleware, or use add_middleware()
+        to register middleware dynamically.
+        
+        Returns:
+            List of Middleware instances
+        """
+        return self._middleware.copy()
     
     def get_dependencies(self) -> Dict[str, Callable]:
         """
         Return FastAPI dependencies to be registered globally.
         
-        Override this method to provide custom dependencies.
+        Override this method to provide dependencies, or use add_dependency()
+        to register dependencies dynamically.
         
         Returns:
             Dictionary mapping dependency names to callables
         """
-        return {}
+        return self._dependencies.copy()
     
     # ==================== Configuration ====================
     
