@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from sparkth_mcp.openedx.client import OpenEdxClient
-from sparkth_mcp.types import AuthenticationError
+import pytest
+
+from app.mcp.openedx.client import OpenEdxClient
+from app.mcp.types import AuthenticationError
 
 
 @pytest.mark.asyncio
@@ -34,7 +35,7 @@ class TestOpenEdxClient:
         client = OpenEdxClient(lms_url)
 
         with pytest.raises(AuthenticationError) as exc_info:
-            await client.request_jwt(lms_url, "api/user/v1/me")
+            await client.request_jwt("GET", lms_url, "api/user/v1/me")
 
         assert exc_info.value.args[0] == "Access token not set (status_code=401)"
 

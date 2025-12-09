@@ -1,8 +1,10 @@
-from enum import Enum
 import json
+from enum import Enum
 from typing import Any, Optional
+
 from aiohttp import ClientPayloadError, ClientResponse, ClientSession, ContentTypeError
-from sparkth_mcp.types import LMSError
+
+from app.mcp.types import LMSError
 
 
 class Auth(str, Enum):

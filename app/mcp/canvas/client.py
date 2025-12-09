@@ -1,9 +1,10 @@
 from typing import Any, Optional
-import aiohttp
 from urllib.parse import urljoin
 
-from sparkth_mcp.types import AuthenticationError
-from sparkth_mcp.request import request
+import aiohttp
+
+from app.mcp.request import request
+from app.mcp.types import AuthenticationError
 
 
 class CanvasClient:

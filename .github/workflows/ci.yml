@@ -27,6 +27,9 @@ jobs:
       - name: Check formatting
         run: uv run ruff format --check .
 
+      - name: Check import sorting
+        run: uv run ruff check --select I .
+
       - name: Lint
         run: uv run ruff check .
 

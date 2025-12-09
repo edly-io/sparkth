@@ -1,9 +1,7 @@
 from typing import Any
 
-from sparkth_mcp.canvas.client import CanvasClient
-from sparkth_mcp.server import mcp
-from sparkth_mcp.types import AuthenticationError
-from sparkth_mcp.canvas.types import (
+from app.mcp.canvas.client import CanvasClient
+from app.mcp.canvas.types import (
     AuthenticationPayload,
     CourseParams,
     CoursePayload,
@@ -13,16 +11,18 @@ from sparkth_mcp.canvas.types import (
     ModulePayload,
     PagePayload,
     PageRequest,
-    QuestionPayload,
     QuestionParams,
-    QuizPayload,
+    QuestionPayload,
     QuizParams,
+    QuizPayload,
     UpdateModuleItemPayload,
     UpdateModulePayload,
     UpdatePagePayload,
     UpdateQuestionPayload,
     UpdateQuizPayload,
 )
+from app.mcp.server import mcp
+from app.mcp.types import AuthenticationError
 
 
 @mcp.tool
