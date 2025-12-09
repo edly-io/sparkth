@@ -566,7 +566,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             Dictionary mapping dependency names to callables
         """
         return self._dependencies.copy()
-
+    
     def get_config_schema(self) -> Optional[Dict[str, Any]]:
         """
         Return JSON Schema for plugin configuration validation.

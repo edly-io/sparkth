@@ -10,16 +10,6 @@
         "max_tasks_per_user": 100,
         "allow_shared_tasks": true
       }
-    },
-    "calendar": {
-      "_enabled": false,
-      "module": "app.plugins.calendar_plugin",
-      "class": "CalendarPlugin",
-      "enabled": false,
-      "config": {
-        "timezone": "UTC",
-        "first_day_of_week": 0
-      }
     }
   }
 }
