@@ -1,0 +1,25 @@
+{
+  "plugins": {
+    "_comment": "Example plugin configuration - uncomment and modify to add your plugins",
+    "tasks": {
+      "_enabled": false,
+      "module": "app.plugins.tasks_plugin",
+      "class": "TasksPlugin",
+      "enabled": false,
+      "config": {
+        "max_tasks_per_user": 100,
+        "allow_shared_tasks": true
+      }
+    },
+    "calendar": {
+      "_enabled": false,
+      "module": "app.plugins.calendar_plugin",
+      "class": "CalendarPlugin",
+      "enabled": false,
+      "config": {
+        "timezone": "UTC",
+        "first_day_of_week": 0
+      }
+    }
+  }
+}
