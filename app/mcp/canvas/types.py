@@ -11,6 +11,11 @@ class AuthenticationPayload(BaseModel):
 
 
 class CourseParams(BaseModel):
+    course_id: int
+    auth: AuthenticationPayload
+
+
+class PaginationParams(BaseModel):
     page: int
     course_id: int
     auth: AuthenticationPayload
@@ -100,7 +105,7 @@ class ModuleItemCompletionRequirement(BaseModel):
 
 class ModuleItem(BaseModel):
     title: str
-    type: ModuleItemType = Field(alias="type")
+    module_type: ModuleItemType = ModuleItemType.PAGE
     page_url: Optional[str] = None
     content_id: Optional[str] = None
     position: Optional[int] = None

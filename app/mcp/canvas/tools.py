@@ -4,6 +4,7 @@ from app.mcp.canvas.client import CanvasClient
 from app.mcp.canvas.types import (
     AuthenticationPayload,
     CourseParams,
+    PaginationParams,
     CoursePayload,
     ModuleItemParams,
     ModuleItemPayload,
@@ -115,7 +116,7 @@ async def canvas_create_course(payload: CoursePayload) -> dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_modules(params: CourseParams) -> dict[str, Any]:
+async def canvas_list_modules(params: PaginationParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of modules for a course
 
@@ -124,7 +125,7 @@ async def canvas_list_modules(params: CourseParams) -> dict[str, Any]:
     retrieving the modules list.
 
     Args:
-         params (CourseParams): The parameters for the couse whose modules are to be fetched. Consist of:
+         params (PaginationParams): The parameters for the couse whose modules are to be fetched. Consist of:
             auth (AuthenticationPayload): The credentials required for authentication, i.e., api_url and api_token.
             course_id (int): The id for the course whose modules are to be fetched
             page (int): The page index
@@ -294,11 +295,22 @@ async def canvas_create_module_item(payload: ModuleItemPayload) -> dict[str, Any
     auth = payload.auth
     course_id = payload.course_id
     module_id = payload.module_id
+    module_item = payload.module_item
 
     path = f"courses/{course_id}/modules/{module_id}/items"
 
     async with CanvasClient(auth.api_url, auth.api_token) as client:
-        result = await client.post(path, payload.model_dump())
+        module_item = {
+            "title": module_item.title,
+            "type": module_item.module_type,
+            "page_url": module_item.page_url,
+            "content_id": module_item.content_id,
+            "position": module_item.position,
+            "indent": module_item.indent,
+            "new_tab": module_item.new_tab,
+            "completion_requirement": module_item.completion_requirement,
+        }
+        result = await client.post(path, module_item)
 
     return result
 
@@ -353,7 +365,7 @@ async def canvas_delete_module_item(params: ModuleItemParams) -> dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_pages(params: CourseParams) -> dict[str, Any]:
+async def canvas_list_pages(params: PaginationParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of pages for a course.
 
@@ -362,7 +374,7 @@ async def canvas_list_pages(params: CourseParams) -> dict[str, Any]:
     retrieving the modules list.
 
     Args:
-        params (CourseParams): Consist of auth (api_url, api_token), course_id and page index
+        params (PaginationParams): Consist of auth (api_url, api_token), course_id and page index
     """
     auth = params.auth
     course_id = params.course_id
@@ -466,7 +478,7 @@ async def canvas_delete_page(params: PageRequest) -> dict[str, Any]:
 
 
 @mcp.tool
-async def canvas_list_quizzes(params: CourseParams) -> dict[str, Any]:
+async def canvas_list_quizzes(params: PaginationParams) -> dict[str, Any]:
     """
     Retrieve a paginated list of quizzes for a course
 
@@ -475,7 +487,7 @@ async def canvas_list_quizzes(params: CourseParams) -> dict[str, Any]:
     retrieving the modules list.
 
     Args:
-        params (CourseParams): The params for the request, consist of
+        params (PaginationParams): The params for the request, consist of
             auth (AuthenticationPayload): Consist of api_url and api_token
             course_id (int): The course ID
             page (int): The page index
