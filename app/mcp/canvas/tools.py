@@ -125,7 +125,7 @@ async def canvas_list_modules(params: PaginationParams) -> dict[str, Any]:
     retrieving the modules list.
 
     Args:
-         params (PaginationParams): The parameters for the couse whose modules are to be fetched. Consist of:
+         params (PaginationParams): The parameters for the course whose modules are to be fetched. Consist of:
             auth (AuthenticationPayload): The credentials required for authentication, i.e., api_url and api_token.
             course_id (int): The id for the course whose modules are to be fetched
             page (int): The page index
@@ -144,7 +144,7 @@ async def canvas_get_module(params: ModuleParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the module.
 
     Args:
         params (ModuleParams): Consist of auth (api_url, api_token), course_id and module_id
@@ -166,7 +166,7 @@ async def canvas_create_module(payload: ModulePayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    creating the module.
 
     Args:
         payload (ModulePayload): Consist of auth (api_url, api_token), course_id and module
@@ -189,7 +189,7 @@ async def canvas_update_module(payload: UpdateModulePayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    updating the module.
 
     Args:
         payload (UpdateModulePayload): The payload for updating a module
@@ -212,7 +212,7 @@ async def canvas_delete_module(params: ModuleParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    deleting the module.
 
     Args:
         params (ModuleParams): Consist of auth (api_url, api_token), course_id and module_id
@@ -235,7 +235,7 @@ async def canvas_list_module_items(params: ModuleParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the module items list.
 
     Args:
         params (ModuleParams): Consist of auth (api_url, api_token), course_id, module_id and page index
@@ -250,7 +250,7 @@ async def canvas_list_module_items(params: ModuleParams) -> dict[str, Any]:
     async with CanvasClient(auth.api_url, auth.api_token) as client:
         result = await client.get(path)
 
-    return result
+    return {"module_items": result}
 
 
 @mcp.tool
@@ -260,7 +260,7 @@ async def canvas_get_module_item(params: ModuleItemParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the module item.
 
     Args:
         params (ModuleItemParams): Consist of auth (api_url, api_token), course_id, module_id and module_item_id
@@ -285,7 +285,7 @@ async def canvas_create_module_item(payload: ModuleItemPayload) -> dict[str, Any
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    creating the module item.
 
     Only provide page_url if item type is "Page".
 
@@ -295,22 +295,12 @@ async def canvas_create_module_item(payload: ModuleItemPayload) -> dict[str, Any
     auth = payload.auth
     course_id = payload.course_id
     module_id = payload.module_id
-    module_item = payload.module_item
+    module_item = payload.module_item.to_canvas_payload()
 
     path = f"courses/{course_id}/modules/{module_id}/items"
 
     async with CanvasClient(auth.api_url, auth.api_token) as client:
-        module_item = {
-            "title": module_item.title,
-            "type": module_item.module_type,
-            "page_url": module_item.page_url,
-            "content_id": module_item.content_id,
-            "position": module_item.position,
-            "indent": module_item.indent,
-            "new_tab": module_item.new_tab,
-            "completion_requirement": module_item.completion_requirement,
-        }
-        result = await client.post(path, module_item)
+        result = await client.post(path, {"module_item": module_item})
 
     return result
 
@@ -322,7 +312,7 @@ async def canvas_update_module_item(payload: UpdateModuleItemPayload) -> dict[st
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    updating the module item.
 
     Args:
         payload (UpdateModuleItemPayload): Consist of auth (api_url, api_token), course_id, module_id, module_item_id and updated module item payload
@@ -347,7 +337,7 @@ async def canvas_delete_module_item(params: ModuleItemParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    deleting the module item.
 
     Args:
         params (ModuleItemParams): Consist of auth (api_url, api_token), course_id, module_id and module_item_id
@@ -371,7 +361,7 @@ async def canvas_list_pages(params: PaginationParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the pages list.
 
     Args:
         params (PaginationParams): Consist of auth (api_url, api_token), course_id and page index
@@ -383,7 +373,7 @@ async def canvas_list_pages(params: PaginationParams) -> dict[str, Any]:
     async with CanvasClient(auth.api_url, auth.api_token) as client:
         result = await client.get(f"courses/{course_id}/pages?page={page}")
 
-    return result
+    return {"pages": result}
 
 
 @mcp.tool
@@ -393,7 +383,7 @@ async def canvas_get_page(params: PageRequest) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the page.
 
     Args:
         params (PageRequest): Consist of auth (api_url, api_token), course_id and page_url
@@ -416,7 +406,7 @@ async def canvas_create_page(payload: PagePayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    creating the page.
 
     Args:
         payload (PagePayload): Consist of auth (api_url, api_token), course_id and wiki_page payload
@@ -438,7 +428,7 @@ async def canvas_update_page(payload: UpdatePagePayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    updating the page.
 
     Args:
         payload (UpdatePagePayload): Consist of auth (api_url, api_token), course_id and updated page details
@@ -461,7 +451,7 @@ async def canvas_delete_page(params: PageRequest) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    deleting the page.
 
     Args:
         params (PageRequest): Consist of auth (api_url, api_token), course_id and page url.
@@ -484,7 +474,7 @@ async def canvas_list_quizzes(params: PaginationParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the quizzes list.
 
     Args:
         params (PaginationParams): The params for the request, consist of
@@ -509,7 +499,7 @@ async def canvas_get_quiz(params: QuizParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the quiz.
 
     Args:
         params (QuizParams): Consist of auth (api_url, api_token), course_id and quiz_id.
@@ -532,7 +522,7 @@ async def canvas_create_quiz(payload: QuizPayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    creating the quiz.
 
     Args:
         payload (QuizPayload): Consist of auth (api_url, api_token), course_id and quiz payload
@@ -554,7 +544,7 @@ async def canvas_update_quiz(payload: UpdateQuizPayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    updating the quiz.
 
     Args:
         payload (UpdateQuizPayload): Consist of auth (api_url, api_token), course_id and updated quiz details
@@ -576,7 +566,7 @@ async def canvas_delete_quiz(params: QuizParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    deleting the quiz.
 
     Args:
         params (QuizParams): Consist of auth (api_url, api_token), course_id and quiz id.
@@ -599,7 +589,7 @@ async def canvas_list_questions(params: QuizParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the questions list.
 
     Args:
         params (QuizParams): Consist of auth (api_url and api_token), course_id, quiz_id and page index
@@ -623,7 +613,7 @@ async def canvas_get_question(params: QuestionParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    retrieving the question.
 
     Args:
         params (QuestionParams): Consist of auth (api_url, api_token), course_id, quiz_id and question_id.
@@ -647,7 +637,7 @@ async def canvas_create_question(payload: QuestionPayload) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    creating the question.
 
     Args:
         payload (QuestionPayload): Consist of auth (api_url, api_token), course_id, quiz_id and question payload
@@ -670,7 +660,7 @@ async def canvas_update_question(payload: UpdateQuestionPayload) -> dict[str, An
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    updating the question.
 
     Args:
         payload (UpdateQuestionPayload): Consist of auth (api_url, api_token), course_id, quiz_id and updated question details
@@ -694,7 +684,7 @@ async def canvas_delete_question(params: QuestionParams) -> dict[str, Any]:
 
     If any argument is missing, the client must provide it. Default values for required fields are never assumed.
     If the credentials have not already been authenticated, they must be validated before
-    retrieving the modules list.
+    deleting the question.
 
     Args:
         params (QuestionParams): Consist of auth (api_url, api_token), course_id, quiz_id and question_id.
