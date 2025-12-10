@@ -4,7 +4,6 @@ from app.mcp.canvas.client import CanvasClient
 from app.mcp.canvas.types import (
     AuthenticationPayload,
     CourseParams,
-    PaginationParams,
     CoursePayload,
     ModuleItemParams,
     ModuleItemPayload,
@@ -12,6 +11,7 @@ from app.mcp.canvas.types import (
     ModulePayload,
     PagePayload,
     PageRequest,
+    PaginationParams,
     QuestionParams,
     QuestionPayload,
     QuizParams,
