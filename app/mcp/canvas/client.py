@@ -1,5 +1,5 @@
-from typing import Any, Optional, Type
 from types import TracebackType
+from typing import Any, Optional, Type
 from urllib.parse import urljoin
 
 import aiohttp

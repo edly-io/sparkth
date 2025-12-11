@@ -1,6 +1,6 @@
 import json
-from typing import Any, Optional, Type
 from types import TracebackType
+from typing import Any, Optional, Type
 
 import aiohttp
 
