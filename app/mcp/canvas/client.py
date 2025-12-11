@@ -1,4 +1,5 @@
-from typing import Any, Optional
+from typing import Any, Optional, Type
+from types import TracebackType
 from urllib.parse import urljoin
 
 import aiohttp
@@ -16,11 +17,16 @@ class CanvasClient:
     async def __aenter__(self) -> CanvasClient:
         return self
 
-    async def __aexit__(self, _exc_type, _exc_val, _exc_tb) -> None:
+    async def __aexit__(
+        self,
+        _exc_type: Optional[Type[BaseException]],
+        _exc_val: Optional[BaseException],
+        _exc_tb: Optional[TracebackType],
+    ) -> None:
         await self.close()
 
     @staticmethod
-    async def authenticate(new_api_url: str, new_api_token: str):
+    async def authenticate(new_api_url: str, new_api_token: str) -> int:
         async with aiohttp.ClientSession() as session:
             url = urljoin(new_api_url.rstrip("/") + "/", "users/self")
             headers = {"Authorization": f"Bearer {new_api_token}"}
@@ -59,6 +65,6 @@ class CanvasClient:
             payload=payload,
         )
 
-    async def close(self):
+    async def close(self) -> None:
         if self.session and not self.session.closed:
             await self.session.close()

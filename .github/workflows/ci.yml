@@ -34,7 +34,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Type check
-        run: uv run mypy app/ sparkth_mcp/ tests/
+        run: uv run mypy --strict app/ tests/
 
       - name: Run tests
         run: uv run pytest tests/

@@ -39,7 +39,7 @@ async def request(
             return {}
 
         try:
-            json_value = await response.json()
+            json_value: dict[str, Any] = await response.json()
         except (ContentTypeError, json.JSONDecodeError) as e:
             raise LMSError(method, url, response.status, str(e)) from e
 

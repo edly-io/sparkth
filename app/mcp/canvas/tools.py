@@ -36,14 +36,12 @@ async def canvas_authenticate(auth: AuthenticationPayload) -> dict[str, Any]:
             api_url (str): The Canvas API base URL (e.g. https://canvas.instructure.com/api/v1/).
             api_token (str): The user's Canvas API token used for authentication.
     """
-    res = {}
-
     try:
-        res = await CanvasClient.authenticate(auth.api_url, auth.api_token)
+        status = await CanvasClient.authenticate(auth.api_url, auth.api_token)
     except AuthenticationError as e:
         return {"status": e.status_code, "message": e.message}
 
-    return {"status": res}
+    return {"status": status}
 
 
 @mcp.tool

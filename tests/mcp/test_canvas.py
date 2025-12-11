@@ -8,7 +8,7 @@ from app.mcp.types import AuthenticationError
 
 class TestCanvasClientAuthenticate:
     @pytest.mark.asyncio
-    async def test_authenticate_success(self):
+    async def test_authenticate_success(self) -> None:
         api_url = "https://canvas.example.com"
         api_token = "test_token_123"
 
@@ -32,7 +32,7 @@ class TestCanvasClientAuthenticate:
         )
 
     @pytest.mark.asyncio
-    async def test_authenticate_failure_401_invalid_token(self):
+    async def test_authenticate_failure_401_invalid_token(self) -> None:
         """Test authentication failure with 401 status"""
         api_url = "https://canvas.example.com"
         api_token = "invalid_token"

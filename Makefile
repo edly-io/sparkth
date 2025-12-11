@@ -107,7 +107,7 @@ fix: ## Auto-fix + format locally
 	uv run ruff format
 
 mypy: ## Run mypy type checking
-	uv run mypy app/ sparkth_mcp/ tests/
+	uv run mypy --strict app/ tests/
 
 # --------------------------------------------------
 # Catch-all for argument forwarding
