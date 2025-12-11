@@ -1,14 +1,13 @@
 {
   "plugins": {
     "_comment": "Example plugin configuration - uncomment and modify to add your plugins",
-    "tasks": {
-      "_enabled": false,
-      "module": "app.plugins.tasks_plugin",
-      "class": "TasksPlugin",
-      "enabled": false,
+    "canvas-plugin": {
+      "module": "sparkth-plugins.canvas.plugin",
+      "class": "CanvasPlugin",
+      "enabled": true,
       "config": {
-        "max_tasks_per_user": 100,
-        "allow_shared_tasks": true
+        "default_page_size": 10,
+        "timeout": 30
       }
     }
   }
