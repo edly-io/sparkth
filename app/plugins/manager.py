@@ -7,10 +7,10 @@ Manages plugin discovery, loading, and lifecycle based on configuration files.
 import importlib
 import inspect
 import json
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
+from app.core.logger import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
     PluginAlreadyLoadedError,
@@ -21,7 +21,7 @@ from app.plugins.exceptions import (
     PluginValidationError,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PluginManager:

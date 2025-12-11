@@ -10,15 +10,97 @@ Provides the foundation for all Sparkth plugins with support for:
 - Lifecycle hooks
 """
 
+import inspect
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type, get_type_hints
 
 from fastapi import APIRouter
 from starlette.middleware import Middleware
 from sqlmodel import SQLModel
 
+from app.core.logger import get_logger
 
-class SparkthPlugin:
+logger = get_logger(__name__)
+
+
+def tool(
+    name: Optional[str] = None,
+    description: str = "",
+    category: Optional[str] = None,
+    version: str = "1.0.0",
+):
+    """
+    Decorator to mark a method as an MCP tool in a plugin.
+    
+    This decorator marks methods for registration as MCP tools.
+    The actual registration happens automatically when the plugin is instantiated.
+    
+    Args:
+        name: Tool name (uses method name if not provided)
+        description: Tool description (uses docstring if not provided)
+        category: Tool category (e.g., "database", "api", "utilities")
+        version: Tool version
+        
+    Returns:
+        Decorator function
+        
+    Example:
+        ```python
+        from app.plugins.base import SparkthPlugin, tool
+        
+        class CanvasPlugin(SparkthPlugin):
+            @tool(description="Authenticate Canvas API", category="auth")
+            async def canvas_authenticate(self, auth: AuthPayload) -> dict:
+                return await CanvasClient.authenticate(auth.api_url, auth.api_token)
+            
+            @tool(description="Get courses", category="courses")
+            async def canvas_get_courses(self, auth: AuthPayload, page: int) -> dict:
+                async with CanvasClient(auth.api_url, auth.api_token) as client:
+                    return await client.get(f"courses?page={page}")
+        ```
+    """
+    def decorator(func: Callable) -> Callable:
+        # Mark the function with metadata
+        func._is_mcp_tool = True
+        func._mcp_tool_name = name if name else func.__name__
+        func._mcp_tool_description = description or (func.__doc__ or "").strip()
+        func._mcp_tool_category = category
+        func._mcp_tool_version = version
+        return func
+    return decorator
+
+
+class PluginMeta(type):
+    """
+    Metaclass for SparkthPlugin that automatically collects @tool decorated methods.
+    
+    This metaclass scans the class definition for methods marked with the @tool
+    decorator and stores them in a class-level registry. When the plugin is
+    instantiated, these tools are automatically registered.
+    """
+    
+    def __new__(mcs, name, bases, namespace):
+        # Create the class
+        cls = super().__new__(mcs, name, bases, namespace)
+        
+        # Collect all methods marked as tools
+        cls._tool_registry = {}
+        
+        for attr_name, attr_value in namespace.items():
+            # Check if this is a method marked with @tool decorator
+            if callable(attr_value) and hasattr(attr_value, '_is_mcp_tool') and attr_value._is_mcp_tool:
+                cls._tool_registry[attr_name] = {
+                    'name': attr_value._mcp_tool_name,
+                    'description': attr_value._mcp_tool_description,
+                    'category': attr_value._mcp_tool_category,
+                    'version': attr_value._mcp_tool_version,
+                }
+                logger.debug(f"Collected tool '{attr_value._mcp_tool_name}' from class '{name}'")
+        
+        return cls
+
+
+class SparkthPlugin(metaclass=PluginMeta):
     """
     Base class for Sparkth plugins.
     
@@ -87,6 +169,46 @@ class SparkthPlugin:
         self._mcp_tools: List[Dict[str, Any]] = []
         self._middleware: List[Middleware] = []
         self._dependencies: Dict[str, Callable] = {}
+        
+        # Storage for decorated methods (temporary until registered)
+        self._tool_decorators: List[Dict[str, Any]] = []
+        
+        # Automatically register tools collected by the metaclass
+        self._register_tools_from_metaclass()
+    
+    def _register_tools_from_metaclass(self) -> None:
+        """
+        Register all tools that were collected by the PluginMeta metaclass.
+        
+        This method is called automatically during __init__ and registers all
+        methods that were decorated with @tool at class definition time.
+        """
+        tool_registry = getattr(self.__class__, '_tool_registry', {})
+        
+        for method_name, tool_info in tool_registry.items():
+            try:
+                # Get the bound method from the instance
+                bound_method = getattr(self, method_name)
+                
+                # Register it as an MCP tool
+                self.add_mcp_tool(
+                    name=tool_info['name'],
+                    handler=bound_method,
+                    description=tool_info['description'],
+                    category=tool_info['category'],
+                    version=tool_info['version'],
+                )
+                
+                logger.debug(
+                    f"Auto-registered tool '{tool_info['name']}' from method "
+                    f"'{method_name}' in plugin '{self.name}'"
+                )
+                
+            except Exception as e:
+                logger.error(
+                    f"Failed to auto-register tool from method '{method_name}' "
+                    f"in plugin '{self.name}': {e}"
+                )
     
     # ==================== Lifecycle Methods ====================
     
@@ -249,7 +371,9 @@ class SparkthPlugin:
         name: str,
         handler: Callable,
         description: str = "",
-        input_schema: Optional[Dict[str, Any]] = None
+        input_schema: Optional[Dict[str, Any]] = None,
+        category: Optional[str] = None,
+        version: str = "1.0.0",
     ) -> None:
         """
         Add an MCP tool to this plugin.
@@ -258,7 +382,9 @@ class SparkthPlugin:
             name: Tool name
             handler: Callable that handles the tool invocation
             description: Tool description
-            input_schema: JSON Schema for tool input parameters
+            input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
+            category: Tool category (e.g., "database", "api", "utilities")
+            version: Tool version
             
         Example:
             ```python
@@ -273,23 +399,199 @@ class SparkthPlugin:
                     name="create_task",
                     handler=create_task_handler,
                     description="Create a new task",
-                    input_schema={
-                        "type": "object",
-                        "properties": {
-                            "title": {"type": "string"}
-                        }
-                    }
+                    category="tasks",
+                    version="1.0.0"
                 )
             ```
         """
+        # Auto-generate input schema from function signature if not provided
+        if input_schema is None:
+            input_schema = self._generate_input_schema(handler)
+        
         tool_def = {
             "name": name,
             "handler": handler,
             "description": description,
+            "inputSchema": input_schema,
+            "category": category,
+            "version": version,
+            "plugin": self.name,
         }
-        if input_schema:
-            tool_def["inputSchema"] = input_schema
         self._mcp_tools.append(tool_def)
+    
+    def tool(
+        self,
+        name: Optional[str] = None,
+        description: str = "",
+        category: Optional[str] = None,
+        version: str = "1.0.0",
+    ) -> Callable:
+        """
+        Decorator to register an MCP tool.
+        
+        This decorator allows you to register MCP tools directly on plugin methods.
+        The decorated methods will be automatically registered when you call
+        _register_decorated_tools() in your plugin's __init__ method.
+        
+        Args:
+            name: Tool name (uses method name if not provided)
+            description: Tool description (uses docstring if not provided)
+            category: Tool category (e.g., "database", "api", "utilities")
+            version: Tool version
+            
+        Returns:
+            Decorator function
+            
+        Example:
+            ```python
+            class MyPlugin(SparkthPlugin):
+                def __init__(self):
+                    super().__init__(name="my-plugin")
+                    # Register all decorated tools
+                    self._register_decorated_tools()
+                
+                @self.tool(description="Create a new task", category="tasks")
+                async def create_task(self, title: str) -> str:
+                    '''Create a task with the given title.'''
+                    return f"Created task: {title}"
+                
+                @self.tool(name="custom_name", description="Custom tool")
+                async def my_method(self, value: int) -> int:
+                    '''This will be registered as "custom_name" not "my_method".'''
+                    return value * 2
+            ```
+        """
+        def decorator(func: Callable) -> Callable:
+            tool_name = name if name else func.__name__
+            tool_description = description or func.__doc__ or ""
+            
+            # Store the decorated function metadata
+            self._tool_decorators.append({
+                'name': tool_name,
+                'func': func,
+                'description': tool_description.strip(),
+                'category': category,
+                'version': version,
+            })
+            
+            return func  # Return original function unchanged
+        
+        return decorator
+    
+    def _register_decorated_tools(self) -> None:
+        """
+        Register all tools that were decorated with @self.tool().
+        
+        This method should be called in your plugin's __init__() method after
+        all tool decorators have been applied.
+        
+        Example:
+            ```python
+            class MyPlugin(SparkthPlugin):
+                def __init__(self):
+                    super().__init__(name="my-plugin")
+                    # Register decorated tools
+                    self._register_decorated_tools()
+            ```
+        """
+        for tool_info in self._tool_decorators:
+            try:
+                self.add_mcp_tool(
+                    name=tool_info['name'],
+                    handler=tool_info['func'],
+                    description=tool_info['description'],
+                    category=tool_info.get('category'),
+                    version=tool_info.get('version', '1.0.0'),
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to register decorated tool '{tool_info['name']}' "
+                    f"in plugin '{self.name}': {e}"
+                )
+        
+        # Clear the temporary storage
+        self._tool_decorators = []
+    
+    def _generate_input_schema(self, func: Callable) -> Dict[str, Any]:
+        """
+        Auto-generate JSON Schema from function signature using type hints.
+        
+        Args:
+            func: Function to generate schema for
+            
+        Returns:
+            JSON Schema dictionary for the function's parameters
+        """
+        try:
+            sig = inspect.signature(func)
+            type_hints = get_type_hints(func)
+            
+            properties = {}
+            required = []
+            
+            for param_name, param in sig.parameters.items():
+                # Skip 'self' parameter
+                if param_name == 'self':
+                    continue
+                
+                # Get type from hints, default to string
+                param_type = type_hints.get(param_name, str)
+                properties[param_name] = self._type_to_json_schema(param_type)
+                
+                # Add to required if no default value
+                if param.default == inspect.Parameter.empty:
+                    required.append(param_name)
+            
+            schema = {
+                "type": "object",
+                "properties": properties,
+            }
+            
+            if required:
+                schema["required"] = required
+            
+            return schema
+            
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate input schema for {func.__name__}: {e}. "
+                f"Using empty schema."
+            )
+            return {"type": "object", "properties": {}}
+    
+    def _type_to_json_schema(self, py_type: Type) -> Dict[str, Any]:
+        """
+        Convert Python type to JSON Schema type definition.
+        
+        Args:
+            py_type: Python type to convert
+            
+        Returns:
+            JSON Schema type definition
+        """
+        # Handle basic types
+        type_map = {
+            int: {"type": "integer"},
+            float: {"type": "number"},
+            str: {"type": "string"},
+            bool: {"type": "boolean"},
+            list: {"type": "array"},
+            dict: {"type": "object"},
+        }
+        
+        # Check for direct match
+        if py_type in type_map:
+            return type_map[py_type]
+        
+        # Handle typing module types
+        origin = getattr(py_type, '__origin__', None)
+        if origin is list:
+            return {"type": "array"}
+        elif origin is dict:
+            return {"type": "object"}
+        
+        # Default to string for unknown types
+        return {"type": "string"}
     
     def get_mcp_tools(self) -> List[Dict[str, Any]]:
         """
