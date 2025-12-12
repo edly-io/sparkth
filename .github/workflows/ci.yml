@@ -33,8 +33,11 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      - name: Type check
+        run: uv run mypy --strict app/ tests/
+
       - name: Run tests
         run: uv run pytest tests/
         env:
           DATABASE_URL: sqlite:///./test.db
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: secret-key-for-ci

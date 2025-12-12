@@ -1,5 +1,6 @@
 import json
-from typing import Any, Optional
+from types import TracebackType
+from typing import Any, Optional, Type
 
 import aiohttp
 
@@ -20,7 +21,12 @@ class OpenEdxClient:
     async def __aenter__(self) -> OpenEdxClient:
         return self
 
-    async def __aexit__(self, _exc_type, _exc_val, _exc_tb) -> None:
+    async def __aexit__(
+        self,
+        _exc_type: Optional[Type[BaseException]],
+        _exc_val: Optional[BaseException],
+        _exc_tb: Optional[TracebackType],
+    ) -> None:
         await self.close()
 
     async def get_token(self, username: str, password: str) -> dict[str, Any]:
@@ -106,7 +112,7 @@ class OpenEdxClient:
         url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
         return await request(method, url, self.session, Auth.JWT, self.access_token, params, payload)
 
-    async def close(self):
+    async def close(self) -> None:
         await self.session.close()
 
     def get_username(self) -> Optional[str]:

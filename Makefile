@@ -10,7 +10,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 # PHONY TARGETS
 # --------------------------------------------------
-.PHONY: help uv dev lock install test cov lint fix build \
+.PHONY: help uv dev lock install test cov lint fix build mypy \
         up dev.up down clean restart logs shell db-shell \
         create-user reset-password \
         api mcp cli
@@ -25,7 +25,7 @@ help: ## Show this help
 	@echo "\n\033[1mRun Services Locally:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|test|cov|lint|fix|build)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|test|cov|lint|fix|build|mypy)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mUser Management (In Docker):\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(create-user|reset-password)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo
@@ -105,6 +105,9 @@ fix: ## Auto-fix + format locally
 	uv run ruff check --select I --fix
 	uv run ruff check --fix
 	uv run ruff format
+
+mypy: ## Run mypy type checking
+	uv run mypy --strict app/ tests/
 
 # --------------------------------------------------
 # Catch-all for argument forwarding

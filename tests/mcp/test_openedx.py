@@ -8,7 +8,7 @@ from app.mcp.types import AuthenticationError
 
 @pytest.mark.asyncio
 class TestOpenEdxClient:
-    async def test_authenticate_success(self):
+    async def test_authenticate_success(self) -> None:
         lms_url = "https://openedx.example.com"
         access_token = "valid_token"
 
@@ -30,7 +30,7 @@ class TestOpenEdxClient:
 
         assert result == {"user": "test_user"}
 
-    async def test_request_jwt_no_token(self):
+    async def test_request_jwt_no_token(self) -> None:
         lms_url = "https://openedx.example.com"
         client = OpenEdxClient(lms_url)
 
@@ -39,7 +39,7 @@ class TestOpenEdxClient:
 
         assert exc_info.value.args[0] == "Access token not set (status_code=401)"
 
-    async def test_get_token_success(self):
+    async def test_get_token_success(self) -> None:
         lms_url = "https://openedx.example.com"
         username = "user1"
         password = "pass1"
@@ -68,7 +68,7 @@ class TestOpenEdxClient:
         assert client.access_token == "new_token"
         assert client.refresh_token == "refresh_token"
 
-    async def test_refresh_access_token_success(self):
+    async def test_refresh_access_token_success(self) -> None:
         lms_url = "https://openedx.example.com"
         old_refresh_token = "old_refresh"
 

@@ -18,8 +18,8 @@ def get_password_hash(password: str) -> str:
     return password_hash.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
+def create_access_token(data: dict[str, str], expires_delta: timedelta | None = None) -> str:
+    to_encode: dict[str, str | datetime] = dict(data)
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
