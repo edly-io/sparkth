@@ -111,7 +111,7 @@ class ModuleItem(BaseModel):
     new_tab: Optional[bool] = None
     completion_requirement: Optional[ModuleItemCompletionRequirement] = None
 
-    def to_canvas_payload(self) -> dict:
+    def to_canvas_payload(self) -> dict[str, object]:
         data = self.model_dump()
         data["type"] = data.pop("module_type")
         return data
