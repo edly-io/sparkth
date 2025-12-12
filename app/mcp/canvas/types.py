@@ -11,9 +11,12 @@ class AuthenticationPayload(BaseModel):
 
 
 class CourseParams(BaseModel):
-    page: int
     course_id: int
     auth: AuthenticationPayload
+
+
+class PaginationParams(CourseParams):
+    page: int
 
 
 class CourseFormat(str, Enum):
@@ -100,13 +103,18 @@ class ModuleItemCompletionRequirement(BaseModel):
 
 class ModuleItem(BaseModel):
     title: str
-    type: ModuleItemType = Field(alias="type")
+    module_type: ModuleItemType = ModuleItemType.PAGE
     page_url: Optional[str] = None
     content_id: Optional[str] = None
     position: Optional[int] = None
     indent: Optional[int] = None
     new_tab: Optional[bool] = None
     completion_requirement: Optional[ModuleItemCompletionRequirement] = None
+
+    def to_canvas_payload(self) -> dict:
+        data = self.model_dump()
+        data["type"] = data.pop("module_type")
+        return data
 
 
 class ModuleItemPayload(BaseModel):
