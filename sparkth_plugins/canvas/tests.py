@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from sparkth_mcp.canvas.client import CanvasClient
+from sparkth_plugins.canvas.client import CanvasClient
 from sparkth_mcp.types import AuthenticationError
 
 
