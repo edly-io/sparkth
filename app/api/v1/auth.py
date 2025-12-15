@@ -18,24 +18,23 @@ security_scheme = HTTPBearer()
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
-    session: Session = Depends(get_session)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme), session: Session = Depends(get_session)
 ) -> User:
     """
     Dependency to get the current authenticated user from JWT token.
-    
+
     Args:
         credentials: HTTP Bearer token
         session: Database session
-        
+
     Returns:
         Current authenticated user
-        
+
     Raises:
         HTTPException: If token is invalid or user not found
     """
     token = credentials.credentials
-    
+
     try:
         payload = security.decode_access_token(token)
         username: str = payload.get("sub")
@@ -51,7 +50,7 @@ def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     user = session.exec(select(User).where(User.username == username)).first()
     if user is None:
         raise HTTPException(
@@ -59,7 +58,7 @@ def get_current_user(
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     return user
 
 

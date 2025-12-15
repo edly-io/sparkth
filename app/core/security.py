@@ -32,13 +32,13 @@ def create_access_token(data: dict[str, str], expires_delta: timedelta | None = 
 def decode_access_token(token: str) -> dict:
     """
     Decode and validate a JWT access token.
-    
+
     Args:
         token: JWT token string
-        
+
     Returns:
         Decoded token payload
-        
+
     Raises:
         jwt.InvalidTokenError: If token is invalid or expired
     """

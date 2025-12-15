@@ -14,7 +14,6 @@ from app.core.logger import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
     PluginAlreadyLoadedError,
-    PluginDependencyError,
     PluginLoadError,
     PluginNotFoundError,
     PluginNotLoadedError,
@@ -27,7 +26,7 @@ logger = get_logger(__name__)
 class PluginManager:
     """
     Central manager for Sparkth plugins.
-    
+
     Handles:
     - Configuration-based plugin discovery
     - Plugin loading and instantiation
@@ -63,7 +62,7 @@ class PluginManager:
         self.config_path = config_path
         self.plugins_dir = plugins_dir
         self._config: Optional[Dict[str, Any]] = None
-        
+
         # Store loaded plugin instances
         self._loaded_plugins: Dict[str, SparkthPlugin] = {}
         # Store available plugin classes (discovered from config)
@@ -102,7 +101,7 @@ class PluginManager:
     def reload_config(self) -> None:
         """
         Reload the plugin configuration from file.
-        
+
         Useful for picking up configuration changes without restarting the app.
         """
         self._config = None
@@ -120,7 +119,7 @@ class PluginManager:
         """
         config = self.load_config()
         plugins_config = config.get("plugins", {})
-        
+
         plugin_def = plugins_config.get(plugin_name, {})
         return plugin_def.get("config", {})
 
@@ -179,14 +178,14 @@ class PluginManager:
         """
         config = self.load_config()
         plugins_config = config.get("plugins", {})
-        
+
         discovered = {}
 
         for plugin_name, plugin_def in plugins_config.items():
             # Skip comment fields
             if plugin_name.startswith("_"):
                 continue
-                
+
             try:
                 # Skip disabled plugins
                 if not plugin_def.get("enabled", True):
@@ -246,17 +245,13 @@ class PluginManager:
         """
         config = self.load_config()
         plugins_config = config.get("plugins", {})
-        
+
         if plugin_name not in plugins_config:
             return False
-        
+
         return plugins_config[plugin_name].get("enabled", True)
 
-    def _load_plugin_class(
-        self,
-        plugin_name: str,
-        plugin_def: Dict[str, Any]
-    ) -> Optional[Type[SparkthPlugin]]:
+    def _load_plugin_class(self, plugin_name: str, plugin_def: Dict[str, Any]) -> Optional[Type[SparkthPlugin]]:
         """
         Load a plugin class from its definition.
 
@@ -270,7 +265,7 @@ class PluginManager:
         Raises:
             PluginLoadError: If plugin cannot be loaded
             PluginValidationError: If plugin is invalid
-            
+
         Note:
             Expected format: "module": "module.path:ClassName"
             Example: "module": "sparkth-plugins.canvas.plugin:CanvasPlugin"
@@ -279,9 +274,7 @@ class PluginManager:
         module_string = plugin_def.get("module")
 
         if not module_string:
-            raise PluginLoadError(
-                f"Plugin '{plugin_name}' missing 'module' in config"
-            )
+            raise PluginLoadError(f"Plugin '{plugin_name}' missing 'module' in config")
 
         # Parse module string: "module.path:ClassName"
         if ":" not in module_string:
@@ -302,31 +295,23 @@ class PluginManager:
         class_name = class_name.strip()
 
         if not module_name or not class_name:
-            raise PluginLoadError(
-                f"Plugin '{plugin_name}' has empty module or class name in '{module_string}'"
-            )
+            raise PluginLoadError(f"Plugin '{plugin_name}' has empty module or class name in '{module_string}'")
 
         try:
             # Import the module
             module = importlib.import_module(module_name)
         except ImportError as e:
-            raise PluginLoadError(
-                f"Failed to import module '{module_name}' for plugin '{plugin_name}': {e}"
-            )
+            raise PluginLoadError(f"Failed to import module '{module_name}' for plugin '{plugin_name}': {e}")
 
         # Get the class from the module
         if not hasattr(module, class_name):
-            raise PluginLoadError(
-                f"Class '{class_name}' not found in module '{module_name}'"
-            )
+            raise PluginLoadError(f"Class '{class_name}' not found in module '{module_name}'")
 
         plugin_class = getattr(module, class_name)
 
         # Validate that it's a SparkthPlugin subclass
         if not (inspect.isclass(plugin_class) and issubclass(plugin_class, SparkthPlugin)):
-            raise PluginValidationError(
-                f"Class '{class_name}' must be a subclass of SparkthPlugin"
-            )
+            raise PluginValidationError(f"Class '{class_name}' must be a subclass of SparkthPlugin")
 
         return plugin_class
 
@@ -364,17 +349,17 @@ class PluginManager:
         try:
             # Instantiate the plugin
             plugin_instance = plugin_class()
-            
+
             # Set plugin configuration
             if plugin_config:
                 plugin_instance.update_config(plugin_config)
-            
+
             # Initialize the plugin
             plugin_instance.initialize()
-            
+
             # Store the instance
             self._loaded_plugins[plugin_name] = plugin_instance
-            
+
             return plugin_instance
 
         except Exception as e:
@@ -382,25 +367,25 @@ class PluginManager:
 
     def unload_plugin(self, plugin_name: str) -> None:
         """
-        Unload a plugin.
+               Unload a plugin.
 
-        Args:
-            plugin_name: Name of the plugin to unload
+               Args:
+                   plugin_name: Name of the plugin to unload
 
-       
 
- Raises:
-            PluginNotLoadedError: If plugin is not currently loaded
+
+        Raises:
+                   PluginNotLoadedError: If plugin is not currently loaded
         """
         if plugin_name not in self._loaded_plugins:
             raise PluginNotLoadedError(f"Plugin '{plugin_name}' is not loaded")
 
         plugin = self._loaded_plugins[plugin_name]
-        
+
         # Disable if currently enabled
         if plugin.is_enabled():
             plugin.disable()
-        
+
         # Remove from loaded plugins
         del self._loaded_plugins[plugin_name]
 

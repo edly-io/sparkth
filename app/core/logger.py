@@ -23,31 +23,31 @@ def setup_logger(
 ) -> logging.Logger:
     """
     Set up and configure a logger instance.
-    
+
     Args:
         name: Logger name (typically the application name or module name)
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_file: Optional file path to write logs to
         format_string: Log message format string
-        
+
     Returns:
         Configured logger instance
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    
+
     # Remove existing handlers to avoid duplicates
     logger.handlers.clear()
-    
+
     # Create formatter
     formatter = logging.Formatter(format_string, datefmt=DATE_FORMAT)
-    
+
     # Console handler - always add
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-    
+
     # File handler - optional
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -55,10 +55,10 @@ def setup_logger(
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-    
+
     # Prevent propagation to root logger
     logger.propagate = False
-    
+
     return logger
 
 
@@ -72,21 +72,21 @@ logger = setup_logger(
 def get_logger(name: str) -> logging.Logger:
     """
     Get a child logger with the given name.
-    
+
     This creates a logger that inherits from the main sparkth logger,
     allowing for module-specific logging while maintaining consistent
     configuration.
-    
+
     Args:
         name: Logger name (typically __name__ of the calling module)
-        
+
     Returns:
         Logger instance
-        
+
     Example:
         ```python
         from app.core.logger import get_logger
-        
+
         logger = get_logger(__name__)
         logger.info("This is a log message")
         ```
@@ -97,7 +97,7 @@ def get_logger(name: str) -> logging.Logger:
 def set_log_level(level: int) -> None:
     """
     Set the logging level for the main logger.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
