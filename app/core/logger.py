@@ -23,13 +23,13 @@ def setup_logger(
 ) -> logging.Logger:
     """
     Set up and configure a logger instance.
-    
+
     Args:
         name: Logger name (typically the application name or module name)
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_file: Optional file path to write logs to
         format_string: Log message format string
-        
+
     Returns:
         Configured logger instance
     """
@@ -47,7 +47,7 @@ def setup_logger(
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-    
+
     # File handler - optional
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -55,10 +55,10 @@ def setup_logger(
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-    
+
     # Prevent propagation to root logger
     logger.propagate = False
-    
+
     return logger
 
 
@@ -97,7 +97,7 @@ def get_logger(name: str) -> logging.Logger:
 def set_log_level(level: int) -> None:
     """
     Set the logging level for the main logger.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """

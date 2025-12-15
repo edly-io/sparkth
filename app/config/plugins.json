@@ -3,9 +3,19 @@
     "_comment": "Example plugin configuration - uncomment and modify to add your plugins",
     "_format": "module attribute should be in format 'module.path:ClassName'",
     "canvas-plugin": {
-      "module": "sparkth-plugins.canvas.plugin:CanvasPlugin",
+      "module": "sparkth_plugins.canvas.plugin:CanvasPlugin",
       "enabled": true,
       "config": {
+      }
+    },
+    "openedx-plugin": {
+      "module": "sparkth_plugins.openedx.plugin:OpenEdXPlugin",
+      "enabled": true,
+      "config": {
+        "lms_url": "",
+        "studio_url": "",
+        "username": "",
+        "password": ""
       }
     }
   }
