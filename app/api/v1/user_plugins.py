@@ -38,7 +38,7 @@ def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
         session.add(plugin)
         session.commit()
         session.refresh(plugin)
-    
+
     return plugin
 
 

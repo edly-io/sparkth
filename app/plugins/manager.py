@@ -178,10 +178,10 @@ class PluginManager:
 
     def unload_plugin(self, plugin_name: str) -> None:
         """
-        Unload a plugin.
+               Unload a plugin.
 
-        Args:
-            plugin_name: Name of the plugin to unload
+               Args:
+                   plugin_name: Name of the plugin to unload
 
         Raises:
             PluginNotLoadedError: If plugin is not currently loaded

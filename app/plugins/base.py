@@ -149,7 +149,7 @@ class SparkthPlugin(metaclass=PluginMeta):
     ):
         """
         Initialize the plugin with metadata.
-        
+
         Args:
             name: Unique identifier for the plugin (e.g., "tasks-plugin")
             version: Semantic version string (e.g., "1.0.0")
@@ -636,7 +636,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             "initialized": self._initialized,
             "config": self.config,
         }
-    
+
     def __repr__(self) -> str:
         """Return string representation of the plugin."""
         return f"<SparkthPlugin: {self.name} v{self.version}>"
