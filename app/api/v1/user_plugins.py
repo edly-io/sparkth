@@ -38,7 +38,7 @@ def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
         session.add(plugin)
         session.commit()
         session.refresh(plugin)
-
+    
     return plugin
 
 
@@ -52,7 +52,7 @@ class UserPluginResponse(BaseModel):
 
 class UpdateUserPluginRequest(BaseModel):
     """Request model for updating user plugin state."""
-
+    
     enabled: bool
 
 

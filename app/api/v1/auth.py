@@ -50,7 +50,7 @@ def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
+    
     user = session.exec(select(User).where(User.username == username)).first()
     if user is None:
         raise HTTPException(
@@ -58,7 +58,7 @@ def get_current_user(
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
+    
     return user
 
 
