@@ -170,9 +170,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self._middleware: List[Middleware] = []
         self._dependencies: Dict[str, Callable] = {}
         
-        # Storage for decorated methods (temporary until registered)
-        self._tool_decorators: List[Dict[str, Any]] = []
-        
         # Automatically register tools collected by the metaclass
         self._register_tools_from_metaclass()
     
@@ -279,10 +276,40 @@ class SparkthPlugin(metaclass=PluginMeta):
         Override this method to provide custom API endpoints, or use add_route()
         to register routes dynamically.
         
+        All routes are automatically tagged with plugin metadata for access control.
+        
         Returns:
             List of APIRouter instances
         """
-        return self._routes.copy()
+        # Tag all routes with plugin name for middleware access control
+        routes = self._routes.copy()
+        for router in routes:
+            self._tag_router_with_plugin(router)
+        return routes
+    
+    def _tag_router_with_plugin(self, router: APIRouter) -> None:
+        """
+        Tag all routes in a router with plugin metadata.
+        
+        This adds the plugin name to each route's tags for identification
+        by the PluginAccessMiddleware.
+        
+        Args:
+            router: APIRouter to tag
+        """
+        # Add plugin tag to the router's tags
+        plugin_tag = f"plugin:{self.name}"
+        if router.tags:
+            if plugin_tag not in router.tags:
+                router.tags.append(plugin_tag)
+        else:
+            router.tags = [plugin_tag]
+        
+        # Also tag individual routes
+        for route in router.routes:
+            if hasattr(route, "endpoint"):
+                # Add plugin name as an attribute to the endpoint function
+                route.endpoint.__plugin_name__ = self.name
     
     def get_route_prefix(self) -> Optional[str]:
         """
@@ -418,99 +445,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             "plugin": self.name,
         }
         self._mcp_tools.append(tool_def)
-    
-    def tool(
-        self,
-        name: Optional[str] = None,
-        description: str = "",
-        category: Optional[str] = None,
-        version: str = "1.0.0",
-    ) -> Callable:
-        """
-        Decorator to register an MCP tool.
-        
-        This decorator allows you to register MCP tools directly on plugin methods.
-        The decorated methods will be automatically registered when you call
-        _register_decorated_tools() in your plugin's __init__ method.
-        
-        Args:
-            name: Tool name (uses method name if not provided)
-            description: Tool description (uses docstring if not provided)
-            category: Tool category (e.g., "database", "api", "utilities")
-            version: Tool version
-            
-        Returns:
-            Decorator function
-            
-        Example:
-            ```python
-            class MyPlugin(SparkthPlugin):
-                def __init__(self):
-                    super().__init__(name="my-plugin")
-                    # Register all decorated tools
-                    self._register_decorated_tools()
-                
-                @self.tool(description="Create a new task", category="tasks")
-                async def create_task(self, title: str) -> str:
-                    '''Create a task with the given title.'''
-                    return f"Created task: {title}"
-                
-                @self.tool(name="custom_name", description="Custom tool")
-                async def my_method(self, value: int) -> int:
-                    '''This will be registered as "custom_name" not "my_method".'''
-                    return value * 2
-            ```
-        """
-        def decorator(func: Callable) -> Callable:
-            tool_name = name if name else func.__name__
-            tool_description = description or func.__doc__ or ""
-            
-            # Store the decorated function metadata
-            self._tool_decorators.append({
-                'name': tool_name,
-                'func': func,
-                'description': tool_description.strip(),
-                'category': category,
-                'version': version,
-            })
-            
-            return func  # Return original function unchanged
-        
-        return decorator
-    
-    def _register_decorated_tools(self) -> None:
-        """
-        Register all tools that were decorated with @self.tool().
-        
-        This method should be called in your plugin's __init__() method after
-        all tool decorators have been applied.
-        
-        Example:
-            ```python
-            class MyPlugin(SparkthPlugin):
-                def __init__(self):
-                    super().__init__(name="my-plugin")
-                    # Register decorated tools
-                    self._register_decorated_tools()
-            ```
-        """
-        for tool_info in self._tool_decorators:
-            try:
-                self.add_mcp_tool(
-                    name=tool_info['name'],
-                    handler=tool_info['func'],
-                    description=tool_info['description'],
-                    category=tool_info.get('category'),
-                    version=tool_info.get('version', '1.0.0'),
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to register decorated tool '{tool_info['name']}' "
-                    f"in plugin '{self.name}': {e}"
-                )
-        
-        # Clear the temporary storage
-        self._tool_decorators = []
     
     def _generate_input_schema(self, func: Callable) -> Dict[str, Any]:
         """

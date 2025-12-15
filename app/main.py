@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.api.v1.api import api_router
 from app.mcp.server import mcp
 from app.plugins import PluginManager
+from app.plugins.middleware import PluginAccessMiddleware
 
 
 mcp_app = mcp.http_app(path="/")
@@ -86,6 +87,20 @@ app = FastAPI(
     description="Sparkth API with Plugin System",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# Add Plugin Access Control Middleware
+# This middleware checks user permissions for plugin routes
+app.add_middleware(
+    PluginAccessMiddleware,
+    exclude_paths=[
+        "/docs",
+        "/redoc", 
+        "/openapi.json",
+        "/",
+        "/plugins",
+        "/api/v1/auth",  # Auth endpoints should always be accessible
+    ]
 )
 
 # Include core API routes
