@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.plugins import PluginManager
 
 from app.models import *
 
@@ -22,23 +23,14 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 # Import plugin models for Alembic autogenerate
 def import_plugin_models():
     """Import models from all enabled plugins for Alembic to discover."""
-    try:
-        from app.plugins import PluginManager
-        
-        plugin_manager = PluginManager()
-        loaded_plugins = plugin_manager.load_all_enabled()
-        
-        # Get models from each plugin
-        for plugin_name, plugin in loaded_plugins.items():
-            try:
-                models = plugin.get_models()
-                if models:
-                    logger.info(f"Loaded {len(models)} model(s) from plugin '{plugin_name}'")
-            except Exception as e:
-                logger.warning(f"Failed to load models from plugin '{plugin_name}': {e}")
-                
-    except Exception as e:
-        logger.warning(f"Failed to load plugin models: {e}")
+    plugin_manager = PluginManager()
+    loaded_plugins = plugin_manager.load_all_enabled()
+    
+    # Get models from each plugin
+    for plugin_name, plugin in loaded_plugins.items():
+        models = plugin.get_models()
+        if models:
+            logger.info(f"Loaded {len(models)} model(s) from plugin '{plugin_name}'")
 
 
 # this is the Alembic Config object, which provides
