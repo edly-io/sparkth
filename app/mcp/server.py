@@ -5,6 +5,10 @@ from app.mcp.types import CourseGenerationPromptRequest
 
 mcp = FastMCP("Sparkth")
 
+# Import tools to register them with the mcp instance
+from app.mcp.canvas.tools import *  # noqa: F401, F403, E402
+from app.mcp.openedx.tools import *  # noqa: F401, F403, E402
+
 
 @mcp.tool
 async def get_course_generation_prompt_tool(
