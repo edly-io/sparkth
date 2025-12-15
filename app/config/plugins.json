@@ -1,13 +1,11 @@
 {
   "plugins": {
     "_comment": "Example plugin configuration - uncomment and modify to add your plugins",
+    "_format": "module attribute should be in format 'module.path:ClassName'",
     "canvas-plugin": {
-      "module": "sparkth-plugins.canvas.plugin",
-      "class": "CanvasPlugin",
+      "module": "sparkth-plugins.canvas.plugin:CanvasPlugin",
       "enabled": true,
       "config": {
-        "default_page_size": 10,
-        "timeout": 30
       }
     }
   }

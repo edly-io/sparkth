@@ -167,8 +167,7 @@ class PluginManager:
             {
               "plugins": {
                 "tasks": {
-                  "module": "app.plugins.tasks_plugin",
-                  "class": "TasksPlugin",
+                  "module": "app.plugins.tasks_plugin:TasksPlugin",
                   "enabled": true,
                   "config": {
                     "max_tasks": 100
@@ -271,14 +270,40 @@ class PluginManager:
         Raises:
             PluginLoadError: If plugin cannot be loaded
             PluginValidationError: If plugin is invalid
+            
+        Note:
+            Expected format: "module": "module.path:ClassName"
+            Example: "module": "sparkth-plugins.canvas.plugin:CanvasPlugin"
         """
-        # Get module and class name from config
-        module_name = plugin_def.get("module")
-        class_name = plugin_def.get("class")
+        # Get module string from config
+        module_string = plugin_def.get("module")
+
+        if not module_string:
+            raise PluginLoadError(
+                f"Plugin '{plugin_name}' missing 'module' in config"
+            )
+
+        # Parse module string: "module.path:ClassName"
+        if ":" not in module_string:
+            raise PluginLoadError(
+                f"Plugin '{plugin_name}' has invalid module format. "
+                f"Expected 'module.path:ClassName', got '{module_string}'"
+            )
+
+        try:
+            module_name, class_name = module_string.split(":", 1)
+        except ValueError:
+            raise PluginLoadError(
+                f"Plugin '{plugin_name}' has invalid module format. "
+                f"Expected 'module.path:ClassName', got '{module_string}'"
+            )
+
+        module_name = module_name.strip()
+        class_name = class_name.strip()
 
         if not module_name or not class_name:
             raise PluginLoadError(
-                f"Plugin '{plugin_name}' missing 'module' or 'class' in config"
+                f"Plugin '{plugin_name}' has empty module or class name in '{module_string}'"
             )
 
         try:
