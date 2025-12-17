@@ -3,17 +3,12 @@ from types import TracebackType
 from typing import Any, Optional, Type
 
 import aiohttp
-
-<<<<<<<< HEAD:app/mcp/openedx/client.py
+from app.core_plugins.openedx.types import TokenResponse
+from app.mcp.types import AuthenticationError, JsonParseError
+from app.mcp.request import Auth, handle_error_response, request
 from app.mcp.openedx.types import TokenResponse
 from app.mcp.request import Auth, handle_error_response, request
 from app.mcp.types import AuthenticationError, JsonParseError
-========
-from sparkth_plugins.openedx.types import TokenResponse
-from sparkth_mcp.types import AuthenticationError, JsonParseError
-from sparkth_mcp.request import Auth, handle_error_response, request
->>>>>>>> e8e4890 (feat: implemented open edX plugin for Sparkth):sparkth_plugins/openedx/client.py
-
 
 class OpenEdxClient:
     def __init__(self, lms_url: str, access_token: Optional[str] = None):

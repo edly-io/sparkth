@@ -2,6 +2,7 @@ import urllib
 from typing import Any, Optional
 from urllib.parse import quote
 
+from app.mcp.types import AuthenticationError, JsonParseError, LMSError
 from app.mcp.openedx.client import OpenEdxClient
 from app.mcp.openedx.types import (
     AccessTokenPayload,
@@ -19,7 +20,6 @@ from app.mcp.openedx.types import (
     XBlockPayload,
 )
 from app.mcp.server import mcp
-from app.mcp.types import AuthenticationError, JsonParseError, LMSError
 
 
 async def openedx_create_basic_component(

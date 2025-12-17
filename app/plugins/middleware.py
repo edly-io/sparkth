@@ -157,7 +157,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             # First, find the plugin by name
             from app.models.plugin import Plugin
 
-            plugin_statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at is None)
+            plugin_statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at.is_(None))
             plugin = session.exec(plugin_statement).first()
 
             # If plugin doesn't exist in DB, allow access (it may be newly loaded)
@@ -174,7 +174,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             statement = select(UserPlugin).where(
                 UserPlugin.user_id == user_id,
                 UserPlugin.plugin_id == plugin.id,
-                UserPlugin.deleted_at is None,  # Not soft deleted
+                UserPlugin.deleted_at.is_(None),  # Not soft deleted
             )
             result = session.exec(statement).first()
 

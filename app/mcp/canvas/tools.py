@@ -1,5 +1,4 @@
 from typing import Any
-
 from app.mcp.canvas.client import CanvasClient
 from app.mcp.canvas.types import (
     AuthenticationPayload,

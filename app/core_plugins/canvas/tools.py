@@ -1,9 +1,9 @@
 from typing import Any
-
-from sparkth_plugins.canvas.client import CanvasClient
-from sparkth_mcp.server import mcp
-from sparkth_mcp.types import AuthenticationError
-from sparkth_plugins.canvas.types import (
+from app.core_plugins.canvas.client import CanvasClient
+from app.mcp.server import mcp
+from app.mcp.types import AuthenticationError
+from app.mcp.canvas.client import CanvasClient
+from app.mcp.canvas.types import (
     AuthenticationPayload,
     CourseParams,
     CoursePayload,

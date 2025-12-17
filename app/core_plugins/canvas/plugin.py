@@ -11,8 +11,7 @@ Provides MCP tools for interacting with Canvas LMS API including:
 """
 
 from typing import Any
-import sys
-from pathlib import Path
+
 from app.plugins.base import SparkthPlugin, tool
 from app.mcp.types import AuthenticationError
 
@@ -38,10 +37,6 @@ from .types import (
     UpdateQuestionPayload,
     UpdateQuizPayload,
 )
-
-# Add parent directory to path for imports
-plugin_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(plugin_dir))
 
 
 class CanvasPlugin(SparkthPlugin):
