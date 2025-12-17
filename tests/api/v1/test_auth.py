@@ -5,7 +5,7 @@ from app.core.security import get_password_hash
 from app.models.user import User
 
 
-def test_create_user(client: TestClient):
+def test_create_user(client: TestClient) -> None:
     response = client.post(
         "/api/v1/auth/register",
         json={
@@ -23,7 +23,7 @@ def test_create_user(client: TestClient):
     assert "hashed_password" not in data
 
 
-def test_create_user_existing_username(client: TestClient, session: Session):
+def test_create_user_existing_username(client: TestClient, session: Session) -> None:
     hashed_password = get_password_hash("testpassword")
     user = User(
         name="Test User",
@@ -47,7 +47,7 @@ def test_create_user_existing_username(client: TestClient, session: Session):
     assert response.json() == {"detail": "Username already registered"}
 
 
-def test_create_user_existing_email(client: TestClient, session: Session):
+def test_create_user_existing_email(client: TestClient, session: Session) -> None:
     hashed_password = get_password_hash("testpassword")
     user = User(
         name="Test User",
@@ -71,7 +71,7 @@ def test_create_user_existing_email(client: TestClient, session: Session):
     assert response.json() == {"detail": "Email already registered"}
 
 
-def test_login(client: TestClient, session: Session):
+def test_login(client: TestClient, session: Session) -> None:
     password = "testpassword"
     hashed_password = get_password_hash(password)
     user = User(
@@ -93,7 +93,7 @@ def test_login(client: TestClient, session: Session):
     assert data["token_type"] == "bearer"
 
 
-def test_login_wrong_password(client: TestClient, session: Session):
+def test_login_wrong_password(client: TestClient, session: Session) -> None:
     password = "testpassword"
     hashed_password = get_password_hash(password)
     user = User(
@@ -113,7 +113,7 @@ def test_login_wrong_password(client: TestClient, session: Session):
     assert response.json() == {"detail": "Incorrect username or password"}
 
 
-def test_login_non_existent_user(client: TestClient):
+def test_login_non_existent_user(client: TestClient) -> None:
     response = client.post(
         "/api/v1/auth/login",
         json={"username": "nonexistent", "password": "testpassword"},

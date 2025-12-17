@@ -2,11 +2,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sparkth_plugins.canvas.client import CanvasClient
 from sparkth_mcp.types import AuthenticationError
 
+
 import pytest
 
 from app.mcp.canvas.client import CanvasClient
 from app.mcp.types import AuthenticationError
-
 
 class TestCanvasClientAuthenticate:
     @pytest.mark.asyncio

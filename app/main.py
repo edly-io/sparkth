@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from app.api.v1.api import api_router
 from app.plugins import PluginManager
 from app.plugins.middleware import PluginAccessMiddleware
-
+from app.mcp.server import mcp
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -71,9 +71,9 @@ async def lifespan(application: FastAPI):
         logger.error(f"Plugin cleanup failed: {e}")
 
 
-# Create FastAPI app with plugin-aware lifespan
-app = FastAPI(title="Sparkth API", description="Sparkth API with Plugin System", version="1.0.0", lifespan=lifespan)
-
+mcp_app = mcp.http_app(path="/")
+app = FastAPI(lifespan=mcp_app.lifespan)
+app.mount("/mcp", mcp_app)
 # Add Plugin Access Control Middleware
 # This middleware checks user permissions for plugin routes
 app.add_middleware(

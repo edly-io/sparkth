@@ -17,7 +17,7 @@ def create_user(
     password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True),
     name: Optional[str] = typer.Option(None, "--name", "-n"),
     superuser: bool = typer.Option(False, "--superuser", "--admin", is_flag=True),
-):
+) -> None:
     engine = get_engine()
     with Session(engine) as session:
         existing = session.exec(select(User).where((User.username == username) | (User.email == email))).first()
@@ -52,15 +52,15 @@ def create_user(
 @app.command()
 def reset_password(
     identifier: str = typer.Argument(..., help="Username or email of the user"),
-    new_password: Optional[str] = typer.Option(
-        None,
+    new_password: str = typer.Option(
+        ...,
         "--new-password",
         "-p",
         prompt=True,
         hide_input=True,
         confirmation_prompt=True,
     ),
-):
+) -> None:
     engine = get_engine()
     with Session(engine) as session:
         user = session.exec(select(User).where((User.username == identifier) | (User.email == identifier))).first()

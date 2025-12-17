@@ -10,6 +10,7 @@ from app.mcp.request import Auth, handle_error_response, request
 from app.mcp.types import AuthenticationError, JsonParseError
 
 
+
 class OpenEdxClient:
     def __init__(self, lms_url: str, access_token: Optional[str] = None):
         self.lms_url = lms_url.rstrip("/")

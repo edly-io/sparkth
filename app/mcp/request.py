@@ -1,8 +1,10 @@
-from enum import Enum
 import json
+from enum import Enum
 from typing import Any, Optional
+
 from aiohttp import ClientPayloadError, ClientResponse, ClientSession, ContentTypeError
-from sparkth_mcp.types import LMSError
+
+from app.mcp.types import LMSError
 
 
 class Auth(str, Enum):
@@ -37,7 +39,7 @@ async def request(
             return {}
 
         try:
-            json_value = await response.json()
+            json_value: dict[str, Any] = await response.json()
         except (ContentTypeError, json.JSONDecodeError) as e:
             raise LMSError(method, url, response.status, str(e)) from e
 

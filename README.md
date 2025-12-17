@@ -5,7 +5,7 @@ Sparkth is a free, open source, extensible, science-driven, AI-first learning pl
 
 This repository is organized with the following main components:
 
-- `sparkth_mcp/`
+- `mcp/`
 - `api/`
 - `core/`
 - `models/`
@@ -55,7 +55,7 @@ chmod a+x sparkth
 
 ## Running the MCP Server
 
-    uv run python -m sparkth_mcp.main 
+    uv run python -m app.mcp.main 
 
 Any CLI option supported by Sparkth MCP can be appended to this command.
 
@@ -82,7 +82,7 @@ Add the Sparkth MCP server, such that your configuration looks like the followin
         "/<PATH TO SPARKTH REPOSITORY>/sparkth",
         "run",
         "-m",
-        "sparkth_mcp.main",
+        "app.mcp.main",
         "--transport=stdio"
       ]
     }
