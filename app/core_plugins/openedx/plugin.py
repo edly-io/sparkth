@@ -3,8 +3,8 @@ from typing import Any, Optional
 import urllib
 from urllib.parse import quote
 from app.plugins.base import SparkthPlugin, tool
-from sparkth_plugins.openedx.client import OpenEdxClient
-from sparkth_plugins.openedx.types import (
+from app.core_plugins.openedx.client import OpenEdxClient
+from app.core_plugins.openedx.types import (
     AccessTokenPayload,
     Auth,
     BlockContentArgs,
@@ -19,7 +19,7 @@ from sparkth_plugins.openedx.types import (
     UpdateXBlockPayload,
     XBlockPayload,
 )
-from sparkth_mcp.types import AuthenticationError, JsonParseError, LMSError
+from app.mcp.types import AuthenticationError, JsonParseError, LMSError
 
 
 async def openedx_create_basic_component(
@@ -115,7 +115,7 @@ class OpenEdXPlugin(SparkthPlugin):
         )
 
     @tool(description="Authenticate the provided Openedx credentials", category="openedx-auth")
-    async def openedx_authenticate(auth: Auth) -> dict[str, Any]:
+    async def openedx_authenticate(self, auth: Auth) -> dict[str, Any]:
         """
         Authenticate the provided Openedx credentials.
         If either argument is missing, the client must supply it. Default values for required fields are never assumed.
@@ -149,7 +149,7 @@ class OpenEdXPlugin(SparkthPlugin):
                 }
 
     @tool(description="Refresh the Open edX access token using the provided refresh token.", category="openedx-auth")
-    async def openedx_refresh_access_token(payload: RefreshTokenPayload) -> dict[str, Any]:
+    async def openedx_refresh_access_token(self, payload: RefreshTokenPayload) -> dict[str, Any]:
         """
         Refresh the Open edX access token using the provided refresh token.
 
@@ -205,7 +205,7 @@ class OpenEdXPlugin(SparkthPlugin):
                 return {"error": {"status_code": err.status_code, "message": f"Refresh token failed: {err.message}"}}
 
     @tool(description="Retrieve authenticated user information from an Open edX LMS instance.", category="openedx-user")
-    async def openedx_get_user_info(payload: LMSAccess) -> dict[str, Any]:
+    async def openedx_get_user_info(self, payload: LMSAccess) -> dict[str, Any]:
         """
         Retrieve authenticated user information from an Open edX LMS instance.
 
@@ -249,7 +249,7 @@ class OpenEdXPlugin(SparkthPlugin):
                 }
 
     @tool(description="Create a new course run in an Open edX Studio instance.", category="openedx-course")
-    async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]:
+    async def openedx_create_course_run(self, payload: CreateCourseArgs) -> dict[str, Any]:
         """
         Create a new course run in an Open edX Studio instance.
 
@@ -300,7 +300,7 @@ class OpenEdXPlugin(SparkthPlugin):
                 }
 
     @tool(description="Retrieve a paginated list of course runs from open edX studio.", category="openedx-course")
-    async def openedx_list_course_runs(payload: ListCourseRunsArgs) -> dict[str, Any]:
+    async def openedx_list_course_runs(self, payload: ListCourseRunsArgs) -> dict[str, Any]:
         """
         Retrieve a paginated list of course runs from an Open edX Studio instance.
 
@@ -358,7 +358,7 @@ class OpenEdXPlugin(SparkthPlugin):
                 }
 
     @tool(description="Create a new XBlock within an Open edX course.", category="openedx-course")
-    async def openedx_create_xblock(payload: XBlockPayload) -> dict[str, Any]:
+    async def openedx_create_xblock(self, payload: XBlockPayload) -> dict[str, Any]:
         """
         Create a new XBlock within an Open edX course.
 
@@ -418,7 +418,7 @@ class OpenEdXPlugin(SparkthPlugin):
                 }
 
     @tool(description="Create a Problem or HTML XBlock component in a course.", category="openedx-course")
-    async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str, Any]:
+    async def openedx_create_problem_or_html(self, payload: ProblemOrHtmlArgs) -> dict[str, Any]:
         """
         Create either a Problem or HTML XBlock component, then update the XBlock
         using the `update` tool.
@@ -549,7 +549,7 @@ class OpenEdXPlugin(SparkthPlugin):
         description="Update an XBlock (chapter/section, sequential/subsection, or vertical/unit) in a course.",
         category="openedx-course",
     )
-    async def openedx_update_xblock(payload: UpdateXBlockPayload) -> dict[str, Any]:
+    async def openedx_update_xblock(self, payload: UpdateXBlockPayload) -> dict[str, Any]:
         """
         Update an XBlock (chapter/section, sequential/subsection, or vertical/unit)
         in an Open edX course.
@@ -601,7 +601,7 @@ class OpenEdXPlugin(SparkthPlugin):
             }
 
     @tool(description="Fetch the full block graph (course tree) for a course.", category="openedx-course-tree")
-    async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, Any]:
+    async def openedx_get_course_tree_raw(self, payload: CourseTreeRequest) -> dict[str, Any]:
         """
         Fetch the full block graph ("course tree") for a course using the
         Open edX Course Blocks API.
@@ -664,6 +664,7 @@ class OpenEdXPlugin(SparkthPlugin):
         category="openedx-content-store",
     )
     async def openedx_get_block_contentstore(
+        self,
         payload: BlockContentArgs,
     ) -> dict[str, Any]:
         """

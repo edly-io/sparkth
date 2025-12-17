@@ -3,9 +3,9 @@ from typing import Any, Optional
 import urllib
 from urllib.parse import quote
 
-from sparkth_mcp.types import AuthenticationError, JsonParseError, LMSError
-from sparkth_mcp.openedx.client import OpenEdxClient
-from sparkth_mcp.openedx.types import (
+from app.mcp.types import AuthenticationError, JsonParseError, LMSError
+from app.mcp.openedx.client import OpenEdxClient
+from app.mcp.openedx.types import (
     AccessTokenPayload,
     Auth,
     BlockContentArgs,
@@ -20,7 +20,7 @@ from sparkth_mcp.openedx.types import (
     UpdateXBlockPayload,
     XBlockPayload,
 )
-from sparkth_mcp.server import mcp
+from app.mcp.server import mcp
 
 
 async def openedx_create_basic_component(

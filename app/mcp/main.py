@@ -3,14 +3,11 @@ import logging
 import sys
 from pathlib import Path
 
-from sparkth_mcp.mode import TransportMode
-from sparkth_mcp.server import mcp
-from app.plugins import PluginManager
+from app.mcp.mode import TransportMode
+from app.mcp.server import mcp
+from app.plugins import get_plugin_manager
 
 
-# Add app directory to path for plugin imports
-app_path = Path(__file__).parent.parent / "app"
-sys.path.insert(0, str(app_path.parent))
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +24,8 @@ def register_plugin_tools():
     5. Registers tools with the FastMCP server
     """
     try:
-        # Initialize plugin manager
-        plugin_manager = PluginManager()
+        # Get the global plugin manager instance
+        plugin_manager = get_plugin_manager()
 
         # Load all enabled plugins
         loaded_plugins = plugin_manager.load_all_enabled()

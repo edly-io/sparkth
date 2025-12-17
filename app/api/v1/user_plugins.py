@@ -13,13 +13,10 @@ from app.core.db import get_session
 from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User
 from app.api.v1.auth import get_current_user
-from app.plugins import PluginManager
+from app.plugins import get_plugin_manager
 from pydantic import BaseModel
 
 router = APIRouter()
-
-# Initialize plugin manager to get available plugins
-plugin_manager = PluginManager()
 
 
 def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
@@ -34,7 +31,7 @@ def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
         Plugin instance
     """
     # Try to find existing plugin
-    statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at is None)
+    statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at.is_(None))
     plugin = session.exec(statement).first()
 
     if plugin is None:
@@ -76,13 +73,14 @@ def list_user_plugins(current_user: User = Depends(get_current_user), session: S
     enabled or disabled for the authenticated user.
     """
     # Get all available plugins from the plugin manager
+    plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
 
     # Get user's plugin settings with join to Plugin table
     statement = (
         select(UserPlugin, Plugin)
         .join(Plugin)
-        .where(UserPlugin.user_id == current_user.id, UserPlugin.deleted_at is None)
+        .where(UserPlugin.user_id == current_user.id, UserPlugin.deleted_at.is_(None))
     )
     user_plugin_results = session.exec(statement).all()
 
@@ -116,6 +114,7 @@ def get_user_plugin(
     Get the status and configuration of a specific plugin for the current user.
     """
     # Check if plugin exists
+    plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
     if plugin_name not in available_plugins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
@@ -125,7 +124,7 @@ def get_user_plugin(
 
     # Get user's plugin setting
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at is None
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
     )
     user_plugin = session.exec(statement).first()
 
@@ -147,6 +146,7 @@ def update_user_plugin(
     Enable or disable a plugin for the current user.
     """
     # Check if plugin exists
+    plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
     if plugin_name not in available_plugins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
@@ -156,7 +156,7 @@ def update_user_plugin(
 
     # Check if user already has a setting for this plugin
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at is None
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
     )
     user_plugin = session.exec(statement).first()
 
@@ -187,6 +187,7 @@ def update_user_plugin_config(
     This allows users to customize plugin-specific settings.
     """
     # Check if plugin exists
+    plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
     if plugin_name not in available_plugins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
@@ -196,7 +197,7 @@ def update_user_plugin_config(
 
     # Check if user already has a setting for this plugin
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at is None
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
     )
     user_plugin = session.exec(statement).first()
 

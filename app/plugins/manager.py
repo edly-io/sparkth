@@ -1,15 +1,15 @@
 """
 Plugin Manager for Sparkth.
 
-Manages plugin discovery, loading, and lifecycle based on configuration files.
+Manages plugin discovery, loading, and lifecycle based on configuration.
 """
 
 import importlib
 import inspect
-import json
-from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional, Type
 
+from app.core.config import get_plugin_settings
 from app.core.logger import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
@@ -28,175 +28,41 @@ class PluginManager:
     Central manager for Sparkth plugins.
 
     Handles:
-    - Configuration-based plugin discovery
+    - Plugin discovery from core configuration
     - Plugin loading and instantiation
     - Plugin lifecycle management (initialize, enable, disable)
-    - Plugin dependency resolution
     - Runtime plugin state management
     """
 
-    def __init__(
-        self,
-        config_path: Optional[Path] = None,
-        plugins_dir: Optional[Path] = None,
-    ):
-        """
-        Initialize plugin manager.
-
-        Args:
-            config_path: Path to plugin configuration file (JSON).
-                        Defaults to app/config/plugins.json
-            plugins_dir: Base directory for plugin modules.
-                        Defaults to app/plugins/
-        """
-        if config_path is None:
-            # Default to app/config/plugins.json
-            app_dir = Path(__file__).parent.parent
-            config_path = app_dir / "config" / "plugins.json"
-
-        if plugins_dir is None:
-            # Default to app/plugins/
-            app_dir = Path(__file__).parent.parent
-            plugins_dir = app_dir / "plugins"
-
-        self.config_path = config_path
-        self.plugins_dir = plugins_dir
-        self._config: Optional[Dict[str, Any]] = None
-
+    def __init__(self):
+        """Initialize plugin manager."""
         # Store loaded plugin instances
         self._loaded_plugins: Dict[str, SparkthPlugin] = {}
         # Store available plugin classes (discovered from config)
         self._available_plugins: Dict[str, Type[SparkthPlugin]] = {}
 
-    # ==================== Configuration Management ====================
-
-    def load_config(self) -> Dict[str, Any]:
-        """
-        Load plugin configuration from file.
-
-        Returns:
-            Dictionary containing plugin configuration
-
-        Raises:
-            PluginLoadError: If config file cannot be loaded
-        """
-        if self._config is not None:
-            return self._config
-
-        if not self.config_path.exists():
-            # Return empty config if file doesn't exist
-            self._config = {"plugins": {}}
-            return self._config
-
-        try:
-            with open(self.config_path, "r") as f:
-                self._config = json.load(f)
-        except json.JSONDecodeError as e:
-            raise PluginLoadError(f"Invalid JSON in plugin config: {e}")
-        except Exception as e:
-            raise PluginLoadError(f"Failed to load plugin config: {e}")
-
-        return self._config
-
-    def reload_config(self) -> None:
-        """
-        Reload the plugin configuration from file.
-
-        Useful for picking up configuration changes without restarting the app.
-        """
-        self._config = None
-        self.load_config()
-
-    def get_plugin_config(self, plugin_name: str) -> Dict[str, Any]:
-        """
-        Get configuration for a specific plugin.
-
-        Args:
-            plugin_name: Name of the plugin
-
-        Returns:
-            Plugin configuration dictionary
-        """
-        config = self.load_config()
-        plugins_config = config.get("plugins", {})
-
-        plugin_def = plugins_config.get(plugin_name, {})
-        return plugin_def.get("config", {})
-
-    def update_plugin_state(self, plugin_name: str, enabled: bool) -> None:
-        """
-        Update the enabled state of a plugin in the configuration file.
-
-        Args:
-            plugin_name: Name of the plugin
-            enabled: Whether the plugin should be enabled
-
-        Raises:
-            PluginNotFoundError: If plugin is not in config
-        """
-        config = self.load_config()
-        plugins_config = config.get("plugins", {})
-
-        if plugin_name not in plugins_config:
-            raise PluginNotFoundError(f"Plugin '{plugin_name}' not found in config")
-
-        plugins_config[plugin_name]["enabled"] = enabled
-
-        # Write back to file
-        try:
-            with open(self.config_path, "w") as f:
-                json.dump(config, f, indent=2)
-        except Exception as e:
-            raise PluginLoadError(f"Failed to update plugin config: {e}")
-
-        # Reload config
-        self._config = config
-
     # ==================== Plugin Discovery ====================
 
     def discover_plugins(self) -> Dict[str, Type[SparkthPlugin]]:
         """
-        Discover all plugins defined in configuration.
+        Discover all plugins defined in get_plugin_settings().
 
         Returns:
             Dictionary mapping plugin names to plugin classes
 
-        Example config structure:
-            ```json
-            {
-              "plugins": {
-                "tasks": {
-                  "module": "app.plugins.tasks_plugin:TasksPlugin",
-                  "enabled": true,
-                  "config": {
-                    "max_tasks": 100
-                  }
-                }
-              }
-            }
-            ```
+        Note:
+            All plugins are enabled by default.
+            Format: "module.path:ClassName"
         """
-        config = self.load_config()
-        plugins_config = config.get("plugins", {})
-
         discovered = {}
-
-        for plugin_name, plugin_def in plugins_config.items():
-            # Skip comment fields
-            if plugin_name.startswith("_"):
-                continue
-
+        
+        for module_string in get_plugin_settings():
             try:
-                # Skip disabled plugins
-                if not plugin_def.get("enabled", True):
-                    continue
-
-                plugin_class = self._load_plugin_class(plugin_name, plugin_def)
+                plugin_name, plugin_class = self._load_plugin_class(module_string)
                 if plugin_class:
                     discovered[plugin_name] = plugin_class
-
             except Exception as e:
-                logger.warning(f"Failed to discover plugin '{plugin_name}': {e}")
+                logger.warning(f"Failed to discover plugin from '{module_string}': {e}")
                 continue
 
         self._available_plugins = discovered
@@ -204,82 +70,37 @@ class PluginManager:
 
     def get_available_plugins(self) -> List[str]:
         """
-        Get list of all available plugin names from configuration.
+        Get list of all available plugin names.
 
         Returns:
-            List of all plugin names (enabled or disabled)
+            List of all plugin names
         """
-        config = self.load_config()
-        plugins_config = config.get("plugins", {})
+        if not self._available_plugins:
+            self.discover_plugins()
+        return list(self._available_plugins.keys())
 
-        return [name for name in plugins_config.keys() if not name.startswith("_")]
-
-    def get_enabled_plugins(self) -> List[str]:
+    def _load_plugin_class(self, module_string: str) -> tuple[str, Type[SparkthPlugin]]:
         """
-        Get list of enabled plugin names from configuration.
-
-        Returns:
-            List of plugin names that are enabled
-        """
-        config = self.load_config()
-        plugins_config = config.get("plugins", {})
-
-        enabled = []
-        for plugin_name, plugin_def in plugins_config.items():
-            if plugin_name.startswith("_"):
-                continue
-            if plugin_def.get("enabled", True):
-                enabled.append(plugin_name)
-
-        return enabled
-
-    def is_plugin_enabled(self, plugin_name: str) -> bool:
-        """
-        Check if a plugin is enabled in configuration.
+        Load a plugin class from module string.
 
         Args:
-            plugin_name: Name of the plugin
+            module_string: Module string in format "module.path:ClassName"
 
         Returns:
-            True if plugin is enabled, False otherwise
-        """
-        config = self.load_config()
-        plugins_config = config.get("plugins", {})
-
-        if plugin_name not in plugins_config:
-            return False
-
-        return plugins_config[plugin_name].get("enabled", True)
-
-    def _load_plugin_class(self, plugin_name: str, plugin_def: Dict[str, Any]) -> Optional[Type[SparkthPlugin]]:
-        """
-        Load a plugin class from its definition.
-
-        Args:
-            plugin_name: Name of the plugin
-            plugin_def: Plugin definition from config
-
-        Returns:
-            Plugin class or None if loading fails
+            Tuple of (plugin_name, plugin_class)
 
         Raises:
             PluginLoadError: If plugin cannot be loaded
             PluginValidationError: If plugin is invalid
 
         Note:
-            Expected format: "module": "module.path:ClassName"
-            Example: "module": "sparkth-plugins.canvas.plugin:CanvasPlugin"
+            Expected format: "module.path:ClassName"
+            Example: "app.core_plugins.canvas.plugin:CanvasPlugin"
         """
-        # Get module string from config
-        module_string = plugin_def.get("module")
-
-        if not module_string:
-            raise PluginLoadError(f"Plugin '{plugin_name}' missing 'module' in config")
-
         # Parse module string: "module.path:ClassName"
         if ":" not in module_string:
             raise PluginLoadError(
-                f"Plugin '{plugin_name}' has invalid module format. "
+                f"Invalid module format. "
                 f"Expected 'module.path:ClassName', got '{module_string}'"
             )
 
@@ -287,7 +108,7 @@ class PluginManager:
             module_name, class_name = module_string.split(":", 1)
         except ValueError:
             raise PluginLoadError(
-                f"Plugin '{plugin_name}' has invalid module format. "
+                f"Invalid module format. "
                 f"Expected 'module.path:ClassName', got '{module_string}'"
             )
 
@@ -295,13 +116,13 @@ class PluginManager:
         class_name = class_name.strip()
 
         if not module_name or not class_name:
-            raise PluginLoadError(f"Plugin '{plugin_name}' has empty module or class name in '{module_string}'")
+            raise PluginLoadError(f"Empty module or class name in '{module_string}'")
 
         try:
             # Import the module
             module = importlib.import_module(module_name)
         except ImportError as e:
-            raise PluginLoadError(f"Failed to import module '{module_name}' for plugin '{plugin_name}': {e}")
+            raise PluginLoadError(f"Failed to import module '{module_name}': {e}")
 
         # Get the class from the module
         if not hasattr(module, class_name):
@@ -313,7 +134,26 @@ class PluginManager:
         if not (inspect.isclass(plugin_class) and issubclass(plugin_class, SparkthPlugin)):
             raise PluginValidationError(f"Class '{class_name}' must be a subclass of SparkthPlugin")
 
-        return plugin_class
+        # Generate plugin name from class name (convert CamelCase to kebab-case)
+        plugin_name = self._class_name_to_plugin_name(class_name)
+
+        return plugin_name, plugin_class
+
+    def _class_name_to_plugin_name(self, class_name: str) -> str:
+        """
+        Convert class name to plugin name.
+        
+        Examples:
+            CanvasPlugin -> canvas-plugin
+            OpenEdXPlugin -> openedx-plugin
+        """
+        # Remove 'Plugin' suffix if present
+        if class_name.endswith('Plugin'):
+            class_name = class_name[:-6]
+        
+        # Convert CamelCase to kebab-case
+        name = re.sub('([a-z0-9])([A-Z])', r'\1-\2', class_name)
+        return name.lower()
 
     # ==================== Plugin Loading & Lifecycle ====================
 
@@ -344,15 +184,10 @@ class PluginManager:
             raise PluginNotFoundError(f"Plugin '{plugin_name}' not found in config")
 
         plugin_class = self._available_plugins[plugin_name]
-        plugin_config = self.get_plugin_config(plugin_name)
 
         try:
             # Instantiate the plugin
             plugin_instance = plugin_class()
-
-            # Set plugin configuration
-            if plugin_config:
-                plugin_instance.update_config(plugin_config)
 
             # Initialize the plugin
             plugin_instance.initialize()
@@ -464,7 +299,8 @@ class PluginManager:
 
     def load_all_enabled(self) -> Dict[str, SparkthPlugin]:
         """
-        Load all enabled plugins from configuration.
+        Load all plugins from configuration.
+        All plugins in get_plugin_settings() are enabled by default.
 
         Returns:
             Dictionary of successfully loaded plugins
@@ -473,10 +309,10 @@ class PluginManager:
             Continues loading other plugins if one fails.
             Check logs for any failures.
         """
-        enabled_plugins = self.get_enabled_plugins()
+        available_plugins = self.get_available_plugins()
         loaded = {}
 
-        for plugin_name in enabled_plugins:
+        for plugin_name in available_plugins:
             try:
                 plugin = self.load_plugin(plugin_name)
                 loaded[plugin_name] = plugin
@@ -529,8 +365,7 @@ class PluginManager:
         info = {
             "name": plugin_name,
             "loaded": self.is_plugin_loaded(plugin_name),
-            "enabled_in_config": self.is_plugin_enabled(plugin_name),
-            "config": self.get_plugin_config(plugin_name),
+            "enabled": True,  # All plugins are enabled by default
         }
 
         if self.is_plugin_loaded(plugin_name):

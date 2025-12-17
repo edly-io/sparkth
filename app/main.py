@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
-from app.plugins import PluginManager
+from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
 from app.mcp.server import mcp
 # Configure logging
@@ -17,17 +17,15 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Global plugin manager instance
-plugin_manager = PluginManager()
-
 
 @asynccontextmanager
-async def lifespan(application: FastAPI):
+async def plugin_lifespan(application: FastAPI):
     """
-    FastAPI lifespan context manager.
+    Plugin lifespan context manager.
     Handles plugin loading on startup and cleanup on shutdown.
     """
     # Startup: Discover and load all enabled plugins
+    plugin_manager = get_plugin_manager()
     try:
         loaded_plugins = plugin_manager.load_all_enabled()
         if loaded_plugins:
@@ -54,7 +52,7 @@ async def lifespan(application: FastAPI):
                 middleware_list = plugin.get_middleware()
                 if middleware_list:
                     for middleware in middleware_list:
-                        application.add_middleware(middleware)
+                        application.add_middleware(middleware.cls, **middleware.options)
             except Exception as e:
                 logger.error(f"Failed to register middleware for plugin '{plugin_name}': {e}")
 
@@ -72,7 +70,23 @@ async def lifespan(application: FastAPI):
 
 
 mcp_app = mcp.http_app(path="/")
-app = FastAPI(lifespan=mcp_app.lifespan)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """
+    Application lifespan that executes both MCP and plugin lifespans.
+    """
+    # Run MCP lifespan startup
+    async with mcp_app.lifespan(application):
+        # Run plugin lifespan startup
+        async with plugin_lifespan(application):
+            yield
+        # Plugin lifespan shutdown happens here
+    # MCP lifespan shutdown happens here
+
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/mcp", mcp_app)
 # Add Plugin Access Control Middleware
 # This middleware checks user permissions for plugin routes
@@ -102,4 +116,5 @@ def list_plugins() -> dict[str, list]:
     """
     List all available plugins and their status.
     """
+    plugin_manager = get_plugin_manager()
     return {"plugins": plugin_manager.list_all_plugins()}

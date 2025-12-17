@@ -1,7 +1,5 @@
 from typing import Any
-from sparkth_plugins.canvas.client import CanvasClient
-from sparkth_mcp.server import mcp
-from sparkth_mcp.types import AuthenticationError
+from app.core_plugins.canvas.client import CanvasClient
 from app.mcp.canvas.client import CanvasClient
 from app.mcp.canvas.types import (
     AuthenticationPayload,
