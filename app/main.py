@@ -9,11 +9,6 @@ from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
 
-
-mcp_app = mcp.http_app(path="/")
-
-app = FastAPI(lifespan=mcp_app.lifespan)
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -111,8 +106,6 @@ app.add_middleware(
 
 # Include core API routes
 app.include_router(api_router, prefix="/api/v1")
-
-app.mount("/mcp", mcp_app)
 
 
 @app.get("/")

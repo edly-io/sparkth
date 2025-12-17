@@ -7,7 +7,7 @@ Manages plugin discovery, loading, and lifecycle based on configuration.
 import importlib
 import inspect
 import re
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Type
 
 from app.core.config import get_plugin_settings
 from app.core.logger import get_logger
@@ -55,7 +55,7 @@ class PluginManager:
             Format: "module.path:ClassName"
         """
         discovered = {}
-        
+
         for module_string in get_plugin_settings():
             try:
                 plugin_name, plugin_class = self._load_plugin_class(module_string)
@@ -99,18 +99,12 @@ class PluginManager:
         """
         # Parse module string: "module.path:ClassName"
         if ":" not in module_string:
-            raise PluginLoadError(
-                f"Invalid module format. "
-                f"Expected 'module.path:ClassName', got '{module_string}'"
-            )
+            raise PluginLoadError(f"Invalid module format. Expected 'module.path:ClassName', got '{module_string}'")
 
         try:
             module_name, class_name = module_string.split(":", 1)
         except ValueError:
-            raise PluginLoadError(
-                f"Invalid module format. "
-                f"Expected 'module.path:ClassName', got '{module_string}'"
-            )
+            raise PluginLoadError(f"Invalid module format. Expected 'module.path:ClassName', got '{module_string}'")
 
         module_name = module_name.strip()
         class_name = class_name.strip()
@@ -142,17 +136,17 @@ class PluginManager:
     def _class_name_to_plugin_name(self, class_name: str) -> str:
         """
         Convert class name to plugin name.
-        
+
         Examples:
             CanvasPlugin -> canvas-plugin
             OpenEdXPlugin -> openedx-plugin
         """
         # Remove 'Plugin' suffix if present
-        if class_name.endswith('Plugin'):
+        if class_name.endswith("Plugin"):
             class_name = class_name[:-6]
-        
+
         # Convert CamelCase to kebab-case
-        name = re.sub('([a-z0-9])([A-Z])', r'\1-\2', class_name)
+        name = re.sub("([a-z0-9])([A-Z])", r"\1-\2", class_name)
         return name.lower()
 
     # ==================== Plugin Loading & Lifecycle ====================

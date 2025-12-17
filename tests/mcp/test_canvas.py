@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.mcp.canvas.client import CanvasClient
+from app.core_plugins.canvas.client import CanvasClient
 from app.mcp.types import AuthenticationError
 
 

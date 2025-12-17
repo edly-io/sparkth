@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, get_type_hints
 
 from fastapi import APIRouter
-from starlette.middleware import Middleware
 from sqlmodel import SQLModel
+from starlette.middleware import Middleware
 
 from app.core.logger import get_logger
 

@@ -3,10 +3,8 @@ from types import TracebackType
 from typing import Any, Optional, Type
 
 import aiohttp
+
 from app.core_plugins.openedx.types import TokenResponse
-from app.mcp.types import AuthenticationError, JsonParseError
-from app.mcp.request import Auth, handle_error_response, request
-from app.mcp.openedx.types import TokenResponse
 from app.mcp.request import Auth, handle_error_response, request
 from app.mcp.types import AuthenticationError, JsonParseError
 

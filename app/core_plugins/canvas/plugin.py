@@ -12,8 +12,8 @@ Provides MCP tools for interacting with Canvas LMS API including:
 
 from typing import Any
 
-from app.plugins.base import SparkthPlugin, tool
 from app.mcp.types import AuthenticationError
+from app.plugins.base import SparkthPlugin, tool
 
 # Import Canvas-specific modules from the same directory
 from .client import CanvasClient
@@ -27,10 +27,10 @@ from .types import (
     ModulePayload,
     PagePayload,
     PageRequest,
-    QuestionPayload,
     QuestionParams,
-    QuizPayload,
+    QuestionPayload,
     QuizParams,
+    QuizPayload,
     UpdateModuleItemPayload,
     UpdateModulePayload,
     UpdatePagePayload,

@@ -4,9 +4,9 @@ Plugin models for plugin registry and user-level plugin preferences.
 
 from typing import Optional
 
-from sqlmodel import Field, Column, JSON
+from sqlmodel import JSON, Column, Field
 
-from app.models.base import TimestampedModel, SoftDeleteModel
+from app.models.base import SoftDeleteModel, TimestampedModel
 
 
 class Plugin(TimestampedModel, SoftDeleteModel, table=True):
