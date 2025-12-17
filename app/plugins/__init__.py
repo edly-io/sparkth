@@ -44,6 +44,23 @@ def get_plugin_manager() -> PluginManager:
     return _plugin_manager_instance
 
 
+# Global plugin manager instance
+_plugin_manager_instance = None
+
+
+def get_plugin_manager() -> PluginManager:
+    """
+    Get the singleton PluginManager instance.
+
+    Returns:
+        PluginManager: The global plugin manager instance
+    """
+    global _plugin_manager_instance
+    if _plugin_manager_instance is None:
+        _plugin_manager_instance = PluginManager()
+    return _plugin_manager_instance
+
+
 __all__ = [
     "SparkthPlugin",
     "PluginManager",
