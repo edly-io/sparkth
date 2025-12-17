@@ -1,8 +1,7 @@
-from typing import Any, Optional
-
 import urllib
+from typing import Any, Optional
 from urllib.parse import quote
-from app.plugins.base import SparkthPlugin, tool
+
 from app.core_plugins.openedx.client import OpenEdxClient
 from app.core_plugins.openedx.types import (
     AccessTokenPayload,
@@ -11,8 +10,8 @@ from app.core_plugins.openedx.types import (
     Component,
     CourseTreeRequest,
     CreateCourseArgs,
-    LMSAccess,
     ListCourseRunsArgs,
+    LMSAccess,
     ProblemOrHtmlArgs,
     RefreshTokenPayload,
     TokenResponse,
@@ -20,6 +19,7 @@ from app.core_plugins.openedx.types import (
     XBlockPayload,
 )
 from app.mcp.types import AuthenticationError, JsonParseError, LMSError
+from app.plugins.base import SparkthPlugin, tool
 
 
 async def openedx_create_basic_component(

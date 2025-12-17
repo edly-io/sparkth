@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
+from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
-from app.mcp.server import mcp
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

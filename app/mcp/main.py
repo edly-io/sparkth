@@ -1,13 +1,9 @@
 import argparse
 import logging
-import sys
-from pathlib import Path
 
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +150,6 @@ def _validate_and_register_tool(tool_def: dict, plugin_name: str, registered_too
     except Exception as e:
         logger.error(f"Failed to register tool '{tool_name}' from plugin '{plugin_name}': {e}")
         return False
-
 
 
 def run_stdio() -> None:

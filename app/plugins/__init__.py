@@ -31,7 +31,7 @@ _plugin_manager_instance = None
 def get_plugin_manager() -> PluginManager:
     """
     Get the singleton PluginManager instance.
-    
+
     Returns:
         PluginManager: The global plugin manager instance
     """

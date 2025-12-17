@@ -7,14 +7,14 @@ Allows users to manage their plugin preferences (enable/disable plugins).
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.api.v1.auth import get_current_user
 from app.core.db import get_session
 from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User
-from app.api.v1.auth import get_current_user
 from app.plugins import get_plugin_manager
-from pydantic import BaseModel
 
 router = APIRouter()
 

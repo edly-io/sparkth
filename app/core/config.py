@@ -31,7 +31,7 @@ def get_plugin_settings() -> List[str]:
     """
     Get list of plugin module paths to load.
     All plugins returned are enabled by default.
-    
+
     Returns:
         List of plugin module strings in format "module.path:ClassName"
     """
