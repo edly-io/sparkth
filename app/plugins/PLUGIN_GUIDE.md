@@ -129,4 +129,4 @@ make start
 curl http://localhost:8000/api/v1/my-plugin/
 ```
 
-For real-world examples, see `sparkth-plugins/canvas/` directory.
+For real-world examples, see `core_plugins/canvas/` directory.
