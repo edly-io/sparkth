@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 class MCPToolDefinition(BaseModel):
     """Pydantic model for validating MCP tool definitions from plugins."""
-    
+
     name: str = Field(..., description="Unique name of the tool")
     handler: Callable[..., Any] = Field(..., description="Callable function that implements the tool")
     description: str = Field(default="", description="Description of what the tool does")
     category: Optional[str] = Field(default=None, description="Category for organizing tools")
     version: str = Field(default="1.0.0", description="Version of the tool")
-    
+
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
@@ -27,7 +27,7 @@ class MCPToolDefinition(BaseModel):
         if not v or not v.strip():
             raise ValueError("Tool name cannot be empty")
         return v.strip()
-    
+
     @field_validator("handler")
     @classmethod
     def validate_handler(cls, v: Any) -> Callable[..., Any]:
@@ -35,7 +35,7 @@ class MCPToolDefinition(BaseModel):
         if not callable(v):
             raise ValueError("Tool handler must be callable")
         return v
-    
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -50,7 +50,7 @@ def register_plugin_tools():
     3. Validates tool definitions
     4. Checks for naming conflicts
     5. Registers tools with the FastMCP server
-    
+
     Note: Assumes plugins are already loaded by the plugin lifespan manager.
     """
     try:
@@ -156,7 +156,9 @@ def _validate_and_register_tool(tool_def: dict, plugin_name: str, registered_too
         # Log success with details
         category_str = f" [{validated_tool.category}]" if validated_tool.category else ""
         version_str = f" v{validated_tool.version}" if validated_tool.version != "1.0.0" else ""
-        logger.info(f"  ✓ Registered tool '{validated_tool.name}'{category_str}{version_str} from plugin '{plugin_name}'")
+        logger.info(
+            f"  ✓ Registered tool '{validated_tool.name}'{category_str}{version_str} from plugin '{plugin_name}'"
+        )
 
         return True
 

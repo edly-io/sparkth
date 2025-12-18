@@ -1,10 +1,12 @@
 import logging
 import sys
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+
 from app.api.v1.api import api_router
-from app.mcp.server import mcp
 from app.mcp.main import register_plugin_tools
+from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
 
@@ -72,7 +74,6 @@ async def plugin_lifespan(application: FastAPI):
 mcp_app = mcp.http_app(path="/")
 
 
-
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """
@@ -85,12 +86,13 @@ async def lifespan(application: FastAPI):
             # Register MCP tools from plugins after plugins are loaded
             logger.info("Registering MCP tools from plugins...")
             register_plugin_tools()
-            
+
             # Log total number of registered MCP tools
             import asyncio
+
             all_tools = await asyncio.create_task(mcp.get_tools())
             logger.info(f"MCP server ready with {len(all_tools)} total tool(s) registered")
-            
+
             yield
         # Plugin lifespan shutdown happens here
     # MCP lifespan shutdown happens here
