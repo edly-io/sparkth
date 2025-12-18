@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,7 +26,7 @@ PLUGINS = [
 ]
 
 
-def get_plugin_settings() -> List[str]:
+def get_plugin_settings() -> list[str]:
     """
     Get list of plugin module paths to load.
     All plugins returned are enabled by default.
