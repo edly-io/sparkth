@@ -2,12 +2,15 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from sqlmodel import Session
 
 from app.api.v1.api import api_router
+from app.core.db import get_session
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
+from app.services.plugin import PluginService, get_plugin_service
 
 # Configure logging
 logging.basicConfig(
@@ -113,9 +116,12 @@ def read_root() -> dict[str, str]:
 
 
 @app.get("/plugins")
-def list_plugins() -> dict[str, list]:
+def list_plugins(
+    session: Session = Depends(get_session), plugin_service: PluginService = Depends(get_plugin_service)
+) -> dict[str, list]:
     """
     List all available plugins and their status.
     """
-    plugin_manager = get_plugin_manager()
-    return {"plugins": plugin_manager.list_all_plugins()}
+
+    plugins = plugin_service.get_all(session, include_disabled=False, include_deleted=False)
+    return {"plugins": plugins}

@@ -26,7 +26,7 @@ services:
       POSTGRES_PASSWORD: sparkth_password
       POSTGRES_DB: sparkth
     volumes:
-      - ./data/postgresql:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
   # ----------------------------------------
   # Alembic Migrations
@@ -43,3 +43,6 @@ services:
       "
     depends_on:
       - db
+
+volumes:
+  postgres_data:

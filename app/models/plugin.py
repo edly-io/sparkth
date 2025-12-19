@@ -21,7 +21,9 @@ class Plugin(TimestampedModel, SoftDeleteModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255, unique=True, index=True)
+    is_builtin: bool = Field(default=False)
     enabled: bool = Field(default=True)  # System-level enable/disable
+    config_schema: dict = Field(default={}, sa_column=Column(JSON))
 
 
 class UserPlugin(TimestampedModel, SoftDeleteModel, table=True):
