@@ -108,7 +108,29 @@ class OpenEdXPlugin(SparkthPlugin):
 
     def __init__(self) -> None:
         super().__init__(
-            name="openedx-plugin",
+            "openedx",
+            {
+                "lms_url": {"type": "string", "required": True, "description": "Open edX LMS URL", "default": None},
+                "studio_url": {
+                    "type": "string",
+                    "required": True,
+                    "default": None,
+                    "description": "Open edX Studio URL",
+                },
+                "username": {
+                    "type": "string",
+                    "required": True,
+                    "default": None,
+                    "description": "Username for the open edX instance",
+                },
+                "password": {
+                    "type": "string",
+                    "required": True,
+                    "default": None,
+                    "description": "Password for the open edX instance",
+                },
+            },
+            is_builtin=True,
             version="1.0.0",
             description="Open edX integration with MCP tools",
             author="Sparkth Team",

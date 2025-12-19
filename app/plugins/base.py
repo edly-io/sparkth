@@ -140,32 +140,34 @@ class SparkthPlugin(metaclass=PluginMeta):
     def __init__(
         self,
         name: str,
+        config_schema: Dict[str, Any],
+        is_builtin: bool = False,
         version: str = "1.0.0",
         description: str = "",
         author: str = "",
         dependencies: Optional[List[str]] = None,
         enabled: bool = True,
-        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the plugin with metadata.
 
         Args:
             name: Unique identifier for the plugin (e.g., "tasks-plugin")
+            config_schema: Plugin-specific configuration dictionary
             version: Semantic version string (e.g., "1.0.0")
             description: Brief description of plugin functionality
             author: Plugin author name or organization
             dependencies: List of other plugin names this plugin depends on
             enabled: Whether the plugin is enabled by default
-            config: Plugin-specific configuration dictionary
         """
         self.name = name
         self.version = version
         self.description = description
+        self.is_builtin = is_builtin
         self.author = author
         self.dependencies = dependencies or []
         self.enabled = enabled
-        self.config = config or {}
+        self.config_schema = config_schema
         self._initialized = False
         self._routes: List[APIRouter] = []
         self._models: List[Type[SQLModel]] = []
@@ -574,9 +576,9 @@ class SparkthPlugin(metaclass=PluginMeta):
         Override this method to define expected configuration structure.
 
         Returns:
-            JSON Schema dictionary, or None for no validation
+            JSON Schema dictionary
         """
-        return None
+        return self.config_schema
 
     def get_default_config(self) -> Dict[str, Any]:
         """
@@ -589,14 +591,14 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return {}
 
-    def update_config(self, config: Dict[str, Any]) -> None:
+    def update_config_schema(self, config_schema: Dict[str, Any]) -> None:
         """
         Update plugin configuration.
 
         Args:
-            config: New configuration dictionary
+            config_schema: New configuration dictionary
         """
-        self.config.update(config)
+        self.config_schema.update(config_schema)
 
     def get_config_value(self, key: str, default: Any = None) -> Any:
         """
@@ -609,7 +611,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         Returns:
             Configuration value or default
         """
-        return self.config.get(key, default)
+        return self.config_schema.get(key, default)
 
     def is_initialized(self) -> bool:
         """Check if plugin has been initialized."""
@@ -629,12 +631,13 @@ class SparkthPlugin(metaclass=PluginMeta):
         return {
             "name": self.name,
             "version": self.version,
+            "is_builtin": self.is_builtin,
             "description": self.description,
             "author": self.author,
             "dependencies": self.dependencies,
             "enabled": self.enabled,
             "initialized": self._initialized,
-            "config": self.config,
+            "config_schema": self.config_schema,
         }
 
     def __repr__(self) -> str:
