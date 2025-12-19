@@ -4,7 +4,7 @@ User Plugin Management API Endpoints
 Allows users to manage their plugin preferences (enable/disable plugins).
 """
 
-from typing import List
+from typing import Any, List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User
 from app.plugins import get_plugin_manager
 
-router = APIRouter()
+router: APIRouter = APIRouter()
 
 
 def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
@@ -30,12 +30,10 @@ def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
     Returns:
         Plugin instance
     """
-    # Try to find existing plugin
-    statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at.is_(None))
+    statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at == None)
     plugin = session.exec(statement).first()
 
     if plugin is None:
-        # Create new plugin record
         plugin = Plugin(name=plugin_name, enabled=True)
         session.add(plugin)
         session.commit()
@@ -49,7 +47,7 @@ class UserPluginResponse(BaseModel):
 
     plugin_name: str
     enabled: bool
-    config: dict
+    config: dict[str, Any]
 
 
 class UpdateUserPluginRequest(BaseModel):
@@ -61,46 +59,45 @@ class UpdateUserPluginRequest(BaseModel):
 class UserPluginConfigRequest(BaseModel):
     """Request model for updating user plugin configuration."""
 
-    config: dict
+    config: dict[str, Any]
 
 
 @router.get("/", response_model=List[UserPluginResponse])
-def list_user_plugins(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def list_user_plugins(
+    current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> List[UserPluginResponse]:
     """
     List all plugins with their enabled status for the current user.
 
     Returns information about all available plugins and whether they are
     enabled or disabled for the authenticated user.
     """
-    # Get all available plugins from the plugin manager
     plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
 
-    # Get user's plugin settings with join to Plugin table
     statement = (
         select(UserPlugin, Plugin)
-        .join(Plugin)
-        .where(UserPlugin.user_id == current_user.id, UserPlugin.deleted_at.is_(None))
+        .join(cast(Any, UserPlugin.plugin))
+        .where(
+            UserPlugin.user_id == current_user.id,
+            UserPlugin.deleted_at == None,
+        )
     )
     user_plugin_results = session.exec(statement).all()
 
-    # Create a mapping of plugin_name to UserPlugin
     user_plugin_map = {plugin.name: user_plugin for user_plugin, plugin in user_plugin_results}
 
-    # Build response
-    result = []
+    result: List[UserPluginResponse] = []
     for plugin_name in available_plugins:
         user_plugin = user_plugin_map.get(plugin_name)
 
         if user_plugin:
-            # User has a setting for this plugin
             result.append(
                 UserPluginResponse(
                     plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config or {}
                 )
             )
         else:
-            # No setting, plugin is enabled by default
             result.append(UserPluginResponse(plugin_name=plugin_name, enabled=True, config={}))
 
     return result
@@ -109,29 +106,25 @@ def list_user_plugins(current_user: User = Depends(get_current_user), session: S
 @router.get("/{plugin_name}", response_model=UserPluginResponse)
 def get_user_plugin(
     plugin_name: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
-):
+) -> UserPluginResponse:
     """
     Get the status and configuration of a specific plugin for the current user.
     """
-    # Check if plugin exists
     plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
     if plugin_name not in available_plugins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
 
-    # Get or create plugin in database
     plugin = get_or_create_plugin(plugin_name, session)
 
-    # Get user's plugin setting
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at == None
     )
     user_plugin = session.exec(statement).first()
 
     if user_plugin:
         return UserPluginResponse(plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config or {})
     else:
-        # No setting, plugin is enabled by default
         return UserPluginResponse(plugin_name=plugin_name, enabled=True, config={})
 
 
@@ -141,30 +134,30 @@ def update_user_plugin(
     request: UpdateUserPluginRequest,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-):
+) -> UserPluginResponse:
     """
     Enable or disable a plugin for the current user.
     """
-    # Check if plugin exists
     plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
     if plugin_name not in available_plugins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
 
-    # Get or create plugin in database
     plugin = get_or_create_plugin(plugin_name, session)
 
-    # Check if user already has a setting for this plugin
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at == None
     )
     user_plugin = session.exec(statement).first()
 
     if user_plugin:
-        # Update existing setting
         user_plugin.enabled = request.enabled
     else:
-        # Create new setting
+        if current_user.id is None or plugin.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User ID or Plugin ID is missing"
+            )
         user_plugin = UserPlugin(user_id=current_user.id, plugin_id=plugin.id, enabled=request.enabled, config={})
         session.add(user_plugin)
 
@@ -180,36 +173,36 @@ def update_user_plugin_config(
     request: UserPluginConfigRequest,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-):
+) -> UserPluginResponse:
     """
     Update configuration for a plugin for the current user.
 
     This allows users to customize plugin-specific settings.
     """
-    # Check if plugin exists
     plugin_manager = get_plugin_manager()
     available_plugins = plugin_manager.get_available_plugins()
     if plugin_name not in available_plugins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
 
-    # Get or create plugin in database
     plugin = get_or_create_plugin(plugin_name, session)
 
-    # Check if user already has a setting for this plugin
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at == None
     )
     user_plugin = session.exec(statement).first()
 
     if user_plugin:
-        # Update existing setting
         user_plugin.config = request.config
     else:
-        # Create new setting with config
+        if current_user.id is None or plugin.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User ID or Plugin ID is missing"
+            )
         user_plugin = UserPlugin(
             user_id=current_user.id,
             plugin_id=plugin.id,
-            enabled=True,  # Default to enabled
+            enabled=True,
             config=request.config,
         )
         session.add(user_plugin)
@@ -223,7 +216,7 @@ def update_user_plugin_config(
 @router.post("/{plugin_name}/enable", response_model=UserPluginResponse)
 def enable_user_plugin(
     plugin_name: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
-):
+) -> UserPluginResponse:
     """
     Enable a plugin for the current user.
 
@@ -240,7 +233,7 @@ def enable_user_plugin(
 @router.post("/{plugin_name}/disable", response_model=UserPluginResponse)
 def disable_user_plugin(
     plugin_name: str, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
-):
+) -> UserPluginResponse:
     """
     Disable a plugin for the current user.
 

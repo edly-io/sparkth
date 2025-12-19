@@ -106,7 +106,7 @@ class OpenEdXPlugin(SparkthPlugin):
     Tools are auto-registered via @tool decorator using metaclass magic!
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="openedx-plugin",
             version="1.0.0",

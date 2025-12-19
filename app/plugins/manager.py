@@ -34,14 +34,10 @@ class PluginManager:
     - Runtime plugin state management
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize plugin manager."""
-        # Store loaded plugin instances
         self._loaded_plugins: Dict[str, SparkthPlugin] = {}
-        # Store available plugin classes (discovered from config)
         self._available_plugins: Dict[str, Type[SparkthPlugin]] = {}
-
-    # ==================== Plugin Discovery ====================
 
     def discover_plugins(self) -> Dict[str, Type[SparkthPlugin]]:
         """
@@ -54,7 +50,7 @@ class PluginManager:
             All plugins are enabled by default.
             Format: "module.path:ClassName"
         """
-        discovered = {}
+        discovered: Dict[str, Type[SparkthPlugin]] = {}
 
         for module_string in get_plugin_settings():
             try:
@@ -97,7 +93,6 @@ class PluginManager:
             Expected format: "module.path:ClassName"
             Example: "app.core_plugins.canvas.plugin:CanvasPlugin"
         """
-        # Parse module string: "module.path:ClassName"
         if ":" not in module_string:
             raise PluginLoadError(f"Invalid module format. Expected 'module.path:ClassName', got '{module_string}'")
 
@@ -113,22 +108,18 @@ class PluginManager:
             raise PluginLoadError(f"Empty module or class name in '{module_string}'")
 
         try:
-            # Import the module
             module = importlib.import_module(module_name)
         except ImportError as e:
             raise PluginLoadError(f"Failed to import module '{module_name}': {e}")
 
-        # Get the class from the module
         if not hasattr(module, class_name):
             raise PluginLoadError(f"Class '{class_name}' not found in module '{module_name}'")
 
         plugin_class = getattr(module, class_name)
 
-        # Validate that it's a SparkthPlugin subclass
         if not (inspect.isclass(plugin_class) and issubclass(plugin_class, SparkthPlugin)):
             raise PluginValidationError(f"Class '{class_name}' must be a subclass of SparkthPlugin")
 
-        # Generate plugin name from class name (convert CamelCase to kebab-case)
         plugin_name = self._class_name_to_plugin_name(class_name)
 
         return plugin_name, plugin_class
@@ -141,15 +132,11 @@ class PluginManager:
             CanvasPlugin -> canvas-plugin
             OpenEdXPlugin -> openedx-plugin
         """
-        # Remove 'Plugin' suffix if present
         if class_name.endswith("Plugin"):
             class_name = class_name[:-6]
 
-        # Convert CamelCase to kebab-case
         name = re.sub("([a-z0-9])([A-Z])", r"\1-\2", class_name)
         return name.lower()
-
-    # ==================== Plugin Loading & Lifecycle ====================
 
     def load_plugin(self, plugin_name: str) -> SparkthPlugin:
         """
@@ -169,24 +156,19 @@ class PluginManager:
         if plugin_name in self._loaded_plugins:
             raise PluginAlreadyLoadedError(f"Plugin '{plugin_name}' is already loaded")
 
-        # Discover if not already done
         if not self._available_plugins:
             self.discover_plugins()
 
-        # Check if plugin is available
         if plugin_name not in self._available_plugins:
             raise PluginNotFoundError(f"Plugin '{plugin_name}' not found in config")
 
         plugin_class = self._available_plugins[plugin_name]
 
         try:
-            # Instantiate the plugin
-            plugin_instance = plugin_class()
+            plugin_instance = plugin_class(name=plugin_name)
 
-            # Initialize the plugin
             plugin_instance.initialize()
 
-            # Store the instance
             self._loaded_plugins[plugin_name] = plugin_instance
 
             return plugin_instance
@@ -196,26 +178,22 @@ class PluginManager:
 
     def unload_plugin(self, plugin_name: str) -> None:
         """
-               Unload a plugin.
+        Unload a plugin.
 
-               Args:
-                   plugin_name: Name of the plugin to unload
-
-
+        Args:
+            plugin_name: Name of the plugin to unload
 
         Raises:
-                   PluginNotLoadedError: If plugin is not currently loaded
+            PluginNotLoadedError: If plugin is not currently loaded
         """
         if plugin_name not in self._loaded_plugins:
             raise PluginNotLoadedError(f"Plugin '{plugin_name}' is not loaded")
 
         plugin = self._loaded_plugins[plugin_name]
 
-        # Disable if currently enabled
         if plugin.is_enabled():
             plugin.disable()
 
-        # Remove from loaded plugins
         del self._loaded_plugins[plugin_name]
 
     def enable_plugin(self, plugin_name: str) -> None:
@@ -289,8 +267,6 @@ class PluginManager:
         """
         return plugin_name in self._loaded_plugins
 
-    # ==================== Batch Operations ====================
-
     def load_all_enabled(self) -> Dict[str, SparkthPlugin]:
         """
         Load all plugins from configuration.
@@ -304,7 +280,7 @@ class PluginManager:
             Check logs for any failures.
         """
         available_plugins = self.get_available_plugins()
-        loaded = {}
+        loaded: Dict[str, SparkthPlugin] = {}
 
         for plugin_name in available_plugins:
             try:
@@ -344,8 +320,6 @@ class PluginManager:
                 logger.error(f"Failed to unload plugin '{plugin_name}': {e}")
                 continue
 
-    # ==================== Plugin Information ====================
-
     def get_plugin_info(self, plugin_name: str) -> Dict[str, Any]:
         """
         Get comprehensive information about a plugin.
@@ -356,10 +330,10 @@ class PluginManager:
         Returns:
             Dictionary containing plugin information
         """
-        info = {
+        info: Dict[str, Any] = {
             "name": plugin_name,
             "loaded": self.is_plugin_loaded(plugin_name),
-            "enabled": True,  # All plugins are enabled by default
+            "enabled": True,
         }
 
         if self.is_plugin_loaded(plugin_name):

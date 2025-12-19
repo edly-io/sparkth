@@ -37,8 +37,8 @@ def get_current_user(
 
     try:
         payload = security.decode_access_token(token)
-        username: str = payload.get("sub")
-        if username is None:
+        username = payload.get("sub")
+        if not isinstance(username, str) or username is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

@@ -11,6 +11,8 @@ Provides a flexible, OOP-based plugin architecture with:
 - Configuration management
 """
 
+from typing import Optional
+
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
     PluginAlreadyLoadedError,
@@ -22,10 +24,11 @@ from app.plugins.exceptions import (
     PluginNotLoadedError,
     PluginValidationError,
 )
-from app.plugins.manager import PluginManager
+
+from .manager import PluginManager
 
 # Global plugin manager instance
-_plugin_manager_instance = None
+_plugin_manager_instance: Optional[PluginManager] = None
 
 
 def get_plugin_manager() -> PluginManager:

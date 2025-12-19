@@ -15,7 +15,6 @@ from typing import Any
 from app.mcp.types import AuthenticationError
 from app.plugins.base import SparkthPlugin, tool
 
-# Import Canvas-specific modules from the same directory
 from .client import CanvasClient
 from .types import (
     AuthenticationPayload,
@@ -53,16 +52,13 @@ class CanvasPlugin(SparkthPlugin):
     Tools are auto-registered via @tool decorator using metaclass magic!
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="canvas-plugin",
             version="1.0.0",
             description="Canvas LMS integration with 30+ MCP tools",
             author="Sparkth Team",
         )
-        # Tools auto-register via metaclass - no manual registration needed!
-
-    # ==================== Authentication Tools ====================
 
     @tool(description="Authenticate Canvas API URL and token", category="canvas-auth")
     async def canvas_authenticate(self, auth: AuthenticationPayload) -> dict[str, Any]:
@@ -72,8 +68,6 @@ class CanvasPlugin(SparkthPlugin):
             return {"status": res}
         except AuthenticationError as e:
             return {"status": e.status_code, "message": e.message}
-
-    # ==================== Course Tools ====================
 
     @tool(description="Retrieve a paginated list of courses", category="canvas-courses")
     async def canvas_get_courses(self, auth: AuthenticationPayload, page: int) -> dict[str, Any]:
@@ -97,13 +91,12 @@ class CanvasPlugin(SparkthPlugin):
             result = await client.post(path, payload.model_dump())
         return result
 
-    # ==================== Module Tools ====================
-
     @tool(description="Retrieve a paginated list of modules for a course", category="canvas-modules")
     async def canvas_list_modules(self, params: CourseParams) -> dict[str, Any]:
         """Retrieve a paginated list of modules for a course."""
+        page = getattr(params, 'page', 1)
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
-            modules = await client.get(f"courses/{params.course_id}/modules?page={params.page}")
+            modules = await client.get(f"courses/{params.course_id}/modules?page={page}")
         return {"modules": modules}
 
     @tool(description="Retrieve a single module for a course", category="canvas-modules")
@@ -136,8 +129,6 @@ class CanvasPlugin(SparkthPlugin):
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
             result = await client.delete(path)
         return result
-
-    # ==================== Module Item Tools ====================
 
     @tool(description="Retrieve a paginated list of module items in a module", category="canvas-module-items")
     async def canvas_list_module_items(self, params: ModuleParams) -> dict[str, Any]:
@@ -179,13 +170,12 @@ class CanvasPlugin(SparkthPlugin):
             result = await client.delete(path)
         return result
 
-    # ==================== Page Tools ====================
-
     @tool(description="Retrieve a paginated list of pages for a course", category="canvas-pages")
     async def canvas_list_pages(self, params: CourseParams) -> dict[str, Any]:
         """Retrieve a paginated list of pages for a course."""
+        page = getattr(params, 'page', 1)
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
-            result = await client.get(f"courses/{params.course_id}/pages?page={params.page}")
+            result = await client.get(f"courses/{params.course_id}/pages?page={page}")
         return result
 
     @tool(description="Retrieve a page for a course by page_url", category="canvas-pages")
@@ -220,12 +210,11 @@ class CanvasPlugin(SparkthPlugin):
             result = await client.delete(path)
         return result
 
-    # ==================== Quiz Tools ====================
-
     @tool(description="Retrieve a paginated list of quizzes for a course", category="canvas-quizzes")
     async def canvas_list_quizzes(self, params: CourseParams) -> dict[str, Any]:
         """Retrieve a paginated list of quizzes for a course."""
-        path = f"courses/{params.course_id}/quizzes?page={params.page}"
+        page = getattr(params, 'page', 1)
+        path = f"courses/{params.course_id}/quizzes?page={page}"
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
             quizzes = await client.get(path)
         return {"quizzes": quizzes}
@@ -261,8 +250,6 @@ class CanvasPlugin(SparkthPlugin):
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
             result = await client.delete(path)
         return result
-
-    # ==================== Question Tools ====================
 
     @tool(description="Retrieve a paginated list of questions in a quiz", category="canvas-questions")
     async def canvas_list_questions(self, params: QuizParams) -> dict[str, Any]:

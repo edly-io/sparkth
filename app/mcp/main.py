@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 from typing import Any, Callable, Optional
 
@@ -34,13 +35,14 @@ class MCPToolDefinition(BaseModel):
         """Validate that the handler is callable."""
         if not callable(v):
             raise ValueError("Tool handler must be callable")
-        return v
+        handler: Callable[..., Any] = v
+        return handler
 
     class Config:
         arbitrary_types_allowed = True
 
 
-def register_plugin_tools():
+def register_plugin_tools() -> None:
     """
     Register MCP tools from already-loaded plugins.
 
@@ -54,10 +56,8 @@ def register_plugin_tools():
     Note: Assumes plugins are already loaded by the plugin lifespan manager.
     """
     try:
-        # Get the global plugin manager instance
         plugin_manager = get_plugin_manager()
 
-        # Get already loaded plugins (don't load again)
         loaded_plugins = plugin_manager.get_loaded_plugins()
 
         if not loaded_plugins:
@@ -66,12 +66,10 @@ def register_plugin_tools():
 
         logger.info(f"Registering MCP tools from {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins.keys())}")
 
-        # Track registered tools to detect conflicts
-        registered_tools = {}
+        registered_tools: dict[str, str] = {}
         total_tools = 0
         total_failed = 0
 
-        # Register MCP tools from each plugin
         for plugin_name, plugin in loaded_plugins.items():
             plugin_tool_count = 0
             plugin_failed_count = 0
@@ -85,7 +83,6 @@ def register_plugin_tools():
 
                 for tool_def in mcp_tools:
                     try:
-                        # Validate and register tool
                         success = _validate_and_register_tool(tool_def, plugin_name, registered_tools)
 
                         if success:
@@ -100,7 +97,6 @@ def register_plugin_tools():
                         plugin_failed_count += 1
                         total_failed += 1
 
-                # Log summary for this plugin
                 if plugin_tool_count > 0:
                     logger.info(
                         f"✓ Plugin '{plugin_name}' registered {plugin_tool_count} tool(s)"
@@ -112,7 +108,6 @@ def register_plugin_tools():
             except Exception as e:
                 logger.error(f"Failed to process MCP tools from plugin '{plugin_name}': {e}")
 
-        # Log overall summary
         logger.info(
             f"MCP tool registration complete: {total_tools} tool(s) registered successfully"
             + (f", {total_failed} failed" if total_failed > 0 else "")
@@ -122,7 +117,7 @@ def register_plugin_tools():
         logger.error(f"Failed to initialize plugin system for MCP: {e}")
 
 
-def _validate_and_register_tool(tool_def: dict, plugin_name: str, registered_tools: dict) -> bool:
+def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, registered_tools: dict[str, str]) -> bool:
     """
     Validate and register a single MCP tool using Pydantic validation.
 
@@ -140,7 +135,6 @@ def _validate_and_register_tool(tool_def: dict, plugin_name: str, registered_too
         logger.warning(f"Invalid tool definition from plugin '{plugin_name}': {e}")
         return False
 
-    # Check for duplicate tool names
     if validated_tool.name in registered_tools:
         logger.warning(
             f"Tool name conflict: '{validated_tool.name}' already registered by plugin "
@@ -150,10 +144,8 @@ def _validate_and_register_tool(tool_def: dict, plugin_name: str, registered_too
     try:
         mcp.tool(name=validated_tool.name, description=validated_tool.description)(validated_tool.handler)
 
-        # Track the registered tool
         registered_tools[validated_tool.name] = plugin_name
 
-        # Log success with details
         category_str = f" [{validated_tool.category}]" if validated_tool.category else ""
         version_str = f" v{validated_tool.version}" if validated_tool.version != "1.0.0" else ""
         logger.info(
@@ -190,12 +182,7 @@ def main() -> None:
     args = parser.parse_args()
     transport_mode = TransportMode(args.transport)
 
-    # Register plugin tools before starting server
     register_plugin_tools()
-
-    # Log total number of registered MCP tools (core + plugin tools)
-    import asyncio
-
     all_tools = asyncio.run(mcp.get_tools())
     print(f"MCP server starting with {len(all_tools)} total tool(s) registered")
 

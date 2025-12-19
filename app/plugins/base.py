@@ -12,7 +12,7 @@ Provides the foundation for all Sparkth plugins with support for:
 
 import inspect
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, get_type_hints
 
 from fastapi import APIRouter
 from sqlmodel import SQLModel
@@ -22,13 +22,15 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+F = TypeVar('F', bound=Callable[..., Any])
+
 
 def tool(
     name: Optional[str] = None,
     description: str = "",
     category: Optional[str] = None,
     version: str = "1.0.0",
-):
+) -> Callable[[F], F]:
     """
     Decorator to mark a method as an MCP tool in a plugin.
 
@@ -45,7 +47,7 @@ def tool(
         Decorator function
 
     Example:
-        ```python
+```python
         from app.plugins.base import SparkthPlugin, tool
 
         class CanvasPlugin(SparkthPlugin):
@@ -57,16 +59,15 @@ def tool(
             async def canvas_get_courses(self, auth: AuthPayload, page: int) -> dict:
                 async with CanvasClient(auth.api_url, auth.api_token) as client:
                     return await client.get(f"courses?page={page}")
-        ```
+```
     """
 
-    def decorator(func: Callable) -> Callable:
-        # Mark the function with metadata
-        func._is_mcp_tool = True
-        func._mcp_tool_name = name if name else func.__name__
-        func._mcp_tool_description = description or (func.__doc__ or "").strip()
-        func._mcp_tool_category = category
-        func._mcp_tool_version = version
+    def decorator(func: F) -> F:
+        setattr(func, '_is_mcp_tool', True)
+        setattr(func, '_mcp_tool_name', name if name else func.__name__)
+        setattr(func, '_mcp_tool_description', description or (func.__doc__ or "").strip())
+        setattr(func, '_mcp_tool_category', category)
+        setattr(func, '_mcp_tool_version', version)
         return func
 
     return decorator
@@ -81,23 +82,31 @@ class PluginMeta(type):
     instantiated, these tools are automatically registered.
     """
 
-    def __new__(mcs, name, bases, namespace):
-        # Create the class
+    _tool_registry: Dict[str, Dict[str, Any]]
+
+    def __new__(
+        mcs: Type['PluginMeta'],
+        name: str,
+        bases: tuple[Type[Any], ...],
+        namespace: Dict[str, Any]
+    ) -> 'PluginMeta':
         cls = super().__new__(mcs, name, bases, namespace)
 
-        # Collect all methods marked as tools
         cls._tool_registry = {}
 
         for attr_name, attr_value in namespace.items():
-            # Check if this is a method marked with @tool decorator
-            if callable(attr_value) and hasattr(attr_value, "_is_mcp_tool") and attr_value._is_mcp_tool:
+            if (
+                callable(attr_value)
+                and hasattr(attr_value, "_is_mcp_tool")
+                and getattr(attr_value, "_is_mcp_tool", False)
+            ):
                 cls._tool_registry[attr_name] = {
-                    "name": attr_value._mcp_tool_name,
-                    "description": attr_value._mcp_tool_description,
-                    "category": attr_value._mcp_tool_category,
-                    "version": attr_value._mcp_tool_version,
+                    "name": getattr(attr_value, "_mcp_tool_name", attr_name),
+                    "description": getattr(attr_value, "_mcp_tool_description", ""),
+                    "category": getattr(attr_value, "_mcp_tool_category", None),
+                    "version": getattr(attr_value, "_mcp_tool_version", "1.0.0"),
                 }
-                logger.debug(f"Collected tool '{attr_value._mcp_tool_name}' from class '{name}'")
+                logger.debug(f"Collected tool '{getattr(attr_value, '_mcp_tool_name', attr_name)}' from class '{name}'")
 
         return cls
 
@@ -112,7 +121,7 @@ class SparkthPlugin(metaclass=PluginMeta):
     plugins that only override what they need.
 
     Example:
-        ```python
+```python
         class MyPlugin(SparkthPlugin):
             def __init__(self):
                 super().__init__(
@@ -130,8 +139,10 @@ class SparkthPlugin(metaclass=PluginMeta):
                     return {"message": "Hello from plugin!"}
 
                 return [router]
-        ```
+```
     """
+
+    _tool_registry: Dict[str, Dict[str, Any]]
 
     def __init__(
         self,
@@ -165,14 +176,12 @@ class SparkthPlugin(metaclass=PluginMeta):
         self._initialized = False
         self._enabled = False
 
-        # Internal storage for dynamically added components
         self._routes: List[APIRouter] = []
         self._models: List[Type[SQLModel]] = []
         self._mcp_tools: List[Dict[str, Any]] = []
         self._middleware: List[Middleware] = []
-        self._dependencies: Dict[str, Callable] = {}
+        self._dependencies: Dict[str, Callable[..., Any]] = {}
 
-        # Automatically register tools collected by the metaclass
         self._register_tools_from_metaclass()
 
     def _register_tools_from_metaclass(self) -> None:
@@ -186,10 +195,8 @@ class SparkthPlugin(metaclass=PluginMeta):
 
         for method_name, tool_info in tool_registry.items():
             try:
-                # Get the bound method from the instance
                 bound_method = getattr(self, method_name)
 
-                # Register it as an MCP tool
                 self.add_mcp_tool(
                     name=tool_info["name"],
                     handler=bound_method,
@@ -204,8 +211,6 @@ class SparkthPlugin(metaclass=PluginMeta):
 
             except Exception as e:
                 logger.error(f"Failed to auto-register tool from method '{method_name}' in plugin '{self.name}': {e}")
-
-    # ==================== Lifecycle Methods ====================
 
     def initialize(self) -> None:
         """
@@ -243,8 +248,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.enabled = False
         self._enabled = False
 
-    # ==================== Route Registration ====================
-
     def add_route(self, router: APIRouter) -> None:
         """
         Add a FastAPI router to this plugin.
@@ -253,7 +256,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             router: APIRouter instance to add
 
         Example:
-            ```python
+```python
             def initialize(self):
                 super().initialize()
                 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -263,7 +266,7 @@ class SparkthPlugin(metaclass=PluginMeta):
                     return {"tasks": []}
 
                 self.add_route(router)
-            ```
+```
         """
         self._routes.append(router)
 
@@ -279,7 +282,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         Returns:
             List of APIRouter instances
         """
-        # Tag all routes with plugin name for middleware access control
         routes = self._routes.copy()
         for router in routes:
             self._tag_router_with_plugin(router)
@@ -295,7 +297,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         Args:
             router: APIRouter to tag
         """
-        # Add plugin tag to the router's tags
         plugin_tag = f"plugin:{self.name}"
         if router.tags:
             if plugin_tag not in router.tags:
@@ -303,11 +304,9 @@ class SparkthPlugin(metaclass=PluginMeta):
         else:
             router.tags = [plugin_tag]
 
-        # Also tag individual routes
         for route in router.routes:
             if hasattr(route, "endpoint"):
-                # Add plugin name as an attribute to the endpoint function
-                route.endpoint.__plugin_name__ = self.name
+                setattr(route.endpoint, "__plugin_name__", self.name)
 
     def get_route_prefix(self) -> Optional[str]:
         """
@@ -330,8 +329,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return [self.name]
 
-    # ==================== Database Models & Migrations ====================
-
     def add_model(self, model: Type[SQLModel]) -> None:
         """
         Add a SQLModel class to this plugin.
@@ -340,7 +337,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             model: SQLModel class to add
 
         Example:
-            ```python
+```python
             def initialize(self):
                 super().initialize()
 
@@ -350,7 +347,7 @@ class SparkthPlugin(metaclass=PluginMeta):
                     completed: bool = False
 
                 self.add_model(Task)
-            ```
+```
         """
         self._models.append(model)
 
@@ -389,12 +386,10 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return []
 
-    # ==================== MCP Tools ====================
-
     def add_mcp_tool(
         self,
         name: str,
-        handler: Callable,
+        handler: Callable[..., Any],
         description: str = "",
         input_schema: Optional[Dict[str, Any]] = None,
         category: Optional[str] = None,
@@ -412,12 +407,11 @@ class SparkthPlugin(metaclass=PluginMeta):
             version: Tool version
 
         Example:
-            ```python
+```python
             def initialize(self):
                 super().initialize()
 
                 async def create_task_handler(title: str) -> str:
-                    # Create task logic
                     return f"Created task: {title}"
 
                 self.add_mcp_tool(
@@ -427,9 +421,8 @@ class SparkthPlugin(metaclass=PluginMeta):
                     category="tasks",
                     version="1.0.0"
                 )
-            ```
+```
         """
-        # Auto-generate input schema from function signature if not provided
         if input_schema is None:
             input_schema = self._generate_input_schema(handler)
 
@@ -444,7 +437,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         }
         self._mcp_tools.append(tool_def)
 
-    def _generate_input_schema(self, func: Callable) -> Dict[str, Any]:
+    def _generate_input_schema(self, func: Callable[..., Any]) -> Dict[str, Any]:
         """
         Auto-generate JSON Schema from function signature using type hints.
 
@@ -458,23 +451,20 @@ class SparkthPlugin(metaclass=PluginMeta):
             sig = inspect.signature(func)
             type_hints = get_type_hints(func)
 
-            properties = {}
-            required = []
+            properties: Dict[str, Any] = {}
+            required: List[str] = []
 
             for param_name, param in sig.parameters.items():
-                # Skip 'self' parameter
                 if param_name == "self":
                     continue
 
-                # Get type from hints, default to string
                 param_type = type_hints.get(param_name, str)
                 properties[param_name] = self._type_to_json_schema(param_type)
 
-                # Add to required if no default value
                 if param.default == inspect.Parameter.empty:
                     required.append(param_name)
 
-            schema = {
+            schema: Dict[str, Any] = {
                 "type": "object",
                 "properties": properties,
             }
@@ -488,7 +478,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             logger.warning(f"Failed to generate input schema for {func.__name__}: {e}. Using empty schema.")
             return {"type": "object", "properties": {}}
 
-    def _type_to_json_schema(self, py_type: Type) -> Dict[str, Any]:
+    def _type_to_json_schema(self, py_type: Type[Any]) -> Dict[str, Any]:
         """
         Convert Python type to JSON Schema type definition.
 
@@ -498,8 +488,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         Returns:
             JSON Schema type definition
         """
-        # Handle basic types
-        type_map = {
+        type_map: Dict[Type[Any], Dict[str, str]] = {
             int: {"type": "integer"},
             float: {"type": "number"},
             str: {"type": "string"},
@@ -508,18 +497,15 @@ class SparkthPlugin(metaclass=PluginMeta):
             dict: {"type": "object"},
         }
 
-        # Check for direct match
         if py_type in type_map:
             return type_map[py_type]
 
-        # Handle typing module types
         origin = getattr(py_type, "__origin__", None)
         if origin is list:
             return {"type": "array"}
         elif origin is dict:
             return {"type": "object"}
 
-        # Default to string for unknown types
         return {"type": "string"}
 
     def get_mcp_tools(self) -> List[Dict[str, Any]]:
@@ -534,8 +520,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return self._mcp_tools.copy()
 
-    # ==================== Middleware & Dependencies ====================
-
     def add_middleware(self, middleware: Middleware) -> None:
         """
         Add FastAPI middleware to this plugin.
@@ -544,7 +528,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             middleware: Middleware instance to add
 
         Example:
-            ```python
+```python
             def initialize(self):
                 super().initialize()
                 from starlette.middleware.cors import CORSMiddleware
@@ -556,11 +540,11 @@ class SparkthPlugin(metaclass=PluginMeta):
                         allow_methods=["*"]
                     )
                 )
-            ```
+```
         """
         self._middleware.append(middleware)
 
-    def add_dependency(self, name: str, dependency: Callable) -> None:
+    def add_dependency(self, name: str, dependency: Callable[..., Any]) -> None:
         """
         Add a FastAPI dependency to this plugin.
 
@@ -582,7 +566,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return self._middleware.copy()
 
-    def get_dependencies(self) -> Dict[str, Callable]:
+    def get_dependencies(self) -> Dict[str, Callable[..., Any]]:
         """
         Return FastAPI dependencies to be registered globally.
 
@@ -593,8 +577,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             Dictionary mapping dependency names to callables
         """
         return self._dependencies.copy()
-
-    # ==================== Configuration ====================
 
     def get_config_schema(self) -> Optional[Dict[str, Any]]:
         """
@@ -639,8 +621,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             Configuration value or default
         """
         return self.config.get(key, default)
-
-    # ==================== Metadata & State ====================
 
     def is_initialized(self) -> bool:
         """Check if plugin has been initialized."""
