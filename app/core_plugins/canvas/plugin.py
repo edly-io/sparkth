@@ -54,7 +54,12 @@ class CanvasPlugin(SparkthPlugin):
 
     def __init__(self) -> None:
         super().__init__(
-            name="canvas-plugin",
+            "canvas",
+            {
+                "api_url": {"type": "string", "required": True, "description": "Canvas API URL", "default": None},
+                "api_key": {"type": "string", "required": True, "default": None, "description": "Canvas API key"},
+            },
+            is_builtin=True,
             version="1.0.0",
             description="Canvas LMS integration with 30+ MCP tools",
             author="Sparkth Team",

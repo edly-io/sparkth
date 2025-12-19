@@ -9,7 +9,10 @@ import inspect
 import re
 from typing import Any, Dict, List, Type
 
+from sqlmodel import Session
+
 from app.core.config import get_plugin_settings
+from app.core.db import get_engine
 from app.core.logger import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
@@ -170,6 +173,19 @@ class PluginManager:
             plugin_instance.initialize()
 
             self._loaded_plugins[plugin_name] = plugin_instance
+
+            # Save in db
+            from app.services.plugin import PluginService
+
+            plugin_service = PluginService()
+
+            with Session(get_engine()) as session:
+                plugin_service.get_or_create(
+                    session,
+                    plugin_name,
+                    plugin_instance.is_builtin,
+                    plugin_instance.config_schema,
+                )
 
             return plugin_instance
 
