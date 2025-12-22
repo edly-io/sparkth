@@ -94,7 +94,7 @@ class CanvasPlugin(SparkthPlugin):
     @tool(description="Retrieve a paginated list of modules for a course", category="canvas-modules")
     async def canvas_list_modules(self, params: CourseParams) -> dict[str, Any]:
         """Retrieve a paginated list of modules for a course."""
-        page = getattr(params, 'page', 1)
+        page = getattr(params, "page", 1)
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
             modules = await client.get(f"courses/{params.course_id}/modules?page={page}")
         return {"modules": modules}
@@ -173,7 +173,7 @@ class CanvasPlugin(SparkthPlugin):
     @tool(description="Retrieve a paginated list of pages for a course", category="canvas-pages")
     async def canvas_list_pages(self, params: CourseParams) -> dict[str, Any]:
         """Retrieve a paginated list of pages for a course."""
-        page = getattr(params, 'page', 1)
+        page = getattr(params, "page", 1)
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
             result = await client.get(f"courses/{params.course_id}/pages?page={page}")
         return result
@@ -213,7 +213,7 @@ class CanvasPlugin(SparkthPlugin):
     @tool(description="Retrieve a paginated list of quizzes for a course", category="canvas-quizzes")
     async def canvas_list_quizzes(self, params: CourseParams) -> dict[str, Any]:
         """Retrieve a paginated list of quizzes for a course."""
-        page = getattr(params, 'page', 1)
+        page = getattr(params, "page", 1)
         path = f"courses/{params.course_id}/quizzes?page={page}"
         async with CanvasClient(params.auth.api_url, params.auth.api_token) as client:
             quizzes = await client.get(path)

@@ -22,7 +22,7 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def tool(
@@ -32,42 +32,42 @@ def tool(
     version: str = "1.0.0",
 ) -> Callable[[F], F]:
     """
-    Decorator to mark a method as an MCP tool in a plugin.
+        Decorator to mark a method as an MCP tool in a plugin.
 
-    This decorator marks methods for registration as MCP tools.
-    The actual registration happens automatically when the plugin is instantiated.
+        This decorator marks methods for registration as MCP tools.
+        The actual registration happens automatically when the plugin is instantiated.
 
-    Args:
-        name: Tool name (uses method name if not provided)
-        description: Tool description (uses docstring if not provided)
-        category: Tool category (e.g., "database", "api", "utilities")
-        version: Tool version
+        Args:
+            name: Tool name (uses method name if not provided)
+            description: Tool description (uses docstring if not provided)
+            category: Tool category (e.g., "database", "api", "utilities")
+            version: Tool version
 
-    Returns:
-        Decorator function
+        Returns:
+            Decorator function
 
-    Example:
-```python
-        from app.plugins.base import SparkthPlugin, tool
+        Example:
+    ```python
+            from app.plugins.base import SparkthPlugin, tool
 
-        class CanvasPlugin(SparkthPlugin):
-            @tool(description="Authenticate Canvas API", category="auth")
-            async def canvas_authenticate(self, auth: AuthPayload) -> dict:
-                return await CanvasClient.authenticate(auth.api_url, auth.api_token)
+            class CanvasPlugin(SparkthPlugin):
+                @tool(description="Authenticate Canvas API", category="auth")
+                async def canvas_authenticate(self, auth: AuthPayload) -> dict:
+                    return await CanvasClient.authenticate(auth.api_url, auth.api_token)
 
-            @tool(description="Get courses", category="courses")
-            async def canvas_get_courses(self, auth: AuthPayload, page: int) -> dict:
-                async with CanvasClient(auth.api_url, auth.api_token) as client:
-                    return await client.get(f"courses?page={page}")
-```
+                @tool(description="Get courses", category="courses")
+                async def canvas_get_courses(self, auth: AuthPayload, page: int) -> dict:
+                    async with CanvasClient(auth.api_url, auth.api_token) as client:
+                        return await client.get(f"courses?page={page}")
+    ```
     """
 
     def decorator(func: F) -> F:
-        setattr(func, '_is_mcp_tool', True)
-        setattr(func, '_mcp_tool_name', name if name else func.__name__)
-        setattr(func, '_mcp_tool_description', description or (func.__doc__ or "").strip())
-        setattr(func, '_mcp_tool_category', category)
-        setattr(func, '_mcp_tool_version', version)
+        setattr(func, "_is_mcp_tool", True)
+        setattr(func, "_mcp_tool_name", name if name else func.__name__)
+        setattr(func, "_mcp_tool_description", description or (func.__doc__ or "").strip())
+        setattr(func, "_mcp_tool_category", category)
+        setattr(func, "_mcp_tool_version", version)
         return func
 
     return decorator
@@ -85,11 +85,8 @@ class PluginMeta(type):
     _tool_registry: Dict[str, Dict[str, Any]]
 
     def __new__(
-        mcs: Type['PluginMeta'],
-        name: str,
-        bases: tuple[Type[Any], ...],
-        namespace: Dict[str, Any]
-    ) -> 'PluginMeta':
+        mcs: Type["PluginMeta"], name: str, bases: tuple[Type[Any], ...], namespace: Dict[str, Any]
+    ) -> "PluginMeta":
         cls = super().__new__(mcs, name, bases, namespace)
 
         cls._tool_registry = {}
@@ -113,33 +110,33 @@ class PluginMeta(type):
 
 class SparkthPlugin(metaclass=PluginMeta):
     """
-    Base class for Sparkth plugins.
+        Base class for Sparkth plugins.
 
-    All plugins should inherit from this class and override the relevant methods
-    to add custom functionality. Unlike abstract base classes, this provides
-    default implementations for all methods, making it easy to create simple
-    plugins that only override what they need.
+        All plugins should inherit from this class and override the relevant methods
+        to add custom functionality. Unlike abstract base classes, this provides
+        default implementations for all methods, making it easy to create simple
+        plugins that only override what they need.
 
-    Example:
-```python
-        class MyPlugin(SparkthPlugin):
-            def __init__(self):
-                super().__init__(
-                    name="my-plugin",
-                    version="1.0.0",
-                    description="My awesome plugin",
-                    author="Your Name"
-                )
+        Example:
+    ```python
+            class MyPlugin(SparkthPlugin):
+                def __init__(self):
+                    super().__init__(
+                        name="my-plugin",
+                        version="1.0.0",
+                        description="My awesome plugin",
+                        author="Your Name"
+                    )
 
-            def get_routes(self) -> List[APIRouter]:
-                router = APIRouter()
+                def get_routes(self) -> List[APIRouter]:
+                    router = APIRouter()
 
-                @router.get("/my-endpoint")
-                def my_endpoint():
-                    return {"message": "Hello from plugin!"}
+                    @router.get("/my-endpoint")
+                    def my_endpoint():
+                        return {"message": "Hello from plugin!"}
 
-                return [router]
-```
+                    return [router]
+    ```
     """
 
     _tool_registry: Dict[str, Dict[str, Any]]
@@ -250,23 +247,23 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def add_route(self, router: APIRouter) -> None:
         """
-        Add a FastAPI router to this plugin.
+                Add a FastAPI router to this plugin.
 
-        Args:
-            router: APIRouter instance to add
+                Args:
+                    router: APIRouter instance to add
 
-        Example:
-```python
-            def initialize(self):
-                super().initialize()
-                router = APIRouter(prefix="/tasks", tags=["Tasks"])
+                Example:
+        ```python
+                    def initialize(self):
+                        super().initialize()
+                        router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
-                @router.get("/")
-                def list_tasks():
-                    return {"tasks": []}
+                        @router.get("/")
+                        def list_tasks():
+                            return {"tasks": []}
 
-                self.add_route(router)
-```
+                        self.add_route(router)
+        ```
         """
         self._routes.append(router)
 
@@ -331,23 +328,23 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def add_model(self, model: Type[SQLModel]) -> None:
         """
-        Add a SQLModel class to this plugin.
+                Add a SQLModel class to this plugin.
 
-        Args:
-            model: SQLModel class to add
+                Args:
+                    model: SQLModel class to add
 
-        Example:
-```python
-            def initialize(self):
-                super().initialize()
+                Example:
+        ```python
+                    def initialize(self):
+                        super().initialize()
 
-                class Task(SQLModel, table=True):
-                    id: Optional[int] = Field(primary_key=True)
-                    title: str
-                    completed: bool = False
+                        class Task(SQLModel, table=True):
+                            id: Optional[int] = Field(primary_key=True)
+                            title: str
+                            completed: bool = False
 
-                self.add_model(Task)
-```
+                        self.add_model(Task)
+        ```
         """
         self._models.append(model)
 
@@ -396,32 +393,32 @@ class SparkthPlugin(metaclass=PluginMeta):
         version: str = "1.0.0",
     ) -> None:
         """
-        Add an MCP tool to this plugin.
+                Add an MCP tool to this plugin.
 
-        Args:
-            name: Tool name
-            handler: Callable that handles the tool invocation
-            description: Tool description
-            input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
-            category: Tool category (e.g., "database", "api", "utilities")
-            version: Tool version
+                Args:
+                    name: Tool name
+                    handler: Callable that handles the tool invocation
+                    description: Tool description
+                    input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
+                    category: Tool category (e.g., "database", "api", "utilities")
+                    version: Tool version
 
-        Example:
-```python
-            def initialize(self):
-                super().initialize()
+                Example:
+        ```python
+                    def initialize(self):
+                        super().initialize()
 
-                async def create_task_handler(title: str) -> str:
-                    return f"Created task: {title}"
+                        async def create_task_handler(title: str) -> str:
+                            return f"Created task: {title}"
 
-                self.add_mcp_tool(
-                    name="create_task",
-                    handler=create_task_handler,
-                    description="Create a new task",
-                    category="tasks",
-                    version="1.0.0"
-                )
-```
+                        self.add_mcp_tool(
+                            name="create_task",
+                            handler=create_task_handler,
+                            description="Create a new task",
+                            category="tasks",
+                            version="1.0.0"
+                        )
+        ```
         """
         if input_schema is None:
             input_schema = self._generate_input_schema(handler)
@@ -522,25 +519,25 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def add_middleware(self, middleware: Middleware) -> None:
         """
-        Add FastAPI middleware to this plugin.
+                Add FastAPI middleware to this plugin.
 
-        Args:
-            middleware: Middleware instance to add
+                Args:
+                    middleware: Middleware instance to add
 
-        Example:
-```python
-            def initialize(self):
-                super().initialize()
-                from starlette.middleware.cors import CORSMiddleware
+                Example:
+        ```python
+                    def initialize(self):
+                        super().initialize()
+                        from starlette.middleware.cors import CORSMiddleware
 
-                self.add_middleware(
-                    Middleware(
-                        CORSMiddleware,
-                        allow_origins=["*"],
-                        allow_methods=["*"]
-                    )
-                )
-```
+                        self.add_middleware(
+                            Middleware(
+                                CORSMiddleware,
+                                allow_origins=["*"],
+                                allow_methods=["*"]
+                            )
+                        )
+        ```
         """
         self._middleware.append(middleware)
 

@@ -44,12 +44,10 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
                     for router in routes:
                         prefix = plugin.get_route_prefix()
                         tags = plugin.get_route_tags()
-                        tags_param: Union[list[Union[str, Enum]], None] = cast(Union[list[Union[str, Enum]], None], tags) if tags else None
-                        application.include_router(
-                            router,
-                            prefix=prefix if prefix else "",
-                            tags=tags_param
+                        tags_param: Union[list[Union[str, Enum]], None] = (
+                            cast(Union[list[Union[str, Enum]], None], tags) if tags else None
                         )
+                        application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
             except Exception as e:
                 logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
 

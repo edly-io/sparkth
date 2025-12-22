@@ -83,7 +83,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
 
             plugin_statement = select(Plugin).where(
                 Plugin.name == plugin_name,
-                Plugin.deleted_at == None,
+                Plugin.deleted_at.is_(None),
             )
             plugin = session.exec(plugin_statement).first()
 
@@ -98,7 +98,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             statement = select(UserPlugin).where(
                 UserPlugin.user_id == user_id,
                 UserPlugin.plugin_id == plugin.id,
-                UserPlugin.deleted_at == None,
+                UserPlugin.deleted_at.is_(None),
             )
             result = session.exec(statement).first()
 
@@ -119,7 +119,7 @@ def check_user_plugin_access(user_id: int, plugin_name: str, session: Session) -
     try:
         plugin_statement = select(Plugin).where(
             Plugin.name == plugin_name,
-            Plugin.deleted_at == None,
+            Plugin.deleted_at.is_(None),
         )
         plugin = session.exec(plugin_statement).first()
 
@@ -129,7 +129,7 @@ def check_user_plugin_access(user_id: int, plugin_name: str, session: Session) -
         statement = select(UserPlugin).where(
             UserPlugin.user_id == user_id,
             UserPlugin.plugin_id == plugin.id,
-            UserPlugin.deleted_at == None,
+            UserPlugin.deleted_at.is_(None),
         )
         result = session.exec(statement).first()
 
@@ -150,9 +150,9 @@ async def get_user_enabled_plugins(user_id: int, session: Session) -> list[str]:
             .join(cast(Any, UserPlugin.plugin))
             .where(
                 UserPlugin.user_id == user_id,
-                UserPlugin.enabled == True,
-                UserPlugin.deleted_at == None,
-                Plugin.deleted_at == None,
+                UserPlugin.enabled,
+                UserPlugin.deleted_at.is_(None),
+                Plugin.deleted_at.is_(None),
             )
         )
         results = session.exec(statement).all()
@@ -169,9 +169,9 @@ async def get_user_disabled_plugins(user_id: int, session: Session) -> list[str]
             .join(cast(Any, UserPlugin.plugin))
             .where(
                 UserPlugin.user_id == user_id,
-                UserPlugin.enabled == False,
-                UserPlugin.deleted_at == None,
-                Plugin.deleted_at == None,
+                not UserPlugin.enabled,
+                UserPlugin.deleted_at.is_(None),
+                Plugin.deleted_at.is_(None),
             )
         )
         results = session.exec(statement).all()
