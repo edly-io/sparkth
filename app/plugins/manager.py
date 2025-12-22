@@ -174,7 +174,6 @@ class PluginManager:
 
             self._loaded_plugins[plugin_name] = plugin_instance
 
-            # Save in db
             from app.services.plugin import PluginService
 
             plugin_service = PluginService()
@@ -184,13 +183,13 @@ class PluginManager:
                     session,
                     plugin_name,
                     plugin_instance.is_builtin,
-                    plugin_instance.config_schema,
+                    plugin_instance.get_config_schema(),
                 )
 
             return plugin_instance
 
         except Exception as e:
-            raise PluginLoadError(f"Failed to load plugin '{plugin_name}': {e}")
+            raise PluginLoadError(f"{e}")
 
     def unload_plugin(self, plugin_name: str) -> None:
         """
