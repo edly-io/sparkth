@@ -11,6 +11,8 @@ Provides a flexible, OOP-based plugin architecture with:
 - Configuration management
 """
 
+from app.core_plugins.canvas.config import CanvasConfig
+from app.core_plugins.openedx.config import OpenEdxConfig
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
     PluginAlreadyLoadedError,
@@ -54,3 +56,6 @@ __all__ = [
     "PluginNotLoadedError",
     "PluginConfigError",
 ]
+
+
+PLUGIN_CONFIG_CLASSES = {"canvas": CanvasConfig, "open-edx": OpenEdxConfig}

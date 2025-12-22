@@ -3,6 +3,7 @@ from typing import Any, Optional
 from urllib.parse import quote
 
 from app.core_plugins.openedx.client import OpenEdxClient
+from app.core_plugins.openedx.config import OpenEdxConfig
 from app.core_plugins.openedx.types import (
     AccessTokenPayload,
     Auth,
@@ -93,7 +94,7 @@ async def openedx_update_xblock_content(
         return response
 
 
-class OpenEdXPlugin(SparkthPlugin):
+class OpenEdxPlugin(SparkthPlugin):
     """
     Open edX Integration Plugin
 
@@ -109,27 +110,7 @@ class OpenEdXPlugin(SparkthPlugin):
     def __init__(self):
         super().__init__(
             "openedx",
-            {
-                "lms_url": {"type": "string", "required": True, "description": "Open edX LMS URL", "default": None},
-                "studio_url": {
-                    "type": "string",
-                    "required": True,
-                    "default": None,
-                    "description": "Open edX Studio URL",
-                },
-                "username": {
-                    "type": "string",
-                    "required": True,
-                    "default": None,
-                    "description": "Username for the open edX instance",
-                },
-                "password": {
-                    "type": "string",
-                    "required": True,
-                    "default": None,
-                    "description": "Password for the open edX instance",
-                },
-            },
+            OpenEdxConfig,
             is_builtin=True,
             version="1.0.0",
             description="Open edX integration with MCP tools",

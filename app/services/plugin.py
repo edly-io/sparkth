@@ -1,11 +1,23 @@
+import logging
 from typing import Any
 
+import pydantic
 from sqlmodel import Session, select
 
 from app.models.plugin import Plugin, UserPlugin
+from app.plugins import PLUGIN_CONFIG_CLASSES
+from app.plugins.config_base import PluginConfig
 
 
 class ConfigValidationError(Exception):
+    pass
+
+
+class InternalServerError(Exception):
+    pass
+
+
+class PluginDisabledError(Exception):
     pass
 
 
@@ -84,7 +96,6 @@ class PluginService:
             select(UserPlugin, Plugin)
             .join(Plugin)
             .where(
-                # Plugin.is_builtin is True,
                 UserPlugin.user_id == user_id,
                 UserPlugin.deleted_at.is_(None),
                 Plugin.deleted_at.is_(None),
@@ -107,17 +118,17 @@ class PluginService:
         )
         return session.exec(statement).first()
 
-    def set_user_plugin_enabled(
+    def update_user_plugin_enabled(
         self,
         session: Session,
         user_id: int,
-        plugin: Plugin,
+        plugin_id: int,
         enabled: bool,
     ) -> UserPlugin:
         user_plugin: UserPlugin = self.get_user_plugin(
             session,
             user_id,
-            plugin.id,
+            plugin_id,
         )
 
         if user_plugin:
@@ -125,7 +136,7 @@ class PluginService:
         else:
             user_plugin = UserPlugin(
                 user_id=user_id,
-                plugin_id=plugin.id,
+                plugin_id=plugin_id,
                 enabled=enabled,
                 config={},
             )
@@ -136,53 +147,31 @@ class PluginService:
 
         return user_plugin
 
-    def validate_user_config(self, plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:
+    def validate_user_config(self, plugin: Plugin, user_config: dict) -> dict:
         """
-        Validate and normalize user configuration against plugin schema.
+        Validate and normalize user configuration against plugin's Pydantic config model.
 
-        Returns the normalized config with defaults applied.
-        Raises ConfigValidationError if validation fails.
+        Uses the plugin.config_schema directly instead of dynamically loading config.py.
+
+        Raises:
+            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
         """
-        schema = plugin.config_schema
-        validated_config = {}
-        errors = []
 
-        for key, schema_def in schema.items():
-            value = user_config.get(key)
+        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        if not config_class:
+            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
+            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
-            if schema_def.get("required", False) and value is None:
-                if schema_def.get("default") is not None:
-                    value = schema_def["default"]
-                else:
-                    errors.append(f"Required field '{key}' is missing")
-                    continue
+        if not issubclass(config_class, PluginConfig):
+            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
+            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
-            if value is None:
-                value = schema_def.get("default")
+        try:
+            validated_config = config_class(**user_config)
+        except pydantic.ValidationError as e:
+            raise ConfigValidationError(e.errors())
 
-            if value is None:
-                continue
-
-            expected_type = schema_def.get("type")
-            if expected_type == "string" and not isinstance(value, str):
-                errors.append(f"Field '{key}' must be a string")
-            elif expected_type == "integer" and not isinstance(value, int):
-                errors.append(f"Field '{key}' must be an integer")
-            elif expected_type == "boolean" and not isinstance(value, bool):
-                errors.append(f"Field '{key}' must be a boolean")
-            elif expected_type == "array" and not isinstance(value, list):
-                errors.append(f"Field '{key}' must be an array")
-
-            validated_config[key] = value
-
-        unexpected = set(user_config.keys()) - set(schema.keys())
-        if unexpected:
-            errors.append(f"Unexpected fields: {', '.join(unexpected)}")
-
-        if errors:
-            raise ConfigValidationError("; ".join(errors))
-
-        return validated_config
+        return validated_config.model_dump()
 
     def create_user_plugin(
         self, session: Session, user_id: int, plugin: Plugin, user_config: dict
@@ -196,4 +185,45 @@ class PluginService:
 
         session.add(user_plugin)
         session.commit()
+        return user_plugin
+
+    def update_user_plugin_config(
+        self,
+        session: Session,
+        user_id: int,
+        plugin: Plugin,
+        user_config: dict[str, Any],
+    ) -> UserPlugin:
+        user_plugin: UserPlugin = self.get_user_plugin(
+            session,
+            user_id,
+            plugin.id,
+        )
+
+        if user_plugin:
+            if not user_plugin.enabled:
+                raise PluginDisabledError("Cannot update plugin configuration while the plugin is disabled")
+            merged_config = {**user_plugin.config, **user_config}
+        else:
+            merged_config = user_config
+
+        try:
+            validated_config = self.validate_user_config(plugin, merged_config)
+        except ConfigValidationError as err:
+            raise err
+
+        if user_plugin:
+            user_plugin.config = validated_config
+        else:
+            user_plugin = UserPlugin(
+                user_id=user_id,
+                plugin_id=plugin.id,
+                enabled=True,
+                config=validated_config,
+            )
+            session.add(user_plugin)
+
+        session.commit()
+        session.refresh(user_plugin)
+
         return user_plugin

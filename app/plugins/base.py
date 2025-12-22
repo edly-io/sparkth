@@ -19,6 +19,7 @@ from sqlmodel import SQLModel
 from starlette.middleware import Middleware
 
 from app.core.logger import get_logger
+from app.plugins.config_base import PluginConfig
 
 logger = get_logger(__name__)
 
@@ -136,7 +137,7 @@ class SparkthPlugin(metaclass=PluginMeta):
     def __init__(
         self,
         name: str,
-        config_schema: Dict[str, Any],
+        config_schema: Type[PluginConfig],
         is_builtin: bool = False,
         version: str = "1.0.0",
         description: str = "",
@@ -149,7 +150,7 @@ class SparkthPlugin(metaclass=PluginMeta):
 
         Args:
             name: Unique identifier for the plugin (e.g., "tasks-plugin")
-            config_schema: Plugin-specific configuration dictionary
+            config_schema: Plugin-specific configuration (inherits from app.plugins.config_base:PluginConfig)
             version: Semantic version string (e.g., "1.0.0")
             description: Brief description of plugin functionality
             author: Plugin author name or organization
@@ -602,12 +603,12 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         Return JSON Schema for plugin configuration validation.
 
-        Override this method to define expected configuration structure.
+        Uses the plugin's Pydantic model to generate the schema.
 
         Returns:
             JSON Schema dictionary
         """
-        return self.config_schema
+        return self.config_schema.model_json_schema()
 
     def get_default_config(self) -> Dict[str, Any]:
         """
@@ -620,15 +621,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return {}
 
-    def update_config_schema(self, config_schema: Dict[str, Any]) -> None:
-        """
-        Update plugin configuration.
-
-        Args:
-            config_schema: New configuration dictionary
-        """
-        self.config_schema.update(config_schema)
-
     def get_config_value(self, key: str, default: Any = None) -> Any:
         """
         Get a configuration value by key.
@@ -640,7 +632,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         Returns:
             Configuration value or default
         """
-        return self.config_schema.get(key, default)
+        return getattr(self.config_schema, key, default)
 
     # ==================== Metadata & State ====================
 
@@ -668,7 +660,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             "dependencies": self.dependencies,
             "enabled": self.enabled,
             "initialized": self._initialized,
-            "config_schema": self.config_schema,
+            "config_schema": self.get_config_schema(),
         }
 
     def __repr__(self) -> str:

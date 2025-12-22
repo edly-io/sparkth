@@ -202,7 +202,7 @@ class PluginManager:
                     session,
                     plugin_name,
                     plugin_instance.is_builtin,
-                    plugin_instance.config_schema,
+                    plugin_instance.get_config_schema(),
                 )
 
             return plugin_instance

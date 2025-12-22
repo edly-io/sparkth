@@ -23,7 +23,7 @@ def get_settings() -> Settings:
 # Format: "module.path:ClassName"
 PLUGINS = [
     "app.core_plugins.canvas.plugin:CanvasPlugin",
-    "app.core_plugins.openedx.plugin:OpenEdXPlugin",
+    "app.core_plugins.openedx.plugin:OpenEdxPlugin",
 ]
 
 
