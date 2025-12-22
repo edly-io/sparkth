@@ -1,4 +1,4 @@
-from .plugin import UserPlugin
+from .plugin import Plugin, UserPlugin
 from .user import User
 
-__all__ = ["User", "UserPlugin"]
+__all__ = ["User", "Plugin", "UserPlugin"]

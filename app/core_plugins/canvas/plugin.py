@@ -12,6 +12,7 @@ Provides MCP tools for interacting with Canvas LMS API including:
 
 from typing import Any
 
+from app.core_plugins.canvas.config import CanvasConfig
 from app.mcp.types import AuthenticationError
 from app.plugins.base import SparkthPlugin, tool
 
@@ -52,13 +53,10 @@ class CanvasPlugin(SparkthPlugin):
     Tools are auto-registered via @tool decorator using metaclass magic!
     """
 
-    def __init__(self) -> None:
+    def __init__(self, plugin_name: str) -> None:
         super().__init__(
-            "canvas",
-            {
-                "api_url": {"type": "string", "required": True, "description": "Canvas API URL", "default": None},
-                "api_key": {"type": "string", "required": True, "default": None, "description": "Canvas API key"},
-            },
+            plugin_name,
+            CanvasConfig,
             is_builtin=True,
             version="1.0.0",
             description="Canvas LMS integration with 30+ MCP tools",
