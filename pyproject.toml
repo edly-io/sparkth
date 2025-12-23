@@ -50,6 +50,9 @@ exclude = [
     ".venv",
 ]
 
+[tool.ruff.lint]
+ignore = ["E711", "E712"]
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

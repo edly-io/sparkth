@@ -30,7 +30,7 @@ def get_or_create_plugin(plugin_name: str, session: Session) -> Plugin:
     Returns:
         Plugin instance
     """
-    statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at.is_(None))
+    statement = select(Plugin).where(Plugin.name == plugin_name, Plugin.deleted_at == None)
     plugin = session.exec(statement).first()
 
     if plugin is None:
@@ -80,7 +80,7 @@ def list_user_plugins(
         .join(cast(Any, UserPlugin.plugin))
         .where(
             UserPlugin.user_id == current_user.id,
-            UserPlugin.deleted_at.is_(None),
+            UserPlugin.deleted_at == None,
         )
     )
     user_plugin_results = session.exec(statement).all()
@@ -118,7 +118,7 @@ def get_user_plugin(
     plugin = get_or_create_plugin(plugin_name, session)
 
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at == None
     )
     user_plugin = session.exec(statement).first()
 
@@ -146,7 +146,7 @@ def update_user_plugin(
     plugin = get_or_create_plugin(plugin_name, session)
 
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at == None
     )
     user_plugin = session.exec(statement).first()
 
@@ -155,7 +155,8 @@ def update_user_plugin(
     else:
         if current_user.id is None or plugin.id is None:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User ID or Plugin ID is missing"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User ID or Plugin ID is missing"
             )
         user_plugin = UserPlugin(user_id=current_user.id, plugin_id=plugin.id, enabled=request.enabled, config={})
         session.add(user_plugin)
@@ -186,7 +187,7 @@ def update_user_plugin_config(
     plugin = get_or_create_plugin(plugin_name, session)
 
     statement = select(UserPlugin).where(
-        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at.is_(None)
+        UserPlugin.user_id == current_user.id, UserPlugin.plugin_id == plugin.id, UserPlugin.deleted_at == None
     )
     user_plugin = session.exec(statement).first()
 
@@ -195,7 +196,8 @@ def update_user_plugin_config(
     else:
         if current_user.id is None or plugin.id is None:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User ID or Plugin ID is missing"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User ID or Plugin ID is missing"
             )
         user_plugin = UserPlugin(
             user_id=current_user.id,
