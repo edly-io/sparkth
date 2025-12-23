@@ -155,8 +155,7 @@ def update_user_plugin(
     else:
         if current_user.id is None or plugin.id is None:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="User ID or Plugin ID is missing"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User ID or Plugin ID is missing"
             )
         user_plugin = UserPlugin(user_id=current_user.id, plugin_id=plugin.id, enabled=request.enabled, config={})
         session.add(user_plugin)
@@ -196,8 +195,7 @@ def update_user_plugin_config(
     else:
         if current_user.id is None or plugin.id is None:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="User ID or Plugin ID is missing"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User ID or Plugin ID is missing"
             )
         user_plugin = UserPlugin(
             user_id=current_user.id,
