@@ -109,6 +109,9 @@ fix: ## Auto-fix + format locally
 mypy: ## Run mypy type checking
 	uv run mypy --strict app/ tests/
 
+build: ## Build Python package (sdist + wheel)
+	uv build
+
 # --------------------------------------------------
 # Catch-all for argument forwarding
 # --------------------------------------------------
