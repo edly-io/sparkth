@@ -23,6 +23,7 @@ coverage.xml
 .vscode
 .idea
 *.md
+!README.md
 LICENSE
 Makefile
 docker-compose.yml
