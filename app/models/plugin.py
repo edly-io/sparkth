@@ -2,8 +2,6 @@
 Plugin models for plugin registry and user-level plugin preferences.
 """
 
-from __future__ import annotations
-
 from typing import Any, Optional
 
 from sqlmodel import JSON, Column, Field, Relationship
