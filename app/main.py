@@ -1,5 +1,6 @@
 import logging
 import sys
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from enum import Enum
@@ -55,15 +56,12 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
         for plugin_name, plugin in loaded_plugins.items():
             try:
                 middleware_list = plugin.get_middleware()
-                if middleware_list:
-                    for middleware_item in middleware_list:
-                        # Starlette's add_middleware requires positional cls argument
-                        # followed by keyword arguments
-                        for middleware_item in middleware_list:
-                            if middleware_list:
-                                for middleware_item in middleware_list:
-                                    mw = cast(Callable[[ASGIApp], ASGIApp], middleware_item.cls)
-                                    application.add_middleware(mw, **cast(dict[str, Any], middleware_item.kwargs))
+                if not middleware_list:
+                    continue
+
+                for middleware_item in middleware_list:
+                    mw = cast(Callable[[ASGIApp], ASGIApp], middleware_item.cls)
+                    application.add_middleware(mw, **cast(dict[str, Any], middleware_item.kwargs))
             except Exception as e:
                 logger.error(f"Failed to register middleware for plugin '{plugin_name}': {e}")
 
@@ -94,9 +92,6 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with plugin_lifespan(application):
             logger.info("Registering MCP tools from plugins...")
             register_plugin_tools()
-
-            import asyncio
-
             all_tools = await asyncio.create_task(mcp.get_tools())
             logger.info(f"MCP server ready with {len(all_tools)} total tool(s) registered")
 
@@ -124,12 +119,3 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"message": "Welcome to Sparkth", "version": __version__}
-
-
-@app.get("/plugins")
-def list_plugins() -> dict[str, list[dict[str, Any]]]:
-    """
-    List all available plugins and their status.
-    """
-    plugin_manager = get_plugin_manager()
-    return {"plugins": plugin_manager.list_all_plugins()}

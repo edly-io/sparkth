@@ -94,7 +94,6 @@ class PluginMeta(type):
         for attr_name, attr_value in namespace.items():
             if (
                 callable(attr_value)
-                and hasattr(attr_value, "_is_mcp_tool")
                 and getattr(attr_value, "_is_mcp_tool", False)
             ):
                 cls._tool_registry[attr_name] = {
@@ -171,8 +170,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.enabled = enabled
         self.config = config or {}
         self._initialized = False
-        self._enabled = False
-
         self._routes: List[APIRouter] = []
         self._models: List[Type[SQLModel]] = []
         self._mcp_tools: List[Dict[str, Any]] = []
@@ -231,7 +228,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         Override this method to add custom enable logic.
         """
         self.enabled = True
-        self._enabled = True
 
     def disable(self) -> None:
         """
@@ -243,7 +239,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         Override this method to add custom disable logic.
         """
         self.enabled = False
-        self._enabled = False
 
     def add_route(self, router: APIRouter) -> None:
         """
