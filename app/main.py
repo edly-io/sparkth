@@ -3,8 +3,8 @@ import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import Any, Union, cast
 from importlib.metadata import version
+from typing import Any, Union, cast
 
 from fastapi import FastAPI
 from starlette.types import ASGIApp
@@ -124,7 +124,6 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"message": "Welcome to Sparkth", "version": __version__}
-
 
 
 @app.get("/plugins")
