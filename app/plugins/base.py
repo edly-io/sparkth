@@ -617,7 +617,7 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def is_enabled(self) -> bool:
         """Check if plugin is currently enabled."""
-        return self._enabled
+        return self.enabled
 
     def get_info(self) -> Dict[str, Any]:
         """
