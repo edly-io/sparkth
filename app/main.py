@@ -1,6 +1,6 @@
+import asyncio
 import logging
 import sys
-import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from enum import Enum

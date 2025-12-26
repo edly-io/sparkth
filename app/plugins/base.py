@@ -92,10 +92,7 @@ class PluginMeta(type):
         cls._tool_registry = {}
 
         for attr_name, attr_value in namespace.items():
-            if (
-                callable(attr_value)
-                and getattr(attr_value, "_is_mcp_tool", False)
-            ):
+            if callable(attr_value) and getattr(attr_value, "_is_mcp_tool", False):
                 cls._tool_registry[attr_name] = {
                     "name": getattr(attr_value, "_mcp_tool_name", attr_name),
                     "description": getattr(attr_value, "_mcp_tool_description", ""),

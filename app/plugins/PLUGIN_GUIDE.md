@@ -39,15 +39,13 @@ class MyPlugin(SparkthPlugin):
         return f"Processed: {input}"
 ```
 
-## Register in plugins.json
-
-```json
-{
-  "my-plugin": {
-    "enabled": true,
-    "module": "sparkth-plugins.my-plugin.plugin:MyPlugin"
-  }
-}
+## Register in core/config.py
+```python
+PLUGINS = [
+    "app.core_plugins.canvas.plugin:CanvasPlugin",
+    "app.core_plugins.openedx.plugin:OpenEdXPlugin",
+    # add your plugin config here
+]
 ```
 
 Format: `"path.to.module:ClassName"`
