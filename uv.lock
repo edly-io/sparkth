@@ -1652,8 +1652,8 @@ wheels = [
 
 [[package]]
 name = "sparkth"
-version = "0.1.0"
-source = { virtual = "." }
+version = "0.1.1"
+source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "alembic" },

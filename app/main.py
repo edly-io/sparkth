@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Any, Union, cast
+from importlib.metadata import version
 
 from fastapi import FastAPI
 from starlette.types import ASGIApp
@@ -78,7 +79,10 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
         logger.error(f"Plugin cleanup failed: {e}")
 
 
-mcp_app = mcp.http_app(path="/")
+__version__ = version("sparkth")
+
+# Note: Using path="/" causes connection issues with Claude
+mcp_app = mcp.http_app(path="/mcp")
 
 
 @asynccontextmanager
@@ -100,7 +104,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/mcp", mcp_app)
+app.mount("/sparkth-mcp", mcp_app)
 
 app.add_middleware(
     PluginAccessMiddleware,
@@ -119,7 +123,8 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 def read_root() -> dict[str, str]:
-    return {"message": "Welcome to the Sparkth API"}
+    return {"message": "Welcome to Sparkth", "version": __version__}
+
 
 
 @app.get("/plugins")
