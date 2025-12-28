@@ -3,20 +3,15 @@ from typing import Any, Awaitable, Callable, Optional, cast
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import Session, select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
-from app.core.db import get_async_session
+from app.core.db import get_session
 from app.core.logger import get_logger
 from app.models.plugin import Plugin, UserPlugin
 
 logger = get_logger(__name__)
-
-
-class PluginAccessMiddlewareException(Exception):
-    pass
 
 
 class PluginAccessMiddleware(BaseHTTPMiddleware):
@@ -86,28 +81,21 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
 
     async def _check_plugin_access(self, user_id: int, plugin_name: str) -> bool:
         try:
-            async for session in get_async_session():
-                return await _check_plugin_access_impl(user_id, plugin_name, session, check_system_enabled=True)
-            # Fallback if session generator doesn't yield
-            return False
+            session = next(get_session())
+            return _check_plugin_access(user_id, plugin_name, session, check_system_enabled=True)
         except SQLAlchemyError as e:
             logger.error(f"Database error checking plugin access for user {user_id} and plugin '{plugin_name}': {e}")
             return False
-        except PluginAccessMiddlewareException as e:
-            logger.error(f"Unexpected error checking plugin access for user {user_id} and plugin '{plugin_name}': {e}")
-            return False
 
 
-async def _check_plugin_access_impl(
-    user_id: int, plugin_name: str, session: AsyncSession, check_system_enabled: bool = False
-) -> bool:
+def _check_plugin_access(user_id: int, plugin_name: str, session: Session, check_system_enabled: bool = False) -> bool:
     """
     Shared logic for checking plugin access.
 
     Args:
         user_id: The user ID to check access for
         plugin_name: The name of the plugin
-        session: The async database session
+        session: The database session
         check_system_enabled: If True, also checks if the plugin is enabled at system level
 
     Returns:
@@ -117,8 +105,7 @@ async def _check_plugin_access_impl(
         Plugin.name == plugin_name,
         Plugin.deleted_at is None,
     )
-    result = await session.execute(plugin_statement)
-    plugin = result.scalar_one_or_none()
+    plugin = session.exec(plugin_statement).first()
 
     if plugin is None:
         logger.debug(f"Plugin '{plugin_name}' not found in database. Allowing access by default.")
@@ -133,25 +120,24 @@ async def _check_plugin_access_impl(
         UserPlugin.plugin_id == plugin.id,
         UserPlugin.deleted_at is None,
     )
-    result = await session.execute(statement)
-    user_plugin = result.scalar_one_or_none()
+    result = session.exec(statement).first()
 
-    if user_plugin is None:
+    if result is None:
         logger.debug(f"No UserPlugin record for user {user_id} and plugin '{plugin_name}'. Allowing access by default.")
         return True
 
-    return user_plugin.enabled
+    return result.enabled
 
 
-async def check_user_plugin_access(user_id: int, plugin_name: str, session: AsyncSession) -> bool:
+def check_user_plugin_access(user_id: int, plugin_name: str, session: Session) -> bool:
     try:
-        return await _check_plugin_access_impl(user_id, plugin_name, session, check_system_enabled=False)
+        return _check_plugin_access(user_id, plugin_name, session, check_system_enabled=False)
     except SQLAlchemyError as e:
         logger.error(f"Database error in check_user_plugin_access for user {user_id} and plugin '{plugin_name}': {e}")
         return False
 
 
-async def get_user_enabled_plugins(user_id: int, session: AsyncSession) -> list[str]:
+async def get_user_enabled_plugins(user_id: int, session: Session) -> list[str]:
     try:
         statement = (
             select(UserPlugin, Plugin)
@@ -163,15 +149,14 @@ async def get_user_enabled_plugins(user_id: int, session: AsyncSession) -> list[
                 Plugin.deleted_at is None,
             )
         )
-        result = await session.execute(statement)
-        results = result.all()
+        results = session.exec(statement).all()
         return [plugin.name for _, plugin in results]
     except SQLAlchemyError as e:
         logger.error(f"Database error getting enabled plugins for user {user_id}: {e}")
         return []
 
 
-async def get_user_disabled_plugins(user_id: int, session: AsyncSession) -> list[str]:
+async def get_user_disabled_plugins(user_id: int, session: Session) -> list[str]:
     try:
         statement = (
             select(UserPlugin, Plugin)
@@ -183,8 +168,7 @@ async def get_user_disabled_plugins(user_id: int, session: AsyncSession) -> list
                 Plugin.deleted_at is None,
             )
         )
-        result = await session.execute(statement)
-        results = result.all()
+        results = session.exec(statement).all()
         return [plugin.name for _, plugin in results]
     except SQLAlchemyError as e:
         logger.error(f"Database error getting disabled plugins for user {user_id}: {e}")
