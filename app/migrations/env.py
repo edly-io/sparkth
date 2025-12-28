@@ -6,15 +6,31 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 from app.core.config import get_settings
+from app.core.logger import get_logger
+from app.plugins import get_plugin_manager
 
 from app.models import *
 
+logger = get_logger(__name__)
 
 settings = get_settings()
 
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
+
+# Import plugin models for Alembic autogenerate
+def import_plugin_models():
+    """Import models from all enabled plugins for Alembic to discover."""
+    plugin_manager = get_plugin_manager()
+    loaded_plugins = plugin_manager.load_all_enabled()
+    
+    # Get models from each plugin
+    for plugin_name, plugin in loaded_plugins.items():
+        models = plugin.get_models()
+        if models:
+            logger.info(f"Loaded {len(models)} model(s) from plugin '{plugin_name}'")
 
 
 # this is the Alembic Config object, which provides
@@ -50,6 +66,9 @@ def run_migrations_offline() -> None:
     script output.
 
     """
+    # Load plugin models before running migrations
+    import_plugin_models()
+    
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -69,6 +88,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Load plugin models before running migrations
+    import_plugin_models()
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

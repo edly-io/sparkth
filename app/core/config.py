@@ -15,3 +15,23 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# Plugin Configuration
+# List of plugin module paths to load (all enabled by default)
+# Format: "module.path:ClassName"
+PLUGINS = [
+    "app.core_plugins.canvas.plugin:CanvasPlugin",
+    "app.core_plugins.openedx.plugin:OpenEdXPlugin",
+]
+
+
+def get_plugin_settings() -> list[str]:
+    """
+    Get list of plugin module paths to load.
+    All plugins returned are enabled by default.
+
+    Returns:
+        List of plugin module strings in format "module.path:ClassName"
+    """
+    return PLUGINS
