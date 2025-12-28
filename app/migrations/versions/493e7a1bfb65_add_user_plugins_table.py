@@ -46,7 +46,8 @@ def upgrade() -> None:
     sa.Column('config', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['plugin_id'], ['plugins.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id', 'plugin_id', name='uq_user_plugin')
     )
     op.create_index(op.f('ix_user_plugins_is_deleted'), 'user_plugins', ['is_deleted'], unique=False)
     op.create_index(op.f('ix_user_plugins_plugin_id'), 'user_plugins', ['plugin_id'], unique=False)

@@ -165,7 +165,7 @@ class PluginManager:
         plugin_class = self._available_plugins[plugin_name]
 
         try:
-            plugin_instance = plugin_class(name=plugin_name)
+            plugin_instance = plugin_class(plugin_name)
 
             plugin_instance.initialize()
 

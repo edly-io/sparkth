@@ -4,6 +4,7 @@ Plugin models for plugin registry and user-level plugin preferences.
 
 from typing import Any, Optional
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import JSON, Column, Field, Relationship
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -21,6 +22,7 @@ class Plugin(TimestampedModel, SoftDeleteModel, table=True):
 
 class UserPlugin(TimestampedModel, SoftDeleteModel, table=True):
     __tablename__ = "user_plugins"
+    __table_args__ = (UniqueConstraint("user_id", "plugin_id", name="uq_user_plugin"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
