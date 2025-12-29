@@ -99,7 +99,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/sparkth-mcp", mcp_app)
+app.mount("/ai", mcp_app)
 
 app.add_middleware(
     PluginAccessMiddleware,

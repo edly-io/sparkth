@@ -5,62 +5,99 @@ Sparkth is a free, open source, extensible, science-driven, AI-first learning pl
 
 This repository is organized with the following main components:
 
-- `mcp/`
-- `api/`
-- `core/`
-- `models/`
+- `app/mcp/` - MCP server implementation
+- `app/api/` - REST API endpoints
+- `app/core_plugins/` - Core plugins (OpenEdX, Canvas)
+- `app/plugins/` - Plugin system
 
-**Roadmap**:
+## Public Endpoints
 
-- Native Rust API for integration of Sparkth into other applications.
-- Development of a new webassembly-based standard for the creation of next-gen learning experiences.
+Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) with the following endpoints:
+
+| Endpoint | URL |
+| -------- | --- |
+| MCP Server | https://sparkth.edly.space/ai/mcp |
+| REST API | https://sparkth.edly.space/api/ |
+| Swagger UI | https://sparkth.edly.space/docs |
+| ReDoc | https://sparkth.edly.space/redoc |
 
 ## Installation
 
-### Pre-built binaries
+### Prerequisites
 
-We provides binaries for macOS (x86\_64 & aarch64), Linux (x86\_64) and Windows (x86\_64). They are published automatically for every version tag (`vX.Y.Z`) on GitHub under [Releases](https://github.com/edly-io/sparkth/releases). Each archive contains:
+- Python 3.14
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
-* Platform-specific binary (`sparkth` or `sparkth.exe`)
-* `.zip` and `.tar.gz` formats
-* SHA-256 checksums
+### Setup
 
-Download from the CLI:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/edly-io/sparkth.git
+   cd sparkth
+   ```
 
-```sh
-export sparkth_version=$(curl -s https://api.github.com/repos/edly-io/sparkth/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
+2. Install dependencies:
+   ```bash
+   make dev
+   ```
 
-# Linux
-curl -LO -o sparkth.tar.gz https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-x86_64-unknown-linux-gnu.tar.gz
-# macOS arm64
-curl -LO -o sparkth.tar.gz https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-aarch64-apple-darwin.tar.gz
-# macOS x86_64
-curl -LO -o sparkth.tar.gz https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-x86_64-apple-darwin.tar.gz
-# Windows
-curl -LO -o sparkth.zip https://github.com/edly-io/sparkth/releases/download/$sparkth_version/sparkth-$sparkth_version-x86_64-pc-windows-msvc.zip
+## Running the MCP Server (Docker)
 
-# Decompress
-# For Linux/macOS:
-tar -xzf sparkth.tar.gz
-# For Windows:
-unzip sparkth.zip
+To run the MCP server in Docker:
 
-# Set execution mode (Linux/macOS only)
-chmod a+x sparkth
+    make dev.up
 
-# Smoke test
-./sparkth --help
+### Transport mode: http / stdio
+
+Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
+
+| Mode     | Description                                          |
+| -------- | ---------------------------------------------------- |
+| `stdio`  | Communicates via standard input/output streams.      |
+| `http`   | Starts an HTTP server.       |
+
+The default is `http` on host http://0.0.0.0:7727.
+
+## Running the API Server
+
+To develop locally, you can run the API server with hot-reloading enabled.
+
+1.  **Ensure dependencies are installed:**
+    ```bash
+    make dev
+    ```
+
+2.  **Start the server:**
+    ```bash
+    make dev.up
+    ```
+    or
+    ```bash
+    make up
+    ```
+
+### Local MCP Endpoint
+
+When running the API server locally, the MCP server is available at:
+
+```
+http://127.0.0.1:8000/ai/mcp
 ```
 
+This allows Claude and other MCP-compatible clients to connect to the MCP server via HTTP.
 
-## Running the MCP Server
+### API Documentation
 
-    uv run python -m app.mcp.main 
+Once the server is running, you can access the interactive API documentation locally:
 
-Any CLI option supported by Sparkth MCP can be appended to this command.
+* **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+    * *Best for testing endpoints interactively.*
+* **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+    * *Best for reading documentation structure.*
 
-## Integrating the MCP Server with Claude
-Add the `sparkth` (or `sparkth.exe`) executable as an external tool to Claude Desktop by editing the Claude configuration file:
+## Integrating with Claude Desktop
+
+Add the Sparkth MCP server to Claude Desktop by editing the Claude configuration file:
 
 ```
 # macOS
@@ -71,8 +108,8 @@ Add the `sparkth` (or `sparkth.exe`) executable as an external tool to Claude De
 ~/.config/Claude/claude_desktop_config.json
 ```
 
-Add the Sparkth MCP server, such that your configuration looks like the following:
-```
+Add the Sparkth MCP server configuration:
+```json
 {
   "mcpServers": {
     "Sparkth stdio": {
@@ -88,7 +125,6 @@ Add the Sparkth MCP server, such that your configuration looks like the followin
     }
   }
 }
-
 ```
 
 > Note: You may need to put the full path to the `uv` executable in the command field. You can get this by running `which uv` on macOS/Linux or `where uv` on Windows.
@@ -98,17 +134,6 @@ Restart Claude Desktop. Ensure that the "Sparkth stdio" tools appear in the "Sea
 > Use Sparkth to generate a very short course (~1 hour) on the literary merits of Hamlet, by Shakespeare.
 
 Sparkth will generate a prompt that will help Claude generate this course.
-
-#### Transport mode: http / stdio
-
-Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
-
-| Mode     | Description                                          |
-| -------- | ---------------------------------------------------- |
-| `stdio`  | Communicates via standard input/output streams.      |
-| `http`   | Starts an HTTP server.       |
-
-The default is `http` on host http://0.0.0.0:7727.
 
 ## Makefile
 
@@ -132,31 +157,6 @@ Targets:
   build        Build package
 
 ```
-
-## Running the API Server
-
-To develop locally, you can run the API server with hot-reloading enabled.
-
-1.  **Ensure dependencies are installed:**
-    ```bash
-    make dev
-    ```
-
-2.  **Start the server:**
-    ```bash
-    make start
-    ```
-    *This runs `uvicorn` on port 8000 with reload enabled.*
-
-### API Documentation
-
-Once the server is running, you can access the interactive API documentation locally:
-
-* **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-    * *Best for testing endpoints interactively.*
-* **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-    * *Best for reading documentation structure.*
-
 
 ## User Management Commands
 ### Create User
