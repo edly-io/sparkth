@@ -30,7 +30,7 @@ class UserPluginResponse(BaseModel):
     plugin_name: str
     enabled: bool
     config: dict[str, Any]
-    is_builtin: bool
+    is_core: bool
 
 
 class UpdateUserPluginRequest(BaseModel):
@@ -72,13 +72,11 @@ def list_user_plugins(
                     plugin_name=plugin.name,
                     enabled=user_plugin.enabled,
                     config=user_plugin.config or {},
-                    is_builtin=plugin.is_builtin,
+                    is_core=plugin.is_core,
                 )
             )
         else:
-            result.append(
-                UserPluginResponse(plugin_name=plugin.name, enabled=True, config={}, is_builtin=plugin.is_builtin)
-            )
+            result.append(UserPluginResponse(plugin_name=plugin.name, enabled=True, config={}, is_core=plugin.is_core))
 
     return result
 
@@ -122,7 +120,7 @@ def create_user_plugin(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
     return UserPluginResponse(
-        plugin_name=plugin.name, enabled=user_plugin.enabled, config=user_plugin.config, is_builtin=plugin.is_builtin
+        plugin_name=plugin.name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
     )
 
 
@@ -147,10 +145,10 @@ def get_user_plugin(
             plugin_name=plugin_name,
             enabled=user_plugin.enabled,
             config=user_plugin.config or {},
-            is_builtin=plugin.is_builtin,
+            is_core=plugin.is_core,
         )
     else:
-        return UserPluginResponse(plugin_name=plugin_name, enabled=True, config={}, is_builtin=plugin.is_builtin)
+        return UserPluginResponse(plugin_name=plugin_name, enabled=True, config={}, is_core=plugin.is_core)
 
 
 @router.patch("/{plugin_name}", response_model=UserPluginResponse)
@@ -183,7 +181,7 @@ def update_user_plugin(
 
     user_plugin = plugin_service.update_user_plugin_enabled(session, current_user.id, plugin.id, request.enabled)
     return UserPluginResponse(
-        plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_builtin=plugin.is_builtin
+        plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
     )
 
 
@@ -221,7 +219,7 @@ def update_user_plugin_config(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
 
     return UserPluginResponse(
-        plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_builtin=plugin.is_builtin
+        plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
     )
 
 

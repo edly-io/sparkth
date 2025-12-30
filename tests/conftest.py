@@ -63,10 +63,10 @@ def setup_plugins_and_user(session: Session) -> dict[str, Any]:
     session.commit()
     session.refresh(user)
 
-    plugin_a = Plugin(name="plugin_a", is_builtin=True, enabled=True)
-    plugin_b = Plugin(name="plugin_b", is_builtin=True, enabled=True)
-    configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_builtin=True, enabled=True)
-    disabled_plugin = Plugin(name="disabled_plugin", is_builtin=True, enabled=False)
+    plugin_a = Plugin(name="plugin_a", is_core=True, enabled=True)
+    plugin_b = Plugin(name="plugin_b", is_core=True, enabled=True)
+    configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_core=True, enabled=True)
+    disabled_plugin = Plugin(name="disabled_plugin", is_core=True, enabled=False)
 
     session.add_all([plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin])
     session.commit()

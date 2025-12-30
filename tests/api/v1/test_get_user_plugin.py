@@ -12,7 +12,7 @@ def test_get_user_plugin_success(override_dependencies: Any) -> None:
     data = response.json()
     assert data["plugin_name"] == "plugin_a"
     assert data["enabled"] is True
-    assert data["is_builtin"] is True
+    assert data["is_core"] is True
 
 
 def test_get_user_plugin_not_found(override_dependencies: Any) -> None:

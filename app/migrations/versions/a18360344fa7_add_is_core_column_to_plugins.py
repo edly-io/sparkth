@@ -1,4 +1,4 @@
-"""Add is_builtin column to plugins
+"""Add is_core column to plugins
 
 Revision ID: a18360344fa7
 Revises: 493e7a1bfb65
@@ -21,11 +21,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('plugins', sa.Column('is_builtin', sa.Boolean(), nullable=False))
+    op.add_column('plugins', sa.Column('is_core', sa.Boolean(), nullable=False))
     op.add_column('plugins', sa.Column('config_schema', sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column('plugins', 'config_schema')
-    op.drop_column('plugins', 'is_builtin')
+    op.drop_column('plugins', 'is_core')

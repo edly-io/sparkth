@@ -22,7 +22,7 @@ class Plugin(TimestampedModel, SoftDeleteModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255, unique=True, index=True)
-    is_builtin: bool = Field(default=False)
+    is_core: bool = Field(default=False)
     enabled: bool = Field(default=True)
     config_schema: dict[str, Any] = Field(default={}, sa_column=Column(JSON))
 

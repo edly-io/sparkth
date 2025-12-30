@@ -142,7 +142,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         self,
         name: str,
         config_schema: Type[PluginConfig] | None = None,
-        is_builtin: bool = False,
+        is_core: bool = False,
         version: str = "1.0.0",
         description: str = "",
         author: str = "",
@@ -164,7 +164,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.name = name
         self.version = version
         self.description = description
-        self.is_builtin = is_builtin
+        self.is_core = is_core
         self.author = author
         self.dependencies = dependencies or []
         self.enabled = enabled
@@ -623,7 +623,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         return {
             "name": self.name,
             "version": self.version,
-            "is_builtin": self.is_builtin,
+            "is_core": self.is_core,
             "description": self.description,
             "author": self.author,
             "dependencies": self.dependencies,
