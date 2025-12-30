@@ -20,7 +20,7 @@ def test_configure_user_plugin_success(override_dependencies: Any) -> None:
     assert data["plugin_name"] == "plugin_a"
     assert data["enabled"] is True
     assert data["config"] == payload
-    assert data["is_builtin"] is True
+    assert data["is_core"] is True
 
 
 def test_configure_user_plugin_unauthorized(client: TestClient) -> None:

@@ -57,7 +57,7 @@ class CanvasPlugin(SparkthPlugin):
         super().__init__(
             plugin_name,
             CanvasConfig,
-            is_builtin=True,
+            is_core=True,
             version="1.0.0",
             description="Canvas LMS integration with 30+ MCP tools",
             author="Sparkth Team",

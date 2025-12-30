@@ -111,7 +111,7 @@ class OpenEdxPlugin(SparkthPlugin):
         super().__init__(
             plugin_name,
             OpenEdxConfig,
-            is_builtin=True,
+            is_core=True,
             version="1.0.0",
             description="Open edX integration with MCP tools",
             author="Sparkth Team",

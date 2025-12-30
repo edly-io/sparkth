@@ -39,7 +39,7 @@ class PluginService:
         self,
         session: Session,
         name: str,
-        is_builtin: bool,
+        is_core: bool,
         schema: dict[str, Any],
         enabled: bool = True,
     ) -> Plugin:
@@ -50,7 +50,7 @@ class PluginService:
 
         plugin = Plugin(
             name=name,
-            is_builtin=is_builtin,
+            is_core=is_core,
             config_schema=schema,
             enabled=enabled,
         )

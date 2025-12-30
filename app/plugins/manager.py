@@ -182,7 +182,7 @@ class PluginManager:
                 plugin_service.get_or_create(
                     session,
                     plugin_name,
-                    plugin_instance.is_builtin,
+                    plugin_instance.is_core,
                     plugin_instance.get_config_schema(),
                 )
 

@@ -21,25 +21,25 @@ def test_list_user_plugins_basic(override_dependencies: Any) -> None:
             "plugin_name": "plugin_a",
             "enabled": True,
             "config": {},
-            "is_builtin": True,
+            "is_core": True,
         },
         {
             "plugin_name": "plugin_b",
             "enabled": True,
             "config": {"some config": "abc"},
-            "is_builtin": True,
+            "is_core": True,
         },
         {
             "plugin_name": "configured_plugin_disabled",
             "enabled": False,
             "config": {"some config": "abc"},
-            "is_builtin": True,
+            "is_core": True,
         },
         {
             "plugin_name": "disabled_plugin",
             "enabled": True,
             "config": {},
-            "is_builtin": True,
+            "is_core": True,
         },
     ]
     assert data == expected

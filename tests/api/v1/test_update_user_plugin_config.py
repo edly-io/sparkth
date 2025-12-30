@@ -18,7 +18,7 @@ def test_update_plugin_not_configured_success(override_dependencies: Any) -> Non
     assert data["plugin_name"] == "plugin_a"
     assert data["enabled"] is True
     assert data["config"] == payload
-    assert data["is_builtin"] is True
+    assert data["is_core"] is True
 
 
 def test_update_plugin_success(override_dependencies: Any) -> None:
@@ -33,7 +33,7 @@ def test_update_plugin_success(override_dependencies: Any) -> None:
     assert data["plugin_name"] == "plugin_b"
     assert data["enabled"] is True
     assert data["config"] == payload
-    assert data["is_builtin"] is True
+    assert data["is_core"] is True
 
 
 def test_update_plugin_not_found(override_dependencies: Any) -> None:
