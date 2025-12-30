@@ -8,8 +8,8 @@ from app.core import security
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models.user import User
-from app.schemas import Token, UserCreate, UserLogin
-from app.schemas import User as UserSchema
+from app.schemas.users import Token, UserCreate, UserLogin
+from app.schemas.users import User as UserSchema
 
 settings = get_settings()
 
