@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS512"
     # 60 minutes * 24 hours * 8 days = 11520 minutes
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    
+    # OAuth Settings
+    OAUTH_AUTHORIZATION_CODE_EXPIRE_MINUTES: int = 10
+    OAUTH_ACCESS_TOKEN_EXPIRE_DAYS: int = 90
+    OAUTH_REFRESH_TOKEN_EXPIRE_DAYS: int = 365
 
 
 @lru_cache

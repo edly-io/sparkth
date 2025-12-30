@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
+from app.mcp.auth_middleware import MCPOAuthMiddleware
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
@@ -81,6 +82,9 @@ __version__ = version("sparkth")
 
 # Note: Using path="/" causes connection issues with Claude
 mcp_app = mcp.http_app(path="/mcp")
+
+# Add OAuth authentication middleware to MCP app
+mcp_app.add_middleware(MCPOAuthMiddleware)
 
 
 @asynccontextmanager
