@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
+from app.core.config import get_settings
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
@@ -23,7 +24,11 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
+
 logger = logging.getLogger(__name__)
+
+
+settings = get_settings()
 
 
 @asynccontextmanager
@@ -104,15 +109,6 @@ app.mount("/ai", mcp_app)
 
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-app.add_middleware(
     PluginAccessMiddleware,
     exclude_paths=[
         "/docs",
@@ -123,6 +119,18 @@ app.add_middleware(
         "/api/v1/auth",
     ],
 )
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[str(settings.FRONTEND_URL)],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=[
+        "*",
+    ],
+)
+
 
 app.include_router(api_router, prefix="/api/v1")
 

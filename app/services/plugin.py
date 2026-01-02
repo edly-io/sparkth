@@ -41,7 +41,7 @@ class PluginService:
     """
 
     @staticmethod
-    def _initial_config(schema: dict[str, Any]) -> dict[str, Any]:
+    def initial_config(schema: dict[str, Any]) -> dict[str, Any]:
         """
         Populate config dict with all keys from schema set to None.
         """
