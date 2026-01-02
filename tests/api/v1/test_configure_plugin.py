@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.api.v1.auth import get_current_user
 from app.models.user import User
-from app.services.plugin import ConfigValidationError, InternalServerError
+from app.services.plugin import ConfigValidationError, InternalServerError, PluginService
 
 
 def test_configure_user_plugin_success(override_dependencies: Any) -> None:
@@ -82,13 +82,26 @@ def test_configure_user_plugin_invalid_config(override_dependencies: Any) -> Non
 def test_configure_user_plugin_internal_error(override_dependencies: Any) -> None:
     client = override_dependencies
 
-    with patch(
-        "app.services.plugin.PluginService.validate_user_config",
-        side_effect=InternalServerError("Plugin cannot be configured"),
+    valid_config = {
+        "api_url": "https://canvas.instructure.com",
+        "api_key": "abc123",
+    }
+
+    with (
+        patch.object(
+            PluginService,
+            "validate_user_config",
+            return_value=valid_config,
+        ),
+        patch.object(
+            PluginService,
+            "create_user_plugin",
+            side_effect=InternalServerError("Plugin cannot be configured"),
+        ),
     ):
         response = client.post(
             "/api/v1/user-plugins/plugin_a/configure",
-            json={"some confix": "abc"},
+            json=valid_config,
         )
 
     assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -8,6 +8,7 @@ from importlib.metadata import version
 from typing import Any, Union, cast
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
@@ -100,6 +101,16 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(lifespan=lifespan)
 app.mount("/ai", mcp_app)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 app.add_middleware(
     PluginAccessMiddleware,

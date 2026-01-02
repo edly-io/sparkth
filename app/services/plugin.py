@@ -26,10 +26,55 @@ def get_plugin_service() -> PluginService:
     return PluginService()
 
 
+class UserPluginResponse(pydantic.BaseModel):
+    """Response model for user plugin information."""
+
+    plugin_name: str
+    enabled: bool
+    config: dict[str, Any]
+    is_core: bool
+
+
 class PluginService:
     """
     Business logic related to Plugin persistence and state.
     """
+
+    @staticmethod
+    def _initial_config(schema: dict[str, Any]) -> dict[str, Any]:
+        """
+        Populate config dict with all keys from schema set to None.
+        """
+        if not schema or "properties" not in schema:
+            return {}
+        return {key: None for key in schema["properties"].keys()}
+
+    @staticmethod
+    def validate_user_config(plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:
+        """
+        Validate and normalize user configuration against plugin's Pydantic config model.
+
+        Uses the plugin.config_schema directly instead of dynamically loading config.py.
+
+        Raises:
+            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
+        """
+
+        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        if not config_class:
+            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
+            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
+
+        if not issubclass(config_class, PluginConfig):
+            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
+            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
+
+        try:
+            validated_config = config_class(**user_config)
+        except pydantic.ValidationError as e:
+            raise ConfigValidationError(e.errors())
+
+        return validated_config.model_dump(mode="json")
 
     def get_by_name(self, session: Session, name: str) -> Plugin | None:
         statement = select(Plugin).where(Plugin.name == name, Plugin.deleted_at == None)
@@ -148,44 +193,13 @@ class PluginService:
 
         return user_plugin
 
-    def validate_user_config(self, plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:
-        """
-        Validate and normalize user configuration against plugin's Pydantic config model.
-
-        Uses the plugin.config_schema directly instead of dynamically loading config.py.
-
-        Raises:
-            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
-        """
-
-        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
-        if not config_class:
-            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
-            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
-
-        if not issubclass(config_class, PluginConfig):
-            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
-            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
-
-        try:
-            validated_config = config_class(**user_config)
-        except pydantic.ValidationError as e:
-            raise ConfigValidationError(e.errors())
-
-        return validated_config.model_dump()
-
     def create_user_plugin(
         self, session: Session, user_id: int, plugin: Plugin, user_config: dict[str, Any]
     ) -> UserPlugin:
-        try:
-            validated_config = self.validate_user_config(plugin, user_config)
-        except ConfigValidationError as err:
-            raise err
-
         if plugin.id is None:
             raise InternalServerError("Plugin must be persisted before creating user plugin")
 
-        user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin.id, enabled=True, config=validated_config)
+        user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin.id, enabled=True, config=user_config)
 
         session.add(user_plugin)
         session.commit()

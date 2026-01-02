@@ -18,19 +18,11 @@ from app.services.plugin import (
     InternalServerError,
     PluginDisabledError,
     PluginService,
+    UserPluginResponse,
     get_plugin_service,
 )
 
 router: APIRouter = APIRouter()
-
-
-class UserPluginResponse(BaseModel):
-    """Response model for user plugin information."""
-
-    plugin_name: str
-    enabled: bool
-    config: dict[str, Any]
-    is_core: bool
 
 
 class UpdateUserPluginRequest(BaseModel):
@@ -54,29 +46,35 @@ def list_user_plugins(
     """
     List all plugins with their enabled status for the current user.
 
-    Returns information about all available plugins and whether they are
-    enabled or disabled for the authenticated user.
+    Returns all available plugins and whether they are enabled or disabled,
+    and pre-populates the config with keys from the plugin's schema.
     """
     all_plugins = plugin_service.get_all(session)
-    user_plugin_map = plugin_service.get_user_plugin_map(
-        session,
-        current_user.id,
-    )
-    result = []
+    user_plugin_map = plugin_service.get_user_plugin_map(session, current_user.id)
+    result: list[UserPluginResponse] = []
 
     for plugin in all_plugins:
         user_plugin = user_plugin_map.get(plugin.name)
+
         if user_plugin is not None:
+            config = user_plugin.config or PluginService._initial_config(plugin.config_schema)
             result.append(
                 UserPluginResponse(
                     plugin_name=plugin.name,
                     enabled=user_plugin.enabled,
-                    config=user_plugin.config or {},
+                    config=config,
                     is_core=plugin.is_core,
                 )
             )
         else:
-            result.append(UserPluginResponse(plugin_name=plugin.name, enabled=True, config={}, is_core=plugin.is_core))
+            result.append(
+                UserPluginResponse(
+                    plugin_name=plugin.name,
+                    enabled=True,
+                    config=PluginService._initial_config(plugin.config_schema),
+                    is_core=plugin.is_core,
+                )
+            )
 
     return result
 
@@ -113,9 +111,12 @@ def create_user_plugin(
         )
 
     try:
-        user_plugin = plugin_service.create_user_plugin(session, current_user.id, plugin, user_config)
+        validated_config = PluginService.validate_user_config(plugin, user_config)
     except ConfigValidationError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
+
+    try:
+        user_plugin = plugin_service.create_user_plugin(session, current_user.id, plugin, validated_config)
     except InternalServerError as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
@@ -139,16 +140,17 @@ def get_user_plugin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
 
     user_plugin = plugin_service.get_user_plugin(session, current_user.id, plugin.id)
+    config_keys = PluginService._initial_config(plugin.config_schema)
 
     if user_plugin:
         return UserPluginResponse(
             plugin_name=plugin_name,
             enabled=user_plugin.enabled,
-            config=user_plugin.config or {},
+            config=user_plugin.config or config_keys,
             is_core=plugin.is_core,
         )
     else:
-        return UserPluginResponse(plugin_name=plugin_name, enabled=True, config={}, is_core=plugin.is_core)
+        return UserPluginResponse(plugin_name=plugin_name, enabled=True, config=config_keys, is_core=plugin.is_core)
 
 
 @router.patch("/{plugin_name}", response_model=UserPluginResponse)
