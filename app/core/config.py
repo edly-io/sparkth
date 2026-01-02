@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +11,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS512"
     # 60 minutes * 24 hours * 8 days = 11520 minutes
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    FRONTEND_URL: AnyHttpUrl
 
 
 @lru_cache
