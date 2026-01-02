@@ -57,7 +57,7 @@ def list_user_plugins(
         user_plugin = user_plugin_map.get(plugin.name)
 
         if user_plugin is not None:
-            config = user_plugin.config or PluginService._initial_config(plugin.config_schema)
+            config = user_plugin.config or PluginService.initial_config(plugin.config_schema)
             result.append(
                 UserPluginResponse(
                     plugin_name=plugin.name,
@@ -71,7 +71,7 @@ def list_user_plugins(
                 UserPluginResponse(
                     plugin_name=plugin.name,
                     enabled=True,
-                    config=PluginService._initial_config(plugin.config_schema),
+                    config=PluginService.initial_config(plugin.config_schema),
                     is_core=plugin.is_core,
                 )
             )
@@ -140,7 +140,7 @@ def get_user_plugin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
 
     user_plugin = plugin_service.get_user_plugin(session, current_user.id, plugin.id)
-    config_keys = PluginService._initial_config(plugin.config_schema)
+    config_keys = PluginService.initial_config(plugin.config_schema)
 
     if user_plugin:
         return UserPluginResponse(
