@@ -8,7 +8,6 @@ from importlib.metadata import version
 from typing import Any, Union, cast
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp
 
@@ -117,17 +116,6 @@ app.add_middleware(
         "/openapi.json",
         "/plugins",
         "/api/v1/auth",
-    ],
-)
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[str(settings.FRONTEND_URL)],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=[
-        "*",
     ],
 )
 
