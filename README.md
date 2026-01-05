@@ -9,6 +9,7 @@ This repository is organized with the following main components:
 - `app/api/` - REST API endpoints
 - `app/core_plugins/` - Core plugins (OpenEdX, Canvas)
 - `app/plugins/` - Plugin system
+- `frontend/` - Next.js frontend application
 
 ## Public Endpoints
 
@@ -94,6 +95,18 @@ Once the server is running, you can access the interactive API documentation loc
     * *Best for testing endpoints interactively.*
 * **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
     * *Best for reading documentation structure.*
+
+## Running the Frontend
+
+The frontend is a [Next.js](https://nextjs.org) application located in the `frontend/` directory.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Integrating with Claude Desktop
 
