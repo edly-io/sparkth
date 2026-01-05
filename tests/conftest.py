@@ -8,7 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine, pool
 from app.core.db import get_session
 from app.main import app
 
-DATABASE_URL = "sqlite:///:memory:"
+DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture(scope="module", name="engine")
