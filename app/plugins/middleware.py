@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
-from app.core.db import get_async_session, get_session
+from app.core.db import get_async_session
 from app.core.logger import get_logger
 from app.models.plugin import Plugin, UserPlugin
 
