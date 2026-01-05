@@ -5,15 +5,15 @@ import { getUserPlugins, UserPlugin } from "@/lib/user-plugins";
 import PluginCard from "@/components/plugin/Card";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import SparkthHeader from "@/components/SparkthHeader";
 
 export default function PluginsPage() {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, logout } = useAuth();
   const router = useRouter();
 
   const [plugins, setPlugins] = useState<UserPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -55,13 +55,13 @@ export default function PluginsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50">
+      <SparkthHeader isAuthenticated={isAuthenticated} logout={logout} />
+
+      <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Sparkth Plugins
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900">Plugins</h1>
             <p className="mt-2 text-sm text-gray-600">
               Manage your system integrations
             </p>
