@@ -14,7 +14,7 @@ from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User
 from app.services.plugin import PluginService, get_plugin_service
 
-DATABASE_URL = "sqlite:///:memory:"
+DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture(scope="module", name="engine")
