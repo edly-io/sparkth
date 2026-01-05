@@ -1,11 +1,13 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy.engine import Engine
-from sqlmodel import Session, SQLModel, create_engine, pool
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.pool import StaticPool
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.db import get_session
@@ -17,69 +19,74 @@ from app.services.plugin import PluginService, get_plugin_service
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture(scope="module", name="engine")
-def engine_fixture() -> Generator[Engine, None, None]:
-    engine = create_engine(
+@pytest.fixture(scope="session")
+async def engine() -> AsyncGenerator[AsyncEngine, None]:
+    engine = create_async_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False},
-        poolclass=pool.StaticPool,
+        poolclass=StaticPool,
     )
-    SQLModel.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
     yield engine
-    SQLModel.metadata.drop_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+    await engine.dispose()
 
 
-@pytest.fixture(name="session")
-def session_fixture(engine: Engine) -> Generator[Session, None, None]:
-    connection = engine.connect()
-    transaction = connection.begin()
-
-    session = Session(bind=connection)
-
-    yield session
-
-    session.close()
-    transaction.rollback()
-    connection.close()
+@pytest.fixture
+async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    async with engine.connect() as conn:
+        tx = await conn.begin()
+        s = AsyncSession(bind=conn)
+        try:
+            yield s
+        finally:
+            await s.close()
+            await tx.rollback()
 
 
-@pytest.fixture(name="client")
-def client_fixture(session: Session) -> Generator[TestClient, None, None]:
-    def get_session_override() -> Generator[Session, None, None]:
+@pytest.fixture
+async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    async def get_session_override() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
     app.dependency_overrides[get_session] = get_session_override
-    client = TestClient(app)
-    yield client
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as ac:
+        yield ac
+
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def setup_plugins_and_user(session: Session) -> dict[str, Any]:
+async def setup_plugins_and_user(session: AsyncSession) -> dict[str, Any]:
     user = User(
         name="Test User", username="testuser123", email="test@example.com", hashed_password="fakehashedpassword"
     )
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    await session.commit()
+    await session.refresh(user)
 
     plugin_a = Plugin(name="plugin_a", is_core=True, enabled=True)
     plugin_b = Plugin(name="plugin_b", is_core=True, enabled=True)
     configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_core=True, enabled=True)
     disabled_plugin = Plugin(name="disabled_plugin", is_core=True, enabled=False)
-
     session.add_all([plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin])
-    session.commit()
-    session.refresh(plugin_a)
-    session.refresh(plugin_b)
-    session.refresh(configured_plugin_disabled)
-    session.refresh(disabled_plugin)
+    await session.commit()
+    await session.refresh(plugin_a)
+    await session.refresh(plugin_b)
+    await session.refresh(configured_plugin_disabled)
+    await session.refresh(disabled_plugin)
 
     user_plugin_b = UserPlugin(
         user_id=cast(int, user.id), plugin_id=cast(int, plugin_b.id), enabled=True, config={"some config": "abc"}
     )
     session.add(user_plugin_b)
-    session.commit()
+    await session.commit()
 
     user_plugin_c = UserPlugin(
         user_id=cast(int, user.id),
@@ -88,35 +95,34 @@ def setup_plugins_and_user(session: Session) -> dict[str, Any]:
         config={"some config": "abc"},
     )
     session.add(user_plugin_c)
-    session.commit()
+    await session.commit()
 
     return {"user": user, "plugins": [plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin]}
 
 
 @pytest.fixture
-def override_dependencies(client: TestClient, setup_plugins_and_user: Any) -> Generator[TestClient, None, None]:
-    app = cast(FastAPI, client.app)
-
+async def override_dependencies(
+    client: AsyncClient, setup_plugins_and_user: Any
+) -> AsyncGenerator[AsyncClient, None]:
+    app_instance = cast(FastAPI, client._transport.app)
     user: User = setup_plugins_and_user["user"]
 
-    def get_user_override() -> User:
+    async def get_user_override() -> User:
         return user
 
     def get_plugin_service_override() -> PluginService:
         return PluginService()
 
-    app.dependency_overrides[get_current_user] = get_user_override
-    app.dependency_overrides[get_plugin_service] = get_plugin_service_override
-
+    app_instance.dependency_overrides[get_current_user] = get_user_override
+    app_instance.dependency_overrides[get_plugin_service] = get_plugin_service_override
     yield client
-
-    app.dependency_overrides.pop(get_current_user, None)
-    app.dependency_overrides.pop(get_plugin_service, None)
+    app_instance.dependency_overrides.pop(get_current_user, None)
+    app_instance.dependency_overrides.pop(get_plugin_service, None)
 
 
 @pytest.fixture
-def current_user(client: TestClient) -> Generator[User, None, None]:
-    app = cast(FastAPI, client.app)
+async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
+    app_instance = cast(FastAPI, client._transport.app)
     user = User(
         id=1,
         name="Test User",
@@ -125,9 +131,9 @@ def current_user(client: TestClient) -> Generator[User, None, None]:
         hashed_password="fakehashedpassword",
     )
 
-    def override_user() -> User:
+    async def override_user() -> User:
         return user
 
-    app.dependency_overrides[get_current_user] = override_user
+    app_instance.dependency_overrides[get_current_user] = override_user
     yield user
-    app.dependency_overrides.pop(get_current_user, None)
+    app_instance.dependency_overrides.pop(get_current_user, None)

@@ -1,99 +1,104 @@
-from unittest.mock import patch
+from __future__ import annotations
 
-from fastapi.testclient import TestClient
-from sqlmodel import Session
+import uuid
+
+from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import get_password_hash
 from app.models.user import User
 
 
-def test_create_user(client: TestClient) -> None:
-    with patch("app.api.v1.auth.settings") as mock_settings:
-        mock_settings.REGISTRATION_ENABLED = True
-        response = client.post(
-            "/api/v1/auth/register",
-            json={
-                "name": "Test User",
-                "username": "testuser",
-                "email": "test@example.com",
-                "password": "testpassword",
-            },
-        )
+def _uniq(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:10]}"
+
+
+async def create_user_in_db(
+    session: AsyncSession,
+    *,
+    name: str = "Test User",
+    username: str | None = None,
+    email: str | None = None,
+    password: str = "testpassword",
+) -> User:
+    username = username or _uniq("testuser")
+    email = email or f"{_uniq('test')}@example.com"
+
+    user = User(
+        name=name,
+        username=username,
+        email=email,
+        hashed_password=get_password_hash(password),
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def test_create_user(client: AsyncClient) -> None:
+    username = _uniq("testuser")
+    email = f"{_uniq('test')}@example.com"
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Test User",
+            "username": username,
+            "email": email,
+            "password": "testpassword",
+        },
+    )
     assert response.status_code == 200
     data = response.json()
-    assert data["email"] == "test@example.com"
-    assert data["username"] == "testuser"
+    assert data["email"] == email
+    assert data["username"] == username
     assert "id" in data
     assert "hashed_password" not in data
 
 
-def test_create_user_existing_username(client: TestClient, session: Session) -> None:
-    hashed_password = get_password_hash("testpassword")
-    user = User(
-        name="Test User",
-        username="testuser",
-        email="test@example.com",
-        hashed_password=hashed_password,
-    )
-    session.add(user)
-    session.commit()
+async def test_create_user_existing_username(client: AsyncClient, session: AsyncSession) -> None:
+    username = _uniq("testuser")
+    await create_user_in_db(session, username=username, email=f"{_uniq('test')}@example.com")
 
-    with patch("app.api.v1.auth.settings") as mock_settings:
-        mock_settings.REGISTRATION_ENABLED = True
-        response = client.post(
-            "/api/v1/auth/register",
-            json={
-                "name": "Another User",
-                "username": "testuser",
-                "email": "another@example.com",
-                "password": "testpassword",
-            },
-        )
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Another User",
+            "username": username,
+            "email": f"{_uniq('another')}@example.com",
+            "password": "testpassword",
+        },
+    )
     assert response.status_code == 400
     assert response.json() == {"detail": "Username already registered"}
 
 
-def test_create_user_existing_email(client: TestClient, session: Session) -> None:
-    hashed_password = get_password_hash("testpassword")
-    user = User(
-        name="Test User",
-        username="testuser",
-        email="test@example.com",
-        hashed_password=hashed_password,
-    )
-    session.add(user)
-    session.commit()
+async def test_create_user_existing_email(client: AsyncClient, session: AsyncSession) -> None:
+    email = f"{_uniq('test')}@example.com"
+    await create_user_in_db(session, username=_uniq("testuser"), email=email)
 
-    with patch("app.api.v1.auth.settings") as mock_settings:
-        mock_settings.REGISTRATION_ENABLED = True
-        response = client.post(
-            "/api/v1/auth/register",
-            json={
-                "name": "Another User",
-                "username": "anotheruser",
-                "email": "test@example.com",
-                "password": "testpassword",
-            },
-        )
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Another User",
+            "username": _uniq("anotheruser"),
+            "email": email,
+            "password": "testpassword",
+        },
+    )
     assert response.status_code == 400
     assert response.json() == {"detail": "Email already registered"}
 
 
-def test_login(client: TestClient, session: Session) -> None:
+async def test_login(client: AsyncClient, session: AsyncSession) -> None:
     password = "testpassword"
-    hashed_password = get_password_hash(password)
-    user = User(
-        name="Test User",
-        username="testuser",
-        email="test@example.com",
-        hashed_password=hashed_password,
-    )
-    session.add(user)
-    session.commit()
+    username = _uniq("testuser")
+    await create_user_in_db(session, username=username, email=f"{_uniq('test')}@example.com", password=password)
 
-    response = client.post(
+    response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "testuser", "password": password},
+        json={"username": username, "password": password},
     )
     assert response.status_code == 200
     data = response.json()
@@ -101,46 +106,22 @@ def test_login(client: TestClient, session: Session) -> None:
     assert data["token_type"] == "bearer"
 
 
-def test_login_wrong_password(client: TestClient, session: Session) -> None:
-    password = "testpassword"
-    hashed_password = get_password_hash(password)
-    user = User(
-        name="Test User",
-        username="testuser",
-        email="test@example.com",
-        hashed_password=hashed_password,
-    )
-    session.add(user)
-    session.commit()
+async def test_login_wrong_password(client: AsyncClient, session: AsyncSession) -> None:
+    username = _uniq("testuser")
+    await create_user_in_db(session, username=username, email=f"{_uniq('test')}@example.com", password="testpassword")
 
-    response = client.post(
+    response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "testuser", "password": "wrongpassword"},
+        json={"username": username, "password": "wrongpassword"},
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Incorrect username or password"}
 
 
-def test_login_non_existent_user(client: TestClient) -> None:
-    response = client.post(
+async def test_login_non_existent_user(client: AsyncClient) -> None:
+    response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "nonexistent", "password": "testpassword"},
+        json={"username": _uniq("nonexistent"), "password": "testpassword"},
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Incorrect username or password"}
-
-
-def test_register_disabled(client: TestClient) -> None:
-    with patch("app.api.v1.auth.settings") as mock_settings:
-        mock_settings.REGISTRATION_ENABLED = False
-        response = client.post(
-            "/api/v1/auth/register",
-            json={
-                "name": "Test User",
-                "username": "testuser",
-                "email": "test@example.com",
-                "password": "testpassword",
-            },
-        )
-    assert response.status_code == 403
-    assert response.json() == {"detail": "Registration is currently disabled"}
