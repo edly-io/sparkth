@@ -38,4 +38,3 @@ jobs:
         env:
           DATABASE_URL: sqlite:///./test.db
           SECRET_KEY: secret-key-for-ci
-          FRONTEND_URL: http://frontend_url.com
