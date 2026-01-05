@@ -9,6 +9,7 @@ from typing import Any, Union, cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
@@ -114,7 +115,6 @@ app.add_middleware(
         "/docs",
         "/redoc",
         "/openapi.json",
-        "/",
         "/plugins",
         "/api/v1/auth",
     ],
@@ -134,7 +134,7 @@ app.add_middleware(
 
 app.include_router(api_router, prefix="/api/v1")
 
-
-@app.get("/")
-def read_root() -> dict[str, str]:
-    return {"message": "Welcome to Sparkth", "version": __version__}
+# Serve frontend static files
+settings = get_settings()
+if settings.FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=settings.FRONTEND_DIR, html=True), name="frontend")

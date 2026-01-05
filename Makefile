@@ -12,6 +12,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build mypy \
         up dev.up down clean restart logs shell db-shell \
+        api.up api.dev.up frontend frontend.build \
         create-user reset-password \
         api mcp cli
 
@@ -21,7 +22,9 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 help: ## Show this help
 	@echo "Usage: make \033[36m<target>\033[0m [options]\n"
 	@echo "\033[1mDocker Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|api\.up|api\.dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\n\033[1mFrontend Targets:\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mRun Services Locally:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
@@ -33,11 +36,15 @@ help: ## Show this help
 # --------------------------------------------------
 # Docker Operations
 # --------------------------------------------------
-up: ## Start app and db (background)
+api.up: ## Start API and db only (background)
 	docker compose up -d --build
 
-dev.up: ## Start app in dev mode (hot reload)
+api.dev.up: ## Start API in dev mode only (hot reload)
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+up: frontend.build api.up ## Build frontend + start API (production)
+
+dev.up: frontend.build api.dev.up ## Build frontend + start API in dev mode
 
 down: ## Stop and remove containers
 	docker compose down
@@ -66,6 +73,15 @@ create-user: ## Create user (make create-user -- --username john)
 
 reset-password: ## Reset password (make reset-password -- username)
 	docker compose exec api python -m app.cli.main users reset-password $(ARGS)
+
+# --------------------------------------------------
+# Frontend
+# --------------------------------------------------
+frontend: ## Run frontend dev server (hot reload)
+	cd frontend && npm run dev
+
+frontend.build: ## Build frontend (static export to frontend/out)
+	cd frontend && npm run build
 
 # --------------------------------------------------
 # Local Development (using uv)
