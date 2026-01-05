@@ -100,13 +100,23 @@ Once the server is running, you can access the interactive API documentation loc
 
 The frontend is a [Next.js](https://nextjs.org) application located in the `frontend/` directory.
 
+### Development (with hot reload)
+
 ```bash
-cd frontend
-npm install
-npm run dev
+make frontend
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Production Build
+
+Build the frontend as static files (exported to `frontend/out/`):
+
+```bash
+make frontend.build
+```
+
+The static files are automatically served by FastAPI when you run `make up` or `make dev.up`.
 
 ## Integrating with Claude Desktop
 
@@ -159,15 +169,17 @@ $ make
 Usage: make <target>
 
 Targets:
-  uv           Install uv if missing
-  dev          Install dev dependencies
-  lock         Update lockfile
-  install      Install exact versions from lockfile
-  test         Run tests
-  cov          Run tests with coverage
-  lint         Lint with ruff
-  fix          Auto-fix + format with ruff
-  build        Build package
+  uv              Install uv if missing
+  dev             Install dev dependencies
+  lock            Update lockfile
+  install         Install exact versions from lockfile
+  test            Run tests
+  cov             Run tests with coverage
+  lint            Lint with ruff
+  fix             Auto-fix + format with ruff
+  build           Build package
+  frontend        Run frontend dev server (hot reload)
+  frontend.build  Build frontend (static export)
 
 ```
 
