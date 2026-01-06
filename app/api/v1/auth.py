@@ -64,6 +64,9 @@ def get_current_user(
 
 @router.post("/register", response_model=UserSchema)
 def register_user(user: UserCreate, session: Session = Depends(get_session)) -> User:
+    if not settings.REGISTRATION_ENABLED:
+        raise HTTPException(status_code=403, detail="Registration is currently disabled")
+
     db_user = session.exec(select(User).where(User.username == user.username)).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
