@@ -1,5 +1,18 @@
 # -------------------
-# Stage 1: Build dependencies
+# Stage 1: Build frontend
+# -------------------
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# -------------------
+# Stage 2: Build Python dependencies
 # -------------------
 FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
 
@@ -20,7 +33,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 # -------------------
-# Stage 2: Runtime image
+# Stage 3: Runtime image
 # -------------------
 FROM python:3.14-slim-bookworm
 
@@ -28,6 +41,7 @@ RUN groupadd --system --gid 999 nonroot \
  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
 COPY --from=builder --chown=nonroot:nonroot /app /app
+COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 
 ENV PATH="/app/.venv/bin:$PATH"
 

@@ -8,15 +8,17 @@ from app.models.user import User
 
 
 def test_create_user(client: TestClient) -> None:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "name": "Test User",
-            "username": "testuser",
-            "email": "test@example.com",
-            "password": "testpassword",
-        },
-    )
+    with patch("app.api.v1.auth.settings") as mock_settings:
+        mock_settings.REGISTRATION_ENABLED = True
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Test User",
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "testpassword",
+            },
+        )
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "test@example.com"
@@ -36,15 +38,17 @@ def test_create_user_existing_username(client: TestClient, session: Session) -> 
     session.add(user)
     session.commit()
 
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "name": "Another User",
-            "username": "testuser",
-            "email": "another@example.com",
-            "password": "testpassword",
-        },
-    )
+    with patch("app.api.v1.auth.settings") as mock_settings:
+        mock_settings.REGISTRATION_ENABLED = True
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Another User",
+                "username": "testuser",
+                "email": "another@example.com",
+                "password": "testpassword",
+            },
+        )
     assert response.status_code == 400
     assert response.json() == {"detail": "Username already registered"}
 
@@ -60,15 +64,17 @@ def test_create_user_existing_email(client: TestClient, session: Session) -> Non
     session.add(user)
     session.commit()
 
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "name": "Another User",
-            "username": "anotheruser",
-            "email": "test@example.com",
-            "password": "testpassword",
-        },
-    )
+    with patch("app.api.v1.auth.settings") as mock_settings:
+        mock_settings.REGISTRATION_ENABLED = True
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Another User",
+                "username": "anotheruser",
+                "email": "test@example.com",
+                "password": "testpassword",
+            },
+        )
     assert response.status_code == 400
     assert response.json() == {"detail": "Email already registered"}
 
