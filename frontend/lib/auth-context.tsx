@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 
 interface AuthContextType {
   token: string | null;
@@ -11,23 +11,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+function getInitialToken(): string | null {
+  if (typeof window === 'undefined') return null;
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('access_token');
-    const expiresAt = localStorage.getItem('expires_at');
+  const storedToken = localStorage.getItem('access_token');
+  const expiresAt = localStorage.getItem('expires_at');
 
-    if (storedToken && expiresAt) {
-      const isExpired = new Date(expiresAt) < new Date();
-      if (!isExpired) {
-        setToken(storedToken);
-      } else {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('expires_at');
-      }
+  if (storedToken && expiresAt) {
+    const isExpired = new Date(expiresAt) < new Date();
+    if (!isExpired) {
+      return storedToken;
     }
-  }, []);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('expires_at');
+  }
+  return null;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState<string | null>(getInitialToken);
 
   const login = (newToken: string, expiresAt: string) => {
     localStorage.setItem('access_token', newToken);

@@ -12,7 +12,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build mypy \
         up dev.up down clean restart logs shell db-shell \
-        frontend frontend.build \
+        frontend frontend.build frontend.lint frontend.fix \
         create-user reset-password \
         api mcp cli
 
@@ -24,7 +24,7 @@ help: ## Show this help
 	@echo "\033[1mDocker Targets:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mFrontend Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build|frontend\.lint|frontend\.fix)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mRun Services Locally:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
@@ -78,6 +78,12 @@ frontend: ## Run frontend dev server (hot reload)
 
 frontend.build: ## Build frontend (static export to frontend/out)
 	cd frontend && npm ci && npm run build
+
+frontend.lint: ## Lint frontend code
+	cd frontend && npm run lint
+
+frontend.fix: ## Auto-fix frontend lint errors
+	cd frontend && npm run lint:fix
 
 # --------------------------------------------------
 # Local Development (using uv)
