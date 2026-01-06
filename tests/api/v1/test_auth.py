@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -120,3 +122,19 @@ def test_login_non_existent_user(client: TestClient) -> None:
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Incorrect username or password"}
+
+
+def test_register_disabled(client: TestClient) -> None:
+    with patch("app.api.v1.auth.settings") as mock_settings:
+        mock_settings.REGISTRATION_ENABLED = False
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Test User",
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "testpassword",
+            },
+        )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Registration is currently disabled"}
