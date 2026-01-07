@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getUserPlugins, UserPlugin } from "@/lib/user-plugins";
 import PluginCard from "@/components/plugin/Card";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +14,19 @@ export default function PluginsPage() {
   const [plugins, setPlugins] = useState<UserPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+
+  const loadPlugins = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const plugins = await getUserPlugins(token);
+      setPlugins(plugins);
+    } catch (error) {
+      alert(error);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
     setMounted(true);
@@ -29,19 +42,7 @@ export default function PluginsPage() {
     if (mounted && isAuthenticated) {
       loadPlugins();
     }
-  }, [mounted, isAuthenticated]);
-
-  const loadPlugins = async () => {
-    if (!token) return;
-    try {
-      const plugins = await getUserPlugins(token);
-      setPlugins(plugins);
-    } catch (error) {
-      alert(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [mounted, isAuthenticated, loadPlugins]);
 
   if (loading) {
     return (
