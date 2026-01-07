@@ -8,10 +8,11 @@ from importlib.metadata import version
 from typing import Any, Union, cast
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp
 
+from app.api.v1 import oauth
 from app.api.v1.api import api_router
-from app.mcp.auth_middleware import MCPOAuthMiddleware
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
@@ -83,8 +84,11 @@ __version__ = version("sparkth")
 # Note: Using path="/" causes connection issues with Claude
 mcp_app = mcp.http_app(path="/mcp")
 
-# Add OAuth authentication middleware to MCP app
-mcp_app.add_middleware(MCPOAuthMiddleware)
+# OAuth authentication is now handled by FastMCP's built-in auth system
+# No middleware needed - see app/mcp/server.py for OAuth configuration
+
+# Get OAuth provider instance to mount its routes
+from app.mcp.server import oauth_provider
 
 
 @asynccontextmanager
@@ -103,7 +107,20 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Add CORS middleware to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 app.mount("/sparkth-mcp", mcp_app)
+
+# Mount OAuth routes (for .well-known metadata and OAuth endpoints)
+# These are added to the app's router directly
 
 app.add_middleware(
     PluginAccessMiddleware,
@@ -114,12 +131,35 @@ app.add_middleware(
         "/",
         "/plugins",
         "/api/v1/auth",
+        "/.well-known",  # Exclude OAuth metadata from plugin middleware
     ],
 )
 
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(oauth.router, prefix="", tags=["oauth"])
 
 
-@app.get("/")
-def read_root() -> dict[str, str]:
+# Add redirects for alternative OAuth discovery endpoints
+from fastapi.responses import RedirectResponse, JSONResponse
+
+
+@app.api_route("/.well-known/oauth-protected-resource/sparkth-mcp/mcp", methods=["GET", "OPTIONS"])
+@app.api_route("/.well-known/openid-configuration", methods=["GET", "OPTIONS"])
+async def oauth_discovery_redirect():
+    """Redirect alternative OAuth discovery endpoints to the main one."""
+    return RedirectResponse(url="/.well-known/oauth-authorization-server")
+
+from fastapi import Request
+
+
+@app.api_route("/", methods=["GET", "POST"])
+def read_root(request: Request) -> dict[str, str]:
+    if request.method == "POST":
+        print(f"Method: {request.method}")
+        print(f"URL: {request.url}")
+        print(f"Headers: {dict(request.headers)}")
+        print(f"Query params: {dict(request.query_params)}")
+        print(f"Client: {request.client}")
+
     return {"message": "Welcome to Sparkth", "version": __version__}
+

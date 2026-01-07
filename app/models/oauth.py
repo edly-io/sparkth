@@ -40,7 +40,9 @@ class OAuthAuthorizationCode(TimestampedModel, table=True):
 
     def is_expired(self) -> bool:
         """Check if the authorization code has expired."""
-        return datetime.now(timezone.utc) > self.expires_at
+        # Make expires_at timezone-aware if it's naive
+        expires_at = self.expires_at.replace(tzinfo=timezone.utc) if self.expires_at.tzinfo is None else self.expires_at
+        return datetime.now(timezone.utc) > expires_at
 
 
 class OAuthAccessToken(TimestampedModel, table=True):
@@ -60,10 +62,14 @@ class OAuthAccessToken(TimestampedModel, table=True):
 
     def is_expired(self) -> bool:
         """Check if the access token has expired."""
-        return datetime.now(timezone.utc) > self.expires_at
+        # Make expires_at timezone-aware if it's naive
+        expires_at = self.expires_at.replace(tzinfo=timezone.utc) if self.expires_at.tzinfo is None else self.expires_at
+        return datetime.now(timezone.utc) > expires_at
 
     def is_refresh_token_expired(self) -> bool:
         """Check if the refresh token has expired."""
         if not self.refresh_token_expires_at:
             return True
-        return datetime.now(timezone.utc) > self.refresh_token_expires_at
+        # Make refresh_token_expires_at timezone-aware if it's naive
+        refresh_expires_at = self.refresh_token_expires_at.replace(tzinfo=timezone.utc) if self.refresh_token_expires_at.tzinfo is None else self.refresh_token_expires_at
+        return datetime.now(timezone.utc) > refresh_expires_at

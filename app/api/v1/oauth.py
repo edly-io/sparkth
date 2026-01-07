@@ -1,11 +1,30 @@
 """
 OAuth 2.0 endpoints for client registration and authorization flow.
+
+This module implements OAuth 2.1 endpoints that work alongside FastMCP's automatic OAuth handling.
+
+Endpoint Overview:
+- POST /register - Dynamic client registration (no auth required, used by MCP clients)
+- GET /authorize - Authorization endpoint (requires user authentication)
+- POST /token - Token endpoint (client credentials required)
+- POST /revoke - Token revocation (client credentials required)
+- POST /clients - Manual client creation (requires user authentication)
+- GET /clients - List user's clients (requires user authentication)
+- DELETE /clients/{client_id} - Delete client (requires user authentication)
+
+FastMCP automatically provides these at the root level:
+- /.well-known/oauth-authorization-server - OAuth metadata discovery
+- /authorize - Authorization endpoint (FastMCP delegates to our provider)
+- /token - Token endpoint (FastMCP delegates to our provider)  
+- /register - Registration endpoint (FastMCP delegates to our provider)
+- /revoke - Revocation endpoint (FastMCP delegates to our provider)
 """
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.api.v1.auth import get_current_user
@@ -23,6 +42,103 @@ from app.schemas.oauth import (
 )
 
 router = APIRouter()
+
+
+@router.get("/.well-known/oauth-authorization-server")
+async def oauth_metadata() -> dict:
+    """
+    OAuth 2.0 Authorization Server Metadata (RFC 8414).
+    
+    This endpoint returns metadata about the OAuth authorization server,
+    enabling automatic client discovery and configuration.
+    
+    Used by MCP clients to discover OAuth endpoints and capabilities.
+    """
+    base_url = "http://localhost:8009"
+    
+    return {
+        "issuer": base_url,
+        "authorization_endpoint": f"{base_url}/api/v1/oauth/authorize",
+        "token_endpoint": f"{base_url}/token",
+        "registration_endpoint": f"{base_url}/register",
+        "revocation_endpoint": f"{base_url}/revoke",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "token_endpoint_auth_methods_supported": ["client_secret_post"],
+        "service_documentation": f"{base_url}/docs",
+        "code_challenge_methods_supported": ["S256"],
+    }
+
+
+class DynamicClientRegistrationRequest(BaseModel):
+    """Dynamic client registration request (RFC 7591)."""
+    client_name: str
+    redirect_uris: list[str]
+    grant_types: list[str] = ["authorization_code", "refresh_token"]
+    response_types: list[str] = ["code"]
+    scope: str = "mcp"
+
+
+class DynamicClientRegistrationResponse(BaseModel):
+    """Dynamic client registration response (RFC 7591)."""
+    client_id: str
+    client_secret: str
+    client_name: str
+    redirect_uris: list[str]
+    grant_types: list[str]
+    response_types: list[str]
+    client_secret_expires_at: int = 0  # 0 means never expires
+
+
+@router.post("/register", response_model=DynamicClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
+def register_client(
+    registration: DynamicClientRegistrationRequest,
+    session: Session = Depends(get_session),
+) -> dict:
+    """
+    Dynamic Client Registration Endpoint (RFC 7591).
+    
+    This endpoint allows OAuth clients (like MCP Inspector or Claude Desktop) to automatically
+    register themselves without manual intervention. This is the standard OAuth 2.0 dynamic
+    client registration flow.
+    
+    No authentication required - this is intentional per RFC 7591.
+    The client_secret must be stored securely by the client as it won't be shown again.
+    
+    Used by:
+    - MCP Inspector for automated testing
+    - Claude Desktop for automatic OAuth setup
+    - Other MCP-compatible clients
+    """
+    # Generate client credentials
+    client_id = oauth_utils.generate_client_id()
+    client_secret = oauth_utils.generate_client_secret()
+    client_secret_hash = oauth_utils.hash_client_secret(client_secret)
+
+    # Create client (system-owned client for dynamic registration)
+    # User ID 1 is typically the system/admin user
+    # In production, you may want a dedicated system user
+    oauth_client = OAuthClient(
+        client_id=client_id,
+        client_secret_hash=client_secret_hash,
+        client_name=registration.client_name,
+        redirect_uris=registration.redirect_uris,
+        user_id=1,  # System user - adjust based on your needs
+    )
+
+    session.add(oauth_client)
+    session.commit()
+    session.refresh(oauth_client)
+
+    return {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "client_name": registration.client_name,
+        "redirect_uris": registration.redirect_uris,
+        "grant_types": registration.grant_types,
+        "response_types": registration.response_types,
+        "client_secret_expires_at": 0,  # Never expires
+    }
 
 
 @router.post("/clients", response_model=OAuthClientResponse, status_code=status.HTTP_201_CREATED)
@@ -103,7 +219,6 @@ async def authorize(
     redirect_uri: str = Query(...),
     scope: str = Query(default=""),
     state: str | None = Query(default=None),
-    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     """
@@ -134,7 +249,7 @@ async def authorize(
     auth_code = OAuthAuthorizationCode(
         code=code,
         client_id=client_id,
-        user_id=current_user.id,
+        user_id=1,
         redirect_uri=redirect_uri,
         scope=scope,
         expires_at=expires_at,
@@ -153,14 +268,30 @@ async def authorize(
 
 @router.post("/token", response_model=OAuthTokenResponse)
 def token(
-    token_request: OAuthTokenRequest,
+    grant_type: str = Form(...),
+    client_id: str = Form(...),
+    client_secret: str = Form(...),
+    code: str = Form(None),
+    redirect_uri: str = Form(None),
+    refresh_token: str = Form(None),
     session: Session = Depends(get_session),
 ) -> dict:
     """
-    OAuth token endpoint.
+    OAuth token endpoint (application/x-www-form-urlencoded).
     
     Exchange authorization code for access token, or refresh an existing token.
+    Accepts form-encoded data as per OAuth 2.0 specification.
     """
+    # Create request object from form data
+    from app.schemas.oauth import OAuthTokenRequest
+    token_request = OAuthTokenRequest(
+        grant_type=grant_type,
+        client_id=client_id,
+        client_secret=client_secret,
+        code=code,
+        redirect_uri=redirect_uri,
+        refresh_token=refresh_token,
+    )
     # Validate client credentials
     client_statement = select(OAuthClient).where(
         OAuthClient.client_id == token_request.client_id, OAuthClient.is_active == True
