@@ -31,7 +31,7 @@ class UserPluginResponse(pydantic.BaseModel):
 
     plugin_name: str
     enabled: bool
-    config: dict[str, Any]
+    config: dict[str, Any] | None
     is_core: bool
 
 
@@ -193,19 +193,7 @@ class PluginService:
 
         return user_plugin
 
-    def create_user_plugin(
-        self, session: Session, user_id: int, plugin: Plugin, user_config: dict[str, Any]
-    ) -> UserPlugin:
-        if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before creating user plugin")
-
-        user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin.id, enabled=True, config=user_config)
-
-        session.add(user_plugin)
-        session.commit()
-        return user_plugin
-
-    def update_user_plugin_config(
+    def create_or_update_user_plugin_config(
         self,
         session: Session,
         user_id: int,
@@ -213,25 +201,17 @@ class PluginService:
         user_config: dict[str, Any],
     ) -> UserPlugin:
         if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before creating user plugin")
+            raise InternalServerError("Plugin must be persisted before configuration")
 
-        user_plugin = self.get_user_plugin(
-            session,
-            user_id,
-            plugin.id,
-        )
+        user_plugin = self.get_user_plugin(session, user_id, plugin.id)
 
-        if user_plugin:
-            if not user_plugin.enabled:
-                raise PluginDisabledError("Cannot update plugin configuration while the plugin is disabled")
-            merged_config = {**user_plugin.config, **user_config}
-        else:
-            merged_config = user_config
+        if user_plugin and not user_plugin.enabled:
+            raise PluginDisabledError("Cannot update plugin configuration while the plugin is disabled")
 
-        try:
-            validated_config = self.validate_user_config(plugin, merged_config)
-        except ConfigValidationError as err:
-            raise err
+        existing_config = user_plugin.config if user_plugin else {}
+        merged_config = {**existing_config, **user_config}
+
+        validated_config = self.validate_user_config(plugin, merged_config)
 
         if user_plugin:
             user_plugin.config = validated_config
