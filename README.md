@@ -118,6 +118,36 @@ make frontend.build
 
 The static files are automatically served by FastAPI when you run `make up` or `make dev.up`.
 
+### Feature Flags
+`REGISTRATION_ENABLED`
+
+- Type: `boolean (true / false)`
+
+- Default: `false`
+
+- Location: `.env` file
+
+**Description**:
+
+Controls whether new user registration is enabled on the frontend.
+
+- If `REGISTRATION_ENABLED=true`, users can sign up via the frontend.
+
+- If `REGISTRATION_ENABLED=false`, the registration form is disabled, preventing new user creation.
+
+Example `.env` entry:
+
+```
+# Enable new user registration
+REGISTRATION_ENABLED=true
+```
+
+**Notes**:
+
+Changing this flag does not affect existing users.
+
+Make sure to run `make dev.up` after changing the `.env` variable to apply the new setting.
+
 ## Integrating with Claude Desktop
 
 Add the Sparkth MCP server to Claude Desktop by editing the Claude configuration file:
