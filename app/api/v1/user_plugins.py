@@ -225,7 +225,7 @@ def update_user_plugin_config(
     )
 
 
-@router.patch("/{plugin_name}/enable", response_model=UserPluginResponse)
+@router.post("/{plugin_name}/enable", response_model=UserPluginResponse)
 def enable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
@@ -246,7 +246,7 @@ def enable_user_plugin(
     )
 
 
-@router.patch("/{plugin_name}/disable", response_model=UserPluginResponse)
+@router.post("/{plugin_name}/disable", response_model=UserPluginResponse)
 def disable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
