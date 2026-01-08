@@ -3,7 +3,7 @@ const API_BASE_URL = "/api/v1";
 export interface UserPlugin {
   plugin_name: string;
   enabled: boolean;
-  config: Record<string, string>;
+  config: Record<string, any>;
   is_core: boolean;
 }
 
@@ -30,6 +30,31 @@ export async function getUserPlugins(token: string): Promise<UserPlugin[]> {
   return response.json();
 }
 
+export async function configureUserPlugin(
+  pluginName: string,
+  config: Record<string, string>,
+  token: string
+): Promise<UserPlugin> {
+  const response = await fetch(
+    `${API_BASE_URL}/user-plugins/${pluginName}/configure`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(config),
+    }
+  );
+
+  if (!response.ok) {
+    await handleError("Plugin configuration failed", response);
+  }
+
+  return await response.json();
+}
+
 export async function togglePlugin(
   plugin_name: string,
   action: string,
@@ -49,23 +74,22 @@ export async function togglePlugin(
   return await res.json();
 }
 
-export async function upsertUserPluginConfig(
+export async function updateUserPluginConfig(
   pluginName: string,
-  config: Record<string, string>,
+  config: Record<string, any>,
   token: string
 ): Promise<UserPlugin> {
   const res = await fetch(`${API_BASE_URL}/user-plugins/${pluginName}/config`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Accept: "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ config }),
   });
 
   if (!res.ok) {
-    await handleError("Failed to save plugin configuration", res);
+    await handleError("Failed to update plugin config", res);
   }
 
   return await res.json();

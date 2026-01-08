@@ -79,6 +79,52 @@ def list_user_plugins(
     return result
 
 
+@router.post(
+    "/{plugin_name}/configure",
+    response_model=UserPluginResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_user_plugin(
+    plugin_name: str,
+    user_config: dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    plugin_service: PluginService = Depends(get_plugin_service),
+) -> UserPluginResponse:
+    """Create a user plugin with validated configuration."""
+
+    if not current_user.id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
+
+    plugin = plugin_service.get_by_name(session, plugin_name)
+
+    if not plugin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
+
+    if not plugin.enabled:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Plugin '{plugin_name}' is not enabled")
+
+    user_plugin = plugin_service.get_user_plugin(session, current_user.id, plugin.id)
+    if user_plugin and len(user_plugin.config) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f"Plugin '{plugin_name}' is already configured"
+        )
+
+    try:
+        validated_config = PluginService.validate_user_config(plugin, user_config)
+    except ConfigValidationError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
+
+    try:
+        user_plugin = plugin_service.create_user_plugin(session, current_user.id, plugin, validated_config)
+    except InternalServerError as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
+
+    return UserPluginResponse(
+        plugin_name=plugin.name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
+    )
+
+
 @router.get("/{plugin_name}", response_model=UserPluginResponse)
 def get_user_plugin(
     plugin_name: str,
@@ -105,67 +151,6 @@ def get_user_plugin(
         )
     else:
         return UserPluginResponse(plugin_name=plugin_name, enabled=True, config=config_keys, is_core=plugin.is_core)
-
-
-@router.put(
-    "/{plugin_name}/config",
-    response_model=UserPluginResponse,
-)
-def create_or_update_user_plugin_config(
-    plugin_name: str,
-    request: UserPluginConfigRequest,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-    plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
-    if not current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authenticated.",
-        )
-
-    plugin = plugin_service.get_by_name(session, plugin_name)
-    if not plugin:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Plugin '{plugin_name}' not found",
-        )
-
-    if not plugin.enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Plugin '{plugin_name}' is disabled by admin.",
-        )
-
-    try:
-        user_plugin = plugin_service.create_or_update_user_plugin_config(
-            session=session,
-            user_id=current_user.id,
-            plugin=plugin,
-            user_config=request.config,
-        )
-    except PluginDisabledError as err:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(err),
-        ) from err
-    except ConfigValidationError as err:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(err),
-        ) from err
-    except InternalServerError as err:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(err),
-        ) from err
-
-    return UserPluginResponse(
-        plugin_name=plugin.name,
-        enabled=user_plugin.enabled,
-        config=user_plugin.config,
-        is_core=plugin.is_core,
-    )
 
 
 @router.patch("/{plugin_name}", response_model=UserPluginResponse)
@@ -197,6 +182,44 @@ def update_user_plugin(
         )
 
     user_plugin = plugin_service.update_user_plugin_enabled(session, current_user.id, plugin.id, request.enabled)
+    return UserPluginResponse(
+        plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
+    )
+
+
+@router.put("/{plugin_name}/config", response_model=UserPluginResponse)
+def update_user_plugin_config(
+    plugin_name: str,
+    request: UserPluginConfigRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    plugin_service: PluginService = Depends(get_plugin_service),
+) -> UserPluginResponse:
+    """
+    Update configuration for a plugin for the current user.
+
+    This allows users to customize plugin-specific settings.
+    """
+    if not current_user.id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
+
+    plugin = plugin_service.get_by_name(session, plugin_name)
+    if not plugin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
+
+    if not plugin.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Plugin '{plugin_name}' cannot be updated as it is disabled by admin.",
+        )
+
+    try:
+        user_plugin = plugin_service.update_user_plugin_config(session, current_user.id, plugin, request.config)
+    except PluginDisabledError as err:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
+    except ConfigValidationError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
+
     return UserPluginResponse(
         plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
     )

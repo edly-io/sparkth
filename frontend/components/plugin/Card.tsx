@@ -2,15 +2,16 @@
 
 import { useMemo, useState, useCallback } from "react";
 import {
+  configureUserPlugin,
   togglePlugin,
-  upsertUserPluginConfig,
+  updateUserPluginConfig,
   UserPlugin,
 } from "@/lib/user-plugins";
 import { useAuth } from "@/lib/auth-context";
 
 import { PluginHeader } from "./Header";
 import { PluginConfig } from "./Config";
-import { isUrlKey, isValidUrl } from "./utils";
+import { isConfigured, isUrlKey, isValidUrl } from "./utils";
 
 interface PluginCardProps {
   plugin: UserPlugin;
@@ -48,20 +49,21 @@ export default function PluginCard({ plugin, onUpdate }: PluginCardProps) {
   }, []);
 
   const handleSave = async () => {
-    if (!token) {
-      alert("You must be logged in.");
-      return;
-    }
+    if (!token) return alert("You must be logged in.");
 
     try {
       setIsSaving(true);
 
-      await upsertUserPluginConfig(plugin.plugin_name, configValues, token);
+      const onSave = isConfigured(plugin.config)
+        ? updateUserPluginConfig
+        : configureUserPlugin;
+
+      await onSave(plugin.plugin_name, configValues, token);
 
       setIsEditing(false);
       onUpdate();
     } catch (err) {
-      alert(`${err}`);
+      alert("Failed to save configuration");
     } finally {
       setIsSaving(false);
     }
