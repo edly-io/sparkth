@@ -1,10 +1,10 @@
 "use client";
 
+import { UserPluginState } from "@/lib/plugins";
 import { Power, Pencil } from "lucide-react";
-import { UserPlugin } from "@/lib/user-plugins";
 
 interface PluginHeaderProps {
-  plugin: UserPlugin;
+  plugin: UserPluginState;
   isEditing: boolean;
   isToggling: boolean;
   onToggle: () => void;
