@@ -1,25 +1,27 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
-import {
-  togglePlugin,
-  upsertUserPluginConfig,
-  UserPlugin,
-} from "@/lib/user-plugins";
-import { useAuth } from "@/lib/auth-context";
+import { useMemo, useState, useCallback, useEffect } from "react";
 
 import { PluginHeader } from "./Header";
 import { PluginConfig } from "./Config";
 import { isUrlKey, isValidUrl } from "./utils";
+import { UserPluginState } from "@/lib/plugins";
 
 interface PluginCardProps {
-  plugin: UserPlugin;
-  onUpdate: () => void;
+  plugin: UserPluginState;
+  onEnable: () => Promise<void>;
+  onDisable: () => Promise<void>;
+  onConfigChange: (config: Record<string, string>) => Promise<void>;
+  onRefresh: () => void;
 }
 
-export default function PluginCard({ plugin, onUpdate }: PluginCardProps) {
-  const { token } = useAuth();
-
+export default function PluginCard({
+  plugin,
+  onEnable,
+  onDisable,
+  onConfigChange,
+  onRefresh,
+}: PluginCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
@@ -28,7 +30,13 @@ export default function PluginCard({ plugin, onUpdate }: PluginCardProps) {
     plugin.config ?? {}
   );
 
-  const [errors, setErrorsState] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setConfigValues(plugin.config ?? {});
+    setErrors({});
+    setIsEditing(false);
+  }, [plugin]);
 
   const hasErrors = useMemo(() => {
     const emptyField = Object.values(configValues).some((v) => !v);
@@ -41,27 +49,20 @@ export default function PluginCard({ plugin, onUpdate }: PluginCardProps) {
 
     if (!isUrlKey(key)) return;
 
-    setErrorsState((prev) => ({
+    setErrors((prev) => ({
       ...prev,
       [key]: isValidUrl(value) ? "" : "Input should be a valid URL",
     }));
   }, []);
 
   const handleSave = async () => {
-    if (!token) {
-      alert("You must be logged in.");
-      return;
-    }
-
     try {
       setIsSaving(true);
-
-      await upsertUserPluginConfig(plugin.plugin_name, configValues, token);
-
+      await onConfigChange(configValues);
       setIsEditing(false);
-      onUpdate();
+      onRefresh();
     } catch (err) {
-      alert(`${err}`);
+      alert(String(err));
     } finally {
       setIsSaving(false);
     }
@@ -69,20 +70,18 @@ export default function PluginCard({ plugin, onUpdate }: PluginCardProps) {
 
   const handleCancel = () => {
     setConfigValues(plugin.config ?? {});
-    setErrorsState({});
+    setErrors({});
     setIsEditing(false);
   };
 
   const handleToggle = async () => {
-    if (!token) return alert("You must be logged in.");
-    const action = plugin.enabled ? "disable" : "enable";
-
     try {
       setIsToggling(true);
-      await togglePlugin(plugin.plugin_name, action, token);
-      onUpdate();
+      if (plugin.enabled) await onDisable();
+      else await onEnable();
+      onRefresh();
     } catch (err) {
-      alert(err);
+      alert(String(err));
     } finally {
       setIsToggling(false);
     }
@@ -101,9 +100,7 @@ export default function PluginCard({ plugin, onUpdate }: PluginCardProps) {
       <PluginConfig
         config={configValues}
         errors={errors}
-        setErrors={(key, msg) => {
-          setErrorsState((prev) => ({ ...prev, [key]: msg }));
-        }}
+        setErrors={(key, msg) => setErrors((prev) => ({ ...prev, [key]: msg }))}
         isEditing={isEditing}
         isSaving={isSaving}
         hasErrors={hasErrors}

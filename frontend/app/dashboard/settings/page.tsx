@@ -1,48 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { getUserPlugins, UserPlugin } from "@/lib/user-plugins";
-import PluginCard from "@/components/plugin/Card";
-import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
-import SparkthHeader from "@/components/SparkthHeader";
+import PluginCard from "@/components/settings/Card";
+import { usePluginContext } from "@/lib/plugins/context";
 
-export default function PluginsPage() {
-  const { token, isAuthenticated, logout } = useAuth();
-  const router = useRouter();
-
-  const [plugins, setPlugins] = useState<UserPlugin[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
-
-  const loadPlugins = useCallback(async () => {
-    if (!token) return;
-
-    try {
-      const plugins = await getUserPlugins(token);
-      setPlugins(plugins);
-    } catch (error) {
-      alert(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mounted && !isAuthenticated) {
-      router.replace("/login");
-    }
-  }, [mounted, isAuthenticated, router]);
-
-  useEffect(() => {
-    if (mounted && isAuthenticated) {
-      loadPlugins();
-    }
-  }, [mounted, isAuthenticated, loadPlugins]);
+export default function PluginsSettings() {
+  const {
+    userPlugins: plugins,
+    loading,
+    error,
+    refreshPlugins,
+    enablePlugin,
+    disablePlugin,
+    updatePluginConfig,
+  } = usePluginContext();
 
   if (loading) {
     return (
@@ -55,10 +25,16 @@ export default function PluginsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-600">
+        Failed to load plugins: {error}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <SparkthHeader isAuthenticated={isAuthenticated} logout={logout} />
-
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -96,7 +72,12 @@ export default function PluginsPage() {
               <PluginCard
                 key={plugin.plugin_name}
                 plugin={plugin}
-                onUpdate={loadPlugins}
+                onEnable={() => enablePlugin(plugin.plugin_name)}
+                onDisable={() => disablePlugin(plugin.plugin_name)}
+                onConfigChange={(config) =>
+                  updatePluginConfig(plugin.plugin_name, config)
+                }
+                onRefresh={refreshPlugins}
               />
             ))}
           </div>
