@@ -26,6 +26,7 @@ def get_settings() -> Settings:
 PLUGINS = [
     "app.core_plugins.canvas.plugin:CanvasPlugin",
     "app.core_plugins.openedx.plugin:OpenEdxPlugin",
+    "app.core_plugins.chat_interface.plugin:ChatInterface",
 ]
 
 
