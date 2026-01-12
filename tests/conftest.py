@@ -96,10 +96,9 @@ async def setup_plugins_and_user(session: AsyncSession) -> dict[str, Any]:
 
 
 @pytest.fixture
-async def override_dependencies(
-    client: AsyncClient, setup_plugins_and_user: Any
-) -> AsyncGenerator[AsyncClient, None]:
-    app_instance = cast(FastAPI, client._transport.app)
+async def override_dependencies(client: AsyncClient, setup_plugins_and_user: Any) -> AsyncGenerator[AsyncClient, None]:
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
     user: User = setup_plugins_and_user["user"]
 
     async def get_user_override() -> User:
@@ -117,7 +116,8 @@ async def override_dependencies(
 
 @pytest.fixture
 async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
-    app_instance = cast(FastAPI, client._transport.app)
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
     user = User(
         id=1,
         name="Test User",

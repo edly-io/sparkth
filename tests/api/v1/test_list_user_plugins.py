@@ -1,7 +1,7 @@
 from typing import Any, cast
 
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
@@ -57,7 +57,8 @@ async def test_list_user_plugins_empty(client: AsyncClient, session: AsyncSessio
     def get_plugin_service_override() -> PluginService:
         return PluginService()
 
-    app = cast(FastAPI, client._transport.app)
+    transport = cast(ASGITransport, client._transport)
+    app = cast(FastAPI, transport.app)
     app.dependency_overrides[get_current_user] = get_user_override
     app.dependency_overrides[get_plugin_service] = get_plugin_service_override
 

@@ -2,7 +2,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 from fastapi import FastAPI, status
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.api.v1.auth import get_current_user
 from app.models.user import User
@@ -34,7 +34,8 @@ async def test_configure_user_plugin_unauthorized(client: AsyncClient) -> None:
     def get_user_override() -> User:
         return user
 
-    app = cast(FastAPI, client._transport.app)
+    transport = cast(ASGITransport, client._transport)
+    app = cast(FastAPI, transport.app)
     app.dependency_overrides[get_current_user] = get_user_override
 
     response = await client.post("/api/v1/user-plugins/plugin_a/configure", json={})
