@@ -52,7 +52,7 @@ class SparkthOAuthProvider(OAuthProvider):
                 valid_scopes=["mcp", "read", "write"],
                 default_scopes=["mcp"],
             ),
-            required_scopes=["mcp"],
+            required_scopes=["mcp", "claudeai"],
         )
         self.base_url = base_url
 

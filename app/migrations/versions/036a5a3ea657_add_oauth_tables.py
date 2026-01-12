@@ -84,7 +84,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_oauth_authorization_codes_code'), 'oauth_authorization_codes', ['code'], unique=True)
     op.create_index(op.f('ix_oauth_authorization_codes_expires_at'), 'oauth_authorization_codes', ['expires_at'], unique=False)
     op.create_index(op.f('ix_oauth_authorization_codes_user_id'), 'oauth_authorization_codes', ['user_id'], unique=False)
-    op.create_unique_constraint('uq_user_plugin', 'user_plugins', ['user_id', 'plugin_id'])
     # ### end Alembic commands ###
 
 

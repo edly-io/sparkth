@@ -34,7 +34,7 @@ class OAuthAuthorizationCode(TimestampedModel, table=True):
     client_id: str = Field(max_length=255, foreign_key="oauth_clients.client_id", index=True)
     user_id: int = Field(foreign_key="user.id", index=True)
     redirect_uri: str = Field(max_length=512)
-    scope: str = Field(default="", max_length=255)  # Space-separated scopes
+    scope: str = Field(default="mcp", max_length=255)  # Space-separated scopes
     expires_at: datetime = Field(index=True)
     is_used: bool = Field(default=False)  # Prevent code reuse
 

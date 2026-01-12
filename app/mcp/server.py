@@ -14,7 +14,7 @@ oauth_provider = SparkthOAuthProvider()
 mcp = FastMCP(
     "Sparkth",
     instructions="AI-powered course generation with OAuth authentication",
-    auth=oauth_provider,  # Use our custom OAuth provider
+    auth=oauth_provider,
 )
 
 

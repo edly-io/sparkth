@@ -1,25 +1,4 @@
-"""
-OAuth 2.0 endpoints for client registration and authorization flow.
-
-This module implements OAuth 2.1 endpoints that work alongside FastMCP's automatic OAuth handling.
-
-Endpoint Overview:
-- POST /register - Dynamic client registration (no auth required, used by MCP clients)
-- GET /authorize - Authorization endpoint (requires user authentication)
-- POST /token - Token endpoint (client credentials required)
-- POST /revoke - Token revocation (client credentials required)
-- POST /clients - Manual client creation (requires user authentication)
-- GET /clients - List user's clients (requires user authentication)
-- DELETE /clients/{client_id} - Delete client (requires user authentication)
-
-FastMCP automatically provides these at the root level:
-- /.well-known/oauth-authorization-server - OAuth metadata discovery
-- /authorize - Authorization endpoint (FastMCP delegates to our provider)
-- /token - Token endpoint (FastMCP delegates to our provider)  
-- /register - Registration endpoint (FastMCP delegates to our provider)
-- /revoke - Revocation endpoint (FastMCP delegates to our provider)
-"""
-
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
@@ -54,11 +33,12 @@ async def oauth_metadata() -> dict:
     
     Used by MCP clients to discover OAuth endpoints and capabilities.
     """
-    base_url = "http://localhost:8009"
+    # base_url = "https://nrx3lx17hs5h.share.zrok.io"
+    base_url = "http://0.0.0.0:8009"
     
     return {
         "issuer": base_url,
-        "authorization_endpoint": f"{base_url}/api/v1/oauth/authorize",
+        "authorization_endpoint": f"{base_url}/authorize",
         "token_endpoint": f"{base_url}/token",
         "registration_endpoint": f"{base_url}/register",
         "revocation_endpoint": f"{base_url}/revoke",
@@ -125,6 +105,7 @@ def register_client(
         redirect_uris=registration.redirect_uris,
         user_id=1,  # System user - adjust based on your needs
     )
+    print("oauthclient --->>",oauth_client)
 
     session.add(oauth_client)
     session.commit()
