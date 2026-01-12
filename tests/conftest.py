@@ -68,25 +68,20 @@ async def setup_plugins_and_user(session: AsyncSession) -> dict[str, Any]:
         name="Test User", username="testuser123", email="test@example.com", hashed_password="fakehashedpassword"
     )
     session.add(user)
-    await session.commit()
-    await session.refresh(user)
+    await session.flush()
 
     plugin_a = Plugin(name="plugin_a", is_core=True, enabled=True)
     plugin_b = Plugin(name="plugin_b", is_core=True, enabled=True)
     configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_core=True, enabled=True)
     disabled_plugin = Plugin(name="disabled_plugin", is_core=True, enabled=False)
     session.add_all([plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin])
-    await session.commit()
-    await session.refresh(plugin_a)
-    await session.refresh(plugin_b)
-    await session.refresh(configured_plugin_disabled)
-    await session.refresh(disabled_plugin)
+    await session.flush()
 
     user_plugin_b = UserPlugin(
         user_id=cast(int, user.id), plugin_id=cast(int, plugin_b.id), enabled=True, config={"some config": "abc"}
     )
     session.add(user_plugin_b)
-    await session.commit()
+    await session.flush()
 
     user_plugin_c = UserPlugin(
         user_id=cast(int, user.id),
@@ -95,7 +90,7 @@ async def setup_plugins_and_user(session: AsyncSession) -> dict[str, Any]:
         config={"some config": "abc"},
     )
     session.add(user_plugin_c)
-    await session.commit()
+    await session.flush()
 
     return {"user": user, "plugins": [plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin]}
 

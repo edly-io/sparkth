@@ -3,10 +3,10 @@ from typing import Any
 from fastapi import status
 
 
-def test_get_user_plugin_success(override_dependencies: Any) -> None:
+async def test_get_user_plugin_success(override_dependencies: Any) -> None:
     client = override_dependencies
 
-    response = client.get("/api/v1/user-plugins/plugin_a")
+    response = await client.get("/api/v1/user-plugins/plugin_a")
     assert response.status_code == status.HTTP_200_OK
 
     data = response.json()
@@ -15,8 +15,8 @@ def test_get_user_plugin_success(override_dependencies: Any) -> None:
     assert data["is_core"] is True
 
 
-def test_get_user_plugin_not_found(override_dependencies: Any) -> None:
+async def test_get_user_plugin_not_found(override_dependencies: Any) -> None:
     client = override_dependencies
 
-    response = client.get("/api/v1/user-plugins/plugin_abc")
+    response = await client.get("/api/v1/user-plugins/plugin_abc")
     assert response.status_code == status.HTTP_404_NOT_FOUND
