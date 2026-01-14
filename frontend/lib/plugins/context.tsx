@@ -53,7 +53,9 @@ const PluginContext = createContext<PluginContextValue | undefined>(undefined);
 
 const API_BASE = "/api/v1";
 
-async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
+export async function fetchUserPlugins(
+  token: string
+): Promise<UserPluginState[]> {
   const response = await fetch(`${API_BASE}/user-plugins/`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -363,7 +365,10 @@ export function usePlugin(pluginName: string): {
 
   const isEnabled = isPluginEnabled(pluginName);
   const config = getPluginConfig(pluginName);
-  const context = createPluginContext(pluginName);
+  const context = useMemo(
+    () => createPluginContext(pluginName),
+    [pluginName, createPluginContext]
+  );
 
   return {
     isEnabled,

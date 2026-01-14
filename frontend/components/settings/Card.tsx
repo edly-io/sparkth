@@ -25,6 +25,8 @@ export default function PluginCard({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   const [configValues, setConfigValues] = useState<Record<string, string>>(
     plugin.config ?? {}
@@ -62,7 +64,8 @@ export default function PluginCard({
       setIsEditing(false);
       onRefresh();
     } catch (err) {
-      alert(String(err));
+      setSubmitError("Failed to save configuration.");
+      console.log(String(err));
     } finally {
       setIsSaving(false);
     }
@@ -72,6 +75,8 @@ export default function PluginCard({
     setConfigValues(plugin.config ?? {});
     setErrors({});
     setIsEditing(false);
+    setSubmitError(null);
+    setToggleError(null);
   };
 
   const handleToggle = async () => {
@@ -81,7 +86,10 @@ export default function PluginCard({
       else await onEnable();
       onRefresh();
     } catch (err) {
-      alert(String(err));
+      console.log(String(err));
+      setToggleError(
+        `Failed to ${plugin.enabled ? "disable" : "enable"} the plugin.`
+      );
     } finally {
       setIsToggling(false);
     }
@@ -95,6 +103,7 @@ export default function PluginCard({
         isToggling={isToggling}
         onToggle={handleToggle}
         onEdit={() => setIsEditing(true)}
+        toggleError={toggleError}
       />
 
       <PluginConfig
@@ -107,6 +116,7 @@ export default function PluginCard({
         onChange={handleConfigChange}
         onSave={handleSave}
         onCancel={handleCancel}
+        submitError={submitError}
       />
     </div>
   );

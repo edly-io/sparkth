@@ -9,6 +9,7 @@ interface PluginHeaderProps {
   isToggling: boolean;
   onToggle: () => void;
   onEdit: () => void;
+  toggleError?: string | null;
 }
 
 export function PluginHeader({
@@ -17,6 +18,7 @@ export function PluginHeader({
   isToggling,
   onToggle,
   onEdit,
+  toggleError,
 }: PluginHeaderProps) {
   return (
     <div
@@ -59,6 +61,7 @@ export function PluginHeader({
                 ? "bg-green-600 hover:bg-green-700"
                 : "bg-gray-400 hover:bg-gray-500"
             } text-white disabled:opacity-50`}
+            aria-busy={isToggling}
           >
             <Power className="w-4 h-4" />
           </button>
@@ -76,6 +79,12 @@ export function PluginHeader({
           )}
         </div>
       </div>
+
+      {toggleError && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {toggleError}
+        </div>
+      )}
     </div>
   );
 }

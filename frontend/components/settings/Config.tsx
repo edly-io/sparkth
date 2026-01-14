@@ -13,6 +13,7 @@ interface PluginConfigProps {
   onChange: (key: string, value: string) => void;
   onSave: () => void;
   onCancel: () => void;
+  submitError?: string | null;
 }
 
 export function PluginConfig({
@@ -25,6 +26,7 @@ export function PluginConfig({
   onChange,
   onSave,
   onCancel,
+  submitError,
 }: PluginConfigProps) {
   return (
     <div className="p-6">
@@ -36,7 +38,7 @@ export function PluginConfig({
             <button
               onClick={onSave}
               disabled={isSaving || hasErrors}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white disabled:opacity-50 enabled:hover:bg-green-700" 
             >
               <Save className="w-4 h-4" />
               Save
@@ -52,6 +54,12 @@ export function PluginConfig({
           </div>
         )}
       </div>
+
+      {submitError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {submitError}
+        </div>
+      )}
 
       {Object.keys(config).length > 0 ? (
         <div className="space-y-3">

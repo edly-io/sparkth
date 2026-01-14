@@ -200,14 +200,11 @@ function PluginNavItem({
     name: string;
     displayName: string;
     sidebarLabel?: string;
-    // sidebarIcon?: any;
-    // icon?: any;
     description?: string;
   };
   basePath: string;
   isActive: boolean;
 }) {
-  // const Icon = plugin.sidebarIcon || plugin.icon;
   const label = plugin.sidebarLabel || plugin.displayName;
 
   return (
@@ -223,15 +220,11 @@ function PluginNavItem({
       `}
       title={plugin.description}
     >
-      {/* {Icon ? (
-        <Icon className="w-5 h-5 flex-shrink-0" />
-      ) : ( */}
       <div className="w-5 h-5 flex-shrink-0 rounded bg-gray-200 flex items-center justify-center">
         <span className="text-xs font-semibold text-gray-600">
           {label.charAt(0).toUpperCase()}
         </span>
       </div>
-      {/* )} */}
       <span className="font-medium truncate">{label}</span>
     </Link>
   );
