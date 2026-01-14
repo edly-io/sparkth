@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getPluginsByNames, PluginDefinition, onPluginEvent } from "./registry";
 import { PluginConfig, UserPluginState, PluginEventType } from "./types";
+import { fetchUserPlugins } from "./context";
 
 // ============================================================================
 // Types
@@ -24,27 +25,6 @@ interface UsePluginResult {
 interface UseSidebarPluginsResult {
   plugins: PluginDefinition[];
   loading: boolean;
-}
-
-// ============================================================================
-// API Helpers
-// ============================================================================
-
-const API_BASE = "/api/v1";
-
-async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
-  const response = await fetch(`${API_BASE}/user-plugins/`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch plugins: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 // ============================================================================

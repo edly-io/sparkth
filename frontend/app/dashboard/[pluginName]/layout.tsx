@@ -22,13 +22,14 @@ export default function PluginLayout({
     return <>{children}</>;
   }
 
+  const basePath = `/dashboard/${pluginName}`;
+
   const currentRouteLabel = pluginDef.routes?.find(
     (r) =>
       pathname ===
       `${basePath}/${r.path.startsWith("/") ? r.path.slice(1) : r.path}`
   )?.label;
 
-  const basePath = `/dashboard/${pluginName}`;
   return (
     <div className="flex flex-col h-full">
       <div className="px-6 py-3 bg-gray-50 border-b">

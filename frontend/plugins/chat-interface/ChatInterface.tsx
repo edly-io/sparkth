@@ -53,7 +53,14 @@ export default function ChatInterface() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-2 text-gray-600">
-                3:16:47 PM
+                <p className="text-xs text-gray-500 mt-2 text-gray-600">
+                  {new Date().toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  })}
+                </p>
               </p>
             </div>
           </div>
