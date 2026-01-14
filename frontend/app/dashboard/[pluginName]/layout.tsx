@@ -2,7 +2,7 @@
 
 import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { getPlugin } from "@/lib/plugins/registry";
+import { getPlugin } from "@/lib/plugins";
 import { usePlugin } from "@/lib/plugins/context";
 import { ChevronRight } from "lucide-react";
 

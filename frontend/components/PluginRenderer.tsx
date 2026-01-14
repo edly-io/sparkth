@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense, lazy, useMemo, useEffect, useState } from "react";
-import { PluginDefinition } from "@/lib/plugins/types";
+import { PluginDefinition, emitPluginEvent } from "@/lib/plugins";
 import { usePlugin } from "@/lib/plugins/context";
-import { emitPluginEvent } from "@/lib/plugins/registry";
 
 interface PluginRendererProps {
   pluginName: string;
