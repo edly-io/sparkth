@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { usePlugin } from "@/lib/plugins/context";
-import { getPlugin } from "@/lib/plugins/registry";
+import { getPlugin } from "@/lib/plugins";
 import PluginRenderer from "@/components/PluginRenderer";
 import Link from "next/link";
 
