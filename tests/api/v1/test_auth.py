@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import patch
 
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -40,15 +41,16 @@ async def test_create_user(client: AsyncClient) -> None:
     username = _uniq("testuser")
     email = f"{_uniq('test')}@example.com"
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "name": "Test User",
-            "username": username,
-            "email": email,
-            "password": "testpassword",
-        },
-    )
+    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Test User",
+                "username": username,
+                "email": email,
+                "password": "testpassword",
+            },
+        )
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == email
@@ -61,15 +63,16 @@ async def test_create_user_existing_username(client: AsyncClient, session: Async
     username = _uniq("testuser")
     await create_user_in_db(session, username=username, email=f"{_uniq('test')}@example.com")
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "name": "Another User",
-            "username": username,
-            "email": f"{_uniq('another')}@example.com",
-            "password": "testpassword",
-        },
-    )
+    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Another User",
+                "username": username,
+                "email": f"{_uniq('another')}@example.com",
+                "password": "testpassword",
+            },
+        )
     assert response.status_code == 400
     assert response.json() == {"detail": "Username already registered"}
 
@@ -78,17 +81,34 @@ async def test_create_user_existing_email(client: AsyncClient, session: AsyncSes
     email = f"{_uniq('test')}@example.com"
     await create_user_in_db(session, username=_uniq("testuser"), email=email)
 
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "name": "Another User",
-            "username": _uniq("anotheruser"),
-            "email": email,
-            "password": "testpassword",
-        },
-    )
+    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Another User",
+                "username": _uniq("anotheruser"),
+                "email": email,
+                "password": "testpassword",
+            },
+        )
     assert response.status_code == 400
     assert response.json() == {"detail": "Email already registered"}
+
+
+# Optional: Add a test for when registration is disabled
+async def test_registration_disabled(client: AsyncClient) -> None:
+    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", False):
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Test User",
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "testpassword",
+            },
+        )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Registration is currently disabled"}
 
 
 async def test_login(client: AsyncClient, session: AsyncSession) -> None:

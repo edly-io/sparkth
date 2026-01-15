@@ -107,7 +107,7 @@ async def _check_plugin_access_async(
     """
     plugin_statement = select(Plugin).where(
         Plugin.name == plugin_name,
-        Plugin.deleted_at is None,
+        Plugin.deleted_at == None,
     )
     result = await session.execute(plugin_statement)
     plugin = result.scalar_one_or_none()
@@ -123,7 +123,7 @@ async def _check_plugin_access_async(
     statement = select(UserPlugin).where(
         UserPlugin.user_id == user_id,
         UserPlugin.plugin_id == plugin.id,
-        UserPlugin.deleted_at is None,
+        UserPlugin.deleted_at == None,
     )
     result = await session.execute(statement)
     user_plugin = result.scalar_one_or_none()

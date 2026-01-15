@@ -11,9 +11,20 @@ settings = get_settings()
 # Synchronous engine for regular operations
 engine = create_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True)
 
+
+# Helper function to convert database URL to async driver
+def _get_async_database_url(url: str) -> str:
+    """Convert database URL to use async driver."""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://")
+    elif url.startswith("sqlite://"):
+        return url.replace("sqlite://", "sqlite+aiosqlite://")
+    return url
+
+
 # Async engine for async operations
 async_engine = create_async_engine(
-    settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+    _get_async_database_url(settings.DATABASE_URL),
     echo=False,
     pool_pre_ping=True,
 )

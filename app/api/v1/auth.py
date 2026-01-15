@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import security
 from app.core.config import get_settings
-from app.core.db import get_session
+from app.core.db import get_async_session, get_session
 from app.models.user import User
 from app.schemas import Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
@@ -20,7 +20,7 @@ security_scheme = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> User:
     token = credentials.credentials
 
@@ -54,6 +54,8 @@ async def get_current_user(
 
 @router.post("/register", response_model=UserSchema)
 async def register_user(user: UserCreate, session: AsyncSession = Depends(get_session)) -> User:
+    if not settings.REGISTRATION_ENABLED:
+        raise HTTPException(status_code=403, detail="Registration is currently disabled")
     result = await session.exec(select(User).where(User.username == user.username))
     db_user = result.first()
     if db_user:
