@@ -51,5 +51,5 @@ jobs:
       - name: Run tests
         run: uv run pytest tests/
         env:
-          DATABASE_URL: sqlite:///./test.db
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
           SECRET_KEY: secret-key-for-ci

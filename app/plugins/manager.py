@@ -4,15 +4,14 @@ Plugin Manager for Sparkth.
 Manages plugin discovery, loading, and lifecycle based on configuration.
 """
 
+import asyncio
 import importlib
 import inspect
 import re
 from typing import Any, Dict, List, Type
 
-from sqlmodel import Session
-
 from app.core.config import get_plugin_settings
-from app.core.db import get_engine
+from app.core.db import async_session_maker
 from app.core.logger import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
@@ -178,13 +177,18 @@ class PluginManager:
 
             plugin_service = PluginService()
 
-            with Session(get_engine()) as session:
-                plugin_service.get_or_create(
-                    session,
-                    plugin_name,
-                    plugin_instance.is_core,
-                    plugin_instance.get_config_schema(),
-                )
+            async def _create_plugin_record() -> None:
+                async with async_session_maker() as session:
+                    # Type ignore needed because async_session_maker returns sqlalchemy AsyncSession
+                    # but PluginService expects sqlmodel AsyncSession (they're compatible at runtime)
+                    await plugin_service.get_or_create(
+                        session,  # type: ignore[arg-type]
+                        plugin_name,
+                        plugin_instance.is_core,
+                        plugin_instance.get_config_schema(),
+                    )
+
+            asyncio.run(_create_plugin_record())
 
             return plugin_instance
 

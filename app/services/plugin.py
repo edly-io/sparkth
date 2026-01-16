@@ -3,7 +3,8 @@ from collections.abc import Sequence
 from typing import Any
 
 import pydantic
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.plugin import Plugin, UserPlugin
 from app.plugins import PLUGIN_CONFIG_CLASSES
@@ -26,69 +27,25 @@ def get_plugin_service() -> PluginService:
     return PluginService()
 
 
-class UserPluginResponse(pydantic.BaseModel):
-    """Response model for user plugin information."""
-
-    plugin_name: str
-    enabled: bool
-    config: dict[str, Any] | None
-    is_core: bool
-
-
 class PluginService:
     """
     Business logic related to Plugin persistence and state.
     """
 
-    @staticmethod
-    def initial_config(schema: dict[str, Any]) -> dict[str, Any]:
-        """
-        Populate config dict with all keys from schema set to None.
-        """
-        if not schema or "properties" not in schema:
-            return {}
-        return {key: None for key in schema["properties"].keys()}
-
-    @staticmethod
-    def validate_user_config(plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:
-        """
-        Validate and normalize user configuration against plugin's Pydantic config model.
-
-        Uses the plugin.config_schema directly instead of dynamically loading config.py.
-
-        Raises:
-            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
-        """
-
-        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
-        if not config_class:
-            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
-            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
-
-        if not issubclass(config_class, PluginConfig):
-            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
-            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
-
-        try:
-            validated_config = config_class(**user_config)
-        except pydantic.ValidationError as e:
-            raise ConfigValidationError(e.errors()[0]["msg"])
-
-        return validated_config.model_dump(mode="json")
-
-    def get_by_name(self, session: Session, name: str) -> Plugin | None:
+    async def get_by_name(self, session: AsyncSession, name: str) -> Plugin | None:
         statement = select(Plugin).where(Plugin.name == name, Plugin.deleted_at == None)
-        return session.exec(statement).first()
+        result = await session.exec(statement)
+        return result.first()
 
-    def get_or_create(
+    async def get_or_create(
         self,
-        session: Session,
+        session: AsyncSession,
         name: str,
         is_core: bool,
         schema: dict[str, Any],
         enabled: bool = True,
     ) -> Plugin:
-        plugin = self.get_by_name(session, name)
+        plugin = await self.get_by_name(session, name)
 
         if plugin is not None:
             return plugin
@@ -101,14 +58,14 @@ class PluginService:
         )
 
         session.add(plugin)
-        session.commit()
-        session.refresh(plugin)
+        await session.commit()
+        await session.refresh(plugin)
 
         return plugin
 
-    def get_all(
+    async def get_all(
         self,
-        session: Session,
+        session: AsyncSession,
         include_disabled: bool = True,
         include_deleted: bool = False,
     ) -> Sequence[Plugin]:
@@ -131,11 +88,12 @@ class PluginService:
         if not include_disabled:
             statement = statement.where(Plugin.enabled == True)
 
-        return session.exec(statement).all()
+        result = await session.exec(statement)
+        return result.all()
 
-    def get_user_plugin_map(
+    async def get_user_plugin_map(
         self,
-        session: Session,
+        session: AsyncSession,
         user_id: int | None,
     ) -> dict[str, UserPlugin]:
         statement = (
@@ -147,13 +105,14 @@ class PluginService:
                 Plugin.deleted_at == None,
             )
         )
-        results = session.exec(statement).all()
+        result = await session.exec(statement)
+        results = result.all()
 
         return {plugin.name: user_plugin for user_plugin, plugin in results}
 
-    def get_user_plugin(
+    async def get_user_plugin(
         self,
-        session: Session,
+        session: AsyncSession,
         user_id: int | None,
         plugin_id: int | None,
     ) -> UserPlugin | None:
@@ -162,16 +121,17 @@ class PluginService:
             UserPlugin.plugin_id == plugin_id,
             UserPlugin.deleted_at == None,
         )
-        return session.exec(statement).first()
+        result = await session.exec(statement)
+        return result.first()
 
-    def update_user_plugin_enabled(
+    async def update_user_plugin_enabled(
         self,
-        session: Session,
+        session: AsyncSession,
         user_id: int,
         plugin_id: int,
         enabled: bool,
     ) -> UserPlugin:
-        user_plugin = self.get_user_plugin(
+        user_plugin = await self.get_user_plugin(
             session,
             user_id,
             plugin_id,
@@ -188,30 +148,82 @@ class PluginService:
             )
             session.add(user_plugin)
 
-        session.commit()
-        session.refresh(user_plugin)
+        await session.commit()
+        await session.refresh(user_plugin)
 
         return user_plugin
 
-    def create_or_update_user_plugin_config(
+    def validate_user_config(self, plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:
+        """
+        Validate and normalize user configuration against plugin's Pydantic config model.
+
+        Uses the plugin.config_schema directly instead of dynamically loading config.py.
+
+        Raises:
+            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
+        """
+
+        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        if not config_class:
+            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
+            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
+
+        if not issubclass(config_class, PluginConfig):
+            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
+            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
+
+        try:
+            validated_config = config_class(**user_config)
+        except pydantic.ValidationError as e:
+            raise ConfigValidationError(e.errors())
+
+        return validated_config.model_dump()
+
+    async def create_user_plugin(
+        self, session: AsyncSession, user_id: int, plugin: Plugin, user_config: dict[str, Any]
+    ) -> UserPlugin:
+        try:
+            validated_config = self.validate_user_config(plugin, user_config)
+        except ConfigValidationError as err:
+            raise err
+
+        if plugin.id is None:
+            raise InternalServerError("Plugin must be persisted before creating user plugin")
+
+        user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin.id, enabled=True, config=validated_config)
+
+        session.add(user_plugin)
+        await session.commit()
+        await session.refresh(user_plugin)
+        return user_plugin
+
+    async def update_user_plugin_config(
         self,
-        session: Session,
+        session: AsyncSession,
         user_id: int,
         plugin: Plugin,
         user_config: dict[str, Any],
     ) -> UserPlugin:
         if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before configuration")
+            raise InternalServerError("Plugin must be persisted before creating user plugin")
 
-        user_plugin = self.get_user_plugin(session, user_id, plugin.id)
+        user_plugin = await self.get_user_plugin(
+            session,
+            user_id,
+            plugin.id,
+        )
 
-        if user_plugin and not user_plugin.enabled:
-            raise PluginDisabledError("Cannot update plugin configuration while the plugin is disabled")
+        if user_plugin:
+            if not user_plugin.enabled:
+                raise PluginDisabledError("Cannot update plugin configuration while the plugin is disabled")
+            merged_config = {**user_plugin.config, **user_config}
+        else:
+            merged_config = user_config
 
-        existing_config = user_plugin.config if user_plugin else {}
-        merged_config = {**existing_config, **user_config}
-
-        validated_config = self.validate_user_config(plugin, merged_config)
+        try:
+            validated_config = self.validate_user_config(plugin, merged_config)
+        except ConfigValidationError as err:
+            raise err
 
         if user_plugin:
             user_plugin.config = validated_config
@@ -224,7 +236,7 @@ class PluginService:
             )
             session.add(user_plugin)
 
-        session.commit()
-        session.refresh(user_plugin)
+        await session.commit()
+        await session.refresh(user_plugin)
 
         return user_plugin

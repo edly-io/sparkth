@@ -1,18 +1,18 @@
 from typing import Any, cast
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlmodel import Session
+from httpx import ASGITransport, AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.models import User
 from app.services.plugin import PluginService, get_plugin_service
 
 
-def test_list_user_plugins_basic(override_dependencies: Any) -> None:
+async def test_list_user_plugins_basic(override_dependencies: Any) -> None:
     client = override_dependencies
 
-    response = client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/user-plugins/")
     assert response.status_code == 200
 
     data = response.json()
@@ -45,11 +45,11 @@ def test_list_user_plugins_basic(override_dependencies: Any) -> None:
     assert data == expected
 
 
-def test_list_user_plugins_empty(client: TestClient, session: Session) -> None:
+async def test_list_user_plugins_empty(client: AsyncClient, session: AsyncSession) -> None:
     user = User(name="Test User", username="noplugins", email="empty@example.com", hashed_password="fakehashedpassword")
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    await session.commit()
+    await session.refresh(user)
 
     def get_user_override() -> User:
         return user
@@ -57,11 +57,12 @@ def test_list_user_plugins_empty(client: TestClient, session: Session) -> None:
     def get_plugin_service_override() -> PluginService:
         return PluginService()
 
-    app = cast(FastAPI, client.app)
+    transport = cast(ASGITransport, client._transport)
+    app = cast(FastAPI, transport.app)
     app.dependency_overrides[get_current_user] = get_user_override
     app.dependency_overrides[get_plugin_service] = get_plugin_service_override
 
-    response = client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/user-plugins/")
     assert response.status_code == 200
     assert response.json() == []
 
