@@ -167,6 +167,7 @@ export interface EnabledPlugin {
  * Plugin state from the API
  */
 export interface UserPluginState {
+  description: string;
   plugin_name: string;
   enabled: boolean;
   config: Record<string, string>;

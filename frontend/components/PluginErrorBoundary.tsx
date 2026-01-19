@@ -40,7 +40,7 @@ export class PluginErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex items-center justify-center h-full p-8">
           <div className="text-center max-w-md">
-            <div className="text-red-600 mb-4">
+            <div className="text-edly-red-600 mb-4">
               <svg
                 className="w-16 h-16 mx-auto"
                 fill="none"
@@ -55,21 +55,21 @@ export class PluginErrorBoundary extends Component<Props, State> {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-edly-gray-900 mb-2">
               Plugin Error
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-edly-gray-600 mb-4">
               The plugin <strong>{this.props.pluginName}</strong> encountered an
               error and could not be loaded.
             </p>
             {this.state.error && (
-              <p className="text-sm text-gray-500 mb-4 font-mono">
+              <p className="text-sm text-edly-gray-500 mb-4 font-mono">
                 {this.state.error.message}
               </p>
             )}
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
             >
               Reload Page
             </button>

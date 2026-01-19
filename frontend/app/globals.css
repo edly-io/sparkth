@@ -10,6 +10,58 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+   /* Primary (Edly Green) */
+  --color-primary: #4dc6b1;
+  --color-primary-50: #e8f9f6;
+  --color-primary-100: #d1f3ed;
+  --color-primary-200: #a3e7db;
+  --color-primary-300: #75dbc9;
+  --color-primary-400: #4dc6b1;
+  --color-primary-500: #3db09d;
+  --color-primary-600: #318d7e;
+  --color-primary-700: #256a5e;
+  --color-primary-800: #19473f;
+  --color-primary-900: #0d241f;
+  
+  /* Edly Blue */
+  --color-edly-blue: #2e90fa;
+  --color-edly-blue-50: #eff8ff;
+  --color-edly-blue-100: #d1e9ff;
+  --color-edly-blue-200: #b2ddff;
+  --color-edly-blue-300: #84caff;
+  --color-edly-blue-400: #53b1fd;
+  --color-edly-blue-500: #2e90fa;
+  --color-edly-blue-600: #1570ef;
+  --color-edly-blue-700: #175cd3;
+  --color-edly-blue-800: #1849a9;
+  --color-edly-blue-900: #194185;
+
+  /* Grey */
+  --color-edly-gray: #717680;
+  --color-edly-gray-50: #f9fafb;
+  --color-edly-gray-100: #f2f4f7;
+  --color-edly-gray-200: #e4e7ec;
+  --color-edly-gray-300: #d0d5dd;
+  --color-edly-gray-400: #98a2b3;
+  --color-edly-gray-500: #717680;
+  --color-edly-gray-600: #475467;
+  --color-edly-gray-700: #344054;
+  --color-edly-gray-800: #1d2939;
+  --color-edly-gray-900: #101828;
+
+  /* Edly Red */
+  --color-edly-red: #dd1f25;
+  --color-edly-red-50: #fef3f2;
+  --color-edly-red-100: #fee4e2;
+  --color-edly-red-200: #fecdca;
+  --color-edly-red-300: #fda29b;
+  --color-edly-red-400: #f97066;
+  --color-edly-red-500: #dd1f25;
+  --color-edly-red-600: #d92d20;
+  --color-edly-red-700: #b42318;
+  --color-edly-red-800: #912018;
+  --color-edly-red-900: #7a271a;
 }
 
 @media (prefers-color-scheme: dark) {
