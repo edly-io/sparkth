@@ -6,7 +6,6 @@ import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/components/AppSidebar";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import SparkthHeader from "@/components/SparkthHeader";
 
 export default function DashboardLayout({
   children,
@@ -25,7 +24,7 @@ export default function DashboardLayout({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -46,10 +45,7 @@ export default function DashboardLayout({
           }}
           onLogout={logout}
         />
-        <main className="flex-1 overflow-auto bg-gray-50">
-          <SparkthHeader isAuthenticated={isAuthenticated} logout={logout} />
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto bg-edly-gray-50">{children}</main>
       </div>
     </PluginProvider>
   );

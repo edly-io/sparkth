@@ -1,20 +1,21 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { register as registerApi, ApiRequestError } from '@/lib/api';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { register as registerApi, ApiRequestError } from "@/lib/api";
+import { SparkthLogo } from "@/components/SparkthLogo";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    name: '',
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -28,11 +29,11 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setFieldErrors({});
 
     if (formData.password !== formData.confirmPassword) {
-      setFieldErrors({ confirmPassword: 'Passwords do not match' });
+      setFieldErrors({ confirmPassword: "Passwords do not match" });
       return;
     }
 
@@ -47,14 +48,14 @@ export default function RegisterPage() {
       });
       setSuccess(true);
       setTimeout(() => {
-        router.push('/login');
+        router.push("/login");
       }, 2000);
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(err.message);
         setFieldErrors(err.fieldErrors);
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        setError("An unexpected error occurred. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -62,33 +63,45 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="max-w-md w-full">
+        <div className="flex justify-center">
+          <SparkthLogo />
+        </div>
+
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="text-center text-3xl font-bold text-edly-gray-900 mb-2">
             Create your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+          <p className="text-center text-base text-edly-gray-600 mb-8">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="font-medium text-primary hover:text-primary-600"
+            >
               Sign in
             </Link>
           </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {success && (
-            <div className="rounded-md bg-green-50 p-4">
-              <p className="text-sm text-green-700">Account created successfully! Redirecting to login...</p>
-            </div>
-          )}
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-          <div className="space-y-4">
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {success && (
+              <div className="rounded-md bg-primary-50 p-4">
+                <p className="text-sm text-primary-700">
+                  Account created successfully! Redirecting to login...
+                </p>
+              </div>
+            )}
+            {error && (
+              <div className="rounded-md bg-edly-red-50 p-4">
+                <p className="text-sm text-edly-red-700">{error}</p>
+              </div>
+            )}
+
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="name"
+                className="block text-sm font-medium text-edly-gray-700 mb-2"
+              >
                 Full Name
               </label>
               <input
@@ -96,19 +109,27 @@ export default function RegisterPage() {
                 name="name"
                 type="text"
                 required
-                className={`mt-1 appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  fieldErrors.name ? 'border-red-500' : 'border-gray-300'
+                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+                  fieldErrors.name
+                    ? "border-edly-red-500"
+                    : "border-edly-gray-300"
                 }`}
                 placeholder="John Doe"
                 value={formData.name}
                 onChange={handleChange}
               />
               {fieldErrors.name && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.name}</p>
+                <p className="mt-1 text-sm text-edly-red-600">
+                  {fieldErrors.name}
+                </p>
               )}
             </div>
+
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-edly-gray-700 mb-2"
+              >
                 Username
               </label>
               <input
@@ -116,19 +137,27 @@ export default function RegisterPage() {
                 name="username"
                 type="text"
                 required
-                className={`mt-1 appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  fieldErrors.username ? 'border-red-500' : 'border-gray-300'
+                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+                  fieldErrors.username
+                    ? "border-edly-red-500"
+                    : "border-edly-gray-300"
                 }`}
                 placeholder="johndoe"
                 value={formData.username}
                 onChange={handleChange}
               />
               {fieldErrors.username && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.username}</p>
+                <p className="mt-1 text-sm text-edly-red-600">
+                  {fieldErrors.username}
+                </p>
               )}
             </div>
+
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-edly-gray-700 mb-2"
+              >
                 Email address
               </label>
               <input
@@ -136,19 +165,27 @@ export default function RegisterPage() {
                 name="email"
                 type="email"
                 required
-                className={`mt-1 appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  fieldErrors.email ? 'border-red-500' : 'border-gray-300'
+                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+                  fieldErrors.email
+                    ? "border-edly-red-500"
+                    : "border-edly-gray-300"
                 }`}
                 placeholder="john@example.com"
                 value={formData.email}
                 onChange={handleChange}
               />
               {fieldErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+                <p className="mt-1 text-sm text-edly-red-600">
+                  {fieldErrors.email}
+                </p>
               )}
             </div>
+
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-edly-gray-700 mb-2"
+              >
                 Password
               </label>
               <input
@@ -156,19 +193,27 @@ export default function RegisterPage() {
                 name="password"
                 type="password"
                 required
-                className={`mt-1 appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  fieldErrors.password ? 'border-red-500' : 'border-gray-300'
+                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+                  fieldErrors.password
+                    ? "border-edly-red-500"
+                    : "border-edly-gray-300"
                 }`}
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
               />
               {fieldErrors.password && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+                <p className="mt-1 text-sm text-edly-red-600">
+                  {fieldErrors.password}
+                </p>
               )}
             </div>
+
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-edly-gray-700 mb-2"
+              >
                 Confirm Password
               </label>
               <input
@@ -176,29 +221,35 @@ export default function RegisterPage() {
                 name="confirmPassword"
                 type="password"
                 required
-                className={`mt-1 appearance-none relative block w-full px-3 py-2 border placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                  fieldErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+                  fieldErrors.confirmPassword
+                    ? "border-edly-red-500"
+                    : "border-edly-gray-300"
                 }`}
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
               />
               {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.confirmPassword}</p>
+                <p className="mt-1 text-sm text-edly-red-600">
+                  {fieldErrors.confirmPassword}
+                </p>
               )}
             </div>
-          </div>
 
-          <div>
             <button
               type="submit"
               disabled={loading || success}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Creating account...' : success ? 'Account created!' : 'Create account'}
+              {loading
+                ? "Creating account..."
+                : success
+                ? "Account created!"
+                : "Create account"}
             </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

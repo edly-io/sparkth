@@ -28,8 +28,8 @@ export default function PluginPageClient() {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Authenticating...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-edly-gray-600">Authenticating...</p>
         </div>
       </div>
     );
@@ -39,7 +39,7 @@ export default function PluginPageClient() {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
         <div className="text-center max-w-md">
-          <div className="text-red-600 mb-4">
+          <div className="text-edly-red-600 mb-4">
             <svg
               className="w-16 h-16 mx-auto"
               fill="none"
@@ -54,11 +54,13 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Invalid URL</h2>
-          <p className="text-gray-600 mb-4">No plugin name specified.</p>
+          <h2 className="text-2xl font-bold text-edly-gray-900 mb-2">
+            Invalid URL
+          </h2>
+          <p className="text-edly-gray-600 mb-4">No plugin name specified.</p>
           <Link
             href="/dashboard"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
           >
             Go to Dashboard
           </Link>
@@ -71,7 +73,7 @@ export default function PluginPageClient() {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
         <div className="text-center max-w-md">
-          <div className="text-gray-400 mb-4">
+          <div className="text-edly-gray-400 mb-4">
             <svg
               className="w-16 h-16 mx-auto"
               fill="none"
@@ -86,16 +88,18 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-edly-gray-900 mb-2">
             Plugin Not Found
           </h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-edly-gray-600 mb-4">
             No plugin registered with name:{" "}
-            <code className="bg-gray-100 px-2 py-1 rounded">{pluginName}</code>
+            <code className="bg-edly-gray-100 px-2 py-1 rounded">
+              {pluginName}
+            </code>
           </p>
           <Link
             href="/dashboard"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
           >
             Go to Dashboard
           </Link>
@@ -123,22 +127,22 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-edly-gray-900 mb-2">
             Plugin Not Enabled
           </h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-edly-gray-600 mb-4">
             {pluginDef.displayName} is not enabled for your account.
           </p>
           <div className="space-x-3">
             <Link
               href="/dashboard/settings/"
-              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
             >
               Enable in Settings
             </Link>
             <Link
               href="/dashboard"
-              className="inline-block px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+              className="inline-block px-4 py-2 bg-edly-gray-200 text-edly-gray-700 rounded-md hover:bg-edly-gray-300 transition-colors"
             >
               Go Back
             </Link>
