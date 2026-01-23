@@ -35,7 +35,7 @@ class PluginService:
     async def get_by_name(self, session: AsyncSession, name: str) -> Plugin | None:
         statement = select(Plugin).where(Plugin.name == name, Plugin.deleted_at == None)
         result = await session.exec(statement)
-        return result.first()
+        return result.one_or_none()
 
     async def get_or_create(
         self,
@@ -122,7 +122,7 @@ class PluginService:
             UserPlugin.deleted_at == None,
         )
         result = await session.exec(statement)
-        return result.first()
+        return result.one_or_none()
 
     async def update_user_plugin_enabled(
         self,

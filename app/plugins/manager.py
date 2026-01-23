@@ -10,8 +10,10 @@ import inspect
 import re
 from typing import Any, Dict, List, Type
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core.config import get_plugin_settings
-from app.core.db import async_session_maker
+from app.core.db import async_engine
 from app.core.logger import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
@@ -178,11 +180,9 @@ class PluginManager:
             plugin_service = PluginService()
 
             async def _create_plugin_record() -> None:
-                async with async_session_maker() as session:
-                    # Type ignore needed because async_session_maker returns sqlalchemy AsyncSession
-                    # but PluginService expects sqlmodel AsyncSession (they're compatible at runtime)
+                async with AsyncSession(async_engine, expire_on_commit=False) as session:
                     await plugin_service.get_or_create(
-                        session,  # type: ignore[arg-type]
+                        session,
                         plugin_name,
                         plugin_instance.is_core,
                         plugin_instance.get_config_schema(),

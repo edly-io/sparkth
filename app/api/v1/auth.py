@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import security
 from app.core.config import get_settings
-from app.core.db import get_async_session, get_session
+from app.core.db import get_async_session
 from app.models.user import User
 from app.schemas import Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
@@ -41,7 +41,7 @@ async def get_current_user(
         )
 
     result = await session.exec(select(User).where(User.username == username))
-    user = result.first()
+    user = result.one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,16 +53,16 @@ async def get_current_user(
 
 
 @router.post("/register", response_model=UserSchema)
-async def register_user(user: UserCreate, session: AsyncSession = Depends(get_session)) -> User:
+async def register_user(user: UserCreate, session: AsyncSession = Depends(get_async_session)) -> User:
     if not settings.REGISTRATION_ENABLED:
         raise HTTPException(status_code=403, detail="Registration is currently disabled")
     result = await session.exec(select(User).where(User.username == user.username))
-    db_user = result.first()
+    db_user = result.one_or_none()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
 
     result = await session.exec(select(User).where(User.email == user.email))
-    db_user_email = result.first()
+    db_user_email = result.one_or_none()
     if db_user_email:
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -81,10 +81,10 @@ async def register_user(user: UserCreate, session: AsyncSession = Depends(get_se
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
-    form_data: UserLogin, session: AsyncSession = Depends(get_session)
+    form_data: UserLogin, session: AsyncSession = Depends(get_async_session)
 ) -> dict[str, str | datetime]:
     result = await session.exec(select(User).where(User.username == form_data.username))
-    user = result.first()
+    user = result.one_or_none()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=401,

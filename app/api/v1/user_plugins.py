@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import get_session
+from app.core.db import get_async_session
 from app.models.user import User
 from app.services.plugin import (
     ConfigValidationError,
@@ -48,7 +48,7 @@ class UserPluginConfigRequest(BaseModel):
 @router.get("/", response_model=List[UserPluginResponse])
 async def list_user_plugins(
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> List[UserPluginResponse]:
     """
@@ -90,7 +90,7 @@ async def create_user_plugin(
     plugin_name: str,
     user_config: dict[str, Any],
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """Create a user plugin with validated configuration."""
@@ -129,7 +129,7 @@ async def create_user_plugin(
 async def get_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """
@@ -157,7 +157,7 @@ async def update_user_plugin(
     plugin_name: str,
     request: UpdateUserPluginRequest,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """
@@ -191,7 +191,7 @@ async def update_user_plugin_config(
     plugin_name: str,
     request: UserPluginConfigRequest,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """
@@ -229,7 +229,7 @@ async def update_user_plugin_config(
 async def enable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """
@@ -250,7 +250,7 @@ async def enable_user_plugin(
 async def disable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """
