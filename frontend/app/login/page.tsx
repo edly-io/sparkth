@@ -6,6 +6,10 @@ import Link from "next/link";
 import { login as loginApi, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { SparkthLogo } from "@/components/SparkthLogo";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Alert } from "@/components/ui/Alert";
+import { Card } from "@/components/ui/Card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,99 +52,72 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
-        <div className="flex justify-center">
-          <SparkthLogo />
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8 transition-colors">
+      <Card variant="elevated" className="max-w-md w-full">
+        <div className="flex justify-center mb-1">
+          <SparkthLogo size={96}/>
         </div>
 
-        <div>
-          <h2 className="text-center text-3xl font-bold text-edly-gray-900 mb-2">
-            Log in
-          </h2>
-          <p className="text-center text-base text-edly-gray-600 mb-8">
-            Welcome Back! Please enter your details
-          </p>
+        <h2 className="text-center text-3xl font-bold text-foreground mb-2">
+          Log in
+        </h2>
+        <p className="text-center text-base text-muted-foreground mb-8">
+          Welcome Back! Please enter your details
+        </p>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (
-              <div className="rounded-md bg-edly-red-50 p-4">
-                <p className="text-sm text-edly-red-700">{error}</p>
-              </div>
-            )}
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          {error && <Alert severity="error">{error}</Alert>}
 
-            <div>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.username
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="Username"
-                value={formData.username}
-                onChange={handleChange}
-              />
-              {fieldErrors.username && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.username}
-                </p>
-              )}
-            </div>
+          <Input
+            name="username"
+            type="text"
+            required
+            placeholder="Username"
+            value={formData.username}
+            onChange={handleChange}
+            error={fieldErrors.username}
+          />
 
-            <div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.password
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-              />
-              {fieldErrors.password && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.password}
-                </p>
-              )}
-            </div>
+          <Input
+            name="password"
+            type="password"
+            required
+            placeholder="Password"
+            value={formData.password}
+            onChange={handleChange}
+            error={fieldErrors.password}
+          />
 
-            <div className="flex justify-end">
-              <Link
-                href="/forgot-password"
-                className="text-sm font-medium text-edly-gray-900 hover:text-edly-gray-700"
-              >
-                Forgot Password?
-              </Link>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-          <p className="mt-6 text-center text-sm text-edly-gray-600">
-            Don&apos;t have an account?{" "}
+          <div className="flex justify-end">
             <Link
-              href="/register"
-              className="font-medium text-primary-500 hover:text-primary-700"
+              href="/forgot-password"
+              className="text-sm font-medium text-foreground hover:text-muted-foreground transition-colors"
             >
-              Sign up
+              Forgot Password?
             </Link>
-          </p>
-        </div>
-      </div>
+          </div>
+
+          <Button
+            type="submit"
+            loading={loading}
+            spinnerLabel="Signing In"
+            fullWidth
+            size="lg"
+          >
+            Sign In
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/register"
+            className="font-medium text-primary-500 hover:text-primary-700 transition-colors"
+          >
+            Sign up
+          </Link>
+        </p>
+      </Card>
     </div>
   );
 }

@@ -35,9 +35,9 @@ export default function PluginListItem({
       else await onEnable();
       onRefresh();
     } catch (err) {
-      console.log(String(err));
+      console.error(String(err));
       setToggleError(
-        `Failed to ${plugin.enabled ? "disable" : "enable"} the plugin.`
+        `Failed to ${plugin.enabled ? "disable" : "enable"} the plugin.`,
       );
     } finally {
       setIsToggling(false);
@@ -46,30 +46,30 @@ export default function PluginListItem({
 
   return (
     <>
-      <div className={`p-6 ${!isLast ? "border-b border-gray-200" : ""}`}>
+      <div className={`p-6 ${!isLast ? "border-b border-border" : ""}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-lg font-semibold text-edly-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 {plugin.plugin_name}
               </h3>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   plugin.enabled
-                    ? "bg-primary-100 text-primary-700"
-                    : "bg-edly-gray-200 text-edly-gray-600"
+                    ? "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400"
+                    : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400"
                 }`}
               >
                 {plugin.enabled ? "Connected" : "Disconnected"}
               </span>
             </div>
-            <p className="text-sm text-edly-gray-500 mb-2">Sparkth</p>
-            <p className="text-sm text-edly-gray-600 leading-relaxed">
+            <p className="text-sm text-muted mb-2">Sparkth</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {pluginDef?.description || plugin.description}
             </p>
 
             {toggleError && (
-              <div className="mt-3 text-sm text-edly-red-600">
+              <div className="mt-3 text-sm text-error-600 dark:text-error-400">
                 {toggleError}
               </div>
             )}
@@ -80,7 +80,9 @@ export default function PluginListItem({
               onClick={handleToggle}
               disabled={isToggling}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 disabled:opacity-50 enabled:hover:cursor-pointer ${
-                plugin.enabled ? "bg-primary-600" : "bg-edly-gray-300"
+                plugin.enabled
+                  ? "bg-primary-600"
+                  : "bg-neutral-300 dark:bg-neutral-600"
               }`}
               role="switch"
               aria-checked={plugin.enabled}
@@ -95,7 +97,7 @@ export default function PluginListItem({
             <button
               onClick={() => setShowConfigModal(true)}
               disabled={!plugin.enabled}
-              className="p-2 text-primary-600 enabled:hover:bg-edly-gray-50 rounded-lg transition-colors enabled:hover:cursor-pointer disabled:text-edly-gray-300"
+              className="p-2 text-primary-600 dark:text-primary-400 enabled:hover:bg-surface-variant rounded-lg transition-colors enabled:hover:cursor-pointer disabled:text-muted disabled:opacity-50"
               title="Configure plugin"
             >
               <Sliders className="w-5 h-5" />

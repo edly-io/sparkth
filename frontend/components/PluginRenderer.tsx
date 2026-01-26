@@ -33,7 +33,7 @@ export default function PluginRenderer({
 }: PluginRendererProps) {
   const { isEnabled, config, context } = usePlugin(pluginName);
   const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(
-    overridePluginDef || null
+    overridePluginDef || null,
   );
 
   useEffect(() => {
@@ -109,6 +109,7 @@ export default function PluginRenderer({
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
