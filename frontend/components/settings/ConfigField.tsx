@@ -37,7 +37,7 @@ export function PluginConfigField({
 
   return (
     <div className="space-y-1">
-      <label className="text-sm font-medium text-edly-gray-700">
+      <label className="text-sm font-medium text-foreground">
         {formatConfigKey(name)}
       </label>
 
@@ -47,13 +47,15 @@ export function PluginConfigField({
         placeholder={isUrl ? "https://example.com" : undefined}
         value={value ?? ""}
         onChange={(e) => handleChange(e.target.value)}
-        className={`w-full px-3 py-3 rounded-lg text-sm focus:outline-none focus:ring-2 ${
+        className={`w-full px-3 py-3 rounded-lg text-sm bg-input text-foreground placeholder-muted focus:outline-none focus:ring-2 transition-colors ${
           error
-            ? "border border-edly-red-300 focus:ring-red-500"
-            : "border border-gray-300 focus:ring-primary-500"
-        } text-edly-gray-900`}
+            ? "border border-error-500 focus:ring-error-500"
+            : "border border-border focus:ring-ring"
+        }`}
       />
-      {error && <p className="text-xs text-edly-red-600">{error}</p>}
+      {error && (
+        <p className="text-xs text-error-600 dark:text-error-400">{error}</p>
+      )}
     </div>
   );
 }

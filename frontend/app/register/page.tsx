@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { register as registerApi, ApiRequestError } from "@/lib/api";
 import { SparkthLogo } from "@/components/SparkthLogo";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Alert } from "@/components/ui/Alert";
+import { Card } from "@/components/ui/Card";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -63,194 +67,95 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="max-w-md w-full">
-        <div className="flex justify-center">
-          <SparkthLogo />
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8 transition-colors">
+      <Card variant="elevated" className="max-w-md w-full">
+        <div className="flex justify-center mb-1">
+          <SparkthLogo size={96} />
         </div>
 
-        <div>
-          <h2 className="text-center text-3xl font-bold text-edly-gray-900 mb-2">
-            Create your account
-          </h2>
-          <p className="text-center text-base text-edly-gray-600 mb-8">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="font-medium text-primary hover:text-primary-600"
-            >
-              Sign in
-            </Link>
-          </p>
+        <h2 className="text-center text-3xl font-bold text-foreground mb-2">
+          Create your account
+        </h2>
+        <p className="text-center text-base text-muted-foreground mb-8">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-primary-500 hover:text-primary-700 transition-colors"
+          >
+            Sign in
+          </Link>
+        </p>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            {success && (
-              <div className="rounded-md bg-primary-50 p-4">
-                <p className="text-sm text-primary-700">
-                  Account created successfully! Redirecting to login...
-                </p>
-              </div>
-            )}
-            {error && (
-              <div className="rounded-md bg-edly-red-50 p-4">
-                <p className="text-sm text-edly-red-700">{error}</p>
-              </div>
-            )}
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          {success && (
+            <Alert severity="success">
+              Account created successfully! Redirecting to login...
+            </Alert>
+          )}
+          {error && <Alert severity="error">{error}</Alert>}
 
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-edly-gray-700 mb-2"
-              >
-                Full Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.name
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="John Doe"
-                value={formData.name}
-                onChange={handleChange}
-              />
-              {fieldErrors.name && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.name}
-                </p>
-              )}
-            </div>
+          <Input
+            name="name"
+            type="text"
+            required
+            placeholder="Full name"
+            value={formData.name}
+            onChange={handleChange}
+            error={fieldErrors.name}
+          />
 
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-edly-gray-700 mb-2"
-              >
-                Username
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.username
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="johndoe"
-                value={formData.username}
-                onChange={handleChange}
-              />
-              {fieldErrors.username && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.username}
-                </p>
-              )}
-            </div>
+          <Input
+            name="username"
+            type="text"
+            required
+            placeholder="Username"
+            value={formData.username}
+            onChange={handleChange}
+            error={fieldErrors.username}
+          />
 
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-edly-gray-700 mb-2"
-              >
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.email
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="john@example.com"
-                value={formData.email}
-                onChange={handleChange}
-              />
-              {fieldErrors.email && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.email}
-                </p>
-              )}
-            </div>
+          <Input
+            name="email"
+            type="email"
+            required
+            placeholder="Email"
+            value={formData.email}
+            onChange={handleChange}
+            error={fieldErrors.email}
+          />
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-edly-gray-700 mb-2"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.password
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-              />
-              {fieldErrors.password && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.password}
-                </p>
-              )}
-            </div>
+          <Input
+            name="password"
+            type="password"
+            required
+            placeholder="Enter your password"
+            value={formData.password}
+            onChange={handleChange}
+            error={fieldErrors.password}
+          />
 
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-edly-gray-700 mb-2"
-              >
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-                className={`appearance-none block w-full px-4 py-3 border rounded-lg placeholder-gray-400 text-edly-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  fieldErrors.confirmPassword
-                    ? "border-edly-red-500"
-                    : "border-edly-gray-300"
-                }`}
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-              />
-              {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-sm text-edly-red-600">
-                  {fieldErrors.confirmPassword}
-                </p>
-              )}
-            </div>
+          <Input
+            name="confirmPassword"
+            type="password"
+            required
+            placeholder="Confirm password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            error={fieldErrors.confirmPassword}
+          />
 
-            <button
-              type="submit"
-              disabled={loading || success}
-              className="w-full flex justify-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading
-                ? "Creating account..."
-                : success
-                ? "Account created!"
-                : "Create account"}
-            </button>
-          </form>
-        </div>
-      </div>
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={success}
+            fullWidth
+            size="lg"
+            spinnerLabel="Saving"
+          >
+            {success ? "Account created!" : "Create account"}
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }
