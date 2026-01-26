@@ -1,17 +1,54 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #ffffff;
+  --fg: #171717;
+  --surface: #ffffff;
+  --surface-variant: #f9fafb;
+  --muted: #717680;
+  --muted-foreground: #475467;
+  --border: #e4e7ec;
+  --input: #ffffff;
+  --ring: #3db09d;
+  --card: #ffffff;
+  --card-foreground: #101828;
+
+  color-scheme: light;
+}
+
+.dark,
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --fg: #ededed;
+  --surface: #1a1a1a;
+  --surface-variant: #262626;
+  --muted: #a3a3a3;
+  --muted-foreground: #a3a3a3;
+  --border: #404040;
+  --input: #1a1a1a;
+  --ring: #4dc6b1;
+  --card: #1a1a1a;
+  --card-foreground: #fafafa;
+
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-surface: var(--surface);
+  --color-surface-variant: var(--surface-variant);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 
-   /* Primary (Edly Green) */
+  /* Primary (Edly Green) */
   --color-primary: #4dc6b1;
   --color-primary-50: #e8f9f6;
   --color-primary-100: #d1f3ed;
@@ -23,56 +60,67 @@
   --color-primary-700: #256a5e;
   --color-primary-800: #19473f;
   --color-primary-900: #0d241f;
-  
-  /* Edly Blue */
-  --color-edly-blue: #2e90fa;
-  --color-edly-blue-50: #eff8ff;
-  --color-edly-blue-100: #d1e9ff;
-  --color-edly-blue-200: #b2ddff;
-  --color-edly-blue-300: #84caff;
-  --color-edly-blue-400: #53b1fd;
-  --color-edly-blue-500: #2e90fa;
-  --color-edly-blue-600: #1570ef;
-  --color-edly-blue-700: #175cd3;
-  --color-edly-blue-800: #1849a9;
-  --color-edly-blue-900: #194185;
 
-  /* Grey */
-  --color-edly-gray: #717680;
-  --color-edly-gray-50: #f9fafb;
-  --color-edly-gray-100: #f2f4f7;
-  --color-edly-gray-200: #e4e7ec;
-  --color-edly-gray-300: #d0d5dd;
-  --color-edly-gray-400: #98a2b3;
-  --color-edly-gray-500: #717680;
-  --color-edly-gray-600: #475467;
-  --color-edly-gray-700: #344054;
-  --color-edly-gray-800: #1d2939;
-  --color-edly-gray-900: #101828;
+  /* Secondary (Edly Blue) */
+  --color-secondary: #2e90fa;
+  --color-secondary-50: #eff8ff;
+  --color-secondary-100: #d1e9ff;
+  --color-secondary-200: #b2ddff;
+  --color-secondary-300: #84caff;
+  --color-secondary-400: #53b1fd;
+  --color-secondary-500: #2e90fa;
+  --color-secondary-600: #1570ef;
+  --color-secondary-700: #175cd3;
+  --color-secondary-800: #1849a9;
+  --color-secondary-900: #194185;
 
-  /* Edly Red */
-  --color-edly-red: #dd1f25;
-  --color-edly-red-50: #fef3f2;
-  --color-edly-red-100: #fee4e2;
-  --color-edly-red-200: #fecdca;
-  --color-edly-red-300: #fda29b;
-  --color-edly-red-400: #f97066;
-  --color-edly-red-500: #dd1f25;
-  --color-edly-red-600: #d92d20;
-  --color-edly-red-700: #b42318;
-  --color-edly-red-800: #912018;
-  --color-edly-red-900: #7a271a;
-}
+  /* Neutral/Grey */
+  --color-neutral: #717680;
+  --color-neutral-50: #f9fafb;
+  --color-neutral-100: #f2f4f7;
+  --color-neutral-200: #e4e7ec;
+  --color-neutral-300: #d0d5dd;
+  --color-neutral-400: #98a2b3;
+  --color-neutral-500: #717680;
+  --color-neutral-600: #475467;
+  --color-neutral-700: #344054;
+  --color-neutral-800: #1d2939;
+  --color-neutral-900: #101828;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Error (Edly Red) */
+  --color-error: #dd1f25;
+  --color-error-50: #fef3f2;
+  --color-error-100: #fee4e2;
+  --color-error-200: #fecdca;
+  --color-error-300: #fda29b;
+  --color-error-400: #f97066;
+  --color-error-500: #dd1f25;
+  --color-error-600: #d92d20;
+  --color-error-700: #b42318;
+  --color-error-800: #912018;
+  --color-error-900: #7a271a;
+
+  /* Success */
+  --color-success: #12b76a;
+  --color-success-50: #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-500: #12b76a;
+  --color-success-700: #027a48;
+
+  /* Warning */
+  --color-warning: #f79009;
+  --color-warning-50: #fffaeb;
+  --color-warning-100: #fef0c7;
+  --color-warning-500: #f79009;
+  --color-warning-700: #b54708;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
