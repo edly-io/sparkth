@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Send, Paperclip, Bot } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Send, Paperclip } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 export default function ChatInterface() {
   const [message, setMessage] = useState("");
