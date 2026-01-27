@@ -1,95 +1,242 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Send, Paperclip, Bot } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ChatHeader } from "./components/ChatHeader";
+import { ChatMessages } from "./components/messages/ChatMessages";
+import { ChatInput } from "./components/input/ChatInput";
+import { ChatMessage, TextAttachment } from "./types";
+import { Preview } from "./components/attachment/Preview";
+import { loadPrompt } from "@/lib/prompt";
+
+type ConversationStep =
+  | "idle"
+  | "prompt_generated"
+  | "audience_question"
+  | "learning_outcomes_question"
+  | "outline_review"
+  | "course_generated"
+  | "publish_course";
 
 export default function ChatInterface() {
-  const [message, setMessage] = useState("");
+  const [step, setStep] = useState<ConversationStep>("idle");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(
+    null,
+  );
+  const [previewAttachment, setPreviewAttachment] =
+    useState<TextAttachment | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "Hi! I'm your AI course creation assistant. What would you like to create today?",
+    },
+  ]);
+
+  const [COURSE_PROMPT, setCoursePrompt] = useState("");
+  const [COURSE_OUTLINE, setCourseOutline] = useState("");
+  const [FINAL_COURSE, setFinalCourse] = useState("");
+
+  useEffect(() => {
+    async function loadAll() {
+      const [prompt, outline, course] = await Promise.all([
+        loadPrompt("/content/course_prompt.txt"),
+        loadPrompt("/content/outline.txt"),
+        loadPrompt("/content/final_course.txt"),
+      ]);
+
+      setCoursePrompt(prompt);
+      setCourseOutline(outline);
+      setFinalCourse(course);
+    }
+    loadAll();
+  }, []);
+
+  const streamMessage = async (id: string, fullText: string) => {
+    for (let i = 0; i <= fullText.length; i++) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === id
+            ? {
+                ...msg,
+                streamedContent: fullText.slice(0, i),
+                isTyping: i < fullText.length,
+              }
+            : msg,
+        ),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  };
+
+  const handleSend = async ({
+    message,
+    attachment,
+  }: {
+    message: string;
+    attachment: TextAttachment | null;
+  }) => {
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: message || "Uploaded a document",
+      attachment,
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    /* ===========================
+     FLOW CONTROLLER
+  ============================ */
+
+    // STEP 1: User uploads document + asks to create course
+    if (step === "idle" && attachment) {
+      setStep("prompt_generated");
+
+      await addAssistantMessage(
+        "I'll help you create a course based on this Data Science and AI handbook. Let me start by extracting the key information and generating a course structure.",
+        {
+          pillAttachment: {
+            name: "Course Generation Prompt",
+            size: COURSE_PROMPT.length,
+            text: COURSE_PROMPT,
+          },
+        },
+      );
+
+      await addAssistantMessage(
+        "Great! I have the course generation prompt. Now let me ask you some important questions to tailor this course effectively:\n\n\nStep 1: Understanding Your Audience & Goals\n\nWhat is the background of your target learners?\n\nFor example:\n\n",
+        {
+          options: [
+            "They are complete beginners to data science",
+            "They have some programming experience",
+            "They are IT professionals looking to transition into data science",
+            "They are students, working professionals, or both",
+          ],
+        },
+      );
+
+      setStep("audience_question");
+      return;
+    }
+
+    // STEP 2: Audience selected (ignore actual text)
+    if (step === "audience_question") {
+      setStep("learning_outcomes_question");
+
+      await addAssistantMessage(
+        "Thank you! Now for the second question, what should learners be able to know and do after completing this course?",
+        {
+          options: [
+            "Understand the basic concepts and terminology of data science and AI",
+            "Set up a simple data science environment",
+            "Work with data teams and understand different roles",
+            "Make informed decisions about data infrastructure",
+            "Understand when and how to use different AI/ML techniques",
+          ],
+        },
+      );
+
+      return;
+    }
+
+    // STEP 3: Learning outcomes answered
+    if (step === "learning_outcomes_question") {
+      setStep("outline_review");
+
+      await addAssistantMessage(
+        "Perfect! Here's an outline for a 1-2 hour introductory course. Does this work for you? Should I proceed with developing the full course content based on this structure?",
+        {
+          pillAttachment: {
+            name: "Course Outline",
+            size: COURSE_OUTLINE.length,
+            text: COURSE_OUTLINE,
+          },
+          options: ["Approve outline", "Improve outline"],
+        },
+      );
+
+      return;
+    }
+
+    // STEP 4: Outline approved
+    if (step === "outline_review" && message.includes("Approve")) {
+      setStep("course_generated");
+
+      await addAssistantMessage(
+        "Great! Here is the complete course based on the approved outline.",
+        {
+          pillAttachment: {
+            name: "Generated Course",
+            size: FINAL_COURSE.length,
+            text: FINAL_COURSE,
+          },
+          options: ["Publish on Open edX"],
+        },
+      );
+
+      return;
+    }
+
+    // STEP 5: Publish course
+    if (step === "course_generated") {
+      setStep("publish_course");
+
+      await addAssistantMessage(
+        "Finally! I'll go ahead and publish this course to Open edX. You can now access your course at: https://sandbox.openedx.edly.io/courses/course-v1:DataScienceOrg+DSAI101+2026",
+      );
+
+      return;
+    }
+  };
+
+  const addAssistantMessage = async (
+    text: string,
+    extras?: Partial<ChatMessage>,
+  ) => {
+    const msg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: "",
+      streamedContent: "",
+      isTyping: true,
+      ...extras,
+    };
+
+    setMessages((prev) => [...prev, msg]);
+    await new Promise((r) => setTimeout(r, 20));
+    await streamMessage(msg.id, text);
+  };
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
-      <div className="border-b border-border px-3 sm:px-6 py-2 sm:py-4 min-h-[57px]">
-        <div className="flex items-center gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              AI Course Creator
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Transform your resources into courses with AI
-            </p>
-          </div>
-        </div>
-      </div>
+      <ChatHeader />
+      <ChatMessages
+        messages={messages}
+        setPreviewOpen={setPreviewOpen}
+        setPreviewAttachment={setPreviewAttachment}
+        onSend={handleSend}
+      />
+      <ChatInput
+        attachment={inputAttachment}
+        setAttachment={setInputAttachment}
+        setPreviewOpen={setPreviewOpen}
+        setPreviewAttachment={setPreviewAttachment}
+        onSend={handleSend}
+      />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="mx-auto">
-          <div className="flex gap-3 sm:gap-4">
-            <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
-              <span className="text-sm">
-                <Bot className="w-4 h-4" />
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <Card variant="outlined" className="p-3 sm:p-4">
-                <p className="text-foreground">
-                  Hi! I am your AI course creation assistant. I can help you
-                  transform your resources into engaging courses. What would you
-                  like to create today?
-                </p>
-                <div className="mt-4 flex flex-col sm:flex-row sm:flex-wrap gap-2">
-                  <Button variant="ghost" size="sm" className="bg-surface-variant hover:bg-neutral-200 dark:hover:bg-neutral-700 text-muted-foreground min-h-[44px] text-left justify-start">
-                    Create a course from my course materials folder
-                  </Button>
-                  <Button variant="ghost" size="sm" className="bg-surface-variant hover:bg-neutral-200 dark:hover:bg-neutral-700 text-muted-foreground min-h-[44px] text-left justify-start">
-                    Generate a quiz from my document
-                  </Button>
-                  <Button variant="ghost" size="sm" className="bg-surface-variant hover:bg-neutral-200 dark:hover:bg-neutral-700 text-muted-foreground min-h-[44px] text-left justify-start">
-                    Build a module about AI fundamentals
-                  </Button>
-                  <Button variant="ghost" size="sm" className="bg-surface-variant hover:bg-neutral-200 dark:hover:bg-neutral-700 text-muted-foreground min-h-[44px] text-left justify-start">
-                    Convert my video into a structured lesson
-                  </Button>
-                </div>
-              </Card>
-              <p className="text-xs mt-2 text-muted-foreground">
-                {new Date().toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                  second: "2-digit",
-                  hour12: true,
-                })}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <Card
-        variant="filled"
-        className="border-t border-border rounded-none p-3 sm:p-4"
-      >
-        <div className="mx-auto">
-          <div className="relative">
-            <Button variant="ghost" size="icon" className="absolute left-2 top-1/2 -translate-y-1/2">
-              <Paperclip className="w-5 h-5 text-muted-foreground" />
-            </Button>
-
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Describe the course you want to create..."
-              rows={1}
-              className="w-full pl-14 pr-14 py-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-ring bg-input text-foreground placeholder-muted transition-colors"
-            />
-
-            <Button variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2">
-              <Send className="w-5 h-5 text-muted-foreground" />
-            </Button>
-          </div>
-        </div>
-      </Card>
+      {previewOpen && previewAttachment && (
+        <Preview
+          attachment={previewAttachment}
+          onClose={() => {
+            setPreviewOpen(false);
+            setPreviewAttachment(null);
+          }}
+        />
+      )}
     </div>
   );
 }
