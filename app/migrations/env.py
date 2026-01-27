@@ -1,3 +1,4 @@
+import asyncio
 import os
 from logging.config import fileConfig
 
@@ -24,7 +25,9 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 def import_plugin_models():
     """Import models from all enabled plugins for Alembic to discover."""
     plugin_manager = get_plugin_manager()
-    loaded_plugins = plugin_manager.load_all_enabled()
+    loaded_plugins = asyncio.run(
+        plugin_manager.load_all_enabled()
+    )
     
     # Get models from each plugin
     for plugin_name, plugin in loaded_plugins.items():
