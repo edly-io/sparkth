@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sparkth",
+  title: "Compose",
   description: "Sparkth Application",
 };
 
