@@ -1,0 +1,66 @@
+import { Bot } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { ChatMessage, TextAttachment } from "../../types";
+import { Pill } from "../attachment/Pill";
+
+interface AssistantMessageProps {
+  message: ChatMessage;
+  setPreviewOpen: (open: boolean) => void;
+  setPreviewAttachment: (attachment: TextAttachment | null) => void;
+  onOptionClick: (text: string) => void;
+}
+
+export function AssistantMessage({
+  message,
+  setPreviewOpen,
+  setPreviewAttachment,
+  onOptionClick,
+}: AssistantMessageProps) {
+  const displayText = message.streamedContent ?? message.content;
+
+  const openPreview = () => {
+    if (!message.pillAttachment) {
+      console.log("no attachment");
+      return;
+    }
+    setPreviewAttachment(message.pillAttachment);
+    setPreviewOpen(true);
+  };
+
+  return (
+    <div className="flex gap-4">
+      <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
+        <Bot className="w-4 h-4" />
+      </div>
+
+      <div className="flex-1 max-w-[75%] space-y-2">
+        <Card variant="outlined" className="p-4">
+          <p className="text-foreground whitespace-pre-wrap">{displayText}</p>
+
+          {/* Assistant pill */}
+          {!message.isTyping && (
+            <Pill
+              attachment={message.pillAttachment ?? null}
+              onOpen={openPreview}
+            />
+          )}
+
+          {/* Options */}
+          {!message.isTyping && message.options && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {message.options.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => onOptionClick(opt)}
+                  className="px-4 py-2 bg-surface-variant hover:bg-neutral-200 hover:cursor-pointer dark:hover:bg-neutral-700 rounded-lg text-sm"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
