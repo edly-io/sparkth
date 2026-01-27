@@ -4,7 +4,6 @@ Plugin Manager for Sparkth.
 Manages plugin discovery, loading, and lifecycle based on configuration.
 """
 
-import asyncio
 import importlib
 import inspect
 import re
@@ -142,7 +141,7 @@ class PluginManager:
         name = re.sub("([a-z0-9])([A-Z])", r"\1-\2", class_name)
         return name.lower()
 
-    def load_plugin(self, plugin_name: str) -> SparkthPlugin:
+    async def load_plugin(self, plugin_name: str) -> SparkthPlugin:
         """
         Load and instantiate a plugin.
 
@@ -179,16 +178,13 @@ class PluginManager:
 
             plugin_service = PluginService()
 
-            async def _create_plugin_record() -> None:
-                async with AsyncSession(async_engine, expire_on_commit=False) as session:
-                    await plugin_service.get_or_create(
-                        session,
-                        plugin_name,
-                        plugin_instance.is_core,
-                        plugin_instance.get_config_schema(),
-                    )
-
-            asyncio.run(_create_plugin_record())
+            async with AsyncSession(async_engine, expire_on_commit=False) as session:
+                await plugin_service.get_or_create(
+                    session,
+                    plugin_name,
+                    plugin_instance.is_core,
+                    plugin_instance.get_config_schema(),
+                )
 
             return plugin_instance
 
@@ -286,7 +282,7 @@ class PluginManager:
         """
         return plugin_name in self._loaded_plugins
 
-    def load_all_enabled(self) -> Dict[str, SparkthPlugin]:
+    async def load_all_enabled(self) -> Dict[str, SparkthPlugin]:
         """
         Load all plugins from configuration.
         All plugins in get_plugin_settings() are enabled by default.
@@ -303,7 +299,7 @@ class PluginManager:
 
         for plugin_name in available_plugins:
             try:
-                plugin = self.load_plugin(plugin_name)
+                plugin = await self.load_plugin(plugin_name)
                 loaded[plugin_name] = plugin
             except Exception as e:
                 logger.error(f"Failed to load plugin '{plugin_name}': {e}")

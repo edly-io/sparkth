@@ -39,7 +39,7 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     """
     plugin_manager = get_plugin_manager()
     try:
-        loaded_plugins = plugin_manager.load_all_enabled()
+        loaded_plugins = await plugin_manager.load_all_enabled()
         if loaded_plugins:
             logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins.keys())}")
 
