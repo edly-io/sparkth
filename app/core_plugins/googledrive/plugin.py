@@ -12,7 +12,7 @@ class GoogleDrivePlugin(SparkthPlugin):
     Authentication is handled via OAuth 2.0.
     """
 
-    def __init__(self, name: str = "googledrive"):
+    def __init__(self, name: str = "google-drive"):
         super().__init__(
             name=name,
             config_schema=GoogleDriveConfig,
