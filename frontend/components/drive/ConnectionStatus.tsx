@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 import {
   getAuthorizationUrl,
   disconnectGoogle,
@@ -53,15 +54,7 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
     <div className="bg-white rounded-lg shadow-sm p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <div className="flex-shrink-0">
-            <svg
-              className="h-10 w-10 text-blue-500"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M4.433 22.576l4.068-7.045H.065l4.368 7.045zm15.134 0l4.368-7.045h-8.436l4.068 7.045zM12 1.424L4.433 14.47h15.134L12 1.424z" />
-            </svg>
-          </div>
+          <GoogleDriveIcon className="h-10 w-10 flex-shrink-0" />
           <div>
             <h3 className="text-lg font-medium text-gray-900">Google Drive</h3>
             {status?.connected ? (
