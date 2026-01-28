@@ -55,7 +55,7 @@ async def test_create_user(client: AsyncClient) -> None:
     data = response.json()
     assert data["email"] == email
     assert data["username"] == username
-    assert "id" in data
+    assert "uuid" in data
     assert "hashed_password" not in data
 
 
