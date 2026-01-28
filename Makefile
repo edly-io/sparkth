@@ -74,16 +74,16 @@ reset-password: ## Reset password (make reset-password -- username)
 # Frontend
 # --------------------------------------------------
 frontend: ## Run frontend dev server (hot reload)
-	cd frontend && npm install && npm run dev
+	cd frontend && bun install && bun run dev
 
 frontend.build: ## Build frontend (static export to frontend/out)
-	cd frontend && npm ci && npm run build
+	cd frontend && bun install --frozen-lockfile && bun run build
 
 frontend.lint: ## Lint frontend code
-	cd frontend && npm run lint
+	cd frontend && bun run lint
 
 frontend.fix: ## Auto-fix frontend lint errors
-	cd frontend && npm run lint:fix
+	cd frontend && bun run lint:fix
 
 # --------------------------------------------------
 # Local Development (using uv)
