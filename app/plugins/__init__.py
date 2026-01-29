@@ -14,6 +14,7 @@ Provides a flexible, OOP-based plugin architecture with:
 from typing import Optional
 
 from app.core_plugins.canvas.config import CanvasConfig
+from app.core_plugins.chat.config import ChatConfig
 from app.core_plugins.openedx.config import OpenEdxConfig
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
@@ -61,4 +62,8 @@ __all__ = [
 ]
 
 
-PLUGIN_CONFIG_CLASSES = {"canvas": CanvasConfig, "open-edx": OpenEdxConfig}
+PLUGIN_CONFIG_CLASSES = {
+    "canvas": CanvasConfig,
+    "open-edx": OpenEdxConfig,
+    "chat": ChatConfig,
+}

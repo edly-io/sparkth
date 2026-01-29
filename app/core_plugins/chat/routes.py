@@ -1,0 +1,506 @@
+import json
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from sqlmodel import func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.api.v1.auth import get_current_user
+from app.core.db import get_async_session
+from app.core.logger import get_logger
+from app.core_plugins.chat.cache import get_cache_service
+from app.core_plugins.chat.config import ChatConfig
+from app.core_plugins.chat.encryption import get_encryption_service
+from app.core_plugins.chat.models import Message, ProviderAPIKey
+from app.core_plugins.chat.providers import get_provider
+from app.core_plugins.chat.schemas import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+    ConversationDetailResponse,
+    ConversationListResponse,
+    ConversationResponse,
+    MessageResponse,
+    ProviderAPIKeyCreate,
+    ProviderAPIKeyListResponse,
+    ProviderAPIKeyResponse,
+    ToolListResponse,
+    ToolSchema,
+)
+from app.core_plugins.chat.service import ChatService
+from app.core_plugins.chat.tools import get_tool_registry
+from app.models.user import User
+
+logger = get_logger(__name__)
+
+router = APIRouter(prefix="/chat", tags=["Chat"])
+
+
+def get_chat_config() -> ChatConfig:
+    """Dependency to get chat configuration from environment variables."""
+    return ChatConfig()
+
+
+def get_chat_service(config: ChatConfig = Depends(get_chat_config)) -> ChatService:
+    """Dependency to get chat service with encryption and cache."""
+    encryption = get_encryption_service(config.encryption_key)
+    cache = get_cache_service(config.redis_url, config.redis_key_ttl)
+    return ChatService(encryption, cache)
+
+
+@router.post("/keys", response_model=ProviderAPIKeyResponse, status_code=status.HTTP_201_CREATED)
+async def create_api_key(
+    key_data: ProviderAPIKeyCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> ProviderAPIKeyResponse:
+    try:
+        db_key = await service.create_api_key(
+            session=session,
+            user_id=current_user.id,  # type: ignore
+            provider=key_data.provider,
+            api_key=key_data.api_key,
+        )
+
+        return ProviderAPIKeyResponse(
+            id=db_key.id,  # type: ignore
+            provider=db_key.provider,
+            is_active=db_key.is_active,
+            created_at=db_key.created_at,
+            last_used_at=db_key.last_used_at,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create API key: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create API key: {str(e)}",
+        )
+
+
+@router.get("/keys", response_model=ProviderAPIKeyListResponse)
+async def list_api_keys(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> ProviderAPIKeyListResponse:
+    keys = await service.list_api_keys(session, current_user.id)  # type: ignore
+
+    return ProviderAPIKeyListResponse(
+        keys=[
+            ProviderAPIKeyResponse(
+                id=key.id,  # type: ignore
+                provider=key.provider,
+                is_active=key.is_active,
+                created_at=key.created_at,
+                last_used_at=key.last_used_at,
+            )
+            for key in keys
+        ],
+        total=len(keys),
+    )
+
+
+@router.get("/keys/{key_id}", response_model=dict)
+async def get_api_key(
+    key_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> Any:
+    """Get a specific API key with decrypted value."""
+    result = await session.exec(
+        select(ProviderAPIKey)
+        .where(ProviderAPIKey.id == key_id)
+        .where(ProviderAPIKey.user_id == current_user.id)
+        .where(ProviderAPIKey.deleted_at.is_(None))
+    )
+    key = result.first()
+
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+
+    decrypted_key = service.encryption.decrypt(key.encrypted_key)
+
+    return {
+        "id": key.id,
+        "provider": key.provider,
+        "api_key": decrypted_key,
+        "is_active": key.is_active,
+        "created_at": key.created_at,
+        "last_used_at": key.last_used_at,
+    }
+
+
+@router.put("/keys/{key_id}", response_model=ProviderAPIKeyResponse)
+async def update_api_key(
+    key_id: int,
+    key_update: ProviderAPIKeyCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> Any:
+    """Update an existing API key."""
+    result = await session.exec(
+        select(ProviderAPIKey)
+        .where(ProviderAPIKey.id == key_id)
+        .where(ProviderAPIKey.user_id == current_user.id)
+        .where(ProviderAPIKey.deleted_at.is_(None))
+    )
+    key = result.first()
+
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+
+    if key.provider != key_update.provider:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change provider for existing key. Delete and create a new one instead.",
+        )
+
+    encrypted_key = service.encryption.encrypt(key_update.api_key)
+    key.encrypted_key = encrypted_key
+    key.update_timestamp()
+
+    session.add(key)
+    await session.commit()
+    await session.refresh(key)
+
+    cache_key = service.cache.make_key("api_key", str(current_user.id), key.provider)
+    await service.cache.set(cache_key, key_update.api_key)
+
+    logger.info(f"Updated API key {key_id} for user {current_user.id}")
+
+    return ProviderAPIKeyResponse(
+        id=key.id,  # type: ignore
+        provider=key.provider,
+        is_active=key.is_active,
+        created_at=key.created_at,
+        last_used_at=key.last_used_at,
+    )
+
+
+@router.delete("/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_key(
+    key_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> None:
+    deleted = await service.delete_api_key(
+        session=session,
+        user_id=current_user.id,  # type: ignore
+        key_id=key_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key not found",
+        )
+
+
+@router.post("/completions", response_model=ChatCompletionResponse)
+async def chat_completion(
+    request: ChatCompletionRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> Any:
+    api_key = await service.get_api_key(
+        session=session,
+        user_id=current_user.id,  # type: ignore
+        provider=request.provider,
+    )
+
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No API key found for provider: {request.provider}",
+        )
+
+    conversation_id = request.conversation_id
+    
+    if conversation_id:
+        conversation = await service.get_conversation(
+            session=session,
+            conversation_id=conversation_id,
+            user_id=current_user.id,  # type: ignore
+        )
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation {conversation_id} not found",
+            )
+    else:
+        stmt = select(ProviderAPIKey).where(
+            ProviderAPIKey.user_id == current_user.id,
+            ProviderAPIKey.provider == request.provider,
+            ProviderAPIKey.is_active == True,  # noqa: E712
+            ProviderAPIKey.deleted_at.is_(None),
+        )
+        result = await session.exec(stmt)
+        api_key_record = result.first()
+        
+        if not api_key_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No active API key found for provider: {request.provider}",
+            )
+
+        conversation = await service.create_conversation(
+            session=session,
+            user_id=current_user.id,  # type: ignore
+            api_key_id=api_key_record.id,  # type: ignore
+            provider=request.provider,
+            model=request.model,
+        )
+
+    for msg in request.messages:
+        if msg.role == "user":
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,  # type: ignore
+                role=msg.role,
+                content=msg.content,
+            )
+
+    try:
+        provider = get_provider(
+            provider_name=request.provider,
+            api_key=api_key,
+            model=request.model,
+            temperature=request.temperature,
+        )
+
+        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        
+        tool_registry = get_tool_registry()
+        tools = None
+        
+        # Handle tools parameter (default is "*" which means all tools)
+        if request.tools == "none" or request.tools == []:
+            logger.info("Tools explicitly disabled")
+            tools = None
+        elif request.tools == "*" or request.tools == "all":
+            tools = tool_registry.get_all_tools()
+            logger.info(f"Auto-including all {len(tools)} available tools (default)")
+        elif request.tools and isinstance(request.tools, list):
+            tools = tool_registry.get_tools_by_names(request.tools)
+            if not tools:
+                logger.warning(f"No tools found for: {request.tools}")
+        
+        # Add system message with tool descriptions
+        if tools and request.include_system_tools_message:
+            tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
+            tool_list_message = (
+                "You have access to the following tools:\n" + 
+                "\n".join(tool_descriptions)
+            )
+            messages.insert(0, {"role": "system", "content": tool_list_message})
+
+        if request.stream:
+            return StreamingResponse(
+                stream_chat_response(
+                    provider=provider,
+                    messages=messages,
+                    conversation_id=conversation.id,  # type: ignore
+                    service=service,
+                    session=session,
+                    tools=tools,
+                ),
+                media_type="text/event-stream",
+            )
+        else:
+            response = await provider.send_message(
+                messages=messages,
+                max_tokens=request.max_tokens,
+                tools=tools,
+            )
+
+            tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
+            tool_calls = response.get("tool_calls")
+            
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,  # type: ignore
+                role="assistant",
+                content=response["content"],
+                tokens_used=tokens_used,
+                metadata=response.get("metadata"),
+            )
+
+            return ChatCompletionResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content=response["content"],
+                ),
+                conversation_id=conversation.id,  # type: ignore
+                model=request.model,
+                provider=request.provider,
+                tokens_used=tokens_used,
+                tool_calls=tool_calls,
+                metadata=response.get("metadata", {}),
+            )
+
+    except Exception as e:
+        logger.error(f"Chat completion failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat completion failed: {str(e)}",
+        )
+
+
+async def stream_chat_response(
+    provider: Any,
+    messages: list[Dict[str, str]],
+    conversation_id: int,
+    service: ChatService,
+    session: AsyncSession,
+    tools: Optional[list[Any]] = None,
+) -> Any:
+    full_response = ""
+    
+    try:
+        async for token in provider.stream_message(messages):
+            full_response += token
+            data = json.dumps({"token": token, "done": False})
+            yield f"data: {data}\n\n"
+
+        await service.add_message(
+            session=session,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=full_response,
+        )
+
+        data = json.dumps({"token": "", "done": True, "conversation_id": conversation_id})
+        yield f"data: {data}\n\n"
+
+    except Exception as e:
+        logger.error(f"Streaming failed: {e}")
+        error_data = json.dumps({"error": str(e), "done": True})
+        yield f"data: {error_data}\n\n"
+
+
+@router.get("/conversations", response_model=ConversationListResponse)
+async def list_conversations(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> ConversationListResponse:
+    conversations, total = await service.list_conversations(
+        session=session,
+        user_id=current_user.id,  # type: ignore
+        limit=limit,
+        offset=offset,
+    )
+
+    conversation_responses = []
+    for conv in conversations:
+        count_stmt = select(func.count(Message.id)).where(Message.conversation_id == conv.id)
+        count_result = await session.exec(count_stmt)
+        message_count = count_result.one()
+
+        conversation_responses.append(
+            ConversationResponse(
+                id=conv.id,  # type: ignore
+                provider=conv.provider,
+                model=conv.model,
+                title=conv.title,
+                total_tokens_used=conv.total_tokens_used,
+                total_cost=conv.total_cost,
+                message_count=message_count,
+                created_at=conv.created_at,
+                updated_at=conv.updated_at,
+            )
+        )
+
+    return ConversationListResponse(
+        conversations=conversation_responses,
+        total=total,
+    )
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
+async def get_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> ConversationDetailResponse:
+    conversation = await service.get_conversation(
+        session=session,
+        conversation_id=conversation_id,
+        user_id=current_user.id,  # type: ignore
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+
+    messages = await service.get_conversation_messages(
+        session=session,
+        conversation_id=conversation_id,
+    )
+
+    message_count = len(messages)
+
+    return ConversationDetailResponse(
+        id=conversation.id,  # type: ignore
+        provider=conversation.provider,
+        model=conversation.model,
+        title=conversation.title,
+        total_tokens_used=conversation.total_tokens_used,
+        total_cost=conversation.total_cost,
+        message_count=message_count,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+        messages=[
+            MessageResponse(
+                id=msg.id,  # type: ignore
+                role=msg.role,
+                content=msg.content,
+                tokens_used=msg.tokens_used,
+                cost=msg.cost,
+                created_at=msg.created_at,
+            )
+            for msg in messages
+        ],
+    )
+
+
+@router.get("/tools", response_model=ToolListResponse)
+async def list_tools(
+    current_user: User = Depends(get_current_user),
+) -> ToolListResponse:
+    """List all available tools from loaded plugins."""
+    tool_registry = get_tool_registry()
+    tools = tool_registry.get_all_tools()
+    
+    tool_schemas = [
+        ToolSchema(
+            name=tool.name,
+            description=tool.description or "",
+            parameters=tool.args_schema.schema() if tool.args_schema else {},
+        )
+        for tool in tools
+    ]
+    
+    return ToolListResponse(
+        tools=tool_schemas,
+        total=len(tool_schemas),
+    )
+
+

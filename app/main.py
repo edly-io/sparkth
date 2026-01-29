@@ -43,6 +43,9 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
         if loaded_plugins:
             logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins.keys())}")
 
+        # Create database records for plugins
+        await plugin_manager.create_plugin_records()
+
         plugin_manager.enable_all_loaded()
 
         for plugin_name, plugin in loaded_plugins.items():
@@ -51,11 +54,7 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
                 if routes:
                     for router in routes:
                         prefix = plugin.get_route_prefix()
-                        tags = plugin.get_route_tags()
-                        tags_param: Union[list[Union[str, Enum]], None] = (
-                            cast(Union[list[Union[str, Enum]], None], tags) if tags else None
-                        )
-                        application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
+                        application.include_router(router, prefix=prefix if prefix else "")
             except Exception as e:
                 logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
 
