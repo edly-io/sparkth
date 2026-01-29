@@ -175,20 +175,8 @@ class PluginManager:
 
             self._loaded_plugins[plugin_name] = plugin_instance
 
-            from app.services.plugin import PluginService
-
-            plugin_service = PluginService()
-
-            async def _create_plugin_record() -> None:
-                async with AsyncSession(async_engine, expire_on_commit=False) as session:
-                    await plugin_service.get_or_create(
-                        session,
-                        plugin_name,
-                        plugin_instance.is_core,
-                        plugin_instance.get_config_schema(),
-                    )
-
-            asyncio.run(_create_plugin_record())
+            # Note: Database record creation is handled separately
+            # to avoid asyncio.run() conflicts with running event loops
 
             return plugin_instance
 
@@ -370,3 +358,25 @@ class PluginManager:
         """
         all_plugins = self.get_available_plugins()
         return [self.get_plugin_info(name) for name in all_plugins]
+
+    async def create_plugin_records(self) -> None:
+        """
+        Create database records for all loaded plugins.
+        
+        Should be called from an async context (e.g., lifespan).
+        """
+        from app.services.plugin import PluginService
+
+        plugin_service = PluginService()
+
+        async with AsyncSession(async_engine, expire_on_commit=False) as session:
+            for plugin_name, plugin_instance in self._loaded_plugins.items():
+                try:
+                    await plugin_service.get_or_create(
+                        session,
+                        plugin_name,
+                        plugin_instance.is_core,
+                        plugin_instance.get_config_schema(),
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create database record for plugin '{plugin_name}': {e}")
