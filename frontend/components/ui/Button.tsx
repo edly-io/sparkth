@@ -1,9 +1,10 @@
-import { ButtonHTMLAttributes, forwardRef } from "react";
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-0 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed",
+  "inline-flex items-center justify-center font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -19,6 +20,7 @@ const buttonVariants = cva(
         sm: "px-3 py-1.5 text-sm rounded-md",
         md: "px-4 py-2.5 text-base rounded-lg",
         lg: "px-6 py-3 text-lg rounded-lg",
+        icon: "h-11 w-11 rounded-lg",
       },
       fullWidth: {
         true: "w-full",
@@ -28,36 +30,38 @@ const buttonVariants = cva(
       variant: "primary",
       size: "md",
     },
-  },
+  }
 );
 
 interface ButtonProps
-  extends
-    ButtonHTMLAttributes<HTMLButtonElement>,
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
   loading?: boolean;
   spinnerLabel?: string;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
       className,
       variant,
       size,
       fullWidth,
+      asChild = false,
       loading,
       spinnerLabel = "Loading",
       children,
       disabled,
       ...props
     },
-    ref,
+    ref
   ) => {
+    const Comp = asChild ? Slot : "button";
     return (
-      <button
+      <Comp
+        className={cn(buttonVariants({ variant, size, fullWidth, className }))}
         ref={ref}
-        className={cn(buttonVariants({ variant, size, fullWidth }), className)}
         disabled={disabled || loading}
         {...props}
       >
@@ -88,9 +92,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ) : (
           children
         )}
-      </button>
+      </Comp>
     );
-  },
+  }
 );
-
 Button.displayName = "Button";
+
+export { Button, buttonVariants };

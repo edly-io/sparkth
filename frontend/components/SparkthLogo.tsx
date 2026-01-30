@@ -1,6 +1,24 @@
 import Image from "next/image";
 
-export function SparkthLogo({ size = 80 }: { size?: number }) {
+interface SparkthLogoProps {
+  size?: number;
+  iconOnly?: boolean;
+}
+
+export function SparkthLogo({ size = 80, iconOnly = false }: SparkthLogoProps) {
+  if (iconOnly) {
+    return (
+      <Image
+        src="/icon.png"
+        alt="Sparkth"
+        width={size}
+        height={size}
+        className="rounded-lg"
+        unoptimized
+      />
+    );
+  }
+
   return (
     <div className="inline-block">
       <div className="flex items-center gap-2">

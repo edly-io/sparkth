@@ -1,28 +1,37 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { X, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { UserPluginState } from "@/lib/plugins";
 import { PluginConfigField } from "./ConfigField";
 import { isUrlKey, isValidUrl } from "./utils";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/Dialog";
 
 interface PluginConfigModalProps {
   plugin: UserPluginState;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSave: (config: Record<string, string>) => Promise<void>;
   onRefresh: () => void;
 }
 
 export function PluginConfigModal({
   plugin,
-  onClose,
+  open,
+  onOpenChange,
   onSave,
   onRefresh,
 }: PluginConfigModalProps) {
   const [configValues, setConfigValues] = useState<Record<string, string>>(
-    plugin.config ?? {},
+    plugin.config ?? {}
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -51,7 +60,7 @@ export function PluginConfigModal({
       setSubmitError(null);
       await onSave(configValues);
       onRefresh();
-      onClose();
+      onOpenChange(false);
     } catch (err) {
       setSubmitError("Failed to save configuration.");
       console.error(String(err));
@@ -61,21 +70,13 @@ export function PluginConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">
-            Configure {plugin.plugin_name}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Configure {plugin.plugin_name}</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto py-4">
           {submitError && (
             <div className="mb-4">
               <Alert severity="error">{submitError}</Alert>
@@ -104,8 +105,8 @@ export function PluginConfigModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-variant">
-          <Button variant="error" onClick={onClose}>
+        <DialogFooter className="gap-3 border-t border-border pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
@@ -117,8 +118,8 @@ export function PluginConfigModal({
             <Save className="w-4 h-4 mr-2" />
             Save Changes
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

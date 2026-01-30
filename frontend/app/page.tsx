@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import SparkthHeader from "@/components/SparkthHeader";
+import { SparkthLogo } from "@/components/SparkthLogo";
 
 export default function Home() {
   const { isAuthenticated, logout } = useAuth();
@@ -25,29 +26,33 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-edly-gray-50">
+    <div className="min-h-screen bg-background transition-colors">
       <SparkthHeader isAuthenticated={false} logout={logout} />
 
-      <main className="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <h1 className="text-4xl font-extrabold text-edly-gray-900 sm:text-5xl md:text-6xl">
-            Welcome to <span className="text-edly-blue-600">Sparkth</span>
+          <div className="flex justify-center mb-8">
+            <SparkthLogo size={120} />
+          </div>
+
+          <h1 className="text-3xl font-extrabold text-foreground sm:text-4xl md:text-5xl lg:text-6xl">
+            Welcome to <span className="text-primary-500">Sparkth</span>
           </h1>
 
-          <p className="mt-3 max-w-md mx-auto text-base text-edly-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-            Get started by creating an account or signing in.
+          <p className="mt-4 max-w-md mx-auto text-base text-muted-foreground sm:text-lg md:mt-6 md:text-xl md:max-w-2xl">
+            Your AI-powered platform for creating engaging educational content. Transform your resources into courses with ease.
           </p>
 
-          <div className="mt-10 flex justify-center gap-4">
+          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4 px-4 sm:px-0">
             <Link
               href="/register"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              className="inline-flex items-center justify-center px-8 py-3 min-h-[48px] border border-transparent text-base font-semibold rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors shadow-sm"
             >
               Get Started
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-edly-gray-700 bg-white hover:bg-edly-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              className="inline-flex items-center justify-center px-8 py-3 min-h-[48px] border border-border text-base font-semibold rounded-lg text-foreground bg-card hover:bg-surface-variant focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
             >
               Sign in
             </Link>

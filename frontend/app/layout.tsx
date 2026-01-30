@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/ThemeContext";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { TooltipProvider } from "@/components/ui/Tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,10 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <div className="absolute top-4 right-4">
-            <ThemeToggle />
-          </div>
-          <AuthProvider>{children}</AuthProvider>
+          <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+            <AuthProvider>{children}</AuthProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

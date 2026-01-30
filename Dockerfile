@@ -1,15 +1,15 @@
 # -------------------
 # Stage 1: Build frontend
 # -------------------
-FROM node:20-slim AS frontend-builder
+FROM oven/bun:1 AS frontend-builder
 
 WORKDIR /frontend
 
-COPY frontend/package*.json ./
-RUN npm ci
+COPY frontend/package.json frontend/bun.lock ./
+RUN bun install --frozen-lockfile
 
 COPY frontend/ ./
-RUN npm run build
+RUN bun run build
 
 # -------------------
 # Stage 2: Build Python dependencies
