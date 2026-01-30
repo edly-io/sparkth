@@ -17,7 +17,7 @@ function MobileHeader() {
   const { toggle } = useSidebar();
 
   return (
-    <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+    <div className="lg:hidden flex items-center justify-between px-2 py-2 border-b border-border bg-card">
       <Button
         variant="ghost"
         size="icon"

@@ -10,7 +10,7 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
-      <div className="border-b border-border px-4 sm:px-6 py-3 sm:py-4 min-h-[57px]">
+      <div className="border-b border-border px-3 sm:px-6 py-2 sm:py-4 min-h-[57px]">
         <div className="flex items-center gap-3">
           <div>
             <h2 className="text-lg font-semibold text-foreground">

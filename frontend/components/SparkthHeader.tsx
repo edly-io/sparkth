@@ -24,12 +24,13 @@ export default function SparkthHeader({
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/">
-              <SparkthLogo size={40} />
+              <SparkthLogo size={80} />
             </Link>
           </div>
 
           {/* Desktop navigation */}
-          <div className="hidden sm:flex items-center space-x-4">
+          <div className="hidden sm:flex items-center gap-3">
+            <ThemeToggle />
             {isAuthenticated ? (
               <Button
                 variant="error"
@@ -58,7 +59,7 @@ export default function SparkthHeader({
           </div>
 
           {/* Mobile menu button */}
-          <div className="flex items-center gap-2 sm:hidden">
+          <div className="flex items-center gap-1 sm:hidden">
             <ThemeToggle />
             <Button
               variant="ghost"

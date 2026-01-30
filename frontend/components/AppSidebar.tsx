@@ -59,11 +59,25 @@ export default function AppSidebar({
   };
 
   const sidebarWidth = variant === "mobile" ? "w-full" : isCollapsed ? "w-16" : "w-64";
+  const isCollapsedDesktop = isCollapsed && variant === "desktop";
+
+  const handleSidebarClick = (e: React.MouseEvent) => {
+    // Only expand if collapsed on desktop and clicking empty area
+    if (isCollapsedDesktop && onToggleCollapse) {
+      // Don't expand if clicking on interactive elements
+      const target = e.target as HTMLElement;
+      if (target.closest('a, button')) return;
+      onToggleCollapse();
+    }
+  };
 
   return (
-    <div className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300`}>
+    <div
+      className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300 ${isCollapsedDesktop ? "cursor-e-resize" : ""}`}
+      onClick={handleSidebarClick}
+    >
       {/* Header - min-h-[57px] matches ChatInterface header height */}
-      <div className={`flex items-center min-h-[57px] px-4 border-b border-border ${isCollapsed && variant === "desktop" ? "justify-center px-2" : "justify-between"}`}>
+      <div className={`flex mb-4 items-center min-h-[57px] border-border overflow-hidden ${variant === "mobile" ? "px-2 justify-between" : "px-2 justify-between"}`}>
         {variant === "mobile" ? (
           <>
             <SparkthLogo size={32} iconOnly />
@@ -78,9 +92,8 @@ export default function AppSidebar({
           </>
         ) : (
           <>
-            {!isCollapsed && <SparkthLogo size={32} iconOnly />}
-            {onToggleCollapse && (
-              isCollapsed ? (
+            {isCollapsed ? (
+              onToggleCollapse && (
                 <Tooltip>
                   <TooltipTrigger>
                     <Button
@@ -88,35 +101,43 @@ export default function AppSidebar({
                       size="icon"
                       onClick={onToggleCollapse}
                       aria-label="Open sidebar"
-                      className="group relative"
+                      className="group relative flex-shrink-0"
                     >
-                      <span className="group-hover:opacity-0 transition-opacity absolute inset-0 flex items-center justify-center">
-                        <SparkthLogo size={28} iconOnly />
+                      <span className="group-hover:opacity-0 transition-opacity duration-200 absolute inset-0 flex items-center justify-center">
+                        <SparkthLogo size={32} iconOnly />
                       </span>
-                      <PanelLeft className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <PanelLeft className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right" sideOffset={8}>
                     Open sidebar
                   </TooltipContent>
                 </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={onToggleCollapse}
-                      aria-label="Close sidebar"
-                    >
-                      <PanelLeftClose className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" sideOffset={8}>
-                    Close sidebar
-                  </TooltipContent>
-                </Tooltip>
               )
+            ) : (
+              <>
+                <div className="ml-2">
+                  <SparkthLogo size={32} iconOnly />
+                </div>
+                {onToggleCollapse && (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onToggleCollapse}
+                        aria-label="Close sidebar"
+                        className="flex-shrink-0"
+                      >
+                        <PanelLeftClose className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" sideOffset={8}>
+                      Close sidebar
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </>
             )}
           </>
         )}
