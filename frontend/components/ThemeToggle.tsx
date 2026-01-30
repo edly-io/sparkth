@@ -1,22 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "@/lib/ThemeContext";
 import { Button } from "@/components/ui/Button";
 import { Moon, Sun } from "lucide-react";
 
-export function ThemeToggle() {
-  const [mounted, setMounted] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+const emptySubscribe = () => () => {};
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+function useHasMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
+
+export function ThemeToggle() {
+  const mounted = useHasMounted();
+  const { theme, toggleTheme } = useTheme();
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="sm" className="w-9 h-9">
-        <span className="sr-only">Toggle theme</span>
+      <Button variant="ghost" size="sm" className="w-9 h-9" disabled>
+        <span className="w-4 h-4" />
       </Button>
     );
   }
