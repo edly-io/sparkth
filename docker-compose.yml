@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:7727:7727"
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
       PORT: "7727"

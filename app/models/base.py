@@ -3,6 +3,11 @@ from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel
 
 
+def utc_now() -> datetime:
+    """Return the current UTC datetime."""
+    return datetime.now(timezone.utc)
+
+
 class TimestampedModel(SQLModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), nullable=False)

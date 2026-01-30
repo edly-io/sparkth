@@ -12,7 +12,12 @@ class Settings(BaseSettings):
     # 60 minutes * 24 hours * 8 days = 11520 minutes
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_DIR: Path = Path("frontend/out")
-    REGISTRATION_ENABLED: bool = False
+    REGISTRATION_ENABLED: bool = True
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
 
 
 @lru_cache
@@ -27,6 +32,7 @@ PLUGINS = [
     "app.core_plugins.canvas.plugin:CanvasPlugin",
     "app.core_plugins.openedx.plugin:OpenEdxPlugin",
     "app.core_plugins.chat_interface.plugin:ChatInterface",
+    "app.core_plugins.googledrive.plugin:GoogleDrivePlugin",
 ]
 
 
