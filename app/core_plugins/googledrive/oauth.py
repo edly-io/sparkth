@@ -1,7 +1,7 @@
 """OAuth 2.0 flow handlers for Google Drive authentication."""
 
 import os
-from datetime import datetime, timezone
+from datetime import timedelta
 from typing import Any, Optional
 from urllib.parse import urlencode
 
@@ -10,6 +10,7 @@ from itsdangerous import URLSafeSerializer
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
+from app.models.base import utc_now
 from app.models.drive import DriveOAuthToken
 
 # Google OAuth endpoints
@@ -206,15 +207,16 @@ def save_tokens(
     Returns:
         The created or updated DriveOAuthToken.
     """
-    token_expiry = datetime.now(timezone.utc).replace(microsecond=0) + __import__("datetime").timedelta(
-        seconds=expires_in
-    )
+    token_expiry = utc_now() + timedelta(seconds=expires_in)
 
-    # Check if token record exists
-    statement = select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id, DriveOAuthToken.is_deleted == False)
+    # Check if token record exists (including soft-deleted ones due to unique constraint)
+    statement = select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id)
     existing = session.exec(statement).first()
 
     if existing:
+        # Restore if soft-deleted
+        if existing.is_deleted:
+            existing.restore()
         existing.access_token_encrypted = encrypt_token(access_token)
         existing.refresh_token_encrypted = encrypt_token(refresh_token)
         existing.token_expiry = token_expiry
@@ -263,8 +265,8 @@ async def get_valid_access_token(session: Session, user_id: int) -> str:
         raise ValueError("Google Drive not connected")
 
     # Check if token is expired (with 5 minute buffer)
-    now = datetime.now(timezone.utc)
-    buffer = __import__("datetime").timedelta(minutes=5)
+    now = utc_now()
+    buffer = timedelta(minutes=5)
 
     if token_record.token_expiry <= now + buffer:
         # Refresh the token
