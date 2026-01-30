@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Sliders } from "lucide-react";
 import { getPlugin, UserPluginState } from "@/lib/plugins";
 import { PluginConfigModal } from "./ConfigModal";
+import { Button } from "@/components/ui/Button";
+import { Switch } from "@/components/ui/Switch";
 
 interface PluginListItemProps {
   plugin: UserPluginState;
@@ -76,44 +78,33 @@ export default function PluginListItem({
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleToggle}
+            <Switch
+              checked={plugin.enabled}
+              onCheckedChange={handleToggle}
               disabled={isToggling}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 disabled:opacity-50 enabled:hover:cursor-pointer ${
-                plugin.enabled
-                  ? "bg-primary-600"
-                  : "bg-neutral-300 dark:bg-neutral-600"
-              }`}
-              role="switch"
-              aria-checked={plugin.enabled}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  plugin.enabled ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
+            />
 
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowConfigModal(true)}
               disabled={!plugin.enabled}
-              className="p-2 text-primary-600 dark:text-primary-400 enabled:hover:bg-surface-variant rounded-lg transition-colors enabled:hover:cursor-pointer disabled:text-muted disabled:opacity-50"
+              className="p-2 text-primary-600 dark:text-primary-400"
               title="Configure plugin"
             >
               <Sliders className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
-      {showConfigModal && (
-        <PluginConfigModal
-          plugin={plugin}
-          onClose={() => setShowConfigModal(false)}
-          onSave={onConfigChange}
-          onRefresh={onRefresh}
-        />
-      )}
+      <PluginConfigModal
+        plugin={plugin}
+        open={showConfigModal}
+        onOpenChange={setShowConfigModal}
+        onSave={onConfigChange}
+        onRefresh={onRefresh}
+      />
     </>
   );
 }

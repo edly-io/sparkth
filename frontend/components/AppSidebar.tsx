@@ -13,6 +13,7 @@ import { ComponentType, useState } from "react";
 import { useEnabledPlugins } from "@/lib/plugins/context";
 import Image from "next/image";
 import { SparkthLogo } from "./SparkthLogo";
+import { Button } from "@/components/ui/Button";
 
 interface AppSidebarProps {
   user?: {
@@ -83,9 +84,10 @@ export default function AppSidebar({
       </nav>
 
       <div className="p-4 border-t border-border bg-surface-variant relative">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => setShowUserMenu(!showUserMenu)}
-          className="w-full flex items-center gap-3 hover:bg-neutral-200 dark:hover:bg-neutral-700 p-2 -m-2 rounded-lg transition-colors"
+          className="w-full flex items-center gap-3 hover:bg-neutral-200 dark:hover:bg-neutral-700 p-2 -m-2"
         >
           {user?.avatar ? (
             <Image
@@ -111,7 +113,7 @@ export default function AppSidebar({
             </p>
           </div>
           <ChevronDown className="w-4 h-4 text-muted flex-shrink-0" />
-        </button>
+        </Button>
 
         {showUserMenu && (
           <div className="absolute bottom-full left-4 right-4 mb-2 bg-card border border-border rounded-lg shadow-lg py-1">
@@ -134,16 +136,17 @@ export default function AppSidebar({
             {onLogout && (
               <>
                 <div className="border-t border-border my-1" />
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => {
                     setShowUserMenu(false);
                     onLogout();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/30"
+                  className="w-full flex items-center justify-start gap-2 px-3 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/30"
                 >
                   <LogOut className="w-4 h-4" />
                   Logout
-                </button>
+                </Button>
               </>
             )}
           </div>

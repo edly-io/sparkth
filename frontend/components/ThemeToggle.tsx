@@ -1,34 +1,37 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTheme } from "@/lib/ThemeContext";
 import { Button } from "@/components/ui/Button";
 import { Moon, Sun } from "lucide-react";
 
-const themes: Array<"light" | "dark"> = ["light", "dark"];
-const themeIcons = {
-  light: Sun,
-  dark: Moon,
-};
-
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
-  const toggleTheme = () => {
-    const currentIndex = themes.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % themes.length;
-    setTheme(themes[nextIndex]);
-  };
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  const Icon = themeIcons[theme];
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="sm" className="w-9 h-9">
+        <span className="sr-only">Toggle theme</span>
+      </Button>
+    );
+  }
+
+  const Icon = theme === "dark" ? Moon : Sun;
 
   return (
     <Button
       variant="ghost"
       size="sm"
       onClick={toggleTheme}
-      className="transition-colors"
+      className="w-9 h-9"
     >
       <Icon className="w-4 h-4" />
+      <span className="sr-only">Toggle theme</span>
     </Button>
   );
 }
