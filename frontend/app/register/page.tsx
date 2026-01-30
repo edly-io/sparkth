@@ -68,7 +68,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8 transition-colors">
-      <Card variant="elevated" className="max-w-md w-full">
+      <Card variant="elevated" className="max-w-md w-full p-4 sm:p-6">
         <div className="flex justify-center mb-1">
           <SparkthLogo size={96} />
         </div>

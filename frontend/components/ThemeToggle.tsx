@@ -21,8 +21,8 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="sm" className="w-9 h-9" disabled>
-        <span className="w-4 h-4" />
+      <Button variant="ghost" size="icon" disabled>
+        <span className="w-5 h-5" />
       </Button>
     );
   }
@@ -32,11 +32,10 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="icon"
       onClick={toggleTheme}
-      className="w-9 h-9"
     >
-      <Icon className="w-4 h-4" />
+      <Icon className="w-5 h-5" />
       <span className="sr-only">Toggle theme</span>
     </Button>
   );

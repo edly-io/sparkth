@@ -15,13 +15,13 @@ function PluginLoadingFallback({ displayName }: { displayName: string }) {
     <div className="flex items-center justify-center h-full min-h-[400px]">
       <div className="text-center">
         <div className="relative w-16 h-16 mx-auto mb-4">
-          <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+          <div className="absolute inset-0 border-4 border-border rounded-full"></div>
           <div className="absolute inset-0 border-4 border-primary-600 rounded-full border-t-transparent animate-spin"></div>
         </div>
-        <p className="text-edly-gray-600 font-medium">
+        <p className="text-muted-foreground font-medium">
           Loading {displayName}...
         </p>
-        <p className="text-edly-gray-400 text-sm mt-1">Please wait</p>
+        <p className="text-muted text-sm mt-1">Please wait</p>
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ export default function PluginRenderer({
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center">
-          <p className="text-edly-gray-600">
+          <p className="text-muted-foreground">
             Plugin <strong>{pluginName}</strong> not found
           </p>
         </div>
@@ -103,7 +103,7 @@ export default function PluginRenderer({
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center max-w-md">
-          <div className="text-edly-gray-400 mb-4">
+          <div className="text-muted mb-4">
             <svg
               className="w-16 h-16 mx-auto"
               fill="none"
@@ -119,10 +119,10 @@ export default function PluginRenderer({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-edly-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-foreground mb-2">
             Plugin Disabled
           </h3>
-          <p className="text-edly-gray-600">
+          <p className="text-muted-foreground">
             The plugin <strong>{pluginDef.displayName}</strong> is currently
             disabled.
           </p>

@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { TooltipProvider } from "@/components/ui/Tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,10 +32,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <div className="absolute top-4 right-4">
-            <ThemeToggle />
-          </div>
-          <AuthProvider>{children}</AuthProvider>
+          <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+            <div className="hidden lg:block fixed top-3 right-3 sm:top-4 sm:right-4 z-40">
+              <ThemeToggle />
+            </div>
+            <AuthProvider>{children}</AuthProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
