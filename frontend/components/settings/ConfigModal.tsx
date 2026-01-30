@@ -5,6 +5,8 @@ import { X, Save } from "lucide-react";
 import { UserPluginState } from "@/lib/plugins";
 import { PluginConfigField } from "./ConfigField";
 import { isUrlKey, isValidUrl } from "./utils";
+import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 
 interface PluginConfigModalProps {
   plugin: UserPluginState;
@@ -20,7 +22,7 @@ export function PluginConfigModal({
   onRefresh,
 }: PluginConfigModalProps) {
   const [configValues, setConfigValues] = useState<Record<string, string>>(
-    plugin.config ?? {}
+    plugin.config ?? {},
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +54,7 @@ export function PluginConfigModal({
       onClose();
     } catch (err) {
       setSubmitError("Failed to save configuration.");
-      console.log(String(err));
+      console.error(String(err));
     } finally {
       setIsSaving(false);
     }
@@ -60,14 +62,14 @@ export function PluginConfigModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-edly-gray-900">
+      <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">
             Configure {plugin.plugin_name}
           </h2>
           <button
             onClick={onClose}
-            className="text-edly-gray-400 hover:text-edly-gray-600 transition-colors"
+            className="text-muted hover:text-foreground transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -75,8 +77,8 @@ export function PluginConfigModal({
 
         <div className="flex-1 overflow-y-auto p-6">
           {submitError && (
-            <div className="mb-4 rounded-lg border border-edly-red-200 bg-edly-red-50 px-3 py-2 text-sm text-edly-red-700">
-              {submitError}
+            <div className="mb-4">
+              <Alert severity="error">{submitError}</Alert>
             </div>
           )}
 
@@ -96,27 +98,25 @@ export function PluginConfigModal({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-edly-gray-500 italic text-center py-8">
+            <p className="text-sm text-muted-foreground italic text-center py-8">
               No configuration options available
             </p>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-6 border-t bg-edly-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-edly-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-edly-gray-50 transition-colors"
-          >
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-variant">
+          <Button variant="error" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={isSaving || hasErrors}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg enabled:hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            loading={isSaving}
+            spinnerLabel="Saving"
           >
-            <Save className="w-4 h-4" />
-            {isSaving ? "Saving..." : "Save Changes"}
-          </button>
+            <Save className="w-4 h-4 mr-2" />
+            Save Changes
+          </Button>
         </div>
       </div>
     </div>
