@@ -35,7 +35,6 @@ export default function PluginListItem({
       setToggleError(null);
       if (plugin.enabled) await onDisable();
       else await onEnable();
-      onRefresh();
     } catch (err) {
       console.error(String(err));
       setToggleError(
