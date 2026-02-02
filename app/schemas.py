@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
@@ -14,7 +15,7 @@ class UserCreate(UserBase):
 
 
 class User(UserBase):
-    id: int
+    uuid: UUID
     name: str
     username: str
     is_superuser: bool
@@ -35,3 +36,7 @@ class TokenData(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+
+class GoogleAuthUrl(BaseModel):
+    url: str

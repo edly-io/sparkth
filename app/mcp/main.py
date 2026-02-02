@@ -3,7 +3,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 class MCPToolDefinition(BaseModel):
     """Pydantic model for validating MCP tool definitions from plugins."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = Field(..., description="Unique name of the tool")
     handler: Callable[..., Any] = Field(..., description="Callable function that implements the tool")
@@ -37,9 +39,6 @@ class MCPToolDefinition(BaseModel):
             raise ValueError("Tool handler must be callable")
         handler: Callable[..., Any] = v
         return handler
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 def register_plugin_tools() -> None:

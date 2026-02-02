@@ -4,6 +4,11 @@ from sqlalchemy import DateTime
 from sqlmodel import Field, SQLModel
 
 
+def utc_now() -> datetime:
+    """Return the current UTC datetime."""
+    return datetime.now(timezone.utc)
+
+
 class TimestampedModel(SQLModel):
     created_at: datetime = Field(
         sa_type=DateTime(timezone=True),  # type: ignore
