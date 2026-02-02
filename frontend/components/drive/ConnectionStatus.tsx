@@ -19,7 +19,10 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
   const [loading, setLoading] = useState(false);
 
   const handleConnect = async () => {
-    if (!token) return;
+    if (!token) {
+      alert("You must be logged in to connect Google Drive");
+      return;
+    }
 
     setLoading(true);
     try {

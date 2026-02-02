@@ -4,6 +4,7 @@ Google Drive API Endpoints
 Provides OAuth authentication, folder management, and file operations for Google Drive.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -43,6 +44,7 @@ from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 
 router: APIRouter = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # OAuth Endpoints
@@ -67,10 +69,13 @@ async def oauth_callback(
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     """Handle OAuth callback from Google."""
+
     try:
         state_data = decode_state(state)
         user_id = state_data["user_id"]
+        logger.info(f"OAuth callback: decoded state for user_id={user_id}")
     except Exception as e:
+        logger.error(f"OAuth callback: invalid state - {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid state parameter: {e}",
@@ -78,20 +83,30 @@ async def oauth_callback(
 
     try:
         token_data = await exchange_code_for_tokens(code)
+        logger.info(f"OAuth callback: token exchange successful, scopes={token_data.get('scope', 'N/A')}")
     except Exception as e:
+        logger.error(f"OAuth callback: token exchange failed - {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to exchange code for tokens: {e}",
         )
 
-    save_tokens(
-        session,
-        user_id,
-        token_data["access_token"],
-        token_data.get("refresh_token", ""),
-        token_data["expires_in"],
-        token_data.get("scope", ""),
-    )
+    try:
+        save_tokens(
+            session,
+            user_id,
+            token_data["access_token"],
+            token_data.get("refresh_token", ""),
+            token_data["expires_in"],
+            token_data.get("scope", ""),
+        )
+        logger.info(f"OAuth callback: tokens saved for user_id={user_id}")
+    except Exception as e:
+        logger.error(f"OAuth callback: failed to save tokens - {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save tokens: {e}",
+        )
 
     # Redirect back to frontend
     return RedirectResponse(url="/drive?connected=true")
@@ -129,26 +144,35 @@ async def get_connection_status(
     session: Session = Depends(get_session),
 ) -> ConnectionStatusResponse:
     """Check if user has valid Google connection."""
+
     if current_user.id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not authenticated",
         )
 
+    logger.info(f"Checking Google connection status for user_id={current_user.id}")
+
     token_record = get_token_record(session, current_user.id)
     if not token_record:
+        logger.info(f"No token record found for user_id={current_user.id}")
         return ConnectionStatusResponse(connected=False)
+
+    logger.info(f"Token record found for user_id={current_user.id}, expiry={token_record.token_expiry}")
 
     # Try to get user info to verify connection
     try:
         access_token = await get_valid_access_token(session, current_user.id)
+        logger.info(f"Got valid access token for user_id={current_user.id}")
         user_info = await get_user_info(access_token)
+        logger.info(f"Got user info: email={user_info.get('email')}")
         return ConnectionStatusResponse(
             connected=True,
             email=user_info.get("email"),
             expires_at=token_record.token_expiry,
         )
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to verify Google connection for user_id={current_user.id}: {e}")
         return ConnectionStatusResponse(connected=False)
 
 

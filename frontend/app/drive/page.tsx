@@ -26,7 +26,10 @@ function DrivePageContent() {
   const [showFolderPicker, setShowFolderPicker] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const status = await getConnectionStatus(token);

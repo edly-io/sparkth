@@ -268,7 +268,14 @@ async def get_valid_access_token(session: Session, user_id: int) -> str:
     now = utc_now()
     buffer = timedelta(minutes=5)
 
-    if token_record.token_expiry <= now + buffer:
+    # Ensure token_expiry is timezone-aware for comparison
+    token_expiry = token_record.token_expiry
+    if token_expiry.tzinfo is None:
+        from datetime import timezone
+
+        token_expiry = token_expiry.replace(tzinfo=timezone.utc)
+
+    if token_expiry <= now + buffer:
         # Refresh the token
         refresh_token = decrypt_token(token_record.refresh_token_encrypted)
         token_data = await refresh_access_token(refresh_token)

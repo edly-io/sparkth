@@ -100,6 +100,9 @@ class GoogleDriveClient:
         q_parts = ["trashed = false"]
         if folder_id:
             q_parts.append(f"'{folder_id}' in parents")
+        else:
+            # When folder_id is None, filter for root-level items only
+            q_parts.append("'root' in parents")
         if query:
             q_parts.append(query)
 

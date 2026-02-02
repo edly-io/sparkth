@@ -18,7 +18,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
   const { token } = useAuth();
   const [items, setItems] = useState<DriveBrowseItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<BreadcrumbItem[]>([
     { id: undefined, name: "My Drive" },
   ]);
@@ -56,7 +56,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
   const handleSync = async (item: DriveBrowseItem) => {
     if (!token) return;
 
-    setSyncing(true);
+    setSyncingFolderId(item.id);
     try {
       await syncFolder(item.id, token);
       onFolderSynced();
@@ -64,7 +64,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
     } catch (error) {
       alert(`Failed to sync folder: ${error}`);
     } finally {
-      setSyncing(false);
+      setSyncingFolderId(null);
     }
   };
 
@@ -158,10 +158,10 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
                     </button>
                     <button
                       onClick={() => handleSync(item)}
-                      disabled={syncing}
+                      disabled={syncingFolderId !== null}
                       className="ml-4 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
                     >
-                      {syncing ? "Syncing..." : "Sync"}
+                      {syncingFolderId === item.id ? "Syncing..." : "Sync"}
                     </button>
                   </li>
                 ))}
