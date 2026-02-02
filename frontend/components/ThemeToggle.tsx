@@ -1,34 +1,42 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useTheme } from "@/lib/ThemeContext";
 import { Button } from "@/components/ui/Button";
 import { Moon, Sun } from "lucide-react";
 
-const themes: Array<"light" | "dark"> = ["light", "dark"];
-const themeIcons = {
-  light: Sun,
-  dark: Moon,
-};
+const emptySubscribe = () => () => {};
+
+function useHasMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const mounted = useHasMounted();
+  const { theme, toggleTheme } = useTheme();
 
-  const toggleTheme = () => {
-    const currentIndex = themes.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % themes.length;
-    setTheme(themes[nextIndex]);
-  };
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" disabled>
+        <span className="w-5 h-5" />
+      </Button>
+    );
+  }
 
-  const Icon = themeIcons[theme];
+  const Icon = theme === "dark" ? Moon : Sun;
 
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="icon"
       onClick={toggleTheme}
-      className="transition-colors"
     >
-      <Icon className="w-4 h-4" />
+      <Icon className="w-5 h-5" />
+      <span className="sr-only">Toggle theme</span>
     </Button>
   );
 }

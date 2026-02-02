@@ -124,3 +124,116 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* Sheet/Dialog slide animations */
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutToLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes zoomOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+}
+
+/* Overlay animations */
+[data-state="open"].animate-overlay {
+  animation: fadeIn 200ms ease-out;
+}
+
+[data-state="closed"].animate-overlay {
+  animation: fadeOut 200ms ease-in;
+}
+
+/* Sheet animations - left side */
+[data-state="open"].animate-sheet-left {
+  animation: slideInFromLeft 300ms ease-out;
+}
+
+[data-state="closed"].animate-sheet-left {
+  animation: slideOutToLeft 200ms ease-in;
+}
+
+/* Sheet animations - right side */
+[data-state="open"].animate-sheet-right {
+  animation: slideInFromRight 300ms ease-out;
+}
+
+[data-state="closed"].animate-sheet-right {
+  animation: slideOutToRight 200ms ease-in;
+}
+
+/* Dialog animations */
+[data-state="open"].animate-dialog {
+  animation: zoomIn 200ms ease-out;
+}
+
+[data-state="closed"].animate-dialog {
+  animation: zoomOut 150ms ease-in;
+}
