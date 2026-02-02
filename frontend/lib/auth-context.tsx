@@ -9,6 +9,19 @@ import {
   useCallback,
 } from "react";
 
+const TOKEN_KEY = "access_token";
+const EXPIRES_KEY = "expires_at";
+
+export function setAuthTokens(token: string, expiresAt: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(EXPIRES_KEY, expiresAt);
+}
+
+export function clearAuthTokens(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EXPIRES_KEY);
+}
+
 interface User {
   id?: string;
   username?: string;
@@ -33,16 +46,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 function getInitialToken(): string | null {
   if (typeof window === "undefined") return null;
 
-  const storedToken = localStorage.getItem("access_token");
-  const expiresAt = localStorage.getItem("expires_at");
+  const storedToken = localStorage.getItem(TOKEN_KEY);
+  const expiresAt = localStorage.getItem(EXPIRES_KEY);
 
   if (storedToken && expiresAt) {
     const isExpired = new Date(expiresAt) < new Date();
     if (!isExpired) {
       return storedToken;
     }
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("expires_at");
+    clearAuthTokens();
   }
   return null;
 }
@@ -53,14 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const login = (newToken: string, expiresAt: string) => {
-    localStorage.setItem("access_token", newToken);
-    localStorage.setItem("expires_at", expiresAt);
+    setAuthTokens(newToken, expiresAt);
     setToken(newToken);
   };
 
   const logout = useCallback(() => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("expires_at");
+    clearAuthTokens();
     setToken(null);
     setUser(null);
   }, []);

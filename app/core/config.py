@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     FRONTEND_DIR: Path = Path("frontend/out")
     REGISTRATION_ENABLED: bool = False
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+
 
 @lru_cache
 def get_settings() -> Settings:

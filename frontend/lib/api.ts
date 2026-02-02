@@ -26,6 +26,10 @@ export interface RegisterResponse {
   is_superuser: boolean;
 }
 
+export interface GoogleAuthUrlResponse {
+  url: string;
+}
+
 export interface ValidationError {
   loc: (string | number)[];
   msg: string;
@@ -138,6 +142,39 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
       if (e instanceof ApiRequestError) throw e;
       throw new ApiRequestError({
         message: 'Registration failed. Please try again.',
+        fieldErrors: {},
+      });
+    }
+  }
+
+  return response.json();
+}
+
+export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/auth/google/authorize`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+  } catch {
+    throw new ApiRequestError({
+      message: 'Unable to connect to server. Please check your internet connection.',
+      fieldErrors: {},
+    });
+  }
+
+  if (!response.ok) {
+    try {
+      const error: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(error));
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError({
+        message: 'Failed to get Google login URL. Please try again.',
         fieldErrors: {},
       });
     }
