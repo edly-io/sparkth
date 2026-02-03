@@ -310,7 +310,6 @@ class BaseChatProvider(ABC):
         # Build initial message list with system prompt
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
-
         max_iterations = 15
         iteration = 0
 
