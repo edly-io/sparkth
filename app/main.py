@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
+from app.core_plugins.chat.routes import chat_router
 from app.core.config import get_settings
 from app.core_plugins.chat.routes import chat_router
 from app.mcp.main import register_plugin_tools

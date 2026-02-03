@@ -275,7 +275,6 @@ class ToolRegistry:
             types = [t.get("type") for t in json_schema["anyOf"] if t.get("type") and t.get("type") != "null"]
             if types:
                 json_type = types[0]
-
         type_map = {
             "string": str,
             "integer": int,
