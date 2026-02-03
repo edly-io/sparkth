@@ -104,9 +104,11 @@ export function ChatInput({
             </div>
 
             <div className="flex gap-1">
+              {/* TODO: Voice input - disabled for now
               <Button variant="ghost" size="icon">
                 <Mic className="w-5 h-5" />
               </Button>
+              */}
 
               <Button
                 variant="primary"
