@@ -1,4 +1,4 @@
-import { Upload, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/Button";
 
@@ -35,16 +35,16 @@ export function UploadMenu({ onClose, onUploadText }: UploadMenuProps) {
           className="w-full justify-start gap-3 rounded-none"
         >
           <FileText className="w-5 h-5 text-muted-foreground" />
-          <span>Upload as Text</span>
+          <span>Select File</span>
         </Button>
-        <Button
+        {/* <Button
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-3 rounded-none"
         >
           <Upload className="w-5 h-5 text-muted-foreground" />
           <span>Upload to Provider</span>
-        </Button>
+        </Button> */}
       </div>
     </>
   );
