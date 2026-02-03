@@ -480,6 +480,21 @@ class SparkthPlugin(metaclass=PluginMeta):
         Returns:
             JSON Schema type definition
         """
+        # Check if it's a Pydantic BaseModel
+        try:
+            from pydantic import BaseModel
+            if isinstance(py_type, type) and issubclass(py_type, BaseModel):
+                # Get the model's JSON schema
+                model_schema = py_type.model_json_schema()
+                # Remove the title and other metadata, keep only the relevant fields
+                return {
+                    "type": "object",
+                    "properties": model_schema.get("properties", {}),
+                    "required": model_schema.get("required", []),
+                }
+        except (ImportError, TypeError):
+            pass
+
         type_map: Dict[Type[Any], Dict[str, str]] = {
             int: {"type": "integer"},
             float: {"type": "number"},
