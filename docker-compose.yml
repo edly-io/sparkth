@@ -9,11 +9,13 @@ services:
       - "127.0.0.1:7727:7727"
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+      CHAT_REDIS_URL: redis://redis:6379
       PORT: "7727"
     volumes:
       - ./app:/app/app
     depends_on:
       - db
+      - redis
 
   # ----------------------------------------
   # Postgres
@@ -27,6 +29,15 @@ services:
       POSTGRES_DB: sparkth
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  # ----------------------------------------
+  # Redis
+  # ----------------------------------------
+  redis:
+    image: docker.io/redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
 
   # ----------------------------------------
   # Alembic Migrations
@@ -46,3 +57,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
