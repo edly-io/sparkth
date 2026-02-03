@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { TextAttachment } from "../../types";
+import { Button } from "@/components/ui/Button";
 
 export function Preview({
   attachment,
@@ -13,9 +14,9 @@ export function Preview({
       <div className="bg-background w-full max-w-3xl max-h-[80vh] rounded-xl shadow-lg flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-medium">{attachment.name}</h3>
-          <button onClick={onClose} className="hover:cursor-pointer">
-            <X className="w-5 h-5 hover:cursor-pointer" />
-          </button>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </Button>
         </div>
 
         <div className="p-4 overflow-y-auto text-sm whitespace-pre-wrap">

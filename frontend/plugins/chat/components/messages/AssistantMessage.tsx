@@ -1,5 +1,6 @@
 import { Bot } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { ChatMessage, TextAttachment } from "../../types";
 import { Pill } from "../attachment/Pill";
 import ReactMarkdown from "react-markdown";
@@ -57,13 +58,15 @@ export function AssistantMessage({
           {!message.isTyping && message.options && (
             <div className="mt-4 flex flex-wrap gap-2">
               {message.options.map((opt) => (
-                <button
+                <Button
                   key={opt}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onOptionClick(opt)}
-                  className="px-4 py-2 bg-surface-variant hover:bg-neutral-200 hover:cursor-pointer dark:hover:bg-neutral-700 rounded-lg text-sm"
+                  className="bg-surface-variant"
                 >
                   {opt}
-                </button>
+                </Button>
               ))}
             </div>
           )}

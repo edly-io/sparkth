@@ -10,6 +10,7 @@ services:
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
       CHAT_REDIS_URL: redis://redis:6379
+      CHAT_ENCRYPTION_KEY: ${CHAT_ENCRYPTION_KEY}
       PORT: "7727"
     volumes:
       - ./app:/app/app

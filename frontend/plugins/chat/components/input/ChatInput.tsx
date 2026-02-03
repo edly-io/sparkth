@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Paperclip, Mic, ArrowUp, X, FileText } from "lucide-react";
+import { Paperclip, Mic, ArrowUp } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
 import { Pill } from "../attachment/Pill";
+import { Button } from "@/components/ui/Button";
 
 interface ChatInputProps {
   attachment: TextAttachment | null;
@@ -73,6 +74,12 @@ export function ChatInput({
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="Describe the course you want to create..."
             rows={1}
             className="w-full bg-transparent resize-none focus:outline-none"
@@ -80,12 +87,13 @@ export function ChatInput({
 
           <div className="flex justify-between mt-2">
             <div className="relative">
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowUploadMenu((v) => !v)}
-                className="p-2 rounded-lg hover:bg-surface-variant hover:cursor-pointer"
               >
                 <Paperclip className="w-5 h-5" />
-              </button>
+              </Button>
 
               {showUploadMenu && (
                 <UploadMenu
@@ -96,17 +104,19 @@ export function ChatInput({
             </div>
 
             <div className="flex gap-1">
-              <button className="p-2 rounded-lg hover:bg-surface-variant hover:cursor-pointer">
+              <Button variant="ghost" size="icon">
                 <Mic className="w-5 h-5" />
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="primary"
+                size="icon"
                 onClick={handleSend}
                 disabled={!message.trim() && !attachment}
-                className="p-2 rounded-full bg-foreground text-background enabled:hover:cursor-pointer disabled:opacity-50"
+                className="rounded-full bg-foreground text-background"
               >
                 <ArrowUp className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

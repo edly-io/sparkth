@@ -144,7 +144,7 @@ export default function AppSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Loader2 className="w-6 h-6 text-muted animate-spin mb-2" />
@@ -163,12 +163,12 @@ export default function AppSidebar({
               />
             ))}
 
-            <div className="pt-2 mt-2">
+            <div className="pt-3 mt-3">
               <Link
                 href={`${basePath}/settings`}
                 onClick={handleNavClick}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg transition-colors
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
                   ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
                   ${
                     isActiveRoute("settings")
@@ -187,7 +187,7 @@ export default function AppSidebar({
       </nav>
 
       {/* User menu */}
-      <div className={`p-2 border-t border-border bg-surface-variant ${isCollapsed && variant === "desktop" ? "flex justify-center" : ""}`}>
+      <div className={`p-3 border-t border-border ${isCollapsed && variant === "desktop" ? "flex justify-center" : ""}`}>
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -225,10 +225,10 @@ export default function AppSidebar({
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" sideOffset={8} className="w-48">
+          <PopoverContent side="top" align="start" sideOffset={20} className="w-52 p-2">
             <Link
               href="/profile"
-              className="flex items-center gap-2 px-3 py-2.5 min-h-[44px] text-sm text-foreground hover:bg-surface-variant rounded-md"
+              className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
               onClick={handleNavClick}
             >
               <UserIcon className="w-4 h-4 flex-shrink-0" />
@@ -236,7 +236,7 @@ export default function AppSidebar({
             </Link>
             <Link
               href="/dashboard/settings"
-              className="flex items-center gap-2 px-3 py-2.5 min-h-[44px] text-sm text-foreground hover:bg-surface-variant rounded-md"
+              className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
               onClick={handleNavClick}
             >
               <Settings className="w-4 h-4 flex-shrink-0" />
@@ -244,11 +244,11 @@ export default function AppSidebar({
             </Link>
             {onLogout && (
               <>
-                <div className="border-t border-border my-1" />
+                <div className="border-t border-border my-2" />
                 <Button
                   variant="ghost"
                   onClick={onLogout}
-                  className="w-full flex items-center justify-start gap-2 px-3 py-2.5 min-h-[44px] text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/30 rounded-md"
+                  className="w-full flex items-center justify-start gap-3 px-3 py-2 min-h-[40px] text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/30 rounded-lg"
                 >
                   <LogOut className="w-4 h-4 flex-shrink-0" />
                   <span className="truncate">Logout</span>
@@ -289,7 +289,7 @@ function PluginNavItem({
       href={`${basePath}/${plugin.name}`}
       onClick={onClick}
       className={`
-        flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg transition-colors
+        flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
         ${isCollapsed ? "justify-center" : ""}
         ${isActive ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500" : "text-foreground hover:bg-surface-variant"}
       `}
