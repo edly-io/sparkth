@@ -45,7 +45,9 @@ class CourseArgs(BaseModel):
 
 
 class CreateCourseArgs(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course: CourseArgs
 
 
@@ -65,7 +67,9 @@ class XBlock(BaseModel):
 
 
 class XBlockPayload(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     xblock: XBlock
     course_id: str
 
@@ -76,7 +80,9 @@ class Component(str, Enum):
 
 
 class ProblemOrHtmlArgs(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
     unit_locator: str
     kind: Optional[Component] = None
@@ -87,7 +93,9 @@ class ProblemOrHtmlArgs(BaseModel):
 
 
 class UpdateXBlockPayload(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
     locator: str
     data: Optional[str] = None
@@ -95,11 +103,15 @@ class UpdateXBlockPayload(BaseModel):
 
 
 class CourseTreeRequest(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
 
 
 class BlockContentArgs(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
     locator: str

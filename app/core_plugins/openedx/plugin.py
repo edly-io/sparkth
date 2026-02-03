@@ -259,10 +259,9 @@ class OpenEdxPlugin(SparkthPlugin):
         Args:
             payload (CreateCourseArgs):
                 An object containing:
-                    - auth: Authentication information including:
-                        * lms_url (str): Base LMS URL.
-                        * studio_url (str): Base Studio URL for POST requests.
-                        * access_token (str): Token used to authenticate requests.
+                    - lms_url (str): Base LMS URL.
+                    - studio_url (str): Base Studio URL for POST requests.
+                    - access_token (str): Token used to authenticate requests.
                     - course: A Pydantic model with the course run data to submit.
 
         Returns:
@@ -284,13 +283,12 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        auth = payload.auth
         course = payload.course
         endpoint = "api/v1/course_runs/"
 
-        async with OpenEdxClient(auth.lms_url, auth.access_token) as client:
+        async with OpenEdxClient(payload.lms_url, payload.access_token) as client:
             try:
-                res = await client.post(auth.studio_url, endpoint, course.model_dump())
+                res = await client.post(payload.studio_url, endpoint, course.model_dump())
                 return {"response": res}
             except (JsonParseError, AuthenticationError) as err:
                 return {
@@ -368,10 +366,9 @@ class OpenEdxPlugin(SparkthPlugin):
         Args:
             payload (XBlockPayload):
                 An object containing:
-                    - auth: Authentication details including:
-                        * lms_url (str): LMS base URL.
-                        * studio_url (str): Studio base URL for API calls.
-                        * access_token (str): Token used for authenticated requests.
+                    - lms_url (str): LMS base URL.
+                    - studio_url (str): Studio base URL for API calls.
+                    - access_token (str): Token used for authenticated requests.
                     - xblock: A Pydantic model with the XBlock fields to be created.
                     - course_id (str): The course identifier where the XBlock
                     should be created.
@@ -395,15 +392,14 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        auth = payload.auth
         xblock = payload.xblock
         course_id = payload.course_id
         endpoint = f"api/contentstore/v0/xblock/{course_id}"
 
-        async with OpenEdxClient(auth.lms_url, auth.access_token) as client:
+        async with OpenEdxClient(payload.lms_url, payload.access_token) as client:
             try:
                 res = await client.post(
-                    auth.studio_url,
+                    payload.studio_url,
                     endpoint,
                     xblock.model_dump(),
                 )
@@ -437,6 +433,11 @@ class OpenEdxPlugin(SparkthPlugin):
 
         Parameters:
             payload (ProblemOrHtmlArgs): Consists of:
+                access_token (str): Token used for authenticated requests.
+                lms_url (str): LMS base URL.
+                studio_url (str): Studio base URL for API calls.
+                course_id (str): The course identifier.
+                unit_locator (str): The unit locator where the component should be created.
                 kind (str, optional):
                     The type of component to create. Accepts "Problem" or "HTML".
                     Defaults to "Problem".
@@ -477,7 +478,12 @@ class OpenEdxPlugin(SparkthPlugin):
                 }`
 
         """
-        auth = payload.auth
+        # Create AccessTokenPayload from flat fields for helper functions
+        auth = AccessTokenPayload(
+            access_token=payload.access_token,
+            lms_url=payload.lms_url,
+            studio_url=payload.studio_url,
+        )
         course_id = payload.course_id
         unit_locator = payload.unit_locator
         kind = payload.kind
@@ -567,8 +573,9 @@ class OpenEdxPlugin(SparkthPlugin):
         ----------
         payload : UpdateXBlockPayload
             A Pydantic model containing:
-                auth (AccessTokenPayload):
-                    Authentication info required to authorize the update.
+                access_token (str): Token used for authenticated requests.
+                lms_url (str): LMS base URL.
+                studio_url (str): Studio base URL for API calls.
                 course_id (str):
                     The course key (e.g., "course-v1:ORG+COURSE+RUN").
                 locator (str):
@@ -583,9 +590,16 @@ class OpenEdxPlugin(SparkthPlugin):
         dict[str, Any]: A dictionary containing the XBlock update result
 
         """
+        # Create AccessTokenPayload from flat fields for helper function
+        auth = AccessTokenPayload(
+            access_token=payload.access_token,
+            lms_url=payload.lms_url,
+            studio_url=payload.studio_url,
+        )
+        
         try:
             response = await openedx_update_xblock_content(
-                payload.auth,
+                auth,
                 payload.course_id,
                 payload.locator,
                 payload.data,
@@ -619,8 +633,9 @@ class OpenEdxPlugin(SparkthPlugin):
         ----------
         payload : CourseTreeRequest
             A Pydantic model containing:
-                auth (AccessTokenPayload):
-                    LMS URL and access token for authentication.
+                access_token (str): Token used for authenticated requests.
+                lms_url (str): LMS base URL.
+                studio_url (str): Studio base URL.
                 course_id (str):
                     Course key (e.g. "course-v1:ORG+COURSE+RUN").
 
@@ -640,12 +655,12 @@ class OpenEdxPlugin(SparkthPlugin):
         }
 
         async with OpenEdxClient(
-            payload.auth.lms_url,
-            payload.auth.access_token,
+            payload.lms_url,
+            payload.access_token,
         ) as client:
             try:
                 response = await client.get(
-                    payload.auth.lms_url,
+                    payload.lms_url,
                     "api/courses/v1/blocks/",
                     params,
                 )
@@ -686,10 +701,11 @@ class OpenEdxPlugin(SparkthPlugin):
 
         Parameters
         ----------
-        payload : GetBlockContentArgs
+        payload : BlockContentArgs
             A Pydantic model containing:
-                auth (AccessTokenPayload):
-                    LMS + Studio URLs and the access token.
+                access_token (str): Token used for authenticated requests.
+                lms_url (str): LMS base URL.
+                studio_url (str): Studio base URL.
                 course_id (str):
                     Course key (e.g., "course-v1:ORG+COURSE+RUN").
                 locator (str):
@@ -707,9 +723,9 @@ class OpenEdxPlugin(SparkthPlugin):
 
         endpoint = f"api/contentstore/v0/xblock/{payload.course_id}/{encoded_locator}"
 
-        async with OpenEdxClient(payload.auth.lms_url, payload.auth.access_token) as client:
+        async with OpenEdxClient(payload.lms_url, payload.access_token) as client:
             try:
-                response = await client.get(payload.auth.studio_url, endpoint)
+                response = await client.get(payload.studio_url, endpoint)
 
                 return {"response": response}
 
