@@ -475,7 +475,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         # Check if it's a Pydantic BaseModel
         try:
             from pydantic import BaseModel
-
             if isinstance(py_type, type) and issubclass(py_type, BaseModel):
                 model_schema = py_type.model_json_schema()
                 defs = model_schema.get("$defs", {})
