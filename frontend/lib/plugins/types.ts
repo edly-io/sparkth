@@ -104,6 +104,16 @@ export interface PluginMetadata {
   tags?: string[];
 }
 
+export interface SecretFieldSchema {
+  label: string;
+  placeholder?: string;
+  description?: string;
+  required?: boolean;
+  type?: "password" | "text";
+}
+
+export type SecretsSchema = Record<string, SecretFieldSchema>;
+
 /**
  * Plugin sidebar configuration
  */

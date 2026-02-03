@@ -16,3 +16,8 @@ export interface ChatMessage {
   options?: string[];                 
   pillAttachment?: TextAttachment | null; 
 }
+
+// type LlmMessage = {
+//   role: "user" | "assistant";
+//   content: string;
+// };

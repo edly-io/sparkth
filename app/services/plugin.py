@@ -201,9 +201,6 @@ class PluginService:
     async def create_user_plugin(
         self, session: AsyncSession, user_id: int, plugin: Plugin, user_config: dict[str, Any]
     ) -> UserPlugin:
-        if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before creating user plugin")
-
         user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin.id, enabled=True, config=user_config)
 
         session.add(user_plugin)

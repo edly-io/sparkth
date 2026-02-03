@@ -50,7 +50,10 @@ class CreateCourseArgs(BaseModel):
 
 
 class ListCourseRunsArgs(BaseModel):
-    auth: AccessTokenPayload
+    # auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     page: Optional[int] = None
     page_size: Optional[int] = None
 

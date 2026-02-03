@@ -2,6 +2,8 @@ import { Bot } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ChatMessage, TextAttachment } from "../../types";
 import { Pill } from "../attachment/Pill";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface AssistantMessageProps {
   message: ChatMessage;
@@ -35,7 +37,13 @@ export function AssistantMessage({
 
       <div className="flex-1 max-w-[75%] space-y-2">
         <Card variant="outlined" className="p-4">
-          <p className="text-foreground whitespace-pre-wrap">{displayText}</p>
+          <div className="prose prose-neutral dark:prose-invert max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+          >
+            {displayText}
+          </ReactMarkdown>
+          </div>
 
           {/* Assistant pill */}
           {!message.isTyping && (

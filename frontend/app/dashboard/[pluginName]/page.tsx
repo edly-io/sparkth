@@ -1,7 +1,7 @@
 import PluginPageClient from "./page-client";
 
 export function generateStaticParams() {
-  return [{ pluginName: "chat-interface" }];
+  return [{ pluginName: "chat" }];
 }
 
 export default function PluginPage() {

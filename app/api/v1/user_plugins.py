@@ -4,6 +4,7 @@ User Plugin Management API Endpoints
 Allows users to manage their plugin preferences (enable/disable plugins).
 """
 
+import logging
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,15 +13,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.db import get_async_session
+from app.models.plugin import Plugin
 from app.models.user import User
 from app.services.plugin import (
     ConfigValidationError,
-    InternalServerError,
     PluginDisabledError,
     PluginService,
     UserPluginResponse,
     get_plugin_service,
 )
+from app.services.plugin_adapters.registry import PLUGIN_CONFIG_ADAPTERS
+
+# Get the root logger
+logger = logging.getLogger()
+
 
 router: APIRouter = APIRouter()
 
@@ -37,44 +43,60 @@ class UserPluginConfigRequest(BaseModel):
     config: dict[str, Any]
 
 
+async def get_plugin_or_404(session: AsyncSession, plugin_service: PluginService, plugin_name: str):
+    plugin = await plugin_service.get_by_name(session, plugin_name)
+    if not plugin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
+    return plugin
+
+
+async def check_plugin_enabled(plugin: Plugin):
+    if not plugin.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=f"Plugin '{plugin.name}' is disabled by admin."
+        )
+
+
+async def apply_adapter_preprocess(plugin_name: str, user_id: int, config: dict, session: AsyncSession) -> dict:
+    adapter = PLUGIN_CONFIG_ADAPTERS.get(plugin_name)
+    if adapter:
+        return await adapter.preprocess_config(session=session, user_id=user_id, incoming_config=config)
+    return config
+
+
+async def apply_adapter_postprocess(plugin_name: str, user_id: int, config: dict, session: AsyncSession) -> dict:
+    adapter = PLUGIN_CONFIG_ADAPTERS.get(plugin_name)
+    if adapter:
+        return await adapter.postprocess_config(session=session, user_id=user_id, stored_config=config)
+    return config
+
+
 @router.get("/", response_model=List[UserPluginResponse])
 async def list_user_plugins(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> List[UserPluginResponse]:
-    """
-    List all plugins with their enabled status for the current user.
-
-    Returns all available plugins and whether they are enabled or disabled,
-    and pre-populates the config with keys from the plugin's schema.
-    """
     all_plugins = await plugin_service.get_all(session)
     user_plugin_map = await plugin_service.get_user_plugin_map(session, current_user.id)
     result: list[UserPluginResponse] = []
 
     for plugin in all_plugins:
         user_plugin = user_plugin_map.get(plugin.name)
-        if user_plugin is not None:
-            config = user_plugin.config or PluginService.initial_config(plugin.config_schema)
+        config_keys = PluginService.initial_config(plugin.config_schema)
+
+        if user_plugin:
+            config = await apply_adapter_postprocess(plugin.name, current_user.id, user_plugin.config, session)
             result.append(
                 UserPluginResponse(
-                    plugin_name=plugin.name,
-                    enabled=user_plugin.enabled,
-                    config=config,
-                    is_core=plugin.is_core,
+                    plugin_name=plugin.name, enabled=user_plugin.enabled, config=config, is_core=plugin.is_core
                 )
             )
         else:
+            config = await apply_adapter_postprocess(plugin.name, current_user.id, config_keys, session)
             result.append(
-                UserPluginResponse(
-                    plugin_name=plugin.name,
-                    enabled=True,
-                    config=PluginService.initial_config(plugin.config_schema),
-                    is_core=plugin.is_core,
-                )
+                UserPluginResponse(plugin_name=plugin.name, enabled=True, config=config, is_core=plugin.is_core)
             )
-
     return result
 
 
@@ -91,7 +113,6 @@ async def create_user_plugin(
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """Create a user plugin with validated configuration."""
-
     if not current_user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
 
@@ -110,18 +131,16 @@ async def create_user_plugin(
         )
 
     try:
-        validated_config = PluginService.validate_user_config(plugin, user_config)
+        processed_config = await apply_adapter_preprocess(plugin_name, current_user.id, user_config, session)
+        validated_config = PluginService.validate_user_config(plugin, processed_config)
     except ConfigValidationError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
 
-    try:
-        user_plugin = await plugin_service.create_user_plugin(session, current_user.id, plugin, validated_config)
-    except InternalServerError as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
+    user_plugin = await plugin_service.create_user_plugin(session, current_user.id, plugin, validated_config)
+    response_config = await apply_adapter_postprocess(plugin_name, current_user.id, user_plugin.config, session)
 
-    await session.refresh(plugin)
     return UserPluginResponse(
-        plugin_name=plugin.name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
+        plugin_name=plugin.name, enabled=user_plugin.enabled, config=response_config, is_core=plugin.is_core
     )
 
 
@@ -214,7 +233,8 @@ async def update_user_plugin_config(
         )
 
     try:
-        user_plugin = await plugin_service.update_user_plugin_config(session, current_user.id, plugin, request.config)
+        processed_config = await apply_adapter_preprocess(plugin_name, current_user.id, request.config, session)
+        user_plugin = await plugin_service.update_user_plugin_config(session, current_user.id, plugin, processed_config)
     except PluginDisabledError as err:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
     except ConfigValidationError as err:

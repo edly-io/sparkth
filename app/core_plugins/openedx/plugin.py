@@ -337,15 +337,15 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        auth = payload.auth
+        # auth = payload.auth
 
-        lms = auth.lms_url.rstrip("/")
-        base_url = auth.studio_url.rstrip("/")
+        lms = payload.lms_url.rstrip("/")
+        base_url = payload.studio_url.rstrip("/")
         page = payload.page or 1
         page_size = payload.page_size or 20
         endpoint = f"api/v1/course_runs/?page={page}&page_size={page_size}"
 
-        async with OpenEdxClient(lms, auth.access_token) as client:
+        async with OpenEdxClient(lms, payload.access_token) as client:
             try:
                 res = await client.get(base_url, endpoint)
                 return {"courses": res}
