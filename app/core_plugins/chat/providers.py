@@ -128,7 +128,6 @@ class BaseChatProvider(ABC):
             else:
                 # Use simple invocation for non-tool conversations
                 return await self._send_message_simple(llm, messages)
-
         except Exception as e:
             logger.error(f"Error in send_message: {e}")
             raise
@@ -175,7 +174,6 @@ class BaseChatProvider(ABC):
             if hasattr(response, "tool_calls") and response.tool_calls:
                 # Add the assistant's response to message history
                 langchain_messages.append(response)
-
                 # Execute each tool call
                 for tool_call in response.tool_calls:
                     tool_name = tool_call.get("name", "")
@@ -207,7 +205,6 @@ class BaseChatProvider(ABC):
             else:
                 # No more tool calls, we have the final response
                 break
-
         # Handle case where response.content might be a list
         content = response.content
         if isinstance(content, list):
@@ -219,7 +216,6 @@ class BaseChatProvider(ABC):
                 elif isinstance(block, str):
                     text_parts.append(block)
             content = "".join(text_parts)
-
         return {
             "content": content,
             "role": "assistant",
@@ -343,7 +339,6 @@ class BaseChatProvider(ABC):
                                         yield text
                             elif isinstance(block, str):
                                 yield block
-
                 # Accumulate the response for tool call detection
                 if full_response is None:
                     full_response = chunk
@@ -353,12 +348,10 @@ class BaseChatProvider(ABC):
                     except TypeError:
                         # If chunks can't be added, just keep the latest
                         full_response = chunk
-
             # Check if there are tool calls to execute
             if full_response and hasattr(full_response, "tool_calls") and full_response.tool_calls:
                 # Add the assistant's response to message history
                 langchain_messages.append(full_response)
-
                 # Execute each tool call
                 for tool_call in full_response.tool_calls:
                     tool_name = tool_call.get("name", "")
