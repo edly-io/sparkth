@@ -48,7 +48,11 @@ class CreateCourseArgs(BaseModel):
     access_token: str
     lms_url: str
     studio_url: str
-    course: CourseArgs
+    org: str
+    number: str
+    run: str
+    title: str
+    pacing_type: str
 
 
 class ListCourseRunsArgs(BaseModel):
@@ -70,8 +74,10 @@ class XBlockPayload(BaseModel):
     access_token: str
     lms_url: str
     studio_url: str
-    xblock: XBlock
     course_id: str
+    parent_locator: str
+    category: str
+    display_name: str
 
 
 class Component(str, Enum):

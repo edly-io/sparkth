@@ -252,7 +252,14 @@ class OpenEdxPlugin(SparkthPlugin):
                 }
 
     @tool(description="Create a new course run in an Open edX Studio instance.", category="openedx-course")
-    async def openedx_create_course_run(self, payload: CreateCourseArgs) -> dict[str, Any]:
+    async def openedx_create_course_run(self, access_token: str,
+    lms_url: str,
+    studio_url: str,
+    org: str,
+    number: str,
+    run: str,
+    title: str,
+    pacing_type: str) -> dict[str, Any]:
         """
         Create a new course run in an Open edX Studio instance.
 
@@ -262,7 +269,11 @@ class OpenEdxPlugin(SparkthPlugin):
                     - lms_url (str): Base LMS URL.
                     - studio_url (str): Base Studio URL for POST requests.
                     - access_token (str): Token used to authenticate requests.
-                    - course: A Pydantic model with the course run data to submit.
+                    - org (str): Organization identifier.
+                    - number (str): Course number.
+                    - run (str): Course run identifier.
+                    - title (str): Course title.
+                    - pacing_type (str): Course pacing type (e.g., "self_paced" or "instructor_paced").
 
         Returns:
             dict[str, Any]:
@@ -283,12 +294,19 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        course = payload.course
+        # Reconstruct course data from flat fields
+        course_data = {
+            "org": org,
+            "number": number,
+            "run": run,
+            "title": title,
+            "pacing_type": pacing_type,
+        }
         endpoint = "api/v1/course_runs/"
 
-        async with OpenEdxClient(payload.lms_url, payload.access_token) as client:
+        async with OpenEdxClient(lms_url, access_token) as client:
             try:
-                res = await client.post(payload.studio_url, endpoint, course.model_dump())
+                res = await client.post(studio_url, endpoint, course_data)
                 return {"response": res}
             except (JsonParseError, AuthenticationError) as err:
                 return {
@@ -301,7 +319,11 @@ class OpenEdxPlugin(SparkthPlugin):
                 }
 
     @tool(description="Retrieve a paginated list of course runs from open edX studio.", category="openedx-course")
-    async def openedx_list_course_runs(self, payload: ListCourseRunsArgs) -> dict[str, Any]:
+    async def openedx_list_course_runs(self, access_token: str,
+    lms_url: str,
+    studio_url: str,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None) -> dict[str, Any]:
         """
         Retrieve a paginated list of course runs from an Open edX Studio instance.
 
@@ -337,13 +359,13 @@ class OpenEdxPlugin(SparkthPlugin):
         """
         # auth = payload.auth
 
-        lms = payload.lms_url.rstrip("/")
-        base_url = payload.studio_url.rstrip("/")
-        page = payload.page or 1
-        page_size = payload.page_size or 20
+        lms = lms_url.rstrip("/")
+        base_url = studio_url.rstrip("/")
+        page = page or 1
+        page_size = page_size or 20
         endpoint = f"api/v1/course_runs/?page={page}&page_size={page_size}"
 
-        async with OpenEdxClient(lms, payload.access_token) as client:
+        async with OpenEdxClient(lms, access_token) as client:
             try:
                 res = await client.get(base_url, endpoint)
                 return {"courses": res}
@@ -359,7 +381,13 @@ class OpenEdxPlugin(SparkthPlugin):
                 }
 
     @tool(description="Create a new XBlock within an Open edX course.", category="openedx-course")
-    async def openedx_create_xblock(self, payload: XBlockPayload) -> dict[str, Any]:
+    async def openedx_create_xblock(self, access_token: str,
+    lms_url: str,
+    studio_url: str,
+    course_id: str,
+    parent_locator: str,
+    category: str,
+    display_name: str) -> dict[str, Any]:
         """
         Create a new XBlock within an Open edX course.
 
@@ -369,9 +397,10 @@ class OpenEdxPlugin(SparkthPlugin):
                     - lms_url (str): LMS base URL.
                     - studio_url (str): Studio base URL for API calls.
                     - access_token (str): Token used for authenticated requests.
-                    - xblock: A Pydantic model with the XBlock fields to be created.
-                    - course_id (str): The course identifier where the XBlock
-                    should be created.
+                    - course_id (str): The course identifier where the XBlock should be created.
+                    - parent_locator (str): The parent XBlock locator.
+                    - category (str): The XBlock category/type.
+                    - display_name (str): The display name for the XBlock.
 
         Returns:
             dict[str, Any]:
@@ -392,16 +421,21 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        xblock = payload.xblock
-        course_id = payload.course_id
+        # Reconstruct xblock data from flat fields
+        xblock_data = {
+            "parent_locator": parent_locator,
+            "category": category,
+            "display_name": display_name,
+        }
+        course_id = course_id
         endpoint = f"api/contentstore/v0/xblock/{course_id}"
 
-        async with OpenEdxClient(payload.lms_url, payload.access_token) as client:
+        async with OpenEdxClient(lms_url, access_token) as client:
             try:
                 res = await client.post(
-                    payload.studio_url,
+                    studio_url,
                     endpoint,
-                    xblock.model_dump(),
+                    xblock_data,
                 )
 
                 return {"response": res}
@@ -417,7 +451,16 @@ class OpenEdxPlugin(SparkthPlugin):
                 }
 
     @tool(description="Create a Problem or HTML XBlock component in a course.", category="openedx-course")
-    async def openedx_create_problem_or_html(self, payload: ProblemOrHtmlArgs) -> dict[str, Any]:
+    async def openedx_create_problem_or_html(self, access_token: str,
+    lms_url: str,
+    studio_url: str,
+    course_id: str,
+    unit_locator: str,
+    kind: Optional[Component] = None,
+    display_name: Optional[str] = None,
+    data: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None,
+    mcq_boilerplate: Optional[bool] = None) -> dict[str, Any]:
         """
         Create either a Problem or HTML XBlock component, then update the XBlock
         using the `update` tool.
@@ -480,17 +523,17 @@ class OpenEdxPlugin(SparkthPlugin):
         """
         # Create AccessTokenPayload from flat fields for helper functions
         auth = AccessTokenPayload(
-            access_token=payload.access_token,
-            lms_url=payload.lms_url,
-            studio_url=payload.studio_url,
+            access_token=access_token,
+            lms_url=lms_url,
+            studio_url=studio_url,
         )
-        course_id = payload.course_id
-        unit_locator = payload.unit_locator
-        kind = payload.kind
-        display_name = payload.display_name
-        data = payload.data
-        metadata = payload.metadata
-        mcq_boilerplate = payload.mcq_boilerplate
+        course_id = course_id
+        unit_locator = unit_locator
+        kind = kind
+        display_name = display_name
+        data = data
+        metadata = metadata
+        mcq_boilerplate = mcq_boilerplate
 
         component = kind or Component.PROBLEM
 
@@ -558,7 +601,13 @@ class OpenEdxPlugin(SparkthPlugin):
         description="Update an XBlock (chapter/section, sequential/subsection, or vertical/unit) in a course.",
         category="openedx-course",
     )
-    async def openedx_update_xblock(self, payload: UpdateXBlockPayload) -> dict[str, Any]:
+    async def openedx_update_xblock(self, access_token: str,
+    lms_url: str,
+    studio_url: str,
+    course_id: str,
+    locator: str,
+    data: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
         Update an XBlock (chapter/section, sequential/subsection, or vertical/unit)
         in an Open edX course.
@@ -592,18 +641,18 @@ class OpenEdxPlugin(SparkthPlugin):
         """
         # Create AccessTokenPayload from flat fields for helper function
         auth = AccessTokenPayload(
-            access_token=payload.access_token,
-            lms_url=payload.lms_url,
-            studio_url=payload.studio_url,
+            access_token=access_token,
+            lms_url=lms_url,
+            studio_url=studio_url,
         )
         
         try:
             response = await openedx_update_xblock_content(
                 auth,
-                payload.course_id,
-                payload.locator,
-                payload.data,
-                payload.metadata,
+                course_id,
+                locator,
+                data,
+                metadata,
             )
             return {"response": response}
 
@@ -618,7 +667,10 @@ class OpenEdxPlugin(SparkthPlugin):
             }
 
     @tool(description="Fetch the full block graph (course tree) for a course.", category="openedx-course-tree")
-    async def openedx_get_course_tree_raw(self, payload: CourseTreeRequest) -> dict[str, Any]:
+    async def openedx_get_course_tree_raw(self, access_token: str,
+    lms_url: str,
+    studio_url: str,
+    course_id: str) -> dict[str, Any]:
         """
         Fetch the full block graph ("course tree") for a course using the
         Open edX Course Blocks API.
@@ -631,13 +683,11 @@ class OpenEdxPlugin(SparkthPlugin):
 
         Parameters
         ----------
-        payload : CourseTreeRequest
-            A Pydantic model containing:
-                access_token (str): Token used for authenticated requests.
-                lms_url (str): LMS base URL.
-                studio_url (str): Studio base URL.
-                course_id (str):
-                    Course key (e.g. "course-v1:ORG+COURSE+RUN").
+        access_token (str): Token used for authenticated requests.
+        lms_url (str): LMS base URL.
+        studio_url (str): Studio base URL.
+        course_id (str):
+            Course key (e.g. "course-v1:ORG+COURSE+RUN").
 
         Returns
         -------
@@ -648,19 +698,19 @@ class OpenEdxPlugin(SparkthPlugin):
                 {"error": "<message>"}
         """
         params = {
-            "course_id": payload.course_id,
+            "course_id": course_id,
             "depth": "all",
             "all_blocks": "true",
             "requested_fields": ("children,display_name,type,graded,student_view_url,block_id,due,start,format"),
         }
 
         async with OpenEdxClient(
-            payload.lms_url,
-            payload.access_token,
+            lms_url,
+            access_token,
         ) as client:
             try:
                 response = await client.get(
-                    payload.lms_url,
+                    lms_url,
                     "api/courses/v1/blocks/",
                     params,
                 )
@@ -683,7 +733,11 @@ class OpenEdxPlugin(SparkthPlugin):
     )
     async def openedx_get_block_contentstore(
         self,
-        payload: BlockContentArgs,
+        access_token: str,
+        lms_url: str,
+        studio_url: str,
+        course_id: str,
+        locator: str,
     ) -> dict[str, Any]:
         """
         Read the content of a specific XBlock directly from the **Studio ContentStore**.
@@ -719,13 +773,13 @@ class OpenEdxPlugin(SparkthPlugin):
             OR
                 {"error": "<details>"} when an LMS error occurs.
         """
-        encoded_locator = quote(payload.locator, safe="")
+        encoded_locator = quote(locator, safe="")
 
-        endpoint = f"api/contentstore/v0/xblock/{payload.course_id}/{encoded_locator}"
+        endpoint = f"api/contentstore/v0/xblock/{course_id}/{encoded_locator}"
 
-        async with OpenEdxClient(payload.lms_url, payload.access_token) as client:
+        async with OpenEdxClient(lms_url, access_token) as client:
             try:
-                response = await client.get(payload.studio_url, endpoint)
+                response = await client.get(studio_url, endpoint)
 
                 return {"response": response}
 

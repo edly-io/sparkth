@@ -485,7 +485,7 @@ class BaseChatProvider(ABC):
         langchain_messages: List[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
         
-        max_iterations = 3
+        max_iterations = 15
         iteration = 0
         
         while iteration < max_iterations:
