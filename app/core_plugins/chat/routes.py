@@ -38,21 +38,6 @@ logger = get_logger(__name__)
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
-# def get_chat_user_config() -> ChatUserConfig:
-#     """Dependency to get chat configuration from environment variables."""
-#     return ChatUserConfig()
-# async def get_chat_user_config(
-#     current_user: User = Depends(get_current_user),
-#     session: AsyncSession = Depends(get_async_session),
-#     plugin_service: PluginService = Depends(get_plugin_service),
-# ) -> ChatUserConfig:
-#     user_plugin = await plugin_service.get_user_plugin_by_name(
-#         session,
-#         current_user.id,
-#         "chat",
-#     )
-
-
 @lru_cache
 def get_chat_system_config() -> ChatSystemConfig:
     """Dependency to get chat system configuration from environment variables."""
@@ -266,16 +251,10 @@ async def chat_completion(
         result = await session.exec(stmt)
         api_key_record = result.first()
 
-        if not api_key_record:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No active API key found for provider: {request.provider}",
-            )
-
         conversation = await service.create_conversation(
             session=session,
             user_id=current_user.id,  # type: ignore
-            api_key_id=api_key_record.id,  # type: ignore
+            api_key_id=api_key_record.id if api_key_record else None,  # type: ignore
             provider=request.provider,
             model=request.model,
         )

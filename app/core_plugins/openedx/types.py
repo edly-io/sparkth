@@ -2,7 +2,18 @@ from enum import Enum
 from typing import Any, Optional
 
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
+class OpenEdxSettings(BaseSettings):    
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    lms_url: Optional[str] = None
+    studio_url: Optional[str] = None
+    username: str
+    password: str
+
+openedx_settings = OpenEdxSettings()
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -19,21 +30,21 @@ class AccessTokenPayload(BaseModel):
 
 
 class Auth(BaseModel):
-    lms_url: str
-    studio_url: str
-    username: str
-    password: str
+    lms_url: str | None
+    studio_url: str | None
+    username: str | None
+    password: str | None
 
 
 class RefreshTokenPayload(BaseModel):
-    lms_url: str
-    studio_url: str
+    lms_url: str | None
+    studio_url: str | None
     refresh_token: str
 
 
 class LMSAccess(BaseModel):
     access_token: str
-    lms_url: str
+    lms_url: str | None
 
 
 class CourseArgs(BaseModel):
@@ -121,3 +132,4 @@ class BlockContentArgs(BaseModel):
     studio_url: str
     course_id: str
     locator: str
+    

@@ -75,3 +75,18 @@ class ChatUserConfig(PluginConfig):
     # max_tokens_per_request: int = Field(4096, ge=256, le=32768)
     # default_temperature: float = Field(0.7, ge=0.0, le=2.0)
     # max_conversation_history: int = Field(50, ge=1, le=200)
+
+
+class APIKeySettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    staging_anthropic_api_key: str | None = None
+
+    def get_default_key(self) -> str | None:
+        return getattr(self, "staging_anthropic_api_key", None)
+
+api_key_settings = APIKeySettings()

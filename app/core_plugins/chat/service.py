@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
 from app.core_plugins.chat.cache import CacheService
+from app.core_plugins.chat.config import api_key_settings
 from app.core_plugins.chat.encryption import EncryptionService
 from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
 
@@ -57,6 +58,12 @@ class ChatService:
         db_key = result.first()
 
         if not db_key:
+            env_key = api_key_settings.get_default_key()
+            if env_key:
+                logger.info("Using default API key from environment for Anthropic")
+                await self.cache.set(cache_key, env_key)
+                return env_key
+
             logger.warning(f"No API key found for user {user_id}, provider {provider}")
             return None
 
