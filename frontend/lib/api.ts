@@ -93,9 +93,10 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
       },
       body: JSON.stringify(data),
     });
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     throw new ApiRequestError({
-      message: 'Unable to connect to server. Please check your internet connection.',
+      message: `Unable to connect to server: ${errorMessage}`,
       fieldErrors: {},
     });
   }
@@ -127,9 +128,10 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
       },
       body: JSON.stringify(data),
     });
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     throw new ApiRequestError({
-      message: 'Unable to connect to server. Please check your internet connection.',
+      message: `Unable to connect to server: ${errorMessage}`,
       fieldErrors: {},
     });
   }
@@ -160,9 +162,10 @@ export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
         'Accept': 'application/json',
       },
     });
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     throw new ApiRequestError({
-      message: 'Unable to connect to server. Please check your internet connection.',
+      message: `Unable to connect to server: ${errorMessage}`,
       fieldErrors: {},
     });
   }
