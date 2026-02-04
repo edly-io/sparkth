@@ -705,3 +705,4 @@ class OpenEdxPlugin(SparkthPlugin):
                         "message": err.message,
                     }
                 }
+            
