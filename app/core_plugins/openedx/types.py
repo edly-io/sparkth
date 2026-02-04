@@ -4,6 +4,16 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class OpenEdxSettings(BaseSettings):    
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    lms_url: str | None = None
+    studio_url: str | None = None
+    username: str
+    password: str
+
+openedx_settings = OpenEdxSettings()
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str | None = None
@@ -106,3 +116,4 @@ class BlockContentArgs(BaseModel):
     auth: AccessTokenPayload
     course_id: str
     locator: str
+    
