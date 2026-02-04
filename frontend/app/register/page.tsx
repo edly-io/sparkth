@@ -68,19 +68,19 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8 transition-colors relative">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
-      </div>
-      <Card variant="elevated" className="max-w-md w-full p-4 sm:p-6">
+    <div className="min-h-dvh flex items-center justify-center bg-background py-6 px-4 sm:py-12 sm:px-6 lg:px-8 transition-colors">
+      <Card variant="elevated" className="max-w-md w-full p-4 sm:p-6 relative">
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
+          <ThemeToggle />
+        </div>
         <div className="flex justify-center mb-1">
-          <SparkthLogo size={96} />
+          <SparkthLogo size={72} />
         </div>
 
-        <h2 className="text-center text-3xl font-bold text-foreground mb-2">
+        <h2 className="text-center text-2xl sm:text-3xl font-bold text-foreground mb-2">
           Create your account
         </h2>
-        <p className="text-center text-base text-muted-foreground mb-8">
+        <p className="text-center text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
           Already have an account?{" "}
           <Link
             href="/login"
@@ -90,7 +90,7 @@ export default function RegisterPage() {
           </Link>
         </p>
 
-        <form className="space-y-5" onSubmit={handleSubmit}>
+        <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit}>
           {success && (
             <Alert severity="success">
               Account created successfully! Redirecting to login...
