@@ -20,6 +20,16 @@ def get_openedx_settings() -> OpenEdxSettings:
     return OpenEdxSettings()
 
 
+class OpenEdxSettings(BaseSettings):    
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    lms_url: str | None = None
+    studio_url: str | None = None
+    username: str
+    password: str
+
+openedx_settings = OpenEdxSettings()
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str | None = None
@@ -137,3 +147,4 @@ class BlockContentArgs(BaseModel):
     studio_url: str
     course_id: str
     locator: str
+    
