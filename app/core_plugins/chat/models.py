@@ -57,7 +57,7 @@ class Conversation(TimestampedModel, SQLModel, table=True):
         back_populates="conversation",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-
+    
 
 class Message(TimestampedModel, SQLModel, table=True):
     __tablename__ = "chat_messages"
