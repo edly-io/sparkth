@@ -84,9 +84,9 @@ class APIKeySettings(BaseSettings):
         extra="ignore",
     )
 
-    staging_anthropic_api_key: str | None = None
+    anthropic_api_key: str | None = None
 
     def get_default_key(self) -> str | None:
-        return getattr(self, "staging_anthropic_api_key", None)
+        return getattr(self, "anthropic_api_key", None)
 
 api_key_settings = APIKeySettings()
