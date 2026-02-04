@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import lru_cache
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,6 +19,16 @@ class OpenEdxSettings(BaseSettings):
 def get_openedx_settings() -> OpenEdxSettings:
     return OpenEdxSettings()
 
+
+class OpenEdxSettings(BaseSettings):    
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    lms_url: Optional[str] = None
+    studio_url: Optional[str] = None
+    username: str
+    password: str
+
+openedx_settings = OpenEdxSettings()
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -137,3 +147,4 @@ class BlockContentArgs(BaseModel):
     studio_url: str
     course_id: str
     locator: str
+    

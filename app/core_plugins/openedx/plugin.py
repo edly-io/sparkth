@@ -751,7 +751,7 @@ class OpenEdxPlugin(SparkthPlugin):
             try:
                 response = await client.get(
                     lms_url,
-                    "api/courses/v1/blocks/",
+                    'api/courses/v1/blocks/',
                     params,
                 )
 
@@ -836,3 +836,4 @@ class OpenEdxPlugin(SparkthPlugin):
                         "message": err.message,
                     }
                 }
+            
