@@ -33,7 +33,9 @@ class Conversation(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
-    api_key_id: int = Field(foreign_key="chat_provider_api_keys.id", index=True, nullable=False)
+    api_key_id: int | None = Field(
+        default=None, foreign_key="chat_provider_api_keys.id", index=True
+    )
     provider: str = Field(max_length=50, nullable=False)
     model: str = Field(max_length=100, nullable=False)
     title: Optional[str] = Field(default=None, max_length=255)
@@ -41,12 +43,12 @@ class Conversation(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
     total_tokens_used: int = Field(default=0)
     total_cost: float = Field(default=0.0)
 
-    api_key: ProviderAPIKey = Relationship(back_populates="conversations")
+    api_key: Optional[ProviderAPIKey] = Relationship(back_populates="conversations")
     messages: list["Message"] = Relationship(
         back_populates="conversation",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-
+    
 
 class Message(TimestampedModel, SQLModel, table=True):
     __tablename__ = "chat_messages"

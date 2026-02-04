@@ -87,7 +87,7 @@ class OpenEdxClient:
         return await self.get(self.lms_url, "api/user/v1/me")
 
     async def get(self, base_url: str, endpoint: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-        return await self.request_jwt("GET", base_url, endpoint)
+        return await self.request_jwt("GET", base_url, endpoint, params=params)
 
     async def post(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         return await self.request_jwt("POST", base_url, endpoint, payload=payload)
