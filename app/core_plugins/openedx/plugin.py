@@ -125,8 +125,8 @@ class OpenEdxPlugin(SparkthPlugin):
         """
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
-        username = openedx_settings.username
-        password = openedx_settings.password
+        username = openedx_settings.lms_username
+        password = openedx_settings.lms_password
 
         async with OpenEdxClient(lms_url) as client:
             try:

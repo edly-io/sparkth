@@ -10,8 +10,8 @@ class OpenEdxSettings(BaseSettings):
 
     lms_url: Optional[str] = None
     studio_url: Optional[str] = None
-    username: str
-    password: str
+    lms_username: str
+    lms_password: str
 
 openedx_settings = OpenEdxSettings()
 
