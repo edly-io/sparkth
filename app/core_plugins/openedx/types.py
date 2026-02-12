@@ -30,6 +30,7 @@ class OpenEdxSettings(BaseSettings):
 
 openedx_settings = OpenEdxSettings()
 
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str | None = None
@@ -147,4 +148,3 @@ class BlockContentArgs(BaseModel):
     studio_url: str
     course_id: str
     locator: str
-    
