@@ -1,5 +1,5 @@
 import time
-from typing import Callable
+from typing import Any, Callable
 
 from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
-        app: Callable,
+        app: Callable[..., Any],
         cache_service: CacheService,
         requests_per_minute: int = 60,
         chat_requests_per_minute: int = 10,
@@ -23,14 +23,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.general_limit = requests_per_minute
         self.chat_limit = chat_requests_per_minute
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[..., Any]) -> Response:
         if not request.url.path.startswith("/api/v1/chat"):
-            return await call_next(request)
+            response: Response = await call_next(request)
+            return response
 
         user_id = getattr(request.state, "user_id", None)
 
         if not user_id:
-            return await call_next(request)
+            response = await call_next(request)
+            return response
 
         is_chat_endpoint = "/completions" in request.url.path
         limit = self.chat_limit if is_chat_endpoint else self.general_limit
@@ -67,7 +69,7 @@ def create_rate_limit_middleware(
     chat_requests_per_minute: int = 10,
 ) -> type[RateLimitMiddleware]:
     class ConfiguredRateLimitMiddleware(RateLimitMiddleware):
-        def __init__(self, app: Callable):
+        def __init__(self, app: Callable[..., Any]):
             super().__init__(
                 app,
                 cache_service,

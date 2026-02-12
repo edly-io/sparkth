@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
@@ -40,7 +40,7 @@ class ChatService:
 
         return db_key
 
-    async def get_api_key(self, session: AsyncSession, user_id: int, provider: str) -> Optional[str]:
+    async def get_api_key(self, session: AsyncSession, user_id: int, provider: str) -> str | None:
         cache_key = self.cache.make_key("api_key", str(user_id), provider)
         cached_key = await self.cache.get(cache_key)
 
@@ -52,7 +52,7 @@ class ChatService:
             ProviderAPIKey.user_id == user_id,
             ProviderAPIKey.provider == provider,
             ProviderAPIKey.is_active == True,  # noqa: E712
-            ProviderAPIKey.deleted_at.is_(None),
+            ProviderAPIKey.deleted_at == None,
         )
         result = await session.exec(statement)
         db_key = result.first()
@@ -80,10 +80,10 @@ class ChatService:
             logger.error(f"Failed to decrypt API key: {e}")
             return None
 
-    async def list_api_keys(self, session: AsyncSession, user_id: int) -> List[ProviderAPIKey]:
+    async def list_api_keys(self, session: AsyncSession, user_id: int) -> list[ProviderAPIKey]:
         statement = select(ProviderAPIKey).where(
             ProviderAPIKey.user_id == user_id,
-            ProviderAPIKey.deleted_at.is_(None),
+            ProviderAPIKey.deleted_at == None,
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -92,7 +92,7 @@ class ChatService:
         statement = select(ProviderAPIKey).where(
             ProviderAPIKey.id == key_id,
             ProviderAPIKey.user_id == user_id,
-            ProviderAPIKey.deleted_at.is_(None),
+            ProviderAPIKey.deleted_at == None,
         )
         result = await session.exec(statement)
         db_key = result.first()
@@ -117,9 +117,9 @@ class ChatService:
         api_key_id: int,
         provider: str,
         model: str,
-        title: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        tools_config: Optional[str] = None,
+        title: str | None = None,
+        system_prompt: str | None = None,
+        tools_config: str | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
@@ -128,7 +128,6 @@ class ChatService:
             model=model,
             title=title,
             system_prompt=system_prompt,
-            tools_config=tools_config,
         )
 
         session.add(conversation)
@@ -138,23 +137,21 @@ class ChatService:
         logger.info(f"Created conversation {conversation.id} for user {user_id}")
         return conversation
 
-    async def get_conversation(
-        self, session: AsyncSession, conversation_id: int, user_id: int
-    ) -> Optional[Conversation]:
+    async def get_conversation(self, session: AsyncSession, conversation_id: int, user_id: int) -> Conversation | None:
         statement = select(Conversation).where(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id,
-            Conversation.deleted_at.is_(None),
+            Conversation.deleted_at == None,
         )
         result = await session.exec(statement)
         return result.first()
 
     async def list_conversations(
         self, session: AsyncSession, user_id: int, limit: int = 50, offset: int = 0
-    ) -> tuple[List[Conversation], int]:
+    ) -> tuple[list[Conversation], int]:
         count_statement = select(Conversation).where(
             Conversation.user_id == user_id,
-            Conversation.deleted_at.is_(None),
+            Conversation.deleted_at == None,
         )
         count_result = await session.exec(count_statement)
         total = len(list(count_result.all()))
@@ -163,9 +160,9 @@ class ChatService:
             select(Conversation)
             .where(
                 Conversation.user_id == user_id,
-                Conversation.deleted_at.is_(None),
+                Conversation.deleted_at == None,
             )
-            .order_by(Conversation.created_at.desc())
+            .order_by(col(Conversation.created_at).desc())
             .offset(offset)
             .limit(limit)
         )
@@ -180,9 +177,9 @@ class ChatService:
         conversation_id: int,
         role: str,
         content: str,
-        tokens_used: Optional[int] = None,
-        cost: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tokens_used: int | None = None,
+        cost: float | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Message:
         metadata_json = json.dumps(metadata) if metadata else None
 
@@ -215,9 +212,11 @@ class ChatService:
         return message
 
     async def get_conversation_messages(
-        self, session: AsyncSession, conversation_id: int, limit: Optional[int] = None
-    ) -> List[Message]:
-        statement = select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at.asc())
+        self, session: AsyncSession, conversation_id: int, limit: int | None = None
+    ) -> list[Message]:
+        statement = (
+            select(Message).where(Message.conversation_id == conversation_id).order_by(col(Message.created_at).asc())
+        )
 
         if limit:
             statement = statement.limit(limit)

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Optional
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -12,12 +12,12 @@ class CacheService:
     def __init__(self, redis_url: str, default_ttl: int = 3600):
         self.redis_url = redis_url
         self.default_ttl = default_ttl
-        self._redis: Optional[aioredis.Redis] = None
+        self._redis: aioredis.Redis | None = None
 
     async def connect(self) -> None:
         if self._redis is None:
             try:
-                self._redis = await aioredis.from_url(
+                self._redis = await aioredis.from_url(  # type: ignore[no-untyped-call]
                     self.redis_url,
                     encoding="utf-8",
                     decode_responses=True,
@@ -33,18 +33,20 @@ class CacheService:
             self._redis = None
             logger.info("Disconnected from Redis")
 
-    async def get(self, key: str) -> Optional[str]:
-        if not self._redis:
-            await self.connect()
+    async def get(self, key: str) -> str | None:
+        await self.connect()
+
+        if self._redis is None:
+            raise RuntimeError("Failed to establish Redis connection")
 
         try:
-            value = await self._redis.get(key)  # type: ignore
+            value: str | None = await self._redis.get(key)
             return value
         except Exception as e:
             logger.warning(f"Cache get failed for key '{key}': {e}")
             return None
 
-    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
         if not self._redis:
             await self.connect()
 
@@ -63,7 +65,8 @@ class CacheService:
 
         try:
             result = await self._redis.delete(key)  # type: ignore
-            return result > 0
+            res: bool = result > 0
+            return res
         except Exception as e:
             logger.warning(f"Cache delete failed for key '{key}': {e}")
             return False
@@ -74,12 +77,13 @@ class CacheService:
 
         try:
             result = await self._redis.exists(key)  # type: ignore
-            return result > 0
+            res: bool = result > 0
+            return res
         except Exception as e:
             logger.warning(f"Cache exists check failed for key '{key}': {e}")
             return False
 
-    async def get_json(self, key: str) -> Optional[Any]:
+    async def get_json(self, key: str) -> Any | None:
         value = await self.get(key)
         if value:
             try:
@@ -89,7 +93,7 @@ class CacheService:
                 return None
         return None
 
-    async def set_json(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    async def set_json(self, key: str, value: Any, ttl: int | None = None) -> bool:
         try:
             json_str = json.dumps(value)
             return await self.set(key, json_str, ttl)
@@ -101,7 +105,7 @@ class CacheService:
         return ":".join(str(part) for part in parts)
 
 
-_cache_service: Optional[CacheService] = None
+_cache_service: CacheService | None = None
 
 
 def get_cache_service(redis_url: str, default_ttl: int = 3600) -> CacheService:

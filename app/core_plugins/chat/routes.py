@@ -1,9 +1,10 @@
 import json
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -116,7 +117,7 @@ async def get_api_key(
         select(ProviderAPIKey)
         .where(ProviderAPIKey.id == key_id)
         .where(ProviderAPIKey.user_id == current_user.id)
-        .where(ProviderAPIKey.deleted_at.is_(None))
+        .where(ProviderAPIKey.deleted_at == None)
     )
     key = result.first()
 
@@ -151,7 +152,7 @@ async def update_api_key(
         select(ProviderAPIKey)
         .where(ProviderAPIKey.id == key_id)
         .where(ProviderAPIKey.user_id == current_user.id)
-        .where(ProviderAPIKey.deleted_at.is_(None))
+        .where(ProviderAPIKey.deleted_at == None)
     )
     key = result.first()
 
@@ -246,7 +247,7 @@ async def chat_completion(
             ProviderAPIKey.user_id == current_user.id,
             ProviderAPIKey.provider == request.provider,
             ProviderAPIKey.is_active == True,  # noqa: E712
-            ProviderAPIKey.deleted_at.is_(None),
+            ProviderAPIKey.deleted_at == None,
         )
         result = await session.exec(stmt)
         api_key_record = result.first()
@@ -353,7 +354,7 @@ async def chat_completion(
 
 async def stream_chat_response(
     provider: BaseChatProvider,
-    messages: list[Dict[str, str]],
+    messages: list[dict[str, str]],
     conversation_id: int,
     service: ChatService,
     session: AsyncSession,
@@ -400,7 +401,7 @@ async def list_conversations(
 
     conversation_responses = []
     for conv in conversations:
-        count_stmt = select(func.count(Message.id)).where(Message.conversation_id == conv.id)
+        count_stmt = select(func.count(Message.id)).where(Message.conversation_id == conv.id)  # type: ignore[arg-type]
         count_result = await session.exec(count_stmt)
         message_count = count_result.one()
 
@@ -474,6 +475,14 @@ async def get_conversation(
     )
 
 
+def get_parameters_schema(args_schema: type[BaseModel] | dict[str, Any] | None) -> dict[str, Any]:
+    if args_schema is None:
+        return {}
+    if isinstance(args_schema, dict):
+        return args_schema
+    return args_schema.model_json_schema()
+
+
 @chat_router.get("/tools", response_model=ToolListResponse)
 async def list_tools(
     current_user: User = Depends(get_current_user),
@@ -486,7 +495,7 @@ async def list_tools(
         ToolSchema(
             name=tool.name,
             description=tool.description or "",
-            parameters=tool.args_schema.schema() if tool.args_schema else {},
+            parameters=get_parameters_schema(tool.args_schema),
         )
         for tool in tools
     ]

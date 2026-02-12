@@ -1,26 +1,28 @@
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class OpenEdxSettings(BaseSettings):    
+class OpenEdxSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    lms_url: Optional[str] = None
-    studio_url: Optional[str] = None
-    lms_username: str
-    lms_password: str
+    lms_url: str = ""
+    studio_url: str = ""
+    lms_username: str = ""
+    lms_password: str = ""
+
 
 openedx_settings = OpenEdxSettings()
 
+
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: Optional[str] = None
-    token_type: Optional[str] = None
-    expires_in: Optional[int] = None
-    scope: Optional[str] = None
+    refresh_token: str | None = None
+    token_type: str | None = None
+    expires_in: int | None = None
+    scope: str | None = None
 
 
 class AccessTokenPayload(BaseModel):
@@ -71,8 +73,8 @@ class ListCourseRunsArgs(BaseModel):
     access_token: str
     lms_url: str
     studio_url: str
-    page: Optional[int] = None
-    page_size: Optional[int] = None
+    page: int | None | None = None
+    page_size: int | None | None = None
 
 
 class XBlock(BaseModel):
@@ -102,11 +104,11 @@ class ProblemOrHtmlArgs(BaseModel):
     studio_url: str
     course_id: str
     unit_locator: str
-    kind: Optional[Component] = None
-    display_name: Optional[str] = None
-    data: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
-    mcq_boilerplate: Optional[bool] = None
+    kind: Component | None = None
+    display_name: str | None = None
+    data: str | None = None
+    metadata: dict[str, Any] | None = None
+    mcq_boilerplate: bool | None = None
 
 
 class UpdateXBlockPayload(BaseModel):
@@ -115,8 +117,8 @@ class UpdateXBlockPayload(BaseModel):
     studio_url: str
     course_id: str
     locator: str
-    data: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    data: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class CourseTreeRequest(BaseModel):
@@ -132,4 +134,3 @@ class BlockContentArgs(BaseModel):
     studio_url: str
     course_id: str
     locator: str
-    

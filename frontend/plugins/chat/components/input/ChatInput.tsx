@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Paperclip, Mic, ArrowUp } from "lucide-react";
+import { Paperclip, ArrowUp } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";

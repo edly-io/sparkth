@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Any, Optional, Type
+from typing import Any, Type
 from urllib.parse import urljoin
 
 import aiohttp
@@ -19,9 +19,9 @@ class CanvasClient:
 
     async def __aexit__(
         self,
-        _exc_type: Optional[Type[BaseException]],
-        _exc_val: Optional[BaseException],
-        _exc_tb: Optional[TracebackType],
+        _exc_type: Type[BaseException] | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         await self.close()
 
@@ -50,9 +50,7 @@ class CanvasClient:
     async def delete(self, endpoint: str) -> dict[str, Any]:
         return await self.request_bearer("delete", endpoint)
 
-    async def request_bearer(
-        self, method: str, endpoint: str, payload: Optional[dict[str, Any]] = None
-    ) -> dict[str, Any]:
+    async def request_bearer(self, method: str, endpoint: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         if not self.api_token:
             raise AuthenticationError(401, "API Token not found")
 

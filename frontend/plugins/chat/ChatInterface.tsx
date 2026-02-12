@@ -368,29 +368,6 @@ import { ChatMessage, TextAttachment } from "./types";
 import { Preview } from "./components/attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
 
-function buildUserMessages(
-  message: string,
-  attachment: TextAttachment | null,
-): Pick<ChatMessage, "role" | "content">[] {
-  const msgs: Pick<ChatMessage, "role" | "content">[] = [];
-
-  if (attachment?.text) {
-    msgs.push({
-      role: "user",
-      content: attachment.text,
-    });
-  }
-
-  if (message.trim()) {
-    msgs.push({
-      role: "user",
-      content: message,
-    });
-  }
-
-  return msgs;
-}
-
 export default function ChatInterface() {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([

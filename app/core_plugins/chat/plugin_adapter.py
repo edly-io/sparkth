@@ -1,3 +1,7 @@
+from typing import Any
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.routes import get_chat_system_config
@@ -8,10 +12,10 @@ class ChatPluginConfigAdapter:
     async def preprocess_config(
         self,
         *,
-        session,
+        session: AsyncSession,
         user_id: int,
-        incoming_config: dict[str, any],
-    ) -> dict[str, any]:
+        incoming_config: dict[str, Any],
+    ) -> dict[str, Any]:
         api_key = incoming_config.pop("api_key", None)
         provider = incoming_config.get("provider")
 
@@ -43,10 +47,8 @@ class ChatPluginConfigAdapter:
     async def postprocess_config(
         self,
         *,
-        session,
-        user_id: int,
-        stored_config: dict[str, any],
-    ) -> dict[str, any]:
+        stored_config: dict[str, Any],
+    ) -> dict[str, Any]:
         config = dict(stored_config)
         config.pop("provider_api_key_id", None)
 

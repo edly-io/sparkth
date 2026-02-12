@@ -35,7 +35,7 @@ async def parse_pdf(file: UploadFile) -> str:
 
 
 @router.post("/upload")
-async def upload_text(file: UploadFile = File(...)):
+async def upload_text(file: UploadFile = File(...)) -> JSONResponse:
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,

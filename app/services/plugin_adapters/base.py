@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,15 +9,13 @@ class PluginConfigAdapter(Protocol):
         *,
         session: AsyncSession,
         user_id: int,
-        incoming_config: dict[str, any],
-    ) -> dict[str, any]:
+        incoming_config: dict[str, Any],
+    ) -> dict[str, Any]:
         return incoming_config
 
     async def postprocess_config(
         self,
         *,
-        session: AsyncSession,
-        user_id: int,
-        stored_config: dict[str, any],
-    ) -> dict[str, any]:
+        stored_config: dict[str, Any],
+    ) -> dict[str, Any]:
         return stored_config

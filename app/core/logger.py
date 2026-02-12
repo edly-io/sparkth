@@ -8,7 +8,6 @@ All modules should import and use the logger from this module.
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Configure default logging format
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -18,7 +17,7 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 def setup_logger(
     name: str = "sparkth",
     level: int = logging.INFO,
-    log_file: Optional[Path] = None,
+    log_file: Path | None = None,
     format_string: str = LOG_FORMAT,
 ) -> logging.Logger:
     """

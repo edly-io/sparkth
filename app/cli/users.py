@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from sqlmodel import Session, select
 
@@ -15,7 +13,7 @@ def create_user(
     username: str = typer.Option(..., "--username", "-u", prompt=True),
     email: str = typer.Option(..., "--email", "-e", prompt=True),
     password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True),
-    name: Optional[str] = typer.Option(None, "--name", "-n"),
+    name: str | None = typer.Option(None, "--name", "-n"),
     superuser: bool = typer.Option(False, "--superuser", "--admin", is_flag=True),
 ) -> None:
     engine = get_engine()

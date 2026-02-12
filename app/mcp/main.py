@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,7 +18,7 @@ class MCPToolDefinition(BaseModel):
     name: str = Field(..., description="Unique name of the tool")
     handler: Callable[..., Any] = Field(..., description="Callable function that implements the tool")
     description: str = Field(default="", description="Description of what the tool does")
-    category: Optional[str] = Field(default=None, description="Category for organizing tools")
+    category: str | None = Field(default=None, description="Category for organizing tools")
     version: str = Field(default="1.0.0", description="Version of the tool")
 
     @field_validator("name")

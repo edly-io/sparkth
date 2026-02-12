@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -24,11 +24,11 @@ class ProviderAPIKeyResponse(BaseModel):
     provider: str
     is_active: bool
     created_at: datetime
-    last_used_at: Optional[datetime]
+    last_used_at: datetime | None
 
 
 class ProviderAPIKeyListResponse(BaseModel):
-    keys: List[ProviderAPIKeyResponse]
+    keys: list[ProviderAPIKeyResponse]
     total: int
 
 
@@ -48,7 +48,7 @@ class ChatMessage(BaseModel):
 class ToolCall(BaseModel):
     id: str
     name: str
-    arguments: Dict[str, Any]
+    arguments: dict[str, Any]
 
 
 class ToolResult(BaseModel):
@@ -60,15 +60,15 @@ class ToolResult(BaseModel):
 class ChatCompletionRequest(BaseModel):
     provider: str = Field(..., examples=["openai"])
     model: str = Field(..., examples=["gpt-4", "claude-3-opus", "gemini-pro"])
-    messages: List[ChatMessage] = Field(..., min_length=1)
-    conversation_id: Optional[int] = Field(default=None)
+    messages: list[ChatMessage] = Field(..., min_length=1)
+    conversation_id: int | None = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: Optional[int] = Field(default=None, gt=0)
+    max_tokens: int | None = Field(default=None, gt=0)
     stream: bool = Field(default=False)
-    tools: Optional[List[str] | str] = Field(
+    tools: list[str] | str | None = Field(
         default="*", description="Automatically includes all tools. Use 'none' or empty list to disable."
     )
-    tool_choice: Optional[str] = Field(
+    tool_choice: str | None = Field(
         default="auto", description="How to use tools: 'auto', 'none', or specific tool name"
     )
     include_system_tools_message: bool = Field(
@@ -91,25 +91,25 @@ class ChatCompletionResponse(BaseModel):
     conversation_id: int
     model: str
     provider: str
-    tokens_used: Optional[int] = None
-    cost: Optional[float] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    tokens_used: int | None = None
+    cost: float | None = None
+    tool_calls: list[ToolCall] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConversationCreate(BaseModel):
     provider: str
     model: str
-    title: Optional[str] = Field(default=None, max_length=255)
-    system_prompt: Optional[str] = Field(default=None)
+    title: str | None = Field(default=None, max_length=255)
+    system_prompt: str | None = Field(default=None)
 
 
 class MessageResponse(BaseModel):
     id: int
     role: str
     content: str
-    tokens_used: Optional[int]
-    cost: Optional[float]
+    tokens_used: int | None
+    cost: float | None
     created_at: datetime
 
 
@@ -117,7 +117,7 @@ class ConversationResponse(BaseModel):
     id: int
     provider: str
     model: str
-    title: Optional[str]
+    tile: str | None
     total_tokens_used: int
     total_cost: float
     message_count: int
@@ -126,26 +126,26 @@ class ConversationResponse(BaseModel):
 
 
 class ConversationDetailResponse(ConversationResponse):
-    messages: List[MessageResponse]
+    messages: list[MessageResponse]
 
 
 class ConversationListResponse(BaseModel):
-    conversations: List[ConversationResponse]
+    conversations: list[ConversationResponse]
     total: int
 
 
 class ToolSchema(BaseModel):
     name: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
 
 
 class ToolListResponse(BaseModel):
-    tools: List[ToolSchema]
+    tools: list[ToolSchema]
     total: int
 
 
 class ErrorResponse(BaseModel):
     detail: str
-    error_code: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    error_code: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)

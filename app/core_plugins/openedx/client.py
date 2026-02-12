@@ -1,6 +1,6 @@
 import json
 from types import TracebackType
-from typing import Any, Optional, Type
+from typing import Any, Type
 
 import aiohttp
 
@@ -10,12 +10,12 @@ from app.mcp.types import AuthenticationError, JsonParseError
 
 
 class OpenEdxClient:
-    def __init__(self, lms_url: str, access_token: Optional[str] = None):
+    def __init__(self, lms_url: str, access_token: str | None = None):
         self.lms_url = lms_url.rstrip("/")
         self.client_id = "login-service-client-id"
         self.session = aiohttp.ClientSession()
         self.access_token = access_token
-        self.refresh_token: Optional[str] = None
+        self.refresh_token: str | None = None
         self.username = None
 
     async def __aenter__(self) -> OpenEdxClient:
@@ -23,9 +23,9 @@ class OpenEdxClient:
 
     async def __aexit__(
         self,
-        _exc_type: Optional[Type[BaseException]],
-        _exc_val: Optional[BaseException],
-        _exc_tb: Optional[TracebackType],
+        _exc_type: Type[BaseException] | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         await self.close()
 
@@ -86,7 +86,7 @@ class OpenEdxClient:
     async def authenticate(self) -> dict[str, Any]:
         return await self.get(self.lms_url, "api/user/v1/me")
 
-    async def get(self, base_url: str, endpoint: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    async def get(self, base_url: str, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return await self.request_jwt("GET", base_url, endpoint, params=params)
 
     async def post(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -103,8 +103,8 @@ class OpenEdxClient:
         method: str,
         base_url: str,
         endpoint: str,
-        params: Optional[dict[str, Any]] = None,
-        payload: Optional[dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not self.access_token:
             raise AuthenticationError(401, "Access token not set")
@@ -115,5 +115,5 @@ class OpenEdxClient:
     async def close(self) -> None:
         await self.session.close()
 
-    def get_username(self) -> Optional[str]:
+    def get_username(self) -> str | None:
         return self.username

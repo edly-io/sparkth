@@ -1,5 +1,5 @@
 import urllib
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import quote
 
 from app.core_plugins.openedx.client import OpenEdxClient
@@ -56,8 +56,8 @@ async def openedx_update_xblock_content(
     auth: AccessTokenPayload,
     course_id: str,
     locator: str,
-    data: Optional[str],
-    metadata: Optional[dict[str, Any]],
+    data: str | None,
+    metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     encoded = urllib.parse.quote(locator, safe="")
     endpoint = f"api/contentstore/v0/xblock/{course_id}/{encoded}"
@@ -185,7 +185,7 @@ class OpenEdxPlugin(SparkthPlugin):
         """
         lms_url = payload.lms_url or openedx_settings.lms_url
         studio_url = payload.studio_url or openedx_settings.studio_url
-        refresh_token = payload.refresh_token 
+        refresh_token = payload.refresh_token
 
         async with OpenEdxClient(lms_url) as client:
             try:
@@ -326,8 +326,8 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_list_course_runs(
         self,
         access_token: str,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        page: int | None = None,
+        page_size: int | None = None,
         # lms_url: str | None = None,
         # studio_url: str | None = None,
     ) -> dict[str, Any]:
@@ -470,11 +470,11 @@ class OpenEdxPlugin(SparkthPlugin):
         access_token: str,
         course_id: str,
         unit_locator: str,
-        kind: Optional[Component] = None,
-        display_name: Optional[str] = None,
-        data: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        mcq_boilerplate: Optional[bool] = None,
+        kind: Component | None = None,
+        display_name: str | None = None,
+        data: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        mcq_boilerplate: bool | None = None,
         # lms_url: str | None = None,
         # studio_url: str | None = None,
     ) -> dict[str, Any]:
@@ -626,8 +626,8 @@ class OpenEdxPlugin(SparkthPlugin):
         access_token: str,
         course_id: str,
         locator: str,
-        data: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        data: str | None = None,
+        metadata: dict[str, Any] | None = None,
         # lms_url: str | None = None,
         # studio_url: str | None = None,
     ) -> dict[str, Any]:
@@ -694,7 +694,9 @@ class OpenEdxPlugin(SparkthPlugin):
 
     @tool(description="Fetch the full block graph (course tree) for a course.", category="openedx-course-tree")
     async def openedx_get_course_tree_raw(
-        self, access_token: str, course_id: str,
+        self,
+        access_token: str,
+        course_id: str,
         # lms_url: str | None = None,
         # studio_url: str | None = None,
     ) -> dict[str, Any]:
@@ -740,7 +742,7 @@ class OpenEdxPlugin(SparkthPlugin):
             try:
                 response = await client.get(
                     lms_url,
-                    'api/courses/v1/blocks/',
+                    "api/courses/v1/blocks/",
                     params,
                 )
 
@@ -824,4 +826,3 @@ class OpenEdxPlugin(SparkthPlugin):
                         "message": err.message,
                     }
                 }
-            
