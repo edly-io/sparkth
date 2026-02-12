@@ -14,6 +14,7 @@ class OpenEdxSettings(BaseSettings):
 
 openedx_settings = OpenEdxSettings()
 
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str | None = None
@@ -116,4 +117,3 @@ class BlockContentArgs(BaseModel):
     auth: AccessTokenPayload
     course_id: str
     locator: str
-    
