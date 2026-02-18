@@ -29,7 +29,9 @@ class OpenEdxSettings(BaseSettings):
     lms_password: str = ""
 
 
-openedx_settings = OpenEdxSettings()
+@lru_cache
+def get_openedx_settings() -> OpenEdxSettings:
+    return OpenEdxSettings()
 
 
 class TokenResponse(BaseModel):

@@ -78,12 +78,14 @@ async def list_user_plugins(
                     )
                 )
         else:
-            if current_user.id is not None:
-                result.append(
-                    UserPluginResponse(
-                        plugin_name=plugin.name, enabled=True, config=config_keys, is_core=plugin.is_core
-                    )
+            result.append(
+                UserPluginResponse(
+                    plugin_name=plugin.name,
+                    enabled=True,
+                    config=config_keys,
+                    is_core=plugin.is_core,
                 )
+            )
     return result
 
 
