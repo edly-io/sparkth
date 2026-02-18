@@ -117,7 +117,7 @@ class ConversationResponse(BaseModel):
     id: int
     provider: str
     model: str
-    tile: str | None
+    title: str | None
     total_tokens_used: int
     total_cost: float
     message_count: int

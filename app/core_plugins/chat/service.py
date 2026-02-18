@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel import col, select
@@ -71,7 +71,7 @@ class ChatService:
             decrypted_key = self.encryption.decrypt(db_key.encrypted_key)
             await self.cache.set(cache_key, decrypted_key)
 
-            db_key.last_used_at = datetime.utcnow()
+            db_key.last_used_at = datetime.now(timezone.utc)
             session.add(db_key)
             await session.commit()
 
@@ -100,7 +100,7 @@ class ChatService:
         if not db_key:
             return False
 
-        db_key.deleted_at = datetime.utcnow()
+        db_key.deleted_at = datetime.now(timezone.utc)
         session.add(db_key)
         await session.commit()
 
@@ -141,7 +141,6 @@ class ChatService:
         statement = select(Conversation).where(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id,
-            Conversation.deleted_at == None,
         )
         result = await session.exec(statement)
         return result.first()
@@ -151,7 +150,6 @@ class ChatService:
     ) -> tuple[list[Conversation], int]:
         count_statement = select(Conversation).where(
             Conversation.user_id == user_id,
-            Conversation.deleted_at == None,
         )
         count_result = await session.exec(count_statement)
         total = len(list(count_result.all()))
@@ -160,7 +158,6 @@ class ChatService:
             select(Conversation)
             .where(
                 Conversation.user_id == user_id,
-                Conversation.deleted_at == None,
             )
             .order_by(col(Conversation.created_at).desc())
             .offset(offset)
@@ -212,7 +209,7 @@ class ChatService:
         return message
 
     async def get_conversation_messages(
-        self, session: AsyncSession, conversation_id: int, limit: int | None = None
+        self, session: AsyncSession, conversation_id: int, limit: int | None = None, offset: int | None = None
     ) -> list[Message]:
         statement = (
             select(Message).where(Message.conversation_id == conversation_id).order_by(col(Message.created_at).asc())
@@ -220,6 +217,8 @@ class ChatService:
 
         if limit:
             statement = statement.limit(limit)
+        if offset:
+            statement = statement.offset(offset)
 
         result = await session.exec(statement)
         return list(result.all())

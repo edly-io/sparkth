@@ -11,7 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from app.core.logger import get_logger
-from app.core_plugins.chat.prompt import LEARNING_DESIGN_SYSTEM_PROMPT
+from app.core_plugins.chat.prompt import get_learning_design_system_prompt
 
 logger = get_logger(__name__)
 
@@ -92,7 +92,7 @@ class BaseChatProvider(ABC):
         self.model = model
         self.temperature = temperature
         self._llm: Any = None
-        self.system_prompt = system_prompt or LEARNING_DESIGN_SYSTEM_PROMPT
+        self.system_prompt = system_prompt or get_learning_design_system_prompt()
 
     @abstractmethod
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
@@ -182,7 +182,7 @@ class BaseChatProvider(ABC):
                     tool_args = tool_call.get("args", {})
                     tool_id = tool_call.get("id", "")
 
-                    logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
+                    logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
 
                     # Execute the tool
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)
@@ -368,7 +368,7 @@ class BaseChatProvider(ABC):
                     # Notify about tool execution
                     yield f"\n\n🔧 *Executing tool: {tool_name}...*\n"
 
-                    logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
+                    logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
 
                     # Execute the tool
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)

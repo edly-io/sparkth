@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import func, select
@@ -261,13 +261,12 @@ async def chat_completion(
         )
 
     for msg in request.messages:
-        if msg.role == "user":
-            await service.add_message(
-                session=session,
-                conversation_id=conversation.id,  # type: ignore
-                role=msg.role,
-                content=msg.content,
-            )
+        await service.add_message(
+            session=session,
+            conversation_id=conversation.id,  # type: ignore
+            role=msg.role,
+            content=msg.content,
+        )
 
     try:
         provider = get_provider(
@@ -386,8 +385,8 @@ async def stream_chat_response(
 
 @chat_router.get("/conversations", response_model=ConversationListResponse)
 async def list_conversations(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
@@ -428,6 +427,8 @@ async def list_conversations(
 @chat_router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
 async def get_conversation(
     conversation_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
@@ -445,8 +446,7 @@ async def get_conversation(
         )
 
     messages = await service.get_conversation_messages(
-        session=session,
-        conversation_id=conversation_id,
+        session=session, conversation_id=conversation_id, limit=limit, offset=offset
     )
 
     message_count = len(messages)

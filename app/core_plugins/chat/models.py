@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Index
+from sqlalchemy import ForeignKey, Index, Integer
 from sqlmodel import Column, Field, Relationship, SQLModel, Text
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -23,7 +23,7 @@ class ProviderAPIKey(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
     conversations: list["Conversation"] = Relationship(back_populates="api_key")
 
 
-class Conversation(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
+class Conversation(TimestampedModel, SQLModel, table=True):
     __tablename__ = "chat_conversations"
     __table_args__ = (
         Index("idx_user_created", "user_id", "created_at"),
@@ -32,7 +32,15 @@ class Conversation(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
-    api_key_id: int | None = Field(default=None, foreign_key="chat_provider_api_keys.id", index=True)
+    api_key_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("chat_provider_api_keys.id", ondelete="SET NULL"),
+            index=True,
+            nullable=True,
+        ),
+    )
     provider: str = Field(max_length=50, nullable=False)
     model: str = Field(max_length=100, nullable=False)
     title: str | None = Field(default=None, max_length=255)
@@ -55,7 +63,14 @@ class Message(TimestampedModel, SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
-    conversation_id: int = Field(foreign_key="chat_conversations.id", index=True, nullable=False)
+    conversation_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("chat_conversations.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
+    )
     role: str = Field(max_length=20, nullable=False)
     content: str = Field(sa_column=Column(Text, nullable=False))
     tokens_used: int | None = Field(default=None)

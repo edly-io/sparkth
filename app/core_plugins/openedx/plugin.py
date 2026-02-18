@@ -10,7 +10,7 @@ from app.core_plugins.openedx.types import (
     LMSAccess,
     RefreshTokenPayload,
     TokenResponse,
-    openedx_settings,
+    get_openedx_settings,
 )
 from app.mcp.types import AuthenticationError, JsonParseError, LMSError
 from app.plugins.base import SparkthPlugin, tool
@@ -123,6 +123,7 @@ class OpenEdxPlugin(SparkthPlugin):
                 username (str)
                 password (str)
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
         username = openedx_settings.lms_username
@@ -183,6 +184,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
+        openedx_settings = get_openedx_settings()
         lms_url = payload.lms_url or openedx_settings.lms_url
         studio_url = payload.studio_url or openedx_settings.studio_url
         refresh_token = payload.refresh_token
@@ -233,6 +235,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
+        openedx_settings = get_openedx_settings()
         lms_url = payload.lms_url or openedx_settings.lms_url
         access_token = payload.access_token
 
@@ -295,6 +298,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
 
@@ -364,6 +368,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
 
@@ -432,6 +437,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
 
@@ -538,6 +544,7 @@ class OpenEdxPlugin(SparkthPlugin):
                 }`
 
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
 
@@ -662,6 +669,7 @@ class OpenEdxPlugin(SparkthPlugin):
         dict[str, Any]: A dictionary containing the XBlock update result
 
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
 
@@ -726,6 +734,7 @@ class OpenEdxPlugin(SparkthPlugin):
             or on error:
                 {"error": "<message>"}
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
 
         params = {
@@ -804,6 +813,7 @@ class OpenEdxPlugin(SparkthPlugin):
             OR
                 {"error": "<details>"} when an LMS error occurs.
         """
+        openedx_settings = get_openedx_settings()
         lms_url = openedx_settings.lms_url
         studio_url = openedx_settings.studio_url
 

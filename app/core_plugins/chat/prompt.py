@@ -1,6 +1,9 @@
 from datetime import datetime
 
-current_datetime = datetime.now()
+
+def get_current_datetime() -> datetime:
+    return datetime.now()
+
 
 LEARNING_DESIGN_SYSTEM_TEMPLATE = """
 Today is {current_datetime}
@@ -50,4 +53,6 @@ You MUST use the block-v1 format for the parent locator.
 Fetch the correct parent locator from the course tree. You MUST use course-v1:* format for the course ID.
 """.strip()
 
-LEARNING_DESIGN_SYSTEM_PROMPT = LEARNING_DESIGN_SYSTEM_TEMPLATE.format(current_datetime=current_datetime)
+
+def get_learning_design_system_prompt() -> str:
+    return LEARNING_DESIGN_SYSTEM_TEMPLATE.format(current_datetime=get_current_datetime())

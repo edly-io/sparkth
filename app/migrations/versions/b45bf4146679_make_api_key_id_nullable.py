@@ -26,7 +26,7 @@ def upgrade() -> None:
                existing_type=sa.INTEGER(),
                nullable=True)
     op.drop_constraint(op.f('chat_messages_conversation_id_fkey'), 'chat_messages', type_='foreignkey')
-    op.create_foreign_key(None, 'chat_messages', 'chat_conversations', ['conversation_id'], ['id'])
+    op.create_foreign_key(None, 'chat_messages', 'chat_conversations', ['conversation_id'], ['id'], ondelete='CASCADE')
     op.alter_column('chat_provider_api_keys', 'last_used_at',
                existing_type=postgresql.TIMESTAMP(timezone=True),
                type_=sa.DateTime(),
