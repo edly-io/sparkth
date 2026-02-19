@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
@@ -78,7 +78,7 @@ async def create_api_key(
         logger.error(f"Failed to create API key: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create API key: {str(e)}",
+            detail="Failed to create API key",
         )
 
 
@@ -103,40 +103,6 @@ async def list_api_keys(
         ],
         total=len(keys),
     )
-
-
-@chat_router.get("/keys/{key_id}", response_model=dict)
-async def get_api_key(
-    key_id: int,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> Any:
-    """Get a specific API key with decrypted value."""
-    result = await session.exec(
-        select(ProviderAPIKey)
-        .where(ProviderAPIKey.id == key_id)
-        .where(ProviderAPIKey.user_id == current_user.id)
-        .where(ProviderAPIKey.deleted_at == None)
-    )
-    key = result.first()
-
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found",
-        )
-
-    decrypted_key = service.encryption.decrypt(key.encrypted_key)
-
-    return {
-        "id": key.id,
-        "provider": key.provider,
-        "api_key": decrypted_key,
-        "is_active": key.is_active,
-        "created_at": key.created_at,
-        "last_used_at": key.last_used_at,
-    }
 
 
 @chat_router.put("/keys/{key_id}", response_model=ProviderAPIKeyResponse)
@@ -347,7 +313,7 @@ async def chat_completion(
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Chat completion failed: {str(e)}",
+            detail="Chat completion failed",
         )
 
 
@@ -379,6 +345,13 @@ async def stream_chat_response(
 
     except Exception as e:
         logger.error(f"Streaming failed: {e}")
+        await service.add_message(
+            session=session,
+            conversation_id=conversation_id,
+            role="assistant",
+            content="An error occurred while generating a response. Please try again.",
+            is_error=True,
+        )
         error_data = json.dumps({"error": str(e), "done": True})
         yield f"data: {error_data}\n\n"
 
@@ -398,25 +371,30 @@ async def list_conversations(
         offset=offset,
     )
 
-    conversation_responses = []
-    for conv in conversations:
-        count_stmt = select(func.count(Message.id)).where(Message.conversation_id == conv.id)  # type: ignore[arg-type]
-        count_result = await session.exec(count_stmt)
-        message_count = count_result.one()
+    conv_ids = [conv.id for conv in conversations]
 
-        conversation_responses.append(
-            ConversationResponse(
-                id=conv.id,  # type: ignore
-                provider=conv.provider,
-                model=conv.model,
-                title=conv.title,
-                total_tokens_used=conv.total_tokens_used,
-                total_cost=conv.total_cost,
-                message_count=message_count,
-                created_at=conv.created_at,
-                updated_at=conv.updated_at,
-            )
+    count_stmt = (
+        select(Message.conversation_id, func.count(col(Message.id)).label("message_count"))
+        .where(col(Message.conversation_id).in_(conv_ids))
+        .group_by(col(Message.conversation_id))
+    )
+    count_result = await session.exec(count_stmt)
+    message_counts = {row[0]: row[1] for row in count_result.all()}
+
+    conversation_responses = [
+        ConversationResponse(
+            id=conv.id,  # type: ignore
+            provider=conv.provider,
+            model=conv.model,
+            title=conv.title,
+            total_tokens_used=conv.total_tokens_used,
+            total_cost=conv.total_cost,
+            message_count=message_counts.get(conv.id, 0),  # type: ignore
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
         )
+        for conv in conversations
+    ]
 
     return ConversationListResponse(
         conversations=conversation_responses,
