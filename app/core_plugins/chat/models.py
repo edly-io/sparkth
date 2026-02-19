@@ -75,5 +75,6 @@ class Message(TimestampedModel, SQLModel, table=True):
     content: str = Field(sa_column=Column(Text, nullable=False))
     tokens_used: int | None = Field(default=None)
     cost: float | None = Field(default=None)
+    is_error: bool = Field(default=False)
     model_metadata: str | None = Field(default=None, sa_column=Column(Text))
     conversation: Conversation = Relationship(back_populates="messages")

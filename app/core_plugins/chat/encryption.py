@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.logger import get_logger
@@ -36,11 +38,6 @@ class EncryptionService:
         return Fernet.generate_key().decode()
 
 
-_encryption_service: EncryptionService | None = None
-
-
+@lru_cache(maxsize=1)
 def get_encryption_service(encryption_key: str) -> EncryptionService:
-    global _encryption_service
-    if _encryption_service is None:
-        _encryption_service = EncryptionService(encryption_key)
-    return _encryption_service
+    return EncryptionService(encryption_key)
