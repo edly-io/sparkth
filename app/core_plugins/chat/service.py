@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
@@ -36,7 +36,7 @@ class ChatService:
         logger.info(f"Created API key for user {user_id}, provider {provider}")
 
         cache_key = self.cache.make_key("api_key", str(user_id), provider)
-        await self.cache.set(cache_key, api_key)
+        await self.cache.set(cache_key, encrypted_key)
 
         return db_key
 
@@ -45,8 +45,12 @@ class ChatService:
         cached_key = await self.cache.get(cache_key)
 
         if cached_key:
-            logger.debug(f"API key cache hit for user {user_id}, provider {provider}")
-            return cached_key
+            try:
+                decrypted = self.encryption.decrypt(cached_key)
+                logger.debug(f"API key cache hit for user {user_id}, provider {provider}")
+                return decrypted
+            except Exception as e:
+                logger.warning(f"Failed to decrypt cached API key, falling back to DB: {e}")
 
         statement = select(ProviderAPIKey).where(
             ProviderAPIKey.user_id == user_id,
@@ -61,16 +65,17 @@ class ChatService:
             env_key = api_key_settings.get_default_key()
             if env_key:
                 logger.info("Using default API key from environment for Anthropic")
-                await self.cache.set(cache_key, env_key)
+                encrypted = self.encryption.encrypt(env_key)
+                await self.cache.set(cache_key, encrypted)
                 return env_key
 
             logger.warning(f"No API key found for user {user_id}, provider {provider}")
             return None
 
         try:
-            decrypted_key = self.encryption.decrypt(db_key.encrypted_key)
-            await self.cache.set(cache_key, decrypted_key)
+            await self.cache.set(cache_key, db_key.encrypted_key)
 
+            decrypted_key = self.encryption.decrypt(db_key.encrypted_key)
             db_key.last_used_at = datetime.now(timezone.utc)
             session.add(db_key)
             await session.commit()
@@ -148,11 +153,10 @@ class ChatService:
     async def list_conversations(
         self, session: AsyncSession, user_id: int, limit: int = 50, offset: int = 0
     ) -> tuple[list[Conversation], int]:
-        count_statement = select(Conversation).where(
+        count_statement = select(func.count(col(Conversation.id))).where(
             Conversation.user_id == user_id,
         )
-        count_result = await session.exec(count_statement)
-        total = len(list(count_result.all()))
+        total = (await session.exec(count_statement)).one()
 
         statement = (
             select(Conversation)
@@ -177,6 +181,7 @@ class ChatService:
         tokens_used: int | None = None,
         cost: float | None = None,
         metadata: dict[str, Any] | None = None,
+        is_error: bool = False,
     ) -> Message:
         metadata_json = json.dumps(metadata) if metadata else None
 
@@ -187,6 +192,7 @@ class ChatService:
             tokens_used=tokens_used,
             cost=cost,
             model_metadata=metadata_json,
+            is_error=is_error,
         )
 
         session.add(message)
