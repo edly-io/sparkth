@@ -32,9 +32,15 @@ class ProviderAPIKeyListResponse(BaseModel):
     total: int
 
 
+class AttachmentMeta(BaseModel):
+    name: str
+    size: int
+
+
 class ChatMessage(BaseModel):
     role: str = Field(..., examples=["user"])
     content: str = Field(..., min_length=1)
+    attachment: AttachmentMeta | None = None
 
     @field_validator("role")
     @classmethod
@@ -111,6 +117,9 @@ class MessageResponse(BaseModel):
     tokens_used: int | None
     cost: float | None
     created_at: datetime
+    message_type: str
+    attachment_name: str | None
+    attachment_size: int | None
 
 
 class ConversationResponse(BaseModel):

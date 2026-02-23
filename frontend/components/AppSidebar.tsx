@@ -17,8 +17,17 @@ import { useEnabledPlugins } from "@/lib/plugins/context";
 import Image from "next/image";
 import { SparkthLogo } from "./SparkthLogo";
 import { Button } from "@/components/ui/Button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/Tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import { ChatHistorySection } from "../plugins/chat/components/ChatHistorySection";
 
 interface AppSidebarProps {
   user?: {
@@ -47,26 +56,27 @@ export default function AppSidebar({
   const pathname = usePathname();
   const { plugins, loading } = useEnabledPlugins();
 
+  const isOnChatPlugin =
+    pathname === `${basePath}/chat` ||
+    pathname?.startsWith(`${basePath}/chat/`);
+  const isCollapsedDesktop = isCollapsed && variant === "desktop";
+
   const isActiveRoute = (pluginName: string) => {
     const pluginPath = `${basePath}/${pluginName}`;
     return pathname === pluginPath || pathname?.startsWith(`${pluginPath}/`);
   };
 
   const handleNavClick = () => {
-    if (onNavigate) {
-      onNavigate();
-    }
+    if (onNavigate) onNavigate();
   };
 
-  const sidebarWidth = variant === "mobile" ? "w-full" : isCollapsed ? "w-16" : "w-64";
-  const isCollapsedDesktop = isCollapsed && variant === "desktop";
+  const sidebarWidth =
+    variant === "mobile" ? "w-full" : isCollapsed ? "w-16" : "w-64";
 
   const handleSidebarClick = (e: React.MouseEvent) => {
-    // Only expand if collapsed on desktop and clicking empty area
     if (isCollapsedDesktop && onToggleCollapse) {
-      // Don't expand if clicking on interactive elements
       const target = e.target as HTMLElement;
-      if (target.closest('a, button')) return;
+      if (target.closest("a, button")) return;
       onToggleCollapse();
     }
   };
@@ -76,8 +86,10 @@ export default function AppSidebar({
       className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300 ${isCollapsedDesktop ? "cursor-e-resize" : ""}`}
       onClick={handleSidebarClick}
     >
-      {/* Header - min-h-[57px] matches ChatInterface header height */}
-      <div className={`flex mb-4 items-center min-h-[57px] border-border overflow-hidden ${variant === "mobile" ? "px-2 justify-between" : "px-2 justify-between"}`}>
+      {/* Header */}
+      <div
+        className={`flex mb-4 items-center min-h-[57px] border-border overflow-hidden ${variant === "mobile" ? "px-2 justify-between" : "px-2 justify-between"}`}
+      >
         {variant === "mobile" ? (
           <>
             <SparkthLogo size={32} iconOnly />
@@ -148,7 +160,11 @@ export default function AppSidebar({
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Loader2 className="w-6 h-6 text-muted animate-spin mb-2" />
-            {!isCollapsed && <p className="text-sm text-muted-foreground">Loading plugins...</p>}
+            {!isCollapsed && (
+              <p className="text-sm text-muted-foreground">
+                Loading plugins...
+              </p>
+            )}
           </div>
         ) : (
           <>
@@ -179,15 +195,26 @@ export default function AppSidebar({
                 title={isCollapsed ? "My Plugins" : undefined}
               >
                 <Settings className="w-5 h-5 flex-shrink-0" />
-                {!(isCollapsed && variant === "desktop") && <span className="font-medium">My Plugins</span>}
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">My Plugins</span>
+                )}
               </Link>
             </div>
           </>
         )}
       </nav>
 
+      {isOnChatPlugin && (
+        <ChatHistorySection
+          isCollapsed={isCollapsed && variant === "desktop"}
+          onNavigate={onNavigate}
+        />
+      )}
+
       {/* User menu */}
-      <div className={`p-3 border-t border-border ${isCollapsed && variant === "desktop" ? "flex justify-center" : ""}`}>
+      <div
+        className={`p-3 border-t border-border ${isCollapsed && variant === "desktop" ? "flex justify-center" : ""}`}
+      >
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -225,7 +252,12 @@ export default function AppSidebar({
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" sideOffset={20} className="w-52 p-2">
+          <PopoverContent
+            side="top"
+            align="start"
+            sideOffset={20}
+            className="w-52 p-2"
+          >
             <Link
               href="/profile"
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"

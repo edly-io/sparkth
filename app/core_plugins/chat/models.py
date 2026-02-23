@@ -1,9 +1,13 @@
 from datetime import datetime
+from typing import Literal
 
+from pydantic import field_validator
 from sqlalchemy import ForeignKey, Index, Integer
 from sqlmodel import Column, Field, Relationship, SQLModel, Text
 
 from app.models.base import SoftDeleteModel, TimestampedModel
+
+MessageType = Literal["text", "attachment"]
 
 
 class ProviderAPIKey(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
@@ -77,4 +81,15 @@ class Message(TimestampedModel, SQLModel, table=True):
     cost: float | None = Field(default=None)
     is_error: bool = Field(default=False)
     model_metadata: str | None = Field(default=None, sa_column=Column(Text))
+    message_type: str = Field(default="text", max_length=20)
+    attachment_name: str | None = Field(default=None, max_length=255)
+    attachment_size: int | None = Field(default=None)
     conversation: Conversation = Relationship(back_populates="messages")
+
+    @field_validator("message_type")
+    @classmethod
+    def validate_message_type(cls, v: str) -> str:
+        allowed: tuple[MessageType, ...] = ("text", "attachment")
+        if v not in allowed:
+            raise ValueError(f"message_type must be one of {allowed}, got '{v}'")
+        return v

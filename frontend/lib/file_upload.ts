@@ -6,10 +6,16 @@ export interface UploadResponse {
   text: string;
 }
 
-export async function uploadFile(formData: FormData): Promise<UploadResponse> {
+export async function uploadFile(
+  token: string | null,
+  formData: FormData,
+): Promise<UploadResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/parser/upload`, {
     method: "POST",
     body: formData,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   if (!response.ok) {

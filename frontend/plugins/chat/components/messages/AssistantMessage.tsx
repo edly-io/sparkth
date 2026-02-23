@@ -39,11 +39,9 @@ export function AssistantMessage({
       <div className="flex-1 max-w-[75%] space-y-2">
         <Card variant="outlined" className="p-4">
           <div className="prose prose-neutral dark:prose-invert max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-          >
-            {displayText}
-          </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {displayText}
+            </ReactMarkdown>
           </div>
 
           {/* Assistant pill */}

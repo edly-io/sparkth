@@ -101,7 +101,7 @@ export function usePlugins(token: string | null): UsePluginsResult {
  */
 export function usePluginState(
   token: string | null,
-  pluginName: string
+  pluginName: string,
 ): UsePluginResult {
   const [state, setState] = useState<{
     config: PluginConfig;
@@ -130,7 +130,7 @@ export function usePluginState(
       try {
         const userPlugins = await fetchUserPlugins(token);
         const userPlugin = userPlugins.find(
-          (p) => p.plugin_name === pluginName
+          (p) => p.plugin_name === pluginName,
         );
 
         setState({
@@ -176,7 +176,7 @@ export function usePluginState(
  * @returns Sidebar plugins sorted by order
  */
 export function useSidebarPlugins(
-  token: string | null
+  token: string | null,
 ): UseSidebarPluginsResult {
   const { enabledPlugins, loading } = usePlugins(token);
 
@@ -200,7 +200,7 @@ export function useSidebarPlugins(
  */
 export function useIsPluginEnabled(
   token: string | null,
-  pluginName: string
+  pluginName: string,
 ): { isEnabled: boolean; loading: boolean } {
   const { enabledPlugins, loading } = usePlugins(token);
 
@@ -269,7 +269,7 @@ export function usePluginEvent(
     type: PluginEventType;
     pluginName: string;
     payload?: unknown;
-  }) => void
+  }) => void,
 ): void {
   useEffect(() => {
     const unsubscribe = onPluginEvent(eventType, handler);

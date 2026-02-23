@@ -24,19 +24,27 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((prev) => !prev), []);
 
-  const setCollapsed = useCallback((collapsed: boolean) => setIsCollapsed(collapsed), []);
-  const toggleCollapsed = useCallback(() => setIsCollapsed((prev) => !prev), []);
+  const setCollapsed = useCallback(
+    (collapsed: boolean) => setIsCollapsed(collapsed),
+    [],
+  );
+  const toggleCollapsed = useCallback(
+    () => setIsCollapsed((prev) => !prev),
+    [],
+  );
 
   return (
-    <SidebarContext.Provider value={{
-      isOpen,
-      open,
-      close,
-      toggle,
-      isCollapsed,
-      setCollapsed,
-      toggleCollapsed,
-    }}>
+    <SidebarContext.Provider
+      value={{
+        isOpen,
+        open,
+        close,
+        toggle,
+        isCollapsed,
+        setCollapsed,
+        toggleCollapsed,
+      }}
+    >
       {children}
     </SidebarContext.Provider>
   );
