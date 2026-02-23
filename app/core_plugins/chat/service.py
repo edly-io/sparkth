@@ -9,7 +9,7 @@ from app.core.logger import get_logger
 from app.core_plugins.chat.cache import CacheService
 from app.core_plugins.chat.config import api_key_settings
 from app.core_plugins.chat.encryption import EncryptionService
-from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
+from app.core_plugins.chat.models import Conversation, Message, MessageType, ProviderAPIKey
 
 logger = get_logger(__name__)
 
@@ -182,6 +182,9 @@ class ChatService:
         cost: float | None = None,
         metadata: dict[str, Any] | None = None,
         is_error: bool = False,
+        message_type: MessageType = "text",
+        attachment_name: str | None = None,
+        attachment_size: int | None = None,
     ) -> Message:
         metadata_json = json.dumps(metadata) if metadata else None
 
@@ -193,6 +196,9 @@ class ChatService:
             cost=cost,
             model_metadata=metadata_json,
             is_error=is_error,
+            message_type=message_type,
+            attachment_name=attachment_name,
+            attachment_size=attachment_size,
         )
 
         session.add(message)

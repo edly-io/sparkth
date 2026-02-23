@@ -232,7 +232,16 @@ async def chat_completion(
             conversation_id=conversation.id,  # type: ignore
             role=msg.role,
             content=msg.content,
+            message_type="attachment" if msg.attachment else "text",
+            attachment_name=msg.attachment.name if msg.attachment else None,
+            attachment_size=msg.attachment.size if msg.attachment else None,
         )
+
+    db_messages = await service.get_conversation_messages(
+        session=session,
+        conversation_id=conversation.id,  # type: ignore
+    )
+    messages = [{"role": m.role, "content": m.content} for m in db_messages]
 
     try:
         provider = get_provider(
@@ -242,12 +251,9 @@ async def chat_completion(
             temperature=request.temperature,
         )
 
-        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
-
         tool_registry = get_tool_registry()
         tools = None
 
-        # Handle tools parameter (default is "*" which means all tools)
         if request.tools == "none" or request.tools == []:
             logger.info("Tools explicitly disabled")
             tools = None
@@ -259,7 +265,6 @@ async def chat_completion(
             if not tools:
                 logger.warning(f"No tools found for: {request.tools}")
 
-        # Add system message with tool descriptions
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
@@ -294,6 +299,7 @@ async def chat_completion(
                 content=response["content"],
                 tokens_used=tokens_used,
                 metadata=response.get("metadata"),
+                message_type="text",
             )
 
             return ChatCompletionResponse(
@@ -333,14 +339,28 @@ async def stream_chat_response(
             data = json.dumps({"token": token, "done": False})
             yield f"data: {data}\n\n"
 
-        await service.add_message(
+        assistant_message = await service.add_message(
             session=session,
             conversation_id=conversation_id,
             role="assistant",
             content=full_response,
         )
 
-        data = json.dumps({"token": "", "done": True, "conversation_id": conversation_id})
+        data = json.dumps(
+            {
+                "token": "",
+                "done": True,
+                "conversation_id": conversation_id,
+                "message": {
+                    "id": assistant_message.id,
+                    "role": "assistant",
+                    "content": full_response,
+                    "message_type": "text",
+                    "attachment_name": None,
+                    "attachment_size": None,
+                },
+            }
+        )
         yield f"data: {data}\n\n"
 
     except Exception as e:
@@ -447,6 +467,9 @@ async def get_conversation(
                 tokens_used=msg.tokens_used,
                 cost=msg.cost,
                 created_at=msg.created_at,
+                message_type=msg.message_type,
+                attachment_name=msg.attachment_name,
+                attachment_size=msg.attachment_size,
             )
             for msg in messages
         ],

@@ -19,10 +19,7 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/50 animate-overlay",
-      className
-    )}
+    className={cn("fixed inset-0 z-50 bg-black/50 animate-overlay", className)}
     {...props}
   />
 ));
@@ -39,7 +36,7 @@ const DialogContent = React.forwardRef<
         ref={ref}
         className={cn(
           "w-full max-w-[calc(100vw-2rem)] sm:max-w-lg md:max-w-xl lg:max-w-2xl grid gap-4 border border-border bg-card p-4 sm:p-6 shadow-lg rounded-lg animate-dialog",
-          className
+          className,
         )}
         {...props}
       >
@@ -61,7 +58,7 @@ const DialogHeader = ({
   <div
     className={cn(
       "flex flex-col space-y-1.5 text-center sm:text-left",
-      className
+      className,
     )}
     {...props}
   />
@@ -75,7 +72,7 @@ const DialogFooter = ({
   <div
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
-      className
+      className,
     )}
     {...props}
   />
@@ -90,7 +87,7 @@ const DialogTitle = React.forwardRef<
     ref={ref}
     className={cn(
       "text-lg font-semibold leading-none tracking-tight text-foreground",
-      className
+      className,
     )}
     {...props}
   />

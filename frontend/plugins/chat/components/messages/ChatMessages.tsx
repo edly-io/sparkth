@@ -16,7 +16,7 @@ export function ChatMessages({
   messages,
   setPreviewOpen,
   setPreviewAttachment,
-  onSend
+  onSend,
 }: ChatMessagesProps) {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">

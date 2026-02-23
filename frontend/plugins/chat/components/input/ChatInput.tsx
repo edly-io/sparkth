@@ -7,6 +7,7 @@ import { TextAttachment } from "../../types";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
 import { Pill } from "../attachment/Pill";
 import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/lib/auth-context";
 
 interface ChatInputProps {
   attachment: TextAttachment | null;
@@ -26,6 +27,7 @@ export function ChatInput({
   setPreviewOpen,
   onSend,
 }: ChatInputProps) {
+  const { token } = useAuth();
   const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
 
@@ -33,7 +35,7 @@ export function ChatInput({
     const formData = new FormData();
     formData.append("file", file);
 
-    const data: UploadResponse = await uploadFile(formData);
+    const data: UploadResponse = await uploadFile(token, formData);
 
     setAttachment({
       name: file.name,

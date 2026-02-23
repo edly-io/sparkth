@@ -11,7 +11,7 @@ function useHasMounted() {
   return useSyncExternalStore(
     emptySubscribe,
     () => true,
-    () => false
+    () => false,
   );
 }
 
@@ -30,11 +30,7 @@ export function ThemeToggle() {
   const Icon = theme === "dark" ? Moon : Sun;
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={toggleTheme}
-    >
+    <Button variant="ghost" size="icon" onClick={toggleTheme}>
       <Icon className="w-5 h-5" />
       <span className="sr-only">Toggle theme</span>
     </Button>
