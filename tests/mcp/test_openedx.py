@@ -1,25 +1,9 @@
-from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core_plugins.openedx.client import OpenEdxClient
-from app.core_plugins.openedx.types import OpenEdxSettings, get_openedx_settings
 from app.mcp.types import AuthenticationError
-
-
-@pytest.fixture(autouse=True)
-def mock_openedx_settings() -> Generator[None, None, None]:
-    mock_settings = OpenEdxSettings.model_construct(
-        lms_url="https://fake.example.com",
-        studio_url="https://fake-studio.example.com",
-        lms_username="fake_user",
-        lms_password="fake_password",
-    )
-    with patch("app.core_plugins.openedx.types.get_openedx_settings", return_value=mock_settings):
-        get_openedx_settings.cache_clear()
-        yield
-        get_openedx_settings.cache_clear()
 
 
 @pytest.mark.asyncio

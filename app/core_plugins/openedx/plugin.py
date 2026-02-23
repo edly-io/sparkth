@@ -10,7 +10,6 @@ from app.core_plugins.openedx.types import (
     LMSAccess,
     RefreshTokenPayload,
     TokenResponse,
-    get_openedx_settings,
 )
 from app.mcp.types import AuthenticationError, JsonParseError, LMSError
 from app.plugins.base import SparkthPlugin, tool
@@ -111,24 +110,23 @@ class OpenEdxPlugin(SparkthPlugin):
         )
 
     @tool(description="Authenticate the Openedx credentials", category="openedx-auth")
-    async def openedx_authenticate(self) -> dict[str, Any]:
+    async def openedx_authenticate(
+        self,
+        lms_url: str,
+        studio_url: str,
+        username: str,
+        password: str,
+    ) -> dict[str, Any]:
         """
         Authenticate the provided Openedx credentials.
         If either argument is missing, the client must supply it. Default values for required fields are never assumed.
 
         Args:
-            payload (Auth): The credentials required for authentication. Include:
-                lms_url (str): The open edx lms URL.
-                studio_url (str): The open edx studio URL.
-                username (str)
-                password (str)
+            lms_url (str): The open edx lms URL.
+            studio_url (str): The open edx studio URL.
+            username (str): Username for the Open edX instance.
+            password (str): Password for the Open edX instance.
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
-        username = openedx_settings.lms_username
-        password = openedx_settings.lms_password
-
         async with OpenEdxClient(lms_url) as client:
             try:
                 auth_json = await client.get_token(username, password)
@@ -184,9 +182,8 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = payload.lms_url or openedx_settings.lms_url
-        studio_url = payload.studio_url or openedx_settings.studio_url
+        lms_url = payload.lms_url
+        studio_url = payload.studio_url
         refresh_token = payload.refresh_token
 
         async with OpenEdxClient(lms_url) as client:
@@ -235,8 +232,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = payload.lms_url or openedx_settings.lms_url
+        lms_url = payload.lms_url
         access_token = payload.access_token
 
         async with OpenEdxClient(lms_url, access_token) as client:
@@ -261,23 +257,21 @@ class OpenEdxPlugin(SparkthPlugin):
         title: str,
         pacing_type: str,
         access_token: str,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
+        lms_url: str,
+        studio_url: str,
     ) -> dict[str, Any]:
         """
         Create a new course run in an Open edX Studio instance.
 
         Args:
-            payload (CreateCourseArgs):
-                An object containing:
-                    - lms_url (str): Base LMS URL.
-                    - studio_url (str): Base Studio URL for POST requests.
-                    - access_token (str): Token used to authenticate requests.
-                    - org (str): Organization identifier.
-                    - number (str): Course number.
-                    - run (str): Course run identifier.
-                    - title (str): Course title.
-                    - pacing_type (str): Course pacing type (e.g., "self_paced" or "instructor_paced").
+            org (str): Organization identifier.
+            number (str): Course number.
+            run (str): Course run identifier.
+            title (str): Course title.
+            pacing_type (str): Course pacing type (e.g., "self_paced" or "instructor_paced").
+            access_token (str): Token used to authenticate requests.
+            lms_url (str): Base LMS URL.
+            studio_url (str): Base Studio URL for POST requests.
 
         Returns:
             dict[str, Any]:
@@ -298,9 +292,6 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
 
         # Reconstruct course data from flat fields
         course_data = {
@@ -330,24 +321,20 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_list_course_runs(
         self,
         access_token: str,
+        lms_url: str,
+        studio_url: str,
         page: int | None = None,
         page_size: int | None = None,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Retrieve a paginated list of course runs from an Open edX Studio instance.
 
         Args:
-            payload (ListCourseRunsArgs):
-                An object containing:
-                    - auth: Authentication data including:
-                        * lms_url (str): LMS base URL.
-                        * studio_url (str): Studio base URL for API access.
-                        * access_token (str): Token used for API authentication.
-                    - page (int, optional): Page number for pagination. Defaults to 1.
-                    - page_size (int, optional): Number of results per page.
-                    Defaults to 20.
+            access_token (str): Token used for API authentication.
+            lms_url (str): LMS base URL.
+            studio_url (str): Studio base URL for API access.
+            page (int, optional): Page number for pagination. Defaults to 1.
+            page_size (int, optional): Number of results per page. Defaults to 20.
 
         Returns:
             dict[str, Any]:
@@ -368,9 +355,6 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
 
         lms = lms_url.rstrip("/")
         base_url = studio_url.rstrip("/")
@@ -397,26 +381,24 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_create_xblock(
         self,
         access_token: str,
+        lms_url: str,
+        studio_url: str,
         course_id: str,
         parent_locator: str,
         category: str,
         display_name: str,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a new XBlock within an Open edX course.
 
         Args:
-            payload (XBlockPayload):
-                An object containing:
-                    - lms_url (str): LMS base URL.
-                    - studio_url (str): Studio base URL for API calls.
-                    - access_token (str): Token used for authenticated requests.
-                    - course_id (str): The course identifier where the XBlock should be created.
-                    - parent_locator (str): The parent XBlock locator.
-                    - category (str): The XBlock category/type.
-                    - display_name (str): The display name for the XBlock.
+            access_token (str): Token used for authenticated requests.
+            lms_url (str): LMS base URL.
+            studio_url (str): Studio base URL for API calls.
+            course_id (str): The course identifier where the XBlock should be created.
+            parent_locator (str): The parent XBlock locator.
+            category (str): The XBlock category/type.
+            display_name (str): The display name for the XBlock.
 
         Returns:
             dict[str, Any]:
@@ -437,9 +419,6 @@ class OpenEdxPlugin(SparkthPlugin):
                     }
                 }
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
 
         # Reconstruct xblock data from flat fields
         xblock_data = {
@@ -474,6 +453,8 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_create_problem_or_html(
         self,
         access_token: str,
+        lms_url: str,
+        studio_url: str,
         course_id: str,
         unit_locator: str,
         kind: Component | None = None,
@@ -481,8 +462,6 @@ class OpenEdxPlugin(SparkthPlugin):
         data: str | None = None,
         metadata: dict[str, Any] | None = None,
         mcq_boilerplate: bool | None = None,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Create either a Problem or HTML XBlock component, then update the XBlock
@@ -544,23 +523,11 @@ class OpenEdxPlugin(SparkthPlugin):
                 }`
 
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
-
-        # Create AccessTokenPayload from flat fields for helper functions
         auth = AccessTokenPayload(
             access_token=access_token,
             lms_url=lms_url,
             studio_url=studio_url,
         )
-        course_id = course_id
-        unit_locator = unit_locator
-        kind = kind
-        display_name = display_name
-        data = data
-        metadata = metadata
-        mcq_boilerplate = mcq_boilerplate
 
         component = kind or Component.PROBLEM
 
@@ -631,12 +598,12 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_update_xblock(
         self,
         access_token: str,
+        lms_url: str,
+        studio_url: str,
         course_id: str,
         locator: str,
         data: str | None = None,
         metadata: dict[str, Any] | None = None,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Update an XBlock (chapter/section, sequential/subsection, or vertical/unit)
@@ -669,10 +636,6 @@ class OpenEdxPlugin(SparkthPlugin):
         dict[str, Any]: A dictionary containing the XBlock update result
 
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
-
         # Create AccessTokenPayload from flat fields for helper function
         auth = AccessTokenPayload(
             access_token=access_token,
@@ -704,9 +667,8 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_get_course_tree_raw(
         self,
         access_token: str,
+        lms_url: str,
         course_id: str,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Fetch the full block graph ("course tree") for a course using the
@@ -722,7 +684,6 @@ class OpenEdxPlugin(SparkthPlugin):
         ----------
         access_token (str): Token used for authenticated requests.
         lms_url (str): LMS base URL.
-        studio_url (str): Studio base URL.
         course_id (str):
             Course key (e.g. "course-v1:ORG+COURSE+RUN").
 
@@ -734,8 +695,6 @@ class OpenEdxPlugin(SparkthPlugin):
             or on error:
                 {"error": "<message>"}
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
 
         params = {
             "course_id": course_id,
@@ -774,10 +733,10 @@ class OpenEdxPlugin(SparkthPlugin):
     async def openedx_get_block_contentstore(
         self,
         access_token: str,
+        lms_url: str,
+        studio_url: str,
         course_id: str,
         locator: str,
-        # lms_url: str | None = None,
-        # studio_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Read the content of a specific XBlock directly from the **Studio ContentStore**.
@@ -795,15 +754,13 @@ class OpenEdxPlugin(SparkthPlugin):
 
         Parameters
         ----------
-        payload : BlockContentArgs
-            A Pydantic model containing:
-                access_token (str): Token used for authenticated requests.
-                lms_url (str): LMS base URL.
-                studio_url (str): Studio base URL.
-                course_id (str):
-                    Course key (e.g., "course-v1:ORG+COURSE+RUN").
-                locator (str):
-                    Usage key of the XBlock to fetch (must be non-empty).
+        access_token (str): Token used for authenticated requests.
+        lms_url (str): LMS base URL.
+        studio_url (str): Studio base URL.
+        course_id (str):
+            Course key (e.g., "course-v1:ORG+COURSE+RUN").
+        locator (str):
+            Usage key of the XBlock to fetch (must be non-empty).
 
         Returns
         -------
@@ -813,9 +770,6 @@ class OpenEdxPlugin(SparkthPlugin):
             OR
                 {"error": "<details>"} when an LMS error occurs.
         """
-        openedx_settings = get_openedx_settings()
-        lms_url = openedx_settings.lms_url
-        studio_url = openedx_settings.studio_url
 
         encoded_locator = quote(locator, safe="")
 
