@@ -59,7 +59,7 @@ Each plugin must export a `PluginDefinition` from its own `index.ts`.
 **Example Plugin Structure**
 ```
 plugins/
- └─ chat-interface/
+ └─ chat/
     ├─ ChatInterface.tsx
     └─ index.ts
 ```
@@ -109,7 +109,7 @@ Expose the plugin from the plugins barrel file.
     plugins/index.ts
 
 ```ts
-export * from "./chat-interface";  // already existing
+export * from "./chat";  // already existing
 
 // your plugin export goes here 
 export * from "./example-plugin";
@@ -160,7 +160,7 @@ import PluginPageClient from "./page-client";
 
 export function generateStaticParams() {
   return [
-    { pluginName: "chat-interface" },
+    { pluginName: "chat" },
     { pluginName: "example-plugin" }  // register your route here
  ];
 }

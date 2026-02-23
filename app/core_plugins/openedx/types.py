@@ -1,15 +1,31 @@
 from enum import Enum
-from typing import Any, Optional
+from functools import lru_cache
+from typing import Any
 
 from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class OpenEdxSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    lms_url: str
+    studio_url: str
+    lms_username: str
+    lms_password: str
+
+
+@lru_cache
+def get_openedx_settings() -> OpenEdxSettings:
+    return OpenEdxSettings()
 
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: Optional[str] = None
-    token_type: Optional[str] = None
-    expires_in: Optional[int] = None
-    scope: Optional[str] = None
+    refresh_token: str | None = None
+    token_type: str | None = None
+    expires_in: int | None = None
+    scope: str | None = None
 
 
 class AccessTokenPayload(BaseModel):
@@ -19,21 +35,21 @@ class AccessTokenPayload(BaseModel):
 
 
 class Auth(BaseModel):
-    lms_url: str
-    studio_url: str
-    username: str
-    password: str
+    lms_url: str | None
+    studio_url: str | None
+    username: str | None
+    password: str | None
 
 
 class RefreshTokenPayload(BaseModel):
-    lms_url: str
-    studio_url: str
+    lms_url: str | None
+    studio_url: str | None
     refresh_token: str
 
 
 class LMSAccess(BaseModel):
     access_token: str
-    lms_url: str
+    lms_url: str | None
 
 
 class CourseArgs(BaseModel):
@@ -45,14 +61,23 @@ class CourseArgs(BaseModel):
 
 
 class CreateCourseArgs(BaseModel):
-    auth: AccessTokenPayload
-    course: CourseArgs
+    access_token: str
+    lms_url: str
+    studio_url: str
+    org: str
+    number: str
+    run: str
+    title: str
+    pacing_type: str
 
 
 class ListCourseRunsArgs(BaseModel):
-    auth: AccessTokenPayload
-    page: Optional[int] = None
-    page_size: Optional[int] = None
+    # auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
+    page: int | None | None = None
+    page_size: int | None | None = None
 
 
 class XBlock(BaseModel):
@@ -62,9 +87,13 @@ class XBlock(BaseModel):
 
 
 class XBlockPayload(BaseModel):
-    auth: AccessTokenPayload
-    xblock: XBlock
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
+    parent_locator: str
+    category: str
+    display_name: str
 
 
 class Component(str, Enum):
@@ -73,30 +102,38 @@ class Component(str, Enum):
 
 
 class ProblemOrHtmlArgs(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
     unit_locator: str
-    kind: Optional[Component] = None
-    display_name: Optional[str] = None
-    data: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
-    mcq_boilerplate: Optional[bool] = None
+    kind: Component | None = None
+    display_name: str | None = None
+    data: str | None = None
+    metadata: dict[str, Any] | None = None
+    mcq_boilerplate: bool | None = None
 
 
 class UpdateXBlockPayload(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
     locator: str
-    data: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    data: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class CourseTreeRequest(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
 
 
 class BlockContentArgs(BaseModel):
-    auth: AccessTokenPayload
+    access_token: str
+    lms_url: str
+    studio_url: str
     course_id: str
     locator: str

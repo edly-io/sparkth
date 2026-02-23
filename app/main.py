@@ -13,6 +13,7 @@ from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
+from app.core_plugins.chat.routes import chat_router
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
@@ -121,6 +122,7 @@ app.add_middleware(
 
 
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 
 # Serve frontend static files
 settings = get_settings()

@@ -31,7 +31,7 @@ export function PluginConfigModal({
   onRefresh,
 }: PluginConfigModalProps) {
   const [configValues, setConfigValues] = useState<Record<string, string>>(
-    plugin.config ?? {}
+    plugin.config ?? {},
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);

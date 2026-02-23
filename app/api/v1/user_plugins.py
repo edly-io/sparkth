@@ -4,7 +4,8 @@ User Plugin Management API Endpoints
 Allows users to manage their plugin preferences (enable/disable plugins).
 """
 
-from typing import Any, List
+import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -22,6 +23,10 @@ from app.services.plugin import (
     get_plugin_service,
 )
 
+# Get the root logger
+logger = logging.getLogger()
+
+
 router: APIRouter = APIRouter()
 
 
@@ -37,31 +42,33 @@ class UserPluginConfigRequest(BaseModel):
     config: dict[str, Any]
 
 
-@router.get("/", response_model=List[UserPluginResponse])
+@router.get("/", response_model=list[UserPluginResponse])
 async def list_user_plugins(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> List[UserPluginResponse]:
+) -> list[UserPluginResponse]:
     """
     List all plugins with their enabled status for the current user.
 
     Returns all available plugins and whether they are enabled or disabled,
     and pre-populates the config with keys from the plugin's schema.
     """
+
     all_plugins = await plugin_service.get_all(session)
     user_plugin_map = await plugin_service.get_user_plugin_map(session, current_user.id)
     result: list[UserPluginResponse] = []
 
     for plugin in all_plugins:
         user_plugin = user_plugin_map.get(plugin.name)
+        config_keys = PluginService.initial_config(plugin.config_schema)
+
         if user_plugin is not None:
-            config = user_plugin.config or PluginService.initial_config(plugin.config_schema)
             result.append(
                 UserPluginResponse(
                     plugin_name=plugin.name,
                     enabled=user_plugin.enabled,
-                    config=config,
+                    config=user_plugin.config or config_keys,
                     is_core=plugin.is_core,
                 )
             )
@@ -70,11 +77,10 @@ async def list_user_plugins(
                 UserPluginResponse(
                     plugin_name=plugin.name,
                     enabled=True,
-                    config=PluginService.initial_config(plugin.config_schema),
+                    config=config_keys,
                     is_core=plugin.is_core,
                 )
             )
-
     return result
 
 
@@ -91,7 +97,6 @@ async def create_user_plugin(
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> UserPluginResponse:
     """Create a user plugin with validated configuration."""
-
     if not current_user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
 
@@ -99,6 +104,11 @@ async def create_user_plugin(
 
     if not plugin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{plugin_name}' not found")
+
+    if not plugin.id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Plugin '{plugin_name}' is not persisted."
+        )
 
     if not plugin.enabled:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Plugin '{plugin_name}' is not enabled")
@@ -111,15 +121,12 @@ async def create_user_plugin(
 
     try:
         validated_config = PluginService.validate_user_config(plugin, user_config)
+        user_plugin = await plugin_service.create_user_plugin(session, current_user.id, plugin.id, validated_config)
     except ConfigValidationError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
-
-    try:
-        user_plugin = await plugin_service.create_user_plugin(session, current_user.id, plugin, validated_config)
     except InternalServerError as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
-    await session.refresh(plugin)
     return UserPluginResponse(
         plugin_name=plugin.name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
     )

@@ -183,7 +183,7 @@ body {
 @keyframes zoomIn {
   from {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.95);
+    transform: translate(-50%, -50%) scale(0.98);
   }
   to {
     opacity: 1;
@@ -198,17 +198,17 @@ body {
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.95);
+    transform: translate(-50%, -50%) scale(0.98);
   }
 }
 
 /* Overlay animations */
 [data-state="open"].animate-overlay {
-  animation: fadeIn 200ms ease-out;
+  animation: fadeIn 150ms ease-out;
 }
 
 [data-state="closed"].animate-overlay {
-  animation: fadeOut 200ms ease-in;
+  animation: fadeOut 100ms ease-out;
 }
 
 /* Sheet animations - left side */
@@ -231,9 +231,9 @@ body {
 
 /* Dialog animations */
 [data-state="open"].animate-dialog {
-  animation: zoomIn 200ms ease-out;
+  animation: zoomIn 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-state="closed"].animate-dialog {
-  animation: zoomOut 150ms ease-in;
+  animation: zoomOut 100ms cubic-bezier(0.4, 0, 1, 1);
 }

@@ -18,7 +18,8 @@ settings = get_settings()
 
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+config.set_main_option("sqlalchemy.url", db_url)
 
 
 # Import plugin models for Alembic autogenerate

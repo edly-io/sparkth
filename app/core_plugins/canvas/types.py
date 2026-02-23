@@ -1,6 +1,5 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,20 +26,20 @@ class CourseFormat(str, Enum):
 
 class Course(BaseModel):
     name: str
-    course_code: Optional[str] = None
-    sis_course_id: Optional[int] = None
-    start_at: Optional[datetime] = None
-    end_at: Optional[datetime] = None
-    is_public: Optional[bool] = None
-    course_format: Optional[CourseFormat] = None
-    post_manually: Optional[bool] = None
+    course_code: str | None = None
+    sis_course_id: int | None = None
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+    is_public: bool | None = None
+    course_format: CourseFormat | None = None
+    post_manually: bool | None = None
 
 
 class CoursePayload(BaseModel):
     course: Course
     enroll_me: bool
-    offer: Optional[bool] = None
-    enable_sis_reactivation: Optional[bool] = None
+    offer: bool | None = None
+    enable_sis_reactivation: bool | None = None
     account_id: int
     auth: AuthenticationPayload
 
@@ -54,11 +53,11 @@ class ModuleParams(BaseModel):
 
 class Module(BaseModel):
     name: str
-    position: Optional[int] = None
-    unlock_at: Optional[datetime] = None
-    require_sequential_progress: Optional[bool] = None
-    prerequisite_module_ids: Optional[list[int]] = None
-    publish_final_grade: Optional[bool] = None
+    position: int | None = None
+    unlock_at: datetime | None = None
+    require_sequential_progress: bool | None = None
+    prerequisite_module_ids: list[int] | None = None
+    publish_final_grade: bool | None = None
 
 
 class ModulePayload(BaseModel):
@@ -68,13 +67,13 @@ class ModulePayload(BaseModel):
 
 
 class UpdatedModule(BaseModel):
-    name: Optional[str] = None
-    position: Optional[int] = None
-    unlock_at: Optional[datetime] = None
-    require_sequential_progress: Optional[bool] = None
-    prerequisite_module_ids: Optional[list[int]] = None
-    publish_final_grade: Optional[bool] = None
-    published: Optional[bool] = None
+    name: str | None = None
+    position: int | None = None
+    unlock_at: datetime | None = None
+    require_sequential_progress: bool | None = None
+    prerequisite_module_ids: list[int] | None = None
+    publish_final_grade: bool | None = None
+    published: bool | None = None
 
 
 class UpdateModulePayload(BaseModel):
@@ -98,18 +97,18 @@ class ModuleItemType(str, Enum):
 
 class ModuleItemCompletionRequirement(BaseModel):
     requirement_type: str
-    min_score: Optional[float] = None
+    min_score: float | None = None
 
 
 class ModuleItem(BaseModel):
     title: str
     module_type: ModuleItemType = ModuleItemType.PAGE
-    page_url: Optional[str] = None
-    content_id: Optional[str] = None
-    position: Optional[int] = None
-    indent: Optional[int] = None
-    new_tab: Optional[bool] = None
-    completion_requirement: Optional[ModuleItemCompletionRequirement] = None
+    page_url: str | None = None
+    content_id: str | None = None
+    position: int | None = None
+    indent: int | None = None
+    new_tab: bool | None = None
+    completion_requirement: ModuleItemCompletionRequirement | None = None
 
     def to_canvas_payload(self) -> dict[str, object]:
         data = self.model_dump()
@@ -125,14 +124,14 @@ class ModuleItemPayload(BaseModel):
 
 
 class UpdatedModuleItem(BaseModel):
-    title: Optional[str] = None
-    position: Optional[int] = None
-    indent: Optional[int] = None
-    external_url: Optional[str] = None
-    new_tab: Optional[bool] = None
-    completion_requirement: Optional[ModuleItemCompletionRequirement] = None
-    module_id: Optional[int] = None
-    published: Optional[bool] = None
+    title: str | None = None
+    position: int | None = None
+    indent: int | None = None
+    external_url: str | None = None
+    new_tab: bool | None = None
+    completion_requirement: ModuleItemCompletionRequirement | None = None
+    module_id: int | None = None
+    published: bool | None = None
 
 
 class UpdateModuleItemPayload(BaseModel):
@@ -159,11 +158,11 @@ class EditingRoles(str, Enum):
 class Page(BaseModel):
     title: str
     editing_roles: EditingRoles = Field(default=EditingRoles.TEACHERS)
-    body: Optional[str] = None
-    notify_of_update: Optional[bool] = None
-    published: Optional[bool] = None
-    front_page: Optional[bool] = None
-    publish_at: Optional[datetime] = None
+    body: str | None = None
+    notify_of_update: bool | None = None
+    published: bool | None = None
+    front_page: bool | None = None
+    publish_at: datetime | None = None
 
 
 class PagePayload(BaseModel):
@@ -176,10 +175,10 @@ class UpdatedPage(BaseModel):
     title: str
     body: str
     editing_roles: EditingRoles = Field(default=EditingRoles.TEACHERS)
-    notify_of_update: Optional[bool] = None
-    published: Optional[bool] = None
-    publish_at: Optional[datetime] = None
-    front_page: Optional[bool] = None
+    notify_of_update: bool | None = None
+    published: bool | None = None
+    publish_at: datetime | None = None
+    front_page: bool | None = None
 
 
 class UpdatePagePayload(BaseModel):
@@ -217,19 +216,19 @@ class Quiz(BaseModel):
     title: str
     description: str
     quiz_type: QuizType
-    assignment_group_id: Optional[int] = None
-    time_limit: Optional[int] = None
-    shuffle_answers: Optional[bool] = None
-    hide_results: Optional[HideResults] = None
-    show_correct_answers: Optional[bool] = None
-    allowed_attempts: Optional[int] = None
-    scoring_policy: Optional[ScoringPolicy] = None
-    one_question_at_a_time: Optional[bool] = None
-    cant_go_back: Optional[bool] = None
-    due_at: Optional[datetime] = None
-    lock_at: Optional[datetime] = None
-    unlock_at: Optional[datetime] = None
-    published: Optional[bool] = None
+    assignment_group_id: int | None = None
+    time_limit: int | None = None
+    shuffle_answers: bool | None = None
+    hide_results: HideResults | None = None
+    show_correct_answers: bool | None = None
+    allowed_attempts: int | None = None
+    scoring_policy: ScoringPolicy | None = None
+    one_question_at_a_time: bool | None = None
+    cant_go_back: bool | None = None
+    due_at: datetime | None = None
+    lock_at: datetime | None = None
+    unlock_at: datetime | None = None
+    published: bool | None = None
 
 
 class QuizPayload(BaseModel):
@@ -239,22 +238,22 @@ class QuizPayload(BaseModel):
 
 
 class UpdatedQuiz(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    quiz_type: Optional[QuizType] = None
-    assignment_group_id: Optional[int] = None
-    time_limit: Optional[int] = None
-    shuffle_answers: Optional[bool] = None
-    hide_results: Optional[HideResults] = None
-    show_correct_answers: Optional[bool] = None
-    allowed_attempts: Optional[int] = None
-    scoring_policy: Optional[ScoringPolicy] = None
-    one_question_at_a_time: Optional[bool] = None
-    cant_go_back: Optional[bool] = None
-    due_at: Optional[datetime] = None
-    lock_at: Optional[datetime] = None
-    unlock_at: Optional[datetime] = None
-    published: Optional[bool] = None
+    title: str | None = None
+    description: str | None = None
+    quiz_type: QuizType | None = None
+    assignment_group_id: int | None = None
+    time_limit: int | None = None
+    shuffle_answers: bool | None = None
+    hide_results: HideResults | None = None
+    show_correct_answers: bool | None = None
+    allowed_attempts: int | None = None
+    scoring_policy: ScoringPolicy | None = None
+    one_question_at_a_time: bool | None = None
+    cant_go_back: bool | None = None
+    due_at: datetime | None = None
+    lock_at: datetime | None = None
+    unlock_at: datetime | None = None
+    published: bool | None = None
 
 
 class UpdateQuizPayload(BaseModel):
@@ -274,7 +273,7 @@ class QuestionParams(BaseModel):
 class Answer(BaseModel):
     answer_text: str
     answer_weight: int
-    answer_comments: Optional[str] = None
+    answer_comments: str | None = None
 
 
 class QuestionType(str, Enum):
@@ -288,15 +287,15 @@ class QuestionType(str, Enum):
 class Question(BaseModel):
     question_name: str
     question_text: str
-    quiz_group_id: Optional[int] = None
-    question_type: Optional[QuestionType] = None
-    position: Optional[int] = None
-    points_possible: Optional[float] = None
-    correct_comments: Optional[str] = None
-    incorrect_comments: Optional[str] = None
-    neutral_comments: Optional[str] = None
-    text_after_answers: Optional[str] = None
-    answers: Optional[list[Answer]] = None
+    quiz_group_id: int | None = None
+    question_type: QuestionType | None = None
+    position: int | None = None
+    points_possible: float | None = None
+    correct_comments: str | None = None
+    incorrect_comments: str | None = None
+    neutral_comments: str | None = None
+    text_after_answers: str | None = None
+    answers: list[Answer] | None = None
 
 
 class QuestionPayload(BaseModel):
@@ -307,17 +306,17 @@ class QuestionPayload(BaseModel):
 
 
 class UpdatedQuestion(BaseModel):
-    question_name: Optional[str] = None
-    question_text: Optional[str] = None
-    quiz_group_id: Optional[int] = None
-    question_type: Optional[QuestionType] = None
-    position: Optional[int] = None
-    points_possible: Optional[float] = None
-    correct_comments: Optional[str] = None
-    incorrect_comments: Optional[str] = None
-    neutral_comments: Optional[str] = None
-    text_after_answers: Optional[str] = None
-    answers: Optional[list[Answer]] = None
+    question_name: str | None = None
+    question_text: str | None = None
+    quiz_group_id: int | None = None
+    question_type: QuestionType | None = None
+    position: int | None = None
+    points_possible: float | None = None
+    correct_comments: str | None = None
+    incorrect_comments: str | None = None
+    neutral_comments: str | None = None
+    text_after_answers: str | None = None
+    answers: list[Answer] | None = None
 
 
 class UpdateQuestionPayload(BaseModel):

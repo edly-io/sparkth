@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Optional, cast
+from typing import Any, Awaitable, Callable, cast
 
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class PluginAccessMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: Any, exclude_paths: Optional[list[str]] = None) -> None:
+    def __init__(self, app: Any, exclude_paths: list[str] | None = None) -> None:
         super().__init__(app)
         self.exclude_paths = exclude_paths or [
             "/docs",
@@ -63,7 +63,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
                 return True
         return False
 
-    def _get_route_plugin_name(self, request: Request) -> Optional[str]:
+    def _get_route_plugin_name(self, request: Request) -> str | None:
         for route in request.app.routes:
             match, _ = route.matches(request.scope)
             if match == Match.FULL:

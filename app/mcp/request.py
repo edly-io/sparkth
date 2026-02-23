@@ -1,6 +1,6 @@
 import json
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from aiohttp import ClientPayloadError, ClientResponse, ClientSession, ContentTypeError
 
@@ -15,11 +15,11 @@ class Auth(str, Enum):
 async def request(
     method: str = "GET",
     url: str = "",
-    session: Optional[ClientSession] = None,
+    session: ClientSession | None = None,
     auth: Auth = Auth.BEARER,
     token: str = "",
-    params: Optional[dict[str, Any]] = None,
-    payload: Optional[dict[str, Any]] = None,
+    params: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if session is None:
         raise ValueError("ClientSession instance is required.")

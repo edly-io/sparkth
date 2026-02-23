@@ -1,5 +1,6 @@
+from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi import FastAPI, status
 from httpx import ASGITransport, AsyncClient
@@ -13,8 +14,42 @@ async def test_configure_user_plugin_success(override_dependencies: Any) -> None
     client = override_dependencies
     payload = {"some_config": 123}
 
-    with patch("app.services.plugin.PluginService.validate_user_config", return_value=payload):
-        response = await client.post("/api/v1/user-plugins/plugin_a/configure", json=payload)
+    mock_plugin = SimpleNamespace(
+        id=1,
+        name="plugin_a",
+        enabled=True,
+        is_core=True,
+    )
+
+    mock_user_plugin = SimpleNamespace(
+        enabled=True,
+        config=payload,
+    )
+
+    with (
+        patch(
+            "app.services.plugin.PluginService.get_by_name",
+            new=AsyncMock(return_value=mock_plugin),
+        ),
+        patch(
+            "app.services.plugin.PluginService.get_user_plugin",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.plugin.PluginService.create_user_plugin",
+            new=AsyncMock(return_value=mock_user_plugin),
+        ),
+        patch(
+            "app.services.plugin.PluginService.validate_user_config",
+            return_value=payload,
+        ),
+    ):
+        response = await client.post(
+            "/api/v1/user-plugins/plugin_a/configure",
+            json=payload,
+        )
+
+    assert response.status_code == 201
 
     data = response.json()
     assert data["plugin_name"] == "plugin_a"

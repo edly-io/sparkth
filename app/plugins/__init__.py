@@ -11,9 +11,8 @@ Provides a flexible, OOP-based plugin architecture with:
 - Configuration management
 """
 
-from typing import Optional
-
 from app.core_plugins.canvas.config import CanvasConfig
+from app.core_plugins.chat.config import ChatUserConfig
 from app.core_plugins.openedx.config import OpenEdxConfig
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
@@ -30,7 +29,7 @@ from app.plugins.exceptions import (
 from .manager import PluginManager
 
 # Global plugin manager instance
-_plugin_manager_instance: Optional[PluginManager] = None
+_plugin_manager_instance: PluginManager | None = None
 
 
 def get_plugin_manager() -> PluginManager:
@@ -61,4 +60,4 @@ __all__ = [
 ]
 
 
-PLUGIN_CONFIG_CLASSES = {"canvas": CanvasConfig, "open-edx": OpenEdxConfig}
+PLUGIN_CONFIG_CLASSES = {"canvas": CanvasConfig, "open-edx": OpenEdxConfig, "chat": ChatUserConfig}

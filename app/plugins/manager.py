@@ -7,7 +7,7 @@ Manages plugin discovery, loading, and lifecycle based on configuration.
 import importlib
 import inspect
 import re
-from typing import Any, Dict, List, Type
+from typing import Any, Type
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -39,10 +39,10 @@ class PluginManager:
 
     def __init__(self) -> None:
         """Initialize plugin manager."""
-        self._loaded_plugins: Dict[str, SparkthPlugin] = {}
-        self._available_plugins: Dict[str, Type[SparkthPlugin]] = {}
+        self._loaded_plugins: dict[str, SparkthPlugin] = {}
+        self._available_plugins: dict[str, Type[SparkthPlugin]] = {}
 
-    def discover_plugins(self) -> Dict[str, Type[SparkthPlugin]]:
+    def discover_plugins(self) -> dict[str, Type[SparkthPlugin]]:
         """
         Discover all plugins defined in get_plugin_settings().
 
@@ -53,7 +53,7 @@ class PluginManager:
             All plugins are enabled by default.
             Format: "module.path:ClassName"
         """
-        discovered: Dict[str, Type[SparkthPlugin]] = {}
+        discovered: dict[str, Type[SparkthPlugin]] = {}
 
         for module_string in get_plugin_settings():
             try:
@@ -67,7 +67,7 @@ class PluginManager:
         self._available_plugins = discovered
         return discovered
 
-    def get_available_plugins(self) -> List[str]:
+    def get_available_plugins(self) -> list[str]:
         """
         Get list of all available plugin names.
 
@@ -261,7 +261,7 @@ class PluginManager:
 
         return self._loaded_plugins[plugin_name]
 
-    def get_loaded_plugins(self) -> Dict[str, SparkthPlugin]:
+    def get_loaded_plugins(self) -> dict[str, SparkthPlugin]:
         """
         Get all loaded plugin instances.
 
@@ -282,7 +282,7 @@ class PluginManager:
         """
         return plugin_name in self._loaded_plugins
 
-    async def load_all_enabled(self) -> Dict[str, SparkthPlugin]:
+    async def load_all_enabled(self) -> dict[str, SparkthPlugin]:
         """
         Load all plugins from configuration.
         All plugins in get_plugin_settings() are enabled by default.
@@ -295,7 +295,7 @@ class PluginManager:
             Check logs for any failures.
         """
         available_plugins = self.get_available_plugins()
-        loaded: Dict[str, SparkthPlugin] = {}
+        loaded: dict[str, SparkthPlugin] = {}
 
         for plugin_name in available_plugins:
             try:
@@ -335,7 +335,7 @@ class PluginManager:
                 logger.error(f"Failed to unload plugin '{plugin_name}': {e}")
                 continue
 
-    def get_plugin_info(self, plugin_name: str) -> Dict[str, Any]:
+    def get_plugin_info(self, plugin_name: str) -> dict[str, Any]:
         """
         Get comprehensive information about a plugin.
 
@@ -345,7 +345,7 @@ class PluginManager:
         Returns:
             Dictionary containing plugin information
         """
-        info: Dict[str, Any] = {
+        info: dict[str, Any] = {
             "name": plugin_name,
             "loaded": self.is_plugin_loaded(plugin_name),
             "enabled": True,
@@ -357,7 +357,7 @@ class PluginManager:
 
         return info
 
-    def list_all_plugins(self) -> List[Dict[str, Any]]:
+    def list_all_plugins(self) -> list[dict[str, Any]]:
         """
         Get information about all available plugins.
 
