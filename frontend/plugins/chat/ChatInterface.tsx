@@ -43,7 +43,6 @@ export default function ChatInterface() {
   );
   const [previewAttachment, setPreviewAttachment] =
     useState<TextAttachment | null>(null);
-
   const [historyState, setHistoryState] = useState<{
     loading: boolean;
     messages: ChatMessage[];
@@ -169,6 +168,7 @@ export default function ChatInterface() {
     if (message.trim())
       newUserMessages.push({ role: "user", content: message });
 
+    const outgoingMessages = newUserMessages;
     const assistantId = crypto.randomUUID();
 
     setMessages((prev) => [
