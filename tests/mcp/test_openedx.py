@@ -11,15 +11,14 @@ from app.core_plugins.openedx.types import (
     Component,
     CourseTreeRequest,
     CreateCourseArgs,
-    LMSAccess,
     ListCourseRunsArgs,
+    LMSAccess,
     ProblemOrHtmlArgs,
     RefreshTokenPayload,
     UpdateXBlockPayload,
     XBlockPayload,
 )
 from app.mcp.types import AuthenticationError, LMSError
-
 
 LMS_URL = "https://lms.example.com"
 STUDIO_URL = "https://studio.example.com"
