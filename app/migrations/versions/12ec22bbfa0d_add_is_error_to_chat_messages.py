@@ -1,7 +1,7 @@
 """add is_error to chat_messages
 
 Revision ID: 12ec22bbfa0d
-Revises: 2154d6956f32
+Revises: 2e6fc18da38c
 Create Date: 2026-02-21 22:07:51.468033
 
 """
@@ -14,7 +14,7 @@ import sqlmodel
 
 # revision identifiers, used by Alembic.
 revision: str = '12ec22bbfa0d'
-down_revision: Union[str, Sequence[str], None] = '2154d6956f32'
+down_revision: Union[str, Sequence[str], None] = '2e6fc18da38c'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
