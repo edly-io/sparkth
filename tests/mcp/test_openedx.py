@@ -137,7 +137,9 @@ class TestOpenEdxClient:
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginAuthenticate:
-    async def test_authenticate_success(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_authenticate_success(
+        self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         mock_cls, client = mock_openedx_client
         client.get_token.return_value = {"access_token": "tok123", "refresh_token": "ref456"}
         client.get_username.return_value = USERNAME
@@ -150,7 +152,9 @@ class TestOpenEdxPluginAuthenticate:
         assert result["access_token"] == "tok123"
         assert result["studio_url"] == STUDIO_URL
 
-    async def test_authenticate_failure(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_authenticate_failure(
+        self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         _, client = mock_openedx_client
         client.get_token.side_effect = AuthenticationError(401, "Invalid credentials")
 
@@ -163,7 +167,9 @@ class TestOpenEdxPluginAuthenticate:
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginRefreshToken:
-    async def test_refresh_success(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_refresh_success(
+        self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         _, client = mock_openedx_client
         client.refresh_access_token.return_value = {"access_token": "new_tok", "refresh_token": "new_ref"}
 
@@ -174,7 +180,9 @@ class TestOpenEdxPluginRefreshToken:
         assert result["response"]["access_token"] == "new_tok"
         assert result["response"]["studio_url"] == STUDIO_URL
 
-    async def test_refresh_failure(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_refresh_failure(
+        self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         _, client = mock_openedx_client
         client.refresh_access_token.side_effect = AuthenticationError(401, "Invalid refresh token")
 
@@ -187,7 +195,9 @@ class TestOpenEdxPluginRefreshToken:
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginGetUserInfo:
-    async def test_get_user_info_success(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_get_user_info_success(
+        self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         mock_cls, client = mock_openedx_client
         client.authenticate.return_value = {"username": "admin"}
 
@@ -197,7 +207,9 @@ class TestOpenEdxPluginGetUserInfo:
         mock_cls.assert_called_once_with(LMS_URL, ACCESS_TOKEN)
         assert result["response"] == {"username": "admin"}
 
-    async def test_get_user_info_failure(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_get_user_info_failure(
+        self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         _, client = mock_openedx_client
         client.authenticate.side_effect = AuthenticationError(401, "Unauthorized")
 
