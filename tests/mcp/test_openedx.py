@@ -1,3 +1,4 @@
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -39,7 +40,7 @@ def plugin() -> OpenEdxPlugin:
 
 
 @pytest.fixture
-def mock_openedx_client():
+def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
     """Patch OpenEdxClient and yield (mock_cls, mock_client) for tests to configure."""
     with patch("app.core_plugins.openedx.plugin.OpenEdxClient") as mock_cls:
         client = AsyncMock(spec=OpenEdxClient)
@@ -136,7 +137,7 @@ class TestOpenEdxClient:
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginAuthenticate:
-    async def test_authenticate_success(self, plugin: OpenEdxPlugin, mock_openedx_client) -> None:
+    async def test_authenticate_success(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
         client.get_token.return_value = {"access_token": "tok123", "refresh_token": "ref456"}
         client.get_username.return_value = USERNAME
@@ -149,7 +150,7 @@ class TestOpenEdxPluginAuthenticate:
         assert result["access_token"] == "tok123"
         assert result["studio_url"] == STUDIO_URL
 
-    async def test_authenticate_failure(self, plugin: OpenEdxPlugin, mock_openedx_client) -> None:
+    async def test_authenticate_failure(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         _, client = mock_openedx_client
         client.get_token.side_effect = AuthenticationError(401, "Invalid credentials")
 
@@ -162,7 +163,7 @@ class TestOpenEdxPluginAuthenticate:
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginRefreshToken:
-    async def test_refresh_success(self, plugin: OpenEdxPlugin, mock_openedx_client) -> None:
+    async def test_refresh_success(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         _, client = mock_openedx_client
         client.refresh_access_token.return_value = {"access_token": "new_tok", "refresh_token": "new_ref"}
 
@@ -173,7 +174,7 @@ class TestOpenEdxPluginRefreshToken:
         assert result["response"]["access_token"] == "new_tok"
         assert result["response"]["studio_url"] == STUDIO_URL
 
-    async def test_refresh_failure(self, plugin: OpenEdxPlugin, mock_openedx_client) -> None:
+    async def test_refresh_failure(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         _, client = mock_openedx_client
         client.refresh_access_token.side_effect = AuthenticationError(401, "Invalid refresh token")
 
@@ -186,7 +187,7 @@ class TestOpenEdxPluginRefreshToken:
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginGetUserInfo:
-    async def test_get_user_info_success(self, plugin: OpenEdxPlugin, mock_openedx_client) -> None:
+    async def test_get_user_info_success(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
         client.authenticate.return_value = {"username": "admin"}
 
@@ -196,7 +197,7 @@ class TestOpenEdxPluginGetUserInfo:
         mock_cls.assert_called_once_with(LMS_URL, ACCESS_TOKEN)
         assert result["response"] == {"username": "admin"}
 
-    async def test_get_user_info_failure(self, plugin: OpenEdxPlugin, mock_openedx_client) -> None:
+    async def test_get_user_info_failure(self, plugin: OpenEdxPlugin, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         _, client = mock_openedx_client
         client.authenticate.side_effect = AuthenticationError(401, "Unauthorized")
 
@@ -210,7 +211,7 @@ class TestOpenEdxPluginGetUserInfo:
 @pytest.mark.asyncio
 class TestOpenEdxPluginCreateCourseRun:
     async def test_create_course_run_success(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         mock_cls, client = mock_openedx_client
         client.post.return_value = {"id": "course-v1:TestOrg+101+2024"}
@@ -229,7 +230,7 @@ class TestOpenEdxPluginCreateCourseRun:
         assert result["response"]["id"] == "course-v1:TestOrg+101+2024"
 
     async def test_create_course_run_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.post.side_effect = AuthenticationError(403, "Forbidden")
@@ -245,7 +246,7 @@ class TestOpenEdxPluginCreateCourseRun:
 @pytest.mark.asyncio
 class TestOpenEdxPluginListCourseRuns:
     async def test_list_course_runs_success(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.get.return_value = {"results": [{"id": "course-v1:Org+101+2024"}]}
@@ -256,7 +257,7 @@ class TestOpenEdxPluginListCourseRuns:
         assert "courses" in result
 
     async def test_list_course_runs_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.get.side_effect = AuthenticationError(401, "Unauthorized")
@@ -270,7 +271,7 @@ class TestOpenEdxPluginListCourseRuns:
 @pytest.mark.asyncio
 class TestOpenEdxPluginCreateXBlock:
     async def test_create_xblock_success(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         mock_cls, client = mock_openedx_client
         client.post.return_value = {"locator": "block-v1:new"}
@@ -288,7 +289,7 @@ class TestOpenEdxPluginCreateXBlock:
         assert result["response"] == {"locator": "block-v1:new"}
 
     async def test_create_xblock_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.post.side_effect = AuthenticationError(403, "Forbidden")
@@ -308,7 +309,7 @@ class TestOpenEdxPluginCreateXBlock:
 @pytest.mark.asyncio
 class TestOpenEdxPluginUpdateXBlock:
     async def test_update_xblock_success(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.patch.return_value = {"status": "ok"}
@@ -324,7 +325,7 @@ class TestOpenEdxPluginUpdateXBlock:
         assert result["response"] == {"status": "ok"}
 
     async def test_update_xblock_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.patch.side_effect = AuthenticationError(500, "Server error")
@@ -343,7 +344,7 @@ class TestOpenEdxPluginUpdateXBlock:
 @pytest.mark.asyncio
 class TestOpenEdxPluginGetCourseTree:
     async def test_get_course_tree_success(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         mock_cls, client = mock_openedx_client
         client.get.return_value = {"blocks": {"root": {}}}
@@ -355,7 +356,7 @@ class TestOpenEdxPluginGetCourseTree:
         assert result["response"] == {"blocks": {"root": {}}}
 
     async def test_get_course_tree_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.get.side_effect = LMSError("GET", "/api/courses/v1/blocks/", 404, "Not found")
@@ -369,7 +370,7 @@ class TestOpenEdxPluginGetCourseTree:
 @pytest.mark.asyncio
 class TestOpenEdxPluginGetBlockContentstore:
     async def test_get_block_contentstore_success(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         mock_cls, client = mock_openedx_client
         client.get.return_value = {"data": "<p>Hello</p>"}
@@ -385,7 +386,7 @@ class TestOpenEdxPluginGetBlockContentstore:
         assert result["response"] == {"data": "<p>Hello</p>"}
 
     async def test_get_block_contentstore_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.get.side_effect = LMSError("GET", "/api/contentstore/", 404, "Not found")
@@ -403,7 +404,7 @@ class TestOpenEdxPluginGetBlockContentstore:
 @pytest.mark.asyncio
 class TestOpenEdxPluginCreateProblemOrHtml:
     async def test_create_problem_with_data(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.post.return_value = {"locator": "block-v1:new_problem"}
@@ -421,7 +422,7 @@ class TestOpenEdxPluginCreateProblemOrHtml:
         assert result["response"]["locator"] == "block-v1:new_problem"
 
     async def test_create_html_no_data(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.post.return_value = {"locator": "block-v1:new_html"}
@@ -438,7 +439,7 @@ class TestOpenEdxPluginCreateProblemOrHtml:
         assert result["response"]["result"]["detail"] == "Component created; no content/metadata to update"
 
     async def test_create_problem_auth_failure(
-        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client
+        self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
         client.post.side_effect = AuthenticationError(401, "Unauthorized")
