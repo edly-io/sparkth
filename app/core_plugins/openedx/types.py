@@ -4,20 +4,6 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class OpenEdxSettings(BaseSettings):    
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    lms_url: str = ""
-    studio_url: str = ""
-    lms_username: str = ""
-    lms_password: str = ""
-
-
-@lru_cache
-def get_openedx_settings() -> OpenEdxSettings:
-    return OpenEdxSettings()
-
-
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str | None = None
