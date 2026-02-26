@@ -485,12 +485,14 @@ class SparkthPlugin(metaclass=PluginMeta):
             from pydantic import BaseModel
 
             if isinstance(py_type, type) and issubclass(py_type, BaseModel):
-                # Get the model's JSON schema
                 model_schema = py_type.model_json_schema()
-                # Remove the title and other metadata, keep only the relevant fields
+                defs = model_schema.get("$defs", {})
+                properties = model_schema.get("properties", {})
+                # Resolve all $ref references inline so the schema is self-contained
+                resolved_properties = {k: self._resolve_schema_refs(v, defs) for k, v in properties.items()}
                 return {
                     "type": "object",
-                    "properties": model_schema.get("properties", {}),
+                    "properties": resolved_properties,
                     "required": model_schema.get("required", []),
                 }
         except (ImportError, TypeError):
@@ -515,6 +517,40 @@ class SparkthPlugin(metaclass=PluginMeta):
             return {"type": "object"}
 
         return {"type": "string"}
+
+    def _resolve_schema_refs(self, schema: Any, defs: dict[str, Any]) -> Any:
+        """Recursively resolve all $ref references inline within a JSON schema."""
+        if not isinstance(schema, dict):
+            return schema
+
+        if "$ref" in schema:
+            ref_path = schema["$ref"]
+            if ref_path.startswith("#/$defs/"):
+                def_name = ref_path.split("/")[-1]
+                if def_name in defs:
+                    resolved = defs[def_name].copy()
+                    # Merge any extra keys (e.g. description) from the referencing schema
+                    for key, value in schema.items():
+                        if key != "$ref":
+                            resolved[key] = value
+                    return self._resolve_schema_refs(resolved, defs)
+            return schema
+
+        result: dict[str, Any] = {}
+        for key, value in schema.items():
+            if key == "$defs":
+                continue
+            elif key == "properties" and isinstance(value, dict):
+                result[key] = {k: self._resolve_schema_refs(v, defs) for k, v in value.items()}
+            elif key == "items" and isinstance(value, dict):
+                result[key] = self._resolve_schema_refs(value, defs)
+            elif key == "anyOf" and isinstance(value, list):
+                result[key] = [self._resolve_schema_refs(v, defs) if isinstance(v, dict) else v for v in value]
+            elif key == "allOf" and isinstance(value, list):
+                result[key] = [self._resolve_schema_refs(v, defs) if isinstance(v, dict) else v for v in value]
+            else:
+                result[key] = value
+        return result
 
     def get_mcp_tools(self) -> list[dict[str, Any]]:
         """
