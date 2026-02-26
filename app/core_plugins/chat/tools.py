@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 from typing import Any, get_type_hints
 
@@ -96,6 +97,60 @@ class ToolRegistry:
             logger.debug(f"Could not get type hints: {e}")
             return {}
 
+    def _build_args_schema_from_handler(
+        self, name: str, handler: Any, handler_hints: dict[str, Any]
+    ) -> type[BaseModel] | None:
+        """
+        Build an args_schema Pydantic model directly from the handler's type hints.
+
+        When the handler takes a single Pydantic model parameter (e.g. ``payload: CreateCourseArgs``),
+        the model itself is used as args_schema. This flattens the schema for the LLM so it sees
+        fields like ``org``, ``auth``, etc. directly instead of a wrapper ``payload`` object.
+        The corresponding ``_convert_args_to_handler_types`` handles re-wrapping the flat
+        kwargs back into the expected model.
+
+        For handlers with multiple parameters, a dynamic model is built preserving
+        original types (including nested Pydantic models).
+
+        Falls back to None if hints are unavailable.
+        """
+        try:
+            if not handler_hints:
+                return None
+
+            func = handler.__func__ if hasattr(handler, "__func__") else handler
+            sig = inspect.signature(func)
+            params = {k: v for k, v in sig.parameters.items() if k != "self"}
+
+            # Single Pydantic model parameter → use the model directly as args_schema
+            # so the LLM sees its fields as top-level tool parameters.
+            if len(params) == 1:
+                param_name = next(iter(params))
+                param_type = handler_hints.get(param_name)
+                if param_type and isinstance(param_type, type) and issubclass(param_type, BaseModel):
+                    return param_type  # type: ignore[no-any-return]
+
+            # Multiple parameters → build a dynamic model preserving original types
+            field_definitions: dict[str, Any] = {}
+
+            for param_name, param in params.items():
+                param_type = handler_hints.get(param_name)
+                if param_type is None:
+                    continue
+
+                if param.default is inspect.Parameter.empty:
+                    field_definitions[param_name] = (param_type, Field(...))
+                else:
+                    field_definitions[param_name] = (param_type, Field(default=param.default))
+
+            if not field_definitions:
+                return None
+
+            return create_model(name + "Input", **field_definitions)
+        except Exception as e:
+            logger.debug(f"Could not build args_schema from handler hints for '{name}': {e}")
+            return None
+
     def _convert_mcp_to_langchain_tool(self, mcp_tool: dict[str, Any]) -> BaseTool:
         """Convert an MCP tool definition to a LangChain tool."""
         name = mcp_tool["name"]
@@ -105,8 +160,10 @@ class ToolRegistry:
 
         logger.debug(f"Tool '{name}' input schema: {json.dumps(input_schema, indent=2)}")
 
-        args_schema = self._json_schema_to_pydantic(name, input_schema)
         handler_hints = self._get_handler_type_hints(handler)
+        args_schema = self._build_args_schema_from_handler(
+            name, handler, handler_hints
+        ) or self._json_schema_to_pydantic(name, input_schema)
 
         async def tool_func(**kwargs: Any) -> str:
             """Async wrapper for MCP tool handler."""
@@ -164,21 +221,30 @@ class ToolRegistry:
         Convert arguments to match the handler's expected types.
 
         Handles:
+        - Flattened single-model params: when the handler expects one Pydantic model
+          (e.g. ``payload: CreateCourseArgs``) but the LLM sent flat kwargs matching
+          the model's fields, all kwargs are bundled into the model.
         - JSON strings -> dict -> Pydantic model
         - dict -> Pydantic model
         - Already correct type -> pass through
         """
+        # Single-Pydantic-param with flattened kwargs: the LLM sent the model's
+        # fields directly (because args_schema was the model itself).
+        if len(handler_hints) == 1:
+            param_name, expected_type = next(iter(handler_hints.items()))
+            is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
+            if is_pydantic and param_name not in args:
+                return {param_name: self._convert_to_pydantic(args, expected_type)}
+
         converted = {}
 
         for arg_name, arg_value in args.items():
             expected_type = handler_hints.get(arg_name)
 
             if expected_type is None:
-                # No type hint, pass through as-is
                 converted[arg_name] = arg_value
                 continue
 
-            # Check if expected type is a Pydantic model
             is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
 
             if is_pydantic:
