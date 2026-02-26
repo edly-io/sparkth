@@ -128,7 +128,7 @@ class ToolRegistry:
                 param_name = next(iter(params))
                 param_type = handler_hints.get(param_name)
                 if param_type and isinstance(param_type, type) and issubclass(param_type, BaseModel):
-                    return param_type
+                    return param_type  # type: ignore[no-any-return]
 
             # Multiple parameters → build a dynamic model preserving original types
             field_definitions: dict[str, Any] = {}
@@ -161,9 +161,9 @@ class ToolRegistry:
         logger.debug(f"Tool '{name}' input schema: {json.dumps(input_schema, indent=2)}")
 
         handler_hints = self._get_handler_type_hints(handler)
-        args_schema = self._build_args_schema_from_handler(name, handler, handler_hints) or self._json_schema_to_pydantic(
-            name, input_schema
-        )
+        args_schema = self._build_args_schema_from_handler(
+            name, handler, handler_hints
+        ) or self._json_schema_to_pydantic(name, input_schema)
 
         async def tool_func(**kwargs: Any) -> str:
             """Async wrapper for MCP tool handler."""
