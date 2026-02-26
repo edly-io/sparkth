@@ -69,10 +69,7 @@ export class PluginErrorBoundary extends Component<Props, State> {
                 {this.state.error.message}
               </p>
             )}
-            <Button
-              variant="primary"
-              onClick={() => window.location.reload()}
-            >
+            <Button variant="primary" onClick={() => window.location.reload()}>
               Reload Page
             </Button>
           </div>

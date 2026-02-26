@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     },
-    [logout]
+    [logout],
   );
 
   useEffect(() => {

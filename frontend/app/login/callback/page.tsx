@@ -84,7 +84,9 @@ function CallbackHandler() {
   }
 
   if (!token || !expiresAt) {
-    return <ErrorDisplay message="Authentication failed. Missing token information." />;
+    return (
+      <ErrorDisplay message="Authentication failed. Missing token information." />
+    );
   }
 
   return <LoadingSpinner />;

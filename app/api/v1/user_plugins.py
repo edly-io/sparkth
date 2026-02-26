@@ -27,6 +27,10 @@ from app.services.plugin import (
 logger = logging.getLogger()
 
 
+# Get the root logger
+logger = logging.getLogger()
+
+
 router: APIRouter = APIRouter()
 
 

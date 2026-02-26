@@ -33,7 +33,7 @@ interface PluginContextValue extends PluginProviderState {
   getPluginConfig: (pluginName: string) => PluginConfig;
   updatePluginConfig: (
     pluginName: string,
-    config: Partial<PluginConfig>
+    config: Partial<PluginConfig>,
   ) => Promise<void>;
   enablePlugin: (pluginName: string) => Promise<void>;
   disablePlugin: (pluginName: string) => Promise<void>;
@@ -54,7 +54,7 @@ const PluginContext = createContext<PluginContextValue | undefined>(undefined);
 const API_BASE = "/api/v1";
 
 export async function fetchUserPlugins(
-  token: string
+  token: string,
 ): Promise<UserPluginState[]> {
   const response = await fetch(`${API_BASE}/user-plugins/`, {
     headers: {
@@ -74,7 +74,7 @@ export async function fetchUserPlugins(
 async function updatePluginConfigApi(
   pluginName: string,
   config: Record<string, unknown>,
-  token: string
+  token: string,
 ): Promise<UserPluginState> {
   const response = await fetch(
     `${API_BASE}/user-plugins/${pluginName}/config`,
@@ -86,7 +86,7 @@ async function updatePluginConfigApi(
         Accept: "application/json",
       },
       body: JSON.stringify({ config }),
-    }
+    },
   );
 
   if (!response.ok) {
@@ -100,7 +100,7 @@ async function updatePluginConfigApi(
 async function togglePluginApi(
   pluginName: string,
   action: "enable" | "disable",
-  token: string
+  token: string,
 ): Promise<UserPluginState> {
   const response = await fetch(
     `${API_BASE}/user-plugins/${pluginName}/${action}`,
@@ -110,7 +110,7 @@ async function togglePluginApi(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -182,11 +182,11 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
   const getPluginConfig = useCallback(
     (pluginName: string): PluginConfig => {
       const plugin = state.userPlugins.find(
-        (p) => p.plugin_name === pluginName
+        (p) => p.plugin_name === pluginName,
       );
       return plugin?.config || {};
     },
-    [state.userPlugins]
+    [state.userPlugins],
   );
 
   const updatePluginConfig = useCallback(
@@ -206,7 +206,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
       await refreshPlugins();
     },
-    [token, getPluginConfig, refreshPlugins]
+    [token, getPluginConfig, refreshPlugins],
   );
 
   const enablePlugin = useCallback(
@@ -222,7 +222,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
       await refreshPlugins();
     },
-    [token, refreshPlugins]
+    [token, refreshPlugins],
   );
 
   const disablePlugin = useCallback(
@@ -238,16 +238,16 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
       await refreshPlugins();
     },
-    [token, refreshPlugins]
+    [token, refreshPlugins],
   );
 
   const isPluginEnabled = useCallback(
     (pluginName: string): boolean => {
       return state.userPlugins.some(
-        (p) => p.plugin_name === pluginName && p.enabled
+        (p) => p.plugin_name === pluginName && p.enabled,
       );
     },
-    [state.userPlugins]
+    [state.userPlugins],
   );
 
   const createPluginContext = useCallback(
@@ -261,7 +261,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
           updatePluginConfig(pluginName, newConfig),
         callApi: async <T = unknown,>(
           endpoint: string,
-          options?: RequestInit
+          options?: RequestInit,
         ): Promise<T> => {
           const url = endpoint.startsWith("/")
             ? `${API_BASE}${endpoint}`
@@ -285,7 +285,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
         },
       };
     },
-    [token, getPluginConfig, updatePluginConfig]
+    [token, getPluginConfig, updatePluginConfig],
   );
 
   const contextValue = useMemo<PluginContextValue>(
@@ -308,7 +308,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       disablePlugin,
       isPluginEnabled,
       createPluginContext,
-    ]
+    ],
   );
 
   return (
@@ -367,7 +367,7 @@ export function usePlugin(pluginName: string): {
   const config = getPluginConfig(pluginName);
   const context = useMemo(
     () => createPluginContext(pluginName),
-    [pluginName, createPluginContext]
+    [pluginName, createPluginContext],
   );
 
   return {
