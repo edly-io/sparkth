@@ -27,6 +27,10 @@ from app.services.plugin import (
 logger = logging.getLogger()
 
 
+# Get the root logger
+logger = logging.getLogger()
+
+
 router: APIRouter = APIRouter()
 
 
@@ -63,15 +67,16 @@ async def list_user_plugins(
         user_plugin = user_plugin_map.get(plugin.name)
         config_keys = PluginService.initial_config(plugin.config_schema)
 
-        if user_plugin is not None:
-            result.append(
-                UserPluginResponse(
-                    plugin_name=plugin.name,
-                    enabled=user_plugin.enabled,
-                    config=user_plugin.config or config_keys,
-                    is_core=plugin.is_core,
+        if user_plugin:
+            if current_user.id is not None:
+                result.append(
+                    UserPluginResponse(
+                        plugin_name=plugin.name,
+                        enabled=user_plugin.enabled,
+                        config=user_plugin.config or config_keys,
+                        is_core=plugin.is_core,
+                    )
                 )
-            )
         else:
             result.append(
                 UserPluginResponse(
