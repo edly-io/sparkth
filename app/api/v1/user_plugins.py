@@ -27,10 +27,6 @@ from app.services.plugin import (
 logger = logging.getLogger()
 
 
-# Get the root logger
-logger = logging.getLogger()
-
-
 router: APIRouter = APIRouter()
 
 
@@ -58,6 +54,8 @@ async def list_user_plugins(
     Returns all available plugins and whether they are enabled or disabled,
     and pre-populates the config with keys from the plugin's schema.
     """
+    if current_user.id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authenticated user has no ID.")
 
     all_plugins = await plugin_service.get_all(session)
     user_plugin_map = await plugin_service.get_user_plugin_map(session, current_user.id)
@@ -68,15 +66,14 @@ async def list_user_plugins(
         config_keys = PluginService.initial_config(plugin.config_schema)
 
         if user_plugin:
-            if current_user.id is not None:
-                result.append(
-                    UserPluginResponse(
-                        plugin_name=plugin.name,
-                        enabled=user_plugin.enabled,
-                        config=user_plugin.config or config_keys,
-                        is_core=plugin.is_core,
-                    )
+            result.append(
+                UserPluginResponse(
+                    plugin_name=plugin.name,
+                    enabled=user_plugin.enabled,
+                    config=user_plugin.config or config_keys,
+                    is_core=plugin.is_core,
                 )
+            )
         else:
             result.append(
                 UserPluginResponse(

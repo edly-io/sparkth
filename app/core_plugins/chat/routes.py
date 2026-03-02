@@ -143,7 +143,7 @@ async def update_api_key(
     await session.refresh(key)
 
     cache_key = service.cache.make_key("api_key", str(current_user.id), key.provider)
-    await service.cache.set(cache_key, key_update.api_key)
+    await service.cache.set(cache_key, encrypted_key)
 
     logger.info(f"Updated API key {key_id} for user {current_user.id}")
 
@@ -352,7 +352,7 @@ async def stream_chat_response(
             content="An error occurred while generating a response. Please try again.",
             is_error=True,
         )
-        error_data = json.dumps({"error": str(e), "done": True})
+        error_data = json.dumps({"error": "Failed to stream LLM's response.", "done": True})
         yield f"data: {error_data}\n\n"
 
 

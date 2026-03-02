@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('chat_messages', sa.Column('is_error', sa.Boolean(), nullable=False))
+    op.add_column('chat_messages', sa.Column('is_error', sa.Boolean(), nullable=False, server_default=sa.false()))
     # ### end Alembic commands ###
 
 

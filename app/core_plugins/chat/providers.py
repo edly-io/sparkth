@@ -155,31 +155,40 @@ class BaseChatProvider(ABC):
     ) -> dict[str, Any]:
         """Send a message with tool support using a manual tool execution loop."""
 
-        # Bind tools to the LLM
         llm_with_tools = llm.bind_tools(tools)
 
-        # Build initial message list with system prompt
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
 
         tool_executions = []
-
         max_tool_executions = 15
         total_executions = 0
+        limit_reached = False
 
         while True:
             response = await llm_with_tools.ainvoke(langchain_messages)
 
             if hasattr(response, "tool_calls") and response.tool_calls:
                 langchain_messages.append(response)
-                for tool_call in response.tool_calls:
-                    if total_executions >= max_tool_executions:
-                        logger.warning(f"Tool execution limit ({max_tool_executions}) reached, stopping.")
-                        break
 
+                for tool_call in response.tool_calls:
                     tool_name = tool_call.get("name", "")
                     tool_args = tool_call.get("args", {})
                     tool_id = tool_call.get("id", "")
+
+                    if total_executions >= max_tool_executions:
+                        logger.warning(
+                            f"Tool execution limit ({max_tool_executions}) reached. Skipping remaining tool calls."
+                        )
+                        langchain_messages.append(
+                            ToolMessage(
+                                content="Tool execution limit reached; call was not executed.",
+                                tool_call_id=tool_id,
+                                name=tool_name,
+                            )
+                        )
+                        limit_reached = True
+                        continue
 
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)
@@ -193,15 +202,25 @@ class BaseChatProvider(ABC):
                         }
                     )
 
-                    tool_message = ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
-                    langchain_messages.append(tool_message)
+                    langchain_messages.append(
+                        ToolMessage(
+                            content=serialized_result,
+                            tool_call_id=tool_id,
+                            name=tool_name,
+                        )
+                    )
                     total_executions += 1
+
+                if limit_reached:
+                    break
             else:
                 break
-        # Handle case where response.content might be a list
+        if limit_reached:
+            logger.warning("Requesting final response after tool limit was reached.")
+            response = await llm_with_tools.ainvoke(langchain_messages)
+
         content = response.content
         if isinstance(content, list):
-            # Extract text from content blocks (common with Anthropic)
             text_parts = []
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "text":
@@ -209,14 +228,16 @@ class BaseChatProvider(ABC):
                 elif isinstance(block, str):
                     text_parts.append(block)
             content = "".join(text_parts)
+
         return {
             "content": content,
             "role": "assistant",
             "model": self.model,
-            "tool_calls": None,  # Tools have been executed
+            "tool_calls": None,
             "metadata": {
                 "tool_executions": tool_executions,
                 "num_executions": total_executions,
+                "limit_reached": limit_reached,
                 "response_metadata": getattr(response, "response_metadata", {}),
                 "usage_metadata": getattr(response, "usage_metadata", {}),
             },
