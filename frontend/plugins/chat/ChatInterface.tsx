@@ -31,27 +31,6 @@ interface ApiConversation {
   messages: ApiMessage[];
 }
 
-const WELCOME_MESSAGE: ChatMessage = {
-  id: "welcome",
-  role: "assistant",
-  content: "Hi! Upload a document or tell me what you'd like to create.",
-};
-
-interface ApiMessage {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  message_type: "text" | "attachment";
-  attachment_name: string | null;
-  attachment_size: number | null;
-  created_at: string;
-}
-
-interface ApiConversation {
-  id: number;
-  messages: ApiMessage[];
-}
-
 export default function ChatInterface() {
   const { token } = useAuth();
   const router = useRouter();
@@ -64,67 +43,6 @@ export default function ChatInterface() {
   );
   const [previewAttachment, setPreviewAttachment] =
     useState<TextAttachment | null>(null);
-  // const [loadingHistory, setLoadingHistory] = useState(false);
-
-  const [historyState, setHistoryState] = useState<{
-    loading: boolean;
-    messages: ChatMessage[];
-  }>({
-    loading: !!conversationId,
-    messages: conversationId ? [] : [WELCOME_MESSAGE],
-  });
-
-  const { loading: loadingHistory, messages } = historyState;
-
-  const setMessages = (
-    updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
-  ) =>
-    setHistoryState((prev) => ({
-      ...prev,
-      messages:
-        typeof updater === "function" ? updater(prev.messages) : updater,
-    }));
-
-  useEffect(() => {
-    if (!conversationId) return;
-
-    let cancelled = false;
-
-    fetch(`/api/v1/chat/conversations/${conversationId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data: ApiConversation) => {
-        if (cancelled) return;
-        const loaded: ChatMessage[] = data.messages.map((m) => ({
-          id: String(m.id),
-          role: m.role,
-          content: m.message_type === "attachment" ? "" : m.content,
-          attachment:
-            m.message_type === "attachment" && m.attachment_name
-              ? {
-                  name: m.attachment_name,
-                  size: m.attachment_size ?? 0,
-                  text: m.content,
-                }
-              : undefined,
-        }));
-        setHistoryState({
-          loading: false,
-          messages: loaded.length ? loaded : [WELCOME_MESSAGE],
-        });
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          console.error(e);
-          setHistoryState({ loading: false, messages: [WELCOME_MESSAGE] });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, token]);
 
   const [historyState, setHistoryState] = useState<{
     loading: boolean;
@@ -251,7 +169,6 @@ export default function ChatInterface() {
     if (message.trim())
       newUserMessages.push({ role: "user", content: message });
 
-    const outgoingMessages = newUserMessages;
     const assistantId = crypto.randomUUID();
 
     setMessages((prev) => [
