@@ -1,4 +1,5 @@
 import { HTMLAttributes, forwardRef } from "react";
+import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +23,11 @@ const alertVariants = cva("rounded-lg p-4 flex items-start gap-3", {
 interface AlertProps
   extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof alertVariants> {
   title?: string;
+  onClose?: () => void;
 }
 
 export const Alert = forwardRef<HTMLDivElement, AlertProps>(
-  ({ className, severity, title, children, ...props }, ref) => {
+  ({ className, severity, title, children, onClose, ...props }, ref) => {
     return (
       <div
         ref={ref}
@@ -33,9 +35,26 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(
         role="alert"
         {...props}
       >
-        <div>
-          {title && <p className="font-semibold mb-1">{title}</p>}
-          <p className="text-sm">{children}</p>
+        <div className="flex justify-between items-start gap-4 w-full">
+          <div className="flex-1">
+            {title && <p className="font-semibold mb-1">{title}</p>}
+            <div className="text-sm">{children}</div>
+          </div>
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Dismiss alert"
+              className="
+                p-1 rounded-md
+                opacity-60 hover:opacity-100
+                hover:bg-black/5 dark:hover:bg-white/10
+                transition
+              "
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     );

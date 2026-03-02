@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 
 interface Conversation {
   id: number;
@@ -40,16 +41,37 @@ export function ChatHistorySection({
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/v1/chat/conversations", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => setConversations(data.conversations ?? []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [token]);
+    let cancelled = false;
+    const fetchConversations = async () => {
+      setLoading(true);
+      setError(null);
+      fetch("/api/v1/chat/conversations", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => {
+          if (!r.ok)
+            throw new Error(`Failed to load conversations: HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          if (!cancelled) setConversations(data.conversations ?? []);
+        })
+        .catch((err) => {
+          console.error(err);
+          setError("Failed to load conversations. Please try again.");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    fetchConversations();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeId]);
 
   if (isCollapsed) {
     return (
@@ -85,6 +107,17 @@ export function ChatHistorySection({
           </Button>
         </Link>
       </div>
+      {error && (
+        <div className="px-4 pt-4">
+          <Alert
+            severity="error"
+            title="Something went wrong"
+            onClose={() => setError(null)}
+          >
+            {error}
+          </Alert>
+        </div>
+      )}
 
       <div className="overflow-y-auto max-h-64 px-3 pb-3 space-y-0.5">
         {loading ? (

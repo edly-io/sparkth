@@ -224,7 +224,10 @@ class ChatService:
         self, session: AsyncSession, conversation_id: int, limit: int | None = None, offset: int | None = None
     ) -> list[Message]:
         statement = (
-            select(Message).where(Message.conversation_id == conversation_id).order_by(col(Message.created_at).asc())
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .where(Message.is_error == False)  # noqa: E712
+            .order_by(col(Message.created_at).asc())
         )
 
         if limit:

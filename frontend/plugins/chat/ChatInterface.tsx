@@ -8,6 +8,7 @@ import { ChatInput } from "./components/input/ChatInput";
 import { ChatMessage, TextAttachment } from "./types";
 import { Preview } from "./components/attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
+import { Alert } from "@/components/ui/Alert";
 
 const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",
@@ -35,17 +36,13 @@ export default function ChatInterface() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationId = searchParams.get("id");
-
-  // const [messages, setMessages] = useState<ChatMessage[]>(
-  //   conversationId ? [] : [WELCOME_MESSAGE],
-  // );
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(
     null,
   );
   const [previewAttachment, setPreviewAttachment] =
     useState<TextAttachment | null>(null);
-  // const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [historyState, setHistoryState] = useState<{
     loading: boolean;
@@ -67,45 +64,80 @@ export default function ChatInterface() {
     }));
 
   useEffect(() => {
-    if (!conversationId) return;
-
     let cancelled = false;
-
-    fetch(`/api/v1/chat/conversations/${conversationId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data: ApiConversation) => {
-        if (cancelled) return;
-        const loaded: ChatMessage[] = data.messages.map((m) => ({
-          id: String(m.id),
-          role: m.role,
-          content: m.message_type === "attachment" ? "" : m.content,
-          attachment:
-            m.message_type === "attachment" && m.attachment_name
-              ? {
-                  name: m.attachment_name,
-                  size: m.attachment_size ?? 0,
-                  text: m.content,
-                }
-              : undefined,
-        }));
+    const loadConversation = async () => {
+      if (!conversationId) {
         setHistoryState({
           loading: false,
-          messages: loaded.length ? loaded : [WELCOME_MESSAGE],
+          messages: [WELCOME_MESSAGE],
         });
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          console.error(e);
-          setHistoryState({ loading: false, messages: [WELCOME_MESSAGE] });
-        }
-      });
+        return;
+      }
 
+      setHistoryState({
+        loading: true,
+        messages: [],
+      });
+      fetch(`/api/v1/chat/conversations/${conversationId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => {
+          if (!r.ok)
+            throw new Error(`Load conversation failed with status ${r.status}`);
+          return r.json();
+        })
+        .then((data: ApiConversation) => {
+          if (cancelled) return;
+          const loaded: ChatMessage[] = data.messages.map((m) => ({
+            id: String(m.id),
+            role: m.role,
+            content: m.message_type === "attachment" ? "" : m.content,
+            attachment:
+              m.message_type === "attachment" && m.attachment_name
+                ? {
+                    name: m.attachment_name,
+                    size: m.attachment_size ?? 0,
+                    text: m.content,
+                  }
+                : undefined,
+          }));
+
+          setHistoryState({
+            loading: false,
+            messages: loaded.length ? loaded : [WELCOME_MESSAGE],
+          });
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          console.error(e);
+          setError("Failed to load conversation. Please try again.");
+          setHistoryState({
+            loading: false,
+            messages: [WELCOME_MESSAGE],
+          });
+        });
+    };
+    loadConversation();
     return () => {
       cancelled = true;
     };
   }, [conversationId, token]);
+
+  const failAssistantMessage = (id: string, errorText: string) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === id
+          ? {
+              ...msg,
+              content: errorText,
+              streamedContent: undefined,
+              isTyping: false,
+              isError: true,
+            }
+          : msg,
+      ),
+    );
+  };
 
   const handleSend = async ({
     message,
@@ -137,7 +169,6 @@ export default function ChatInterface() {
     if (message.trim())
       newUserMessages.push({ role: "user", content: message });
 
-    const outgoingMessages = newUserMessages;
     const assistantId = crypto.randomUUID();
 
     setMessages((prev) => [
@@ -151,97 +182,135 @@ export default function ChatInterface() {
       },
     ]);
 
-    const res = await fetch("/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        provider: "anthropic",
-        model: "claude-sonnet-4-20250514",
-        messages: outgoingMessages,
-        stream: true,
-        tools: "*",
-        tool_choice: "auto",
-        include_system_tools_message: true,
-        ...(conversationId && { conversation_id: Number(conversationId) }),
-      }),
-    });
+    try {
+      const res = await fetch("/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          provider: "anthropic",
+          model: "claude-sonnet-4-20250514",
+          messages: newUserMessages,
+          stream: true,
+          tools: "*",
+          tool_choice: "auto",
+          include_system_tools_message: true,
+          ...(conversationId && { conversation_id: Number(conversationId) }),
+        }),
+      });
 
-    if (!res.body) throw new Error("No response body for streaming");
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let assistantText = "";
-    let buffer = "";
-    let newConversationId: string | null = null;
-    let streamDone = false;
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const payload = trimmed.replace(/^data:\s*/, "");
-        if (!payload) continue;
-
-        try {
-          const parsed = JSON.parse(payload);
-
-          if (parsed.token) {
-            assistantText += parsed.token;
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantId
-                  ? { ...msg, streamedContent: assistantText }
-                  : msg,
-              ),
-            );
-          }
-
-          if (parsed.done) {
-            if (parsed.conversation_id) {
-              newConversationId = String(parsed.conversation_id);
-            }
-            streamDone = true;
-            break;
-          }
-        } catch (err) {
-          console.error("Failed to parse SSE payload:", payload, err);
-        }
+      if (!res.ok) {
+        failAssistantMessage(assistantId, "Something went wrong. Try again.");
+        return;
       }
 
-      if (streamDone) break;
-    }
+      if (!res.body) {
+        failAssistantMessage(assistantId, "No response body received.");
+        return;
+      }
 
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId
-          ? {
-              ...msg,
-              content: assistantText,
-              streamedContent: undefined,
-              isTyping: false,
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let assistantText = "";
+      let buffer = "";
+      let newConversationId: string | null = null;
+      let streamDone = false;
+      let hasError = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.replace(/^data:\s*/, "");
+          if (!payload) continue;
+
+          try {
+            const parsed = JSON.parse(payload);
+
+            if (parsed.error) {
+              failAssistantMessage(
+                assistantId,
+                parsed.error ?? "An error occurred.",
+              );
+              hasError = true;
+              streamDone = true;
+              break;
             }
-          : msg,
-      ),
-    );
 
-    if (!conversationId && newConversationId) {
-      router.replace(`/dashboard/chat?id=${newConversationId}`);
+            if (parsed.token) {
+              assistantText += parsed.token;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantId
+                    ? { ...msg, streamedContent: assistantText }
+                    : msg,
+                ),
+              );
+            }
+
+            if (parsed.done) {
+              if (parsed.conversation_id) {
+                newConversationId = String(parsed.conversation_id);
+              }
+              streamDone = true;
+              break;
+            }
+          } catch {
+            console.error("Failed to parse SSE payload:", payload);
+          }
+        }
+
+        if (streamDone) break;
+      }
+
+      if (!hasError) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  content: assistantText,
+                  streamedContent: undefined,
+                  isTyping: false,
+                }
+              : msg,
+          ),
+        );
+
+        if (!conversationId && newConversationId) {
+          router.replace(`/dashboard/chat?id=${newConversationId}`);
+        }
+      }
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error ? err.message : "Something went wrong.";
+      failAssistantMessage(assistantId, errorMsg);
     }
   };
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
       <ChatHeader />
+      {error && (
+        <div className="px-4 pt-4">
+          <Alert
+            severity="error"
+            title="Something went wrong"
+            onClose={() => setError(null)}
+          >
+            {error}
+          </Alert>
+        </div>
+      )}
 
       {loadingHistory ? (
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">

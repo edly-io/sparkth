@@ -10,7 +10,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 import sqlmodel
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '53632e4b3fc3'
@@ -27,7 +26,7 @@ def upgrade() -> None:
             "message_type",
             sa.String(20),
             nullable=False,
-            server_default="text",
+            server_default='text'
         ),
     )
     op.add_column(
