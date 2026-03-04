@@ -128,7 +128,6 @@ class BaseChatProvider(ABC):
             else:
                 # Use simple invocation for non-tool conversations
                 return await self._send_message_simple(llm, messages)
-
         except Exception as e:
             logger.error(f"Error in send_message: {e}")
             raise
@@ -156,62 +155,72 @@ class BaseChatProvider(ABC):
     ) -> dict[str, Any]:
         """Send a message with tool support using a manual tool execution loop."""
 
-        # Bind tools to the LLM
         llm_with_tools = llm.bind_tools(tools)
 
-        # Build initial message list with system prompt
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
 
         tool_executions = []
-        max_iterations = 15
-        iteration = 0
+        max_tool_executions = 15
+        total_executions = 0
+        limit_reached = False
 
-        while iteration < max_iterations:
-            # Get LLM response
+        while True:
             response = await llm_with_tools.ainvoke(langchain_messages)
 
-            # Check if there are tool calls to execute
             if hasattr(response, "tool_calls") and response.tool_calls:
-                # Add the assistant's response to message history
                 langchain_messages.append(response)
 
-                # Execute each tool call
                 for tool_call in response.tool_calls:
                     tool_name = tool_call.get("name", "")
                     tool_args = tool_call.get("args", {})
                     tool_id = tool_call.get("id", "")
 
+                    if total_executions >= max_tool_executions:
+                        logger.warning(
+                            f"Tool execution limit ({max_tool_executions}) reached. Skipping remaining tool calls."
+                        )
+                        langchain_messages.append(
+                            ToolMessage(
+                                content="Tool execution limit reached; call was not executed.",
+                                tool_call_id=tool_id,
+                                name=tool_name,
+                            )
+                        )
+                        limit_reached = True
+                        continue
+
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-
-                    # Execute the tool
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)
-
-                    # Serialize the result safely
                     serialized_result = serialize_result(tool_result)
 
-                    # Record the execution
                     tool_executions.append(
                         {
                             "tool": tool_name,
                             "tool_input": tool_args,
-                            "output": serialized_result[:500],  # Truncate long outputs
+                            "output": serialized_result[:500],
                         }
                     )
 
-                    # Add the tool result to message history
-                    tool_message = ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
-                    langchain_messages.append(tool_message)
+                    langchain_messages.append(
+                        ToolMessage(
+                            content=serialized_result,
+                            tool_call_id=tool_id,
+                            name=tool_name,
+                        )
+                    )
+                    total_executions += 1
 
-                iteration += 1
+                if limit_reached:
+                    break
             else:
-                # No more tool calls, we have the final response
                 break
+        if limit_reached:
+            logger.warning("Requesting final response after tool limit was reached.")
+            response = await llm_with_tools.ainvoke(langchain_messages)
 
-        # Handle case where response.content might be a list
         content = response.content
         if isinstance(content, list):
-            # Extract text from content blocks (common with Anthropic)
             text_parts = []
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "text":
@@ -224,10 +233,11 @@ class BaseChatProvider(ABC):
             "content": content,
             "role": "assistant",
             "model": self.model,
-            "tool_calls": None,  # Tools have been executed
+            "tool_calls": None,
             "metadata": {
                 "tool_executions": tool_executions,
-                "num_iterations": iteration,
+                "num_executions": total_executions,
+                "limit_reached": limit_reached,
                 "response_metadata": getattr(response, "response_metadata", {}),
                 "usage_metadata": getattr(response, "usage_metadata", {}),
             },
@@ -238,6 +248,15 @@ class BaseChatProvider(ABC):
         for tool in tools:
             if tool.name == tool_name:
                 try:
+                    # Validate args against schema if available
+                    if hasattr(tool, "args_schema") and tool.args_schema is not None:
+                        try:
+                            validated = tool.args_schema(**tool_args)
+                            tool_args = validated.model_dump()
+                        except Exception as e:
+                            logger.warning(f"Tool '{tool_name}' argument validation failed: {e}")
+                            return f"Invalid arguments for tool '{tool_name}': {e}"
+
                     result = None
 
                     # Try different invocation methods
@@ -315,11 +334,10 @@ class BaseChatProvider(ABC):
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
 
-        max_iterations = 15
-        iteration = 0
+        max_tool_executions = 15
+        total_executions = 0
 
-        while iteration < max_iterations:
-            # Collect the full response while streaming
+        while True:
             full_response = None
 
             async for chunk in llm_with_tools.astream(langchain_messages):
@@ -343,7 +361,6 @@ class BaseChatProvider(ABC):
                                         yield text
                             elif isinstance(block, str):
                                 yield block
-
                 # Accumulate the response for tool call detection
                 if full_response is None:
                     full_response = chunk
@@ -353,38 +370,28 @@ class BaseChatProvider(ABC):
                     except TypeError:
                         # If chunks can't be added, just keep the latest
                         full_response = chunk
-
             # Check if there are tool calls to execute
             if full_response and hasattr(full_response, "tool_calls") and full_response.tool_calls:
-                # Add the assistant's response to message history
                 langchain_messages.append(full_response)
-
-                # Execute each tool call
                 for tool_call in full_response.tool_calls:
+                    if total_executions >= max_tool_executions:
+                        logger.warning(f"Tool execution limit ({max_tool_executions}) reached, stopping.")
+                        return
+
                     tool_name = tool_call.get("name", "")
                     tool_args = tool_call.get("args", {})
                     tool_id = tool_call.get("id", "")
 
-                    # Notify about tool execution
                     yield f"\n\n🔧 *Executing tool: {tool_name}...*\n"
-
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-
-                    # Execute the tool
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)
-
-                    # Serialize the result safely
                     serialized_result = serialize_result(tool_result)
-
                     yield "✅ *Tool completed*\n\n"
 
-                    # Add the tool result to message history
                     tool_message = ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
                     langchain_messages.append(tool_message)
-
-                iteration += 1
+                    total_executions += 1
             else:
-                # No more tool calls, we're done
                 break
 
 

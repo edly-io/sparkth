@@ -244,7 +244,6 @@ class ToolRegistry:
             if expected_type is None:
                 converted[arg_name] = arg_value
                 continue
-
             is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
 
             if is_pydantic:
@@ -296,7 +295,6 @@ class ToolRegistry:
         for field_name, field_schema in properties.items():
             # Resolve $ref if present
             resolved_schema = self._resolve_ref(field_schema, defs)
-
             field_type = self._get_python_type(resolved_schema)
             field_description = resolved_schema.get("description", "")
             is_required = field_name in required
@@ -341,7 +339,6 @@ class ToolRegistry:
             types = [t.get("type") for t in json_schema["anyOf"] if t.get("type") and t.get("type") != "null"]
             if types:
                 json_type = types[0]
-
         type_map = {
             "string": str,
             "integer": int,

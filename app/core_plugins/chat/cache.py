@@ -1,4 +1,5 @@
 import json
+from functools import lru_cache
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -105,11 +106,6 @@ class CacheService:
         return ":".join(str(part) for part in parts)
 
 
-_cache_service: CacheService | None = None
-
-
+@lru_cache(maxsize=1)
 def get_cache_service(redis_url: str, default_ttl: int = 3600) -> CacheService:
-    global _cache_service
-    if _cache_service is None:
-        _cache_service = CacheService(redis_url, default_ttl)
-    return _cache_service
+    return CacheService(redis_url, default_ttl)

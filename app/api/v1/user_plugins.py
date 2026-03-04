@@ -54,6 +54,8 @@ async def list_user_plugins(
     Returns all available plugins and whether they are enabled or disabled,
     and pre-populates the config with keys from the plugin's schema.
     """
+    if current_user.id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authenticated user has no ID.")
 
     all_plugins = await plugin_service.get_all(session)
     user_plugin_map = await plugin_service.get_user_plugin_map(session, current_user.id)
@@ -63,7 +65,7 @@ async def list_user_plugins(
         user_plugin = user_plugin_map.get(plugin.name)
         config_keys = PluginService.initial_config(plugin.config_schema)
 
-        if user_plugin is not None:
+        if user_plugin:
             result.append(
                 UserPluginResponse(
                     plugin_name=plugin.name,
