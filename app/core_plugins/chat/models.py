@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import field_validator
 from sqlalchemy import ForeignKey, Index, Integer
-from sqlmodel import Column, Field, Relationship, SQLModel, Text
+from sqlmodel import Column, DateTime, Field, Relationship, SQLModel, Text
 
 from app.models.base import SoftDeleteModel, TimestampedModel
 
@@ -18,10 +18,12 @@ class ProviderAPIKey(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
     provider: str = Field(max_length=50, index=True, nullable=False)
     encrypted_key: str = Field(sa_column=Column(Text, nullable=False))
+    masked_key: str = Field(sa_column=Column(Text, nullable=False, server_default="****"))
     is_active: bool = Field(default=True)
     last_used_at: datetime | None = Field(
         default=None,
-        sa_column_kwargs={"server_default": None},
+        sa_type=DateTime(timezone=True),  # type: ignore
+        nullable=True,
     )
 
     conversations: list["Conversation"] = Relationship(back_populates="api_key")

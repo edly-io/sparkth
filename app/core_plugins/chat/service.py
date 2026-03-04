@@ -7,7 +7,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
 from app.core_plugins.chat.cache import CacheService
-from app.core_plugins.chat.config import api_key_settings
 from app.core_plugins.chat.encryption import EncryptionService
 from app.core_plugins.chat.models import Conversation, Message, MessageType, ProviderAPIKey
 
@@ -19,16 +18,31 @@ class ChatService:
         self.encryption = encryption_service
         self.cache = cache_service
 
-    async def create_api_key(self, session: AsyncSession, user_id: int, provider: str, api_key: str) -> ProviderAPIKey:
+    @staticmethod
+    def mask_api_key(api_key: str) -> str:
+        """Return a masked version of the key, e.g. 'sk-...abcd'."""
+        suffix = api_key[-4:] if len(api_key) >= 4 else api_key
+        parts = api_key.split("-", maxsplit=2)
+        prefix = "-".join(parts[:2]) + "-" if len(parts) >= 2 else ""
+        return f"{prefix}****{suffix}"
+
+    async def create_api_key(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        provider: str,
+        api_key: str,
+    ) -> ProviderAPIKey:
         encrypted_key = self.encryption.encrypt(api_key)
+        masked = self.mask_api_key(api_key)
 
         db_key = ProviderAPIKey(
             user_id=user_id,
-            provider=provider,
+            provider=provider.lower(),
             encrypted_key=encrypted_key,
+            masked_key=masked,
             is_active=True,
         )
-
         session.add(db_key)
         await session.commit()
         await session.refresh(db_key)
@@ -41,6 +55,7 @@ class ChatService:
         return db_key
 
     async def get_api_key(self, session: AsyncSession, user_id: int, provider: str) -> str | None:
+        provider = provider.lower()
         cache_key = self.cache.make_key("api_key", str(user_id), provider)
         cached_key = await self.cache.get(cache_key)
 
@@ -62,13 +77,6 @@ class ChatService:
         db_key = result.first()
 
         if not db_key:
-            env_key = api_key_settings.get_default_key()
-            if env_key:
-                logger.info("Using default API key from environment for Anthropic")
-                encrypted = self.encryption.encrypt(env_key)
-                await self.cache.set(cache_key, encrypted)
-                return env_key
-
             logger.warning(f"No API key found for user {user_id}, provider {provider}")
             return None
 

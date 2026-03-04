@@ -1,9 +1,12 @@
 from typing import Any
 
+from pydantic import ValidationError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.encryption import get_encryption_service
+from app.core_plugins.chat.models import ProviderAPIKey
 from app.core_plugins.chat.routes import get_chat_system_config
 from app.core_plugins.chat.service import ChatService
 
@@ -16,6 +19,11 @@ class ChatPluginConfigAdapter:
         user_id: int,
         incoming_config: dict[str, Any],
     ) -> dict[str, Any]:
+        """
+        Intercepts raw user input before validation/persistence.
+        Extracts `api_key`, stores it in ProviderAPIKey, and replaces it
+        with the resulting `provider_api_key_ref` (the DB row ID).
+        """
         api_key = incoming_config.pop("api_key", None)
         provider = incoming_config.get("provider")
 
@@ -23,7 +31,7 @@ class ChatPluginConfigAdapter:
             return incoming_config
 
         if not provider:
-            raise ValueError("Provider is required when api_key is provided")
+            raise ValidationError("Provider is required when api_key is provided")
 
         system_config = get_chat_system_config()
         service = ChatService(
@@ -47,12 +55,29 @@ class ChatPluginConfigAdapter:
     async def postprocess_config(
         self,
         *,
+        session: AsyncSession,
+        user_id: int,
         stored_config: dict[str, Any],
     ) -> dict[str, Any]:
+        """
+        Sanitises config before returning it to the client.
+        Replaces the internal `provider_api_key_ref` ID with:
+          - `has_api_key`: bool
+          - `api_key`: e.g. "sk-...abcd", or None if no key stored
+        """
         config = dict(stored_config)
-        config.pop("provider_api_key_id", None)
+        ref = config.pop("provider_api_key_ref", None)
 
-        if "provider" in config:
-            config["has_api_key"] = True
+        if ref is not None:
+            statement = select(ProviderAPIKey).where(
+                ProviderAPIKey.id == ref,
+                ProviderAPIKey.user_id == user_id,
+                ProviderAPIKey.is_active == True,
+            )
+            result = await session.exec(statement)
+            db_key = result.one_or_none()
+            config["api_key"] = db_key.masked_key if db_key is not None else None
+        else:
+            config["api_key"] = None
 
         return config
