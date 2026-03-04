@@ -1,23 +1,7 @@
 from enum import Enum
-from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class OpenEdxSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    lms_url: str
-    studio_url: str
-    lms_username: str
-    lms_password: str
-
-
-@lru_cache
-def get_openedx_settings() -> OpenEdxSettings:
-    return OpenEdxSettings()
 
 
 class TokenResponse(BaseModel):
@@ -35,21 +19,21 @@ class AccessTokenPayload(BaseModel):
 
 
 class Auth(BaseModel):
-    lms_url: str | None
-    studio_url: str | None
-    username: str | None
-    password: str | None
+    lms_url: str
+    studio_url: str
+    username: str
+    password: str
 
 
 class RefreshTokenPayload(BaseModel):
-    lms_url: str | None
-    studio_url: str | None
+    lms_url: str
+    studio_url: str
     refresh_token: str
 
 
 class LMSAccess(BaseModel):
     access_token: str
-    lms_url: str | None
+    lms_url: str
 
 
 class CourseArgs(BaseModel):
@@ -61,9 +45,7 @@ class CourseArgs(BaseModel):
 
 
 class CreateCourseArgs(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
+    auth: AccessTokenPayload
     org: str
     number: str
     run: str
@@ -72,12 +54,9 @@ class CreateCourseArgs(BaseModel):
 
 
 class ListCourseRunsArgs(BaseModel):
-    # auth: AccessTokenPayload
-    access_token: str
-    lms_url: str
-    studio_url: str
-    page: int | None | None = None
-    page_size: int | None | None = None
+    auth: AccessTokenPayload
+    page: int | None = None
+    page_size: int | None = None
 
 
 class XBlock(BaseModel):
@@ -87,9 +66,7 @@ class XBlock(BaseModel):
 
 
 class XBlockPayload(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
+    auth: AccessTokenPayload
     course_id: str
     parent_locator: str
     category: str
@@ -102,9 +79,7 @@ class Component(str, Enum):
 
 
 class ProblemOrHtmlArgs(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
+    auth: AccessTokenPayload
     course_id: str
     unit_locator: str
     kind: Component | None = None
@@ -115,9 +90,7 @@ class ProblemOrHtmlArgs(BaseModel):
 
 
 class UpdateXBlockPayload(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
+    auth: AccessTokenPayload
     course_id: str
     locator: str
     data: str | None = None
@@ -125,15 +98,11 @@ class UpdateXBlockPayload(BaseModel):
 
 
 class CourseTreeRequest(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
+    auth: AccessTokenPayload
     course_id: str
 
 
 class BlockContentArgs(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
+    auth: AccessTokenPayload
     course_id: str
     locator: str
