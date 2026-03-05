@@ -1,0 +1,30 @@
+name: React Doctor
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+
+jobs:
+  react-doctor:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # required for --diff
+
+      - name: Run React Doctor
+        uses: millionco/react-doctor@main
+        with:
+          directory: frontend
+          diff: main
+          verbose: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
