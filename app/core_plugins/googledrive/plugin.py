@@ -23,6 +23,17 @@ class GoogleDrivePlugin(SparkthPlugin):
     def initialize(self) -> None:
         """Initialize the Google Drive plugin."""
         super().initialize()
+        from app.core_plugins.googledrive.routes import router
+
+        self.add_route(router)
+
+    def get_route_prefix(self) -> str:
+        """Return the route prefix for Google Drive endpoints."""
+        return "/api/v1/googledrive"
+
+    def get_route_tags(self) -> list[str]:
+        """Return OpenAPI tags for Google Drive routes."""
+        return ["Google Drive"]
 
     def enable(self) -> None:
         """Enable the Google Drive plugin."""
