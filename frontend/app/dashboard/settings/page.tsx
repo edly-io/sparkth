@@ -37,7 +37,9 @@ export default function PluginsSettings() {
     <div className="min-h-screen bg-background transition-colors">
       <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">My Plugins</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            My Plugins
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             View all your installed plugins in one place.
           </p>

@@ -40,7 +40,8 @@ export default function Home() {
           </h1>
 
           <p className="mt-4 max-w-md mx-auto text-base text-muted-foreground sm:text-lg md:mt-6 md:text-xl md:max-w-2xl">
-            Your AI-powered platform for creating engaging educational content. Transform your resources into courses with ease.
+            Your AI-powered platform for creating engaging educational content.
+            Transform your resources into courses with ease.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4 px-4 sm:px-0">

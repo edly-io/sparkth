@@ -4,21 +4,19 @@ type SanitizeOptions = {
 };
 
 function extractParameters(body: string): Record<string, string> {
-  const paramRegex =
-    /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/gi
+  const paramRegex = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/gi;
 
-  const params: Record<string, string> = {}
-  let match: RegExpExecArray | null
+  const params: Record<string, string> = {};
+  let match: RegExpExecArray | null;
 
   while ((match = paramRegex.exec(body)) !== null) {
-    const key = match[1]
-    const value = match[2].trim()
-    params[key] = value
+    const key = match[1];
+    const value = match[2].trim();
+    params[key] = value;
   }
 
-  return params
+  return params;
 }
-
 
 function extractFunctionCalls(block: string): string {
   const invokeRegex = /<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>/gi;

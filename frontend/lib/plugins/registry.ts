@@ -22,20 +22,20 @@ class PluginRegistry {
   register(plugin: PluginDefinition): void {
     if (this.plugins.has(plugin.name)) {
       console.warn(
-        `Plugin "${plugin.name}" is already registered. Skipping duplicate registration.`
+        `Plugin "${plugin.name}" is already registered. Skipping duplicate registration.`,
       );
       return;
     }
 
     if (!plugin.name || !plugin.displayName || !plugin.loadComponent) {
       throw new Error(
-        `Invalid plugin definition: name, displayName, and loadComponent are required`
+        `Invalid plugin definition: name, displayName, and loadComponent are required`,
       );
     }
 
     if (!/^[a-z][a-z0-9-]*$/.test(plugin.name)) {
       throw new Error(
-        `Invalid plugin name "${plugin.name}". Must be kebab-case (e.g., "my-plugin")`
+        `Invalid plugin name "${plugin.name}". Must be kebab-case (e.g., "my-plugin")`,
       );
     }
 
@@ -186,7 +186,7 @@ class PluginRegistry {
         } catch (error) {
           console.error(
             `Error in plugin event handler for "${event.type}":`,
-            error
+            error,
           );
         }
       });
@@ -244,7 +244,7 @@ export function getPluginsByNames(names: string[]): PluginDefinition[] {
 }
 
 export function getPluginsByCategory(
-  category: PluginDefinition["category"]
+  category: PluginDefinition["category"],
 ): PluginDefinition[] {
   return registry.getByCategory(category);
 }
@@ -267,7 +267,7 @@ export function searchPlugins(query: string): PluginDefinition[] {
 
 export function onPluginEvent(
   eventType: PluginEventType,
-  handler: PluginEventHandler
+  handler: PluginEventHandler,
 ): () => void {
   return registry.on(eventType, handler);
 }

@@ -15,7 +15,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 function MobileHeader() {
   const { toggle } = useSidebar();
-
   return (
     <div className="lg:hidden flex items-center justify-between px-2 py-2 border-b border-border bg-card">
       <Button
@@ -38,12 +37,7 @@ function DashboardContent({
   logout,
 }: {
   children: React.ReactNode;
-  user: {
-    name?: string;
-    email?: string;
-    avatar?: string;
-    plan?: string;
-  };
+  user: { name?: string; email?: string; avatar?: string; plan?: string };
   logout: () => void;
 }) {
   const { isCollapsed, toggleCollapsed } = useSidebar();
@@ -52,7 +46,6 @@ function DashboardContent({
     <div className="flex flex-col h-screen">
       <MobileHeader />
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop sidebar - hidden on mobile/tablet */}
         <div className="hidden lg:block">
           <AppSidebar
             user={user}
@@ -62,11 +55,7 @@ function DashboardContent({
             onToggleCollapse={toggleCollapsed}
           />
         </div>
-
-        {/* Mobile sidebar drawer */}
         <MobileSidebar user={user} onLogout={logout} />
-
-        {/* Main content */}
         <main className="flex-1 overflow-auto bg-background">{children}</main>
       </div>
     </div>
@@ -95,9 +84,7 @@ export default function DashboardLayout({
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
   const userInfo = {
     name: user?.name || user?.username,

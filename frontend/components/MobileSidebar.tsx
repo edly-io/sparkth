@@ -20,7 +20,12 @@ export default function MobileSidebar({ user, onLogout }: MobileSidebarProps) {
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && close()}>
       <SheetContent side="left" className="p-0 w-64" hideCloseButton>
-        <AppSidebar user={user} onLogout={onLogout} variant="mobile" onNavigate={close} />
+        <AppSidebar
+          user={user}
+          onLogout={onLogout}
+          variant="mobile"
+          onNavigate={close}
+        />
       </SheetContent>
     </Sheet>
   );

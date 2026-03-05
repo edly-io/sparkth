@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { login as loginApi, getGoogleLoginUrl, ApiRequestError } from "@/lib/api";
+import {
+  login as loginApi,
+  getGoogleLoginUrl,
+  ApiRequestError,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/components/ui/Button";
@@ -77,7 +81,7 @@ export default function LoginPage() {
           <ThemeToggle />
         </div>
         <div className="flex justify-center mb-1">
-          <SparkthLogo size={72}/>
+          <SparkthLogo size={72} />
         </div>
 
         <h2 className="text-center text-2xl sm:text-3xl font-bold text-foreground mb-2">

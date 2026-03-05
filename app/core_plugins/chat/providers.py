@@ -170,7 +170,6 @@ class BaseChatProvider(ABC):
 
             if hasattr(response, "tool_calls") and response.tool_calls:
                 langchain_messages.append(response)
-
                 for tool_call in response.tool_calls:
                     tool_name = tool_call.get("name", "")
                     tool_args = tool_call.get("args", {})
@@ -228,7 +227,6 @@ class BaseChatProvider(ABC):
                 elif isinstance(block, str):
                     text_parts.append(block)
             content = "".join(text_parts)
-
         return {
             "content": content,
             "role": "assistant",
