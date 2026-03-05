@@ -1,4 +1,5 @@
 """Configuration for Google Drive plugin."""
+
 from app.plugins.config_base import PluginConfig
 
 

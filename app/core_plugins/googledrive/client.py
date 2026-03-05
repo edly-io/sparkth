@@ -63,9 +63,7 @@ class GoogleDriveClient:
         ) as response:
             if response.status >= 400:
                 error_text = await response.text()
-                raise Exception(
-                    f"Google Drive API error ({response.status}): {error_text}"
-                )
+                raise Exception(f"Google Drive API error ({response.status}): {error_text}")
 
             if response.status == 204:
                 return {}
@@ -103,12 +101,8 @@ class GoogleDriveClient:
 
     async def get_file(self, file_id: str) -> dict[str, Any]:
         """Get file metadata."""
-        params = {
-            "fields": "id, name, mimeType, size, md5Checksum, modifiedTime, parents"
-        }
-        return await self._request(
-            "GET", f"{self.BASE_URL}/files/{file_id}", params=params
-        )
+        params = {"fields": "id, name, mimeType, size, md5Checksum, modifiedTime, parents"}
+        return await self._request("GET", f"{self.BASE_URL}/files/{file_id}", params=params)
 
     # Google Docs editor types that must be exported rather than downloaded
     EXPORT_MIME_MAP: dict[str, str] = {
@@ -130,9 +124,7 @@ class GoogleDriveClient:
         url = f"{self.BASE_URL}/files/{file_id}"
         params = {"alt": "media"}
 
-        async with self.session.get(
-            url, params=params, headers=self._headers()
-        ) as response:
+        async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
                 error_text = await response.text()
                 raise RuntimeError(f"Download error ({response.status}): {error_text}")
@@ -146,21 +138,15 @@ class GoogleDriveClient:
         url = f"{self.BASE_URL}/files/{file_id}/export"
         params = {"mimeType": export_mime_type}
 
-        async with self.session.get(
-            url, params=params, headers=self._headers()
-        ) as response:
+        async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
                 error_text = await response.text()
                 raise RuntimeError(f"Export error ({response.status}): {error_text}")
             return await response.read()
 
-    async def list_folders(
-        self, parent_id: Optional[str] = None
-    ) -> list[dict[str, Any]]:
+    async def list_folders(self, parent_id: Optional[str] = None) -> list[dict[str, Any]]:
         """List folders in Google Drive."""
-        result = await self.list_files(
-            folder_id=parent_id, query=f"mimeType = '{self.FOLDER_MIME_TYPE}'"
-        )
+        result = await self.list_files(folder_id=parent_id, query=f"mimeType = '{self.FOLDER_MIME_TYPE}'")
         files: list[dict[str, Any]] = result.get("files", [])
         return files
 
@@ -168,9 +154,7 @@ class GoogleDriveClient:
         """Get folder metadata."""
         return await self.get_file(folder_id)
 
-    async def create_folder(
-        self, name: str, parent_id: Optional[str] = None
-    ) -> dict[str, Any]:
+    async def create_folder(self, name: str, parent_id: Optional[str] = None) -> dict[str, Any]:
         """Create a new folder in Google Drive."""
         metadata: dict[str, Any] = {
             "name": name,
@@ -231,14 +215,14 @@ class GoogleDriveClient:
             result: dict[str, Any] = await response.json()
             return result
 
-    async def update_file(
-        self, file_id: str, content: bytes, mime_type: str
-    ) -> dict[str, Any]:
+    async def update_file(self, file_id: str, content: bytes, mime_type: str) -> dict[str, Any]:
         """Update file content."""
         if not self.session:
             raise RuntimeError("Client session not initialized.")
 
-        url = f"{self.UPLOAD_URL}/files/{file_id}?uploadType=media&fields=id,name,mimeType,size,md5Checksum,modifiedTime"
+        url = (
+            f"{self.UPLOAD_URL}/files/{file_id}?uploadType=media&fields=id,name,mimeType,size,md5Checksum,modifiedTime"
+        )
         headers = {
             **self._headers(),
             "Content-Type": mime_type,
@@ -273,9 +257,7 @@ class GoogleDriveClient:
         """Browse Drive folder contents (both files and folders)."""
         return await self.list_files(folder_id=folder_id, page_token=page_token)
 
-    async def search_files(
-        self, query: str, folder_id: Optional[str] = None
-    ) -> list[dict[str, Any]]:
+    async def search_files(self, query: str, folder_id: Optional[str] = None) -> list[dict[str, Any]]:
         """Search for files by name."""
         q = f"name contains '{query}'"
         result = await self.list_files(folder_id=folder_id, query=q)

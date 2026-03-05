@@ -47,9 +47,7 @@ def decrypt_token(encrypted_token: str) -> str:
     return token
 
 
-def generate_authorization_url(
-    user_id: int, client_id: str, redirect_uri: str, login_hint: str | None = None
-) -> str:
+def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str, login_hint: str | None = None) -> str:
     """Generate Google OAuth authorization URL.
 
     Args:
@@ -88,9 +86,7 @@ def decode_state(state: str) -> dict[str, Any]:
     return result
 
 
-async def exchange_code_for_tokens(
-    code: str, client_id: str, client_secret: str, redirect_uri: str
-) -> dict[str, Any]:
+async def exchange_code_for_tokens(code: str, client_id: str, client_secret: str, redirect_uri: str) -> dict[str, Any]:
     """Exchange authorization code for access and refresh tokens."""
     data = {
         "client_id": client_id,
@@ -109,9 +105,7 @@ async def exchange_code_for_tokens(
             return result
 
 
-async def refresh_access_token(
-    refresh_token: str, client_id: str, client_secret: str
-) -> dict[str, Any]:
+async def refresh_access_token(refresh_token: str, client_id: str, client_secret: str) -> dict[str, Any]:
     """Refresh an expired access token."""
     data = {
         "client_id": client_id,
@@ -143,9 +137,7 @@ async def get_user_info(access_token: str) -> dict[str, Any]:
 async def revoke_token(token: str) -> bool:
     """Revoke a Google OAuth token."""
     async with aiohttp.ClientSession() as http_session:
-        async with http_session.post(
-            GOOGLE_REVOKE_URL, data={"token": token}
-        ) as response:
+        async with http_session.post(GOOGLE_REVOKE_URL, data={"token": token}) as response:
             return response.status == 200
 
 
@@ -191,15 +183,11 @@ def save_tokens(
 
 def get_token_record(session: Session, user_id: int) -> Optional[DriveOAuthToken]:
     """Get OAuth token record for a user."""
-    statement = select(DriveOAuthToken).where(
-        DriveOAuthToken.user_id == user_id, DriveOAuthToken.is_deleted == False
-    )
+    statement = select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id, DriveOAuthToken.is_deleted == False)
     return session.exec(statement).first()
 
 
-async def get_valid_access_token(
-    session: Session, user_id: int, client_id: str, client_secret: str
-) -> str:
+async def get_valid_access_token(session: Session, user_id: int, client_id: str, client_secret: str) -> str:
     """Get a valid access token for a user, refreshing if necessary."""
     token_record = get_token_record(session, user_id)
     if not token_record:

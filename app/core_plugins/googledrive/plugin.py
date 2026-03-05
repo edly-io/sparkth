@@ -1,4 +1,5 @@
 """Google Drive plugin for Sparkth."""
+
 from app.core_plugins.googledrive.config import GoogleDriveConfig
 from app.plugins.base import SparkthPlugin
 

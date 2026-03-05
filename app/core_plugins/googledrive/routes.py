@@ -67,9 +67,7 @@ def get_drive_credentials() -> tuple[str, str, str]:
     return client_id, client_secret, redirect_uri
 
 
-async def _sync_folder_files(
-    session: Session, folder: DriveFolder, user_id: int, access_token: str
-) -> int:
+async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int, access_token: str) -> int:
     """Fetch files from Drive and sync them to the database.
 
     Returns:
