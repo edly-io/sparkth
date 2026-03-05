@@ -54,18 +54,18 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
+    <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-sm p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <GoogleDriveIcon className="h-10 w-10 flex-shrink-0" />
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Google Drive</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-neutral-100">Google Drive</h3>
             {status?.connected ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-neutral-400">
                 Connected as {status.email}
               </p>
             ) : (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-neutral-400">
                 Not connected
               </p>
             )}
@@ -77,7 +77,7 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
             <button
               onClick={handleDisconnect}
               disabled={loading}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-neutral-600 text-sm font-medium rounded-md text-gray-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-700 disabled:opacity-50"
             >
               {loading ? "Disconnecting..." : "Disconnect"}
             </button>

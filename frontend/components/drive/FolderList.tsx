@@ -62,7 +62,7 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
 
   if (folders.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+      <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-sm p-12 text-center">
         <svg
           className="mx-auto h-12 w-12 text-gray-400"
           fill="none"
@@ -76,8 +76,8 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
           />
         </svg>
-        <h3 className="mt-2 text-sm font-medium text-gray-900">No folders synced</h3>
-        <p className="mt-1 text-sm text-gray-500">
+        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-neutral-100">No folders synced</h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-neutral-400">
           Click &quot;Sync Folder&quot; to add a Google Drive folder.
         </p>
       </div>
@@ -86,12 +86,12 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <ul className="divide-y divide-gray-200">
+      <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-sm overflow-hidden">
+        <ul className="divide-y divide-gray-200 dark:divide-neutral-700">
           {folders.map((folder) => (
             <li
               key={folder.id}
-              className="p-4 hover:bg-gray-50 cursor-pointer"
+              className="p-4 hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer"
               onClick={() => setSelectedFolder(folder)}
             >
               <div className="flex items-center justify-between">
@@ -108,8 +108,8 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
                     />
                   </svg>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{folder.name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-gray-900 dark:text-neutral-100">{folder.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-neutral-400">
                       {folder.file_count} file{folder.file_count !== 1 ? "s" : ""}
                       {folder.last_synced_at && ` \u2022 Last synced ${formatDate(folder.last_synced_at)}`}
                     </p>

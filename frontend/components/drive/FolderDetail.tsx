@@ -157,18 +157,18 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose}></div>
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-black dark:bg-opacity-75" onClick={onClose}></div>
 
-        <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="relative bg-white dark:bg-neutral-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-neutral-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <svg className="h-8 w-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
                 </svg>
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900">{folder.name}</h3>
-                  <p className="text-sm text-gray-500">{files.length} files</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-neutral-100">{folder.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-neutral-400">{files.length} files</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
@@ -177,7 +177,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-500 dark:text-neutral-500 dark:hover:text-neutral-300">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -196,21 +196,21 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                <p className="mt-2 text-sm text-gray-500">No files in this folder</p>
+                <p className="mt-2 text-sm text-gray-500 dark:text-neutral-400">No files in this folder</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
+                <thead className="bg-gray-50 dark:bg-neutral-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Size</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Modified</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-200 dark:divide-neutral-700">
                   {files.map((file) => (
-                    <tr key={file.id} className="hover:bg-gray-50">
+                    <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <svg className={`h-5 w-5 mr-3 ${getFileIcon(file.mime_type)}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -225,16 +225,16 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                                 if (e.key === "Enter") handleRename(file);
                                 if (e.key === "Escape") setEditingFileId(null);
                               }}
-                              className="text-sm text-gray-900 border rounded px-2 py-1"
+                              className="text-sm text-gray-900 dark:text-neutral-100 border rounded px-2 py-1"
                               autoFocus
                             />
                           ) : (
-                            <span className="text-sm text-gray-900">{file.name}</span>
+                            <span className="text-sm text-gray-900 dark:text-neutral-100">{file.name}</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatFileSize(file.size)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(file.modified_time)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">{formatFileSize(file.size)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">{formatDate(file.modified_time)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
                           {editingFileId === file.id ? (
@@ -258,7 +258,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-200">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-neutral-700">
             <div className="flex justify-between items-center">
               <div>
                 <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" id="file-upload" />
@@ -269,7 +269,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                   {uploading ? "Uploading..." : "Upload File"}
                 </label>
               </div>
-              <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Close</button>
+              <button onClick={onClose} className="px-4 py-2 border border-gray-300 dark:border-neutral-600 text-sm font-medium rounded-md text-gray-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-700">Close</button>
             </div>
           </div>
         </div>

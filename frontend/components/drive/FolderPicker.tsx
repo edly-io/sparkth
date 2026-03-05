@@ -70,15 +70,15 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={onClose}></div>
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-black dark:bg-opacity-75" onClick={onClose}></div>
 
-        <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="relative bg-white dark:bg-neutral-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-neutral-700">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Select a folder to sync</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-neutral-100">Select a folder to sync</h3>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-400 hover:text-gray-500 dark:text-neutral-500 dark:hover:text-neutral-300"
               >
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -112,8 +112,8 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
                       onClick={() => handleBreadcrumbClick(index)}
                       className={`${
                         index === currentPath.length - 1
-                          ? "text-gray-700 font-medium"
-                          : "text-blue-600 hover:text-blue-800"
+                          ? "text-gray-700 dark:text-neutral-300 font-medium"
+                          : "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                       }`}
                     >
                       {item.name}
@@ -130,13 +130,13 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
             ) : items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
                 No folders found in this location
               </div>
             ) : (
-              <ul className="divide-y divide-gray-200">
+              <ul className="divide-y divide-gray-200 dark:divide-neutral-700">
                 {items.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between py-3 hover:bg-gray-50">
+                  <li key={item.id} className="flex items-center justify-between py-3 hover:bg-gray-50 dark:hover:bg-neutral-800">
                     <button
                       onClick={() => handleFolderClick(item)}
                       className="flex items-center space-x-3 flex-1 text-left"
@@ -152,7 +152,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
                           clipRule="evenodd"
                         />
                       </svg>
-                      <span className="text-sm text-gray-900">{item.name}</span>
+                      <span className="text-sm text-gray-900 dark:text-neutral-100">{item.name}</span>
                     </button>
                     <button
                       onClick={() => handleSync(item)}
