@@ -1,15 +1,15 @@
 """Google Drive API Endpoints."""
 
 import logging
-import os
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlmodel import Session, select
 
 from app.api.v1.auth import get_current_user
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.oauth import (
@@ -38,15 +38,14 @@ from app.core_plugins.googledrive.types import (
     SyncStatusResponse,
 )
 from app.models.drive import DriveFile, DriveFolder
-from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User
 
 router: APIRouter = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def get_drive_credentials(session: Session, user_id: int) -> tuple[str, str, str]:
-    """Get Google OAuth credentials from plugin config.
+def get_drive_credentials() -> tuple[str, str, str]:
+    """Get Google OAuth credentials from app settings.
 
     Returns:
         Tuple of (client_id, client_secret, redirect_uri)
@@ -54,43 +53,15 @@ def get_drive_credentials(session: Session, user_id: int) -> tuple[str, str, str
     Raises:
         HTTPException: If credentials are not configured
     """
-    # Try user-level config first
-    user_plugin = session.exec(
-        select(UserPlugin).where(
-            UserPlugin.user_id == user_id,
-            UserPlugin.plugin_id == select(Plugin.id).where(Plugin.name == "google-drive").scalar_subquery(),
-        )
-    ).first()
-
-    config: dict[str, Any] = {}
-    if user_plugin and user_plugin.config:
-        config = user_plugin.config
-
-    # Fall back to plugin-level defaults
-    if not config.get("google_client_id"):
-        plugin = session.exec(
-            select(Plugin).where(Plugin.name == "google-drive")
-        ).first()
-        if plugin and plugin.config_schema:
-            # config_schema stores the schema definition, not actual values
-            # For system-wide credentials, check environment as ultimate fallback
-            config.setdefault("google_client_id", os.environ.get("GOOGLE_CLIENT_ID", ""))
-            config.setdefault("google_client_secret", os.environ.get("GOOGLE_CLIENT_SECRET", ""))
-            config.setdefault(
-                "google_redirect_uri",
-                os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/googledrive/oauth/callback"),
-            )
-
-    client_id = config.get("google_client_id", "")
-    client_secret = config.get("google_client_secret", "")
-    redirect_uri = config.get(
-        "google_redirect_uri", "http://localhost:8000/api/v1/googledrive/oauth/callback"
-    )
+    settings = get_settings()
+    client_id = settings.GOOGLE_CLIENT_ID
+    client_secret = settings.GOOGLE_CLIENT_SECRET
+    redirect_uri = settings.GOOGLE_DRIVE_REDIRECT_URI
 
     if not client_id or not client_secret:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google Drive credentials not configured. Please configure the Google Drive plugin.",
+            detail="Google Drive credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
         )
 
     return client_id, client_secret, redirect_uri
@@ -109,7 +80,7 @@ def get_authorization_url(
     """Generate Google OAuth authorization URL."""
     if current_user.id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-    client_id, _, redirect_uri = get_drive_credentials(session, current_user.id)
+    client_id, _, redirect_uri = get_drive_credentials()
     url = generate_authorization_url(current_user.id, client_id, redirect_uri)
     return AuthorizationUrlResponse(url=url)
 
@@ -127,7 +98,7 @@ async def oauth_callback(
     except (KeyError, ValueError, TypeError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid state parameter: {e}")
 
-    client_id, client_secret, redirect_uri = get_drive_credentials(session, user_id)
+    client_id, client_secret, redirect_uri = get_drive_credentials()
 
     try:
         token_data = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
@@ -190,7 +161,7 @@ async def get_connection_status(
         return ConnectionStatusResponse(connected=False)
 
     try:
-        client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+        client_id, client_secret, _ = get_drive_credentials()
         access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
         user_info = await get_user_info(access_token)
         return ConnectionStatusResponse(
@@ -250,7 +221,7 @@ async def sync_folder(
     if current_user.id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     # Check if folder is already synced
@@ -302,7 +273,7 @@ async def create_folder(
     if current_user.id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
@@ -431,7 +402,7 @@ async def refresh_folder(
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     try:
@@ -588,7 +559,7 @@ async def upload_file(
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     content = await file.read()
@@ -684,7 +655,7 @@ async def download_file(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
@@ -720,7 +691,7 @@ async def rename_file(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
@@ -763,7 +734,7 @@ async def delete_file(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
@@ -792,7 +763,7 @@ async def browse_drive(
     if current_user.id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
 
-    client_id, client_secret, _ = get_drive_credentials(session, current_user.id)
+    client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
