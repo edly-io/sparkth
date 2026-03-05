@@ -120,11 +120,11 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
               {items.map((item) => (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
+                  className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <button
                     onClick={() => handleFolderClick(item)}
-                    className="flex items-center gap-3 flex-1 text-left"
+                    className="flex items-center gap-3 flex-1 text-left cursor-pointer"
                   >
                     <Folder className="h-5 w-5 text-warning-500 shrink-0" />
                     <span className="text-sm text-foreground">{item.name}</span>
