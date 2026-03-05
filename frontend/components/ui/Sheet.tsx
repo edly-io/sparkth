@@ -18,7 +18,10 @@ const SheetOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
-    className={cn("fixed inset-0 z-50 bg-black/50 animate-overlay", className)}
+    className={cn(
+      "fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
+      className
+    )}
     {...props}
     ref={ref}
   />
@@ -35,8 +38,8 @@ interface SheetContentProps extends React.ComponentPropsWithoutRef<
 const sheetVariants = {
   top: "inset-x-0 top-0 border-b",
   bottom: "inset-x-0 bottom-0 border-t",
-  left: "inset-y-0 left-0 h-full w-3/4 max-w-sm border-r animate-sheet-left",
-  right: "inset-y-0 right-0 h-full w-3/4 max-w-sm border-l animate-sheet-right",
+  left: "inset-y-0 left-0 h-full w-3/4 max-w-sm border-r data-[state=open]:animate-slide-in-left data-[state=closed]:animate-slide-out-left",
+  right: "inset-y-0 right-0 h-full w-3/4 max-w-sm border-l data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right",
 };
 
 const SheetContent = React.forwardRef<

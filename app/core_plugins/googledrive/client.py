@@ -3,6 +3,8 @@
 from types import TracebackType
 from typing import Any, Optional, Type
 
+import json as json_module
+
 import aiohttp
 
 
@@ -41,6 +43,20 @@ class GoogleDriveClient:
             "Accept": "application/json",
         }
 
+    @staticmethod
+    async def _parse_error(response: aiohttp.ClientResponse) -> str:
+        """Extract a human-readable error message from a Google API error response."""
+        text = await response.text()
+        try:
+            data = json_module.loads(text)
+            if isinstance(data, dict) and "error" in data:
+                error = data["error"]
+                if isinstance(error, dict) and "message" in error:
+                    return error["message"]
+            return text
+        except (json_module.JSONDecodeError, KeyError, TypeError):
+            return text
+
     async def _request(
         self,
         method: str,
@@ -62,8 +78,8 @@ class GoogleDriveClient:
             method, url, params=params, json=json, data=data, headers=request_headers
         ) as response:
             if response.status >= 400:
-                error_text = await response.text()
-                raise RuntimeError(f"Google Drive API error ({response.status}): {error_text}")
+                error_message = await self._parse_error(response)
+                raise RuntimeError(f"Google Drive API error ({response.status}): {error_message}")
 
             if response.status == 204:
                 return {}
@@ -126,8 +142,8 @@ class GoogleDriveClient:
 
         async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
-                error_text = await response.text()
-                raise RuntimeError(f"Download error ({response.status}): {error_text}")
+                error_message = await self._parse_error(response)
+                raise RuntimeError(f"Download error ({response.status}): {error_message}")
             return await response.read()
 
     async def export_file(self, file_id: str, export_mime_type: str) -> bytes:
@@ -140,8 +156,8 @@ class GoogleDriveClient:
 
         async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
-                error_text = await response.text()
-                raise RuntimeError(f"Export error ({response.status}): {error_text}")
+                error_message = await self._parse_error(response)
+                raise RuntimeError(f"Export error ({response.status}): {error_message}")
             return await response.read()
 
     async def list_folders(self, parent_id: Optional[str] = None) -> list[dict[str, Any]]:
@@ -181,8 +197,6 @@ class GoogleDriveClient:
         if not self.session:
             raise RuntimeError("Client session not initialized.")
 
-        import json as json_module
-
         metadata: dict[str, Any] = {"name": name}
         if folder_id:
             metadata["parents"] = [folder_id]
@@ -210,8 +224,8 @@ class GoogleDriveClient:
 
         async with self.session.post(url, data=body, headers=headers) as response:
             if response.status >= 400:
-                error_text = await response.text()
-                raise Exception(f"Upload error ({response.status}): {error_text}")
+                error_message = await self._parse_error(response)
+                raise RuntimeError(f"Upload error ({response.status}): {error_message}")
             result: dict[str, Any] = await response.json()
             return result
 
@@ -230,8 +244,8 @@ class GoogleDriveClient:
 
         async with self.session.patch(url, data=content, headers=headers) as response:
             if response.status >= 400:
-                error_text = await response.text()
-                raise Exception(f"Update error ({response.status}): {error_text}")
+                error_message = await self._parse_error(response)
+                raise RuntimeError(f"Update error ({response.status}): {error_message}")
             result: dict[str, Any] = await response.json()
             return result
 

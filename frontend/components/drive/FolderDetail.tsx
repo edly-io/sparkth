@@ -173,7 +173,13 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
               <p className="text-sm text-muted-foreground">No files in this folder</p>
             </div>
           ) : (
-            <table className="min-w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-[45%]" />
+                <col className="w-[15%]" />
+                <col className="w-[20%]" />
+                <col className="w-[20%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border">
                   <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
@@ -185,8 +191,8 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
               <tbody className="divide-y divide-border">
                 {files.map((file) => (
                   <tr key={file.id} className="hover:bg-surface-variant/50 transition-colors">
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <FileText className="h-4 w-4 text-secondary-500 shrink-0" />
                         {editingFileId === file.id ? (
                           <input
@@ -197,11 +203,11 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                               if (e.key === "Enter") handleRename(file);
                               if (e.key === "Escape") setEditingFileId(null);
                             }}
-                            className="text-sm text-foreground bg-input border border-border rounded-md px-2 py-1 focus:border-primary-500 focus:outline-none"
+                            className="text-sm text-foreground bg-input border border-border rounded-md px-2 py-1 focus:border-primary-500 focus:outline-none w-full"
                             autoFocus
                           />
                         ) : (
-                          <span className="text-sm text-foreground">{file.name}</span>
+                          <span className="text-sm text-foreground truncate" title={file.name}>{file.name}</span>
                         )}
                       </div>
                     </td>
