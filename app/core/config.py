@@ -32,6 +32,7 @@ PLUGINS = [
     "app.core_plugins.canvas.plugin:CanvasPlugin",
     "app.core_plugins.openedx.plugin:OpenEdxPlugin",
     "app.core_plugins.chat.plugin:ChatPlugin",
+    "app.core_plugins.googledrive.plugin:GoogleDrivePlugin",
 ]
 
 
