@@ -49,7 +49,7 @@ class ChatService:
                 decrypted = self.encryption.decrypt(cached_key)
                 logger.debug(f"API key cache hit for user {user_id}, provider {provider}")
                 return decrypted
-            except Exception as e:
+            except ValueError as e:
                 logger.warning(f"Failed to decrypt cached API key, falling back to DB: {e}")
 
         statement = select(ProviderAPIKey).where(
@@ -81,7 +81,7 @@ class ChatService:
             await session.commit()
 
             return decrypted_key
-        except Exception as e:
+        except ValueError as e:
             logger.error(f"Failed to decrypt API key: {e}")
             return None
 

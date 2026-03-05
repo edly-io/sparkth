@@ -4,7 +4,7 @@ import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from enum import Enum
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Union, cast
 
 from fastapi import FastAPI
@@ -25,9 +25,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
-
 logger = logging.getLogger(__name__)
-
 
 settings = get_settings()
 
@@ -57,7 +55,7 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
                             cast(Union[list[Union[str, Enum]], None], tags) if tags else None
                         )
                         application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
-            except Exception as e:
+            except (AttributeError, TypeError, ValueError) as e:
                 logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
 
         for plugin_name, plugin in loaded_plugins.items():
@@ -69,10 +67,10 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
                 for middleware_item in middleware_list:
                     mw = cast(Callable[[ASGIApp], ASGIApp], middleware_item.cls)
                     application.add_middleware(mw, **cast(dict[str, Any], middleware_item.kwargs))
-            except Exception as e:
+            except (AttributeError, TypeError, ValueError) as e:
                 logger.error(f"Failed to register middleware for plugin '{plugin_name}': {e}")
 
-    except Exception as e:
+    except (ImportError, RuntimeError, OSError) as e:
         logger.error(f"Plugin initialization failed: {e}")
 
     yield
@@ -80,11 +78,15 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     try:
         plugin_manager.disable_all_loaded()
         plugin_manager.unload_all()
-    except Exception as e:
+    except (RuntimeError, AttributeError) as e:
         logger.error(f"Plugin cleanup failed: {e}")
 
 
-__version__ = version("sparkth")
+try:
+    __version__ = version("sparkth")
+except PackageNotFoundError:
+    __version__ = "unknown"
+    logger.warning("Package 'sparkth' not found; version set to 'unknown'")
 
 # Note: Using path="/" causes connection issues with Claude
 mcp_app = mcp.http_app(path="/mcp")
@@ -108,7 +110,6 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=lifespan)
 app.mount("/ai", mcp_app)
 
-
 app.add_middleware(
     PluginAccessMiddleware,
     exclude_paths=[
@@ -119,7 +120,6 @@ app.add_middleware(
         "/api/v1/auth",
     ],
 )
-
 
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")

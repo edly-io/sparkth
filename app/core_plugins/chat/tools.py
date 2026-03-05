@@ -4,7 +4,7 @@ import json
 from typing import Any, get_type_hints
 
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.core.logger import get_logger
 from app.plugins import get_plugin_manager
@@ -34,7 +34,6 @@ class ToolRegistry:
         """Get all registered tools."""
         if not self._initialized:
             self.discover_plugin_tools()
-
         return list(self._tools.values())
 
     async def get_tools_by_names(self, names: list[str]) -> list[BaseTool]:
@@ -73,7 +72,7 @@ class ToolRegistry:
                 try:
                     langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
                     self.register_tool(langchain_tool)
-                except Exception as e:
+                except (KeyError, TypeError, ValueError, ValidationError) as e:
                     logger.error(
                         f"Failed to convert MCP tool '{mcp_tool.get('name')}' to LangChain tool: {e}", exc_info=True
                     )
@@ -84,16 +83,12 @@ class ToolRegistry:
     def _get_handler_type_hints(self, handler: Any) -> dict[str, Any]:
         """Extract type hints from the handler function."""
         try:
-            if hasattr(handler, "__func__"):
-                func = handler.__func__
-            else:
-                func = handler
-
+            func = handler.__func__ if hasattr(handler, "__func__") else handler
             hints = get_type_hints(func)
             hints.pop("return", None)
             hints.pop("self", None)
             return hints
-        except Exception as e:
+        except (TypeError, NameError, AttributeError) as e:
             logger.debug(f"Could not get type hints: {e}")
             return {}
 
@@ -147,7 +142,7 @@ class ToolRegistry:
                 return None
 
             return create_model(name + "Input", **field_definitions)
-        except Exception as e:
+        except (TypeError, ValueError, AttributeError) as e:
             logger.debug(f"Could not build args_schema from handler hints for '{name}': {e}")
             return None
 
@@ -173,7 +168,6 @@ class ToolRegistry:
                 # Convert arguments to match handler's expected types
                 converted_args = self._convert_args_to_handler_types(kwargs, handler_hints)
                 logger.debug(f"Tool '{name}' converted args: {converted_args}")
-
                 result = await handler(**converted_args)
 
                 if isinstance(result, (dict, list)):
@@ -181,7 +175,7 @@ class ToolRegistry:
                 if isinstance(result, BaseModel):
                     return result.model_dump_json(indent=2)
                 return str(result)
-            except Exception as e:
+            except (ValidationError, ValueError, TypeError, RuntimeError) as e:
                 logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
                 return f"Error executing tool: {str(e)}"
 
@@ -189,7 +183,6 @@ class ToolRegistry:
             """Sync wrapper for MCP tool handler."""
             try:
                 logger.debug(f"Tool '{name}' received raw args (sync): {kwargs}")
-
                 converted_args = self._convert_args_to_handler_types(kwargs, handler_hints)
                 logger.debug(f"Tool '{name}' converted args (sync): {converted_args}")
 
@@ -204,7 +197,7 @@ class ToolRegistry:
                 if isinstance(result, BaseModel):
                     return result.model_dump_json(indent=2)
                 return str(result)
-            except Exception as e:
+            except (ValidationError, ValueError, TypeError, RuntimeError) as e:
                 logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
                 return f"Error executing tool: {str(e)}"
 
@@ -244,8 +237,8 @@ class ToolRegistry:
             if expected_type is None:
                 converted[arg_name] = arg_value
                 continue
-            is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
 
+            is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
             if is_pydantic:
                 converted[arg_name] = self._convert_to_pydantic(arg_value, expected_type)
             else:
@@ -339,6 +332,7 @@ class ToolRegistry:
             types = [t.get("type") for t in json_schema["anyOf"] if t.get("type") and t.get("type") != "null"]
             if types:
                 json_type = types[0]
+
         type_map = {
             "string": str,
             "integer": int,

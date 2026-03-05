@@ -190,7 +190,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         for method_name, tool_info in tool_registry.items():
             try:
                 bound_method = getattr(self, method_name)
-
                 self.add_mcp_tool(
                     name=tool_info["name"],
                     handler=bound_method,
@@ -198,12 +197,10 @@ class SparkthPlugin(metaclass=PluginMeta):
                     category=tool_info["category"],
                     version=tool_info["version"],
                 )
-
                 logger.debug(
                     f"Auto-registered tool '{tool_info['name']}' from method '{method_name}' in plugin '{self.name}'"
                 )
-
-            except Exception as e:
+            except (AttributeError, TypeError, KeyError) as e:
                 logger.error(f"Failed to auto-register tool from method '{method_name}' in plugin '{self.name}': {e}")
 
     def initialize(self) -> None:
@@ -456,17 +453,12 @@ class SparkthPlugin(metaclass=PluginMeta):
                 if param.default == inspect.Parameter.empty:
                     required.append(param_name)
 
-            schema: dict[str, Any] = {
-                "type": "object",
-                "properties": properties,
-            }
-
+            schema: dict[str, Any] = {"type": "object", "properties": properties}
             if required:
                 schema["required"] = required
-
             return schema
 
-        except Exception as e:
+        except (TypeError, NameError, AttributeError) as e:
             logger.warning(f"Failed to generate input schema for {func.__name__}: {e}. Using empty schema.")
             return {"type": "object", "properties": {}}
 
