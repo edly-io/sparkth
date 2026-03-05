@@ -196,8 +196,7 @@ async def google_callback(
 
         # Generate JWT token
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        utc_now = datetime.now(timezone.utc)
-        expires_at = utc_now + access_token_expires
+        expires_at = utc_now() + access_token_expires
 
         jwt_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
