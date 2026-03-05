@@ -2,6 +2,8 @@ export interface TextAttachment {
   name: string;
   text: string;
   size: number;
+  base64Data?: string;
+  mediaType?: string;
 }
 
 export type ChatRole = "user" | "assistant";

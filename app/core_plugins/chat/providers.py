@@ -98,7 +98,7 @@ class BaseChatProvider(ABC):
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
         pass
 
-    def _convert_messages(self, messages: list[dict[str, str]]) -> list[BaseMessage]:
+    def _convert_messages(self, messages: list[dict[str, Any]]) -> list[BaseMessage]:
         """Convert dict messages to LangChain message objects."""
         langchain_messages: list[BaseMessage] = []
 
@@ -116,7 +116,7 @@ class BaseChatProvider(ABC):
         return langchain_messages
 
     async def send_message(
-        self, messages: list[dict[str, str]], max_tokens: int | None = None, tools: list[Any] | None = None
+        self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
     ) -> dict[str, Any]:
         """Send a message and get a response, with optional tool usage."""
         llm = self._create_llm(streaming=False)
@@ -132,7 +132,7 @@ class BaseChatProvider(ABC):
             logger.error(f"Error in send_message: {e}")
             raise
 
-    async def _send_message_simple(self, llm: Any, messages: list[dict[str, str]]) -> dict[str, Any]:
+    async def _send_message_simple(self, llm: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Send a message without tools."""
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
@@ -151,7 +151,7 @@ class BaseChatProvider(ABC):
         }
 
     async def _send_message_with_tools(
-        self, llm: Any, messages: list[dict[str, str]], tools: list[Any]
+        self, llm: Any, messages: list[dict[str, Any]], tools: list[Any]
     ) -> dict[str, Any]:
         """Send a message with tool support using a manual tool execution loop."""
 
@@ -289,7 +289,7 @@ class BaseChatProvider(ABC):
         return f"Tool '{tool_name}' not found"
 
     async def stream_message(
-        self, messages: list[dict[str, str]], max_tokens: int | None = None, tools: list[Any] | None = None
+        self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
     ) -> AsyncIterator[str]:
         """Stream a message response, with optional tool usage."""
 
@@ -302,7 +302,7 @@ class BaseChatProvider(ABC):
             async for token in self._stream_message_simple(messages):
                 yield token
 
-    async def _stream_message_simple(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
+    async def _stream_message_simple(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
         """Stream a message without tools."""
         callback = StreamingCallbackHandler()
         llm = self._create_llm(streaming=True, callbacks=[callback])
@@ -323,7 +323,7 @@ class BaseChatProvider(ABC):
             task.cancel()
             raise
 
-    async def _stream_message_with_tools(self, messages: list[dict[str, str]], tools: list[Any]) -> AsyncIterator[str]:
+    async def _stream_message_with_tools(self, messages: list[dict[str, Any]], tools: list[Any]) -> AsyncIterator[str]:
         """Stream a message with tool support."""
         llm = self._create_llm(streaming=True)
         llm_with_tools = llm.bind_tools(tools)

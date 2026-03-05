@@ -39,8 +39,15 @@ export function ChatInput({
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 
+  const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
+
   const handleUploadAsText = async (file: File) => {
     setUploadError(null);
+
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError("File size exceeds 30MB limit");
+      return;
+    }
 
     try {
       const formData = new FormData();
@@ -66,16 +73,37 @@ export function ChatInput({
 
     setShowDriveFilePicker(false);
     setIsLoadingDriveFile(true);
+    setUploadError(null);
 
     try {
       const blob = await downloadFile(driveFile.id, token);
-      const file = new File([blob], driveFile.name, {
-        type: driveFile.mime_type || "application/octet-stream",
+
+      if (blob.size > MAX_FILE_SIZE) {
+        setUploadError("File size exceeds 30MB limit");
+        return;
+      }
+
+      const mediaType = blob.type || driveFile.mime_type || "application/octet-stream";
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(blob);
       });
-      await handleUploadAsText(file);
+
+      setAttachment({
+        name: driveFile.name,
+        size: blob.size,
+        text: `[File: ${driveFile.name}]`,
+        base64Data,
+        mediaType,
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to download file from Google Drive";
-      setUploadError(message);
+      const msg = error instanceof Error ? error.message : "Failed to download file from Google Drive";
+      setUploadError(msg);
     } finally {
       setIsLoadingDriveFile(false);
     }
@@ -132,7 +160,7 @@ export function ChatInput({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSend();
+                if (!isLoadingDriveFile) handleSend();
               }
             }}
             placeholder="Describe the course you want to create..."
@@ -171,7 +199,7 @@ export function ChatInput({
                 variant="primary"
                 size="icon"
                 onClick={handleSend}
-                disabled={!message.trim() && !attachment}
+                disabled={isLoadingDriveFile || (!message.trim() && !attachment)}
                 className="rounded-full bg-foreground text-background"
               >
                 <ArrowUp className="w-5 h-5" />

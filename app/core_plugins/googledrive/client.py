@@ -1,9 +1,8 @@
 """Google Drive API client."""
 
+import json as json_module
 from types import TracebackType
 from typing import Any, Optional, Type
-
-import json as json_module
 
 import aiohttp
 

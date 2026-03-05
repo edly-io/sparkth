@@ -227,11 +227,21 @@ async def chat_completion(
         )
 
     for msg in request.messages:
+        # Store a text summary for messages with content blocks (e.g. file attachments)
+        if isinstance(msg.content, list):
+            text_parts = [
+                block.get("text", "")
+                for block in msg.content
+                if isinstance(block, dict) and block.get("type") == "text"
+            ]
+            stored_content = " ".join(text_parts) if text_parts else "[File attachment]"
+        else:
+            stored_content = msg.content
         await service.add_message(
             session=session,
             conversation_id=conversation.id,  # type: ignore
             role=msg.role,
-            content=msg.content,
+            content=stored_content,
             message_type="attachment" if msg.attachment else "text",
             attachment_name=msg.attachment.name if msg.attachment else None,
             attachment_size=msg.attachment.size if msg.attachment else None,
@@ -241,7 +251,6 @@ async def chat_completion(
         session=session,
         conversation_id=conversation.id,  # type: ignore
     )
-    messages = [{"role": m.role, "content": m.content} for m in db_messages]
 
     try:
         provider = get_provider(
@@ -250,6 +259,17 @@ async def chat_completion(
             model=request.model,
             temperature=request.temperature,
         )
+
+        # Use DB messages for history, but replace current batch with original
+        # request content to preserve content blocks (e.g. base64 file attachments)
+        num_current = len(request.messages)
+        history: list[dict[str, Any]] = [
+            {"role": m.role, "content": m.content} for m in db_messages[:-num_current]
+        ] if len(db_messages) > num_current else []
+        current: list[dict[str, Any]] = [
+            {"role": msg.role, "content": msg.content} for msg in request.messages
+        ]
+        messages = history + current
 
         tool_registry = get_tool_registry()
         tools = None
@@ -325,7 +345,7 @@ async def chat_completion(
 
 async def stream_chat_response(
     provider: BaseChatProvider,
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],
     conversation_id: int,
     service: ChatService,
     session: AsyncSession,

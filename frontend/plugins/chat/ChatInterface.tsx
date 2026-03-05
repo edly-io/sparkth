@@ -155,19 +155,47 @@ export default function ChatInterface() {
 
     setMessages((prev) => [...prev, userMessage]);
 
-    const newUserMessages: Array<
-      Pick<ChatMessage, "role" | "content"> & {
-        attachment?: { name: string; size: number };
+    const newUserMessages: Array<{
+      role: string;
+      content: string | object[];
+      attachment?: { name: string; size: number };
+    }> = [];
+
+    if (attachment?.base64Data) {
+      // Send file directly as a content block to the LLM
+      const contentBlocks: object[] = [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: attachment.mediaType || "application/pdf",
+            data: attachment.base64Data,
+          },
+        },
+      ];
+      if (message.trim()) {
+        contentBlocks.push({ type: "text", text: message });
       }
-    > = [];
-    if (attachment?.text)
       newUserMessages.push({
         role: "user",
-        content: attachment.text,
+        content: contentBlocks,
         attachment: { name: attachment.name, size: attachment.size },
       });
-    if (message.trim())
-      newUserMessages.push({ role: "user", content: message });
+    } else {
+      if (attachment?.text) {
+        newUserMessages.push({
+          role: "user",
+          content: attachment.text,
+          attachment: { name: attachment.name, size: attachment.size },
+        });
+      }
+      if (message.trim()) {
+        newUserMessages.push({
+          role: "user",
+          content: message,
+        });
+      }
+    }
 
     const assistantId = crypto.randomUUID();
 

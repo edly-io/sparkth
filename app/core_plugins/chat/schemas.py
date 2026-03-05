@@ -1,7 +1,10 @@
+import base64
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+
+MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
 
 class ProviderAPIKeyCreate(BaseModel):
@@ -39,7 +42,7 @@ class AttachmentMeta(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str = Field(..., examples=["user"])
-    content: str = Field(..., min_length=1)
+    content: str | list[dict[str, Any]] = Field(...)
     attachment: AttachmentMeta | None = None
 
     @field_validator("role")
@@ -48,6 +51,28 @@ class ChatMessage(BaseModel):
         allowed_roles = {"system", "user", "assistant", "tool"}
         if v not in allowed_roles:
             raise ValueError(f"Invalid role: {v}. Allowed: {', '.join(allowed_roles)}")
+        return v
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: str | list[dict[str, Any]]) -> str | list[dict[str, Any]]:
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("Content must not be empty")
+        if isinstance(v, list) and len(v) == 0:
+            raise ValueError("Content must not be empty")
+        if isinstance(v, list):
+            for block in v:
+                if not isinstance(block, dict):
+                    continue
+                source = block.get("source")
+                if isinstance(source, dict) and source.get("type") == "base64":
+                    data = source.get("data", "")
+                    try:
+                        size = len(base64.b64decode(data))
+                    except Exception:
+                        raise ValueError("Invalid base64 data in content block")
+                    if size > MAX_FILE_SIZE:
+                        raise ValueError("File size exceeds 30MB limit")
         return v
 
 
