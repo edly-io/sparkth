@@ -12,6 +12,7 @@ import {
   DialogDescription,
 } from "@/components/ui/Dialog";
 import { listFolders, listFiles, DriveFolder, DriveFile } from "@/lib/drive";
+import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
   id: number;
@@ -76,7 +77,10 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Pick a file from Google Drive</DialogTitle>
+          <div className="flex items-center gap-2">
+            <GoogleDriveIcon className="w-6 h-6" />
+            <DialogTitle>Pick a file from Google Drive</DialogTitle>
+          </div>
           <DialogDescription>
             Select a file from your synced folders to attach.
           </DialogDescription>
