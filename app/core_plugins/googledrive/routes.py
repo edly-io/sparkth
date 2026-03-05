@@ -81,7 +81,7 @@ def get_authorization_url(
     if current_user.id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
     client_id, _, redirect_uri = get_drive_credentials()
-    url = generate_authorization_url(current_user.id, client_id, redirect_uri)
+    url = generate_authorization_url(current_user.id, client_id, redirect_uri, login_hint=current_user.email)
     return AuthorizationUrlResponse(url=url)
 
 

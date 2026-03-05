@@ -48,7 +48,7 @@ def decrypt_token(encrypted_token: str) -> str:
 
 
 def generate_authorization_url(
-    user_id: int, client_id: str, redirect_uri: str
+    user_id: int, client_id: str, redirect_uri: str, login_hint: str | None = None
 ) -> str:
     """Generate Google OAuth authorization URL.
 
@@ -56,6 +56,7 @@ def generate_authorization_url(
         user_id: The user ID to include in the state parameter.
         client_id: Google OAuth client ID.
         redirect_uri: OAuth callback redirect URI.
+        login_hint: Email address to pre-select the Google account.
 
     Returns:
         The authorization URL to redirect the user to.
@@ -74,6 +75,9 @@ def generate_authorization_url(
         "prompt": "consent",
         "state": state,
     }
+
+    if login_hint:
+        params["login_hint"] = login_hint
 
     return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
 
