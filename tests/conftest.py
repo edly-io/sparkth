@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
-from sqlmodel import SQLModel
+from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
@@ -32,6 +32,34 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)
     await engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def sync_engine():
+    """In-memory sync engine for routes that use synchronous Session."""
+    eng = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(eng)
+    yield eng
+    SQLModel.metadata.drop_all(eng)
+    eng.dispose()
+
+
+@pytest.fixture
+def sync_session(sync_engine):
+    """Sync session with rollback for each test."""
+    connection = sync_engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection)
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture
