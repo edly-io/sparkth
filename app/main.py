@@ -102,6 +102,14 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             all_tools = await asyncio.create_task(mcp.get_tools())
             logger.info(f"MCP server ready with {len(all_tools)} total tool(s) registered")
 
+            # Mount frontend static files AFTER plugin routes are registered,
+            # so plugin API routes take precedence over the catch-all "/" mount.
+            frontend_settings = get_settings()
+            if frontend_settings.FRONTEND_DIR.exists():
+                application.mount(
+                    "/", StaticFiles(directory=frontend_settings.FRONTEND_DIR, html=True), name="frontend"
+                )
+
             yield
 
 
@@ -124,7 +132,3 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 
-# Serve frontend static files
-settings = get_settings()
-if settings.FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=settings.FRONTEND_DIR, html=True), name="frontend")
