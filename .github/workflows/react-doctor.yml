@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0 # required for --diff
 
       - name: Run React Doctor
-        uses: millionco/react-doctor@main
+        uses: millionco/react-doctor@97b21f18ee4c5b530d683ae6626548081a4aad76 # v0.0.1
         with:
           directory: frontend
           diff: main
