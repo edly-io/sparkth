@@ -1,13 +1,15 @@
-import { FileText } from "lucide-react";
+import { FileText, HardDrive } from "lucide-react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/Button";
 
 interface UploadMenuProps {
   onClose: () => void;
   onUploadText: (file: File) => void;
+  isDriveEnabled?: boolean;
+  onPickFromDrive?: () => void;
 }
 
-export function UploadMenu({ onClose, onUploadText }: UploadMenuProps) {
+export function UploadMenu({ onClose, onUploadText, isDriveEnabled, onPickFromDrive }: UploadMenuProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -32,19 +34,25 @@ export function UploadMenu({ onClose, onUploadText }: UploadMenuProps) {
           variant="ghost"
           size="sm"
           onClick={() => inputRef.current?.click()}
-          className="w-full justify-start gap-3 rounded-none"
+          className="w-full !justify-start gap-3 rounded-none"
         >
           <FileText className="w-5 h-5 text-muted-foreground" />
           <span>Select File</span>
         </Button>
-        {/* <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-3 rounded-none"
-        >
-          <Upload className="w-5 h-5 text-muted-foreground" />
-          <span>Upload to Provider</span>
-        </Button> */}
+        {isDriveEnabled && onPickFromDrive && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              onPickFromDrive();
+              onClose();
+            }}
+            className="w-full !justify-start gap-3 rounded-none"
+          >
+            <HardDrive className="w-5 h-5 text-muted-foreground" />
+            <span>Pick from Google Drive</span>
+          </Button>
+        )}
       </div>
     </>
   );

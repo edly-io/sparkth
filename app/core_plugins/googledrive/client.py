@@ -110,10 +110,22 @@ class GoogleDriveClient:
             "GET", f"{self.BASE_URL}/files/{file_id}", params=params
         )
 
-    async def download_file(self, file_id: str) -> bytes:
-        """Download file content."""
+    # Google Docs editor types that must be exported rather than downloaded
+    EXPORT_MIME_MAP: dict[str, str] = {
+        "application/vnd.google-apps.document": "application/pdf",
+        "application/vnd.google-apps.spreadsheet": "application/pdf",
+        "application/vnd.google-apps.presentation": "application/pdf",
+        "application/vnd.google-apps.drawing": "application/pdf",
+    }
+
+    async def download_file(self, file_id: str, mime_type: str | None = None) -> bytes:
+        """Download file content. Auto-exports Google Docs editor files as PDF."""
         if not self.session:
             raise RuntimeError("Client session not initialized.")
+
+        # Google Docs native types cannot be downloaded directly — export them
+        if mime_type and mime_type in self.EXPORT_MIME_MAP:
+            return await self.export_file(file_id, self.EXPORT_MIME_MAP[mime_type])
 
         url = f"{self.BASE_URL}/files/{file_id}"
         params = {"alt": "media"}
@@ -123,7 +135,23 @@ class GoogleDriveClient:
         ) as response:
             if response.status >= 400:
                 error_text = await response.text()
-                raise Exception(f"Download error ({response.status}): {error_text}")
+                raise RuntimeError(f"Download error ({response.status}): {error_text}")
+            return await response.read()
+
+    async def export_file(self, file_id: str, export_mime_type: str) -> bytes:
+        """Export a Google Docs editor file to the given MIME type."""
+        if not self.session:
+            raise RuntimeError("Client session not initialized.")
+
+        url = f"{self.BASE_URL}/files/{file_id}/export"
+        params = {"mimeType": export_mime_type}
+
+        async with self.session.get(
+            url, params=params, headers=self._headers()
+        ) as response:
+            if response.status >= 400:
+                error_text = await response.text()
+                raise RuntimeError(f"Export error ({response.status}): {error_text}")
             return await response.read()
 
     async def list_folders(

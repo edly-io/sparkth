@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Paperclip, ArrowUp } from "lucide-react";
+import { Paperclip, ArrowUp, Loader2, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
 import { Pill } from "../attachment/Pill";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
+import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
+import { downloadFile } from "@/lib/drive";
+import DriveFilePicker, { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 
 interface ChatInputProps {
   attachment: TextAttachment | null;
@@ -30,20 +33,52 @@ export function ChatInput({
   const { token } = useAuth();
   const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const [showDriveFilePicker, setShowDriveFilePicker] = useState(false);
+  const [isLoadingDriveFile, setIsLoadingDriveFile] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 
   const handleUploadAsText = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
+    setUploadError(null);
 
-    const data: UploadResponse = await uploadFile(token, formData);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    setAttachment({
-      name: file.name,
-      size: file.size,
-      text: data.text,
-    });
+      const data: UploadResponse = await uploadFile(formData, token ?? undefined);
 
-    setShowUploadMenu(false);
+      setAttachment({
+        name: file.name,
+        size: file.size,
+        text: data.text,
+      });
+
+      setShowUploadMenu(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload file";
+      setUploadError(message);
+    }
+  };
+
+  const handleDriveFileSelected = async (driveFile: SelectedDriveFile) => {
+    if (!token) return;
+
+    setShowDriveFilePicker(false);
+    setIsLoadingDriveFile(true);
+
+    try {
+      const blob = await downloadFile(driveFile.id, token);
+      const file = new File([blob], driveFile.name, {
+        type: driveFile.mime_type || "application/octet-stream",
+      });
+      await handleUploadAsText(file);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to download file from Google Drive";
+      setUploadError(message);
+    } finally {
+      setIsLoadingDriveFile(false);
+    }
   };
 
   const handleSend = () => {
@@ -61,6 +96,24 @@ export function ChatInput({
   return (
     <div className="border-t border-border p-4">
       <div className="mx-auto space-y-2">
+        {/* Upload error */}
+        {uploadError && (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30">
+            <span className="truncate">{uploadError}</span>
+            <button onClick={() => setUploadError(null)} className="shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Loading indicator for Drive file download */}
+        {isLoadingDriveFile && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground bg-surface-variant">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Downloading file from Google Drive...</span>
+          </div>
+        )}
+
         {/* Attachment pill */}
         <Pill
           attachment={attachment}
@@ -101,6 +154,8 @@ export function ChatInput({
                 <UploadMenu
                   onClose={() => setShowUploadMenu(false)}
                   onUploadText={handleUploadAsText}
+                  isDriveEnabled={isDriveEnabled}
+                  onPickFromDrive={() => setShowDriveFilePicker(true)}
                 />
               )}
             </div>
@@ -125,6 +180,13 @@ export function ChatInput({
           </div>
         </div>
       </div>
+
+      {showDriveFilePicker && (
+        <DriveFilePicker
+          onClose={() => setShowDriveFilePicker(false)}
+          onFileSelected={handleDriveFileSelected}
+        />
+      )}
     </div>
   );
 }

@@ -67,6 +67,74 @@ def get_drive_credentials() -> tuple[str, str, str]:
     return client_id, client_secret, redirect_uri
 
 
+async def _sync_folder_files(
+    session: Session, folder: DriveFolder, user_id: int, access_token: str
+) -> int:
+    """Fetch files from Drive and sync them to the database.
+
+    Returns:
+        Number of active (non-deleted) files after sync.
+    """
+    async with GoogleDriveClient(access_token) as client:
+        drive_files_data = await client.list_files(folder_id=folder.drive_folder_id)
+
+    now = datetime.now(timezone.utc)
+    drive_files = drive_files_data.get("files", [])
+    drive_file_ids = {f["id"] for f in drive_files}
+
+    existing_files = session.exec(
+        select(DriveFile).where(
+            DriveFile.folder_id == folder.id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    ).all()
+    existing_map = {f.drive_file_id: f for f in existing_files}
+
+    for df in drive_files:
+        modified_time = None
+        if df.get("modifiedTime"):
+            modified_time = datetime.fromisoformat(df["modifiedTime"].replace("Z", "+00:00"))
+
+        if df["id"] in existing_map:
+            existing_file = existing_map[df["id"]]
+            existing_file.name = df["name"]
+            existing_file.mime_type = df.get("mimeType")
+            existing_file.size = int(df["size"]) if df.get("size") else None
+            existing_file.md5_checksum = df.get("md5Checksum")
+            existing_file.modified_time = modified_time
+            existing_file.last_synced_at = now
+            existing_file.update_timestamp()
+            session.add(existing_file)
+        else:
+            new_file = DriveFile(
+                folder_id=folder.id,  # type: ignore[arg-type]
+                user_id=user_id,
+                drive_file_id=df["id"],
+                name=df["name"],
+                mime_type=df.get("mimeType"),
+                size=int(df["size"]) if df.get("size") else None,
+                md5_checksum=df.get("md5Checksum"),
+                modified_time=modified_time,
+                last_synced_at=now,
+            )
+            session.add(new_file)
+
+    for file_id, existing_file in existing_map.items():
+        if file_id not in drive_file_ids:
+            existing_file.soft_delete()
+            session.add(existing_file)
+
+    folder.last_synced_at = now
+    folder.sync_status = "synced"
+    folder.sync_error = None
+    folder.update_timestamp()
+    session.add(folder)
+    session.commit()
+    session.refresh(folder)
+
+    return len(drive_files)
+
+
 # ---------------------------------------------------------------------------
 # OAuth Endpoints
 # ---------------------------------------------------------------------------
@@ -246,18 +314,21 @@ async def sync_folder(
         drive_folder_name=folder_metadata["name"],
         drive_parent_id=folder_metadata.get("parents", [None])[0] if folder_metadata.get("parents") else None,
         last_synced_at=now,
-        sync_status="synced",
+        sync_status="syncing",
     )
     session.add(folder)
     session.commit()
     session.refresh(folder)
+
+    # Fetch files immediately so the folder isn't empty
+    file_count = await _sync_folder_files(session, folder, current_user.id, access_token)
 
     return DriveFolderResponse(
         id=folder.id,  # type: ignore[arg-type]
         drive_folder_id=folder.drive_folder_id,
         name=folder.drive_folder_name,
         parent_id=folder.drive_parent_id,
-        file_count=0,
+        file_count=file_count,
         last_synced_at=folder.last_synced_at,
         sync_status=folder.sync_status,
     )
@@ -406,67 +477,7 @@ async def refresh_folder(
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     try:
-        async with GoogleDriveClient(access_token) as client:
-            drive_files_data = await client.list_files(folder_id=folder.drive_folder_id)
-
-        now = datetime.now(timezone.utc)
-        drive_files = drive_files_data.get("files", [])
-        drive_file_ids = {f["id"] for f in drive_files}
-
-        # Get existing files for this folder
-        existing_files = session.exec(
-            select(DriveFile).where(
-                DriveFile.folder_id == folder.id,
-                DriveFile.is_deleted == False,  # noqa: E712
-            )
-        ).all()
-        existing_map = {f.drive_file_id: f for f in existing_files}
-
-        # Update or create files
-        for df in drive_files:
-            modified_time = None
-            if df.get("modifiedTime"):
-                modified_time = datetime.fromisoformat(df["modifiedTime"].replace("Z", "+00:00"))
-
-            if df["id"] in existing_map:
-                # Update existing file
-                existing_file = existing_map[df["id"]]
-                existing_file.name = df["name"]
-                existing_file.mime_type = df.get("mimeType")
-                existing_file.size = int(df["size"]) if df.get("size") else None
-                existing_file.md5_checksum = df.get("md5Checksum")
-                existing_file.modified_time = modified_time
-                existing_file.last_synced_at = now
-                existing_file.update_timestamp()
-                session.add(existing_file)
-            else:
-                # Create new file record
-                new_file = DriveFile(
-                    folder_id=folder.id,  # type: ignore[arg-type]
-                    user_id=current_user.id,
-                    drive_file_id=df["id"],
-                    name=df["name"],
-                    mime_type=df.get("mimeType"),
-                    size=int(df["size"]) if df.get("size") else None,
-                    md5_checksum=df.get("md5Checksum"),
-                    modified_time=modified_time,
-                    last_synced_at=now,
-                )
-                session.add(new_file)
-
-        # Soft delete files no longer in Drive
-        for file_id, existing_file in existing_map.items():
-            if file_id not in drive_file_ids:
-                existing_file.soft_delete()
-                session.add(existing_file)
-
-        folder.last_synced_at = now
-        folder.sync_status = "synced"
-        folder.sync_error = None
-        folder.update_timestamp()
-        session.add(folder)
-        session.commit()
-        session.refresh(folder)
+        await _sync_folder_files(session, folder, current_user.id, access_token)
 
         return SyncStatusResponse(
             folder_id=folder.id,  # type: ignore[arg-type]
@@ -658,14 +669,29 @@ async def download_file(
     client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
-    async with GoogleDriveClient(access_token) as client:
-        content = await client.download_file(drive_file.drive_file_id)
+    try:
+        async with GoogleDriveClient(access_token) as client:
+            content = await client.download_file(drive_file.drive_file_id, mime_type=drive_file.mime_type)
+    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
+        logger.error("Failed to download file %s from Drive: %s", file_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to download file from Google Drive: {e}",
+        )
+
+    # Google Docs native types are exported as PDF
+    media_type = drive_file.mime_type or "application/octet-stream"
+    filename = drive_file.name
+    if media_type in GoogleDriveClient.EXPORT_MIME_MAP:
+        media_type = "application/pdf"
+        if not filename.lower().endswith(".pdf"):
+            filename = f"{filename}.pdf"
 
     return StreamingResponse(
         iter([content]),
-        media_type=drive_file.mime_type or "application/octet-stream",
+        media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{drive_file.name}"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
 

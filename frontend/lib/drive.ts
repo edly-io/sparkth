@@ -48,7 +48,14 @@ export interface SyncStatus {
 
 async function handleError(message: string, response: Response) {
   const text = await response.text();
-  const error = `${message}: ${text}`;
+  let detail = text;
+  try {
+    const json = JSON.parse(text);
+    if (json.detail) detail = json.detail;
+  } catch {
+    // use raw text
+  }
+  const error = `${message}: ${detail}`;
   console.error(error);
   throw new Error(error);
 }
@@ -299,7 +306,7 @@ export async function browseDrive(
 ): Promise<{ items: DriveBrowseItem[]; next_page_token?: string }> {
   const params = new URLSearchParams();
   if (parentId) {
-    params.append("parent_id", parentId);
+    params.append("folder_id", parentId);
   }
 
   const url = `${API_BASE_URL}/browse${params.toString() ? `?${params.toString()}` : ""}`;
