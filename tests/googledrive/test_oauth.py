@@ -179,9 +179,7 @@ class TestGetValidAccessToken:
         self, sync_session: Session, test_user: User, test_oauth_token: DriveOAuthToken
     ) -> None:
         """Should return existing access token if not expired."""
-        token = await get_valid_access_token(
-            sync_session, cast(int, test_user.id), "client_id", "client_secret"
-        )
+        token = await get_valid_access_token(sync_session, cast(int, test_user.id), "client_id", "client_secret")
 
         assert token == "fake_access_token"
 
@@ -200,9 +198,7 @@ class TestGetValidAccessToken:
             new_callable=AsyncMock,
             return_value={"access_token": "refreshed_token", "expires_in": 3600},
         ):
-            token = await get_valid_access_token(
-                sync_session, cast(int, test_user.id), "client_id", "client_secret"
-            )
+            token = await get_valid_access_token(sync_session, cast(int, test_user.id), "client_id", "client_secret")
 
         assert token == "refreshed_token"
 
@@ -210,9 +206,7 @@ class TestGetValidAccessToken:
     async def test_raises_when_not_connected(self, sync_session: Session, test_user: User) -> None:
         """Should raise ValueError when user has no token."""
         with pytest.raises(ValueError, match="not connected"):
-            await get_valid_access_token(
-                sync_session, cast(int, test_user.id), "client_id", "client_secret"
-            )
+            await get_valid_access_token(sync_session, cast(int, test_user.id), "client_id", "client_secret")
 
 
 class TestExchangeCodeForTokens:

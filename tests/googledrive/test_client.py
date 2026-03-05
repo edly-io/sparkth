@@ -264,9 +264,7 @@ class TestGoogleDriveClientMutations:
     @pytest.mark.asyncio
     async def test_create_folder(self) -> None:
         """Create a folder sends POST with folder MIME type."""
-        response = _mock_aiohttp_response(
-            json_data={"id": "new_folder_id", "name": "New Folder"}
-        )
+        response = _mock_aiohttp_response(json_data={"id": "new_folder_id", "name": "New Folder"})
         session = _mock_session()
         session.request.return_value = response
 
