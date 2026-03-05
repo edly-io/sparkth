@@ -284,7 +284,7 @@ class BaseChatProvider(ABC):
                 # NOTE: Kept broad here intentionally — tool handlers are user-supplied
                 # plugins that can raise anything. Narrowing would silently swallow
                 # legitimate errors from arbitrary third-party tool implementations.
-                except (LangChainException, ValidationError, ValueError, TypeError, RuntimeError, OSError) as e:
+                except Exception as e:
                     logger.error(f"Error executing tool '{tool_name}': {e}", exc_info=True)
                     return f"Error executing tool '{tool_name}': {str(e)}"
 

@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from langchain_core.exceptions import LangChainException
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, func, select
@@ -316,7 +317,7 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except (ValueError, RuntimeError, SQLAlchemyError, ValidationError) as e:
+    except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -364,7 +365,7 @@ async def stream_chat_response(
         )
         yield f"data: {data}\n\n"
 
-    except (RuntimeError, SQLAlchemyError, OSError) as e:
+    except (RuntimeError, SQLAlchemyError, OSError, LangChainException) as e:
         logger.error(f"Streaming failed: {e}")
         await service.add_message(
             session=session,

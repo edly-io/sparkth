@@ -221,18 +221,27 @@ class ChatService:
         return message
 
     async def get_conversation_messages(
-        self, session: AsyncSession, conversation_id: int, limit: int | None = None, offset: int | None = None
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+        exclude_errors: bool = True,
     ) -> list[Message]:
+        """
+        Return conversation messages, optionally excluding error messages.
+        """
         statement = (
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .where(Message.is_error == False)  # noqa: E712
-            .order_by(col(Message.created_at).asc())
+            select(Message).where(Message.conversation_id == conversation_id).order_by(col(Message.created_at).asc())
         )
 
-        if limit:
+        if exclude_errors:
+            statement = statement.where(Message.is_error == False)  # noqa: E712
+
+        if limit is not None:
             statement = statement.limit(limit)
-        if offset:
+
+        if offset is not None:
             statement = statement.offset(offset)
 
         result = await session.exec(statement)

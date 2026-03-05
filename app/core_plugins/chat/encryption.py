@@ -29,7 +29,7 @@ class EncryptionService:
         except InvalidToken:
             logger.error("Decryption failed: Invalid token or wrong encryption key")
             raise ValueError("Failed to decrypt: Invalid encryption key or corrupted data")
-        except (ValueError, UnicodeDecodeError) as e:
+        except UnicodeDecodeError as e:
             logger.error(f"Decryption failed: {e}")
             raise ValueError(f"Decryption error: {e}")
 
