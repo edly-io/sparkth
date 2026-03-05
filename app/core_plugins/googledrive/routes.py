@@ -718,8 +718,12 @@ async def rename_file(
     client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
-    async with GoogleDriveClient(access_token) as client:
-        await client.rename_file(drive_file.drive_file_id, request.name)
+    try:
+        async with GoogleDriveClient(access_token) as client:
+            await client.rename_file(drive_file.drive_file_id, request.name)
+    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
+        logger.error("Failed to rename file %s: %s", file_id, e)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to rename file: {e}")
 
     drive_file.name = request.name
     drive_file.update_timestamp()
@@ -761,8 +765,12 @@ async def delete_file(
     client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
-    async with GoogleDriveClient(access_token) as client:
-        await client.delete_file(drive_file.drive_file_id)
+    try:
+        async with GoogleDriveClient(access_token) as client:
+            await client.delete_file(drive_file.drive_file_id)
+    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
+        logger.error("Failed to delete file %s: %s", file_id, e)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to delete file: {e}")
 
     drive_file.soft_delete()
     session.add(drive_file)

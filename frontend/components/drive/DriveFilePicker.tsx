@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Folder, FileText, ChevronRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/Dialog";
 import { listFolders, listFiles, DriveFolder, DriveFile } from "@/lib/drive";
 
 export interface SelectedDriveFile {
@@ -64,115 +73,101 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-black dark:bg-opacity-75" onClick={onClose}></div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Pick a file from Google Drive</DialogTitle>
+          <DialogDescription>
+            Select a file from your synced folders to attach.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="relative bg-white dark:bg-neutral-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-neutral-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-neutral-100">Pick a file from Google Drive</h3>
+        <nav className="flex" aria-label="Breadcrumb">
+          <ol className="flex items-center gap-1 text-sm">
+            <li>
               <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 dark:text-neutral-500 dark:hover:text-neutral-300"
+                onClick={handleBackToFolders}
+                className={
+                  selectedFolder
+                    ? "text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                    : "text-foreground font-medium"
+                }
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Synced Folders
               </button>
-            </div>
-
-            <nav className="flex mt-2" aria-label="Breadcrumb">
-              <ol className="flex items-center space-x-1 text-sm">
-                <li>
-                  <button
-                    onClick={handleBackToFolders}
-                    className={selectedFolder
-                      ? "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                      : "text-gray-700 dark:text-neutral-300 font-medium"
-                    }
-                  >
-                    Synced Folders
-                  </button>
-                </li>
-                {selectedFolder && (
-                  <li className="flex items-center">
-                    <svg className="h-4 w-4 text-gray-400 mx-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-gray-700 dark:text-neutral-300 font-medium">{selectedFolder.name}</span>
-                  </li>
-                )}
-              </ol>
-            </nav>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : !selectedFolder ? (
-              // Show synced folders
-              folders.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
-                  No synced folders. Sync a folder from the Google Drive dashboard first.
-                </div>
-              ) : (
-                <ul className="divide-y divide-gray-200 dark:divide-neutral-700">
-                  {folders.map((folder) => (
-                    <li key={folder.id} className="flex items-center py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 px-2 rounded">
-                      <button
-                        onClick={() => handleFolderClick(folder)}
-                        className="flex items-center space-x-3 flex-1 text-left"
-                      >
-                        <svg className="h-6 w-6 text-yellow-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                        </svg>
-                        <div className="flex flex-col">
-                          <span className="text-sm text-gray-900 dark:text-neutral-100">{folder.name}</span>
-                          <span className="text-xs text-gray-500 dark:text-neutral-400">{folder.file_count} files</span>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )
-            ) : (
-              // Show files in selected folder
-              files.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
-                  No files in this folder
-                </div>
-              ) : (
-                <ul className="divide-y divide-gray-200 dark:divide-neutral-700">
-                  {files.map((file) => (
-                    <li key={file.id} className="flex items-center justify-between py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 px-2 rounded">
-                      <div className="flex items-center space-x-3 flex-1 min-w-0">
-                        <svg className="h-6 w-6 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-sm text-gray-900 dark:text-neutral-100 truncate">{file.name}</span>
-                      </div>
-                      <button
-                        onClick={() => onFileSelected({
-                          id: file.id,
-                          name: file.name,
-                          mime_type: file.mime_type,
-                          size: file.size,
-                        })}
-                        className="ml-4 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 shrink-0"
-                      >
-                        Select
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )
+            </li>
+            {selectedFolder && (
+              <li className="flex items-center">
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mx-0.5" />
+                <span className="text-foreground font-medium">{selectedFolder.name}</span>
+              </li>
             )}
-          </div>
+          </ol>
+        </nav>
+
+        <div className="flex-1 overflow-y-auto -mx-4 sm:-mx-6 px-4 sm:px-6 min-h-[200px]">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+            </div>
+          ) : !selectedFolder ? (
+            folders.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                No synced folders. Sync a folder from the Google Drive dashboard first.
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {folders.map((folder) => (
+                  <li key={folder.id}>
+                    <button
+                      onClick={() => handleFolderClick(folder)}
+                      className="flex items-center gap-3 w-full text-left py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
+                    >
+                      <Folder className="h-5 w-5 text-warning-500 shrink-0" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm text-foreground">{folder.name}</span>
+                        <span className="text-xs text-muted-foreground">{folder.file_count} files</span>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            files.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                No files in this folder
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {files.map((file) => (
+                  <li
+                    key={file.id}
+                    className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
+                      <span className="text-sm text-foreground truncate">{file.name}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onFileSelected({
+                        id: file.id,
+                        name: file.name,
+                        mime_type: file.mime_type,
+                        size: file.size,
+                      })}
+                    >
+                      Select
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

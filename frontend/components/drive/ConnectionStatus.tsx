@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 import {
   getAuthorizationUrl,
@@ -19,28 +21,22 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
   const [loading, setLoading] = useState(false);
 
   const handleConnect = async () => {
-    if (!token) {
-      alert("You must be logged in to connect Google Drive");
-      return;
-    }
+    if (!token) return;
 
     setLoading(true);
     try {
       const url = await getAuthorizationUrl(token);
       window.location.href = url;
+      // Keep loading=true — page will navigate to Google OAuth
     } catch (error) {
-      alert(`Failed to connect: ${error}`);
-    } finally {
       setLoading(false);
+      alert(`Failed to connect: ${error}`);
     }
   };
 
   const handleDisconnect = async () => {
     if (!token) return;
-
-    if (!confirm("Are you sure you want to disconnect Google Drive?")) {
-      return;
-    }
+    if (!confirm("Are you sure you want to disconnect Google Drive?")) return;
 
     setLoading(true);
     try {
@@ -54,44 +50,28 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
   };
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-sm p-6">
+    <Card variant="outlined" className="p-5">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <GoogleDriveIcon className="h-10 w-10 flex-shrink-0" />
+        <div className="flex items-center gap-4">
+          <GoogleDriveIcon className="h-10 w-10 shrink-0" />
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-neutral-100">Google Drive</h3>
-            {status?.connected ? (
-              <p className="text-sm text-gray-500 dark:text-neutral-400">
-                Connected as {status.email}
-              </p>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-neutral-400">
-                Not connected
-              </p>
-            )}
+            <h3 className="text-base font-semibold text-foreground">Google Drive</h3>
+            <p className="text-sm text-muted-foreground">
+              {status?.connected ? `Connected as ${status.email}` : "Not connected"}
+            </p>
           </div>
         </div>
 
-        <div>
-          {status?.connected ? (
-            <button
-              onClick={handleDisconnect}
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-neutral-600 text-sm font-medium rounded-md text-gray-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-700 disabled:opacity-50"
-            >
-              {loading ? "Disconnecting..." : "Disconnect"}
-            </button>
-          ) : (
-            <button
-              onClick={handleConnect}
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? "Connecting..." : "Connect Google Drive"}
-            </button>
-          )}
-        </div>
+        {status?.connected ? (
+          <Button variant="outline" size="sm" onClick={handleDisconnect} loading={loading}>
+            Disconnect
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" onClick={handleConnect} loading={loading}>
+            Connect Google Drive
+          </Button>
+        )}
       </div>
-    </div>
+    </Card>
   );
 }

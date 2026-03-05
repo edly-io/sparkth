@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/Dialog";
 import {
   DriveFolder,
   DriveFile,
@@ -62,9 +72,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       alert(`Upload failed: ${error}`);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -106,10 +114,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
 
   const handleDelete = async (file: DriveFile) => {
     if (!token) return;
-
-    if (!confirm(`Delete "${file.name}"? This will also delete it from Google Drive.`)) {
-      return;
-    }
+    if (!confirm(`Delete "${file.name}"? This will also delete it from Google Drive.`)) return;
 
     setActionFileId(file.id);
     try {
@@ -138,142 +143,116 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     }
   };
 
-  const startRename = (file: DriveFile) => {
-    setEditingFileId(file.id);
-    setEditName(file.name);
-  };
-
-  const getFileIcon = (mimeType?: string) => {
-    if (!mimeType) return "text-gray-400";
-    if (mimeType.startsWith("image/")) return "text-purple-500";
-    if (mimeType.startsWith("video/")) return "text-red-500";
-    if (mimeType.includes("pdf")) return "text-red-600";
-    if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "text-green-600";
-    if (mimeType.includes("document") || mimeType.includes("word")) return "text-blue-600";
-    if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return "text-orange-500";
-    return "text-gray-400";
-  };
-
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-black dark:bg-opacity-75" onClick={onClose}></div>
-
-        <div className="relative bg-white dark:bg-neutral-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-neutral-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <svg className="h-8 w-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-neutral-100">{folder.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-neutral-400">{files.length} files</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button onClick={handleSync} disabled={loading} className="p-2 text-gray-400 hover:text-blue-600 disabled:opacity-50" title="Sync">
-                  <svg className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-500 dark:text-neutral-500 dark:hover:text-neutral-300">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <Folder className="h-6 w-6 text-warning-500 shrink-0" />
+            <div>
+              <DialogTitle>{folder.name}</DialogTitle>
+              <DialogDescription>{files.length} files</DialogDescription>
             </div>
           </div>
+        </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : files.length === 0 ? (
-              <div className="text-center py-12">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                <p className="mt-2 text-sm text-gray-500 dark:text-neutral-400">No files in this folder</p>
-              </div>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-700">
-                <thead className="bg-gray-50 dark:bg-neutral-800">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Size</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Modified</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-200 dark:divide-neutral-700">
-                  {files.map((file) => (
-                    <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <svg className={`h-5 w-5 mr-3 ${getFileIcon(file.mime_type)}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                          {editingFileId === file.id ? (
-                            <input
-                              type="text"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleRename(file);
-                                if (e.key === "Escape") setEditingFileId(null);
-                              }}
-                              className="text-sm text-gray-900 dark:text-neutral-100 border rounded px-2 py-1"
-                              autoFocus
-                            />
-                          ) : (
-                            <span className="text-sm text-gray-900 dark:text-neutral-100">{file.name}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">{formatFileSize(file.size)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-neutral-400">{formatDate(file.modified_time)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end space-x-2">
-                          {editingFileId === file.id ? (
-                            <>
-                              <button onClick={() => handleRename(file)} disabled={actionFileId === file.id} className="text-green-600 hover:text-green-900">Save</button>
-                              <button onClick={() => setEditingFileId(null)} className="text-gray-600 hover:text-gray-900">Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button onClick={() => handleDownload(file)} disabled={actionFileId === file.id} className="text-blue-600 hover:text-blue-900 disabled:opacity-50">Download</button>
-                              <button onClick={() => startRename(file)} disabled={actionFileId === file.id} className="text-gray-600 hover:text-gray-900 disabled:opacity-50">Rename</button>
-                              <button onClick={() => handleDelete(file)} disabled={actionFileId === file.id} className="text-red-600 hover:text-red-900 disabled:opacity-50">Delete</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-neutral-700">
-            <div className="flex justify-between items-center">
-              <div>
-                <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" id="file-upload" />
-                <label
-                  htmlFor="file-upload"
-                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {uploading ? "Uploading..." : "Upload File"}
-                </label>
-              </div>
-              <button onClick={onClose} className="px-4 py-2 border border-gray-300 dark:border-neutral-600 text-sm font-medium rounded-md text-gray-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-700">Close</button>
-            </div>
-          </div>
+        <div className="flex items-center justify-end -mt-2">
+          <Button variant="ghost" size="icon" onClick={handleSync} disabled={loading} className="h-8 w-8">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
         </div>
-      </div>
-    </div>
+
+        <div className="flex-1 overflow-y-auto -mx-4 sm:-mx-6 min-h-[200px]">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+            </div>
+          ) : files.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">No files in this folder</p>
+            </div>
+          ) : (
+            <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</th>
+                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Modified</th>
+                  <th className="px-6 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {files.map((file) => (
+                  <tr key={file.id} className="hover:bg-surface-variant/50 transition-colors">
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-secondary-500 shrink-0" />
+                        {editingFileId === file.id ? (
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRename(file);
+                              if (e.key === "Escape") setEditingFileId(null);
+                            }}
+                            className="text-sm text-foreground bg-input border border-border rounded-md px-2 py-1 focus:border-primary-500 focus:outline-none"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="text-sm text-foreground">{file.name}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatFileSize(file.size)}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(file.modified_time)}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-right">
+                      <div className="flex justify-end gap-1">
+                        {editingFileId === file.id ? (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => handleRename(file)} disabled={actionFileId === file.id}>
+                              Save
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setEditingFileId(null)}>
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload(file)} disabled={actionFileId === file.id}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingFileId(file.id); setEditName(file.name); }} disabled={actionFileId === file.id}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-error-500" onClick={() => handleDelete(file)} disabled={actionFileId === file.id}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <DialogFooter className="!justify-between">
+          <div>
+            <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" id="folder-file-upload" />
+            <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()} loading={uploading}>
+              <Upload className="w-4 h-4 mr-2" />
+              Upload File
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

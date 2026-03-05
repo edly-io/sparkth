@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Loader2, FolderSync } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/Button";
 import ConnectionStatus from "@/components/drive/ConnectionStatus";
 import FolderList from "@/components/drive/FolderList";
 import FolderPicker from "@/components/drive/FolderPicker";
@@ -50,8 +52,8 @@ export default function GoogleDrive() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-neutral-400">Loading...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-primary-500 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -59,43 +61,31 @@ export default function GoogleDrive() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b dark:border-neutral-700 px-6 py-4">
+      <div className="border-b border-border px-6 py-4">
         <div className="flex items-center gap-3">
-          <GoogleDriveIcon className="w-8 h-8 text-blue-500" />
+          <GoogleDriveIcon className="w-8 h-8" />
           <div>
-            <h2 className="text-lg font-semibold text-edly-gray-700 dark:text-neutral-100">
-              Google Drive
-            </h2>
-            <p className="text-sm text-edly-gray-600 dark:text-neutral-400">
-              Manage your synced folders and files
-            </p>
+            <h2 className="text-lg font-semibold text-foreground">Google Drive</h2>
+            <p className="text-sm text-muted-foreground">Manage your synced folders and files</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <ConnectionStatus
-          status={connectionStatus}
-          onStatusChange={loadData}
-        />
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <ConnectionStatus status={connectionStatus} onStatusChange={loadData} />
 
         {connectionStatus?.connected && (
-          <>
-            <div className="mt-8 mb-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-neutral-100">Synced Folders</h3>
-              <button
-                onClick={() => setShowFolderPicker(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-              >
-                + Sync Folder
-              </button>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-semibold text-foreground">Synced Folders</h3>
+              <Button variant="primary" size="sm" onClick={() => setShowFolderPicker(true)}>
+                <FolderSync className="w-4 h-4 mr-2" />
+                Sync Folder
+              </Button>
             </div>
 
-            <FolderList
-              folders={folders}
-              onFoldersChange={loadData}
-            />
-          </>
+            <FolderList folders={folders} onFoldersChange={loadData} />
+          </div>
         )}
       </div>
 

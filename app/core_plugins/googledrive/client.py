@@ -63,7 +63,7 @@ class GoogleDriveClient:
         ) as response:
             if response.status >= 400:
                 error_text = await response.text()
-                raise Exception(f"Google Drive API error ({response.status}): {error_text}")
+                raise RuntimeError(f"Google Drive API error ({response.status}): {error_text}")
 
             if response.status == 204:
                 return {}

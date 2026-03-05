@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Folder, RefreshCw, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { DriveFolder, removeFolder, refreshFolder, formatDate } from "@/lib/drive";
 import FolderDetail from "@/components/drive/FolderDetail";
 
@@ -31,10 +34,7 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
 
   const handleRemove = async (folder: DriveFolder) => {
     if (!token) return;
-
-    if (!confirm(`Remove "${folder.name}" from Sparkth? This won't delete files from Google Drive.`)) {
-      return;
-    }
+    if (!confirm(`Remove "${folder.name}" from Sparkth? This won't delete files from Google Drive.`)) return;
 
     setLoadingId(folder.id);
     try {
@@ -47,129 +47,83 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
     }
   };
 
-  const getSyncStatusColor = (status: string) => {
+  const getSyncStatusStyles = (status: string) => {
     switch (status) {
       case "synced":
-        return "text-green-600 bg-green-100";
+        return "text-success-500 bg-success-50 dark:bg-success-500/10";
       case "syncing":
-        return "text-blue-600 bg-blue-100";
+        return "text-secondary-600 bg-secondary-50 dark:bg-secondary-500/10";
       case "error":
-        return "text-red-600 bg-red-100";
+        return "text-error-500 bg-error-50 dark:bg-error-500/10";
       default:
-        return "text-gray-600 bg-gray-100";
+        return "text-muted-foreground bg-surface-variant";
     }
   };
 
   if (folders.length === 0) {
     return (
-      <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-sm p-12 text-center">
-        <svg
-          className="mx-auto h-12 w-12 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-          />
-        </svg>
-        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-neutral-100">No folders synced</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-neutral-400">
+      <Card variant="outlined" className="py-12 text-center">
+        <Folder className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+        <h3 className="text-sm font-medium text-foreground">No folders synced</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Click &quot;Sync Folder&quot; to add a Google Drive folder.
         </p>
-      </div>
+      </Card>
     );
   }
 
   return (
     <>
-      <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-sm overflow-hidden">
-        <ul className="divide-y divide-gray-200 dark:divide-neutral-700">
+      <Card variant="outlined" className="p-0 overflow-hidden">
+        <ul className="divide-y divide-border">
           {folders.map((folder) => (
             <li
               key={folder.id}
-              className="p-4 hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer"
+              className="px-5 py-4 hover:bg-surface-variant/50 cursor-pointer transition-colors"
               onClick={() => setSelectedFolder(folder)}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <svg
-                    className="h-8 w-8 text-yellow-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                <div className="flex items-center gap-3">
+                  <Folder className="h-6 w-6 text-warning-500 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-neutral-100">{folder.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-neutral-400">
+                    <p className="text-sm font-medium text-foreground">{folder.name}</p>
+                    <p className="text-xs text-muted-foreground">
                       {folder.file_count} file{folder.file_count !== 1 ? "s" : ""}
                       {folder.last_synced_at && ` \u2022 Last synced ${formatDate(folder.last_synced_at)}`}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSyncStatusColor(folder.sync_status)}`}
-                  >
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getSyncStatusStyles(folder.sync_status)}`}>
                     {folder.sync_status}
                   </span>
 
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleRefresh(folder)}
                     disabled={loadingId === folder.id}
-                    className="p-2 text-gray-400 hover:text-blue-600 disabled:opacity-50"
-                    title="Sync"
+                    className="h-8 w-8"
                   >
-                    <svg
-                      className={`h-5 w-5 ${loadingId === folder.id ? "animate-spin" : ""}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                  </button>
+                    <RefreshCw className={`h-4 w-4 ${loadingId === folder.id ? "animate-spin" : ""}`} />
+                  </Button>
 
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleRemove(folder)}
                     disabled={loadingId === folder.id}
-                    className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-50"
-                    title="Remove"
+                    className="h-8 w-8 text-muted-foreground hover:text-error-500"
                   >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
 
       {selectedFolder && (
         <FolderDetail
