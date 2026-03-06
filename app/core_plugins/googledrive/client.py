@@ -1,10 +1,11 @@
 """Google Drive API client."""
 
-import json as json_module
+import json
 from types import TracebackType
 from typing import Any, Optional, Type
 
 import aiohttp
+from aiohttp import MultipartWriter
 
 
 class GoogleDriveAPIError(RuntimeError):
@@ -55,13 +56,13 @@ class GoogleDriveClient:
         """Extract a human-readable error message from a Google API error response."""
         text = await response.text()
         try:
-            data = json_module.loads(text)
+            data = json.loads(text)
             if isinstance(data, dict) and "error" in data:
                 error = data["error"]
                 if isinstance(error, dict) and "message" in error:
                     return error["message"]
             return text
-        except (json_module.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError):
             return text
 
     async def _request(
@@ -208,28 +209,21 @@ class GoogleDriveClient:
         if folder_id:
             metadata["parents"] = [folder_id]
 
-        boundary = "sparkth_boundary"
-        body_parts = [
-            f"--{boundary}",
-            "Content-Type: application/json; charset=UTF-8",
-            "",
-            json_module.dumps(metadata),
-            f"--{boundary}",
-            f"Content-Type: {mime_type}",
-            "",
-        ]
-        body_prefix = "\r\n".join(body_parts).encode("utf-8") + b"\r\n"
-        body_suffix = f"\r\n--{boundary}--".encode("utf-8")
-        body = body_prefix + content + body_suffix
+        writer = MultipartWriter("related")
+        metadata_payload = json.dumps(metadata).encode("utf-8")
+        metadata_part = writer.append(metadata_payload)
+        metadata_part.headers[aiohttp.hdrs.CONTENT_TYPE] = "application/json; charset=UTF-8"
+        file_part = writer.append(content)
+        file_part.headers[aiohttp.hdrs.CONTENT_TYPE] = mime_type
 
         headers = {
             **self._headers(),
-            "Content-Type": f"multipart/related; boundary={boundary}",
+            "Content-Type": f"multipart/related; boundary={writer.boundary}",
         }
 
         url = f"{self.UPLOAD_URL}/files?uploadType=multipart&fields=id,name,mimeType,size,md5Checksum,modifiedTime"
 
-        async with self.session.post(url, data=body, headers=headers) as response:
+        async with self.session.post(url, data=writer, headers=headers) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
                 raise GoogleDriveAPIError(response.status, error_message)
