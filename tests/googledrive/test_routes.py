@@ -1,7 +1,8 @@
 """Integration tests for Google Drive API routes."""
 
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -361,7 +362,7 @@ class TestDownloadFile:
     ) -> None:
         """GET /files/{id}/download should stream file content."""
 
-        async def _fake_stream(*args, **kwargs):
+        async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             yield b"file content"
 
         with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
@@ -404,7 +405,7 @@ class TestDownloadFile:
 
         from app.core_plugins.googledrive.client import GoogleDriveClient as RealClient
 
-        async def _fake_stream(*args, **kwargs):
+        async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             yield b"%PDF-1.4"
 
         with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
@@ -441,7 +442,7 @@ class TestDownloadFile:
     ) -> None:
         """Drive API error during download should return 200 with empty body (error logged)."""
 
-        async def _failing_stream(*args, **kwargs):
+        async def _failing_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             raise RuntimeError("Drive API error")
             yield  # noqa: RET503 — make this an async generator
 

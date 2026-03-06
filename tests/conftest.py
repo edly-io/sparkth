@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
 
 import pytest
@@ -35,7 +35,7 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
 
 
 @pytest.fixture(scope="session")
-def sync_engine():
+def sync_engine() -> Generator[Any, None, None]:
     """In-memory sync engine for routes that use synchronous Session."""
     eng = create_engine(
         "sqlite://",
@@ -49,7 +49,7 @@ def sync_engine():
 
 
 @pytest.fixture
-def sync_session(sync_engine):
+def sync_session(sync_engine: Any) -> Generator[Session, None, None]:
     """Sync session with rollback for each test."""
     connection = sync_engine.connect()
     transaction = connection.begin()

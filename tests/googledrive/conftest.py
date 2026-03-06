@@ -1,6 +1,6 @@
 """Fixtures for Google Drive plugin tests."""
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import patch
@@ -25,7 +25,7 @@ def _ensure_drive_routes() -> None:
     global _drive_routes_registered
     if _drive_routes_registered:
         return
-    existing = {r.path for r in app.routes}
+    existing = {getattr(r, "path", None) for r in app.routes}
     if f"{_DRIVE_PREFIX}/folders" not in existing:
         app.include_router(drive_router, prefix=_DRIVE_PREFIX, tags=["Google Drive"])
     _drive_routes_registered = True
@@ -105,7 +105,7 @@ def test_file(sync_session: Session, test_user: User, test_folder: DriveFolder) 
 
 
 @pytest.fixture
-def mock_drive_credentials():
+def mock_drive_credentials() -> Generator[None, None, None]:
     """Mock Google Drive OAuth credentials."""
     with patch(
         "app.core_plugins.googledrive.routes.get_drive_credentials",
@@ -115,7 +115,7 @@ def mock_drive_credentials():
 
 
 @pytest.fixture
-def mock_valid_access_token():
+def mock_valid_access_token() -> Generator[None, None, None]:
     """Mock get_valid_access_token to return a fake token."""
     with patch(
         "app.core_plugins.googledrive.routes.get_valid_access_token",
@@ -129,7 +129,7 @@ async def drive_client(
     sync_session: Session,
     test_user: User,
     mock_drive_credentials: Any,
-) -> AsyncClient:
+) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient with overridden session and auth for Drive route tests."""
 
     def get_session_override() -> Generator[Session, None, None]:

@@ -51,7 +51,7 @@ class GoogleDriveClient:
         """Validate a Google Drive file/folder ID to prevent path traversal."""
         if not cls._DRIVE_ID_PATTERN.match(drive_id):
             raise ValueError(f"Invalid Drive ID: {drive_id}")
-        return drive_id
+        return drive_id  # validated, safe to use
 
     def _headers(self) -> dict[str, str]:
         """Get authorization headers."""
@@ -69,7 +69,7 @@ class GoogleDriveClient:
             if isinstance(data, dict) and "error" in data:
                 error = data["error"]
                 if isinstance(error, dict) and "message" in error:
-                    return error["message"]
+                    return str(error["message"])
             return text
         except (json.JSONDecodeError, KeyError, TypeError):
             return text

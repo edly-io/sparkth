@@ -1,5 +1,7 @@
 """Unit tests for GoogleDriveClient."""
 
+from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -7,7 +9,9 @@ import pytest
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 
 
-def _mock_aiohttp_response(status: int = 200, json_data: dict | None = None, content: bytes = b""):
+def _mock_aiohttp_response(
+    status: int = 200, json_data: dict[str, Any] | None = None, content: bytes = b""
+) -> AsyncMock:
     """Create a mock aiohttp response."""
     response = AsyncMock()
     response.status = status
@@ -18,7 +22,7 @@ def _mock_aiohttp_response(status: int = 200, json_data: dict | None = None, con
     response.__aexit__ = AsyncMock(return_value=None)
 
     # Support for stream_download's response.content.iter_chunked()
-    async def _iter_chunked(chunk_size: int = 64 * 1024):
+    async def _iter_chunked(chunk_size: int = 64 * 1024) -> AsyncGenerator[bytes, None]:
         if content:
             yield content
 
@@ -28,7 +32,7 @@ def _mock_aiohttp_response(status: int = 200, json_data: dict | None = None, con
     return response
 
 
-def _mock_session():
+def _mock_session() -> MagicMock:
     """Create a mock aiohttp.ClientSession."""
     session = MagicMock()
     session.closed = False

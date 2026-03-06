@@ -2,6 +2,7 @@
 
 import logging
 import re
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -275,15 +276,15 @@ def list_folders(
     """List all synced Google Drive folders for the current user."""
     # Single query with file count to avoid N+1
     file_count_subq = (
-        select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))
+        select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))  # type: ignore[arg-type]
         .where(DriveFile.is_deleted == False)  # noqa: E712
-        .group_by(DriveFile.folder_id)
+        .group_by(DriveFile.folder_id)  # type: ignore[arg-type]
         .subquery()
     )
 
     stmt = (
         select(DriveFolder, file_count_subq.c.file_count)
-        .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)
+        .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)  # type: ignore[arg-type]
         .where(
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
@@ -681,7 +682,7 @@ async def download_file(
     # Sanitize filename to prevent header injection
     filename = re.sub(r'[\\\/\r\n"]', "_", filename)
 
-    async def _stream():
+    async def _stream() -> AsyncGenerator[bytes, None]:
         try:
             async with GoogleDriveClient(access_token) as client:
                 async for chunk in client.stream_download(drive_file.drive_file_id, mime_type=drive_file.mime_type):
