@@ -1,10 +1,13 @@
 """OAuth 2.0 flow handlers for Google Drive authentication."""
 
+import base64
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import aiohttp
-from itsdangerous import URLSafeSerializer
+from cryptography.fernet import Fernet
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
@@ -23,28 +26,40 @@ GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",
 ]
 
+# OAuth state token expiry (10 minutes)
+OAUTH_STATE_MAX_AGE = 600
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def get_serializer() -> URLSafeSerializer:
-    """Get serializer for encrypting/decrypting OAuth tokens."""
+def _get_fernet() -> Fernet:
+    """Get Fernet instance for encrypting/decrypting OAuth tokens.
+
+    Derives a valid 32-byte Fernet key from the app SECRET_KEY.
+    """
     settings = get_settings()
-    return URLSafeSerializer(settings.SECRET_KEY, salt="google-drive-oauth")
+    key = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key))
+
+
+def _get_timed_serializer() -> URLSafeTimedSerializer:
+    """Get timed serializer for OAuth state with CSRF/replay protection."""
+    settings = get_settings()
+    return URLSafeTimedSerializer(settings.SECRET_KEY, salt="google-drive-oauth-state")
 
 
 def encrypt_token(token: str) -> str:
-    """Encrypt an OAuth token for storage."""
-    serializer = get_serializer()
-    return serializer.dumps(token)
+    """Encrypt an OAuth token for secure storage using Fernet."""
+    fernet = _get_fernet()
+    return fernet.encrypt(token.encode()).decode()
 
 
 def decrypt_token(encrypted_token: str) -> str:
     """Decrypt an OAuth token from storage."""
-    serializer = get_serializer()
-    token: str = serializer.loads(encrypted_token)
-    return token
+    fernet = _get_fernet()
+    return fernet.decrypt(encrypted_token.encode()).decode()
 
 
 def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str, login_hint: str | None = None) -> str:
@@ -61,7 +76,7 @@ def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str, 
     """
     from urllib.parse import urlencode
 
-    serializer = get_serializer()
+    serializer = _get_timed_serializer()
     state = serializer.dumps({"user_id": user_id})
 
     params = {
@@ -80,9 +95,14 @@ def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str, 
 
 
 def decode_state(state: str) -> dict[str, Any]:
-    """Decode the state parameter from OAuth callback."""
-    serializer = get_serializer()
-    result: dict[str, Any] = serializer.loads(state)
+    """Decode and validate the state parameter from OAuth callback.
+
+    Raises:
+        SignatureExpired: If the state token is older than OAUTH_STATE_MAX_AGE.
+        BadSignature: If the state token has been tampered with.
+    """
+    serializer = _get_timed_serializer()
+    result: dict[str, Any] = serializer.loads(state, max_age=OAUTH_STATE_MAX_AGE)
     return result
 
 

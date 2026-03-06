@@ -157,33 +157,54 @@ async def oauth_callback(
     state: str = Query(...),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
-    """Handle OAuth callback from Google."""
+    """Handle OAuth callback from Google.
+
+    The state parameter is a signed, time-limited token containing the user_id.
+    This provides CSRF protection (signature) and replay protection (expiry).
+    """
+    from itsdangerous import BadSignature, SignatureExpired
+
     try:
         state_data = decode_state(state)
         user_id = state_data["user_id"]
-    except (KeyError, ValueError, TypeError) as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid state parameter: {e}")
+    except SignatureExpired:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again.")
+    except (BadSignature, KeyError, ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.")
 
     client_id, client_secret, redirect_uri = get_drive_credentials()
 
     try:
         token_data = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to exchange code for tokens: {e}")
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange authorization code.")
+
+    # Only save refresh_token if Google returned one; otherwise keep the existing one
+    refresh_token = token_data.get("refresh_token", "")
+    if not refresh_token:
+        existing = get_token_record(session, user_id)
+        if existing:
+            refresh_token = decrypt_token(existing.refresh_token_encrypted)
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No refresh token received. Please disconnect and reconnect Google Drive.",
+        )
 
     try:
         save_tokens(
             session,
             user_id,
             token_data["access_token"],
-            token_data.get("refresh_token", ""),
+            refresh_token,
             token_data["expires_in"],
             token_data.get("scope", ""),
         )
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save tokens: {e}",
+            detail="Failed to save tokens.",
         )
 
     return RedirectResponse(url="/dashboard/google-drive?connected=true")
@@ -674,7 +695,7 @@ async def download_file(
         logger.error("Failed to download file %s from Drive: %s", file_id, e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to download file from Google Drive: {e}",
+            detail="Failed to download file from Google Drive.",
         )
 
     # Google Docs native types are exported as PDF
@@ -723,7 +744,7 @@ async def rename_file(
             await client.rename_file(drive_file.drive_file_id, request.name)
     except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
         logger.error("Failed to rename file %s: %s", file_id, e)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to rename file: {e}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to rename file.")
 
     drive_file.name = request.name
     drive_file.update_timestamp()
@@ -770,7 +791,7 @@ async def delete_file(
             await client.delete_file(drive_file.drive_file_id)
     except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
         logger.error("Failed to delete file %s: %s", file_id, e)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Failed to delete file: {e}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to delete file.")
 
     drive_file.soft_delete()
     session.add(drive_file)
