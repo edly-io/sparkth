@@ -3,7 +3,7 @@ import asyncio
 import logging
 from typing import Any, Callable
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
@@ -38,8 +38,7 @@ class MCPToolDefinition(BaseModel):
         handler: Callable[..., Any] = v
         return handler
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 def register_plugin_tools() -> None:
