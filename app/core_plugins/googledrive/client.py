@@ -272,7 +272,9 @@ class GoogleDriveClient:
 
     async def search_files(self, query: str, folder_id: Optional[str] = None) -> list[dict[str, Any]]:
         """Search for files by name."""
-        q = f"name contains '{query}'"
+        # Escape single quotes and backslashes to prevent query injection
+        sanitized = query.replace("\\", "\\\\").replace("'", "\\'")
+        q = f"name contains '{sanitized}'"
         result = await self.list_files(folder_id=folder_id, query=q)
         files: list[dict[str, Any]] = result.get("files", [])
         return files

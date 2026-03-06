@@ -1,6 +1,7 @@
 """Google Drive API Endpoints."""
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -593,6 +594,8 @@ async def upload_file(
     access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
 
     content = await file.read()
+    if len(content) > 30 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File size exceeds 30MB limit.")
     mime_type = file.content_type or "application/octet-stream"
 
     async with GoogleDriveClient(access_token) as client:
@@ -705,6 +708,9 @@ async def download_file(
         media_type = "application/pdf"
         if not filename.lower().endswith(".pdf"):
             filename = f"{filename}.pdf"
+
+    # Sanitize filename to prevent header injection
+    filename = re.sub(r'[\\\/\r\n"]', "_", filename)
 
     return StreamingResponse(
         iter([content]),

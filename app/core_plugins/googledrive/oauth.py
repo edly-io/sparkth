@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import aiohttp
 from cryptography.fernet import Fernet
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from itsdangerous import URLSafeTimedSerializer
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
