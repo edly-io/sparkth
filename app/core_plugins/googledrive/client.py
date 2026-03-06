@@ -1,6 +1,7 @@
 """Google Drive API client."""
 
 import json
+import re
 from types import TracebackType
 from typing import Any, Optional, Type
 
@@ -22,6 +23,7 @@ class GoogleDriveClient:
     BASE_URL = "https://www.googleapis.com/drive/v3"
     UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3"
     FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+    _DRIVE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
     def __init__(self, access_token: str):
         self.access_token = access_token
@@ -43,6 +45,13 @@ class GoogleDriveClient:
         """Close the client session."""
         if self.session and not self.session.closed:
             await self.session.close()
+
+    @classmethod
+    def _validate_id(cls, drive_id: str) -> str:
+        """Validate a Google Drive file/folder ID to prevent path traversal."""
+        if not cls._DRIVE_ID_PATTERN.match(drive_id):
+            raise ValueError(f"Invalid Drive ID: {drive_id}")
+        return drive_id
 
     def _headers(self) -> dict[str, str]:
         """Get authorization headers."""
@@ -110,6 +119,7 @@ class GoogleDriveClient:
 
         q_parts = ["trashed = false"]
         if folder_id:
+            self._validate_id(folder_id)
             q_parts.append(f"'{folder_id}' in parents")
         else:
             q_parts.append("'root' in parents")
@@ -125,6 +135,7 @@ class GoogleDriveClient:
 
     async def get_file(self, file_id: str) -> dict[str, Any]:
         """Get file metadata."""
+        self._validate_id(file_id)
         params = {"fields": "id, name, mimeType, size, md5Checksum, modifiedTime, parents"}
         return await self._request("GET", f"{self.BASE_URL}/files/{file_id}", params=params)
 
@@ -138,35 +149,36 @@ class GoogleDriveClient:
 
     async def download_file(self, file_id: str, mime_type: str | None = None) -> bytes:
         """Download file content. Auto-exports Google Docs editor files as PDF."""
+        chunks = []
+        async for chunk in self.stream_download(file_id, mime_type=mime_type):
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+    async def stream_download(
+        self,
+        file_id: str,
+        mime_type: str | None = None,
+        chunk_size: int = 64 * 1024,
+    ) -> Any:
+        """Stream file content in chunks. Auto-exports Google Docs editor files as PDF."""
+        self._validate_id(file_id)
         if not self.session:
             raise RuntimeError("Client session not initialized.")
 
         # Google Docs native types cannot be downloaded directly — export them
         if mime_type and mime_type in self.EXPORT_MIME_MAP:
-            return await self.export_file(file_id, self.EXPORT_MIME_MAP[mime_type])
-
-        url = f"{self.BASE_URL}/files/{file_id}"
-        params = {"alt": "media"}
-
-        async with self.session.get(url, params=params, headers=self._headers()) as response:
-            if response.status >= 400:
-                error_message = await self._parse_error(response)
-                raise GoogleDriveAPIError(response.status, error_message)
-            return await response.read()
-
-    async def export_file(self, file_id: str, export_mime_type: str) -> bytes:
-        """Export a Google Docs editor file to the given MIME type."""
-        if not self.session:
-            raise RuntimeError("Client session not initialized.")
-
-        url = f"{self.BASE_URL}/files/{file_id}/export"
-        params = {"mimeType": export_mime_type}
+            url = f"{self.BASE_URL}/files/{file_id}/export"
+            params: dict[str, str] = {"mimeType": self.EXPORT_MIME_MAP[mime_type]}
+        else:
+            url = f"{self.BASE_URL}/files/{file_id}"
+            params = {"alt": "media"}
 
         async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
                 raise GoogleDriveAPIError(response.status, error_message)
-            return await response.read()
+            async for chunk in response.content.iter_chunked(chunk_size):
+                yield chunk
 
     async def list_folders(self, parent_id: Optional[str] = None) -> list[dict[str, Any]]:
         """List folders in Google Drive."""
@@ -185,6 +197,7 @@ class GoogleDriveClient:
             "mimeType": self.FOLDER_MIME_TYPE,
         }
         if parent_id:
+            self._validate_id(parent_id)
             metadata["parents"] = [parent_id]
 
         return await self._request(
@@ -207,6 +220,7 @@ class GoogleDriveClient:
 
         metadata: dict[str, Any] = {"name": name}
         if folder_id:
+            self._validate_id(folder_id)
             metadata["parents"] = [folder_id]
 
         writer = MultipartWriter("related")
@@ -232,6 +246,7 @@ class GoogleDriveClient:
 
     async def update_file(self, file_id: str, content: bytes, mime_type: str) -> dict[str, Any]:
         """Update file content."""
+        self._validate_id(file_id)
         if not self.session:
             raise RuntimeError("Client session not initialized.")
 
@@ -252,6 +267,7 @@ class GoogleDriveClient:
 
     async def rename_file(self, file_id: str, new_name: str) -> dict[str, Any]:
         """Rename a file or folder."""
+        self._validate_id(file_id)
         return await self._request(
             "PATCH",
             f"{self.BASE_URL}/files/{file_id}",
@@ -261,6 +277,7 @@ class GoogleDriveClient:
 
     async def delete_file(self, file_id: str) -> bool:
         """Delete a file or folder (moves to trash)."""
+        self._validate_id(file_id)
         await self._request("DELETE", f"{self.BASE_URL}/files/{file_id}")
         return True
 

@@ -670,16 +670,6 @@ async def download_file(
     client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
-    try:
-        async with GoogleDriveClient(access_token) as client:
-            content = await client.download_file(drive_file.drive_file_id, mime_type=drive_file.mime_type)
-    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
-        logger.error("Failed to download file %s from Drive: %s", file_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to download file from Google Drive.",
-        )
-
     # Google Docs native types are exported as PDF
     media_type = drive_file.mime_type or "application/octet-stream"
     filename = drive_file.name
@@ -691,8 +681,16 @@ async def download_file(
     # Sanitize filename to prevent header injection
     filename = re.sub(r'[\\\/\r\n"]', "_", filename)
 
+    async def _stream():
+        try:
+            async with GoogleDriveClient(access_token) as client:
+                async for chunk in client.stream_download(drive_file.drive_file_id, mime_type=drive_file.mime_type):
+                    yield chunk
+        except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
+            logger.error("Failed to download file %s from Drive: %s", file_id, e)
+
     return StreamingResponse(
-        iter([content]),
+        _stream(),
         media_type=media_type,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',

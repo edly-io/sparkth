@@ -16,6 +16,15 @@ def _mock_aiohttp_response(status: int = 200, json_data: dict | None = None, con
     response.read = AsyncMock(return_value=content)
     response.__aenter__ = AsyncMock(return_value=response)
     response.__aexit__ = AsyncMock(return_value=None)
+
+    # Support for stream_download's response.content.iter_chunked()
+    async def _iter_chunked(chunk_size: int = 64 * 1024):
+        if content:
+            yield content
+
+    response.content = MagicMock()
+    response.content.iter_chunked = _iter_chunked
+
     return response
 
 
