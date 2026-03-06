@@ -463,10 +463,15 @@ def delete_folder(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
     # Soft delete all files in the folder
-    for f in folder.files:
-        if not f.is_deleted:
-            f.soft_delete()
-            session.add(f)
+    folder_files = session.exec(
+        select(DriveFile).where(
+            DriveFile.folder_id == folder.id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    ).all()
+    for f in folder_files:
+        f.soft_delete()
+        session.add(f)
 
     folder.soft_delete()
     session.add(folder)
@@ -588,7 +593,9 @@ async def upload_file(
 
     content = await file.read()
     if len(content) > 30 * 1024 * 1024:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File size exceeds 30MB limit.")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File size exceeds 30MB limit."
+        )
     mime_type = file.content_type or "application/octet-stream"
 
     async with GoogleDriveClient(access_token) as client:
