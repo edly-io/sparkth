@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.api.v1.auth import get_current_user
@@ -43,6 +44,13 @@ from app.models.user import User
 
 router: APIRouter = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def require_user_id(current_user: User = Depends(get_current_user)) -> int:
+    """Dependency that extracts and validates the current user's ID."""
+    if current_user.id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
+    return current_user.id
 
 
 def get_drive_credentials() -> tuple[str, str, str]:
@@ -142,13 +150,12 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
 @router.get("/oauth/authorize", response_model=AuthorizationUrlResponse)
 def get_authorization_url(
     current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> AuthorizationUrlResponse:
     """Generate Google OAuth authorization URL."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
     client_id, _, redirect_uri = get_drive_credentials()
-    url = generate_authorization_url(current_user.id, client_id, redirect_uri, login_hint=current_user.email)
+    url = generate_authorization_url(user_id, client_id, redirect_uri, login_hint=current_user.email)
     return AuthorizationUrlResponse(url=url)
 
 
@@ -213,14 +220,11 @@ async def oauth_callback(
 
 @router.delete("/oauth/disconnect")
 async def disconnect_drive(
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
     """Disconnect Google Drive by revoking and deleting tokens."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
-    token_record = get_token_record(session, current_user.id)
+    token_record = get_token_record(session, user_id)
     if not token_record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google Drive not connected")
 
@@ -231,26 +235,23 @@ async def disconnect_drive(
     except ValueError:
         logger.warning("Failed to decrypt token for revocation, proceeding with deletion")
 
-    delete_token(session, current_user.id)
+    delete_token(session, user_id)
     return {"detail": "Google Drive disconnected successfully"}
 
 
 @router.get("/oauth/status", response_model=ConnectionStatusResponse)
 async def get_connection_status(
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> ConnectionStatusResponse:
     """Get Google Drive connection status."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
-    token_record = get_token_record(session, current_user.id)
+    token_record = get_token_record(session, user_id)
     if not token_record:
         return ConnectionStatusResponse(connected=False)
 
     try:
         client_id, client_secret, _ = get_drive_credentials()
-        access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+        access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
         user_info = await get_user_info(access_token)
         return ConnectionStatusResponse(
             connected=True,
@@ -268,54 +269,56 @@ async def get_connection_status(
 
 @router.get("/folders", response_model=list[DriveFolderResponse])
 def list_folders(
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> list[DriveFolderResponse]:
     """List all synced Google Drive folders for the current user."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
+    # Single query with file count to avoid N+1
+    file_count_subq = (
+        select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))
+        .where(DriveFile.is_deleted == False)  # noqa: E712
+        .group_by(DriveFile.folder_id)
+        .subquery()
+    )
 
-    folders = session.exec(
-        select(DriveFolder).where(
-            DriveFolder.user_id == current_user.id,
+    stmt = (
+        select(DriveFolder, file_count_subq.c.file_count)
+        .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)
+        .where(
+            DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).all()
+    )
+    rows = session.exec(stmt).all()
 
-    result: list[DriveFolderResponse] = []
-    for folder in folders:
-        file_count = len([f for f in folder.files if not f.is_deleted])
-        result.append(
-            DriveFolderResponse(
-                id=folder.id,  # type: ignore[arg-type]
-                drive_folder_id=folder.drive_folder_id,
-                name=folder.drive_folder_name,
-                parent_id=folder.drive_parent_id,
-                file_count=file_count,
-                last_synced_at=folder.last_synced_at,
-                sync_status=folder.sync_status,
-            )
+    return [
+        DriveFolderResponse(
+            id=folder.id,  # type: ignore[arg-type]
+            drive_folder_id=folder.drive_folder_id,
+            name=folder.drive_folder_name,
+            parent_id=folder.drive_parent_id,
+            file_count=file_count or 0,
+            last_synced_at=folder.last_synced_at,
+            sync_status=folder.sync_status,
         )
-    return result
+        for folder, file_count in rows
+    ]
 
 
 @router.post("/folders/sync", response_model=DriveFolderResponse)
 async def sync_folder(
     request: SyncFolderRequest,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFolderResponse:
     """Sync an existing Google Drive folder."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     # Check if folder is already synced
     existing = session.exec(
         select(DriveFolder).where(
-            DriveFolder.user_id == current_user.id,
+            DriveFolder.user_id == user_id,
             DriveFolder.drive_folder_id == request.drive_folder_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
@@ -329,7 +332,7 @@ async def sync_folder(
 
     now = datetime.now(timezone.utc)
     folder = DriveFolder(
-        user_id=current_user.id,
+        user_id=user_id,
         drive_folder_id=folder_metadata["id"],
         drive_folder_name=folder_metadata["name"],
         drive_parent_id=folder_metadata.get("parents", [None])[0] if folder_metadata.get("parents") else None,
@@ -341,7 +344,7 @@ async def sync_folder(
     session.refresh(folder)
 
     # Fetch files immediately so the folder isn't empty
-    file_count = await _sync_folder_files(session, folder, current_user.id, access_token)
+    file_count = await _sync_folder_files(session, folder, user_id, access_token)
 
     return DriveFolderResponse(
         id=folder.id,  # type: ignore[arg-type]
@@ -357,22 +360,19 @@ async def sync_folder(
 @router.post("/folders", response_model=DriveFolderResponse)
 async def create_folder(
     request: CreateFolderRequest,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFolderResponse:
     """Create a new folder in Google Drive and sync it."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
         folder_metadata = await client.create_folder(request.name, request.parent_id)
 
     now = datetime.now(timezone.utc)
     folder = DriveFolder(
-        user_id=current_user.id,
+        user_id=user_id,
         drive_folder_id=folder_metadata["id"],
         drive_folder_name=folder_metadata["name"],
         drive_parent_id=request.parent_id,
@@ -397,17 +397,14 @@ async def create_folder(
 @router.get("/folders/{folder_id}", response_model=DriveFolderWithFilesResponse)
 def get_folder(
     folder_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFolderWithFilesResponse:
     """Get a synced folder with its files."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
-            DriveFolder.user_id == current_user.id,
+            DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -443,17 +440,14 @@ def get_folder(
 @router.delete("/folders/{folder_id}")
 def delete_folder(
     folder_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
     """Soft delete a synced folder and its files from Sparkth (does not delete from Drive)."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
-            DriveFolder.user_id == current_user.id,
+            DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -476,17 +470,14 @@ def delete_folder(
 @router.post("/folders/{folder_id}/refresh", response_model=SyncStatusResponse)
 async def refresh_folder(
     folder_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> SyncStatusResponse:
     """Refresh folder contents from Google Drive."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
-            DriveFolder.user_id == current_user.id,
+            DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -494,10 +485,10 @@ async def refresh_folder(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     try:
-        await _sync_folder_files(session, folder, current_user.id, access_token)
+        await _sync_folder_files(session, folder, user_id, access_token)
 
         return SyncStatusResponse(
             folder_id=folder.id,  # type: ignore[arg-type]
@@ -531,17 +522,14 @@ async def refresh_folder(
 @router.get("/folders/{folder_id}/files", response_model=list[DriveFileResponse])
 def list_files(
     folder_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> list[DriveFileResponse]:
     """List files in a synced folder."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
-            DriveFolder.user_id == current_user.id,
+            DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -573,17 +561,14 @@ def list_files(
 async def upload_file(
     folder_id: int,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFileResponse:
     """Upload a file to a Google Drive folder."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
-            DriveFolder.user_id == current_user.id,
+            DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -591,7 +576,7 @@ async def upload_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     content = await file.read()
     if len(content) > 30 * 1024 * 1024:
@@ -613,7 +598,7 @@ async def upload_file(
 
     drive_file = DriveFile(
         folder_id=folder.id,  # type: ignore[arg-type]
-        user_id=current_user.id,
+        user_id=user_id,
         drive_file_id=file_metadata["id"],
         name=file_metadata["name"],
         mime_type=file_metadata.get("mimeType"),
@@ -640,17 +625,14 @@ async def upload_file(
 @router.get("/files/{file_id}", response_model=DriveFileResponse)
 def get_file(
     file_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFileResponse:
     """Get file metadata."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     drive_file = session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
-            DriveFile.user_id == current_user.id,
+            DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -671,17 +653,14 @@ def get_file(
 @router.get("/files/{file_id}/download")
 async def download_file(
     file_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
     """Download a file from Google Drive."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     drive_file = session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
-            DriveFile.user_id == current_user.id,
+            DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -689,7 +668,7 @@ async def download_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     try:
         async with GoogleDriveClient(access_token) as client:
@@ -725,17 +704,14 @@ async def download_file(
 async def rename_file(
     file_id: int,
     request: RenameFileRequest,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFileResponse:
     """Rename a file in Google Drive."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     drive_file = session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
-            DriveFile.user_id == current_user.id,
+            DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -743,7 +719,7 @@ async def rename_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     try:
         async with GoogleDriveClient(access_token) as client:
@@ -772,17 +748,14 @@ async def rename_file(
 @router.delete("/files/{file_id}")
 async def delete_file(
     file_id: int,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
     """Delete a file from Google Drive and soft-delete locally."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     drive_file = session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
-            DriveFile.user_id == current_user.id,
+            DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
     ).first()
@@ -790,7 +763,7 @@ async def delete_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     try:
         async with GoogleDriveClient(access_token) as client:
@@ -815,15 +788,12 @@ async def delete_file(
 async def browse_drive(
     folder_id: Optional[str] = Query(None, description="Drive folder ID to browse (root if omitted)"),
     page_token: Optional[str] = Query(None, description="Pagination token"),
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveBrowseResponse:
     """Browse Google Drive contents."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-
     client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, current_user.id, client_id, client_secret)
+    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
         result = await client.browse(folder_id=folder_id, page_token=page_token)
