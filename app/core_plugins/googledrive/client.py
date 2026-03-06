@@ -7,6 +7,14 @@ from typing import Any, Optional, Type
 import aiohttp
 
 
+class GoogleDriveAPIError(RuntimeError):
+    """Raised when a Google Drive API request fails."""
+
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        super().__init__(f"Google Drive API error ({status_code}): {message}")
+
+
 class GoogleDriveClient:
     """Async client for Google Drive API."""
 
@@ -78,7 +86,7 @@ class GoogleDriveClient:
         ) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
-                raise RuntimeError(f"Google Drive API error ({response.status}): {error_message}")
+                raise GoogleDriveAPIError(response.status, error_message)
 
             if response.status == 204:
                 return {}
@@ -142,7 +150,7 @@ class GoogleDriveClient:
         async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
-                raise RuntimeError(f"Download error ({response.status}): {error_message}")
+                raise GoogleDriveAPIError(response.status, error_message)
             return await response.read()
 
     async def export_file(self, file_id: str, export_mime_type: str) -> bytes:
@@ -156,7 +164,7 @@ class GoogleDriveClient:
         async with self.session.get(url, params=params, headers=self._headers()) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
-                raise RuntimeError(f"Export error ({response.status}): {error_message}")
+                raise GoogleDriveAPIError(response.status, error_message)
             return await response.read()
 
     async def list_folders(self, parent_id: Optional[str] = None) -> list[dict[str, Any]]:
@@ -224,7 +232,7 @@ class GoogleDriveClient:
         async with self.session.post(url, data=body, headers=headers) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
-                raise RuntimeError(f"Upload error ({response.status}): {error_message}")
+                raise GoogleDriveAPIError(response.status, error_message)
             result: dict[str, Any] = await response.json()
             return result
 
@@ -244,7 +252,7 @@ class GoogleDriveClient:
         async with self.session.patch(url, data=content, headers=headers) as response:
             if response.status >= 400:
                 error_message = await self._parse_error(response)
-                raise RuntimeError(f"Update error ({response.status}): {error_message}")
+                raise GoogleDriveAPIError(response.status, error_message)
             result: dict[str, Any] = await response.json()
             return result
 

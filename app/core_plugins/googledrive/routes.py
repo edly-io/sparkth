@@ -507,7 +507,7 @@ async def refresh_folder(
 
     except HTTPException:
         raise
-    except (ConnectionError, TimeoutError, ValueError) as e:
+    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
         folder.sync_status = "error"
         folder.sync_error = str(e)
         folder.update_timestamp()

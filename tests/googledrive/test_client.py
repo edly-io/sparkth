@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 
 
 def _mock_aiohttp_response(status: int = 200, json_data: dict | None = None, content: bytes = b""):
@@ -173,7 +173,7 @@ class TestGoogleDriveClientDownload:
         client = GoogleDriveClient("fake_token")
         client.session = session
 
-        with pytest.raises(RuntimeError, match="Download error"):
+        with pytest.raises(GoogleDriveAPIError, match="Google Drive API error"):
             await client.download_file("file_id")
 
     @pytest.mark.asyncio
@@ -223,7 +223,7 @@ class TestGoogleDriveClientUpload:
         client = GoogleDriveClient("fake_token")
         client.session = session
 
-        with pytest.raises(Exception, match="Upload error"):
+        with pytest.raises(GoogleDriveAPIError, match="Google Drive API error"):
             await client.upload_file("file.txt", b"data", "text/plain")
 
 

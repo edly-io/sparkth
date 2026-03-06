@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -26,6 +27,7 @@ class DriveFolder(TimestampedModel, SoftDeleteModel, table=True):
     """Tracks synced Google Drive folders."""
 
     __tablename__ = "drive_folders"
+    __table_args__ = (UniqueConstraint("user_id", "drive_folder_id", name="uq_drive_folders_user_folder"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
