@@ -85,6 +85,7 @@ def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str, 
         "response_type": "code",
         "scope": " ".join(GOOGLE_SCOPES),
         "access_type": "offline",
+        "prompt": "consent",
         "state": state,
     }
 
