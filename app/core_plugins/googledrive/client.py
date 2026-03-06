@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import AsyncGenerator
 from types import TracebackType
 from typing import Any, Optional, Type
 
@@ -159,7 +160,7 @@ class GoogleDriveClient:
         file_id: str,
         mime_type: str | None = None,
         chunk_size: int = 64 * 1024,
-    ) -> Any:
+    ) -> AsyncGenerator[bytes, None]:
         """Stream file content in chunks. Auto-exports Google Docs editor files as PDF."""
         self._validate_id(file_id)
         if not self.session:
