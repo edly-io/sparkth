@@ -263,12 +263,12 @@ async def chat_completion(
         # Use DB messages for history, but replace current batch with original
         # request content to preserve content blocks (e.g. base64 file attachments)
         num_current = len(request.messages)
-        history: list[dict[str, Any]] = [
-            {"role": m.role, "content": m.content} for m in db_messages[:-num_current]
-        ] if len(db_messages) > num_current else []
-        current: list[dict[str, Any]] = [
-            {"role": msg.role, "content": msg.content} for msg in request.messages
-        ]
+        history: list[dict[str, Any]] = (
+            [{"role": m.role, "content": m.content} for m in db_messages[:-num_current]]
+            if len(db_messages) > num_current
+            else []
+        )
+        current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         messages = history + current
 
         tool_registry = get_tool_registry()
