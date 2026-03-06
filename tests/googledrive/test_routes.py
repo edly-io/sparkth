@@ -440,7 +440,7 @@ class TestDownloadFile:
         test_oauth_token: DriveOAuthToken,
         mock_valid_access_token: None,
     ) -> None:
-        """Drive API error during download should return 200 with empty body (error logged)."""
+        """Drive API error during download should propagate (connection closes abruptly)."""
 
         async def _failing_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             raise RuntimeError("Drive API error")
@@ -453,11 +453,8 @@ class TestDownloadFile:
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
 
-            response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/download")
-
-        # Streaming response starts with 200; errors during iteration are logged silently
-        assert response.status_code == status.HTTP_200_OK
-        assert response.content == b""
+            with pytest.raises(RuntimeError, match="Drive API error"):
+                await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/download")
 
 
 class TestRenameFile:

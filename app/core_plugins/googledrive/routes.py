@@ -2,6 +2,7 @@
 
 import logging
 import re
+import urllib.parse
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Optional
@@ -412,6 +413,13 @@ def get_folder(
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
+    folder_files = session.exec(
+        select(DriveFile).where(
+            DriveFile.folder_id == folder.id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    ).all()
+
     files = [
         DriveFileResponse(
             id=f.id,  # type: ignore[arg-type]
@@ -422,8 +430,7 @@ def get_folder(
             modified_time=f.modified_time,
             last_synced_at=f.last_synced_at,
         )
-        for f in folder.files
-        if not f.is_deleted
+        for f in folder_files
     ]
 
     return DriveFolderWithFilesResponse(
@@ -679,8 +686,11 @@ async def download_file(
         if not filename.lower().endswith(".pdf"):
             filename = f"{filename}.pdf"
 
-    # Sanitize filename to prevent header injection
-    filename = re.sub(r'[\\\/\r\n"]', "_", filename)
+    # Sanitize filename for Content-Disposition header
+    ascii_safe = re.sub(r'[\\\/\r\n"]', "_", filename)
+    # RFC 5987 filename* for non-ASCII filenames
+    encoded_filename = urllib.parse.quote(filename, safe="")
+    content_disposition = f"attachment; filename=\"{ascii_safe}\"; filename*=UTF-8''{encoded_filename}"
 
     async def _stream() -> AsyncGenerator[bytes, None]:
         try:
@@ -689,13 +699,12 @@ async def download_file(
                     yield chunk
         except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
             logger.error("Failed to download file %s from Drive: %s", file_id, e)
+            raise
 
     return StreamingResponse(
         _stream(),
         media_type=media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+        headers={"Content-Disposition": content_disposition},
     )
 
 
