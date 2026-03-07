@@ -55,6 +55,7 @@ jobs:
 
             - Logic correctness and edge cases
             - Error handling and resource management
+            - **Never allow catching base `Exception` classes** — always catch specific exception types
             - Naming conventions and code organization
             - Function complexity (cyclomatic complexity < 10)
             - Code duplication detection
@@ -76,6 +77,31 @@ jobs:
             - Async patterns (critical for FastAPI)
             - Caching effectiveness
             - N+1 query detection
+
+            ## Test Coverage Requirements
+
+            - Always check if relevant test cases are present for the changes introduced
+            - **PRs that add new functionality must include corresponding test cases** — flag as blocking if missing
+            - Verify that edge cases and error paths are covered by tests
+            - Check that existing tests are not broken or removed without justification
+
+            ## React Anti-Patterns (Frontend)
+
+            - Flag direct DOM manipulation instead of React state
+            - Flag missing or incorrect dependency arrays in useEffect/useMemo/useCallback
+            - Flag state mutations instead of immutable updates
+            - Flag prop drilling where context or composition would be cleaner
+            - Flag unnecessary re-renders (inline objects/functions in JSX, missing memoization)
+            - Flag business logic inside components instead of custom hooks or utility functions
+            - Flag missing cleanup in useEffect (subscriptions, timers, event listeners)
+            - Flag use of array index as key in dynamic lists
+
+            ## Addressed Review Comments
+
+            - Check if previous review comments on this PR have been addressed in the latest changes
+            - If a reviewer left feedback and the code was not updated accordingly, flag it as unresolved
+            - **If a previous review comment has been addressed in the current diff, resolve it on the PR**
+            - Verify that requested changes from prior reviews are reflected in the current diff
 
             ## Design & Best Practices
 
