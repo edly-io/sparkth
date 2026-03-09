@@ -1,3 +1,4 @@
+import asyncio
 import json
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator
@@ -5,10 +6,12 @@ from uuid import UUID
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks.base import AsyncCallbackHandler
+from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, LLMResult
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from pydantic import ValidationError
 
 from app.core.logger import get_logger
 from app.core_plugins.chat.prompt import get_learning_design_system_prompt
@@ -78,8 +81,6 @@ class StreamingCallbackHandler(AsyncCallbackHandler):
                 yield self.tokens[index]
                 index += 1
             else:
-                import asyncio
-
                 await asyncio.sleep(0.01)
 
         if self.error:
@@ -128,7 +129,7 @@ class BaseChatProvider(ABC):
             else:
                 # Use simple invocation for non-tool conversations
                 return await self._send_message_simple(llm, messages)
-        except Exception as e:
+        except (LangChainException, ValidationError, ValueError, RuntimeError) as e:
             logger.error(f"Error in send_message: {e}")
             raise
 
@@ -154,7 +155,6 @@ class BaseChatProvider(ABC):
         self, llm: Any, messages: list[dict[str, str]], tools: list[Any]
     ) -> dict[str, Any]:
         """Send a message with tool support using a manual tool execution loop."""
-
         llm_with_tools = llm.bind_tools(tools)
 
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
@@ -214,6 +214,7 @@ class BaseChatProvider(ABC):
                     break
             else:
                 break
+
         if limit_reached:
             logger.warning("Requesting final response after tool limit was reached.")
             response = await llm_with_tools.ainvoke(langchain_messages)
@@ -227,6 +228,7 @@ class BaseChatProvider(ABC):
                 elif isinstance(block, str):
                     text_parts.append(block)
             content = "".join(text_parts)
+
         return {
             "content": content,
             "role": "assistant",
@@ -251,7 +253,7 @@ class BaseChatProvider(ABC):
                         try:
                             validated = tool.args_schema(**tool_args)
                             tool_args = validated.model_dump()
-                        except Exception as e:
+                        except (ValidationError, TypeError, ValueError) as e:
                             logger.warning(f"Tool '{tool_name}' argument validation failed: {e}")
                             return f"Invalid arguments for tool '{tool_name}': {e}"
 
@@ -265,9 +267,6 @@ class BaseChatProvider(ABC):
                     elif hasattr(tool, "invoke"):
                         result = tool.invoke(tool_args)
                     elif hasattr(tool, "func") and tool.func is not None:
-                        # Check if func is a coroutine
-                        import asyncio
-
                         if asyncio.iscoroutinefunction(tool.func):
                             result = await tool.func(**tool_args)
                         else:
@@ -282,6 +281,9 @@ class BaseChatProvider(ABC):
                     logger.info(f"Tool '{tool_name}' executed successfully")
                     return result
 
+                # NOTE: Kept broad here intentionally — tool handlers are user-supplied
+                # plugins that can raise anything. Narrowing would silently swallow
+                # legitimate errors from arbitrary third-party tool implementations.
                 except Exception as e:
                     logger.error(f"Error executing tool '{tool_name}': {e}", exc_info=True)
                     return f"Error executing tool '{tool_name}': {str(e)}"
@@ -292,7 +294,6 @@ class BaseChatProvider(ABC):
         self, messages: list[dict[str, str]], max_tokens: int | None = None, tools: list[Any] | None = None
     ) -> AsyncIterator[str]:
         """Stream a message response, with optional tool usage."""
-
         if tools:
             # Use streaming with tools
             async for token in self._stream_message_with_tools(messages, tools):
@@ -310,15 +311,13 @@ class BaseChatProvider(ABC):
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
 
-        import asyncio
-
         task = asyncio.create_task(llm.ainvoke(langchain_messages))
 
         try:
             async for token in callback.aiter():
                 yield token
             await task
-        except Exception as e:
+        except (LangChainException, asyncio.CancelledError, RuntimeError) as e:
             logger.error(f"Error in stream_message_simple: {e}")
             task.cancel()
             raise
@@ -386,8 +385,9 @@ class BaseChatProvider(ABC):
                     serialized_result = serialize_result(tool_result)
                     yield "✅ *Tool completed*\n\n"
 
-                    tool_message = ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
-                    langchain_messages.append(tool_message)
+                    langchain_messages.append(
+                        ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
+                    )
                     total_executions += 1
             else:
                 break

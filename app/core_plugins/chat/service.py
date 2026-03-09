@@ -49,7 +49,7 @@ class ChatService:
                 decrypted = self.encryption.decrypt(cached_key)
                 logger.debug(f"API key cache hit for user {user_id}, provider {provider}")
                 return decrypted
-            except Exception as e:
+            except ValueError as e:
                 logger.warning(f"Failed to decrypt cached API key, falling back to DB: {e}")
 
         statement = select(ProviderAPIKey).where(
@@ -81,7 +81,7 @@ class ChatService:
             await session.commit()
 
             return decrypted_key
-        except Exception as e:
+        except ValueError as e:
             logger.error(f"Failed to decrypt API key: {e}")
             return None
 
@@ -221,18 +221,27 @@ class ChatService:
         return message
 
     async def get_conversation_messages(
-        self, session: AsyncSession, conversation_id: int, limit: int | None = None, offset: int | None = None
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+        exclude_errors: bool = True,
     ) -> list[Message]:
+        """
+        Return conversation messages, optionally excluding error messages.
+        """
         statement = (
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .where(Message.is_error == False)  # noqa: E712
-            .order_by(col(Message.created_at).asc())
+            select(Message).where(Message.conversation_id == conversation_id).order_by(col(Message.created_at).asc())
         )
 
-        if limit:
+        if exclude_errors:
+            statement = statement.where(Message.is_error == False)  # noqa: E712
+
+        if limit is not None:
             statement = statement.limit(limit)
-        if offset:
+
+        if offset is not None:
             statement = statement.offset(offset)
 
         result = await session.exec(statement)

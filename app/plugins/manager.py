@@ -60,7 +60,7 @@ class PluginManager:
                 plugin_name, plugin_class = self._load_plugin_class(module_string)
                 if plugin_class:
                     discovered[plugin_name] = plugin_class
-            except Exception as e:
+            except (PluginLoadError, PluginValidationError) as e:
                 logger.warning(f"Failed to discover plugin from '{module_string}': {e}")
                 continue
 
@@ -188,7 +188,7 @@ class PluginManager:
 
             return plugin_instance
 
-        except Exception as e:
+        except (TypeError, AttributeError, RuntimeError) as e:
             raise PluginLoadError(f"{e}")
 
     def unload_plugin(self, plugin_name: str) -> None:
@@ -301,7 +301,7 @@ class PluginManager:
             try:
                 plugin = await self.load_plugin(plugin_name)
                 loaded[plugin_name] = plugin
-            except Exception as e:
+            except (PluginLoadError, PluginNotFoundError, PluginAlreadyLoadedError) as e:
                 logger.error(f"Failed to load plugin '{plugin_name}': {e}")
                 continue
 
@@ -312,7 +312,7 @@ class PluginManager:
         for plugin_name in self._loaded_plugins:
             try:
                 self.enable_plugin(plugin_name)
-            except Exception as e:
+            except PluginNotLoadedError as e:
                 logger.error(f"Failed to enable plugin '{plugin_name}': {e}")
                 continue
 
@@ -321,7 +321,7 @@ class PluginManager:
         for plugin_name in self._loaded_plugins:
             try:
                 self.disable_plugin(plugin_name)
-            except Exception as e:
+            except PluginNotLoadedError as e:
                 logger.error(f"Failed to disable plugin '{plugin_name}': {e}")
                 continue
 
@@ -331,7 +331,7 @@ class PluginManager:
         for plugin_name in plugin_names:
             try:
                 self.unload_plugin(plugin_name)
-            except Exception as e:
+            except PluginNotLoadedError as e:
                 logger.error(f"Failed to unload plugin '{plugin_name}': {e}")
                 continue
 

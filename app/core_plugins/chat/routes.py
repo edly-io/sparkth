@@ -4,7 +4,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from langchain_core.exceptions import LangChainException
+from pydantic import BaseModel, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -74,7 +76,7 @@ async def create_api_key(
             created_at=db_key.created_at,
             last_used_at=db_key.last_used_at,
         )
-    except Exception as e:
+    except (SQLAlchemyError, ValueError) as e:
         logger.error(f"Failed to create API key: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -315,7 +317,7 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except Exception as e:
+    except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -363,7 +365,7 @@ async def stream_chat_response(
         )
         yield f"data: {data}\n\n"
 
-    except Exception as e:
+    except (RuntimeError, SQLAlchemyError, OSError, LangChainException) as e:
         logger.error(f"Streaming failed: {e}")
         await service.add_message(
             session=session,

@@ -3,6 +3,9 @@ from functools import lru_cache
 from typing import Any
 
 import redis.asyncio as aioredis
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from app.core.logger import get_logger
 
@@ -24,7 +27,7 @@ class CacheService:
                     decode_responses=True,
                 )
                 logger.info("Connected to Redis successfully")
-            except Exception as e:
+            except (RedisConnectionError, RedisTimeoutError) as e:
                 logger.error(f"Failed to connect to Redis: {e}")
                 raise
 
@@ -43,7 +46,7 @@ class CacheService:
         try:
             value: str | None = await self._redis.get(key)
             return value
-        except Exception as e:
+        except RedisError as e:
             logger.warning(f"Cache get failed for key '{key}': {e}")
             return None
 
@@ -56,7 +59,7 @@ class CacheService:
         try:
             await self._redis.set(key, value, ex=ttl)  # type: ignore
             return True
-        except Exception as e:
+        except RedisError as e:
             logger.warning(f"Cache set failed for key '{key}': {e}")
             return False
 
@@ -68,7 +71,7 @@ class CacheService:
             result = await self._redis.delete(key)  # type: ignore
             res: bool = result > 0
             return res
-        except Exception as e:
+        except RedisError as e:
             logger.warning(f"Cache delete failed for key '{key}': {e}")
             return False
 
@@ -80,7 +83,7 @@ class CacheService:
             result = await self._redis.exists(key)  # type: ignore
             res: bool = result > 0
             return res
-        except Exception as e:
+        except RedisError as e:
             logger.warning(f"Cache exists check failed for key '{key}': {e}")
             return False
 

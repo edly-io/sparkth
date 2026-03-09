@@ -3,7 +3,7 @@ import asyncio
 import logging
 from typing import Any, Callable
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
@@ -92,7 +92,7 @@ def register_plugin_tools() -> None:
                             plugin_failed_count += 1
                             total_failed += 1
 
-                    except Exception as e:
+                    except (ValidationError, ValueError, TypeError) as e:
                         logger.error(f"Failed to register tool from plugin '{plugin_name}': {e}")
                         plugin_failed_count += 1
                         total_failed += 1
@@ -105,7 +105,7 @@ def register_plugin_tools() -> None:
                 elif plugin_failed_count > 0:
                     logger.warning(f"Plugin '{plugin_name}' failed to register {plugin_failed_count} tool(s)")
 
-            except Exception as e:
+            except (AttributeError, RuntimeError) as e:
                 logger.error(f"Failed to process MCP tools from plugin '{plugin_name}': {e}")
 
         logger.info(
@@ -113,7 +113,7 @@ def register_plugin_tools() -> None:
             + (f", {total_failed} failed" if total_failed > 0 else "")
         )
 
-    except Exception as e:
+    except RuntimeError as e:
         logger.error(f"Failed to initialize plugin system for MCP: {e}")
 
 
@@ -131,7 +131,7 @@ def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, regi
     """
     try:
         validated_tool = MCPToolDefinition(**tool_def)
-    except Exception as e:
+    except ValidationError as e:
         logger.warning(f"Invalid tool definition from plugin '{plugin_name}': {e}")
         return False
 
@@ -154,7 +154,7 @@ def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, regi
 
         return True
 
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError) as e:
         logger.error(f"Failed to register tool '{validated_tool.name}' from plugin '{plugin_name}': {e}")
         return False
 
