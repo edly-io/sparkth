@@ -75,7 +75,9 @@ class TestOpenEdxClient:
 
     async def test_request_jwt_no_token(self) -> None:
         lms_url = "https://openedx.example.com"
-        client = OpenEdxClient(lms_url)
+        mock_session = MagicMock()
+        with patch("aiohttp.ClientSession", return_value=mock_session):
+            client = OpenEdxClient(lms_url)
 
         with pytest.raises(AuthenticationError) as exc_info:
             await client.request_jwt("GET", lms_url, "api/user/v1/me")
