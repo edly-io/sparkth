@@ -2,7 +2,7 @@
 
 import base64
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from typing import Any, Optional
 
 import aiohttp
@@ -11,6 +11,7 @@ from itsdangerous import URLSafeTimedSerializer
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
+from app.models.base import utc_now
 from app.models.drive import DriveOAuthToken
 
 # Google OAuth endpoints
@@ -28,10 +29,6 @@ GOOGLE_SCOPES = [
 
 # OAuth state token expiry (10 minutes)
 OAUTH_STATE_MAX_AGE = 600
-
-
-def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _get_fernet() -> Fernet:
@@ -171,7 +168,7 @@ def save_tokens(
     scopes: str,
 ) -> DriveOAuthToken:
     """Save OAuth tokens to database."""
-    token_expiry = _utc_now() + timedelta(seconds=expires_in)
+    token_expiry = utc_now() + timedelta(seconds=expires_in)
 
     statement = select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id)
     existing = session.exec(statement).first()
@@ -214,7 +211,7 @@ async def get_valid_access_token(session: Session, user_id: int, client_id: str,
     if not token_record:
         raise ValueError("Google Drive not connected")
 
-    now = _utc_now()
+    now = utc_now()
     buffer = timedelta(minutes=5)
 
     token_expiry = token_record.token_expiry
