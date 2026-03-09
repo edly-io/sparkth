@@ -1,6 +1,5 @@
 from typing import Any
 
-from pydantic import ValidationError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -9,9 +8,10 @@ from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.models import ProviderAPIKey
 from app.core_plugins.chat.routes import get_chat_system_config
 from app.core_plugins.chat.service import ChatService
+from app.services.plugin_adapters.base import PluginConfigAdapter
 
 
-class ChatPluginConfigAdapter:
+class ChatPluginConfigAdapter(PluginConfigAdapter):
     async def preprocess_config(
         self,
         *,
@@ -24,14 +24,15 @@ class ChatPluginConfigAdapter:
         Extracts `api_key`, stores it in ProviderAPIKey, and replaces it
         with the resulting `provider_api_key_ref` (the DB row ID).
         """
-        api_key = incoming_config.pop("api_key", None)
-        provider = incoming_config.get("provider")
+        config = dict(incoming_config)
+        api_key = config.pop("api_key", None)
+        provider = config.get("provider")
 
         if not api_key:
-            return incoming_config
+            return config
 
         if not provider:
-            raise ValidationError("Provider is required when api_key is provided")
+            raise ValueError("Provider is required when api_key is provided")
 
         system_config = get_chat_system_config()
         service = ChatService(
@@ -49,8 +50,8 @@ class ChatPluginConfigAdapter:
             api_key=api_key,
         )
 
-        incoming_config["provider_api_key_ref"] = db_key.id
-        return incoming_config
+        config["provider_api_key_ref"] = db_key.id
+        return config
 
     async def postprocess_config(
         self,
@@ -62,7 +63,6 @@ class ChatPluginConfigAdapter:
         """
         Sanitises config before returning it to the client.
         Replaces the internal `provider_api_key_ref` ID with:
-          - `has_api_key`: bool
           - `api_key`: e.g. "sk-...abcd", or None if no key stored
         """
         config = dict(stored_config)
@@ -81,3 +81,30 @@ class ChatPluginConfigAdapter:
             config["api_key"] = None
 
         return config
+
+    async def sync_cache(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: int,
+        stored_config: dict[str, Any],
+    ) -> None:
+        ref = stored_config.get("provider_api_key_ref")
+        provider = stored_config.get("provider")
+        if not ref or not provider:
+            return
+
+        statement = select(ProviderAPIKey).where(
+            ProviderAPIKey.id == ref,
+            ProviderAPIKey.user_id == user_id,
+            ProviderAPIKey.is_active == True,
+        )
+        result = await session.exec(statement)
+        db_key = result.one_or_none()
+        if not db_key:
+            return
+
+        system_config = get_chat_system_config()
+        cache = get_cache_service(system_config.redis_url, system_config.redis_key_ttl)
+        cache_key = cache.make_key("api_key", str(user_id), provider)
+        await cache.set(cache_key, db_key.encrypted_key)

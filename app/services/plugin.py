@@ -112,6 +112,17 @@ class PluginService:
             )
         return stored_config
 
+    @staticmethod
+    async def apply_cache_sync(
+        plugin_name: str,
+        session: AsyncSession,
+        user_id: int,
+        stored_config: dict[str, Any],
+    ) -> None:
+        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        if adapter:
+            await adapter.sync_cache(session=session, user_id=user_id, stored_config=stored_config)
+
     async def get_by_name(self, session: AsyncSession, name: str) -> Plugin | None:
         statement = select(Plugin).where(Plugin.name == name, Plugin.deleted_at == None)
         result = await session.exec(statement)
@@ -266,10 +277,7 @@ class PluginService:
         else:
             merged_config = user_config
 
-        try:
-            validated_config = self.validate_user_config(plugin, merged_config)
-        except ConfigValidationError as err:
-            raise err
+        validated_config = self.validate_user_config(plugin, merged_config)
 
         if user_plugin:
             user_plugin.config = validated_config
@@ -282,7 +290,7 @@ class PluginService:
             )
             session.add(user_plugin)
 
-        await session.commit()
+        await session.flush()
         await session.refresh(user_plugin)
 
         return user_plugin

@@ -52,7 +52,6 @@ export default function ChatInterface() {
   });
 
   const { loading: loadingHistory, messages } = historyState;
-  const [sendError, setSendError] = useState<string | null>(null);
 
   const setMessages = (
     updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
@@ -146,8 +145,6 @@ export default function ChatInterface() {
     message: string;
     attachment: TextAttachment | null;
   }) => {
-    setSendError(null);
-
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",

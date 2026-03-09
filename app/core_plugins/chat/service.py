@@ -22,8 +22,8 @@ class ChatService:
     def mask_api_key(api_key: str) -> str:
         """Return a masked version of the key, e.g. 'sk-...abcd'."""
         suffix = api_key[-4:] if len(api_key) >= 4 else api_key
-        parts = api_key.split("-", maxsplit=2)
-        prefix = "-".join(parts[:2]) + "-" if len(parts) >= 2 else ""
+        parts = api_key.split("-", maxsplit=1)
+        prefix = parts[0] + "-" if len(parts) >= 2 else ""
         return f"{prefix}****{suffix}"
 
     async def create_api_key(
@@ -33,6 +33,8 @@ class ChatService:
         provider: str,
         api_key: str,
     ) -> ProviderAPIKey:
+        await self.deactivate_old_keys(user_id, provider, session)
+
         encrypted_key = self.encryption.encrypt(api_key)
         masked = self.mask_api_key(api_key)
 
@@ -44,34 +46,57 @@ class ChatService:
             is_active=True,
         )
         session.add(db_key)
-        await session.commit()
+        await session.flush()
         await session.refresh(db_key)
 
         logger.info(f"Created API key for user {user_id}, provider {provider}")
 
-        cache_key = self.cache.make_key("api_key", str(user_id), provider)
-        await self.cache.set(cache_key, encrypted_key)
-
         return db_key
 
-    async def get_api_key(self, session: AsyncSession, user_id: int, provider: str) -> str | None:
+    async def deactivate_old_keys(self, user_id: int, provider: str, session: AsyncSession) -> None:
+        existing_statement = (
+            select(ProviderAPIKey)
+            .where(
+                ProviderAPIKey.user_id == user_id,
+                ProviderAPIKey.provider == provider.lower(),
+                ProviderAPIKey.is_active == True,
+            )
+            .with_for_update()
+        )
+        result = await session.exec(existing_statement)
+        existing_keys = result.all()
+        for key in existing_keys:
+            key.is_active = False
+            session.add(key)
+
+    async def get_api_key(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        provider: str,
+    ) -> str | None:
         provider = provider.lower()
         cache_key = self.cache.make_key("api_key", str(user_id), provider)
-        cached_key = await self.cache.get(cache_key)
+        cached_encrypted = await self.cache.get(cache_key)
 
-        if cached_key:
+        if cached_encrypted:
             try:
-                decrypted = self.encryption.decrypt(cached_key)
+                decrypted = self.encryption.decrypt(cached_encrypted)
                 logger.debug(f"API key cache hit for user {user_id}, provider {provider}")
                 return decrypted
             except ValueError as e:
-                logger.warning(f"Failed to decrypt cached API key, falling back to DB: {e}")
+                logger.warning(f"Failed to decrypt cached API key, evicting: {e}")
+                await self.cache.delete(cache_key)
 
-        statement = select(ProviderAPIKey).where(
-            ProviderAPIKey.user_id == user_id,
-            ProviderAPIKey.provider == provider,
-            ProviderAPIKey.is_active == True,  # noqa: E712
-            ProviderAPIKey.deleted_at == None,
+        statement = (
+            select(ProviderAPIKey)
+            .where(
+                ProviderAPIKey.user_id == user_id,
+                ProviderAPIKey.provider == provider,
+                ProviderAPIKey.is_active == True,  # noqa: E712
+                ProviderAPIKey.deleted_at == None,
+            )
+            .order_by(col(ProviderAPIKey.created_at).desc())
         )
         result = await session.exec(statement)
         db_key = result.first()
@@ -81,22 +106,21 @@ class ChatService:
             return None
 
         try:
-            await self.cache.set(cache_key, db_key.encrypted_key)
-
             decrypted_key = self.encryption.decrypt(db_key.encrypted_key)
-            db_key.last_used_at = datetime.now(timezone.utc)
-            session.add(db_key)
-            await session.commit()
-
-            return decrypted_key
         except ValueError as e:
-            logger.error(f"Failed to decrypt API key: {e}")
-            return None
+            logger.error(f"Failed to decrypt DB API key for user {user_id}, provider {provider}: {e}")
+            raise
+
+        await self.cache.set(cache_key, db_key.encrypted_key)
+
+        db_key.last_used_at = datetime.now(timezone.utc)
+        session.add(db_key)
+
+        return decrypted_key
 
     async def list_api_keys(self, session: AsyncSession, user_id: int) -> list[ProviderAPIKey]:
         statement = select(ProviderAPIKey).where(
-            ProviderAPIKey.user_id == user_id,
-            ProviderAPIKey.deleted_at == None,
+            ProviderAPIKey.user_id == user_id, ProviderAPIKey.deleted_at == None, ProviderAPIKey.is_active == True
         )
         result = await session.exec(statement)
         return list(result.all())

@@ -1,6 +1,6 @@
 from typing import Any, Protocol
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class PluginConfigAdapter(Protocol):
@@ -16,6 +16,17 @@ class PluginConfigAdapter(Protocol):
     async def postprocess_config(
         self,
         *,
+        session: AsyncSession,
+        user_id: int,
         stored_config: dict[str, Any],
     ) -> dict[str, Any]:
         return stored_config
+
+    async def sync_cache(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: int,
+        stored_config: dict[str, Any],
+    ) -> None:
+        pass

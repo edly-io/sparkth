@@ -138,6 +138,7 @@ async def update_api_key(
 
     encrypted_key = service.encryption.encrypt(key_update.api_key)
     key.encrypted_key = encrypted_key
+    key.masked_key = ChatService.mask_api_key(key_update.api_key)
     key.update_timestamp()
 
     session.add(key)

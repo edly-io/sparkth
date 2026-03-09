@@ -136,7 +136,7 @@ async def create_user_plugin(
             plugin.id,  # type: ignore[arg-type]
             validated_config,
         )
-    except ConfigValidationError as err:
+    except (ValueError, ConfigValidationError) as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
     except InternalServerError as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
@@ -228,10 +228,16 @@ async def update_user_plugin_config(
         user_plugin = await plugin_service.update_user_plugin_config(session, current_user.id, plugin, preprocessed)
     except PluginDisabledError as err:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
-    except ConfigValidationError as err:
+    except (ConfigValidationError, ValueError) as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
+    except InternalServerError as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
+    await session.commit()
     await session.refresh(plugin)
+
+    await PluginService.apply_cache_sync(plugin_name, session, current_user.id, user_plugin.config)
+
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
     return UserPluginResponse(
         plugin_name=plugin_name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
