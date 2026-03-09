@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,6 +15,7 @@ from app.core.google_auth import (
     generate_google_login_url,
     get_google_user_info,
 )
+from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import GoogleAuthUrl, Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
@@ -110,8 +111,7 @@ async def login_for_access_token(
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    utc_now = datetime.now(timezone.utc)
-    expires_at = utc_now + access_token_expires
+    expires_at = utc_now() + access_token_expires
 
     access_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
@@ -197,8 +197,7 @@ async def google_callback(
 
         # Generate JWT token
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        utc_now = datetime.now(timezone.utc)
-        expires_at = utc_now + access_token_expires
+        expires_at = utc_now() + access_token_expires
 
         jwt_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 

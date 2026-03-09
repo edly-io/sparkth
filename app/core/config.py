@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:7727/api/v1/auth/google/callback"
+
+    # Google Drive OAuth (uses same client credentials, different redirect URI)
+    GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:7727/api/v1/googledrive/oauth/callback"
 
 
 @lru_cache
@@ -32,6 +35,7 @@ PLUGINS = [
     "app.core_plugins.canvas.plugin:CanvasPlugin",
     "app.core_plugins.openedx.plugin:OpenEdxPlugin",
     "app.core_plugins.chat.plugin:ChatPlugin",
+    "app.core_plugins.googledrive.plugin:GoogleDrivePlugin",
 ]
 
 

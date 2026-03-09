@@ -4,6 +4,11 @@ from sqlalchemy import DateTime
 from sqlmodel import Field, SQLModel
 
 
+def utc_now() -> datetime:
+    """Return the current UTC datetime."""
+    return datetime.now(timezone.utc)
+
+
 class TimestampedModel(SQLModel):
     created_at: datetime = Field(
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -27,3 +32,11 @@ class SoftDeleteModel(SQLModel):
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
+
+    def soft_delete(self) -> None:
+        self.is_deleted = True
+        self.deleted_at = datetime.now(timezone.utc)
+
+    def restore(self) -> None:
+        self.is_deleted = False
+        self.deleted_at = None
