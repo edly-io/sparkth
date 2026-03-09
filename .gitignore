@@ -216,5 +216,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Claude Code
+.claude/
+
 # Docker
 data/
