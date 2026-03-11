@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { Loader2 } from "lucide-react";
 import { usePlugin } from "@/lib/plugins/context";
 import { getPlugin } from "@/lib/plugins";
 import PluginRenderer from "@/components/PluginRenderer";
@@ -28,7 +29,7 @@ export default function PluginPageClient() {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <Loader2 className="h-10 w-10 animate-spin text-primary-500 mx-auto mb-4" />
           <p className="text-muted-foreground">Authenticating...</p>
         </div>
       </div>

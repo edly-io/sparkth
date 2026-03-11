@@ -6,6 +6,16 @@ import { Pill } from "../attachment/Pill";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+function ThinkingDots() {
+  return (
+    <div className="flex items-center gap-1 py-1">
+      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0ms]" />
+      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:150ms]" />
+      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:300ms]" />
+    </div>
+  );
+}
+
 interface AssistantMessageProps {
   message: ChatMessage;
   setPreviewOpen: (open: boolean) => void;
@@ -20,6 +30,7 @@ export function AssistantMessage({
   onOptionClick,
 }: AssistantMessageProps) {
   const displayText = message.streamedContent ?? message.content;
+  const isThinking = message.isTyping && !displayText;
 
   const openPreview = () => {
     if (!message.pillAttachment) return;
@@ -33,7 +44,7 @@ export function AssistantMessage({
         <Bot className="w-4 h-4" />
       </div>
 
-      <div className="flex-1 max-w-[75%] space-y-2">
+      <div className="max-w-[75%] w-fit space-y-2">
         {message.isError ? (
           <Card
             variant="outlined"
@@ -48,11 +59,15 @@ export function AssistantMessage({
           </Card>
         ) : (
           <Card variant="outlined" className="p-4">
-            <div className="prose prose-neutral dark:prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {displayText}
-              </ReactMarkdown>
-            </div>
+            {isThinking ? (
+              <ThinkingDots />
+            ) : (
+              <div className="prose prose-neutral dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {displayText}
+                </ReactMarkdown>
+              </div>
+            )}
 
             {!message.isTyping && (
               <Pill

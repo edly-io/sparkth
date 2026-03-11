@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, lazy, useMemo, useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { PluginDefinition, emitPluginEvent } from "@/lib/plugins";
 import { usePlugin } from "@/lib/plugins/context";
 import { PluginErrorBoundary } from "./PluginErrorBoundary";
@@ -14,10 +15,7 @@ function PluginLoadingFallback({ displayName }: { displayName: string }) {
   return (
     <div className="flex items-center justify-center h-full min-h-[400px]">
       <div className="text-center">
-        <div className="relative w-16 h-16 mx-auto mb-4">
-          <div className="absolute inset-0 border-4 border-border rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-primary-600 rounded-full border-t-transparent animate-spin"></div>
-        </div>
+        <Loader2 className="h-10 w-10 animate-spin text-primary-500 mx-auto mb-4" />
         <p className="text-muted-foreground font-medium">
           Loading {displayName}...
         </p>
