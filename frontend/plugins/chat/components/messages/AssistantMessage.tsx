@@ -35,11 +35,8 @@ export function AssistantMessage({
 
       <div className="flex-1 max-w-[75%] space-y-2">
         {message.isError ? (
-          <Card
-            variant="outlined"
-            className="p-4 border-destructive/40 bg-destructive/5"
-          >
-            <div className="flex items-start gap-2 text-destructive">
+          <Card variant="outlined" className="p-4 border-error bg-error-50">
+            <div className="flex items-start gap-2 text-error-500">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <p className="text-sm">
                 {displayText || "Something went wrong. Please try again."}

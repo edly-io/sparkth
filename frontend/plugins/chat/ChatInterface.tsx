@@ -43,7 +43,6 @@ export default function ChatInterface() {
   );
   const [previewAttachment, setPreviewAttachment] =
     useState<TextAttachment | null>(null);
-
   const [historyState, setHistoryState] = useState<{
     loading: boolean;
     messages: ChatMessage[];
