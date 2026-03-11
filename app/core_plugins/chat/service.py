@@ -35,6 +35,9 @@ class ChatService:
     ) -> ProviderAPIKey:
         await self.deactivate_old_keys(user_id, provider, session)
 
+        cache_key = self.cache.make_key("api_key", str(user_id), provider.lower())
+        await self.cache.delete(cache_key)
+
         encrypted_key = self.encryption.encrypt(api_key)
         masked = self.mask_api_key(api_key)
 
