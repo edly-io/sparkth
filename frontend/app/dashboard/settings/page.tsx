@@ -2,7 +2,7 @@
 
 import PluginListItem from "@/components/settings/ListItem";
 import { usePluginContext } from "@/lib/plugins/context";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 
 export default function PluginsSettings() {
   const {
@@ -19,7 +19,7 @@ export default function PluginsSettings() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-primary-500 mx-auto mb-4" />
+          <Spinner className="mx-auto mb-4" />
           <p className="text-muted-foreground">Loading plugins...</p>
         </div>
       </div>

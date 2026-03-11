@@ -2,7 +2,8 @@
 
 import { useEnabledPlugins } from "@/lib/plugins/context";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 
 export default function DashboardPage() {
   const { plugins, loading } = useEnabledPlugins();
@@ -10,7 +11,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-10 w-10 animate-spin text-primary-500" />
+        <Spinner />
       </div>
     );
   }

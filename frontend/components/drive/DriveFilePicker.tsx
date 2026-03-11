@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Folder, FileText, ChevronRight, Loader2 } from "lucide-react";
+import { Folder, FileText, ChevronRight } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import {
@@ -112,7 +113,7 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
         <div className="flex-1 overflow-y-auto -mx-4 sm:-mx-6 px-4 sm:px-6 min-h-[200px]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+              <Spinner size="md" />
             </div>
           ) : !selectedFolder ? (
             folders.length === 0 ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, lazy, useMemo, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { PluginDefinition, emitPluginEvent } from "@/lib/plugins";
 import { usePlugin } from "@/lib/plugins/context";
 import { PluginErrorBoundary } from "./PluginErrorBoundary";
@@ -15,7 +15,7 @@ function PluginLoadingFallback({ displayName }: { displayName: string }) {
   return (
     <div className="flex items-center justify-center h-full min-h-[400px]">
       <div className="text-center">
-        <Loader2 className="h-10 w-10 animate-spin text-primary-500 mx-auto mb-4" />
+        <Spinner className="mx-auto mb-4" />
         <p className="text-muted-foreground font-medium">
           Loading {displayName}...
         </p>

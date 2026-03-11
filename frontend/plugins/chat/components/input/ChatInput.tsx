@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Paperclip, ArrowUp, Loader2, X } from "lucide-react";
+import { Paperclip, ArrowUp, X } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
@@ -137,7 +138,7 @@ export function ChatInput({
         {/* Loading indicator for Drive file download */}
         {isLoadingDriveFile && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground bg-surface-variant">
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Spinner size="sm" />
             <span>Downloading file from Google Drive...</span>
           </div>
         )}

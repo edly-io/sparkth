@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Settings,
-  Loader2,
   ChevronDown,
   LogOut,
   User as UserIcon,
@@ -15,6 +14,7 @@ import {
 import { ComponentType } from "react";
 import { useEnabledPlugins } from "@/lib/plugins/context";
 import Image from "next/image";
+import { Spinner } from "@/components/Spinner";
 import { SparkthLogo } from "./SparkthLogo";
 import { Button } from "@/components/ui/Button";
 import {
@@ -159,7 +159,7 @@ export default function AppSidebar({
       <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-            <Loader2 className="w-6 h-6 text-muted animate-spin mb-2" />
+            <Spinner size="md" className="text-muted mb-2" />
             {!isCollapsed && (
               <p className="text-sm text-muted-foreground">
                 Loading plugins...
