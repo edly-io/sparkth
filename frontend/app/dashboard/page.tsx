@@ -3,6 +3,7 @@
 import { useEnabledPlugins } from "@/lib/plugins/context";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 
 export default function DashboardPage() {
   const { plugins, loading } = useEnabledPlugins();
@@ -10,7 +11,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <Spinner />
       </div>
     );
   }

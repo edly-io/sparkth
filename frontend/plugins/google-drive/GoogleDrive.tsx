@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, FolderSync } from "lucide-react";
+import { FolderSync } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import ConnectionStatus from "@/components/drive/ConnectionStatus";
@@ -52,7 +53,7 @@ export default function GoogleDrive() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-primary-500 mx-auto mb-3" />
+          <Spinner className="mx-auto mb-4" />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>

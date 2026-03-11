@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ChatMessage, TextAttachment } from "../../types";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
@@ -18,6 +19,12 @@ export function ChatMessages({
   setPreviewAttachment,
   onSend,
 }: ChatMessagesProps) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
       {messages.map((msg) =>
@@ -40,6 +47,7 @@ export function ChatMessages({
           />
         ),
       )}
+      <div ref={bottomRef} />
     </div>
   );
 }

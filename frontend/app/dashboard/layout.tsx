@@ -9,6 +9,7 @@ import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Menu } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/Button";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -79,7 +80,7 @@ export default function DashboardLayout({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <Spinner />
       </div>
     );
   }

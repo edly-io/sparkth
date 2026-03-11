@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { Spinner } from "@/components/Spinner";
 import SparkthHeader from "@/components/SparkthHeader";
 import { SparkthLogo } from "@/components/SparkthLogo";
 
@@ -20,7 +21,7 @@ export default function Home() {
   if (isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <Spinner />
       </div>
     );
   }

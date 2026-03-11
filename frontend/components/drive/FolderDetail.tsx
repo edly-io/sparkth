@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload, Loader2 } from "lucide-react";
+import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import {
@@ -165,7 +166,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
         <div className="flex-1 overflow-y-auto -mx-4 sm:-mx-6 min-h-[200px]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+              <Spinner size="md" />
             </div>
           ) : files.length === 0 ? (
             <div className="text-center py-12">

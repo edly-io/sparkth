@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MessageSquare, Loader2, Plus } from "lucide-react";
+import { MessageSquare, Plus } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -122,7 +123,7 @@ export function ChatHistorySection({
       <div className="overflow-y-auto max-h-64 px-3 pb-3 space-y-0.5">
         {loading ? (
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            <Spinner size="sm" className="text-muted-foreground" />
           </div>
         ) : conversations.length === 0 ? (
           <p className="text-xs text-muted-foreground px-2 py-3 text-center">
