@@ -41,6 +41,10 @@ dependencies = [
     "cryptography>=46.0.3",
     "langchain-mcp-adapters>=0.2.1",
     "langgraph>=1.0.7",
+    "pymupdf4llm>=1.27.2.1",
+    "docx>=0.2.4",
+    "bs4>=0.0.2",
+    "python-docx>=1.2.0",
 ]
 
 [tool.ruff]
@@ -89,3 +93,6 @@ module = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:importlib._bootstrap",
+]
