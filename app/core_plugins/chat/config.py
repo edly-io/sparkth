@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.plugins.config_base import PluginConfig
@@ -23,5 +23,19 @@ class ChatSystemConfig(BaseSettings):
 
 
 class ChatUserConfig(PluginConfig):
-    provider: str = Field(..., description="LLM provider")
+    provider: str = Field(..., description="LLM provider (openai | anthropic | google)")
     provider_api_key_ref: int = Field(..., description="Reference to stored API key")
+    model: str = Field(
+        default="claude-sonnet-4-20250514",
+        description="Model ID for the selected provider",
+    )
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        from app.core_plugins.chat.providers import get_supported_providers
+
+        supported = get_supported_providers()
+        if v.lower() not in supported:
+            raise ValueError(f"Unsupported provider '{v}'. Supported: {', '.join(supported)}")
+        return v.lower()

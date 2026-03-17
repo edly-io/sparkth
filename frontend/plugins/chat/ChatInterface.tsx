@@ -8,6 +8,7 @@ import { ChatInput } from "./components/input/ChatInput";
 import { ChatMessage, TextAttachment } from "./types";
 import { Preview } from "./components/attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
+import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -33,6 +34,10 @@ interface ApiConversation {
 
 export default function ChatInterface() {
   const { token } = useAuth();
+  const { config: chatConfig } = usePlugin("chat");
+  const provider = (chatConfig.provider as string) || "anthropic";
+  const model =
+    (chatConfig.model as string) || "claude-sonnet-4-20250514";
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationId = searchParams.get("id");
@@ -217,8 +222,8 @@ export default function ChatInterface() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          provider: "anthropic",
-          model: "claude-sonnet-4-20250514",
+          provider,
+          model,
           messages: newUserMessages,
           stream: true,
           tools: "*",
