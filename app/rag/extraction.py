@@ -8,8 +8,10 @@ import io
 from pathlib import Path
 from typing import Any, Optional
 
+import fitz  # type: ignore[import-untyped]  # PyMuPDF
 import pymupdf4llm  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup, Tag
+from bs4.element import NavigableString
 from docx import Document as DocxDocument
 from docx.oxml.ns import qn
 
@@ -41,11 +43,10 @@ class ExtractionResult:
 
 
 def _extract_pdf(data: bytes, source_name: str) -> ExtractionResult:
-    md = pymupdf4llm.to_markdown(
-        doc=io.BytesIO(data),
-        page_chunks=False,
-    )
+    doc = fitz.open(stream=data, filetype="pdf")
+    md = pymupdf4llm.to_markdown(doc=doc, page_chunks=False)
     page_count = md.count("\n-----\n") + 1
+    md = md.replace("\n-----\n", "\n\n")
     return ExtractionResult(
         markdown=md,
         doc_type=DocType.PDF,
@@ -54,7 +55,96 @@ def _extract_pdf(data: bytes, source_name: str) -> ExtractionResult:
     )
 
 
-def _docx_paragraph_to_md(para: Any) -> str:
+_ORDERED_NUM_FMTS = {"decimal", "upperRoman", "lowerRoman", "upperLetter", "lowerLetter"}
+
+
+def _docx_list_prefix(para: Any, num_pr: Any, ordered_counters: dict[tuple[str, str], int]) -> str:
+    try:
+        num_id_el = num_pr.find(qn("w:numId"))
+        ilvl_el = num_pr.find(qn("w:ilvl"))
+        if num_id_el is None:
+            return "-"
+
+        num_id = num_id_el.get(qn("w:val"), "")
+        ilvl = ilvl_el.get(qn("w:val"), "0") if ilvl_el is not None else "0"
+
+        numbering = getattr(getattr(para, "part", None), "numbering_part", None)
+        if numbering is None:
+            return "-"
+
+        all_nums = numbering._element.findall(qn("w:num"))
+        num_el = None
+        for el in all_nums:
+            if el.get(qn("w:numId")) == num_id:
+                num_el = el
+                break
+
+        if num_el is None:
+            return "-"
+
+        abs_id_el = num_el.find(qn("w:abstractNumId"))
+        if abs_id_el is None:
+            return "-"
+        abs_id = abs_id_el.get(qn("w:val"), "")
+
+        all_abs = numbering._element.findall(qn("w:abstractNum"))
+        abs_num_el = None
+        for el in all_abs:
+            if el.get(qn("w:abstractNumId")) == abs_id:
+                abs_num_el = el
+                break
+
+        if abs_num_el is None:
+            return "-"
+
+        lvl_el = None
+        for el in abs_num_el.findall(qn("w:lvl")):
+            if el.get(qn("w:ilvl")) == ilvl:
+                lvl_el = el
+                break
+
+        if lvl_el is None:
+            return "-"
+
+        fmt_el = lvl_el.find(qn("w:numFmt"))
+        num_fmt = fmt_el.get(qn("w:val"), "bullet") if fmt_el is not None else "bullet"
+
+        if num_fmt not in _ORDERED_NUM_FMTS:
+            return "-"
+
+        key = (num_id, ilvl)
+        ordered_counters[key] = ordered_counters.get(key, 0) + 1
+        return f"{ordered_counters[key]}."
+
+    except Exception:
+        return "-"
+
+
+def _resolve_num_pr(para: Any) -> Any | None:
+    """
+    Return the effective w:numPr for a paragraph, checking the paragraph
+    element first and then walking up through the named style chain.
+    python-docx "List Number" / "List Bullet" styles store numPr on the
+    style definition, not on the paragraph element itself.
+    """
+    num_pr = para._element.find(qn("w:numPr"))
+    if num_pr is not None:
+        return num_pr
+
+    style = para.style
+    while style is not None:
+        if style.element is not None:
+            pPr = style.element.find(qn("w:pPr"))
+            if pPr is not None:
+                num_pr = pPr.find(qn("w:numPr"))
+                if num_pr is not None:
+                    return num_pr
+        style = style.base_style  # may be None at the top
+
+    return None
+
+
+def _docx_paragraph_to_md(para: Any, ordered_counters: dict[tuple[str, str], int]) -> str:
     """Convert a single python-docx Paragraph to a Markdown line."""
     style = para.style.name.lower() if para.style and para.style.name else ""
     text = para.text.strip()
@@ -67,10 +157,10 @@ def _docx_paragraph_to_md(para: Any) -> str:
     if prefix:
         return f"{prefix} {text}"
 
-    # List items — python-docx exposes numPr when a paragraph is in a list
-    is_list = para._element.find(qn("w:numPr")) is not None
-    if is_list:
-        return f"- {text}"
+    num_pr = _resolve_num_pr(para)
+    if num_pr is not None:
+        prefix = _docx_list_prefix(para, num_pr, ordered_counters)
+        return f"{prefix} {text}"
 
     # Inline bold/italic — rebuild from runs
     parts: list[str] = []
@@ -116,6 +206,7 @@ def _extract_docx(data: bytes, source_name: str) -> ExtractionResult:
     doc = DocxDocument(io.BytesIO(data))
     lines: list[str] = []
     warnings: list[str] = []
+    ordered_counters: dict[tuple[str, str], int] = {}
 
     body = doc.element.body
 
@@ -126,7 +217,7 @@ def _extract_docx(data: bytes, source_name: str) -> ExtractionResult:
             from docx.text.paragraph import Paragraph
 
             para = Paragraph(child, doc)
-            md = _docx_paragraph_to_md(para)
+            md = _docx_paragraph_to_md(para, ordered_counters)
             if md:
                 lines.append(md)
                 lines.append("")
@@ -159,6 +250,9 @@ _HTML_HEADING_MAP = {
 }
 
 
+_HTML_CONTAINERS = {"div", "section", "article", "main", "header", "footer", "aside"}
+
+
 def _bs_table_to_md(table: Any) -> str:
     """Convert a <table> BeautifulSoup tag to Markdown."""
     rows = table.find_all("tr")
@@ -186,15 +280,58 @@ def _bs_table_to_md(table: Any) -> str:
     return "\n".join(lines)
 
 
-def _extract_html(data: bytes, source_name: str) -> ExtractionResult:
-    soup = BeautifulSoup(data, "html.parser")
-    lines: list[str] = []
-    warnings: list[str] = []
+def _li_direct_text(li: Tag) -> str:
+    """Return only the direct text of a <li>, skipping nested <ul>/<ol> children."""
+    parts: list[str] = []
+    for child in li.children:
+        if isinstance(child, NavigableString):
+            t = str(child).strip()
+            if t:
+                parts.append(t)
+        elif isinstance(child, Tag) and child.name not in ("ul", "ol"):
+            t = child.get_text(" ", strip=True)
+            if t:
+                parts.append(t)
+    return " ".join(parts)
 
-    # Use <body> if present, otherwise the whole document
-    root = soup.body or soup
 
-    for el in root.children:
+def _walk_list(
+    el: Tag,
+    lines: list[str],
+    warnings: list[str],
+    source_name: str,
+    *,
+    ordered: bool,
+    depth: int = 0,
+) -> None:
+    """Render a <ul> or <ol> element, recursing into nested sub-lists."""
+    indent = "  " * depth
+    items = el.find_all("li", recursive=False)
+    for i, li in enumerate(items, start=1):
+        text = _li_direct_text(li)
+        if text:
+            prefix = f"{i}." if ordered else "-"
+            lines.append(f"{indent}{prefix} {text}")
+        for nested in li.find_all(["ul", "ol"], recursive=False):
+            _walk_list(
+                nested,
+                lines,
+                warnings,
+                source_name,
+                ordered=(nested.name == "ol"),
+                depth=depth + 1,
+            )
+    if depth == 0:
+        lines.append("")
+
+
+def _walk_html(node: Tag, lines: list[str], warnings: list[str], source_name: str) -> None:
+    """
+    Recursively walk an HTML tree, transparently descending into container
+    elements (div, section, article, etc.) so that nested content is never
+    silently dropped.
+    """
+    for el in node.children:
         if not isinstance(el, Tag) or not el.name:
             continue
 
@@ -207,11 +344,7 @@ def _extract_html(data: bytes, source_name: str) -> ExtractionResult:
                 lines.append("")
 
         elif name in ("ul", "ol"):
-            for li in el.find_all("li", recursive=False):
-                text = li.get_text(" ", strip=True)
-                if text:
-                    lines.append(f"- {text}")
-            lines.append("")
+            _walk_list(el, lines, warnings, source_name, ordered=(name == "ol"))
 
         elif name == "table":
             md = _bs_table_to_md(el)
@@ -225,6 +358,18 @@ def _extract_html(data: bytes, source_name: str) -> ExtractionResult:
             if text:
                 lines.append(text)
                 lines.append("")
+
+        elif name in _HTML_CONTAINERS:
+            _walk_html(el, lines, warnings, source_name)
+
+
+def _extract_html(data: bytes, source_name: str) -> ExtractionResult:
+    soup = BeautifulSoup(data, "html.parser")
+    lines: list[str] = []
+    warnings: list[str] = []
+
+    root = soup.body or soup
+    _walk_html(root, lines, warnings, source_name)
 
     return ExtractionResult(
         markdown="\n".join(lines),
@@ -245,7 +390,6 @@ def _extract_txt(data: bytes, source_name: str) -> ExtractionResult:
 _DISPATCH = {
     "pdf": _extract_pdf,
     "docx": _extract_docx,
-    "doc": _extract_docx,
     "html": _extract_html,
     "htm": _extract_html,
     "txt": _extract_txt,
