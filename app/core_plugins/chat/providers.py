@@ -440,6 +440,8 @@ PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
     "google": GoogleProvider,
 }
 
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
 PROVIDER_MODELS: dict[str, list[str]] = {
     "openai": [
         "gpt-4o",
@@ -460,6 +462,14 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "gemini-1.5-flash",
     ],
 }
+
+_registry_only = set(PROVIDER_REGISTRY) - set(PROVIDER_MODELS)
+_models_only = set(PROVIDER_MODELS) - set(PROVIDER_REGISTRY)
+if _registry_only or _models_only:
+    raise ValueError(
+        f"PROVIDER_REGISTRY and PROVIDER_MODELS are out of sync. "
+        f"Registry only: {_registry_only}, Models only: {_models_only}"
+    )
 
 
 def get_provider(

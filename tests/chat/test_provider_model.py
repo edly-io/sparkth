@@ -12,8 +12,10 @@ import anthropic
 import httpx
 import openai
 import pytest
+from google.api_core import exceptions as google_exceptions
 
 from app.core_plugins.chat.providers import (
+    DEFAULT_MODEL,
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
     get_models_for_provider,
@@ -146,7 +148,7 @@ class TestChatUserConfig:
         from app.core_plugins.chat.config import ChatUserConfig
 
         cfg = ChatUserConfig(provider="anthropic", provider_api_key_ref=1)
-        assert cfg.model == "claude-sonnet-4-20250514"
+        assert cfg.model == DEFAULT_MODEL
 
     def test_model_can_be_set_explicitly(self) -> None:
         from app.core_plugins.chat.config import ChatUserConfig
@@ -169,6 +171,42 @@ class TestChatUserConfig:
 
         with pytest.raises(ValidationError):
             ChatUserConfig(provider="openai", model="gpt-4o")  # type: ignore[call-arg]
+
+    def test_model_from_wrong_provider_raises_validation_error(self) -> None:
+        from pydantic import ValidationError
+
+        from app.core_plugins.chat.config import ChatUserConfig
+
+        with pytest.raises(ValidationError, match="not available for provider"):
+            ChatUserConfig(provider="openai", provider_api_key_ref=1, model="claude-opus-4-5")
+
+    def test_openai_model_rejected_for_anthropic_provider(self) -> None:
+        from pydantic import ValidationError
+
+        from app.core_plugins.chat.config import ChatUserConfig
+
+        with pytest.raises(ValidationError, match="not available for provider"):
+            ChatUserConfig(provider="anthropic", provider_api_key_ref=1, model="gpt-4o")
+
+    def test_error_message_names_invalid_model_and_provider(self) -> None:
+        from pydantic import ValidationError
+
+        from app.core_plugins.chat.config import ChatUserConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ChatUserConfig(provider="google", provider_api_key_ref=1, model="gpt-4o-mini")
+
+        errors = exc_info.value.errors()
+        assert any("gpt-4o-mini" in str(e) for e in errors)
+        assert any("google" in str(e) for e in errors)
+
+    def test_every_model_is_valid_for_its_own_provider(self) -> None:
+        from app.core_plugins.chat.config import ChatUserConfig
+
+        for provider, models in PROVIDER_MODELS.items():
+            for model in models:
+                cfg = ChatUserConfig(provider=provider, provider_api_key_ref=1, model=model)
+                assert cfg.model == model
 
 
 # ===========================================================================
@@ -246,6 +284,42 @@ class TestStreamingErrorMessage:
         msg = _streaming_error_message(exc)
         assert "network" in msg.lower() or "reach" in msg.lower()
 
+    def test_google_unauthenticated_error(self) -> None:
+        exc = google_exceptions.Unauthenticated("invalid api key")  # type: ignore[no-untyped-call]
+        msg = _streaming_error_message(exc)
+        assert "Invalid API key" in msg
+        assert "Google" in msg
+
+    def test_google_permission_denied_error(self) -> None:
+        exc = google_exceptions.PermissionDenied("forbidden")  # type: ignore[no-untyped-call]
+        msg = _streaming_error_message(exc)
+        assert "permission" in msg.lower()
+        assert "Google" in msg
+
+    def test_google_resource_exhausted_error(self) -> None:
+        exc = google_exceptions.ResourceExhausted("quota exceeded")  # type: ignore[no-untyped-call]
+        msg = _streaming_error_message(exc)
+        assert "rate limit" in msg.lower()
+        assert "Google" in msg
+
+    def test_google_invalid_argument_error(self) -> None:
+        exc = google_exceptions.InvalidArgument("bad request")  # type: ignore[no-untyped-call]
+        msg = _streaming_error_message(exc)
+        assert "rejected" in msg.lower()
+        assert "Google" in msg
+
+    def test_google_service_unavailable_error(self) -> None:
+        exc = google_exceptions.ServiceUnavailable("unavailable")  # type: ignore[no-untyped-call]
+        msg = _streaming_error_message(exc)
+        assert "network" in msg.lower() or "reach" in msg.lower()
+        assert "Google" in msg
+
+    def test_google_generic_api_call_error(self) -> None:
+        exc = google_exceptions.GoogleAPICallError("server error")  # type: ignore[no-untyped-call]
+        msg = _streaming_error_message(exc)
+        assert "Google" in msg
+        assert str(exc.grpc_status_code or "unknown") in msg
+
     def test_runtime_error_returns_generic_message(self) -> None:
         msg = _streaming_error_message(RuntimeError("boom"))
         assert "error occurred" in msg.lower()
@@ -260,6 +334,9 @@ class TestStreamingErrorMessage:
             anthropic.RateLimitError("x", response=_anthropic_response(429), body=None),
             openai.AuthenticationError("x", response=_openai_response(401), body={}),
             openai.RateLimitError("x", response=_openai_response(429), body={}),
+            google_exceptions.Unauthenticated("x"),  # type: ignore[no-untyped-call]
+            google_exceptions.ResourceExhausted("x"),  # type: ignore[no-untyped-call]
+            google_exceptions.GoogleAPICallError("x"),  # type: ignore[no-untyped-call]
             RuntimeError("x"),
         ]
         for exc in errors:

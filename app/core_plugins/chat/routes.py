@@ -6,6 +6,7 @@ import anthropic
 import openai
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from google.api_core import exceptions as google_exceptions
 from langchain_core.exceptions import LangChainException
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -354,6 +355,31 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
+    except (
+        anthropic.AuthenticationError,
+        anthropic.PermissionDeniedError,
+        anthropic.RateLimitError,
+        anthropic.BadRequestError,
+        anthropic.APIStatusError,
+        anthropic.APIConnectionError,
+        openai.AuthenticationError,
+        openai.PermissionDeniedError,
+        openai.RateLimitError,
+        openai.BadRequestError,
+        openai.APIStatusError,
+        openai.APIConnectionError,
+        google_exceptions.Unauthenticated,
+        google_exceptions.PermissionDenied,
+        google_exceptions.ResourceExhausted,
+        google_exceptions.InvalidArgument,
+        google_exceptions.GoogleAPICallError,
+        google_exceptions.ServiceUnavailable,
+    ) as e:
+        logger.error(f"Provider API error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_streaming_error_message(e),
+        )
     except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(
@@ -402,16 +428,53 @@ async def stream_chat_response(
         )
         yield f"data: {data}\n\n"
 
-    except Exception as e:
+    except (
+        anthropic.AuthenticationError,
+        anthropic.PermissionDeniedError,
+        anthropic.RateLimitError,
+        anthropic.BadRequestError,
+        anthropic.APIStatusError,
+        anthropic.APIConnectionError,
+        openai.AuthenticationError,
+        openai.PermissionDeniedError,
+        openai.RateLimitError,
+        openai.BadRequestError,
+        openai.APIStatusError,
+        openai.APIConnectionError,
+        google_exceptions.Unauthenticated,
+        google_exceptions.PermissionDenied,
+        google_exceptions.ResourceExhausted,
+        google_exceptions.InvalidArgument,
+        google_exceptions.GoogleAPICallError,
+        google_exceptions.ServiceUnavailable,
+    ) as e:
         user_message = _streaming_error_message(e)
         logger.error(f"Streaming failed: {e}")
-        await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=user_message,
-            is_error=True,
-        )
+        try:
+            await service.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
+        except SQLAlchemyError:
+            logger.exception("Failed to persist streaming error message")
+        error_data = json.dumps({"error": user_message, "done": True})
+        yield f"data: {error_data}\n\n"
+    except (OSError, LangChainException, SQLAlchemyError) as e:
+        logger.exception(f"Unexpected streaming error: {e}")
+        user_message = "An error occurred while generating a response. Please try again."
+        try:
+            await service.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
+        except SQLAlchemyError:
+            logger.exception("Failed to persist streaming error message")
         error_data = json.dumps({"error": user_message, "done": True})
         yield f"data: {error_data}\n\n"
 
@@ -445,6 +508,20 @@ def _streaming_error_message(exc: Exception) -> str:
         return f"OpenAI API error ({exc.status_code}). Please try again."
     if isinstance(exc, openai.APIConnectionError):
         return "Could not reach OpenAI. Please check your network connection."
+
+    # Google errors
+    if isinstance(exc, google_exceptions.Unauthenticated):
+        return "Invalid API key. Please check your Google API key in Settings."
+    if isinstance(exc, google_exceptions.PermissionDenied):
+        return "Your Google API key does not have permission to use this model."
+    if isinstance(exc, google_exceptions.ResourceExhausted):
+        return "Google API rate limit reached. Please wait a moment and try again."
+    if isinstance(exc, google_exceptions.InvalidArgument):
+        return "The request was rejected by Google. Please try a different message."
+    if isinstance(exc, google_exceptions.ServiceUnavailable):
+        return "Could not reach Google. Please check your network connection."
+    if isinstance(exc, google_exceptions.GoogleAPICallError):
+        return f"Google API error ({exc.grpc_status_code or 'unknown'}). Please try again."
 
     # Generic fallback
     return "An error occurred while generating a response. Please try again."
