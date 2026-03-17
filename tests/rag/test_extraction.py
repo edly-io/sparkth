@@ -1,4 +1,6 @@
 """
+tests/rag/test_extraction.py
+
 Unit tests for app/rag/extraction.py
 Covers: PDF, DOCX, HTML, TXT extraction + public API routing + error handling.
 """
@@ -16,9 +18,15 @@ from app.rag.extraction import (
     _docx_table_to_md,
     _extract_docx,
     _extract_html,
+    _extract_txt,
     extract_to_markdown,
 )
 from app.rag.types import DocType
+
+# import logging
+
+# logging.basicConfig(level=logging.DEBUG)
+
 
 SIMPLE_HTML = b"""
 <html><body>
@@ -104,6 +112,12 @@ class TestExtractHTML:
         assert "- Supervised learning" in result.markdown
         assert "- Unsupervised learning" in result.markdown
 
+    def test_ordered_list_items_rendered_with_numbers(self) -> None:
+        html = b"<html><body><ol><li>First</li><li>Second</li></ol></body></html>"
+        result = _extract_html(html, "doc.html")
+        assert "1. First" in result.markdown
+        assert "2. Second" in result.markdown
+
     def test_table_rendered_as_gfm(self) -> None:
         result = _extract_html(SIMPLE_HTML, "doc.html")
         assert "| Topic |" in result.markdown
@@ -126,10 +140,56 @@ class TestExtractHTML:
         result = _extract_html(b"<html><body></body></html>", "empty.html")
         assert result.markdown.strip() == ""
 
-    def test_navigable_strings_ignored(self) -> None:
+    def test_content_inside_div_not_dropped(self) -> None:
+        html = b"""
+        <html><body>
+          <div>
+            <h2>Nested Heading</h2>
+            <p>Nested paragraph.</p>
+          </div>
+        </body></html>
+        """
+        result = _extract_html(html, "nested.html")
+        assert "## Nested Heading" in result.markdown
+        assert "Nested paragraph." in result.markdown
+
+    def test_deeply_nested_containers_traversed(self) -> None:
+        html = b"""
+        <html><body>
+          <div><section><article>
+            <h3>Deep Heading</h3>
+            <p>Deep content.</p>
+          </article></section></div>
+        </body></html>
+        """
+        result = _extract_html(html, "deep.html")
+        assert "### Deep Heading" in result.markdown
+        assert "Deep content." in result.markdown
+
         html = b"<html><body>  \n  <p>Clean</p>\n  </body></html>"
         result = _extract_html(html, "ws.html")
         assert result.markdown.count("Clean") == 1
+
+
+class TestExtractTXT:
+    def test_content_passed_through_unchanged(self) -> None:
+        result = _extract_txt(TXT_CONTENT, "notes.txt")
+        assert result.markdown == TXT_CONTENT.decode("utf-8")
+
+    def test_doc_type_is_txt(self) -> None:
+        result = _extract_txt(TXT_CONTENT, "notes.txt")
+        assert result.doc_type == DocType.TXT
+
+    def test_invalid_utf8_replaced_not_raised(self) -> None:
+        bad_bytes = b"Hello \xff\xfe world"
+        result = _extract_txt(bad_bytes, "bad.txt")
+        assert "Hello" in result.markdown
+        assert "world" in result.markdown
+
+    def test_md_extension_uses_txt_extractor(self) -> None:
+        result = extract_to_markdown(TXT_CONTENT, "lecture.md")
+        assert result.doc_type == DocType.TXT
+        assert result.markdown == TXT_CONTENT.decode("utf-8")
 
 
 class TestExtractDOCX:
@@ -186,7 +246,23 @@ class TestExtractDOCX:
         assert "| ---" in result.markdown
         assert "| Value 1 |" in result.markdown
 
-    def test_table_warning_emitted(self, table_docx_bytes: Any) -> None:
+    @pytest.fixture()
+    def ordered_list_docx_bytes(self) -> bytes:
+        from docx import Document
+
+        doc = Document()
+
+        for item in ("First", "Second", "Third"):
+            doc.add_paragraph(item, style="List Number")
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+    def test_ordered_list_rendered_with_numbers(self, ordered_list_docx_bytes: bytes, table_docx_bytes: Any) -> None:
+        result = _extract_docx(ordered_list_docx_bytes, "doc.docx")
+        assert "1. First" in result.markdown
+        assert "2. Second" in result.markdown
+        assert "3. Third" in result.markdown
         result = _extract_docx(table_docx_bytes, "table.docx")
         assert any("Table detected" in w for w in result.warnings)
 
