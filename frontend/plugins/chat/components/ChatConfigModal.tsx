@@ -115,10 +115,10 @@ export default function ChatConfigModal({
     (plugin.config?.api_key as string) ?? "",
   );
 
+  const [apiKeyChanged, setApiKeyChanged] = useState<boolean>(false);
+
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // ── Fetch provider catalog when modal opens ─────────────────────────────
 
   const fetchProviders = useCallback(async () => {
     if (!token) return;
@@ -141,42 +141,40 @@ export default function ChatConfigModal({
   useEffect(() => {
     if (open) {
       fetchProviders();
-      // Re-sync fields from plugin config each time the modal opens
       setProvider((plugin.config?.provider as string) ?? "");
       setModel((plugin.config?.model as string) ?? "");
       setApiKey((plugin.config?.api_key as string) ?? "");
+      setApiKeyChanged(false);
       setSubmitError(null);
     }
   }, [open, fetchProviders, plugin.config]);
 
-  // ── Keep model in sync when provider changes ────────────────────────────
-
   const handleProviderChange = (newProvider: string) => {
     setProvider(newProvider);
     const providerInfo = providers.find((p) => p.id === newProvider);
-    // Reset model to first available model for the new provider
     setModel(providerInfo?.models[0] ?? "");
   };
-
-  // ── Derived state ────────────────────────────────────────────────────────
 
   const availableModels =
     providers.find((p) => p.id === provider)?.models ?? [];
 
+  const hasKey = apiKeyChanged || apiKey !== "";
   const canSave =
     !isSaving &&
     !loadingProviders &&
     provider !== "" &&
     model !== "" &&
-    apiKey !== "";
-
-  // ── Save ─────────────────────────────────────────────────────────────────
+    hasKey;
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
       setSubmitError(null);
-      await onSave({ provider, model, api_key: apiKey });
+      const payload: Record<string, string> = { provider, model };
+      if (apiKeyChanged) {
+        payload.api_key = apiKey;
+      }
+      await onSave(payload);
       onRefresh();
       onOpenChange(false);
     } catch {
@@ -185,8 +183,6 @@ export default function ChatConfigModal({
       setIsSaving(false);
     }
   };
-
-  // ── Render ───────────────────────────────────────────────────────────────
 
   const providerOptions = providers.map((p) => ({ value: p.id, label: p.label }));
   const modelOptions = availableModels.map((m) => ({ value: m, label: m }));
@@ -233,7 +229,10 @@ export default function ChatConfigModal({
             type="password"
             placeholder="Enter your API key"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+              setApiKeyChanged(true);
+            }}
             autoComplete="off"
           />
         </div>
