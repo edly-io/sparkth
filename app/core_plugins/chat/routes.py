@@ -2,6 +2,8 @@ import json
 from functools import lru_cache
 from typing import Any
 
+import anthropic
+import openai
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from langchain_core.exceptions import LangChainException
@@ -17,7 +19,7 @@ from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.models import Message, ProviderAPIKey
-from app.core_plugins.chat.providers import BaseChatProvider, get_provider
+from app.core_plugins.chat.providers import BaseChatProvider, get_provider, get_provider_catalog
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -29,6 +31,8 @@ from app.core_plugins.chat.schemas import (
     ProviderAPIKeyCreate,
     ProviderAPIKeyListResponse,
     ProviderAPIKeyResponse,
+    ProviderCatalogResponse,
+    ProviderInfo,
     ToolListResponse,
     ToolSchema,
 )
@@ -52,6 +56,16 @@ def get_chat_service(config: ChatSystemConfig = Depends(get_chat_system_config))
     encryption = get_encryption_service(config.encryption_key)
     cache = get_cache_service(config.redis_url, config.redis_key_ttl)
     return ChatService(encryption, cache)
+
+
+@chat_router.get("/providers", response_model=ProviderCatalogResponse)
+async def list_providers(
+    current_user: User = Depends(get_current_user),
+) -> ProviderCatalogResponse:
+    """Return the catalog of supported providers and their available models."""
+    return ProviderCatalogResponse(
+        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()]
+    )
 
 
 @chat_router.post("/keys", response_model=ProviderAPIKeyResponse, status_code=status.HTTP_201_CREATED)
@@ -388,17 +402,52 @@ async def stream_chat_response(
         )
         yield f"data: {data}\n\n"
 
-    except (RuntimeError, SQLAlchemyError, OSError, LangChainException) as e:
+    except Exception as e:
+        user_message = _streaming_error_message(e)
         logger.error(f"Streaming failed: {e}")
         await service.add_message(
             session=session,
             conversation_id=conversation_id,
             role="assistant",
-            content="An error occurred while generating a response. Please try again.",
+            content=user_message,
             is_error=True,
         )
-        error_data = json.dumps({"error": "Failed to stream LLM's response.", "done": True})
+        error_data = json.dumps({"error": user_message, "done": True})
         yield f"data: {error_data}\n\n"
+
+
+def _streaming_error_message(exc: Exception) -> str:
+    """Map provider API exceptions to concise, user-facing error messages."""
+    # Anthropic errors
+    if isinstance(exc, anthropic.AuthenticationError):
+        return "Invalid API key. Please check your Anthropic API key in Settings."
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return "Your Anthropic API key does not have permission to use this model."
+    if isinstance(exc, anthropic.RateLimitError):
+        return "Anthropic rate limit reached. Please wait a moment and try again."
+    if isinstance(exc, anthropic.BadRequestError):
+        return "The request was rejected by Anthropic. Please try a different message."
+    if isinstance(exc, anthropic.APIStatusError):
+        return f"Anthropic API error ({exc.status_code}). Please try again."
+    if isinstance(exc, anthropic.APIConnectionError):
+        return "Could not reach Anthropic. Please check your network connection."
+
+    # OpenAI errors
+    if isinstance(exc, openai.AuthenticationError):
+        return "Invalid API key. Please check your OpenAI API key in Settings."
+    if isinstance(exc, openai.PermissionDeniedError):
+        return "Your OpenAI API key does not have permission to use this model."
+    if isinstance(exc, openai.RateLimitError):
+        return "OpenAI rate limit reached. Please wait a moment and try again."
+    if isinstance(exc, openai.BadRequestError):
+        return "The request was rejected by OpenAI. Please try a different message."
+    if isinstance(exc, openai.APIStatusError):
+        return f"OpenAI API error ({exc.status_code}). Please try again."
+    if isinstance(exc, openai.APIConnectionError):
+        return "Could not reach OpenAI. Please check your network connection."
+
+    # Generic fallback
+    return "An error occurred while generating a response. Please try again."
 
 
 @chat_router.get("/conversations", response_model=ConversationListResponse)
