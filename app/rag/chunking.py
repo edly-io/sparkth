@@ -76,6 +76,10 @@ def _split(markdown: str, source_name: str) -> list[Chunk]:
     RecursiveCharacterTextSplitter (Layer 3), inheriting the parent's metadata.
     Falls back to a single chunk for documents with no headings.
     """
+    if not markdown.strip():
+        logger.warning("'%s' produced empty markdown — skipping chunking.", source_name)
+        return []
+
     docs = _splitter.split_text(markdown)
 
     if not docs:
