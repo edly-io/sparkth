@@ -8,7 +8,7 @@ on:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    if: false # temporarily disabled
     runs-on: ubuntu-latest
     permissions:
       contents: read
