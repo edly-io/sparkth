@@ -23,11 +23,6 @@ from app.rag.extraction import (
 )
 from app.rag.types import DocType
 
-# import logging
-
-# logging.basicConfig(level=logging.DEBUG)
-
-
 SIMPLE_HTML = b"""
 <html><body>
   <h1>Course Introduction</h1>
