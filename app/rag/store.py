@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import delete, text
+from sqlalchemy import delete, literal
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -97,56 +97,27 @@ class VectorStoreService:
     ) -> list[SimilarityResult]:
         """Find the most similar chunks using cosine similarity.
 
-        Uses pgvector's ``<=>`` (cosine distance) operator.
+        Uses pgvector's ``cosine_distance`` via SQLAlchemy ORM.
         Cosine similarity = 1 - cosine distance.
         """
-        params: dict[str, object] = {
-            "query_embedding": str(query_embedding),
-            "user_id": user_id,
-            "threshold": similarity_threshold,
-            "limit": limit,
-        }
+        distance = DocumentChunk.embedding.cosine_distance(query_embedding)
+        similarity = (literal(1) - distance).label("similarity")
 
-        source_filter = ""
+        stmt = (
+            select(DocumentChunk, similarity)
+            .where(col(DocumentChunk.user_id) == user_id)
+            .where(similarity >= similarity_threshold)
+            .order_by(distance)
+            .limit(limit)
+        )
+
         if source_name is not None:
-            source_filter = "AND source_name = :source_name"
-            params["source_name"] = source_name
+            stmt = stmt.where(col(DocumentChunk.source_name) == source_name)
 
-        stmt = text(f"""
-            SELECT id, user_id, source_name, content, chapter, section, subsection,
-                   embedding_model, embedding_provider, token_count,
-                   created_at, updated_at,
-                   1 - (embedding <=> :query_embedding::vector) AS similarity
-            FROM rag_document_chunks
-            WHERE user_id = :user_id
-              AND 1 - (embedding <=> :query_embedding::vector) >= :threshold
-              {source_filter}
-            ORDER BY embedding <=> :query_embedding::vector
-            LIMIT :limit
-        """)
+        result = await session.execute(stmt)
+        rows = result.all()
 
-        result = await session.execute(stmt, params)
-        rows = result.mappings().all()
-
-        results: list[SimilarityResult] = []
-        for row in rows:
-            chunk = DocumentChunk(
-                id=row["id"],
-                user_id=row["user_id"],
-                source_name=row["source_name"],
-                content=row["content"],
-                chapter=row["chapter"],
-                section=row["section"],
-                subsection=row["subsection"],
-                embedding_model=row["embedding_model"],
-                embedding_provider=row["embedding_provider"],
-                token_count=row["token_count"],
-                created_at=row["created_at"],
-                updated_at=row["updated_at"],
-            )
-            results.append(SimilarityResult(chunk=chunk, similarity=row["similarity"]))
-
-        return results
+        return [SimilarityResult(chunk=row[0], similarity=row[1]) for row in rows]
 
     async def delete_by_source(
         self,
