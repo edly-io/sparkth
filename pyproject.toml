@@ -41,6 +41,9 @@ dependencies = [
     "cryptography>=46.0.3",
     "langchain-mcp-adapters>=0.2.1",
     "langgraph>=1.0.7",
+    "pgvector>=0.4.0",
+    "langchain-huggingface>=0.2.0",
+    "sentence-transformers>=4.1.0",
 ]
 
 [tool.ruff]

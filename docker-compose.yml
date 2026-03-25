@@ -23,7 +23,7 @@ services:
   # Postgres
   # ----------------------------------------
   db:
-    image: docker.io/postgres:18-alpine
+    image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
       POSTGRES_USER: sparkth
