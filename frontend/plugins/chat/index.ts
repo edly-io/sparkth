@@ -8,6 +8,7 @@ export const chatPlugin: PluginDefinition = {
   isCore: true,
 
   loadComponent: () => import("./ChatInterface"),
+  loadSettingsComponent: () => import("./components/ChatConfigModal"),
 
   showInSidebar: true,
   sidebarIcon: PlusIcon,
