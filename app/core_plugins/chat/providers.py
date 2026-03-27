@@ -88,10 +88,18 @@ class StreamingCallbackHandler(AsyncCallbackHandler):
 
 
 class BaseChatProvider(ABC):
-    def __init__(self, api_key: str, model: str, system_prompt: str | None = None, temperature: float = 0.7):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tool_executions: int = 50,
+    ):
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
+        self.max_tool_executions = max_tool_executions
         self._llm: Any = None
         self.system_prompt = system_prompt or get_learning_design_system_prompt()
 
@@ -161,7 +169,7 @@ class BaseChatProvider(ABC):
         langchain_messages.extend(self._convert_messages(messages))
 
         tool_executions = []
-        max_tool_executions = 15
+        max_tool_executions = self.max_tool_executions
         total_executions = 0
         limit_reached = False
 
@@ -331,7 +339,7 @@ class BaseChatProvider(ABC):
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
 
-        max_tool_executions = 15
+        max_tool_executions = self.max_tool_executions
         total_executions = 0
 
         while True:
@@ -434,7 +442,12 @@ PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
 
 
 def get_provider(
-    provider_name: str, api_key: str, model: str, system_prompt: str | None = None, temperature: float = 0.7
+    provider_name: str,
+    api_key: str,
+    model: str,
+    system_prompt: str | None = None,
+    temperature: float = 0.7,
+    max_tool_executions: int = 50,
 ) -> BaseChatProvider:
     """Get a chat provider instance."""
     provider_class = PROVIDER_REGISTRY.get(provider_name.lower())
@@ -443,7 +456,7 @@ def get_provider(
         supported = ", ".join(PROVIDER_REGISTRY.keys())
         raise ValueError(f"Unsupported provider: {provider_name}. Supported providers: {supported}")
 
-    return provider_class(api_key, model, system_prompt, temperature)
+    return provider_class(api_key, model, system_prompt, temperature, max_tool_executions)
 
 
 def get_supported_providers() -> list[str]:

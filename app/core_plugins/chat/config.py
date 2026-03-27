@@ -21,6 +21,8 @@ class ChatSystemConfig(BaseSettings):
     rate_limit_chat_per_minute: int = 10
     rate_limit_concurrent_streams: int = 5
 
+    max_tool_executions: int = 50
+
 
 class ChatUserConfig(PluginConfig):
     provider: str = Field(..., description="LLM provider")
