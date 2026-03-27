@@ -185,6 +185,7 @@ async def chat_completion(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
+    config: ChatSystemConfig = Depends(get_chat_system_config),
 ) -> Any:
     api_key = await service.get_api_key(
         session=session,
@@ -261,6 +262,7 @@ async def chat_completion(
             api_key=api_key,
             model=request.model,
             temperature=request.temperature,
+            max_tool_executions=config.max_tool_executions,
         )
 
         # Use DB messages for history, but replace current batch with original
