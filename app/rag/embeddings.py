@@ -65,11 +65,14 @@ class HuggingFaceEmbeddingProvider(BaseEmbeddingProvider):
     ) -> None:
         self._model = model
         self._dimensions = dims
+        self._cached_embeddings: LCEmbeddings | None = None
 
     def get_embeddings_model(self) -> LCEmbeddings:
-        from langchain_huggingface import HuggingFaceEmbeddings
+        if self._cached_embeddings is None:
+            from langchain_huggingface import HuggingFaceEmbeddings
 
-        return HuggingFaceEmbeddings(model_name=self._model)
+            self._cached_embeddings = HuggingFaceEmbeddings(model_name=self._model)
+        return self._cached_embeddings
 
     @property
     def dimensions(self) -> int:
@@ -96,15 +99,18 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         self._api_key = api_key
         self._model = model
         self._dimensions = dims
+        self._cached_embeddings: LCEmbeddings | None = None
 
     def get_embeddings_model(self) -> LCEmbeddings:
-        from langchain_openai import OpenAIEmbeddings
+        if self._cached_embeddings is None:
+            from langchain_openai import OpenAIEmbeddings
 
-        return OpenAIEmbeddings(  # type: ignore[call-arg]
-            api_key=self._api_key,
-            model=self._model,
-            dimensions=self._dimensions,
-        )
+            self._cached_embeddings = OpenAIEmbeddings(  # type: ignore[call-arg]
+                api_key=self._api_key,
+                model=self._model,
+                dimensions=self._dimensions,
+            )
+        return self._cached_embeddings
 
     @property
     def dimensions(self) -> int:

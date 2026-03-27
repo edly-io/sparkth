@@ -52,6 +52,9 @@ class VectorStoreService:
         """Embed and persist a batch of chunks.
 
         Returns the created ``DocumentChunk`` rows (with IDs populated).
+
+        Note: this method flushes but does not commit. The caller is
+        responsible for committing (or rolling back) the transaction.
         """
         if not chunks:
             return []
@@ -82,7 +85,7 @@ class VectorStoreService:
             "Stored %d chunks for user_id=%d, source='%s'",
             len(rows),
             user_id,
-            chunks[0].source_name if chunks else "?",
+            chunks[0].source_name,
         )
         return rows
 
@@ -107,12 +110,12 @@ class VectorStoreService:
             select(DocumentChunk, similarity)
             .where(col(DocumentChunk.user_id) == user_id)
             .where(similarity >= similarity_threshold)
-            .order_by(distance)
-            .limit(limit)
         )
 
         if source_name is not None:
             stmt = stmt.where(col(DocumentChunk.source_name) == source_name)
+
+        stmt = stmt.order_by(distance).limit(limit)
 
         result = await session.execute(stmt)
         rows = result.all()
@@ -125,7 +128,11 @@ class VectorStoreService:
         user_id: int,
         source_name: str,
     ) -> int:
-        """Delete all chunks for a given source document. Returns count deleted."""
+        """Delete all chunks for a given source document. Returns count deleted.
+
+        Note: this method flushes but does not commit. The caller is
+        responsible for committing (or rolling back) the transaction.
+        """
         stmt = (
             delete(DocumentChunk)
             .where(col(DocumentChunk.user_id) == user_id)
