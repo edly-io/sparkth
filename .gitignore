@@ -219,5 +219,8 @@ __marimo__/
 # Claude Code
 .claude/
 
+# Lefthook
+lefthook.local.yml
+
 # Docker
 data/
