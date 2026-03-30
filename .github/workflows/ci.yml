@@ -22,7 +22,7 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: frontend
 
-      - name: Lint frontend (OxLint)
+      - name: Lint frontend (oxlint)
         run: bun run lint
         working-directory: frontend
 
