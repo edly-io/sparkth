@@ -26,6 +26,10 @@ jobs:
         run: bun run lint
         working-directory: frontend
 
+      - name: Check frontend formatting
+        run: bun run format:check
+        working-directory: frontend
+
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
