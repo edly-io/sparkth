@@ -23,6 +23,9 @@ jobs:
 
       - name: Run React Doctor
         uses: millionco/react-doctor@main
+        env:
+          NO_COLOR: "1"
+          FORCE_COLOR: "0"
         with:
           directory: frontend
           diff: main
