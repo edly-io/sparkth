@@ -49,9 +49,7 @@ export function AssistantMessage({
           <Card variant="outlined" className="p-4 border-error bg-error-50">
             <div className="flex items-start gap-2 text-error-500">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p className="text-sm">
-                {displayText || "Something went wrong. Please try again."}
-              </p>
+              <p className="text-sm">{displayText || "Something went wrong. Please try again."}</p>
             </div>
           </Card>
         ) : (
@@ -60,17 +58,12 @@ export function AssistantMessage({
               <ThinkingDots />
             ) : (
               <div className="prose prose-neutral dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {displayText}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
               </div>
             )}
 
             {!message.isTyping && (
-              <Pill
-                attachment={message.pillAttachment ?? null}
-                onOpen={openPreview}
-              />
+              <Pill attachment={message.pillAttachment ?? null} onOpen={openPreview} />
             )}
 
             {!message.isTyping && message.options && (

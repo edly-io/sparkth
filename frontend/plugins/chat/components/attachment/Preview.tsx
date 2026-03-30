@@ -19,9 +19,7 @@ export function Preview({
           </Button>
         </div>
 
-        <div className="p-4 overflow-y-auto text-sm whitespace-pre-wrap">
-          {attachment.text}
-        </div>
+        <div className="p-4 overflow-y-auto text-sm whitespace-pre-wrap">{attachment.text}</div>
       </div>
     </div>
   );

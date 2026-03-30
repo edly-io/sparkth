@@ -12,10 +12,7 @@ interface HeaderProps {
   logout: () => void;
 }
 
-export default function SparkthHeader({
-  isAuthenticated,
-  logout,
-}: HeaderProps) {
+export default function SparkthHeader({ isAuthenticated, logout }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -32,12 +29,7 @@ export default function SparkthHeader({
           <div className="hidden sm:flex items-center gap-3">
             <ThemeToggle />
             {isAuthenticated ? (
-              <Button
-                variant="error"
-                size="sm"
-                onClick={logout}
-                className="min-h-[44px]"
-              >
+              <Button variant="error" size="sm" onClick={logout} className="min-h-[44px]">
                 Logout
               </Button>
             ) : (
@@ -67,11 +59,7 @@ export default function SparkthHeader({
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              {mobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </Button>
           </div>
         </div>

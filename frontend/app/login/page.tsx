@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  login as loginApi,
-  getGoogleLoginUrl,
-  ApiRequestError,
-} from "@/lib/api";
+import { login as loginApi, getGoogleLoginUrl, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/components/ui/Button";
@@ -84,9 +80,7 @@ export default function LoginPage() {
           <SparkthLogo size={72} />
         </div>
 
-        <h2 className="text-center text-2xl sm:text-3xl font-bold text-foreground mb-2">
-          Log in
-        </h2>
+        <h2 className="text-center text-2xl sm:text-3xl font-bold text-foreground mb-2">Log in</h2>
         <p className="text-center text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
           Welcome Back! Please enter your details
         </p>
@@ -141,9 +135,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-card text-muted-foreground">
-                Or continue with
-              </span>
+              <span className="px-2 bg-card text-muted-foreground">Or continue with</span>
             </div>
           </div>
 

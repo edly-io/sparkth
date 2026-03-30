@@ -56,12 +56,8 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">
-            Invalid URL
-          </h2>
-          <p className="text-muted-foreground mb-4">
-            No plugin name specified.
-          </p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Invalid URL</h2>
+          <p className="text-muted-foreground mb-4">No plugin name specified.</p>
           <Link
             className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
             href="/dashboard"
@@ -93,9 +89,7 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">
-            Plugin Not Found
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Plugin Not Found</h2>
           <p className="text-muted-foreground mb-4">
             No plugin registered with name:{" "}
             <code className="bg-surface-variant px-2 py-1 rounded text-foreground">
@@ -133,9 +127,7 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">
-            Plugin Not Enabled
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Plugin Not Enabled</h2>
           <p className="text-muted-foreground mb-4">
             {pluginDef.displayName} is not enabled for your account.
           </p>

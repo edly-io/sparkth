@@ -1,9 +1,4 @@
-import {
-  PluginDefinition,
-  PluginEvent,
-  PluginEventHandler,
-  PluginEventType,
-} from "./types";
+import { PluginDefinition, PluginEvent, PluginEventHandler, PluginEventType } from "./types";
 
 // ============================================================================
 // Plugin Registry - Singleton pattern for managing plugin registrations
@@ -184,10 +179,7 @@ class PluginRegistry {
         try {
           handler(event);
         } catch (error) {
-          console.error(
-            `Error in plugin event handler for "${event.type}":`,
-            error,
-          );
+          console.error(`Error in plugin event handler for "${event.type}":`, error);
         }
       });
     }
@@ -243,9 +235,7 @@ export function getPluginsByNames(names: string[]): PluginDefinition[] {
   return registry.getByNames(names);
 }
 
-export function getPluginsByCategory(
-  category: PluginDefinition["category"],
-): PluginDefinition[] {
+export function getPluginsByCategory(category: PluginDefinition["category"]): PluginDefinition[] {
   return registry.getByCategory(category);
 }
 
@@ -265,10 +255,7 @@ export function searchPlugins(query: string): PluginDefinition[] {
   return registry.search(query);
 }
 
-export function onPluginEvent(
-  eventType: PluginEventType,
-  handler: PluginEventHandler,
-): () => void {
+export function onPluginEvent(eventType: PluginEventType, handler: PluginEventHandler): () => void {
   return registry.on(eventType, handler);
 }
 

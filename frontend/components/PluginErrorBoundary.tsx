@@ -57,17 +57,13 @@ export class PluginErrorBoundary extends Component<Props, State> {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              Plugin Error
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Plugin Error</h3>
             <p className="text-muted-foreground mb-4">
-              The plugin <strong>{this.props.pluginName}</strong> encountered an
-              error and could not be loaded.
+              The plugin <strong>{this.props.pluginName}</strong> encountered an error and could not
+              be loaded.
             </p>
             {this.state.error && (
-              <p className="text-sm text-muted mb-4 font-mono">
-                {this.state.error.message}
-              </p>
+              <p className="text-sm text-muted mb-4 font-mono">{this.state.error.message}</p>
             )}
             <Button variant="primary" onClick={() => window.location.reload()}>
               Reload Page

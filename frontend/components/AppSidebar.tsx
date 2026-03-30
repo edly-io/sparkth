@@ -17,16 +17,8 @@ import Image from "next/image";
 import { Spinner } from "@/components/Spinner";
 import { SparkthLogo } from "./SparkthLogo";
 import { Button } from "@/components/ui/Button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/Tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
 import { ChatHistorySection } from "../plugins/chat/components/ChatHistorySection";
 
 interface AppSidebarProps {
@@ -57,8 +49,7 @@ export default function AppSidebar({
   const { plugins, loading } = useEnabledPlugins();
 
   const isOnChatPlugin =
-    pathname === `${basePath}/chat` ||
-    pathname?.startsWith(`${basePath}/chat/`);
+    pathname === `${basePath}/chat` || pathname?.startsWith(`${basePath}/chat/`);
   const isCollapsedDesktop = isCollapsed && variant === "desktop";
 
   const isActiveRoute = (pluginName: string) => {
@@ -70,8 +61,7 @@ export default function AppSidebar({
     if (onNavigate) onNavigate();
   };
 
-  const sidebarWidth =
-    variant === "mobile" ? "w-full" : isCollapsed ? "w-16" : "w-64";
+  const sidebarWidth = variant === "mobile" ? "w-full" : isCollapsed ? "w-16" : "w-64";
 
   const handleSidebarClick = (e: React.MouseEvent) => {
     if (isCollapsedDesktop && onToggleCollapse) {
@@ -93,12 +83,7 @@ export default function AppSidebar({
         {variant === "mobile" ? (
           <>
             <SparkthLogo size={32} iconOnly />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNavigate}
-              aria-label="Close sidebar"
-            >
+            <Button variant="ghost" size="icon" onClick={onNavigate} aria-label="Close sidebar">
               <X className="h-5 w-5" />
             </Button>
           </>
@@ -160,11 +145,7 @@ export default function AppSidebar({
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Spinner size="md" className="text-muted mb-2" />
-            {!isCollapsed && (
-              <p className="text-sm text-muted-foreground">
-                Loading plugins...
-              </p>
-            )}
+            {!isCollapsed && <p className="text-sm text-muted-foreground">Loading plugins...</p>}
           </div>
         ) : (
           <>
@@ -252,12 +233,7 @@ export default function AppSidebar({
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            sideOffset={20}
-            className="w-52 p-2"
-          >
+          <PopoverContent side="top" align="start" sideOffset={20} className="w-52 p-2">
             <Link
               href="/profile"
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"

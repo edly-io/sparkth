@@ -19,18 +19,12 @@ export default function DashboardPage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-          Dashboard
-        </h1>
-        <p className="text-muted-foreground mb-8">
-          Manage your enabled plugins
-        </p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Dashboard</h1>
+        <p className="text-muted-foreground mb-8">Manage your enabled plugins</p>
 
         {plugins.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground mb-4">
-              No plugins enabled yet.
-            </p>
+            <p className="text-muted-foreground mb-4">No plugins enabled yet.</p>
             <Link
               href="/dashboard/settings"
               className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"

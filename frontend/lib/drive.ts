@@ -145,7 +145,7 @@ export async function syncFolder(driveFolderId: string, token: string): Promise<
 export async function createFolder(
   name: string,
   parentId: string | undefined,
-  token: string
+  token: string,
 ): Promise<DriveFolder> {
   const response = await fetch(`${API_BASE_URL}/folders`, {
     method: "POST",
@@ -226,11 +226,7 @@ export async function listFiles(folderId: number, token: string): Promise<DriveF
   return response.json();
 }
 
-export async function uploadFile(
-  folderId: number,
-  file: File,
-  token: string
-): Promise<DriveFile> {
+export async function uploadFile(folderId: number, file: File, token: string): Promise<DriveFile> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -267,7 +263,7 @@ export async function downloadFile(fileId: number, token: string): Promise<Blob>
 export async function renameFile(
   fileId: number,
   newName: string,
-  token: string
+  token: string,
 ): Promise<DriveFile> {
   const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
     method: "PATCH",
@@ -302,7 +298,7 @@ export async function deleteFile(fileId: number, token: string): Promise<void> {
 // Browse functions
 export async function browseDrive(
   parentId: string | undefined,
-  token: string
+  token: string,
 ): Promise<{ items: DriveBrowseItem[]; next_page_token?: string }> {
   const params = new URLSearchParams();
   if (parentId) {

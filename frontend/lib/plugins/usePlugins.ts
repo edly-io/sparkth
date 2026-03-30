@@ -53,9 +53,7 @@ export function usePlugins(token: string | null): UsePluginsResult {
 
     try {
       const userPlugins = await fetchUserPlugins(token);
-      const enabledNames = userPlugins
-        .filter((p) => p.enabled)
-        .map((p) => p.plugin_name);
+      const enabledNames = userPlugins.filter((p) => p.enabled).map((p) => p.plugin_name);
 
       const plugins = getPluginsByNames(enabledNames);
       setEnabledPlugins(plugins);
@@ -99,10 +97,7 @@ export function usePlugins(token: string | null): UsePluginsResult {
  * @param pluginName - Name of the plugin
  * @returns Plugin state including definition, config, and enabled status
  */
-export function usePluginState(
-  token: string | null,
-  pluginName: string,
-): UsePluginResult {
+export function usePluginState(token: string | null, pluginName: string): UsePluginResult {
   const [state, setState] = useState<{
     config: PluginConfig;
     isEnabled: boolean;
@@ -129,9 +124,7 @@ export function usePluginState(
 
       try {
         const userPlugins = await fetchUserPlugins(token);
-        const userPlugin = userPlugins.find(
-          (p) => p.plugin_name === pluginName,
-        );
+        const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
 
         setState({
           config: userPlugin?.config || {},
@@ -175,9 +168,7 @@ export function usePluginState(
  * @param token - Authentication token
  * @returns Sidebar plugins sorted by order
  */
-export function useSidebarPlugins(
-  token: string | null,
-): UseSidebarPluginsResult {
+export function useSidebarPlugins(token: string | null): UseSidebarPluginsResult {
   const { enabledPlugins, loading } = usePlugins(token);
 
   const sidebarPlugins = useMemo(() => {
@@ -265,11 +256,7 @@ export function useAllUserPlugins(token: string | null): {
  */
 export function usePluginEvent(
   eventType: PluginEventType,
-  handler: (event: {
-    type: PluginEventType;
-    pluginName: string;
-    payload?: unknown;
-  }) => void,
+  handler: (event: { type: PluginEventType; pluginName: string; payload?: unknown }) => void,
 ): void {
   useEffect(() => {
     const unsubscribe = onPluginEvent(eventType, handler);

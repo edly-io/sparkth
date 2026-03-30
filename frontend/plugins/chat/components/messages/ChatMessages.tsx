@@ -7,10 +7,7 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onSend: (payload: {
-    message: string;
-    attachment: TextAttachment | null;
-  }) => void;
+  onSend: (payload: { message: string; attachment: TextAttachment | null }) => void;
 }
 
 export function ChatMessages({
@@ -41,9 +38,7 @@ export function ChatMessages({
             message={msg}
             setPreviewOpen={setPreviewOpen}
             setPreviewAttachment={setPreviewAttachment}
-            onOptionClick={(text) =>
-              onSend({ message: text, attachment: null })
-            }
+            onOptionClick={(text) => onSend({ message: text, attachment: null })}
           />
         ),
       )}

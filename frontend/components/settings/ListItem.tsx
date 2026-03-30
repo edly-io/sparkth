@@ -37,9 +37,7 @@ export default function PluginListItem({
       else await onEnable();
     } catch (err) {
       console.error(String(err));
-      setToggleError(
-        `Failed to ${plugin.enabled ? "disable" : "enable"} the plugin.`,
-      );
+      setToggleError(`Failed to ${plugin.enabled ? "disable" : "enable"} the plugin.`);
     } finally {
       setIsToggling(false);
     }
@@ -51,9 +49,7 @@ export default function PluginListItem({
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-lg font-semibold text-foreground">
-                {plugin.plugin_name}
-              </h3>
+              <h3 className="text-lg font-semibold text-foreground">{plugin.plugin_name}</h3>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   plugin.enabled
@@ -70,18 +66,12 @@ export default function PluginListItem({
             </p>
 
             {toggleError && (
-              <div className="mt-3 text-sm text-error-600 dark:text-error-400">
-                {toggleError}
-              </div>
+              <div className="mt-3 text-sm text-error-600 dark:text-error-400">{toggleError}</div>
             )}
           </div>
 
           <div className="flex items-center gap-3">
-            <Switch
-              checked={plugin.enabled}
-              onCheckedChange={handleToggle}
-              disabled={isToggling}
-            />
+            <Switch checked={plugin.enabled} onCheckedChange={handleToggle} disabled={isToggling} />
 
             <Button
               variant="ghost"
