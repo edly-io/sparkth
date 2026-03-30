@@ -44,6 +44,9 @@ dependencies = [
     "pgvector>=0.4.0",
     "langchain-huggingface>=0.2.0",
     "sentence-transformers>=4.1.0",
+    "pymupdf4llm>=1.27.2.1",
+    "beautifulsoup4>=4.0",
+    "python-docx>=1.2.0",
 ]
 
 [tool.ruff]
@@ -92,3 +95,6 @@ module = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:importlib._bootstrap",
+]
