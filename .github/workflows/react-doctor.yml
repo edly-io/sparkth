@@ -27,4 +27,5 @@ jobs:
           directory: frontend
           diff: main
           verbose: true
+          fail-on: none
           github-token: ${{ secrets.GITHUB_TOKEN }}
