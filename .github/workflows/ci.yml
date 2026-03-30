@@ -38,13 +38,13 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
-      - name: Check Python formatting (Ruff)
+      - name: Check Python formatting (ruff)
         run: uv run ruff format --check .
 
-      - name: Check Python import sorting (Ruff)
+      - name: Check Python import sorting (ruff)
         run: uv run ruff check --select I .
 
-      - name: Lint Python (Ruff)
+      - name: Lint Python (ruff)
         run: uv run ruff check .
 
       - name: Type check (mypy)
