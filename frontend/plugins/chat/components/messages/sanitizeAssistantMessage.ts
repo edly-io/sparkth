@@ -42,10 +42,7 @@ ${JSON.stringify(params, null, 2)}
   return result;
 }
 
-export function sanitizeAssistantMessage(
-  input: string,
-  options: SanitizeOptions = {},
-): string {
+export function sanitizeAssistantMessage(input: string, options: SanitizeOptions = {}): string {
   const { highlightFunctionCalls = true, normalizeWhitespace = true } = options;
 
   let output = input;
@@ -65,9 +62,7 @@ export function sanitizeAssistantMessage(
   /**
    * 2. Cleanup any remaining tags (safety net)
    */
-  output = output
-    .replace(/<\/?invoke[^>]*>/gi, "")
-    .replace(/<\/?parameter[^>]*>/gi, "");
+  output = output.replace(/<\/?invoke[^>]*>/gi, "").replace(/<\/?parameter[^>]*>/gi, "");
 
   /**
    * 3. Normalize headings

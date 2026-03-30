@@ -94,12 +94,7 @@ export interface PluginMetadata {
   version?: string;
   author?: string;
   isCore?: boolean;
-  category?:
-    | "integration"
-    | "utility"
-    | "communication"
-    | "analytics"
-    | "other";
+  category?: "integration" | "utility" | "communication" | "analytics" | "other";
   icon?: ComponentType<{ className?: string }>;
   tags?: string[];
 }

@@ -158,7 +158,13 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
         </DialogHeader>
 
         <div className="flex items-center justify-end -mt-2">
-          <Button variant="ghost" size="icon" onClick={handleSync} disabled={loading} className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSync}
+            disabled={loading}
+            className="h-8 w-8"
+          >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
@@ -183,10 +189,18 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
               </colgroup>
               <thead>
                 <tr className="border-b border-border">
-                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</th>
-                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Modified</th>
-                  <th className="px-6 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Size
+                  </th>
+                  <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Modified
+                  </th>
+                  <th className="px-6 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -208,32 +222,68 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                             autoFocus
                           />
                         ) : (
-                          <span className="text-sm text-foreground truncate" title={file.name}>{file.name}</span>
+                          <span className="text-sm text-foreground truncate" title={file.name}>
+                            {file.name}
+                          </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatFileSize(file.size)}</td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(file.modified_time)}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                      {formatFileSize(file.size)}
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                      {formatDate(file.modified_time)}
+                    </td>
                     <td className="px-6 py-3 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-1">
                         {editingFileId === file.id ? (
                           <>
-                            <Button variant="ghost" size="sm" onClick={() => handleRename(file)} disabled={actionFileId === file.id}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRename(file)}
+                              disabled={actionFileId === file.id}
+                            >
                               Save
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setEditingFileId(null)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditingFileId(null)}
+                            >
                               Cancel
                             </Button>
                           </>
                         ) : (
                           <>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload(file)} disabled={actionFileId === file.id}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleDownload(file)}
+                              disabled={actionFileId === file.id}
+                            >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingFileId(file.id); setEditName(file.name); }} disabled={actionFileId === file.id}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setEditingFileId(file.id);
+                                setEditName(file.name);
+                              }}
+                              disabled={actionFileId === file.id}
+                            >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-error-500" onClick={() => handleDelete(file)} disabled={actionFileId === file.id}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-error-500"
+                              onClick={() => handleDelete(file)}
+                              disabled={actionFileId === file.id}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </>
@@ -249,8 +299,19 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
 
         <DialogFooter className="!justify-between">
           <div>
-            <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" id="folder-file-upload" />
-            <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()} loading={uploading}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleUpload}
+              className="hidden"
+              id="folder-file-upload"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              loading={uploading}
+            >
               <Upload className="w-4 h-4 mr-2" />
               Upload File
             </Button>

@@ -38,11 +38,8 @@ export default function ChatInterface() {
   const conversationId = searchParams.get("id");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(
-    null,
-  );
-  const [previewAttachment, setPreviewAttachment] =
-    useState<TextAttachment | null>(null);
+  const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
   const [historyState, setHistoryState] = useState<{
     loading: boolean;
     messages: ChatMessage[];
@@ -53,13 +50,10 @@ export default function ChatInterface() {
 
   const { loading: loadingHistory, messages } = historyState;
 
-  const setMessages = (
-    updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
-  ) =>
+  const setMessages = (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) =>
     setHistoryState((prev) => ({
       ...prev,
-      messages:
-        typeof updater === "function" ? updater(prev.messages) : updater,
+      messages: typeof updater === "function" ? updater(prev.messages) : updater,
     }));
 
   useEffect(() => {
@@ -81,8 +75,7 @@ export default function ChatInterface() {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => {
-          if (!r.ok)
-            throw new Error(`Load conversation failed with status ${r.status}`);
+          if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
           return r.json();
         })
         .then((data: ApiConversation) => {
@@ -264,10 +257,7 @@ export default function ChatInterface() {
             const parsed = JSON.parse(payload);
 
             if (parsed.error) {
-              failAssistantMessage(
-                assistantId,
-                parsed.error ?? "An error occurred.",
-              );
+              failAssistantMessage(assistantId, parsed.error ?? "An error occurred.");
               hasError = true;
               streamDone = true;
               break;
@@ -277,9 +267,7 @@ export default function ChatInterface() {
               assistantText += parsed.token;
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === assistantId
-                    ? { ...msg, streamedContent: assistantText }
-                    : msg,
+                  msg.id === assistantId ? { ...msg, streamedContent: assistantText } : msg,
                 ),
               );
             }
@@ -318,8 +306,7 @@ export default function ChatInterface() {
         }
       }
     } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Something went wrong.";
+      const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
       failAssistantMessage(assistantId, errorMsg);
     }
   };
@@ -329,11 +316,7 @@ export default function ChatInterface() {
       <ChatHeader />
       {error && (
         <div className="px-4 pt-4">
-          <Alert
-            severity="error"
-            title="Something went wrong"
-            onClose={() => setError(null)}
-          >
+          <Alert severity="error" title="Something went wrong" onClose={() => setError(null)}>
             {error}
           </Alert>
         </div>

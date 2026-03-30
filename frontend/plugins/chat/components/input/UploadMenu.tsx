@@ -10,7 +10,12 @@ interface UploadMenuProps {
   onPickFromDrive?: () => void;
 }
 
-export function UploadMenu({ onClose, onUploadText, isDriveEnabled, onPickFromDrive }: UploadMenuProps) {
+export function UploadMenu({
+  onClose,
+  onUploadText,
+  isDriveEnabled,
+  onPickFromDrive,
+}: UploadMenuProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>

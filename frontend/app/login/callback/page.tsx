@@ -33,10 +33,7 @@ function ErrorDisplay({ message }: { message: string }) {
         <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 mb-6">
           <p className="text-sm text-red-700 dark:text-red-400">{message}</p>
         </div>
-        <Link
-          href="/login"
-          className="text-primary-600 hover:text-primary-700 font-medium"
-        >
+        <Link href="/login" className="text-primary-600 hover:text-primary-700 font-medium">
           Return to login
         </Link>
       </div>
@@ -66,9 +63,7 @@ function CallbackHandler() {
   }
 
   if (!token || !expiresAt) {
-    return (
-      <ErrorDisplay message="Authentication failed. Missing token information." />
-    );
+    return <ErrorDisplay message="Authentication failed. Missing token information." />;
   }
 
   return <LoadingSpinner />;

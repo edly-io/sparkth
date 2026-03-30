@@ -16,9 +16,7 @@ function PluginLoadingFallback({ displayName }: { displayName: string }) {
     <div className="flex items-center justify-center h-full min-h-[400px]">
       <div className="text-center">
         <Spinner className="mx-auto mb-4" />
-        <p className="text-muted-foreground font-medium">
-          Loading {displayName}...
-        </p>
+        <p className="text-muted-foreground font-medium">Loading {displayName}...</p>
         <p className="text-muted text-sm mt-1">Please wait</p>
       </div>
     </div>
@@ -30,9 +28,7 @@ export default function PluginRenderer({
   pluginDef: overridePluginDef,
 }: PluginRendererProps) {
   const { isEnabled, config, context } = usePlugin(pluginName);
-  const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(
-    overridePluginDef || null,
-  );
+  const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(overridePluginDef || null);
 
   useEffect(() => {
     if (overridePluginDef) {
@@ -117,12 +113,9 @@ export default function PluginRenderer({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            Plugin Disabled
-          </h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Plugin Disabled</h3>
           <p className="text-muted-foreground">
-            The plugin <strong>{pluginDef.displayName}</strong> is currently
-            disabled.
+            The plugin <strong>{pluginDef.displayName}</strong> is currently disabled.
           </p>
         </div>
       </div>
@@ -135,9 +128,7 @@ export default function PluginRenderer({
 
   return (
     <PluginErrorBoundary pluginName={pluginName}>
-      <Suspense
-        fallback={<PluginLoadingFallback displayName={pluginDef.displayName} />}
-      >
+      <Suspense fallback={<PluginLoadingFallback displayName={pluginDef.displayName} />}>
         <PluginComponent config={config} context={context} />
       </Suspense>
     </PluginErrorBoundary>

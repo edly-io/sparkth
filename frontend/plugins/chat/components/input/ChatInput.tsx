@@ -18,10 +18,7 @@ interface ChatInputProps {
   setAttachment: (attachment: TextAttachment | null) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
   setPreviewOpen: (open: boolean) => void;
-  onSend: (payload: {
-    message: string;
-    attachment: TextAttachment | null;
-  }) => void;
+  onSend: (payload: { message: string; attachment: TextAttachment | null }) => void;
 }
 
 export function ChatInput({
@@ -103,7 +100,8 @@ export function ChatInput({
         mediaType,
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to download file from Google Drive";
+      const msg =
+        error instanceof Error ? error.message : "Failed to download file from Google Drive";
       setUploadError(msg);
     } finally {
       setIsLoadingDriveFile(false);
@@ -171,11 +169,7 @@ export function ChatInput({
 
           <div className="flex justify-between mt-2">
             <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowUploadMenu((v) => !v)}
-              >
+              <Button variant="ghost" size="icon" onClick={() => setShowUploadMenu((v) => !v)}>
                 <Paperclip className="w-5 h-5" />
               </Button>
 

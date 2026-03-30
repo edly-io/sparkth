@@ -31,10 +31,7 @@ interface PluginProviderState {
 interface PluginContextValue extends PluginProviderState {
   refreshPlugins: () => Promise<void>;
   getPluginConfig: (pluginName: string) => PluginConfig;
-  updatePluginConfig: (
-    pluginName: string,
-    config: Partial<PluginConfig>,
-  ) => Promise<void>;
+  updatePluginConfig: (pluginName: string, config: Partial<PluginConfig>) => Promise<void>;
   enablePlugin: (pluginName: string) => Promise<void>;
   disablePlugin: (pluginName: string) => Promise<void>;
   isPluginEnabled: (pluginName: string) => boolean;
@@ -53,9 +50,7 @@ const PluginContext = createContext<PluginContextValue | undefined>(undefined);
 
 const API_BASE = "/api/v1";
 
-export async function fetchUserPlugins(
-  token: string,
-): Promise<UserPluginState[]> {
+export async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
   const response = await fetch(`${API_BASE}/user-plugins/`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -76,18 +71,15 @@ async function updatePluginConfigApi(
   config: Record<string, unknown>,
   token: string,
 ): Promise<UserPluginState> {
-  const response = await fetch(
-    `${API_BASE}/user-plugins/${pluginName}/config`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ config }),
+  const response = await fetch(`${API_BASE}/user-plugins/${pluginName}/config`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
     },
-  );
+    body: JSON.stringify({ config }),
+  });
 
   if (!response.ok) {
     const text = await response.text();
@@ -102,16 +94,13 @@ async function togglePluginApi(
   action: "enable" | "disable",
   token: string,
 ): Promise<UserPluginState> {
-  const response = await fetch(
-    `${API_BASE}/user-plugins/${pluginName}/${action}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+  const response = await fetch(`${API_BASE}/user-plugins/${pluginName}/${action}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
-  );
+  });
 
   if (!response.ok) {
     const text = await response.text();
@@ -153,9 +142,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
     try {
       const userPlugins = await fetchUserPlugins(token);
-      const enabledNames = userPlugins
-        .filter((p) => p.enabled)
-        .map((p) => p.plugin_name);
+      const enabledNames = userPlugins.filter((p) => p.enabled).map((p) => p.plugin_name);
       const enabledPlugins = getPluginsByNames(enabledNames);
 
       setState({
@@ -169,8 +156,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error:
-          error instanceof Error ? error.message : "Failed to load plugins",
+        error: error instanceof Error ? error.message : "Failed to load plugins",
       }));
     }
   }, [token]);
@@ -181,9 +167,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
   const getPluginConfig = useCallback(
     (pluginName: string): PluginConfig => {
-      const plugin = state.userPlugins.find(
-        (p) => p.plugin_name === pluginName,
-      );
+      const plugin = state.userPlugins.find((p) => p.plugin_name === pluginName);
       return plugin?.config || {};
     },
     [state.userPlugins],
@@ -243,9 +227,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
   const isPluginEnabled = useCallback(
     (pluginName: string): boolean => {
-      return state.userPlugins.some(
-        (p) => p.plugin_name === pluginName && p.enabled,
-      );
+      return state.userPlugins.some((p) => p.plugin_name === pluginName && p.enabled);
     },
     [state.userPlugins],
   );
@@ -259,10 +241,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
         token,
         updateConfig: (newConfig: Partial<PluginConfig>) =>
           updatePluginConfig(pluginName, newConfig),
-        callApi: async <T = unknown,>(
-          endpoint: string,
-          options?: RequestInit,
-        ): Promise<T> => {
+        callApi: async <T = unknown>(endpoint: string, options?: RequestInit): Promise<T> => {
           const url = endpoint.startsWith("/")
             ? `${API_BASE}${endpoint}`
             : `${API_BASE}/${pluginName}/${endpoint}`;
@@ -311,11 +290,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
     ],
   );
 
-  return (
-    <PluginContext.Provider value={contextValue}>
-      {children}
-    </PluginContext.Provider>
-  );
+  return <PluginContext.Provider value={contextValue}>{children}</PluginContext.Provider>;
 }
 
 // ============================================================================
@@ -356,25 +331,17 @@ export function usePlugin(pluginName: string): {
   context: IPluginContext;
   updateConfig: (config: Partial<PluginConfig>) => Promise<void>;
 } {
-  const {
-    isPluginEnabled,
-    getPluginConfig,
-    createPluginContext,
-    updatePluginConfig,
-  } = usePluginContext();
+  const { isPluginEnabled, getPluginConfig, createPluginContext, updatePluginConfig } =
+    usePluginContext();
 
   const isEnabled = isPluginEnabled(pluginName);
   const config = getPluginConfig(pluginName);
-  const context = useMemo(
-    () => createPluginContext(pluginName),
-    [pluginName, createPluginContext],
-  );
+  const context = useMemo(() => createPluginContext(pluginName), [pluginName, createPluginContext]);
 
   return {
     isEnabled,
     config,
     context,
-    updateConfig: (newConfig: Partial<PluginConfig>) =>
-      updatePluginConfig(pluginName, newConfig),
+    updateConfig: (newConfig: Partial<PluginConfig>) => updatePluginConfig(pluginName, newConfig),
   };
 }

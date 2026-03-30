@@ -12,9 +12,5 @@ interface SpinnerProps {
 }
 
 export function Spinner({ size = "lg", className = "" }: SpinnerProps) {
-  return (
-    <Loader2
-      className={`${sizeClasses[size]} animate-spin text-primary-500 ${className}`}
-    />
-  );
+  return <Loader2 className={`${sizeClasses[size]} animate-spin text-primary-500 ${className}`} />;
 }
