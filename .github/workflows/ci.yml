@@ -22,11 +22,11 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: frontend
 
-      - name: Lint frontend
+      - name: Lint frontend (OxLint)
         run: bun run lint
         working-directory: frontend
 
-      - name: Check frontend formatting
+      - name: Check frontend formatting (oxfmt)
         run: bun run format:check
         working-directory: frontend
 
@@ -38,16 +38,16 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
-      - name: Check formatting
+      - name: Check Python formatting (Ruff)
         run: uv run ruff format --check .
 
-      - name: Check import sorting
+      - name: Check Python import sorting (Ruff)
         run: uv run ruff check --select I .
 
-      - name: Lint
+      - name: Lint Python (Ruff)
         run: uv run ruff check .
 
-      - name: Type check
+      - name: Type check (mypy)
         run: uv run mypy --strict app/ tests/
 
       - name: Run tests
