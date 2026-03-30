@@ -7,11 +7,7 @@ interface UserMessageProps {
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
 }
 
-export function UserMessage({
-  message,
-  setPreviewOpen,
-  setPreviewAttachment,
-}: UserMessageProps) {
+export function UserMessage({ message, setPreviewOpen, setPreviewAttachment }: UserMessageProps) {
   const openPreview = () => {
     if (!message.attachment) return;
     setPreviewAttachment(message.attachment);

@@ -91,10 +91,7 @@ export default function GoogleDrive() {
       </div>
 
       {showFolderPicker && (
-        <FolderPicker
-          onClose={() => setShowFolderPicker(false)}
-          onFolderSynced={loadData}
-        />
+        <FolderPicker onClose={() => setShowFolderPicker(false)} onFolderSynced={loadData} />
       )}
     </div>
   );

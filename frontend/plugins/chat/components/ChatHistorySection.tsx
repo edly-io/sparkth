@@ -32,10 +32,7 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function ChatHistorySection({
-  isCollapsed,
-  onNavigate,
-}: ChatHistorySectionProps) {
+export function ChatHistorySection({ isCollapsed, onNavigate }: ChatHistorySectionProps) {
   const { token } = useAuth();
   const searchParams = useSearchParams();
   const activeId = searchParams.get("id");
@@ -53,8 +50,7 @@ export function ChatHistorySection({
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => {
-          if (!r.ok)
-            throw new Error(`Failed to load conversations: HTTP ${r.status}`);
+          if (!r.ok) throw new Error(`Failed to load conversations: HTTP ${r.status}`);
           return r.json();
         })
         .then((data) => {
@@ -98,23 +94,14 @@ export function ChatHistorySection({
           Recent chats
         </span>
         <Link href="/dashboard/chat" onClick={onNavigate}>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="New chat"
-            className="h-6 w-6"
-          >
+          <Button variant="ghost" size="icon" title="New chat" className="h-6 w-6">
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </Link>
       </div>
       {error && (
         <div className="px-4 pt-4">
-          <Alert
-            severity="error"
-            title="Something went wrong"
-            onClose={() => setError(null)}
-          >
+          <Alert severity="error" title="Something went wrong" onClose={() => setError(null)}>
             {error}
           </Alert>
         </div>
@@ -126,9 +113,7 @@ export function ChatHistorySection({
             <Spinner size="sm" className="text-muted-foreground" />
           </div>
         ) : conversations.length === 0 ? (
-          <p className="text-xs text-muted-foreground px-2 py-3 text-center">
-            No previous chats
-          </p>
+          <p className="text-xs text-muted-foreground px-2 py-3 text-center">No previous chats</p>
         ) : (
           conversations.map((c) => {
             const isActive = activeId === String(c.id);

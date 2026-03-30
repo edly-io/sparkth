@@ -6,12 +6,9 @@ import { cn } from "@/lib/utils";
 const alertVariants = cva("rounded-lg p-4 flex items-start gap-3", {
   variants: {
     severity: {
-      error:
-        "bg-error-50 text-error-700 dark:bg-error-900/30 dark:text-error-300",
-      warning:
-        "bg-warning-50 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300",
-      success:
-        "bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-300",
+      error: "bg-error-50 text-error-700 dark:bg-error-900/30 dark:text-error-300",
+      warning: "bg-warning-50 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300",
+      success: "bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-300",
       info: "bg-secondary-50 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300",
     },
   },
@@ -20,8 +17,7 @@ const alertVariants = cva("rounded-lg p-4 flex items-start gap-3", {
   },
 });
 
-interface AlertProps
-  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof alertVariants> {
+interface AlertProps extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof alertVariants> {
   title?: string;
   onClose?: () => void;
 }
@@ -29,12 +25,7 @@ interface AlertProps
 export const Alert = forwardRef<HTMLDivElement, AlertProps>(
   ({ className, severity, title, children, onClose, ...props }, ref) => {
     return (
-      <div
-        ref={ref}
-        className={cn(alertVariants({ severity }), className)}
-        role="alert"
-        {...props}
-      >
+      <div ref={ref} className={cn(alertVariants({ severity }), className)} role="alert" {...props}>
         <div className="flex justify-between items-start gap-4 w-full">
           <div className="flex-1">
             {title && <p className="font-semibold mb-1">{title}</p>}

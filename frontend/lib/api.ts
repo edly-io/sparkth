@@ -97,8 +97,7 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
       body: JSON.stringify(data),
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     throw new ApiRequestError({
       message: `Unable to connect to server: ${errorMessage}`,
       fieldErrors: {},
@@ -121,9 +120,7 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
   return response.json();
 }
 
-export async function register(
-  data: RegisterRequest,
-): Promise<RegisterResponse> {
+export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   let response: Response;
 
   try {
@@ -135,8 +132,7 @@ export async function register(
       body: JSON.stringify(data),
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     throw new ApiRequestError({
       message: `Unable to connect to server: ${errorMessage}`,
       fieldErrors: {},
@@ -170,8 +166,7 @@ export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
       },
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     throw new ApiRequestError({
       message: `Unable to connect to server: ${errorMessage}`,
       fieldErrors: {},

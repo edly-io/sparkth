@@ -4,11 +4,7 @@ import { useParams } from "next/navigation";
 import { getPlugin } from "@/lib/plugins";
 import { usePlugin } from "@/lib/plugins/context";
 
-export default function PluginLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PluginLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const pluginName = params?.pluginName as string;
 

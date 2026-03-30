@@ -30,9 +30,7 @@ export function PluginConfigModal({
   onSave,
   onRefresh,
 }: PluginConfigModalProps) {
-  const [configValues, setConfigValues] = useState<Record<string, string>>(
-    plugin.config ?? {},
-  );
+  const [configValues, setConfigValues] = useState<Record<string, string>>(plugin.config ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -92,9 +90,7 @@ export function PluginConfigModal({
                   value={value}
                   error={errors[key]}
                   onChange={handleConfigChange}
-                  setError={(field, msg) =>
-                    setErrors((prev) => ({ ...prev, [field]: msg }))
-                  }
+                  setError={(field, msg) => setErrors((prev) => ({ ...prev, [field]: msg }))}
                 />
               ))}
             </div>

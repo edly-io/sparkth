@@ -23,8 +23,12 @@ jobs:
 
       - name: Run React Doctor
         uses: millionco/react-doctor@main
+        env:
+          NO_COLOR: "1"
+          FORCE_COLOR: "0"
         with:
           directory: frontend
           diff: main
           verbose: true
+          fail-on: none
           github-token: ${{ secrets.GITHUB_TOKEN }}

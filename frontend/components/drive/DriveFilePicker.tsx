@@ -47,18 +47,21 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
     }
   }, [token]);
 
-  const loadFiles = useCallback(async (folderId: number) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const result = await listFiles(folderId, token);
-      setFiles(result);
-    } catch (error) {
-      console.error("Failed to load files:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const loadFiles = useCallback(
+    async (folderId: number) => {
+      if (!token) return;
+      setLoading(true);
+      try {
+        const result = await listFiles(folderId, token);
+        setFiles(result);
+      } catch (error) {
+        console.error("Failed to load files:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
     loadFolders();
@@ -82,9 +85,7 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
             <GoogleDriveIcon className="w-6 h-6" />
             <DialogTitle>Pick a file from Google Drive</DialogTitle>
           </div>
-          <DialogDescription>
-            Select a file from your synced folders to attach.
-          </DialogDescription>
+          <DialogDescription>Select a file from your synced folders to attach.</DialogDescription>
         </DialogHeader>
 
         <nav className="flex" aria-label="Breadcrumb">
@@ -131,45 +132,47 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
                       <Folder className="h-5 w-5 text-warning-500 shrink-0" />
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm text-foreground">{folder.name}</span>
-                        <span className="text-xs text-muted-foreground">{folder.file_count} files</span>
+                        <span className="text-xs text-muted-foreground">
+                          {folder.file_count} files
+                        </span>
                       </div>
                     </button>
                   </li>
                 ))}
               </ul>
             )
+          ) : files.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              No files in this folder
+            </div>
           ) : (
-            files.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground text-sm">
-                No files in this folder
-              </div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {files.map((file) => (
-                  <li
-                    key={file.id}
-                    className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
-                      <span className="text-sm text-foreground truncate">{file.name}</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onFileSelected({
+            <ul className="divide-y divide-border">
+              {files.map((file) => (
+                <li
+                  key={file.id}
+                  className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
+                    <span className="text-sm text-foreground truncate">{file.name}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      onFileSelected({
                         id: file.id,
                         name: file.name,
                         mime_type: file.mime_type,
                         size: file.size,
-                      })}
-                    >
-                      Select
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )
+                      })
+                    }
+                  >
+                    Select
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </DialogContent>

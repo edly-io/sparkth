@@ -34,7 +34,10 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
 
   const handleRemove = async (folder: DriveFolder) => {
     if (!token) return;
-    if (!confirm(`Remove "${folder.name}" from Sparkth? This won't delete files from Google Drive.`)) return;
+    if (
+      !confirm(`Remove "${folder.name}" from Sparkth? This won't delete files from Google Drive.`)
+    )
+      return;
 
     setLoadingId(folder.id);
     try {
@@ -89,13 +92,16 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
                     <p className="text-sm font-medium text-foreground">{folder.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {folder.file_count} file{folder.file_count !== 1 ? "s" : ""}
-                      {folder.last_synced_at && ` \u2022 Last synced ${formatDate(folder.last_synced_at)}`}
+                      {folder.last_synced_at &&
+                        ` \u2022 Last synced ${formatDate(folder.last_synced_at)}`}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getSyncStatusStyles(folder.sync_status)}`}>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getSyncStatusStyles(folder.sync_status)}`}
+                  >
                     {folder.sync_status}
                   </span>
 
@@ -106,7 +112,9 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
                     disabled={loadingId === folder.id}
                     className="h-8 w-8"
                   >
-                    <RefreshCw className={`h-4 w-4 ${loadingId === folder.id ? "animate-spin" : ""}`} />
+                    <RefreshCw
+                      className={`h-4 w-4 ${loadingId === folder.id ? "animate-spin" : ""}`}
+                    />
                   </Button>
 
                   <Button

@@ -9,6 +9,7 @@ The plugin system is designed to be:
 - Route-based
 
 ## Plugin Directory
+
 All plugins live under:
 
     plugins/
@@ -24,6 +25,7 @@ Create a new folder using the plugin’s **kebab-case** name:
     plugins/example-plugin/
 
 ## 2. Create the Plugin UI Component
+
 Inside the new plugin directory, create a React component that represents the plugin’s UI.
 
 **File**
@@ -57,6 +59,7 @@ export default function ExamplePlugin() {
 Each plugin must export a `PluginDefinition` from its own `index.ts`.
 
 **Example Plugin Structure**
+
 ```
 plugins/
  └─ chat/
@@ -109,9 +112,9 @@ Expose the plugin from the plugins barrel file.
     plugins/index.ts
 
 ```ts
-export * from "./chat";  // already existing
+export * from "./chat"; // already existing
 
-// your plugin export goes here 
+// your plugin export goes here
 export * from "./example-plugin";
 ```
 
@@ -129,25 +132,23 @@ Register the plugin with the plugin registry.
 import { registerPlugin } from "./registry";
 import { chatPlugin, examplePlugin } from "@/plugins";
 
-
 registerPlugin(chatPlugin); // already existing
 
-// your plugin registration goes here 
+// your plugin registration goes here
 registerPlugin(examplePlugin);
 
 export * from "./registry";
 export * from "./types";
 export * from "./usePlugins";
 ```
-> ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
 
+> ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
 
 ## 6. Add the Plugin Route
 
 Each plugin is rendered under:
 
     dashboard/<pluginName>
-
 
 Add a dynamic route for the plugin.
 
@@ -202,6 +203,7 @@ Rendered plugin UI
 - Ensure it’s registered in `lib/plugins/index.ts`
 
 **Plugin page blank?**
+
 - Check `loadComponent` path
 - Ensure component is a default export
 - Ensure route param matches plugin name

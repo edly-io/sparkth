@@ -1,0 +1,20 @@
+pre-commit:
+  parallel: true
+  commands:
+    python-format:
+      glob: "**/*.py"
+      run: uv run ruff format --check {staged_files}
+
+    python-lint:
+      glob: "**/*.py"
+      run: uv run ruff check --select I {staged_files} && uv run ruff check {staged_files}
+
+    frontend-format:
+      root: "frontend/"
+      glob: "**/*.{js,jsx,ts,tsx}"
+      run: bunx oxfmt --check {staged_files}
+
+    frontend-lint:
+      root: "frontend/"
+      glob: "**/*.{js,jsx,ts,tsx}"
+      run: bunx oxlint {staged_files}

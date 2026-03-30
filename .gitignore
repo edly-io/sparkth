@@ -220,5 +220,8 @@ __marimo__/
 .claude/*
 !.claude/docs/
 
+# Lefthook
+lefthook.local.yml
+
 # Docker
 data/
