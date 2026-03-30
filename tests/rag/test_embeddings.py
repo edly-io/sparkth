@@ -78,7 +78,7 @@ class TestOpenAIEmbeddingProvider:
     def test_default_model_and_dimensions(self) -> None:
         provider = OpenAIEmbeddingProvider(api_key="sk-test")
         assert provider.model_name == "text-embedding-3-small"
-        assert provider.dimensions == 1536
+        assert provider.dimensions == 384
         assert provider.provider_name == "openai"
 
     def test_custom_params(self) -> None:

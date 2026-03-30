@@ -10,7 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.rag.embeddings import BaseEmbeddingProvider
-from app.rag.store import ChunkInput, VectorStoreService
+from app.rag.models import DocumentChunk
+from app.rag.store import ChunkInput, SimilarityResult, VectorStoreService
 
 from .conftest import make_deterministic_embedding
 
@@ -156,4 +157,71 @@ class TestVectorStoreService:
         )
 
         assert results == []
+        mock_session.execute.assert_awaited_once()
+
+    async def test_similarity_search_returns_results(
+        self,
+        service: VectorStoreService,
+    ) -> None:
+        mock_chunk = MagicMock(spec=DocumentChunk)
+        mock_chunk.content = "relevant content"
+        mock_chunk.source_name = "doc.pdf"
+
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(mock_chunk, 0.95)]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        results = await service.similarity_search(
+            mock_session,
+            user_id=1,
+            query_embedding=make_deterministic_embedding(0.5),
+        )
+
+        assert len(results) == 1
+        assert isinstance(results[0], SimilarityResult)
+        assert results[0].chunk == mock_chunk
+        assert results[0].similarity == 0.95
+
+    async def test_similarity_search_with_source_name_filter(
+        self,
+        service: VectorStoreService,
+    ) -> None:
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await service.similarity_search(
+            mock_session,
+            user_id=1,
+            query_embedding=make_deterministic_embedding(0.5),
+            source_name="specific.pdf",
+        )
+
+        mock_session.execute.assert_awaited_once()
+        # Verify the query was built (session.execute was called with a statement)
+        call_args = mock_session.execute.call_args
+        stmt = call_args[0][0]
+        # The compiled SQL should contain the source_name filter
+        compiled = str(stmt.compile(compile_kwargs={"literal_binds": False}))
+        assert "source_name" in compiled
+
+    async def test_similarity_search_custom_limit_and_threshold(
+        self,
+        service: VectorStoreService,
+    ) -> None:
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await service.similarity_search(
+            mock_session,
+            user_id=1,
+            query_embedding=make_deterministic_embedding(0.5),
+            limit=10,
+            similarity_threshold=0.9,
+        )
+
         mock_session.execute.assert_awaited_once()

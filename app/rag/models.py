@@ -1,6 +1,6 @@
 """Database models for RAG vector storage."""
 
-from typing import Any, Optional
+from typing import Any
 
 from pgvector.sqlalchemy import Vector  # type: ignore[import-untyped]
 from sqlalchemy import Column, Index, Text
@@ -25,7 +25,7 @@ class DocumentChunk(TimestampedModel, table=True):
         ),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
 
     # Source identification
@@ -35,9 +35,9 @@ class DocumentChunk(TimestampedModel, table=True):
     content: str = Field(sa_column=Column(Text, nullable=False))
 
     # Structured metadata (flattened from ChunkMetadata for SQL filtering)
-    chapter: Optional[str] = Field(default=None, max_length=500)
-    section: Optional[str] = Field(default=None, max_length=500)
-    subsection: Optional[str] = Field(default=None, max_length=500)
+    chapter: str | None = Field(default=None, max_length=500)
+    section: str | None = Field(default=None, max_length=500)
+    subsection: str | None = Field(default=None, max_length=500)
 
     # Vector embedding
     embedding: Any = Field(sa_column=Column(Vector(DEFAULT_EMBEDDING_DIMENSIONS), nullable=False))
@@ -47,4 +47,4 @@ class DocumentChunk(TimestampedModel, table=True):
     embedding_provider: str = Field(max_length=50)
 
     # Token count for the chunk
-    token_count: Optional[int] = Field(default=None)
+    token_count: int | None = Field(default=None)

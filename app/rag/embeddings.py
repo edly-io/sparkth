@@ -94,7 +94,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         self,
         api_key: str,
         model: str = "text-embedding-3-small",
-        dims: int = 1536,
+        dims: int = 384,
     ) -> None:
         self._api_key = api_key
         self._model = model

@@ -1,7 +1,6 @@
 """Vector store service for storing and retrieving document chunks."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from sqlalchemy import delete, literal
 from sqlmodel import col, select
@@ -25,10 +24,10 @@ class ChunkInput:
 
     content: str
     source_name: str
-    chapter: Optional[str] = None
-    section: Optional[str] = None
-    subsection: Optional[str] = None
-    token_count: Optional[int] = None
+    chapter: str | None = None
+    section: str | None = None
+    subsection: str | None = None
+    token_count: int | None = None
 
 
 @dataclass
@@ -95,7 +94,7 @@ class VectorStoreService:
         user_id: int,
         query_embedding: list[float],
         limit: int = 5,
-        source_name: Optional[str] = None,
+        source_name: str | None = None,
         similarity_threshold: float = 0.7,
     ) -> list[SimilarityResult]:
         """Find the most similar chunks using cosine similarity.
@@ -150,6 +149,11 @@ class VectorStoreService:
         user_id: int,
     ) -> list[str]:
         """List all distinct source names for a user."""
-        stmt = select(DocumentChunk.source_name).where(col(DocumentChunk.user_id) == user_id).distinct()
+        stmt = (
+            select(DocumentChunk.source_name)
+            .where(col(DocumentChunk.user_id) == user_id)
+            .distinct()
+            .order_by(col(DocumentChunk.source_name))
+        )
         result = await session.execute(stmt)
         return [row[0] for row in result.all()]
