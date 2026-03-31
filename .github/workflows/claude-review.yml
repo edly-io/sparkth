@@ -44,12 +44,14 @@ jobs:
             ## Review Process
 
             1. Start by understanding the full scope of the PR changes
-            2. Check security issues first (highest priority)
-            3. Verify correctness and logic
-            4. Assess performance implications
-            5. Review maintainability and patterns
-            6. Validate test coverage if applicable
-            7. Check documentation completeness
+            2. Check and resolve previously addressed review comments (see "Addressed Review Comments")
+            3. Check security issues first (highest priority)
+            4. Verify correctness and logic
+            5. Assess performance implications
+            6. Review maintainability and patterns
+            7. If PR touches frontend code, check React anti-patterns (see "React Anti-Patterns")
+            8. Validate test coverage if applicable
+            9. Check documentation completeness
 
             ## Code Quality Assessment
 
@@ -87,21 +89,26 @@ jobs:
 
             ## React Anti-Patterns (Frontend)
 
-            - Flag direct DOM manipulation instead of React state
-            - Flag missing or incorrect dependency arrays in useEffect/useMemo/useCallback
-            - Flag state mutations instead of immutable updates
-            - Flag prop drilling where context or composition would be cleaner
-            - Flag unnecessary re-renders (inline objects/functions in JSX, missing memoization)
-            - Flag business logic inside components instead of custom hooks or utility functions
-            - Flag missing cleanup in useEffect (subscriptions, timers, event listeners)
-            - Flag use of array index as key in dynamic lists
+            **Apply this section when the PR diff includes files under `frontend/`.** Read the changed
+            frontend files with the Read tool and check for these patterns:
+
+            - Direct DOM manipulation instead of React state
+            - Missing or incorrect dependency arrays in useEffect/useMemo/useCallback
+            - State mutations instead of immutable updates
+            - Prop drilling where context or composition would be cleaner
+            - Unnecessary re-renders (inline objects/functions in JSX, missing memoization)
+            - Business logic inside components instead of custom hooks or utility functions
+            - Missing cleanup in useEffect (subscriptions, timers, event listeners)
+            - Array index used as key in dynamic lists
 
             ## Addressed Review Comments
 
-            - Check if previous review comments on this PR have been addressed in the latest changes
-            - If a reviewer left feedback and the code was not updated accordingly, flag it as unresolved
-            - **If a previous review comment has been addressed in the current diff, resolve it on the PR**
-            - Verify that requested changes from prior reviews are reflected in the current diff
+            Run `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments`
+            to fetch all review threads. For each unresolved comment:
+            - Check if the requested change is reflected in the current diff
+            - If addressed, resolve the thread: `gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "THREAD_NODE_ID"}) { thread { isResolved } } }'`
+            - If not addressed, flag it as unresolved in your summary
+            - Include a "Previous Review Comments" section in your summary showing which were resolved and which remain open
 
             ## Design & Best Practices
 
@@ -111,6 +118,7 @@ jobs:
             - Proper abstraction levels and coupling analysis
             - TypeScript type safety (frontend)
             - Python type annotations and mypy compliance (backend)
+            - Prefer modern union syntax (`X | None`) over `typing.Optional[X]` (PEP 604)
 
             ## Feedback Guidelines
 
@@ -136,4 +144,4 @@ jobs:
 
           claude_args: |
             --model claude-opus-4-6
-            --allowedTools "Glob,Grep,Read,Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh api:*)"
+            --allowedTools "Glob,Grep,Read,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr edit:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh api:*)"
