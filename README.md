@@ -95,13 +95,13 @@ This allows Claude and other MCP-compatible clients to connect to the MCP server
 
 Once the server is running, you can access the interactive API documentation locally:
 
-* **Swagger UI:** [http://127.0.0.1:7727/docs](http://127.0.0.1:8000/docs)
+* **Swagger UI:** [http://127.0.0.1:7727/docs](http://127.0.0.1:7727/docs)
     * *Best for testing endpoints interactively.*
-* **ReDoc:** [http://127.0.0.1:7727/redoc](http://127.0.0.1:8000/redoc)
+* **ReDoc:** [http://127.0.0.1:7727/redoc](http://127.0.0.1:7727/redoc)
     * *Best for reading documentation structure.*
 
 ## Accessing the frontend
-Frontend files are being served by FastAPI via static files. Go to [http://127.0.0.1:7727/login](http://127.0.0.1:8000/docs) to go to the login page for Sparkth.
+Frontend files are being served by FastAPI via static files. Go to [http://127.0.0.1:7727/login](http://127.0.0.1:7727/login) to go to the login page for Sparkth.
 
 ## Developing/Running the Frontend
 
