@@ -1,14 +1,15 @@
 import asyncio
-import os
 from logging.config import fileConfig
 
-import sqlmodel
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.exc import ProgrammingError
 from sqlmodel import SQLModel
+
 from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.plugins import get_plugin_manager
+
 
 from app.models import *
 
@@ -26,10 +27,21 @@ config.set_main_option("sqlalchemy.url", db_url)
 def import_plugin_models():
     """Import models from all enabled plugins for Alembic to discover."""
     plugin_manager = get_plugin_manager()
-    loaded_plugins = asyncio.run(
-        plugin_manager.load_all_enabled()
-    )
-    
+    try:
+        loaded_plugins = asyncio.run(
+            plugin_manager.load_all_enabled()
+        )
+    except ProgrammingError as e:
+        if "does not exist" in str(e):
+            logger.warning("plugins table not yet created — skipping plugin model import")
+            return
+        raise
+    except Exception as e:
+        if "UndefinedTableError" in type(e).__name__ or "does not exist" in str(e):
+            logger.warning("plugins table not yet created — skipping plugin model import")
+            return
+        raise
+
     # Get models from each plugin
     for plugin_name, plugin in loaded_plugins.items():
         models = plugin.get_models()
