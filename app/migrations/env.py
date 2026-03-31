@@ -2,21 +2,19 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
+from asyncpg.exceptions import UndefinedTableError
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.exc import ProgrammingError
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.models import *  # noqa: F403
 from app.plugins import get_plugin_manager
-
-
-from app.models import *
 
 logger = get_logger(__name__)
 
 settings = get_settings()
-
 
 config = context.config
 db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
@@ -28,16 +26,9 @@ def import_plugin_models():
     """Import models from all enabled plugins for Alembic to discover."""
     plugin_manager = get_plugin_manager()
     try:
-        loaded_plugins = asyncio.run(
-            plugin_manager.load_all_enabled()
-        )
-    except ProgrammingError as e:
-        if "does not exist" in str(e):
-            logger.warning("plugins table not yet created — skipping plugin model import")
-            return
-        raise
-    except Exception as e:
-        if "UndefinedTableError" in type(e).__name__ or "does not exist" in str(e):
+        loaded_plugins = asyncio.run(plugin_manager.load_all_enabled())
+    except (ProgrammingError, UndefinedTableError) as e:
+        if 'relation "plugins" does not exist' in str(e):
             logger.warning("plugins table not yet created — skipping plugin model import")
             return
         raise
@@ -84,7 +75,7 @@ def run_migrations_offline() -> None:
     """
     # Load plugin models before running migrations
     import_plugin_models()
-    
+
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
