@@ -20,7 +20,13 @@ from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.models import Message, ProviderAPIKey
-from app.core_plugins.chat.providers import BaseChatProvider, get_provider, get_provider_catalog
+from app.core_plugins.chat.providers import (
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    BaseChatProvider,
+    get_provider,
+    get_provider_catalog,
+)
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -46,6 +52,28 @@ logger = get_logger(__name__)
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
+_PROVIDER_API_ERRORS = (
+    anthropic.AuthenticationError,
+    anthropic.PermissionDeniedError,
+    anthropic.RateLimitError,
+    anthropic.BadRequestError,
+    anthropic.APIStatusError,
+    anthropic.APIConnectionError,
+    openai.AuthenticationError,
+    openai.PermissionDeniedError,
+    openai.RateLimitError,
+    openai.BadRequestError,
+    openai.APIStatusError,
+    openai.APIConnectionError,
+    google_exceptions.Unauthenticated,
+    google_exceptions.PermissionDenied,
+    google_exceptions.ResourceExhausted,
+    google_exceptions.InvalidArgument,
+    google_exceptions.GoogleAPICallError,
+    google_exceptions.ServiceUnavailable,
+)
+
+
 @lru_cache
 def get_chat_system_config() -> ChatSystemConfig:
     """Dependency to get chat system configuration from environment variables."""
@@ -65,7 +93,9 @@ async def list_providers(
 ) -> ProviderCatalogResponse:
     """Return the catalog of supported providers and their available models."""
     return ProviderCatalogResponse(
-        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()]
+        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()],
+        default_provider=DEFAULT_PROVIDER,
+        default_model=DEFAULT_MODEL,
     )
 
 
@@ -355,26 +385,7 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except (
-        anthropic.AuthenticationError,
-        anthropic.PermissionDeniedError,
-        anthropic.RateLimitError,
-        anthropic.BadRequestError,
-        anthropic.APIStatusError,
-        anthropic.APIConnectionError,
-        openai.AuthenticationError,
-        openai.PermissionDeniedError,
-        openai.RateLimitError,
-        openai.BadRequestError,
-        openai.APIStatusError,
-        openai.APIConnectionError,
-        google_exceptions.Unauthenticated,
-        google_exceptions.PermissionDenied,
-        google_exceptions.ResourceExhausted,
-        google_exceptions.InvalidArgument,
-        google_exceptions.GoogleAPICallError,
-        google_exceptions.ServiceUnavailable,
-    ) as e:
+    except _PROVIDER_API_ERRORS as e:
         logger.error(f"Provider API error: {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -428,26 +439,7 @@ async def stream_chat_response(
         )
         yield f"data: {data}\n\n"
 
-    except (
-        anthropic.AuthenticationError,
-        anthropic.PermissionDeniedError,
-        anthropic.RateLimitError,
-        anthropic.BadRequestError,
-        anthropic.APIStatusError,
-        anthropic.APIConnectionError,
-        openai.AuthenticationError,
-        openai.PermissionDeniedError,
-        openai.RateLimitError,
-        openai.BadRequestError,
-        openai.APIStatusError,
-        openai.APIConnectionError,
-        google_exceptions.Unauthenticated,
-        google_exceptions.PermissionDenied,
-        google_exceptions.ResourceExhausted,
-        google_exceptions.InvalidArgument,
-        google_exceptions.GoogleAPICallError,
-        google_exceptions.ServiceUnavailable,
-    ) as e:
+    except _PROVIDER_API_ERRORS as e:
         user_message = _streaming_error_message(e)
         logger.error(f"Streaming failed: {e}")
         try:

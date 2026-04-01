@@ -35,9 +35,25 @@ interface ApiConversation {
 export default function ChatInterface() {
   const { token } = useAuth();
   const { config: chatConfig } = usePlugin("chat");
-  const provider = (chatConfig?.provider as string | undefined) ?? "anthropic";
-  const model =
-    (chatConfig?.model as string | undefined) ?? "claude-sonnet-4-20250514";
+  const [catalogDefaults, setCatalogDefaults] = useState<{
+    provider: string;
+    model: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/v1/chat/providers", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.default_provider && data?.default_model) {
+          setCatalogDefaults({ provider: data.default_provider, model: data.default_model });
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const provider = (chatConfig?.provider as string | undefined) ?? catalogDefaults?.provider;
+  const model = (chatConfig?.model as string | undefined) ?? catalogDefaults?.model;
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationId = searchParams.get("id");

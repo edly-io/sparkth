@@ -45,10 +45,7 @@ export default function PluginListItem({
       pluginDef
         .loadSettingsComponent()
         .then((mod) =>
-          setCustomSettings(
-            () =>
-              mod.default as unknown as ComponentType<SettingsComponentProps>,
-          ),
+          setCustomSettings(() => mod.default as unknown as ComponentType<SettingsComponentProps>),
         )
         .catch(() => setCustomSettings(null));
     }

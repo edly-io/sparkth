@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Save } from "lucide-react";
+import { ChevronDown, Save } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { UserPluginState } from "@/lib/plugins";
 import { Button } from "@/components/ui/Button";
@@ -55,37 +55,40 @@ function SelectField({
 }: SelectFieldProps) {
   return (
     <div className="w-full">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-foreground mb-1.5"
-      >
+      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-1.5">
         {label}
       </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className={cn(
-          "appearance-none block w-full px-4 py-3 rounded-lg",
-          "text-foreground bg-input",
-          "border-2 border-border",
-          "focus:outline-none focus:border-primary-500",
-          "transition-colors",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
-        )}
-      >
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className={cn(
+            "appearance-none block w-full px-4 py-3 pr-10 rounded-lg",
+            "text-foreground bg-input",
+            "border-2 border-border",
+            "focus:outline-none focus:border-primary-500",
+            "transition-colors",
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+          )}
+        >
+          {placeholder && (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          size={16}
+        />
+      </div>
     </div>
   );
 }
@@ -105,50 +108,56 @@ export default function ChatConfigModal({
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const [provider, setProvider] = useState<string>(
-    (plugin.config?.provider as string) ?? "",
-  );
-  const [model, setModel] = useState<string>(
-    (plugin.config?.model as string) ?? "",
-  );
-  const [apiKey, setApiKey] = useState<string>(
-    (plugin.config?.api_key as string) ?? "",
-  );
+  const [provider, setProvider] = useState<string>((plugin.config?.provider as string) ?? "");
+  const [model, setModel] = useState<string>((plugin.config?.model as string) ?? "");
+  const [apiKey, setApiKey] = useState<string>((plugin.config?.api_key as string) ?? "");
 
   const [apiKeyChanged, setApiKeyChanged] = useState<boolean>(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const fetchProviders = useCallback(async (signal: AbortSignal) => {
-    if (!token) return;
-    setLoadingProviders(true);
-    setFetchError(null);
-    try {
-      const res = await fetch("/api/v1/chat/providers", {
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-      });
-      if (!res.ok) throw new Error(`Failed to load providers (${res.status})`);
-      const data: { providers: ProviderInfo[] } = await res.json();
-      setProviders(data.providers);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setFetchError(err instanceof Error ? err.message : "Could not load providers.");
-    } finally {
-      setLoadingProviders(false);
-    }
-  }, [token]);
+  const fetchProviders = useCallback(
+    async (signal: AbortSignal) => {
+      if (!token) return null;
+      setLoadingProviders(true);
+      setFetchError(null);
+      try {
+        const res = await fetch("/api/v1/chat/providers", {
+          headers: { Authorization: `Bearer ${token}` },
+          signal,
+        });
+        if (!res.ok) throw new Error(`Failed to load providers (${res.status})`);
+        const data: { providers: ProviderInfo[]; default_provider: string; default_model: string } =
+          await res.json();
+        setProviders(data.providers);
+        return data;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return null;
+        setFetchError(err instanceof Error ? err.message : "Could not load providers.");
+        return null;
+      } finally {
+        setLoadingProviders(false);
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
     if (open) {
       const controller = new AbortController();
-      fetchProviders(controller.signal);
-      setProvider((plugin.config?.provider as string) ?? "");
-      setModel((plugin.config?.model as string) ?? "");
+      const configProvider = (plugin.config?.provider as string) ?? "";
+      const configModel = (plugin.config?.model as string) ?? "";
+      setProvider(configProvider);
+      setModel(configModel);
       setApiKey((plugin.config?.api_key as string) ?? "");
       setApiKeyChanged(false);
       setSubmitError(null);
+      fetchProviders(controller.signal).then((data) => {
+        if (!data) return;
+        if (!configProvider) setProvider(data.default_provider);
+        if (!configModel) setModel(data.default_model);
+      });
       return () => controller.abort();
     }
   }, [open, fetchProviders, plugin.config]);
@@ -159,16 +168,10 @@ export default function ChatConfigModal({
     setModel(providerInfo?.models[0] ?? "");
   };
 
-  const availableModels =
-    providers.find((p) => p.id === provider)?.models ?? [];
+  const availableModels = providers.find((p) => p.id === provider)?.models ?? [];
 
   const hasKey = apiKeyChanged || apiKey !== "";
-  const canSave =
-    !isSaving &&
-    !loadingProviders &&
-    provider !== "" &&
-    model !== "" &&
-    hasKey;
+  const canSave = !isSaving && !loadingProviders && provider !== "" && model !== "" && hasKey;
 
   const handleSave = async () => {
     try {
@@ -199,12 +202,8 @@ export default function ChatConfigModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
-          {submitError && (
-            <Alert severity="error">{submitError}</Alert>
-          )}
-          {fetchError && (
-            <Alert severity="error">{fetchError}</Alert>
-          )}
+          {submitError && <Alert severity="error">{submitError}</Alert>}
+          {fetchError && <Alert severity="error">{fetchError}</Alert>}
 
           <SelectField
             id="chat-provider"
@@ -245,12 +244,7 @@ export default function ChatConfigModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!canSave}
-            loading={isSaving}
-            spinnerLabel="Saving"
-          >
+          <Button onClick={handleSave} disabled={!canSave} loading={isSaving} spinnerLabel="Saving">
             <Save className="w-4 h-4 mr-2" />
             Save Changes
           </Button>

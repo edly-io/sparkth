@@ -193,3 +193,5 @@ class ProviderInfo(BaseModel):
 
 class ProviderCatalogResponse(BaseModel):
     providers: list[ProviderInfo]
+    default_provider: str
+    default_model: str

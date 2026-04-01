@@ -440,6 +440,7 @@ PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
     "google": GoogleProvider,
 }
 
+DEFAULT_PROVIDER = "anthropic"
 DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
 PROVIDER_MODELS: dict[str, list[str]] = {
