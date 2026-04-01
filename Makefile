@@ -59,6 +59,8 @@ shell: ## Open shell inside the API container
 
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U sparkth -d sparkth
+migrations:
+	docker compose -f docker-compose.yml up migrations
 
 # --------------------------------------------------
 # User Management (Runs inside Docker)

@@ -1,20 +1,23 @@
 """Google Drive API Endpoints."""
 
+import hashlib
 import logging
 import re
 import urllib.parse
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.config import get_settings
-from app.core.db import get_session
+from app.core.db import async_engine, get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.oauth import (
     decode_state,
@@ -145,6 +148,216 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
 
 
 # ---------------------------------------------------------------------------
+# RAG Pipeline Helper
+# ---------------------------------------------------------------------------
+
+# File extensions the extraction module can handle
+_RAG_SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
+
+
+async def _process_folder_rag(
+    folder: DriveFolder,
+    user_id: int,
+    access_token: str,
+    sync_session: Session,
+) -> None:
+    """Download, extract, chunk, embed and store vectors for all supported files in a folder.
+
+    This is called after a folder sync so that every newly-synced file is
+    automatically processed through the RAG pipeline.  Duplicate files
+    (identified by SHA-256 content hash) are skipped.
+    """
+    from app.rag.chunking import chunk_document
+    from app.rag.embeddings import get_embedding_provider
+    from app.rag.extraction import extract_to_markdown
+    from app.rag.models import DocumentChunk, DriveFileChunkLink
+    from app.rag.store import ChunkInput, VectorStoreService
+
+    files = sync_session.exec(
+        select(DriveFile).where(
+            DriveFile.folder_id == folder.id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    ).all()
+
+    if not files:
+        return
+
+    provider = get_embedding_provider()
+    store = VectorStoreService()
+
+    for drive_file in files:
+        # Skip files already processed successfully
+        if drive_file.rag_status == "ready":
+            continue
+
+        filename = drive_file.name
+        mime_type = drive_file.mime_type or ""
+
+        # Google-native types are exported as PDF by the client
+        if mime_type in GoogleDriveClient.EXPORT_MIME_MAP:
+            if not filename.lower().endswith(".pdf"):
+                filename = f"{filename}.pdf"
+
+        ext = Path(filename).suffix.lower().lstrip(".")
+        if ext not in _RAG_SUPPORTED_EXTENSIONS:
+            logger.debug("Skipping unsupported file type for RAG: %s", filename)
+            continue
+
+        try:
+            # Mark as processing
+            drive_file.rag_status = "processing"
+            drive_file.update_timestamp()
+            sync_session.add(drive_file)
+            sync_session.commit()
+
+            # Download file content from Google Drive
+            async with GoogleDriveClient(access_token) as client:
+                file_bytes = await client.download_file(
+                    drive_file.drive_file_id,
+                    mime_type=drive_file.mime_type,
+                )
+
+            # Compute SHA-256 content hash for the whole file
+            content_hash = hashlib.sha256(file_bytes).hexdigest()
+            drive_file.content_hash = content_hash
+
+            # --- Duplicate document check ---
+            existing_duplicate = sync_session.exec(
+                select(DriveFile).where(
+                    DriveFile.user_id == user_id,
+                    DriveFile.content_hash == content_hash,
+                    DriveFile.rag_status == "ready",
+                    DriveFile.id != drive_file.id,
+                    DriveFile.is_deleted == False,  # noqa: E712
+                )
+            ).first()
+
+            if existing_duplicate:
+                # Identical file already processed — link to its chunks
+                async with AsyncSession(async_engine, expire_on_commit=False) as async_session:
+                    # Chunk IDs from the duplicate file
+                    source_links = await async_session.execute(
+                        select(DriveFileChunkLink.chunk_id).where(
+                            DriveFileChunkLink.drive_file_id == existing_duplicate.id,
+                        )
+                    )
+                    wanted_ids = {row[0] for row in source_links.all()}
+
+                    # Links that already exist for this file (from a previous failed run)
+                    already_linked = await async_session.execute(
+                        select(DriveFileChunkLink.chunk_id).where(
+                            DriveFileChunkLink.drive_file_id == drive_file.id,
+                        )
+                    )
+                    existing_ids = {row[0] for row in already_linked.all()}
+
+                    for chunk_id in wanted_ids - existing_ids:
+                        async_session.add(DriveFileChunkLink(drive_file_id=drive_file.id, chunk_id=chunk_id))
+                    await async_session.commit()
+
+                drive_file.rag_status = "ready"
+                drive_file.update_timestamp()
+                sync_session.add(drive_file)
+                sync_session.commit()
+                logger.info(
+                    "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
+                    filename,
+                    content_hash[:12],
+                    existing_duplicate.name,
+                )
+                continue
+
+            # --- Extract and chunk ---
+            extraction_result = extract_to_markdown(file_bytes, filename)
+            chunks = chunk_document(extraction_result)
+
+            if not chunks:
+                drive_file.rag_status = "ready"
+                drive_file.update_timestamp()
+                sync_session.add(drive_file)
+                sync_session.commit()
+                continue
+
+            # Compute per-chunk content hashes
+            chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
+
+            async with AsyncSession(async_engine, expire_on_commit=False) as async_session:
+                # Batch-lookup which chunk hashes already exist in the DB
+                existing_rows = await async_session.execute(
+                    select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
+                        DocumentChunk.user_id == user_id,
+                        DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
+                    )
+                )
+                existing_hash_to_id: dict[str, int] = {
+                    row.chunk_content_hash: row.id
+                    for row in existing_rows.all()  # type: ignore[union-attr]
+                }
+
+                # Split chunks into new (need embedding) vs existing (just link)
+                new_chunk_inputs: list[ChunkInput] = []
+                reused_chunk_ids: list[int] = []
+
+                for chunk, chunk_hash in zip(chunks, chunk_hashes):
+                    if chunk_hash in existing_hash_to_id:
+                        reused_chunk_ids.append(existing_hash_to_id[chunk_hash])
+                        logger.debug(
+                            "Duplicate chunk (hash=%s) in '%s' — reusing existing.",
+                            chunk_hash[:12],
+                            filename,
+                        )
+                    else:
+                        new_chunk_inputs.append(
+                            ChunkInput(
+                                content=chunk.content,
+                                source_name=chunk.metadata.source_name,
+                                chapter=chunk.metadata.chapter,
+                                section=chunk.metadata.section,
+                                subsection=chunk.metadata.subsection,
+                                chunk_content_hash=chunk_hash,
+                            )
+                        )
+
+                # Embed and store only the new chunks
+                new_rows = await store.store_chunks(async_session, user_id, new_chunk_inputs, provider)
+
+                # Create bridge table links for all chunks (new + reused)
+                all_chunk_ids = {row.id for row in new_rows} | set(reused_chunk_ids)
+
+                # Exclude links that already exist (from a previous failed run)
+                already_linked = await async_session.execute(
+                    select(DriveFileChunkLink.chunk_id).where(
+                        DriveFileChunkLink.drive_file_id == drive_file.id,
+                    )
+                )
+                existing_ids = {row[0] for row in already_linked.all()}
+
+                for chunk_id in all_chunk_ids - existing_ids:
+                    async_session.add(DriveFileChunkLink(drive_file_id=drive_file.id, chunk_id=chunk_id))
+                await async_session.commit()
+
+            drive_file.rag_status = "ready"
+            drive_file.update_timestamp()
+            sync_session.add(drive_file)
+            sync_session.commit()
+
+            logger.info(
+                "RAG processing complete for '%s': %d new chunks embedded, %d reused.",
+                filename,
+                len(new_chunk_inputs),
+                len(reused_chunk_ids),
+            )
+
+        except Exception:
+            logger.exception("RAG processing failed for '%s'", drive_file.name)
+            drive_file.rag_status = "failed"
+            drive_file.update_timestamp()
+            sync_session.add(drive_file)
+            sync_session.commit()
+
+
+# ---------------------------------------------------------------------------
 # OAuth Endpoints
 # ---------------------------------------------------------------------------
 
@@ -179,7 +392,7 @@ async def oauth_callback(
         user_id = state_data["user_id"]
     except SignatureExpired:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again.")
-    except (BadSignature, KeyError, ValueError, TypeError):
+    except BadSignature, KeyError, ValueError, TypeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.")
 
     client_id, client_secret, redirect_uri = get_drive_credentials()
@@ -211,7 +424,7 @@ async def oauth_callback(
             token_data["expires_in"],
             token_data.get("scope", ""),
         )
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save tokens.",
@@ -260,7 +473,7 @@ async def get_connection_status(
             email=user_info.get("email"),
             expires_at=token_record.token_expiry,
         )
-    except (ValueError, HTTPException):
+    except ValueError, HTTPException:
         return ConnectionStatusResponse(connected=False)
 
 
@@ -347,6 +560,9 @@ async def sync_folder(
 
     # Fetch files immediately so the folder isn't empty
     file_count = await _sync_folder_files(session, folder, user_id, access_token)
+
+    # Trigger RAG pipeline for all supported files in the folder
+    await _process_folder_rag(folder, user_id, access_token, session)
 
     return DriveFolderResponse(
         id=folder.id,  # type: ignore[arg-type]
@@ -502,6 +718,9 @@ async def refresh_folder(
 
     try:
         await _sync_folder_files(session, folder, user_id, access_token)
+
+        # Trigger RAG pipeline for all supported files in the folder
+        await _process_folder_rag(folder, user_id, access_token, session)
 
         return SyncStatusResponse(
             folder_id=folder.id,  # type: ignore[arg-type]

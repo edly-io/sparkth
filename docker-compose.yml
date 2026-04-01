@@ -30,7 +30,7 @@ services:
       POSTGRES_PASSWORD: sparkth_password
       POSTGRES_DB: sparkth
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
   # ----------------------------------------
   # Redis
@@ -48,6 +48,8 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+    volumes:
+      - ./app:/app/app
     command: >
       sh -c "
       echo '⏳ Waiting for DB...' &&
