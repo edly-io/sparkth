@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, TypedDict
 from uuid import UUID
 
+import httpx
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.exceptions import LangChainException
@@ -95,11 +96,13 @@ class BaseChatProvider(ABC):
         system_prompt: str | None = None,
         temperature: float = 0.7,
         max_tool_executions: int = 50,
+        max_retries: int = 2,
     ):
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
         self.max_tool_executions = max_tool_executions
+        self.max_retries = max_retries
         self._llm: Any = None
         self.system_prompt = system_prompt or get_learning_design_system_prompt()
 
@@ -137,7 +140,7 @@ class BaseChatProvider(ABC):
             else:
                 # Use simple invocation for non-tool conversations
                 return await self._send_message_simple(llm, messages)
-        except (LangChainException, ValidationError, ValueError, RuntimeError) as e:
+        except (LangChainException, ValidationError, ValueError, RuntimeError, httpx.RemoteProtocolError) as e:
             logger.error(f"Error in send_message: {e}")
             raise
 
@@ -325,7 +328,7 @@ class BaseChatProvider(ABC):
             async for token in callback.aiter():
                 yield token
             await task
-        except (LangChainException, asyncio.CancelledError, RuntimeError) as e:
+        except (LangChainException, asyncio.CancelledError, RuntimeError, httpx.RemoteProtocolError) as e:
             logger.error(f"Error in stream_message_simple: {e}")
             task.cancel()
             raise
@@ -345,36 +348,40 @@ class BaseChatProvider(ABC):
         while True:
             full_response = None
 
-            async for chunk in llm_with_tools.astream(langchain_messages):
-                # Handle content that might be a list or string
-                content = getattr(chunk, "content", None)
+            try:
+                async for chunk in llm_with_tools.astream(langchain_messages):
+                    # Handle content that might be a list or string
+                    content = getattr(chunk, "content", None)
 
-                if content:
-                    if isinstance(content, str):
-                        yield content
-                    elif isinstance(content, list):
-                        # Handle content blocks (common with Anthropic)
-                        for block in content:
-                            if isinstance(block, dict):
-                                if block.get("type") == "text":
-                                    text = block.get("text", "")
-                                    if text:
-                                        yield text
-                                elif block.get("type") == "text_delta":
-                                    text = block.get("text", "")
-                                    if text:
-                                        yield text
-                            elif isinstance(block, str):
-                                yield block
-                # Accumulate the response for tool call detection
-                if full_response is None:
-                    full_response = chunk
-                else:
-                    try:
-                        full_response = full_response + chunk
-                    except TypeError:
-                        # If chunks can't be added, just keep the latest
+                    if content:
+                        if isinstance(content, str):
+                            yield content
+                        elif isinstance(content, list):
+                            # Handle content blocks (common with Anthropic)
+                            for block in content:
+                                if isinstance(block, dict):
+                                    if block.get("type") == "text":
+                                        text = block.get("text", "")
+                                        if text:
+                                            yield text
+                                    elif block.get("type") == "text_delta":
+                                        text = block.get("text", "")
+                                        if text:
+                                            yield text
+                                elif isinstance(block, str):
+                                    yield block
+                    # Accumulate the response for tool call detection
+                    if full_response is None:
                         full_response = chunk
+                    else:
+                        try:
+                            full_response = full_response + chunk
+                        except TypeError:
+                            # If chunks can't be added, just keep the latest
+                            full_response = chunk
+            except httpx.RemoteProtocolError:
+                logger.warning("httpx.RemoteProtocolError during streaming with tools")
+                raise
             # Check if there are tool calls to execute
             if full_response and hasattr(full_response, "tool_calls") and full_response.tool_calls:
                 langchain_messages.append(full_response)
@@ -409,6 +416,7 @@ class OpenAIProvider(BaseChatProvider):
             temperature=self.temperature,
             streaming=streaming,
             callbacks=callbacks or [],
+            max_retries=self.max_retries,
         )
 
 
@@ -420,6 +428,7 @@ class AnthropicProvider(BaseChatProvider):
             temperature=self.temperature,
             streaming=streaming,
             callbacks=callbacks or [],
+            max_retries=self.max_retries,
         )
 
 
@@ -431,6 +440,7 @@ class GoogleProvider(BaseChatProvider):
             temperature=self.temperature,
             streaming=streaming,
             callbacks=callbacks or [],
+            max_retries=self.max_retries,
         )
 
 
@@ -480,6 +490,7 @@ def get_provider(
     system_prompt: str | None = None,
     temperature: float = 0.7,
     max_tool_executions: int = 50,
+    max_retries: int = 2,
 ) -> BaseChatProvider:
     """Get a chat provider instance."""
     provider_class = PROVIDER_REGISTRY.get(provider_name.lower())
@@ -488,7 +499,7 @@ def get_provider(
         supported = ", ".join(PROVIDER_REGISTRY.keys())
         raise ValueError(f"Unsupported provider: {provider_name}. Supported providers: {supported}")
 
-    return provider_class(api_key, model, system_prompt, temperature, max_tool_executions)
+    return provider_class(api_key, model, system_prompt, temperature, max_tool_executions, max_retries)
 
 
 def get_supported_providers() -> list[str]:
