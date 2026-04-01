@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -92,7 +93,7 @@ class ChatCompletionRequest(BaseModel):
     provider: str = Field(..., examples=["openai"])
     model: str = Field(..., examples=["gpt-4", "claude-3-opus", "gemini-pro"])
     messages: list[ChatMessage] = Field(..., min_length=1)
-    conversation_id: int | None = Field(default=None)
+    conversation_id: UUID | None = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int | None = Field(default=None, gt=0)
     stream: bool = Field(default=False)
@@ -119,7 +120,7 @@ class ChatCompletionRequest(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     message: ChatMessage
-    conversation_id: int
+    conversation_id: UUID
     model: str
     provider: str
     tokens_used: int | None = None
@@ -148,7 +149,7 @@ class MessageResponse(BaseModel):
 
 
 class ConversationResponse(BaseModel):
-    id: int
+    id: UUID
     provider: str
     model: str
     title: str | None
