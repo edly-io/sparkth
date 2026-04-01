@@ -46,6 +46,11 @@ from app.core_plugins.googledrive.types import (
 )
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
+from app.rag.chunking import chunk_document
+from app.rag.embeddings import get_embedding_provider
+from app.rag.extraction import extract_to_markdown
+from app.rag.models import DocumentChunk, DriveFileChunkLink
+from app.rag.store import ChunkInput, VectorStoreService
 
 router: APIRouter = APIRouter()
 logger = logging.getLogger(__name__)
@@ -167,12 +172,6 @@ async def _process_folder_rag(
     automatically processed through the RAG pipeline.  Duplicate files
     (identified by SHA-256 content hash) are skipped.
     """
-    from app.rag.chunking import chunk_document
-    from app.rag.embeddings import get_embedding_provider
-    from app.rag.extraction import extract_to_markdown
-    from app.rag.models import DocumentChunk, DriveFileChunkLink
-    from app.rag.store import ChunkInput, VectorStoreService
-
     files = sync_session.exec(
         select(DriveFile).where(
             DriveFile.folder_id == folder.id,
