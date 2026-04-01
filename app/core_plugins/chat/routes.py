@@ -590,7 +590,7 @@ async def get_conversation(
 
     messages = await service.get_conversation_messages(
         session=session,
-        conversation_id=conversation.id,  # type: ignore[arg-type]
+        conversation_id=conversation.id,  # type: ignore
         limit=limit,
         offset=offset,
     )
