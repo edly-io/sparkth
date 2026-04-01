@@ -2,8 +2,11 @@ import json
 from functools import lru_cache
 from typing import Any
 
+import anthropic
+import openai
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from google.api_core import exceptions as google_exceptions
 from langchain_core.exceptions import LangChainException
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,7 +20,13 @@ from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.models import Message, ProviderAPIKey
-from app.core_plugins.chat.providers import BaseChatProvider, get_provider
+from app.core_plugins.chat.providers import (
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    BaseChatProvider,
+    get_provider,
+    get_provider_catalog,
+)
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -29,6 +38,8 @@ from app.core_plugins.chat.schemas import (
     ProviderAPIKeyCreate,
     ProviderAPIKeyListResponse,
     ProviderAPIKeyResponse,
+    ProviderCatalogResponse,
+    ProviderInfo,
     ToolListResponse,
     ToolSchema,
 )
@@ -39,6 +50,28 @@ from app.models.user import User
 logger = get_logger(__name__)
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
+
+
+_PROVIDER_API_ERRORS = (
+    anthropic.AuthenticationError,
+    anthropic.PermissionDeniedError,
+    anthropic.RateLimitError,
+    anthropic.BadRequestError,
+    anthropic.APIStatusError,
+    anthropic.APIConnectionError,
+    openai.AuthenticationError,
+    openai.PermissionDeniedError,
+    openai.RateLimitError,
+    openai.BadRequestError,
+    openai.APIStatusError,
+    openai.APIConnectionError,
+    google_exceptions.Unauthenticated,
+    google_exceptions.PermissionDenied,
+    google_exceptions.ResourceExhausted,
+    google_exceptions.InvalidArgument,
+    google_exceptions.GoogleAPICallError,
+    google_exceptions.ServiceUnavailable,
+)
 
 
 @lru_cache
@@ -52,6 +85,18 @@ def get_chat_service(config: ChatSystemConfig = Depends(get_chat_system_config))
     encryption = get_encryption_service(config.encryption_key)
     cache = get_cache_service(config.redis_url, config.redis_key_ttl)
     return ChatService(encryption, cache)
+
+
+@chat_router.get("/providers", response_model=ProviderCatalogResponse)
+async def list_providers(
+    current_user: User = Depends(get_current_user),
+) -> ProviderCatalogResponse:
+    """Return the catalog of supported providers and their available models."""
+    return ProviderCatalogResponse(
+        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()],
+        default_provider=DEFAULT_PROVIDER,
+        default_model=DEFAULT_MODEL,
+    )
 
 
 @chat_router.post("/keys", response_model=ProviderAPIKeyResponse, status_code=status.HTTP_201_CREATED)
@@ -340,6 +385,12 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
+    except _PROVIDER_API_ERRORS as e:
+        logger.error(f"Provider API error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=_streaming_error_message(e),
+        )
     except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(
@@ -388,17 +439,84 @@ async def stream_chat_response(
         )
         yield f"data: {data}\n\n"
 
-    except (RuntimeError, SQLAlchemyError, OSError, LangChainException) as e:
+    except _PROVIDER_API_ERRORS as e:
+        user_message = _streaming_error_message(e)
         logger.error(f"Streaming failed: {e}")
-        await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role="assistant",
-            content="An error occurred while generating a response. Please try again.",
-            is_error=True,
-        )
-        error_data = json.dumps({"error": "Failed to stream LLM's response.", "done": True})
+        try:
+            await service.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
+        except SQLAlchemyError:
+            logger.exception("Failed to persist streaming error message")
+        error_data = json.dumps({"error": user_message, "done": True})
         yield f"data: {error_data}\n\n"
+    except (OSError, LangChainException, SQLAlchemyError) as e:
+        logger.exception(f"Unexpected streaming error: {e}")
+        user_message = "An error occurred while generating a response. Please try again."
+        try:
+            await service.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
+        except SQLAlchemyError:
+            logger.exception("Failed to persist streaming error message")
+        error_data = json.dumps({"error": user_message, "done": True})
+        yield f"data: {error_data}\n\n"
+
+
+def _streaming_error_message(exc: Exception) -> str:
+    """Map provider API exceptions to concise, user-facing error messages."""
+    # Anthropic errors
+    if isinstance(exc, anthropic.AuthenticationError):
+        return "Invalid API key. Please check your Anthropic API key in Settings."
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return "Your Anthropic API key does not have permission to use this model."
+    if isinstance(exc, anthropic.RateLimitError):
+        return "Anthropic rate limit reached. Please wait a moment and try again."
+    if isinstance(exc, anthropic.BadRequestError):
+        return "The request was rejected by Anthropic. Please try a different message."
+    if isinstance(exc, anthropic.APIStatusError):
+        return f"Anthropic API error ({exc.status_code}). Please try again."
+    if isinstance(exc, anthropic.APIConnectionError):
+        return "Could not reach Anthropic. Please check your network connection."
+
+    # OpenAI errors
+    if isinstance(exc, openai.AuthenticationError):
+        return "Invalid API key. Please check your OpenAI API key in Settings."
+    if isinstance(exc, openai.PermissionDeniedError):
+        return "Your OpenAI API key does not have permission to use this model."
+    if isinstance(exc, openai.RateLimitError):
+        return "OpenAI rate limit reached. Please wait a moment and try again."
+    if isinstance(exc, openai.BadRequestError):
+        return "The request was rejected by OpenAI. Please try a different message."
+    if isinstance(exc, openai.APIStatusError):
+        return f"OpenAI API error ({exc.status_code}). Please try again."
+    if isinstance(exc, openai.APIConnectionError):
+        return "Could not reach OpenAI. Please check your network connection."
+
+    # Google errors
+    if isinstance(exc, google_exceptions.Unauthenticated):
+        return "Invalid API key. Please check your Google API key in Settings."
+    if isinstance(exc, google_exceptions.PermissionDenied):
+        return "Your Google API key does not have permission to use this model."
+    if isinstance(exc, google_exceptions.ResourceExhausted):
+        return "Google API rate limit reached. Please wait a moment and try again."
+    if isinstance(exc, google_exceptions.InvalidArgument):
+        return "The request was rejected by Google. Please try a different message."
+    if isinstance(exc, google_exceptions.ServiceUnavailable):
+        return "Could not reach Google. Please check your network connection."
+    if isinstance(exc, google_exceptions.GoogleAPICallError):
+        return f"Google API error ({exc.grpc_status_code or 'unknown'}). Please try again."
+
+    # Generic fallback
+    return "An error occurred while generating a response. Please try again."
 
 
 @chat_router.get("/conversations", response_model=ConversationListResponse)

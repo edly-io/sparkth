@@ -183,3 +183,15 @@ class ErrorResponse(BaseModel):
     detail: str
     error_code: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderInfo(BaseModel):
+    id: str
+    label: str
+    models: list[str]
+
+
+class ProviderCatalogResponse(BaseModel):
+    providers: list[ProviderInfo]
+    default_provider: str
+    default_model: str

@@ -1,7 +1,7 @@
 import asyncio
 import json
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, TypedDict
 from uuid import UUID
 
 from langchain_anthropic import ChatAnthropic
@@ -440,6 +440,38 @@ PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
     "google": GoogleProvider,
 }
 
+DEFAULT_PROVIDER = "anthropic"
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+PROVIDER_MODELS: dict[str, list[str]] = {
+    "openai": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o1",
+        "o1-mini",
+        "o3-mini",
+    ],
+    "anthropic": [
+        "claude-opus-4-5",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5",
+        "claude-sonnet-4-20250514",
+    ],
+    "google": [
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+    ],
+}
+
+_registry_only = set(PROVIDER_REGISTRY) - set(PROVIDER_MODELS)
+_models_only = set(PROVIDER_MODELS) - set(PROVIDER_REGISTRY)
+if _registry_only or _models_only:
+    raise ValueError(
+        f"PROVIDER_REGISTRY and PROVIDER_MODELS are out of sync. "
+        f"Registry only: {_registry_only}, Models only: {_models_only}"
+    )
+
 
 def get_provider(
     provider_name: str,
@@ -462,3 +494,19 @@ def get_provider(
 def get_supported_providers() -> list[str]:
     """Get list of supported provider names."""
     return list(PROVIDER_REGISTRY.keys())
+
+
+def get_models_for_provider(provider: str) -> list[str]:
+    """Get the list of available model IDs for a given provider."""
+    return PROVIDER_MODELS.get(provider.lower(), [])
+
+
+class ProviderCatalogEntry(TypedDict):
+    id: str
+    label: str
+    models: list[str]
+
+
+def get_provider_catalog() -> list[ProviderCatalogEntry]:
+    """Return all providers with their available models."""
+    return [{"id": p, "label": p.capitalize(), "models": PROVIDER_MODELS[p]} for p in PROVIDER_REGISTRY]
