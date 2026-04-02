@@ -178,14 +178,6 @@ class ChatService:
         logger.info(f"Created conversation {conversation.id} for user {user_id}")
         return conversation
 
-    async def get_conversation(self, session: AsyncSession, conversation_id: int, user_id: int) -> Conversation | None:
-        statement = select(Conversation).where(
-            Conversation.id == conversation_id,
-            Conversation.user_id == user_id,
-        )
-        result = await session.exec(statement)
-        return result.first()
-
     async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
         statement = select(Conversation).where(
             Conversation.uuid == uuid,

@@ -22,13 +22,16 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column("chat_conversations", sa.Column("uuid", sa.Uuid(), nullable=True))
 
-    # Backfill existing rows
+    # Backfill existing rows in batches
     conn = op.get_bind()
     conversations = conn.execute(sa.text("SELECT id FROM chat_conversations")).fetchall()
-    for row in conversations:
+    batch_size = 500
+    for i in range(0, len(conversations), batch_size):
+        batch = conversations[i : i + batch_size]
+        params = [{"uuid": str(uuid7()), "id": row[0]} for row in batch]
         conn.execute(
             sa.text("UPDATE chat_conversations SET uuid = :uuid WHERE id = :id"),
-            {"uuid": str(uuid7()), "id": row[0]},
+            params,
         )
 
     op.alter_column("chat_conversations", "uuid", nullable=False)
