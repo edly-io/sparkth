@@ -201,9 +201,9 @@ async def _process_single_file(
             )
             return
 
-        # Extract → Chunk
-        extraction_result = extract_to_markdown(file_bytes, filename)
-        chunks = chunk_document(extraction_result)
+        # Extract → Chunk (CPU-bound, run off the event loop)
+        extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
+        chunks = await asyncio.to_thread(chunk_document, extraction_result)
 
         if not chunks:
             await _set_rag_status(session, drive_file, "ready")
@@ -233,6 +233,7 @@ async def _process_single_file(
     except IntegrityError:
         logger.error("RAG processing failed for '%s': database integrity error", drive_file.name)
         await session.rollback()
+        await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, "failed")
 
 
