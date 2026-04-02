@@ -62,3 +62,4 @@ jobs:
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
           SECRET_KEY: secret-key-for-ci
+          CHAT_ENCRYPTION_KEY: Y2ktdGVzdC1jaGF0LWVuY3J5cHRpb24ta2V5LTMyYj0=
