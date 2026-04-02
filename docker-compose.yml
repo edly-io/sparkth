@@ -30,7 +30,7 @@ services:
       POSTGRES_PASSWORD: sparkth_password
       POSTGRES_DB: sparkth
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
 
   # ----------------------------------------
   # Redis

@@ -118,10 +118,7 @@ async def _embed_and_store_chunks(
             DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
         )
     )
-    existing_hash_to_id: dict[str, int] = {
-        row.chunk_content_hash: row.id
-        for row in existing_rows.all()  # type: ignore[union-attr]
-    }
+    existing_hash_to_id: dict[str, int] = {row.chunk_content_hash: row.id for row in existing_rows.all()}
 
     # Split into new (need embedding) vs reused (just link)
     new_chunk_inputs: list[ChunkInput] = []
@@ -147,7 +144,7 @@ async def _embed_and_store_chunks(
     new_rows = await store.store_chunks(session, user_id, new_chunk_inputs, provider)
 
     # Create bridge-table links, skipping any that already exist
-    all_chunk_ids = {row.id for row in new_rows} | set(reused_chunk_ids)
+    all_chunk_ids: set[int] = {row.id for row in new_rows if row.id is not None} | set(reused_chunk_ids)
 
     already_linked = await session.execute(
         select(DriveFileChunkLink.chunk_id).where(
@@ -156,9 +153,7 @@ async def _embed_and_store_chunks(
     )
     existing_ids = {row[0] for row in already_linked.all()}
 
-    new_links = [
-        DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=chunk_id) for chunk_id in all_chunk_ids - existing_ids
-    ]
+    new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in all_chunk_ids - existing_ids]
     if new_links:
         session.add_all(new_links)
         await session.flush()
@@ -192,9 +187,11 @@ async def _process_single_file(
         await session.flush()
 
         # Duplicate document check
+        assert drive_file.id is not None
         duplicate = await _find_duplicate_file(session, user_id, drive_file, content_hash)
         if duplicate:
-            await _link_chunks_from_duplicate(session, drive_file.id, duplicate.id)  # type: ignore[arg-type]
+            assert duplicate.id is not None
+            await _link_chunks_from_duplicate(session, drive_file.id, duplicate.id)
             await _set_rag_status(session, drive_file, "ready")
             logger.info(
                 "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
@@ -219,7 +216,7 @@ async def _process_single_file(
             drive_file.id,
             chunks,
             provider,
-            store,  # type: ignore[arg-type]
+            store,
         )
 
         await _set_rag_status(session, drive_file, "ready")
