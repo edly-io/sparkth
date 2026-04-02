@@ -348,40 +348,36 @@ class BaseChatProvider(ABC):
         while True:
             full_response = None
 
-            try:
-                async for chunk in llm_with_tools.astream(langchain_messages):
-                    # Handle content that might be a list or string
-                    content = getattr(chunk, "content", None)
+            async for chunk in llm_with_tools.astream(langchain_messages):
+                # Handle content that might be a list or string
+                content = getattr(chunk, "content", None)
 
-                    if content:
-                        if isinstance(content, str):
-                            yield content
-                        elif isinstance(content, list):
-                            # Handle content blocks (common with Anthropic)
-                            for block in content:
-                                if isinstance(block, dict):
-                                    if block.get("type") == "text":
-                                        text = block.get("text", "")
-                                        if text:
-                                            yield text
-                                    elif block.get("type") == "text_delta":
-                                        text = block.get("text", "")
-                                        if text:
-                                            yield text
-                                elif isinstance(block, str):
-                                    yield block
-                    # Accumulate the response for tool call detection
-                    if full_response is None:
+                if content:
+                    if isinstance(content, str):
+                        yield content
+                    elif isinstance(content, list):
+                        # Handle content blocks (common with Anthropic)
+                        for block in content:
+                            if isinstance(block, dict):
+                                if block.get("type") == "text":
+                                    text = block.get("text", "")
+                                    if text:
+                                        yield text
+                                elif block.get("type") == "text_delta":
+                                    text = block.get("text", "")
+                                    if text:
+                                        yield text
+                            elif isinstance(block, str):
+                                yield block
+                # Accumulate the response for tool call detection
+                if full_response is None:
+                    full_response = chunk
+                else:
+                    try:
+                        full_response = full_response + chunk
+                    except TypeError:
+                        # If chunks can't be added, just keep the latest
                         full_response = chunk
-                    else:
-                        try:
-                            full_response = full_response + chunk
-                        except TypeError:
-                            # If chunks can't be added, just keep the latest
-                            full_response = chunk
-            except httpx.RemoteProtocolError:
-                logger.warning("httpx.RemoteProtocolError during streaming with tools")
-                raise
             # Check if there are tool calls to execute
             if full_response and hasattr(full_response, "tool_calls") and full_response.tool_calls:
                 langchain_messages.append(full_response)
