@@ -11,7 +11,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # PHONY TARGETS
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build mypy \
-        up dev.up down clean restart logs shell db-shell \
+        up dev.up down clean restart logs shell db-shell migrations \
         frontend frontend.build frontend.lint frontend.fix frontend.format frontend.format.check \
         create-user reset-password \
         api mcp cli
@@ -59,7 +59,7 @@ shell: ## Open shell inside the API container
 
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U sparkth -d sparkth
-migrations:
+migrations: ## Run Alembic migrations in Docker
 	docker compose -f docker-compose.yml up migrations
 
 # --------------------------------------------------

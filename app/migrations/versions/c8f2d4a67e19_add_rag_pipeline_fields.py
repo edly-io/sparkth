@@ -2,7 +2,7 @@
 
 Revision ID: c8f2d4a67e19
 Revises: b7e3a1f29d04
-Create Date: 2026-04-01 14:00:00.000000
+Create Date: 2026-04-02 10:00:00.000000
 
 """
 
@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Add RAG pipeline fields and bridge table."""
+    """Add RAG pipeline fields, bridge table, and indexes."""
     # drive_files: RAG processing status and file content hash for duplicate detection
     op.add_column(
         "drive_files",
@@ -29,6 +29,12 @@ def upgrade() -> None:
     op.add_column(
         "drive_files",
         sa.Column("content_hash", sqlmodel.sql.sqltypes.AutoString(length=64), nullable=True),
+    )
+    op.create_index(
+        op.f("ix_drive_files_content_hash"),
+        "drive_files",
+        ["content_hash"],
+        unique=False,
     )
 
     # rag_document_chunks: SHA-256 hash of the chunk content
@@ -71,5 +77,6 @@ def downgrade() -> None:
     op.drop_table("rag_drive_file_chunk_links")
     op.drop_index(op.f("ix_rag_document_chunks_chunk_content_hash"), table_name="rag_document_chunks")
     op.drop_column("rag_document_chunks", "chunk_content_hash")
+    op.drop_index(op.f("ix_drive_files_content_hash"), table_name="drive_files")
     op.drop_column("drive_files", "content_hash")
     op.drop_column("drive_files", "rag_status")

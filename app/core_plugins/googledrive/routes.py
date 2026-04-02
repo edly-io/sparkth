@@ -350,7 +350,7 @@ async def sync_folder(
     file_count = await _sync_folder_files(session, folder, user_id, access_token)
 
     # Trigger RAG pipeline for all supported files in the folder
-    await process_folder_rag(folder, user_id, access_token, session)
+    await process_folder_rag(folder, user_id, access_token)
 
     return DriveFolderResponse(
         id=folder.id,  # type: ignore[arg-type]
@@ -508,7 +508,7 @@ async def refresh_folder(
         await _sync_folder_files(session, folder, user_id, access_token)
 
         # Trigger RAG pipeline for all supported files in the folder
-        await process_folder_rag(folder, user_id, access_token, session)
+        await process_folder_rag(folder, user_id, access_token)
 
         return SyncStatusResponse(
             folder_id=folder.id,  # type: ignore[arg-type]
