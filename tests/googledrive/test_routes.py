@@ -218,7 +218,10 @@ class TestSyncFolder:
             "parents": ["root"],
         }
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with (
+            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+        ):
             mock_client = AsyncMock()
             mock_client.get_folder.return_value = folder_metadata
             mock_client.list_files.return_value = {"files": []}
@@ -263,7 +266,10 @@ class TestRefreshFolder:
         mock_valid_access_token: None,
     ) -> None:
         """POST /folders/{id}/refresh should re-sync files from Drive."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with (
+            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+        ):
             mock_client = AsyncMock()
             mock_client.list_files.return_value = {
                 "files": [
