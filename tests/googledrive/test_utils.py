@@ -19,7 +19,7 @@ from app.core_plugins.googledrive.utils import (
 )
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.store import ChunkInput, VectorStoreService
-from app.rag.types import Chunk, ChunkMetadata
+from app.rag.types import Chunk, ChunkMetadata, RagStatus
 
 
 def _make_drive_file(
@@ -130,28 +130,28 @@ class TestSetRagStatus:
         drive_file = _make_drive_file()
         original_updated_at = drive_file.updated_at
 
-        await _set_rag_status(session, drive_file, "processing")
+        await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
 
-        assert drive_file.rag_status == "processing"
+        assert drive_file.rag_status == RagStatus.PROCESSING
         assert drive_file.updated_at >= original_updated_at
         session.add.assert_called_once_with(drive_file)
         session.commit.assert_awaited_once()
 
     async def test_sets_ready_status(self) -> None:
         session = AsyncMock()
-        drive_file = _make_drive_file(rag_status="processing")
+        drive_file = _make_drive_file(rag_status=RagStatus.PROCESSING)
 
-        await _set_rag_status(session, drive_file, "ready")
+        await _set_rag_status(session, drive_file, RagStatus.READY)
 
-        assert drive_file.rag_status == "ready"
+        assert drive_file.rag_status == RagStatus.READY
 
     async def test_sets_failed_status(self) -> None:
         session = AsyncMock()
-        drive_file = _make_drive_file(rag_status="processing")
+        drive_file = _make_drive_file(rag_status=RagStatus.PROCESSING)
 
-        await _set_rag_status(session, drive_file, "failed")
+        await _set_rag_status(session, drive_file, RagStatus.FAILED)
 
-        assert drive_file.rag_status == "failed"
+        assert drive_file.rag_status == RagStatus.FAILED
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +449,7 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        assert drive_file.rag_status == "ready"
+        assert drive_file.rag_status == RagStatus.READY
         assert drive_file.content_hash == hashlib.sha256(file_bytes).hexdigest()
         mock_link.assert_awaited_once()
 
@@ -486,7 +486,7 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        assert drive_file.rag_status == "ready"
+        assert drive_file.rag_status == RagStatus.READY
         mock_extract.assert_called_once_with(b"file content", "new_doc.pdf")
         mock_chunk.assert_called_once_with(mock_extraction_result)
         mock_embed.assert_awaited_once()
@@ -515,7 +515,7 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        assert drive_file.rag_status == "ready"
+        assert drive_file.rag_status == RagStatus.READY
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_drive_api_error_marks_failed(self, mock_download: AsyncMock) -> None:
@@ -531,7 +531,7 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        assert drive_file.rag_status == "failed"
+        assert drive_file.rag_status == RagStatus.FAILED
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_value_error_marks_failed(self, mock_download: AsyncMock) -> None:
@@ -547,7 +547,7 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        assert drive_file.rag_status == "failed"
+        assert drive_file.rag_status == RagStatus.FAILED
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_google_doc_filename_resolved(self, mock_download: AsyncMock) -> None:
@@ -611,7 +611,7 @@ class TestProcessFolderRag:
         mock_process: AsyncMock,
     ) -> None:
         """Files with rag_status='ready' should be skipped."""
-        ready_file = _make_drive_file(file_id=1, rag_status="ready")
+        ready_file = _make_drive_file(file_id=1, rag_status=RagStatus.READY)
         pending_file = _make_drive_file(file_id=2, rag_status=None)
 
         # First call: folder file listing session

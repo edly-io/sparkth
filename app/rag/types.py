@@ -1,12 +1,18 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class DocType(str, Enum):
+class DocType(StrEnum):
     PDF = "pdf"
     DOCX = "docx"
     HTML = "html"
     TXT = "txt"
+
+
+class RagStatus(StrEnum):
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
 
 
 @dataclass

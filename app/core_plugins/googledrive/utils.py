@@ -17,7 +17,7 @@ from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
 from app.rag.extraction import extract_to_markdown
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.store import ChunkInput, VectorStoreService
-from app.rag.types import Chunk
+from app.rag.types import Chunk, RagStatus
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def _is_supported_for_rag(filename: str) -> bool:
     return ext in _RAG_SUPPORTED_EXTENSIONS
 
 
-async def _set_rag_status(session: AsyncSession, drive_file: DriveFile, status: str) -> None:
+async def _set_rag_status(session: AsyncSession, drive_file: DriveFile, status: RagStatus) -> None:
     """Update rag_status on a DriveFile and commit."""
     drive_file.rag_status = status
     drive_file.update_timestamp()
@@ -65,7 +65,7 @@ async def _find_duplicate_file(
         select(DriveFile).where(
             col(DriveFile.user_id) == user_id,
             col(DriveFile.content_hash) == content_hash,
-            col(DriveFile.rag_status) == "ready",
+            col(DriveFile.rag_status) == RagStatus.READY,
             col(DriveFile.id) != drive_file.id,
             col(DriveFile.is_deleted) == False,  # noqa: E712
         )
@@ -176,8 +176,14 @@ async def _process_single_file(
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
         return
 
+    if drive_file.id is None:
+        logger.error("Cannot process file '%s' without a database ID.", drive_file.name)
+        return
+
+    file_id: int = drive_file.id
+
     try:
-        await _set_rag_status(session, drive_file, "processing")
+        await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
 
         file_bytes = await _download_file(access_token, drive_file)
 
@@ -187,12 +193,10 @@ async def _process_single_file(
         await session.flush()
 
         # Duplicate document check
-        assert drive_file.id is not None
         duplicate = await _find_duplicate_file(session, user_id, drive_file, content_hash)
-        if duplicate:
-            assert duplicate.id is not None
-            await _link_chunks_from_duplicate(session, drive_file.id, duplicate.id)
-            await _set_rag_status(session, drive_file, "ready")
+        if duplicate and duplicate.id is not None:
+            await _link_chunks_from_duplicate(session, file_id, duplicate.id)
+            await _set_rag_status(session, drive_file, RagStatus.READY)
             logger.info(
                 "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
                 filename,
@@ -206,20 +210,20 @@ async def _process_single_file(
         chunks = await asyncio.to_thread(chunk_document, extraction_result)
 
         if not chunks:
-            await _set_rag_status(session, drive_file, "ready")
+            await _set_rag_status(session, drive_file, RagStatus.READY)
             return
 
         # Embed → Store → Link
         new_count, reused_count = await _embed_and_store_chunks(
             session,
             user_id,
-            drive_file.id,
+            file_id,
             chunks,
             provider,
             store,
         )
 
-        await _set_rag_status(session, drive_file, "ready")
+        await _set_rag_status(session, drive_file, RagStatus.READY)
         logger.info(
             "RAG processing complete for '%s': %d new chunks embedded, %d reused.",
             filename,
@@ -229,12 +233,12 @@ async def _process_single_file(
 
     except (GoogleDriveAPIError, RuntimeError, ValueError, OSError) as e:
         logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
-        await _set_rag_status(session, drive_file, "failed")
+        await _set_rag_status(session, drive_file, RagStatus.FAILED)
     except IntegrityError:
         logger.error("RAG processing failed for '%s': database integrity error", drive_file.name)
         await session.rollback()
         await session.refresh(drive_file)
-        await _set_rag_status(session, drive_file, "failed")
+        await _set_rag_status(session, drive_file, RagStatus.FAILED)
 
 
 _RAG_CONCURRENCY = 3  # max files processed in parallel
@@ -267,6 +271,6 @@ async def process_folder_rag(
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
 
-    pending = [_process_with_own_session(df) for df in files if df.rag_status != "ready"]
+    pending = [_process_with_own_session(df) for df in files if df.rag_status != RagStatus.READY]
     if pending:
-        await asyncio.gather(*pending)
+        await asyncio.gather(*pending, return_exceptions=True)
