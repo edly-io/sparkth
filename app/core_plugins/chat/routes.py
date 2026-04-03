@@ -5,7 +5,7 @@ from typing import Any
 import anthropic
 import httpx
 import openai
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from google.api_core import exceptions as google_exceptions
 from langchain_core.exceptions import LangChainException
@@ -19,6 +19,11 @@ from app.core.db import get_async_session
 from app.core.logger import get_logger
 from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
+from app.core_plugins.chat.conversation_title import (
+    extract_title_from_messages,
+    generate_conversation_title,
+    get_first_user_text,
+)
 from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.models import Message, ProviderAPIKey
 from app.core_plugins.chat.providers import (
@@ -229,6 +234,7 @@ async def delete_api_key(
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
@@ -275,7 +281,21 @@ async def chat_completion(
             api_key_id=api_key_record.id if api_key_record else None,  # type: ignore
             provider=request.provider,
             model=request.model,
+            title=extract_title_from_messages(request.messages),
         )
+
+        first_user_text = get_first_user_text(request.messages)
+        if first_user_text:
+            background_tasks.add_task(
+                generate_conversation_title,
+                conversation_id=conversation.id,  # type: ignore
+                user_id=current_user.id,  # type: ignore
+                first_user_message=first_user_text,
+                api_key=api_key,
+                provider_name=request.provider,
+                model=request.model,
+                service=service,
+            )
 
     for msg in request.messages:
         # Store a text summary for messages with content blocks (e.g. file attachments)
