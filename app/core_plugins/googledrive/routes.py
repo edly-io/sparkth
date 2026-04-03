@@ -37,6 +37,8 @@ from app.core_plugins.googledrive.types import (
     DriveFileResponse,
     DriveFolderResponse,
     DriveFolderWithFilesResponse,
+    FileRagStatusResponse,
+    FolderRagStatusResponse,
     RenameFileRequest,
     SyncFolderRequest,
     SyncStatusResponse,
@@ -456,7 +458,7 @@ def delete_folder(
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
-    """Soft delete a synced folder and its files from Sparkth (does not delete from Drive)."""
+    """Remove a folder and all its files from Sparkth tracking (soft-delete; content remains in Google Drive)."""
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
@@ -674,6 +676,67 @@ def get_file(
     )
 
 
+@router.get("/files/{file_id}/rag-status", response_model=FileRagStatusResponse)
+def get_file_rag_status(
+    file_id: int,
+    user_id: int = Depends(require_user_id),
+    session: Session = Depends(get_session),
+) -> FileRagStatusResponse:
+    """Get the RAG processing status for a single file."""
+    drive_file = session.exec(
+        select(DriveFile).where(
+            DriveFile.id == file_id,
+            DriveFile.user_id == user_id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    ).first()
+    if not drive_file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    return FileRagStatusResponse(
+        file_id=drive_file.id,  # type: ignore[arg-type]
+        name=drive_file.name,
+        rag_status=drive_file.rag_status,
+    )
+
+
+@router.get("/folders/{folder_id}/rag-status", response_model=FolderRagStatusResponse)
+def get_folder_rag_status(
+    folder_id: int,
+    user_id: int = Depends(require_user_id),
+    session: Session = Depends(get_session),
+) -> FolderRagStatusResponse:
+    """Get the RAG processing status for all files in a folder."""
+    folder = session.exec(
+        select(DriveFolder).where(
+            DriveFolder.id == folder_id,
+            DriveFolder.user_id == user_id,
+            DriveFolder.is_deleted == False,  # noqa: E712
+        )
+    ).first()
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+    files = session.exec(
+        select(DriveFile).where(
+            DriveFile.folder_id == folder_id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    ).all()
+
+    return FolderRagStatusResponse(
+        folder_id=folder_id,
+        files=[
+            FileRagStatusResponse(
+                file_id=f.id,  # type: ignore[arg-type]
+                name=f.name,
+                rag_status=f.rag_status,
+            )
+            for f in files
+        ],
+    )
+
+
 @router.get("/files/{file_id}/download")
 async def download_file(
     file_id: int,
@@ -770,12 +833,12 @@ async def rename_file(
 
 
 @router.delete("/files/{file_id}")
-async def delete_file(
+def delete_file(
     file_id: int,
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
-    """Delete a file from Google Drive and soft-delete locally."""
+    """Remove a file from Sparkth tracking (soft-delete; file remains in Google Drive)."""
     drive_file = session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
@@ -786,21 +849,11 @@ async def delete_file(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    client_id, client_secret, _ = get_drive_credentials()
-    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
-
-    try:
-        async with GoogleDriveClient(access_token) as client:
-            await client.delete_file(drive_file.drive_file_id)
-    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
-        logger.error("Failed to delete file %s: %s", file_id, e)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to delete file.")
-
     drive_file.soft_delete()
     session.add(drive_file)
     session.commit()
 
-    return {"detail": "File deleted successfully"}
+    return {"detail": "File removed from Sparkth successfully"}
 
 
 # ---------------------------------------------------------------------------

@@ -96,3 +96,18 @@ class DriveBrowseResponse(BaseModel):
 
     items: list[DriveBrowseItem] = []
     next_page_token: Optional[str] = None
+
+
+class FileRagStatusResponse(BaseModel):
+    """RAG processing status for a single file."""
+
+    file_id: int
+    name: str
+    rag_status: Optional[str] = None
+
+
+class FolderRagStatusResponse(BaseModel):
+    """RAG processing status for all files in a folder."""
+
+    folder_id: int
+    files: list[FileRagStatusResponse] = []
