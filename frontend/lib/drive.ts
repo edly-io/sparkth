@@ -46,6 +46,13 @@ export interface SyncStatus {
   error?: string;
 }
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
 async function handleError(message: string, response: Response) {
   const text = await response.text();
   let detail = text;
@@ -108,8 +115,13 @@ export async function disconnectGoogle(token: string): Promise<void> {
 }
 
 // Folder functions
-export async function listFolders(token: string): Promise<DriveFolder[]> {
-  const response = await fetch(`${API_BASE_URL}/folders`, {
+export async function listFolders(
+  token: string,
+  skip = 0,
+  limit = 20,
+): Promise<PaginatedResponse<DriveFolder>> {
+  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  const response = await fetch(`${API_BASE_URL}/folders?${params}`, {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -210,8 +222,14 @@ export async function refreshFolder(folderId: number, token: string): Promise<Sy
 }
 
 // File functions
-export async function listFiles(folderId: number, token: string): Promise<DriveFile[]> {
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/files`, {
+export async function listFiles(
+  folderId: number,
+  token: string,
+  skip = 0,
+  limit = 20,
+): Promise<PaginatedResponse<DriveFile>> {
+  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/files?${params}`, {
     method: "GET",
     headers: {
       Accept: "application/json",
