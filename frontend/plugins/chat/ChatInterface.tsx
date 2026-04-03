@@ -28,7 +28,7 @@ interface ApiMessage {
 }
 
 interface ApiConversation {
-  id: number;
+  id: string;
   messages: ApiMessage[];
 }
 
@@ -238,7 +238,7 @@ export default function ChatInterface() {
           tools: "*",
           tool_choice: "auto",
           include_system_tools_message: true,
-          ...(conversationId && { conversation_id: Number(conversationId) }),
+          ...(conversationId && { conversation_id: conversationId }),
         }),
       });
 
