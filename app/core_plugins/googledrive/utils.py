@@ -239,6 +239,12 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
+    except Exception as e:
+        logger.error("Unexpected RAG processing error for '%s': %s", drive_file.name, e)
+        try:
+            await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        except Exception:
+            logger.error("Failed to set RAG status to FAILED for '%s' after unexpected error", drive_file.name)
 
 
 _RAG_CONCURRENCY = 3  # max files processed in parallel
@@ -273,4 +279,7 @@ async def process_folder_rag(
 
     pending = [_process_with_own_session(df) for df in files if df.rag_status != RagStatus.READY]
     if pending:
-        await asyncio.gather(*pending, return_exceptions=True)
+        results = await asyncio.gather(*pending, return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.error("RAG pipeline task raised an unhandled exception: %s", result)
