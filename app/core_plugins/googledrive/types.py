@@ -1,9 +1,11 @@
 """Pydantic models for Google Drive plugin requests and responses."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field
+
+T = TypeVar("T")
 
 
 # Request models
@@ -96,3 +98,12 @@ class DriveBrowseResponse(BaseModel):
 
     items: list[DriveBrowseItem] = []
     next_page_token: Optional[str] = None
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Generic paginated response wrapper."""
+
+    items: list[T] = []
+    total: int = 0
+    skip: int = 0
+    limit: int = 20
