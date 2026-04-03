@@ -28,6 +28,7 @@ class ChunkInput:
     section: str | None = None
     subsection: str | None = None
     token_count: int | None = None
+    chunk_content_hash: str | None = None
 
 
 @dataclass
@@ -67,6 +68,7 @@ class VectorStoreService:
                 user_id=user_id,
                 source_name=chunk.source_name,
                 content=chunk.content,
+                chunk_content_hash=chunk.chunk_content_hash,
                 chapter=chunk.chapter,
                 section=chunk.section,
                 subsection=chunk.subsection,
