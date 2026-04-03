@@ -279,7 +279,7 @@ async def process_folder_rag(
 
     pending = [_process_with_own_session(df) for df in files if df.rag_status != RagStatus.READY]
     if pending:
-        results: list[BaseException | None] = await asyncio.gather(*pending, return_exceptions=True)  # type: ignore[assignment]
-        for result in results:
-            if isinstance(result, BaseException):
-                logger.error("RAG pipeline task raised an unhandled exception: %s", result)
+        results = await asyncio.gather(*pending, return_exceptions=True)
+        for task_result in results:
+            if isinstance(task_result, BaseException):
+                logger.error("RAG pipeline task raised an unhandled exception: %s", task_result)
