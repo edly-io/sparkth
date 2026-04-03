@@ -289,7 +289,7 @@ export default function GoogleDrive() {
       await deleteFile(resource.id, token);
       // Refresh totals cache and adjust page
       await loadFolderTotals();
-      const newTotal = totalResources - 1;
+      const newTotal = folderTotalsRef.current.reduce((sum, r) => sum + r.total, 0);
       const maxPage = Math.max(1, Math.ceil(newTotal / ITEMS_PER_PAGE));
       if (currentPage > maxPage) {
         setCurrentPage(maxPage);

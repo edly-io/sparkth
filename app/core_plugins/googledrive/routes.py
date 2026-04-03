@@ -296,7 +296,7 @@ def list_folders(
     )
 
     count_stmt = select(func.count()).select_from(
-        select(DriveFolder.id)  # type: ignore[arg-type]
+        select(DriveFolder.id)
         .where(
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
