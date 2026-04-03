@@ -218,7 +218,10 @@ class TestSyncFolder:
             "parents": ["root"],
         }
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with (
+            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+        ):
             mock_client = AsyncMock()
             mock_client.get_folder.return_value = folder_metadata
             mock_client.list_files.return_value = {"files": []}
@@ -263,7 +266,10 @@ class TestRefreshFolder:
         mock_valid_access_token: None,
     ) -> None:
         """POST /folders/{id}/refresh should re-sync files from Drive."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with (
+            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+        ):
             mock_client = AsyncMock()
             mock_client.list_files.return_value = {
                 "files": [
@@ -519,25 +525,33 @@ class TestRenameFile:
 
 class TestDeleteFile:
     @pytest.mark.asyncio
-    async def test_delete_success(
+    async def test_delete_marks_file_as_deleted(
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        test_oauth_token: DriveOAuthToken,
-        mock_valid_access_token: None,
+        sync_session: Session,
     ) -> None:
-        """DELETE /files/{id} should delete from Drive and soft-delete locally."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.delete_file.return_value = True
-            mock_client.__aenter__.return_value = mock_client
-            mock_client.__aexit__.return_value = None
-            mock_client_cls.return_value = mock_client
-
-            response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+        """DELETE /files/{id} should soft-delete locally; file remains in Google Drive."""
+        response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
 
         assert response.status_code == status.HTTP_200_OK
-        assert "deleted" in response.json()["detail"].lower()
+        assert "removed" in response.json()["detail"].lower()
+
+        sync_session.refresh(test_file)
+        assert test_file.is_deleted is True
+        assert test_file.deleted_at is not None
+
+    @pytest.mark.asyncio
+    async def test_deleted_file_no_longer_accessible(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+    ) -> None:
+        """File should return 404 on GET after deletion."""
+        await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_delete_file_not_found(self, drive_client: AsyncClient) -> None:
@@ -546,25 +560,176 @@ class TestDeleteFile:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+
+# ---------------------------------------------------------------------------
+# RAG Status Endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestGetFileRagStatus:
     @pytest.mark.asyncio
-    async def test_delete_drive_error_returns_502(
+    async def test_returns_null_when_not_processed(
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        test_oauth_token: DriveOAuthToken,
-        mock_valid_access_token: None,
     ) -> None:
-        """Drive API error during delete should return 502."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.delete_file.side_effect = RuntimeError("403 Forbidden")
-            mock_client.__aenter__.return_value = mock_client
-            mock_client.__aexit__.return_value = None
-            mock_client_cls.return_value = mock_client
+        """GET /files/{id}/rag-status should return null rag_status for unprocessed files."""
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
-            response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["file_id"] == test_file.id
+        assert data["name"] == "test_document.pdf"
+        assert data["rag_status"] is None
 
-        assert response.status_code == status.HTTP_502_BAD_GATEWAY
+    @pytest.mark.asyncio
+    async def test_returns_processing_status(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /files/{id}/rag-status should return 'processing' while pipeline runs."""
+        test_file.rag_status = "processing"
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["rag_status"] == "processing"
+
+    @pytest.mark.asyncio
+    async def test_returns_ready_status(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /files/{id}/rag-status should return 'ready' when processing is complete."""
+        test_file.rag_status = "ready"
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["rag_status"] == "ready"
+
+    @pytest.mark.asyncio
+    async def test_returns_failed_status(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /files/{id}/rag-status should return 'failed' when processing errored."""
+        test_file.rag_status = "failed"
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["rag_status"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_file_not_found(self, drive_client: AsyncClient) -> None:
+        """GET /files/{id}/rag-status should return 404 for non-existent file."""
+        response = await drive_client.get("/api/v1/googledrive/files/99999/rag-status")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_deleted_file_returns_404(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /files/{id}/rag-status should return 404 for soft-deleted files."""
+        test_file.soft_delete()
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestGetFolderRagStatus:
+    @pytest.mark.asyncio
+    async def test_returns_statuses_for_all_files(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        sync_session: Session,
+        test_user: User,
+    ) -> None:
+        """GET /folders/{id}/rag-status should return rag_status for every file."""
+        test_file.rag_status = "ready"
+        second_file = DriveFile(
+            folder_id=cast(int, test_folder.id),
+            user_id=cast(int, test_user.id),
+            drive_file_id="drive_file_second",
+            name="slides.pdf",
+            mime_type="application/pdf",
+            size=512,
+            rag_status="processing",
+            last_synced_at=test_file.last_synced_at,
+        )
+        sync_session.add(test_file)
+        sync_session.add(second_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["folder_id"] == test_folder.id
+        statuses = {f["name"]: f["rag_status"] for f in data["files"]}
+        assert statuses["test_document.pdf"] == "ready"
+        assert statuses["slides.pdf"] == "processing"
+
+    @pytest.mark.asyncio
+    async def test_empty_folder_returns_empty_list(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+    ) -> None:
+        """GET /folders/{id}/rag-status should return empty files list for a folder with no files."""
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["folder_id"] == test_folder.id
+        assert data["files"] == []
+
+    @pytest.mark.asyncio
+    async def test_folder_not_found(self, drive_client: AsyncClient) -> None:
+        """GET /folders/{id}/rag-status should return 404 for non-existent folder."""
+        response = await drive_client.get("/api/v1/googledrive/folders/99999/rag-status")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_excludes_deleted_files(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /folders/{id}/rag-status should not include soft-deleted files."""
+        test_file.soft_delete()
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["files"] == []
 
 
 # ---------------------------------------------------------------------------
