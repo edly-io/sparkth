@@ -5,7 +5,6 @@ import re
 import urllib.parse
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -829,8 +828,8 @@ async def delete_file(
 
 @router.get("/browse", response_model=DriveBrowseResponse)
 async def browse_drive(
-    folder_id: Optional[str] = Query(None, description="Drive folder ID to browse (root if omitted)"),
-    page_token: Optional[str] = Query(None, description="Pagination token"),
+    folder_id: str | None = Query(None, description="Drive folder ID to browse (root if omitted)"),
+    page_token: str | None = Query(None, description="Pagination token"),
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveBrowseResponse:

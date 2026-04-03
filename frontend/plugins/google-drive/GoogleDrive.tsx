@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
@@ -145,6 +146,7 @@ export default function GoogleDrive() {
   const [totalResources, setTotalResources] = useState(0);
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -153,23 +155,37 @@ export default function GoogleDrive() {
   // Cache folder totals to avoid N+1 requests on every page change
   const folderTotalsRef = useRef<FolderTotal[]>([]);
 
-  // Load connection status and folders (once)
+  // Load connection status and all folders (paginated fetch)
   const loadFolders = useCallback(async () => {
     if (!token) {
       setLoading(false);
       return;
     }
 
+    setError(null);
     try {
       const status = await getConnectionStatus(token);
       setConnectionStatus(status);
 
       if (status.connected) {
-        const result = await listFolders(token, 0, 100);
-        setFolders(result.items);
+        const allFolders: DriveFolder[] = [];
+        let skip = 0;
+        const limit = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+          const result = await listFolders(token, skip, limit);
+          allFolders.push(...result.items);
+          skip += limit;
+          hasMore = allFolders.length < result.total;
+        }
+
+        setFolders(allFolders);
       }
-    } catch (error) {
-      console.error("Failed to load folders:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load resources";
+      setError(message);
+      console.error("Failed to load folders:", err);
     } finally {
       setLoading(false);
     }
@@ -179,15 +195,22 @@ export default function GoogleDrive() {
   const loadFolderTotals = useCallback(async () => {
     if (!token || folders.length === 0) return;
 
-    const results = await Promise.all(
-      folders.map(async (folder) => {
-        const result = await listFiles(folder.id, token, 0, 1);
-        return { folder, total: result.total };
-      }),
-    );
+    try {
+      const results = await Promise.all(
+        folders.map(async (folder) => {
+          const result = await listFiles(folder.id, token, 0, 1);
+          return { folder, total: result.total };
+        }),
+      );
 
-    folderTotalsRef.current = results;
-    setTotalResources(results.reduce((sum, r) => sum + r.total, 0));
+      folderTotalsRef.current = results;
+      setTotalResources(results.reduce((sum, r) => sum + r.total, 0));
+      setError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load file counts";
+      setError(message);
+      console.error("Failed to load folder totals:", err);
+    }
   }, [token, folders]);
 
   // Load files for the current page using cached folder totals
@@ -233,8 +256,10 @@ export default function GoogleDrive() {
         }
 
         setResources(pageResources);
-      } catch (error) {
-        console.error("Failed to load resources:", error);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to load resources";
+        setError(message);
+        console.error("Failed to load resources:", err);
       } finally {
         setPageLoading(false);
       }
@@ -307,6 +332,7 @@ export default function GoogleDrive() {
     setFolders([]);
     setResources([]);
     setTotalResources(0);
+    setError(null);
     folderTotalsRef.current = [];
     setLoading(true);
     loadFolders();
@@ -350,7 +376,17 @@ export default function GoogleDrive() {
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <ConnectionStatus status={connectionStatus} onStatusChange={handleReload} />
 
-        {connectionStatus?.connected && totalResources === 0 && !pageLoading ? (
+        {error && (
+          <div className="flex items-center justify-between rounded-lg border border-error-200 bg-error-50 dark:border-error-800 dark:bg-error-900/30 px-4 py-3">
+            <p className="text-sm text-error-700 dark:text-error-400">{error}</p>
+            <Button variant="ghost" size="sm" onClick={handleReload}>
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {connectionStatus?.connected && totalResources === 0 && !pageLoading && !error ? (
           /* Empty state */
           <div className="rounded-xl border border-border bg-card p-12 text-center">
             <DefaultFileIcon className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
