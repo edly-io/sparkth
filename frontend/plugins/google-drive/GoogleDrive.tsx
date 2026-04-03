@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FileText,
   Image as ImageIcon,
@@ -14,6 +14,7 @@ import {
   FolderSync,
   ChevronLeft,
   ChevronRight,
+  MoreHorizontal,
 } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
@@ -46,6 +47,11 @@ interface ResourceRow {
   dateImported: string;
   source: string;
   folderId: number;
+}
+
+interface FolderTotal {
+  folder: DriveFolder;
+  total: number;
 }
 
 function getFileIcon(mimeType: string) {
@@ -101,6 +107,7 @@ function mapSyncStatus(syncStatus: string): ResourceStatus {
 }
 
 const ITEMS_PER_PAGE = 10;
+const MAX_VISIBLE_PAGES = 5;
 
 function formatMimeType(mimeType?: string): string {
   if (!mimeType) return "FILE";
@@ -109,6 +116,24 @@ function formatMimeType(mimeType?: string): string {
   if (part.includes("spreadsheetml")) return "XLSX";
   if (part.includes("presentationml")) return "PPTX";
   return part.toUpperCase();
+}
+
+/** Build a windowed list of page numbers with ellipsis gaps. */
+function getPageNumbers(current: number, total: number): (number | "ellipsis")[] {
+  if (total <= MAX_VISIBLE_PAGES) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const pages: (number | "ellipsis")[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+
+  if (start > 2) pages.push("ellipsis");
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (end < total - 1) pages.push("ellipsis");
+  pages.push(total);
+
+  return pages;
 }
 
 export default function GoogleDrive() {
@@ -124,6 +149,9 @@ export default function GoogleDrive() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Cache folder totals to avoid N+1 requests on every page change
+  const folderTotalsRef = useRef<FolderTotal[]>([]);
 
   // Load connection status and folders (once)
   const loadFolders = useCallback(async () => {
@@ -147,48 +175,37 @@ export default function GoogleDrive() {
     }
   }, [token]);
 
-  // Load files for the current page across all folders (server-side paginated)
+  // Fetch folder totals once, cache in ref
+  const loadFolderTotals = useCallback(async () => {
+    if (!token || folders.length === 0) return;
+
+    const results = await Promise.all(
+      folders.map(async (folder) => {
+        const result = await listFiles(folder.id, token, 0, 1);
+        return { folder, total: result.total };
+      }),
+    );
+
+    folderTotalsRef.current = results;
+    setTotalResources(results.reduce((sum, r) => sum + r.total, 0));
+  }, [token, folders]);
+
+  // Load files for the current page using cached folder totals
   const loadPage = useCallback(
     async (page: number) => {
-      if (!token || folders.length === 0) return;
+      if (!token || folderTotalsRef.current.length === 0) return;
 
       setPageLoading(true);
       try {
         const skip = (page - 1) * ITEMS_PER_PAGE;
-        // We need to distribute skip/limit across folders.
-        // Fetch paginated files from each folder and aggregate.
-        // For true server-side pagination, we fetch per-folder with skip/limit.
-        // Strategy: fetch all folder totals, then determine which folder(s)
-        // the current page spans and fetch only those files.
-
-        let totalCount = 0;
-        const folderTotals: { folder: DriveFolder; total: number }[] = [];
-
-        // First pass: get totals for each folder (limit=0 fetch with just total)
-        const totalResults = await Promise.all(
-          folders.map(async (folder) => {
-            const result = await listFiles(folder.id, token, 0, 1);
-            return { folder, total: result.total };
-          }),
-        );
-
-        for (const { folder, total } of totalResults) {
-          folderTotals.push({ folder, total });
-          totalCount += total;
-        }
-
-        setTotalResources(totalCount);
-
-        // Second pass: determine which folders contribute to this page
         const pageResources: ResourceRow[] = [];
         let skipped = 0;
         let remaining = ITEMS_PER_PAGE;
 
-        for (const { folder, total } of folderTotals) {
+        for (const { folder, total } of folderTotalsRef.current) {
           if (remaining <= 0) break;
 
           if (skipped + total <= skip) {
-            // This folder is entirely before the current page
             skipped += total;
             continue;
           }
@@ -222,22 +239,26 @@ export default function GoogleDrive() {
         setPageLoading(false);
       }
     },
-    [token, folders],
+    [token],
   );
 
   useEffect(() => {
     loadFolders();
   }, [loadFolders]);
 
+  // When folders change, fetch totals once
   useEffect(() => {
     if (folders.length > 0) {
+      loadFolderTotals();
+    }
+  }, [folders, loadFolderTotals]);
+
+  // When totals are ready or page changes, load the page
+  useEffect(() => {
+    if (totalResources > 0) {
       loadPage(currentPage);
     }
-  }, [folders, currentPage, loadPage]);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  }, [currentPage, totalResources, loadPage]);
 
   const handleDownload = async (resource: ResourceRow) => {
     if (!token) return;
@@ -261,16 +282,19 @@ export default function GoogleDrive() {
 
   const handleDelete = async (resource: ResourceRow) => {
     if (!token) return;
+    if (!confirm(`Delete "${resource.name}"? This will also remove it from Google Drive.`)) return;
+
     setDeletingId(resource.id);
     try {
       await deleteFile(resource.id, token);
-      // Reload the current page from server
+      // Refresh totals cache and adjust page
+      await loadFolderTotals();
       const newTotal = totalResources - 1;
       const maxPage = Math.max(1, Math.ceil(newTotal / ITEMS_PER_PAGE));
-      const nextPage = currentPage > maxPage ? maxPage : currentPage;
-      setTotalResources(newTotal);
-      setCurrentPage(nextPage);
-      await loadPage(nextPage);
+      if (currentPage > maxPage) {
+        setCurrentPage(maxPage);
+      }
+      // useEffect on totalResources/currentPage will trigger loadPage
     } catch (error) {
       console.error("Failed to delete:", error);
     } finally {
@@ -283,6 +307,7 @@ export default function GoogleDrive() {
     setFolders([]);
     setResources([]);
     setTotalResources(0);
+    folderTotalsRef.current = [];
     setLoading(true);
     loadFolders();
   };
@@ -370,7 +395,10 @@ export default function GoogleDrive() {
                   </tr>
                 ) : (
                   resources.map((resource) => (
-                    <tr key={resource.id} className="hover:bg-surface-variant/30 transition-colors">
+                    <tr
+                      key={`${resource.folderId}-${resource.id}`}
+                      className="hover:bg-surface-variant/30 transition-colors"
+                    >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           {getFileIcon(resource.mimeType)}
@@ -448,28 +476,37 @@ export default function GoogleDrive() {
                     size="icon"
                     className="h-8 w-8"
                     disabled={currentPage === 1 || pageLoading}
-                    onClick={() => handlePageChange(currentPage - 1)}
+                    onClick={() => setCurrentPage((p) => p - 1)}
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={page === currentPage ? "primary" : "ghost"}
-                      size="icon"
-                      className="h-8 w-8 text-xs"
-                      disabled={pageLoading}
-                      onClick={() => handlePageChange(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
+                  {getPageNumbers(currentPage, totalPages).map((page, idx) =>
+                    page === "ellipsis" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="w-8 h-8 flex items-center justify-center"
+                      >
+                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                      </span>
+                    ) : (
+                      <Button
+                        key={page}
+                        variant={page === currentPage ? "primary" : "ghost"}
+                        size="icon"
+                        className="h-8 w-8 text-xs"
+                        disabled={pageLoading}
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    ),
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
                     disabled={currentPage === totalPages || pageLoading}
-                    onClick={() => handlePageChange(currentPage + 1)}
+                    onClick={() => setCurrentPage((p) => p + 1)}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Button>
