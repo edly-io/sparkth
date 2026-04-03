@@ -3,6 +3,7 @@ from functools import lru_cache
 from typing import Any
 
 import anthropic
+import httpx
 import openai
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -71,6 +72,7 @@ _PROVIDER_API_ERRORS = (
     google_exceptions.InvalidArgument,
     google_exceptions.GoogleAPICallError,
     google_exceptions.ServiceUnavailable,
+    httpx.RemoteProtocolError,
 )
 
 
@@ -514,6 +516,10 @@ def _streaming_error_message(exc: Exception) -> str:
         return "Could not reach Google. Please check your network connection."
     if isinstance(exc, google_exceptions.GoogleAPICallError):
         return f"Google API error ({exc.grpc_status_code or 'unknown'}). Please try again."
+
+    # httpx transport errors
+    if isinstance(exc, httpx.RemoteProtocolError):
+        return "The connection was interrupted. Please try again."
 
     # Generic fallback
     return "An error occurred while generating a response. Please try again."

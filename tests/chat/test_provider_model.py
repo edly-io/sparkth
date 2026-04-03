@@ -19,6 +19,7 @@ from app.core_plugins.chat.providers import (
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
     get_models_for_provider,
+    get_provider,
     get_provider_catalog,
     get_supported_providers,
 )
@@ -328,6 +329,12 @@ class TestStreamingErrorMessage:
         msg = _streaming_error_message(ValueError("bad value"))
         assert "error occurred" in msg.lower()
 
+    def test_httpx_remote_protocol_error(self) -> None:
+        exc = httpx.RemoteProtocolError("peer closed connection without sending complete message body")
+        msg = _streaming_error_message(exc)
+        assert "connection was interrupted" in msg.lower()
+        assert "try again" in msg.lower()
+
     def test_all_messages_are_non_empty_strings(self) -> None:
         errors: list[Exception] = [
             anthropic.AuthenticationError("x", response=_anthropic_response(401), body=None),
@@ -392,3 +399,31 @@ class TestListProvidersEndpoint:
     async def test_unauthenticated_request_is_rejected(self, client: "httpx.AsyncClient") -> None:
         response = await client.get("/api/v1/chat/providers")
         assert response.status_code in (401, 403)
+
+
+# ===========================================================================
+# max_retries forwarding
+# ===========================================================================
+
+
+class TestMaxRetriesForwarding:
+    def test_max_retries_forwarded_to_openai_llm(self) -> None:
+        provider = get_provider("openai", api_key="test-key", model="gpt-4o", max_retries=5)
+        llm = provider._create_llm()
+        assert llm.max_retries == 5
+
+    def test_max_retries_forwarded_to_anthropic_llm(self) -> None:
+        provider = get_provider("anthropic", api_key="test-key", model="claude-sonnet-4-20250514", max_retries=3)
+        llm = provider._create_llm()
+        assert llm.max_retries == 3
+
+    def test_max_retries_forwarded_to_google_llm(self) -> None:
+        provider = get_provider("google", api_key="test-key", model="gemini-2.0-flash", max_retries=4)
+        llm = provider._create_llm()
+        assert llm.max_retries == 4
+
+    def test_max_retries_defaults_to_two(self) -> None:
+        provider = get_provider("openai", api_key="test-key", model="gpt-4o")
+        assert provider.max_retries == 2
+        llm = provider._create_llm()
+        assert llm.max_retries == 2
