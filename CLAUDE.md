@@ -82,6 +82,86 @@ Copy `.env.example` → `.env`. Required variables:
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
 
+## Development Workflow: Test-Driven Development (TDD)
+
+**Always follow TDD. Write tests before implementation — no exceptions.**
+
+### The Mandatory TDD Cycle
+
+For every new feature, endpoint, service method, utility, or plugin tool:
+
+1. **Write the test first** — create or update the relevant file under `tests/` mirroring the module path (e.g. `app/services/foo.py` → `tests/services/test_foo.py`)
+2. **Confirm the test fails** — the test must fail before any implementation exists (red phase)
+3. **Write the minimum implementation** to make the test pass (green phase)
+4. **Refactor** while keeping all tests green
+
+> Never write implementation code before a corresponding failing test exists.
+
+## Commit Messages
+
+Every commit must follow Conventional Commits. No exceptions.
+
+```
+<type>(<scope>): <short description>
+
+[optional body — explain WHY, not what]
+```
+
+**Types:** `feat` | `fix` | `refactor` | `test` | `docs` | `chore`
+
+**Scopes:** `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core`
+
+**Rules:**
+- Subject line: max 72 chars, lowercase, no trailing period
+- Use imperative mood — "add auth" not "added auth"
+- Body required when change needs context — why was this needed?
+- One logical change per commit — do not bundle unrelated changes
+- Never commit directly to `main`
+
+**Examples:**
+```
+feat(api): add JWT refresh token endpoint
+
+fix(migrations): handle missing plugins table on startup
+
+refactor(rag): extract vectorstore into separate service
+
+test(mcp): add integration tests for tool registration
+
+chore(ci): pin uv version in GitHub Actions
+```
+
+## Pull Request Descriptions
+
+Every PR must use this exact structure. No exceptions.
+
+```markdown
+## What
+One sentence. What changed and why.
+
+## Changes
+- <type>(<scope>): short description
+- <type>(<scope>): short description
+
+Types: feat | fix | refactor | test | docs | chore
+Scopes: api | frontend | plugins | rag | mcp | migrations | ci | core
+
+## How to Test
+Numbered steps to verify the change works.
+1. Step one
+2. Step two
+
+## Notes
+Migration required? Breaking change? Env var added? Dependency bumped?
+Leave blank if none.
+```
+
+**Rules:**
+- Title: `<type>(<scope>): short description` — max 70 chars, lowercase
+- "What" must name the problem solved, not just the mechanism
+- Every non-trivial code path needs a test step
+- Flag breaking changes and migration requirements explicitly — never bury them
+
 ## Additional Documentation
 
 | Topic | File |
