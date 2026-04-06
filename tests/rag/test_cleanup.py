@@ -78,14 +78,15 @@ class TestCleanupDeletedFiles:
                 _rows(10),  # alive chunk ids → chunk 11 is orphaned
                 MagicMock(),  # DELETE DriveFileChunkLink
                 MagicMock(),  # DELETE DocumentChunk
+                MagicMock(),  # DELETE DriveFile
             ]
         )
         patch_session.return_value = session
 
         await cleanup_deleted_files()
 
-        # 5 executes: deleted ids, candidates, alive, delete links, delete chunks
-        assert session.execute.await_count == 5
+        # 6 executes: deleted ids, candidates, alive, delete links, delete chunks, delete files
+        assert session.execute.await_count == 6
         session.commit.assert_awaited_once()
 
     async def test_all_chunks_orphaned_when_no_alive_files(self, patch_session: MagicMock) -> None:
@@ -96,13 +97,14 @@ class TestCleanupDeletedFiles:
                 _rows(),  # no alive chunks
                 MagicMock(),  # DELETE DriveFileChunkLink
                 MagicMock(),  # DELETE DocumentChunk
+                MagicMock(),  # DELETE DriveFile
             ]
         )
         patch_session.return_value = session
 
         await cleanup_deleted_files()
 
-        assert session.execute.await_count == 5
+        assert session.execute.await_count == 6
         session.commit.assert_awaited_once()
 
     async def test_shared_chunk_preserved_when_one_file_alive(self, patch_session: MagicMock) -> None:
@@ -124,29 +126,25 @@ class TestCleanupDeletedFiles:
 
     async def test_delete_statements_use_correct_ids(self, patch_session: MagicMock) -> None:
         """DELETE statements reference the right file/chunk ids."""
-        delete_link_result = MagicMock()
-        delete_chunk_result = MagicMock()
-
         session = _make_session(
             [
                 _rows(5),  # deleted file id = 5
                 _rows(20, 21),  # candidate chunk ids
                 _rows(20),  # chunk 20 alive → chunk 21 orphaned
-                delete_link_result,
-                delete_chunk_result,
+                MagicMock(),  # DELETE DriveFileChunkLink
+                MagicMock(),  # DELETE DocumentChunk
+                MagicMock(),  # DELETE DriveFile
             ]
         )
         patch_session.return_value = session
 
         await cleanup_deleted_files()
 
-        # Grab the DELETE statements from execute call args
         calls = session.execute.await_args_list
-        delete_links_stmt = calls[3][0][0]
-        delete_chunks_stmt = calls[4][0][0]
-
-        compiled_links = str(delete_links_stmt.compile(compile_kwargs={"literal_binds": False}))
-        compiled_chunks = str(delete_chunks_stmt.compile(compile_kwargs={"literal_binds": False}))
+        compiled_links = str(calls[3][0][0].compile(compile_kwargs={"literal_binds": False}))
+        compiled_chunks = str(calls[4][0][0].compile(compile_kwargs={"literal_binds": False}))
+        compiled_files = str(calls[5][0][0].compile(compile_kwargs={"literal_binds": False}))
 
         assert "rag_drive_file_chunk_links" in compiled_links
         assert "rag_document_chunks" in compiled_chunks
+        assert "drive_files" in compiled_files

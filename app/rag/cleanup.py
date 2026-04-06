@@ -8,7 +8,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import async_engine
-from app.models.drive import DriveFile
+from app.models.drive import DriveFile  # noqa: TCH001
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 
 logger = logging.getLogger(__name__)
@@ -77,9 +77,16 @@ async def cleanup_deleted_files() -> None:
             )
         )
 
+        # Hard-delete the soft-deleted DriveFile rows
+        await session.execute(
+            delete(DriveFile).where(
+                DriveFile.id.in_(deleted_file_ids)  # type: ignore[union-attr]
+            )
+        )
+
         await session.commit()
         logger.info(
-            "Cleanup complete. Deleted %d orphaned chunks from %d deleted files.",
+            "Cleanup complete. Deleted %d orphaned chunks and %d drive file records.",
             len(orphan_chunk_ids),
             len(deleted_file_ids),
         )
