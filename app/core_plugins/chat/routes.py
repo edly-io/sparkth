@@ -1,6 +1,7 @@
 import json
 from functools import lru_cache
 from typing import Any
+from uuid import UUID
 
 import anthropic
 import httpx
@@ -20,7 +21,7 @@ from app.core.logger import get_logger
 from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.encryption import get_encryption_service
-from app.core_plugins.chat.models import Message, ProviderAPIKey
+from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
 from app.core_plugins.chat.providers import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -246,18 +247,18 @@ async def chat_completion(
             detail=f"No API key found for provider: {request.provider}",
         )
 
-    conversation_id = request.conversation_id
+    conversation_uuid = request.conversation_id
 
-    if conversation_id:
-        conversation = await service.get_conversation(
+    if conversation_uuid:
+        conversation = await service.get_conversation_by_uuid(
             session=session,
-            conversation_id=conversation_id,
+            uuid=conversation_uuid,
             user_id=current_user.id,  # type: ignore
         )
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Conversation {conversation_id} not found",
+                detail=f"Conversation {conversation_uuid} not found",
             )
     else:
         stmt = select(ProviderAPIKey).where(
@@ -347,7 +348,7 @@ async def chat_completion(
                 stream_chat_response(
                     provider=provider,
                     messages=messages,
-                    conversation_id=conversation.id,  # type: ignore
+                    conversation=conversation,
                     service=service,
                     session=session,
                     tools=tools,
@@ -379,7 +380,7 @@ async def chat_completion(
                     role="assistant",
                     content=response["content"],
                 ),
-                conversation_id=conversation.id,  # type: ignore
+                conversation_id=conversation.uuid,
                 model=request.model,
                 provider=request.provider,
                 tokens_used=tokens_used,
@@ -404,12 +405,13 @@ async def chat_completion(
 async def stream_chat_response(
     provider: BaseChatProvider,
     messages: list[dict[str, Any]],
-    conversation_id: int,
+    conversation: Conversation,
     service: ChatService,
     session: AsyncSession,
     tools: list[Any] | None = None,
 ) -> Any:
     full_response = ""
+    conversation_id: int = conversation.id  # type: ignore[assignment]
 
     try:
         async for token in provider.stream_message(messages, tools=tools):
@@ -428,7 +430,7 @@ async def stream_chat_response(
             {
                 "token": "",
                 "done": True,
-                "conversation_id": conversation_id,
+                "conversation_id": str(conversation.uuid),
                 "message": {
                     "id": assistant_message.id,
                     "role": "assistant",
@@ -552,7 +554,7 @@ async def list_conversations(
 
     conversation_responses = [
         ConversationResponse(
-            id=conv.id,  # type: ignore
+            id=conv.uuid,
             provider=conv.provider,
             model=conv.model,
             title=conv.title,
@@ -573,16 +575,16 @@ async def list_conversations(
 
 @chat_router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
 async def get_conversation(
-    conversation_id: int,
+    conversation_id: UUID,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> ConversationDetailResponse:
-    conversation = await service.get_conversation(
+    conversation = await service.get_conversation_by_uuid(
         session=session,
-        conversation_id=conversation_id,
+        uuid=conversation_id,
         user_id=current_user.id,  # type: ignore
     )
 
@@ -593,13 +595,16 @@ async def get_conversation(
         )
 
     messages = await service.get_conversation_messages(
-        session=session, conversation_id=conversation_id, limit=limit, offset=offset
+        session=session,
+        conversation_id=conversation.id,  # type: ignore
+        limit=limit,
+        offset=offset,
     )
 
     message_count = len(messages)
 
     return ConversationDetailResponse(
-        id=conversation.id,  # type: ignore
+        id=conversation.uuid,
         provider=conversation.provider,
         model=conversation.model,
         title=conversation.title,
