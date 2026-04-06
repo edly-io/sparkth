@@ -42,6 +42,22 @@ services:
       - redis_data:/data
 
   # ----------------------------------------
+  # RAG Cleanup Job
+  # ----------------------------------------
+  rag-cleanup:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+    volumes:
+      - ./app:/app/app
+    command: python -m app.rag.cleanup
+    depends_on:
+      - db
+    restart: "no"
+
+  # ----------------------------------------
   # Alembic Migrations
   # ----------------------------------------
   migrations:
