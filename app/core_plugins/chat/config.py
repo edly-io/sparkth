@@ -24,6 +24,15 @@ class ChatSystemConfig(BaseSettings):
 
     max_tool_executions: int = 50
 
+    title_max_length: int = 60
+
+    # Platform-owned credentials for background tasks like title generation.
+    # When set, these are used instead of the user's provider/key, so title
+    # generation does not consume user quota or use an expensive model.
+    title_generation_api_key: str = ""
+    title_generation_model: str = ""
+    title_generation_provider: str = ""
+
 
 class ChatUserConfig(PluginConfig):
     provider: str = Field(..., description="LLM provider (openai | anthropic | google)")

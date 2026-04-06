@@ -282,7 +282,7 @@ async def chat_completion(
             api_key_id=api_key_record.id if api_key_record else None,  # type: ignore
             provider=request.provider,
             model=request.model,
-            title=extract_title_from_messages(request.messages),
+            title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
         )
 
         first_user_text = get_first_user_text(request.messages)
@@ -292,9 +292,6 @@ async def chat_completion(
                 conversation_id=conversation.id,  # type: ignore
                 user_id=current_user.id,  # type: ignore
                 first_user_message=first_user_text,
-                api_key=api_key,
-                provider_name=request.provider,
-                model=request.model,
                 service=service,
             )
 

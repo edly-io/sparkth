@@ -179,6 +179,7 @@ class TestConversationUUIDRoutes:
 
         mock_config = MagicMock()
         mock_config.max_tool_executions = 50
+        mock_config.title_max_length = 60
 
         mock_service = ChatService(
             encryption_service=MagicMock(),
@@ -273,6 +274,7 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
         ):
