@@ -282,3 +282,23 @@ class ChatService:
 
         result = await session.exec(statement)
         return list(result.all())
+
+    async def update_conversation_title(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        user_id: int,
+        title: str,
+    ) -> None:
+        statement = select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+        result = await session.exec(statement)
+        conversation = result.first()
+        if conversation:
+            conversation.title = title
+            session.add(conversation)
+            await session.commit()
+        else:
+            logger.warning(f"Conversation {conversation_id} not found for title update")

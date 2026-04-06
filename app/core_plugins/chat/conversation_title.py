@@ -8,8 +8,6 @@ from app.core_plugins.chat.service import ChatService
 
 logger = get_logger(__name__)
 
-_TITLE_MAX_LENGTH = 60
-
 
 def get_first_user_text(messages: list[ChatMessage]) -> str | None:
     """Return the raw text of the first user message (no truncation)."""
@@ -29,31 +27,49 @@ def get_first_user_text(messages: list[ChatMessage]) -> str | None:
     return None
 
 
-def extract_title_from_messages(messages: list[ChatMessage]) -> str | None:
+def extract_title_from_messages(messages: list[ChatMessage], max_length: int = 60) -> str | None:
     """Derive a provisional conversation title from the first user message."""
     text = get_first_user_text(messages)
     if not text:
         return None
-    if len(text) <= _TITLE_MAX_LENGTH:
+    if len(text) <= max_length:
         return text
-    return text[:_TITLE_MAX_LENGTH].rsplit(" ", 1)[0] + "..."
+    return text[:max_length].rsplit(" ", 1)[0] + "..."
 
 
 async def generate_conversation_title(
     conversation_id: int,
     user_id: int,
     first_user_message: str,
-    provider_name: str,
-    model: str,
-    api_key: str,
     service: ChatService,
 ) -> None:
-    """Background task: ask the LLM for a short title and persist it."""
+    """
+    Background task: ask the LLM for a short title and persist it.
+
+    Silently skips (with a debug log) when CHAT_TITLE_GENERATION_* env vars are not
+    set — this is expected in deployments that have not configured platform credentials.
+    """
+    from app.core_plugins.chat.config import ChatSystemConfig  # lazy — avoids circular dep
+
+    sys_cfg = ChatSystemConfig()
+    missing = [
+        name
+        for name, value in (
+            ("CHAT_TITLE_GENERATION_PROVIDER", sys_cfg.title_generation_provider),
+            ("CHAT_TITLE_GENERATION_API_KEY", sys_cfg.title_generation_api_key),
+            ("CHAT_TITLE_GENERATION_MODEL", sys_cfg.title_generation_model),
+        )
+        if not value
+    ]
+    if missing:
+        logger.debug("Title generation skipped: %s not set", ", ".join(missing))
+        return
+
     try:
         provider = get_provider(
-            provider_name=provider_name,
-            api_key=api_key,
-            model=model,
+            provider_name=sys_cfg.title_generation_provider,
+            api_key=sys_cfg.title_generation_api_key,
+            model=sys_cfg.title_generation_model,
             temperature=0.3,
             max_tool_executions=0,
         )

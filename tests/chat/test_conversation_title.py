@@ -1,7 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.core_plugins.chat.conversation_title import (
-    _TITLE_MAX_LENGTH,
     extract_title_from_messages,
     generate_conversation_title,
     get_first_user_text,
@@ -87,16 +86,16 @@ class TestExtractTitleFromMessages:
         assert extract_title_from_messages([_user_msg("Short message")]) == "Short message"
 
     def test_returns_message_at_exact_limit_unchanged(self) -> None:
-        text = "a" * _TITLE_MAX_LENGTH
-        assert extract_title_from_messages([_user_msg(text)]) == text
+        text = "a" * 60
+        assert extract_title_from_messages([_user_msg(text)], max_length=60) == text
 
     def test_truncates_long_message_at_word_boundary(self) -> None:
         # "word " * 15 = 75 chars — should cut before char 60 at a space
         text = "word " * 15
-        result = extract_title_from_messages([_user_msg(text.strip())])
+        result = extract_title_from_messages([_user_msg(text.strip())], max_length=60)
         assert result is not None
         assert result.endswith("...")
-        assert len(result) <= _TITLE_MAX_LENGTH + len("...")
+        assert len(result) <= 60 + len("...")
 
     def test_truncated_title_ends_with_ellipsis(self) -> None:
         text = "a" * 80
@@ -123,10 +122,9 @@ class TestExtractTitleFromMessages:
 class TestGenerateConversationTitle:
     """
     The function:
-      1. Builds a ChatService from config
+      1. Reads platform credentials from ChatSystemConfig — raises EnvironmentError if any are missing
       2. Calls provider.send_message with a title prompt
       3. Strips the response and persists via service.update_conversation_title
-      4. Silently swallows all exceptions
     """
 
     def _make_mocks(self, llm_response: str = "Debugging Async Session") -> tuple[MagicMock, MagicMock, AsyncMock]:
@@ -142,6 +140,19 @@ class TestGenerateConversationTitle:
 
         return mock_provider, mock_service, mock_session
 
+    def _make_sys_cfg(
+        self,
+        *,
+        title_generation_provider: str = "anthropic",
+        title_generation_api_key: str = "sk-ant-platform-key",
+        title_generation_model: str = "claude-haiku-4-5",
+    ) -> MagicMock:
+        cfg = MagicMock()
+        cfg.title_generation_provider = title_generation_provider
+        cfg.title_generation_api_key = title_generation_api_key
+        cfg.title_generation_model = title_generation_model
+        return cfg
+
     async def _call(
         self,
         mock_provider: MagicMock,
@@ -151,21 +162,22 @@ class TestGenerateConversationTitle:
         conversation_id: int = 1,
         user_id: int = 42,
         first_user_message: str = "some message",
-        provider_name: str = "openai",
-        model: str = "gpt-4",
-        api_key: str = "sk-test",
+        sys_cfg: MagicMock | None = None,
     ) -> None:
+        if sys_cfg is None:
+            sys_cfg = self._make_sys_cfg()
         with (
             patch("app.core_plugins.chat.conversation_title.get_provider", return_value=mock_provider),
             patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session),
+            patch(
+                "app.core_plugins.chat.config.ChatSystemConfig",
+                return_value=sys_cfg,
+            ),
         ):
             await generate_conversation_title(
                 conversation_id=conversation_id,
                 user_id=user_id,
                 first_user_message=first_user_message,
-                provider_name=provider_name,
-                model=model,
-                api_key=api_key,
                 service=mock_service,
             )
 
@@ -209,14 +221,17 @@ class TestGenerateConversationTitle:
         mock_provider.send_message = AsyncMock(side_effect=RuntimeError("API error"))
         mock_service = MagicMock()
 
-        with patch("app.core_plugins.chat.conversation_title.get_provider", return_value=mock_provider):
+        with (
+            patch("app.core_plugins.chat.conversation_title.get_provider", return_value=mock_provider),
+            patch(
+                "app.core_plugins.chat.config.ChatSystemConfig",
+                return_value=self._make_sys_cfg(),
+            ),
+        ):
             await generate_conversation_title(
                 conversation_id=5,
                 user_id=42,
                 first_user_message="message",
-                provider_name="openai",
-                model="gpt-4",
-                api_key="sk-test",
                 service=mock_service,
             )
 
@@ -236,3 +251,60 @@ class TestGenerateConversationTitle:
         prompt_content = mock_provider.send_message.call_args.kwargs["messages"][0]["content"]
         assert "x" * 501 not in prompt_content
         assert "x" * 500 in prompt_content
+
+    async def test_uses_platform_credentials(self) -> None:
+        """Platform provider/key/model from config are forwarded to get_provider."""
+        mock_provider, mock_service, mock_session = self._make_mocks("Platform Title")
+
+        with (
+            patch(
+                "app.core_plugins.chat.conversation_title.get_provider",
+                return_value=mock_provider,
+            ) as mock_get_provider,
+            patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session),
+            patch(
+                "app.core_plugins.chat.config.ChatSystemConfig",
+                return_value=self._make_sys_cfg(
+                    title_generation_provider="anthropic",
+                    title_generation_api_key="sk-ant-platform-key",
+                    title_generation_model="claude-haiku-4-5",
+                ),
+            ),
+        ):
+            await generate_conversation_title(
+                conversation_id=8,
+                user_id=42,
+                first_user_message="some message",
+                service=mock_service,
+            )
+
+        mock_get_provider.assert_called_once()
+        call_kwargs = mock_get_provider.call_args.kwargs
+        assert call_kwargs["provider_name"] == "anthropic"
+        assert call_kwargs["api_key"] == "sk-ant-platform-key"
+        assert call_kwargs["model"] == "claude-haiku-4-5"
+
+    async def test_skips_quietly_when_platform_credentials_missing(self) -> None:
+        """No exception is raised when config values are absent — background task fails silently."""
+        mock_service = AsyncMock()
+
+        with (
+            patch("app.core_plugins.chat.conversation_title.get_provider") as mock_get_provider,
+            patch(
+                "app.core_plugins.chat.config.ChatSystemConfig",
+                return_value=self._make_sys_cfg(
+                    title_generation_provider="",
+                    title_generation_api_key="",
+                    title_generation_model="",
+                ),
+            ),
+        ):
+            await generate_conversation_title(
+                conversation_id=9,
+                user_id=42,
+                first_user_message="some message",
+                service=mock_service,
+            )
+
+        mock_get_provider.assert_not_called()
+        mock_service.update_conversation_title.assert_not_awaited()
