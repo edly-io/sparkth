@@ -239,8 +239,8 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
-    except Exception as e:
-        logger.error("Unexpected RAG processing error for '%s': %s", drive_file.name, e)
+    except SQLAlchemyError as e:
+        logger.error("Database error during RAG processing for '%s': %s", drive_file.name, e)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED)
         except SQLAlchemyError as status_err:
