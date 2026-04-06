@@ -19,6 +19,9 @@ async def cleanup_deleted_files() -> None:
 
     A chunk is only deleted when every Drive file that references it
     has been soft-deleted (i.e. shared chunks are preserved).
+
+    This is a system-wide background job: it operates across all users
+    intentionally, as orphan cleanup is not scoped per user.
     """
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
         deleted_ids_result = await session.execute(
@@ -63,7 +66,8 @@ async def cleanup_deleted_files() -> None:
 
         logger.info("%d orphaned chunks will be deleted.", len(orphan_chunk_ids))
 
-        # Remove bridge-table links for deleted files first (FK constraint)
+        # Remove ALL bridge-table links for deleted files (not just orphan links)
+        # so the FK constraint on DriveFile.id is satisfied before hard-deletion.
         await session.execute(
             delete(DriveFileChunkLink).where(
                 DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]

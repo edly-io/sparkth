@@ -1,5 +1,6 @@
 """Tests for RAG cleanup: orphaned chunk deletion."""
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -7,7 +8,7 @@ import pytest
 from app.rag.cleanup import cleanup_deleted_files
 
 
-def _make_session(execute_side_effects: list) -> AsyncMock:
+def _make_session(execute_side_effects: list[MagicMock | AsyncMock]) -> AsyncMock:
     """Build a mock AsyncSession whose execute() returns results in sequence."""
     session = AsyncMock()
     session.__aenter__ = AsyncMock(return_value=session)
@@ -25,7 +26,7 @@ def _rows(*values: object) -> MagicMock:
 
 
 @pytest.fixture
-def patch_session():
+def patch_session() -> Generator[MagicMock, None, None]:
     """Patch AsyncSession so cleanup_deleted_files uses our mock."""
     with patch("app.rag.cleanup.AsyncSession") as mock_cls:
         yield mock_cls

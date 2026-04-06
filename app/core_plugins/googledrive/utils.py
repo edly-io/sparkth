@@ -5,7 +5,7 @@ import hashlib
 import logging
 from pathlib import Path
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -243,8 +243,12 @@ async def _process_single_file(
         logger.error("Unexpected RAG processing error for '%s': %s", drive_file.name, e)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED)
-        except Exception:
-            logger.error("Failed to set RAG status to FAILED for '%s' after unexpected error", drive_file.name)
+        except SQLAlchemyError as status_err:
+            logger.error(
+                "Failed to set RAG status to FAILED for '%s': %s",
+                drive_file.name,
+                status_err,
+            )
 
 
 _RAG_CONCURRENCY = 3  # max files processed in parallel
