@@ -35,7 +35,7 @@ async def cleanup_deleted_files() -> None:
         # Chunks linked to deleted files
         candidate_result = await session.execute(
             select(DriveFileChunkLink.chunk_id).where(
-                DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[union-attr]
+                DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]
             )
         )
         candidate_chunk_ids = {row[0] for row in candidate_result.all()}
@@ -49,7 +49,7 @@ async def cleanup_deleted_files() -> None:
             select(DriveFileChunkLink.chunk_id)
             .join(DriveFile, DriveFileChunkLink.drive_file_id == DriveFile.id)  # type: ignore[arg-type]
             .where(
-                DriveFileChunkLink.chunk_id.in_(candidate_chunk_ids),  # type: ignore[union-attr]
+                DriveFileChunkLink.chunk_id.in_(candidate_chunk_ids),  # type: ignore[attr-defined]
                 col(DriveFile.is_deleted) == False,  # noqa: E712
             )
         )
@@ -66,7 +66,7 @@ async def cleanup_deleted_files() -> None:
         # Remove bridge-table links for deleted files first (FK constraint)
         await session.execute(
             delete(DriveFileChunkLink).where(
-                DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[union-attr]
+                DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]
             )
         )
 
