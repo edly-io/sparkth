@@ -97,6 +97,8 @@ For every new feature, endpoint, service method, utility, or plugin tool:
 
 > Never write implementation code before a corresponding failing test exists.
 
+For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
+
 ## Commit Messages
 
 Every commit must follow Conventional Commits. No exceptions.
@@ -109,7 +111,7 @@ Every commit must follow Conventional Commits. No exceptions.
 
 **Types:** `feat` | `fix` | `refactor` | `test` | `docs` | `chore`
 
-**Scopes:** `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core`
+**Scopes:** `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are acceptable when none of these fit (e.g. `auth`, `docker`, `deps`)
 
 **Rules:**
 - Subject line: max 72 chars, lowercase, no trailing period
@@ -133,28 +135,7 @@ chore(ci): pin uv version in GitHub Actions
 
 ## Pull Request Descriptions
 
-Every PR must use this exact structure. No exceptions.
-
-```markdown
-## What
-One sentence. What changed and why.
-
-## Changes
-- <type>(<scope>): short description
-- <type>(<scope>): short description
-
-Types: feat | fix | refactor | test | docs | chore
-Scopes: api | frontend | plugins | rag | mcp | migrations | ci | core
-
-## How to Test
-Numbered steps to verify the change works.
-1. Step one
-2. Step two
-
-## Notes
-Migration required? Breaking change? Env var added? Dependency bumped?
-Leave blank if none.
-```
+Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). It auto-populates on GitHub.
 
 **Rules:**
 - Title: `<type>(<scope>): short description` — max 70 chars, lowercase
@@ -167,5 +148,6 @@ Leave blank if none.
 | Topic | File |
 |---|---|
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
+| Contributing conventions (TDD, commits, PRs) | [.claude/docs/contributing.md](.claude/docs/contributing.md) |
 | Plugin development guide | [app/plugins/PLUGIN_GUIDE.md](app/plugins/PLUGIN_GUIDE.md) |
 | Frontend plugin development | [frontend/README.md](frontend/README.md) |
