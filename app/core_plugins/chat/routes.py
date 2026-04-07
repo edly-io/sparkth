@@ -21,6 +21,7 @@ from app.core.logger import get_logger
 from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.encryption import get_encryption_service
+from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
 from app.core_plugins.chat.providers import (
     DEFAULT_MODEL,
@@ -342,6 +343,14 @@ async def chat_completion(
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
             messages.insert(0, {"role": "system", "content": tool_list_message})
+
+        lms_credentials_message = await build_lms_credentials_message(
+            session=session,
+            user_id=current_user.id,  # type: ignore[arg-type]
+            tools=tools,
+        )
+        if lms_credentials_message:
+            provider.system_prompt += f"\n\n{lms_credentials_message}"
 
         if request.stream:
             return StreamingResponse(
