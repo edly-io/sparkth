@@ -28,7 +28,23 @@ class ChatPluginConfigAdapter(PluginConfigAdapter):
         api_key = config.pop("api_key", None)
         provider = config.get("provider")
 
-        if not api_key:
+        db_key: ProviderAPIKey | None = None
+        if provider:
+            result = await session.exec(
+                select(ProviderAPIKey).where(
+                    ProviderAPIKey.user_id == user_id,
+                    ProviderAPIKey.provider == provider,
+                    ProviderAPIKey.is_active == True,
+                )
+            )
+            db_key = result.one_or_none()
+
+        # Guard 1: no key provided — preserve existing ref rather than dropping it.
+        # Guard 2: key matches the stored masked value — the frontend echoed back the
+        #          display string without the user touching the field; do not re-encrypt.
+        if not api_key or (db_key is not None and api_key == db_key.masked_key):
+            if db_key is not None:
+                config["provider_api_key_ref"] = db_key.id
             return config
 
         if not provider:

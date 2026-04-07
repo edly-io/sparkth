@@ -659,7 +659,7 @@ class TestProcessSingleFile:
         provider = AsyncMock()
         store = AsyncMock()
 
-        mock_download.side_effect = RuntimeError("network timeout")
+        mock_download.side_effect = KeyError("unexpected key")
 
         drive_file = _make_drive_file(name="err.pdf")
 
@@ -701,16 +701,18 @@ class TestProcessFolderRag:
     @patch("app.core_plugins.googledrive.utils.get_embedding_provider")
     async def test_skips_when_no_files(self, mock_provider: MagicMock, mock_session_cls: MagicMock) -> None:
         """Empty folder should return early."""
+        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
+
         mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_session.execute = AsyncMock(return_value=mock_result)
+        folder_result = MagicMock()
+        folder_result.scalars.return_value.first.return_value = folder
+        files_result = MagicMock()
+        files_result.scalars.return_value.all.return_value = []
+        mock_session.execute = AsyncMock(side_effect=[folder_result, files_result])
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
-
-        await process_folder_rag(folder, user_id=1, access_token="tok")
+        await process_folder_rag(1, user_id=1, access_token="tok")
 
         mock_provider.assert_not_called()
 
@@ -727,20 +729,25 @@ class TestProcessFolderRag:
     ) -> None:
         """Files with rag_status='ready' should be skipped."""
         ready_file = _make_drive_file(file_id=1, rag_status=RagStatus.READY)
+        processing_file = _make_drive_file(file_id=3, rag_status=RagStatus.PROCESSING)
         pending_file = _make_drive_file(file_id=2, rag_status=None)
 
-        # First call: folder file listing session
+        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
+
+        # First call: folder lookup + file listing session
         list_session = AsyncMock()
-        list_result = MagicMock()
-        list_result.scalars.return_value.all.return_value = [ready_file, pending_file]
-        list_session.execute = AsyncMock(return_value=list_result)
+        folder_result = MagicMock()
+        folder_result.scalars.return_value.first.return_value = folder
+        files_result = MagicMock()
+        files_result.scalars.return_value.all.return_value = [ready_file, processing_file, pending_file]
+        list_session.execute = AsyncMock(side_effect=[folder_result, files_result])
 
         # Second call: per-file processing session
         file_session = AsyncMock()
 
         sessions = iter([list_session, file_session])
 
-        def make_ctx(*args, **kwargs):  # type: ignore[no-untyped-def]
+        def make_ctx(*args: object, **kwargs: object) -> MagicMock:
             ctx = MagicMock()
             s = next(sessions)
             ctx.__aenter__ = AsyncMock(return_value=s)
@@ -749,11 +756,9 @@ class TestProcessFolderRag:
 
         mock_session_cls.side_effect = make_ctx
 
-        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
+        await process_folder_rag(1, user_id=1, access_token="tok")
 
-        await process_folder_rag(folder, user_id=1, access_token="tok")
-
-        # Only the pending file should be processed
+        # Only the pending file should be processed (ready + processing skipped)
         assert mock_process.await_count == 1
         processed_file = mock_process.call_args[0][0]
         assert processed_file.id == 2
@@ -771,14 +776,16 @@ class TestProcessFolderRag:
     ) -> None:
         """BaseException raised inside a gather task must be logged, not re-raised."""
         pending_file = _make_drive_file(file_id=1, rag_status=None)
+        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
 
         list_session = AsyncMock()
-        list_result = MagicMock()
-        list_result.scalars.return_value.all.return_value = [pending_file]
-        list_session.execute = AsyncMock(return_value=list_result)
+        folder_result = MagicMock()
+        folder_result.scalars.return_value.first.return_value = folder
+        files_result = MagicMock()
+        files_result.scalars.return_value.all.return_value = [pending_file]
+        list_session.execute = AsyncMock(side_effect=[folder_result, files_result])
 
         file_session = AsyncMock()
-
         sessions = iter([list_session, file_session])
 
         def make_ctx(*args: object, **kwargs: object) -> MagicMock:
@@ -791,7 +798,5 @@ class TestProcessFolderRag:
         mock_session_cls.side_effect = make_ctx
         mock_process.side_effect = BaseException("fatal")
 
-        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
-
         # Must not propagate
-        await process_folder_rag(folder, user_id=1, access_token="tok")
+        await process_folder_rag(1, user_id=1, access_token="tok")

@@ -72,6 +72,20 @@ async def _find_duplicate_file(
     return result.scalars().first()
 
 
+async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk_ids: set[int]) -> None:
+    """Insert bridge-table links for chunk_ids not already linked to drive_file_id."""
+    already_linked = await session.execute(
+        select(DriveFileChunkLink.chunk_id).where(
+            DriveFileChunkLink.drive_file_id == drive_file_id,
+        )
+    )
+    existing_ids = {row[0] for row in already_linked.all()}
+    new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
+    if new_links:
+        session.add_all(new_links)
+        await session.flush()
+
+
 async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int, source_file_id: int) -> None:
     """Copy bridge-table links from an existing duplicate file, skipping any that already exist."""
     source_links = await session.execute(
@@ -80,20 +94,7 @@ async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int,
         )
     )
     wanted_ids = {row[0] for row in source_links.all()}
-
-    already_linked = await session.execute(
-        select(DriveFileChunkLink.chunk_id).where(
-            DriveFileChunkLink.drive_file_id == drive_file_id,
-        )
-    )
-    existing_ids = {row[0] for row in already_linked.all()}
-
-    new_links = [
-        DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=chunk_id) for chunk_id in wanted_ids - existing_ids
-    ]
-    if new_links:
-        session.add_all(new_links)
-        await session.flush()
+    await _create_missing_links(session, drive_file_id, wanted_ids)
 
 
 async def _embed_and_store_chunks(
@@ -144,18 +145,7 @@ async def _embed_and_store_chunks(
 
     # Create bridge-table links, skipping any that already exist
     all_chunk_ids: set[int] = {row.id for row in new_rows if row.id is not None} | set(reused_chunk_ids)
-
-    already_linked = await session.execute(
-        select(DriveFileChunkLink.chunk_id).where(
-            DriveFileChunkLink.drive_file_id == drive_file_id,
-        )
-    )
-    existing_ids = {row[0] for row in already_linked.all()}
-
-    new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in all_chunk_ids - existing_ids]
-    if new_links:
-        session.add_all(new_links)
-        await session.flush()
+    await _create_missing_links(session, drive_file_id, all_chunk_ids)
 
     return len(new_chunk_inputs), len(reused_chunk_ids)
 
@@ -247,15 +237,21 @@ async def _process_single_file(
 
 
 async def process_folder_rag(
-    folder: DriveFolder,
+    folder_id: int,
     user_id: int,
     access_token: str,
 ) -> None:
     """Run the RAG pipeline for all supported files in a synced folder."""
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
+        folder_result = await session.execute(select(DriveFolder).where(DriveFolder.id == folder_id))
+        folder = folder_result.scalars().first()
+        if folder is None:
+            logger.warning("process_folder_rag: folder %d not found.", folder_id)
+            return
+
         result = await session.execute(
             select(DriveFile).where(
-                col(DriveFile.folder_id) == folder.id,
+                col(DriveFile.folder_id) == folder_id,
                 col(DriveFile.is_deleted) == False,  # noqa: E712
             )
         )
@@ -273,9 +269,16 @@ async def process_folder_rag(
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
 
-    pending = [_process_with_own_session(df) for df in files if df.rag_status != RagStatus.READY]
+    pending = [
+        _process_with_own_session(df) for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)
+    ]
     if pending:
         results = await asyncio.gather(*pending, return_exceptions=True)
-        for task_result in results:
-            if isinstance(task_result, BaseException):
-                logger.error("RAG pipeline task raised an unhandled exception: %s", task_result)
+        errors = [r for r in results if isinstance(r, BaseException)]
+        if errors:
+            logger.warning(
+                "RAG processing for folder '%s': %d/%d files had errors.",
+                folder.drive_folder_name,
+                len(errors),
+                len(pending),
+            )
