@@ -267,7 +267,9 @@ async def process_folder_rag(
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
 
-    pending = [_process_with_own_session(df) for df in files if df.rag_status != RagStatus.READY]
+    pending = [
+        _process_with_own_session(df) for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)
+    ]
     if pending:
         results = await asyncio.gather(*pending, return_exceptions=True)
         errors = [r for r in results if isinstance(r, BaseException)]
