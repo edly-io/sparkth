@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 from app.models.drive import DriveFile, DriveFolder
@@ -243,11 +244,11 @@ async def _process_single_file(
         logger.error("Unexpected RAG processing error for '%s': %s", drive_file.name, e)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED)
-        except Exception:
-            logger.error("Failed to set RAG status to FAILED for '%s' after unexpected error", drive_file.name)
+        except Exception as status_err:
+            logger.error("Failed to set RAG status to FAILED for '%s': %s", drive_file.name, status_err)
 
 
-_RAG_CONCURRENCY = 3  # max files processed in parallel
+_RAG_CONCURRENCY: int = get_settings().RAG_CONCURRENCY  # default in settings
 
 
 async def process_folder_rag(

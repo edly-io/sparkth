@@ -7,6 +7,7 @@ from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship
 
 from app.models.base import SoftDeleteModel, TimestampedModel
+from app.rag.types import RagStatus
 
 
 class DriveOAuthToken(TimestampedModel, SoftDeleteModel, table=True):
@@ -62,7 +63,7 @@ class DriveFile(TimestampedModel, SoftDeleteModel, table=True):
     last_synced_at: Optional[datetime] = Field(default=None)
 
     # RAG processing status: processing, ready, failed (None = not processed)
-    rag_status: str | None = Field(default=None, max_length=50)
+    rag_status: RagStatus | None = Field(default=None, max_length=50)
     # SHA-256 hash of downloaded file contents
     content_hash: str | None = Field(default=None, max_length=64, index=True)
 
