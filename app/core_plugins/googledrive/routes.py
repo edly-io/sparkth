@@ -180,7 +180,7 @@ async def oauth_callback(
         user_id = state_data["user_id"]
     except SignatureExpired:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again.")
-    except BadSignature, KeyError, ValueError, TypeError:
+    except (BadSignature, KeyError, ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.")
 
     client_id, client_secret, redirect_uri = get_drive_credentials()
@@ -212,7 +212,7 @@ async def oauth_callback(
             token_data["expires_in"],
             token_data.get("scope", ""),
         )
-    except KeyError, ValueError:
+    except (KeyError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save tokens.",
@@ -261,7 +261,7 @@ async def get_connection_status(
             email=user_info.get("email"),
             expires_at=token_record.token_expiry,
         )
-    except ValueError, HTTPException:
+    except (ValueError, HTTPException):
         return ConnectionStatusResponse(connected=False)
 
 

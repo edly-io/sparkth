@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import field_validator
 from sqlalchemy import ForeignKey, Index, Integer
 from sqlmodel import Column, DateTime, Field, Relationship, SQLModel, Text
+from uuid6 import uuid7
 
 from app.models.base import SoftDeleteModel, TimestampedModel
 
@@ -37,6 +39,7 @@ class Conversation(TimestampedModel, SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    uuid: UUID = Field(default_factory=uuid7, unique=True, index=True)
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
     api_key_id: int | None = Field(
         default=None,

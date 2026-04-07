@@ -625,7 +625,7 @@ class TestProcessFolderRag:
 
         sessions = iter([list_session, file_session])
 
-        def make_ctx(*args, **kwargs):  # type: ignore[no-untyped-def]
+        def make_ctx(*args: object, **kwargs: object) -> MagicMock:
             ctx = MagicMock()
             s = next(sessions)
             ctx.__aenter__ = AsyncMock(return_value=s)
