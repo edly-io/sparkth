@@ -235,15 +235,21 @@ _RAG_CONCURRENCY = 3  # max files processed in parallel
 
 
 async def process_folder_rag(
-    folder: DriveFolder,
+    folder_id: int,
     user_id: int,
     access_token: str,
 ) -> None:
     """Run the RAG pipeline for all supported files in a synced folder."""
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
+        folder_result = await session.execute(select(DriveFolder).where(DriveFolder.id == folder_id))
+        folder = folder_result.scalars().first()
+        if folder is None:
+            logger.warning("process_folder_rag: folder %d not found.", folder_id)
+            return
+
         result = await session.execute(
             select(DriveFile).where(
-                col(DriveFile.folder_id) == folder.id,
+                col(DriveFile.folder_id) == folder_id,
                 col(DriveFile.is_deleted) == False,  # noqa: E712
             )
         )
@@ -263,4 +269,12 @@ async def process_folder_rag(
 
     pending = [_process_with_own_session(df) for df in files if df.rag_status != RagStatus.READY]
     if pending:
-        await asyncio.gather(*pending, return_exceptions=True)
+        results = await asyncio.gather(*pending, return_exceptions=True)
+        errors = [r for r in results if isinstance(r, BaseException)]
+        if errors:
+            logger.warning(
+                "RAG processing for folder '%s': %d/%d files had errors.",
+                folder.drive_folder_name,
+                len(errors),
+                len(pending),
+            )

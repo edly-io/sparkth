@@ -351,7 +351,7 @@ async def sync_folder(
     file_count = await _sync_folder_files(session, folder, user_id, access_token)
 
     # Trigger RAG pipeline in the background so the response is immediate
-    background_tasks.add_task(process_folder_rag, folder, user_id, access_token)
+    background_tasks.add_task(process_folder_rag, folder.id, user_id, access_token)  # type: ignore[arg-type]
 
     return DriveFolderResponse(
         id=folder.id,  # type: ignore[arg-type]
@@ -510,7 +510,7 @@ async def refresh_folder(
         await _sync_folder_files(session, folder, user_id, access_token)
 
         # Trigger RAG pipeline in the background so the response is immediate
-        background_tasks.add_task(process_folder_rag, folder, user_id, access_token)
+        background_tasks.add_task(process_folder_rag, folder.id, user_id, access_token)  # type: ignore[arg-type]
 
         return SyncStatusResponse(
             folder_id=folder.id,  # type: ignore[arg-type]

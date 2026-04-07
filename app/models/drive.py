@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship
 
+from app.rag.types import RagStatus
 from app.models.base import SoftDeleteModel, TimestampedModel
 
 
@@ -62,7 +63,7 @@ class DriveFile(TimestampedModel, SoftDeleteModel, table=True):
     last_synced_at: Optional[datetime] = Field(default=None)
 
     # RAG processing status: queued, processing, ready, failed (None = not processed)
-    rag_status: Optional[str] = Field(default=None, max_length=50)
+    rag_status: Optional[RagStatus] = Field(default=None)
     # SHA-256 hash of downloaded file contents
     content_hash: Optional[str] = Field(default=None, max_length=64, index=True)
 
