@@ -15,14 +15,12 @@ from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDrive
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
 from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
-from app.rag.extraction import extract_to_markdown
+from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
 logger = logging.getLogger(__name__)
-
-_RAG_SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
 
 
 def _resolve_filename(drive_file: DriveFile) -> str:
@@ -38,7 +36,7 @@ def _resolve_filename(drive_file: DriveFile) -> str:
 def _is_supported_for_rag(filename: str) -> bool:
     """Check whether the file extension is supported by the extraction module."""
     ext = Path(filename).suffix.lower().lstrip(".")
-    return ext in _RAG_SUPPORTED_EXTENSIONS
+    return ext in SUPPORTED_EXTENSIONS
 
 
 async def _set_rag_status(session: AsyncSession, drive_file: DriveFile, status: RagStatus) -> None:
@@ -240,15 +238,12 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
-    except Exception as e:
-        logger.error("Unexpected RAG processing error for '%s': %s", drive_file.name, e)
+    except Exception:
+        logger.exception("Unexpected RAG processing error for '%s'", drive_file.name)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED)
-        except Exception as status_err:
-            logger.error("Failed to set RAG status to FAILED for '%s': %s", drive_file.name, status_err)
-
-
-_RAG_CONCURRENCY: int = get_settings().RAG_CONCURRENCY  # default in settings
+        except Exception:
+            logger.exception("Failed to set RAG status to FAILED for '%s'", drive_file.name)
 
 
 async def process_folder_rag(
@@ -271,7 +266,7 @@ async def process_folder_rag(
 
     provider = get_embedding_provider()
     store = VectorStoreService()
-    semaphore = asyncio.Semaphore(_RAG_CONCURRENCY)
+    semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:
         async with semaphore:

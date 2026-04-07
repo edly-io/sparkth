@@ -12,6 +12,7 @@ from sqlmodel import Session
 
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
+from app.rag.types import RagStatus
 
 # ---------------------------------------------------------------------------
 # OAuth Endpoints
@@ -590,7 +591,7 @@ class TestGetFileRagStatus:
         sync_session: Session,
     ) -> None:
         """GET /files/{id}/rag-status should return 'processing' while pipeline runs."""
-        test_file.rag_status = "processing"
+        test_file.rag_status = RagStatus.PROCESSING
         sync_session.add(test_file)
         sync_session.commit()
 
@@ -607,7 +608,7 @@ class TestGetFileRagStatus:
         sync_session: Session,
     ) -> None:
         """GET /files/{id}/rag-status should return 'ready' when processing is complete."""
-        test_file.rag_status = "ready"
+        test_file.rag_status = RagStatus.READY
         sync_session.add(test_file)
         sync_session.commit()
 
@@ -624,7 +625,7 @@ class TestGetFileRagStatus:
         sync_session: Session,
     ) -> None:
         """GET /files/{id}/rag-status should return 'failed' when processing errored."""
-        test_file.rag_status = "failed"
+        test_file.rag_status = RagStatus.FAILED
         sync_session.add(test_file)
         sync_session.commit()
 
@@ -668,7 +669,7 @@ class TestGetFolderRagStatus:
         test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should return rag_status for every file."""
-        test_file.rag_status = "ready"
+        test_file.rag_status = RagStatus.READY
         second_file = DriveFile(
             folder_id=cast(int, test_folder.id),
             user_id=cast(int, test_user.id),
@@ -676,7 +677,7 @@ class TestGetFolderRagStatus:
             name="slides.pdf",
             mime_type="application/pdf",
             size=512,
-            rag_status="processing",
+            rag_status=RagStatus.PROCESSING,
             last_synced_at=test_file.last_synced_at,
         )
         sync_session.add(test_file)

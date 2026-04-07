@@ -471,6 +471,8 @@ _DISPATCH = {
     "md": _extract_txt,
 }
 
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(_DISPATCH)
+
 
 def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
     """

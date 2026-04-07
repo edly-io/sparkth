@@ -5,6 +5,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.rag.types import RagStatus
+
 
 # Request models
 class SyncFolderRequest(BaseModel):
@@ -103,7 +105,7 @@ class FileRagStatusResponse(BaseModel):
 
     file_id: int
     name: str
-    rag_status: str | None = None
+    rag_status: RagStatus | None = None
 
 
 class FolderRagStatusResponse(BaseModel):
