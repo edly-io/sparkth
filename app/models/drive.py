@@ -6,8 +6,8 @@ from typing import Optional
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship
 
-from app.rag.types import RagStatus
 from app.models.base import SoftDeleteModel, TimestampedModel
+from app.rag.types import RagStatus
 
 
 class DriveOAuthToken(TimestampedModel, SoftDeleteModel, table=True):
