@@ -614,6 +614,7 @@ class TestProcessFolderRag:
     ) -> None:
         """Files with rag_status='ready' should be skipped."""
         ready_file = _make_drive_file(file_id=1, rag_status=RagStatus.READY)
+        processing_file = _make_drive_file(file_id=3, rag_status=RagStatus.PROCESSING)
         pending_file = _make_drive_file(file_id=2, rag_status=None)
 
         folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
@@ -623,7 +624,7 @@ class TestProcessFolderRag:
         folder_result = MagicMock()
         folder_result.scalars.return_value.first.return_value = folder
         files_result = MagicMock()
-        files_result.scalars.return_value.all.return_value = [ready_file, pending_file]
+        files_result.scalars.return_value.all.return_value = [ready_file, processing_file, pending_file]
         list_session.execute = AsyncMock(side_effect=[folder_result, files_result])
 
         # Second call: per-file processing session
@@ -642,7 +643,7 @@ class TestProcessFolderRag:
 
         await process_folder_rag(1, user_id=1, access_token="tok")
 
-        # Only the pending file should be processed
+        # Only the pending file should be processed (ready + processing skipped)
         assert mock_process.await_count == 1
         processed_file = mock_process.call_args[0][0]
         assert processed_file.id == 2
