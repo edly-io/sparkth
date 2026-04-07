@@ -26,7 +26,7 @@ def _make_drive_file(
     *,
     name: str = "doc.pdf",
     mime_type: str | None = "application/pdf",
-    rag_status: str | None = None,
+    rag_status: RagStatus | None = None,
     content_hash: str | None = None,
     file_id: int = 1,
     user_id: int = 1,
