@@ -26,7 +26,7 @@ def _make_drive_file(
     *,
     name: str = "doc.pdf",
     mime_type: str | None = "application/pdf",
-    rag_status: str | None = None,
+    rag_status: RagStatus | None = None,
     content_hash: str | None = None,
     file_id: int = 1,
     user_id: int = 1,
@@ -401,6 +401,46 @@ class TestEmbedAndStoreChunks:
         link_chunk_ids = {link.chunk_id for link in added_links}
         assert link_chunk_ids == {50, 51}
 
+    async def test_skips_already_linked_chunks(self) -> None:
+        """Bridge-link rows that already exist should not be re-inserted."""
+        session = AsyncMock()
+        provider = AsyncMock(spec=True)
+        store = AsyncMock(spec=VectorStoreService)
+
+        chunks = self._make_chunks(["chunk A", "chunk B"])
+        hash_a = hashlib.sha256("chunk A".encode()).hexdigest()
+        hash_b = hashlib.sha256("chunk B".encode()).hexdigest()
+
+        # Both chunks already exist in DB
+        row_a = MagicMock(chunk_content_hash=hash_a, id=10)
+        row_b = MagicMock(chunk_content_hash=hash_b, id=11)
+        existing_result = MagicMock()
+        existing_result.all.return_value = [row_a, row_b]
+
+        # chunk 10 already linked; chunk 11 is not
+        links_result = MagicMock()
+        links_result.all.return_value = [(10,)]
+
+        session.execute = AsyncMock(side_effect=[existing_result, links_result])
+        store.store_chunks = AsyncMock(return_value=[])
+
+        new_count, reused_count = await _embed_and_store_chunks(
+            session,
+            user_id=1,
+            drive_file_id=5,
+            chunks=chunks,
+            provider=provider,
+            store=store,
+        )
+
+        assert new_count == 0
+        assert reused_count == 2
+        # Only chunk 11 should be newly linked
+        session.add_all.assert_called_once()
+        added_links = session.add_all.call_args[0][0]
+        assert len(added_links) == 1
+        assert added_links[0].chunk_id == 11
+
 
 # ---------------------------------------------------------------------------
 # _process_single_file
@@ -575,6 +615,81 @@ class TestProcessSingleFile:
         # extract_to_markdown should be called with .pdf filename
         mock_extract.assert_called_once_with(b"content", "My Doc.pdf")
 
+    async def test_none_id_returns_early(self) -> None:
+        """drive_file.id is None should log error and return without touching session."""
+        session = AsyncMock()
+        provider = AsyncMock()
+        store = AsyncMock()
+
+        drive_file = _make_drive_file(name="doc.pdf")
+        drive_file.id = None
+
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
+
+        session.commit.assert_not_awaited()
+        assert drive_file.rag_status is None
+
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    async def test_integrity_error_rollback_refresh_mark_failed(self, mock_download: AsyncMock) -> None:
+        """IntegrityError triggers rollback → refresh → FAILED."""
+        from sqlalchemy.exc import IntegrityError
+
+        session = AsyncMock()
+        provider = AsyncMock()
+        store = AsyncMock()
+
+        mock_download.side_effect = IntegrityError(None, None, Exception("unique violation"))
+
+        drive_file = _make_drive_file(name="dup.pdf")
+
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
+
+        session.rollback.assert_awaited_once()
+        session.refresh.assert_awaited_once_with(drive_file)
+        assert drive_file.rag_status == RagStatus.FAILED
+
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    async def test_unexpected_exception_marks_failed(self, mock_download: AsyncMock) -> None:
+        """Unexpected exception hits except Exception fallback → FAILED."""
+        session = AsyncMock()
+        provider = AsyncMock()
+        store = AsyncMock()
+
+        mock_download.side_effect = RuntimeError("network timeout")
+
+        drive_file = _make_drive_file(name="err.pdf")
+
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
+
+        assert drive_file.rag_status == RagStatus.FAILED
+
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._set_rag_status")
+    async def test_set_rag_status_failure_in_fallback_is_swallowed(
+        self, mock_set_status: AsyncMock, mock_download: AsyncMock
+    ) -> None:
+        """When _set_rag_status itself raises inside the except Exception block, error is logged not re-raised."""
+        session = AsyncMock()
+        provider = AsyncMock()
+        store = AsyncMock()
+
+        mock_download.side_effect = KeyError("unexpected key")
+        # First call sets PROCESSING (succeeds), second raises
+        mock_set_status.side_effect = [None, Exception("db gone")]
+
+        drive_file = _make_drive_file(name="bad.pdf")
+
+        # Must not propagate
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
+
 
 # ---------------------------------------------------------------------------
 # process_folder_rag
@@ -642,3 +757,41 @@ class TestProcessFolderRag:
         assert mock_process.await_count == 1
         processed_file = mock_process.call_args[0][0]
         assert processed_file.id == 2
+
+    @patch("app.core_plugins.googledrive.utils._process_single_file")
+    @patch("app.core_plugins.googledrive.utils.VectorStoreService")
+    @patch("app.core_plugins.googledrive.utils.get_embedding_provider")
+    @patch("app.core_plugins.googledrive.utils.AsyncSession")
+    async def test_base_exception_from_gather_is_logged(
+        self,
+        mock_session_cls: MagicMock,
+        mock_provider: MagicMock,
+        mock_store_cls: MagicMock,
+        mock_process: AsyncMock,
+    ) -> None:
+        """BaseException raised inside a gather task must be logged, not re-raised."""
+        pending_file = _make_drive_file(file_id=1, rag_status=None)
+
+        list_session = AsyncMock()
+        list_result = MagicMock()
+        list_result.scalars.return_value.all.return_value = [pending_file]
+        list_session.execute = AsyncMock(return_value=list_result)
+
+        file_session = AsyncMock()
+
+        sessions = iter([list_session, file_session])
+
+        def make_ctx(*args: object, **kwargs: object) -> MagicMock:
+            ctx = MagicMock()
+            s = next(sessions)
+            ctx.__aenter__ = AsyncMock(return_value=s)
+            ctx.__aexit__ = AsyncMock(return_value=None)
+            return ctx
+
+        mock_session_cls.side_effect = make_ctx
+        mock_process.side_effect = BaseException("fatal")
+
+        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
+
+        # Must not propagate
+        await process_folder_rag(folder, user_id=1, access_token="tok")
