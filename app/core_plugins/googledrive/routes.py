@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -41,6 +41,7 @@ from app.core_plugins.googledrive.types import (
     SyncFolderRequest,
     SyncStatusResponse,
 )
+from app.core_plugins.googledrive.utils import process_folder_rag
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 
@@ -310,6 +311,7 @@ def list_folders(
 @router.post("/folders/sync", response_model=DriveFolderResponse)
 async def sync_folder(
     request: SyncFolderRequest,
+    background_tasks: BackgroundTasks,
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveFolderResponse:
@@ -347,6 +349,9 @@ async def sync_folder(
 
     # Fetch files immediately so the folder isn't empty
     file_count = await _sync_folder_files(session, folder, user_id, access_token)
+
+    # Trigger RAG pipeline in the background so the response is immediate
+    background_tasks.add_task(process_folder_rag, folder.id, user_id, access_token)  # type: ignore[arg-type]
 
     return DriveFolderResponse(
         id=folder.id,  # type: ignore[arg-type]
@@ -483,6 +488,7 @@ def delete_folder(
 @router.post("/folders/{folder_id}/refresh", response_model=SyncStatusResponse)
 async def refresh_folder(
     folder_id: int,
+    background_tasks: BackgroundTasks,
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> SyncStatusResponse:
@@ -502,6 +508,9 @@ async def refresh_folder(
 
     try:
         await _sync_folder_files(session, folder, user_id, access_token)
+
+        # Trigger RAG pipeline in the background so the response is immediate
+        background_tasks.add_task(process_folder_rag, folder.id, user_id, access_token)  # type: ignore[arg-type]
 
         return SyncStatusResponse(
             folder_id=folder.id,  # type: ignore[arg-type]
