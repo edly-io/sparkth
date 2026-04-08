@@ -526,16 +526,33 @@ class TestRenameFile:
 
 class TestDeleteFile:
     @pytest.mark.asyncio
-    async def test_delete_success(
+    async def test_delete_marks_file_as_deleted(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """DELETE /files/{id} should soft-delete locally; file remains in Google Drive."""
+        response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "removed" in response.json()["detail"].lower()
+
+        sync_session.refresh(test_file)
+        assert test_file.is_deleted is True
+        assert test_file.deleted_at is not None
+
+    @pytest.mark.asyncio
+    async def test_deleted_file_no_longer_accessible(
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
     ) -> None:
-        """DELETE /files/{id} should soft-delete locally and return success."""
-        response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+        """File should return 404 on GET after deletion."""
+        await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
 
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json()["detail"] == "File removed from Sparkth successfully"
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_delete_file_not_found(self, drive_client: AsyncClient) -> None:
@@ -544,26 +561,6 @@ class TestDeleteFile:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @pytest.mark.asyncio
-    async def test_deleted_file_no_longer_accessible(
-        self,
-        drive_client: AsyncClient,
-        test_file: DriveFile,
-        sync_session: Session,
-    ) -> None:
-        """GET /files/{id}/rag-status should return 404 after deletion."""
-        # Delete the file
-        response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
-        assert response.status_code == status.HTTP_200_OK
-
-        # Try to access it after deletion
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-# ---------------------------------------------------------------------------
-# Browse Endpoint
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # RAG Status Endpoints

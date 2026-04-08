@@ -63,6 +63,9 @@ db-shell: ## Open Postgres shell inside DB container
 migrations: ## Run Alembic migrations in Docker
 	docker compose -f docker-compose.yml up migrations
 
+rag-cleanup: ## Run RAG cleanup task in Docker
+	docker compose -f docker-compose.yml up rag-cleanup
+
 # --------------------------------------------------
 # User Management (Runs inside Docker)
 # --------------------------------------------------

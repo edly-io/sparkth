@@ -4,6 +4,7 @@ import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core_plugins.googledrive.client import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
@@ -653,44 +654,42 @@ class TestProcessSingleFile:
         assert drive_file.rag_status == RagStatus.FAILED
 
     @patch("app.core_plugins.googledrive.utils._download_file")
-    async def test_unexpected_exception_marks_failed(self, mock_download: AsyncMock) -> None:
-        """Unexpected exception hits except Exception fallback → sets FAILED then re-raises."""
+    async def test_sqlalchemy_error_marks_failed(self, mock_download: AsyncMock) -> None:
+        """SQLAlchemyError during processing sets FAILED status."""
         session = AsyncMock()
         provider = AsyncMock()
         store = AsyncMock()
 
-        mock_download.side_effect = KeyError("unexpected key")
+        mock_download.side_effect = SQLAlchemyError("db connection lost")
 
         drive_file = _make_drive_file(name="err.pdf")
 
-        with pytest.raises(KeyError, match="unexpected key"):
-            await _process_single_file(
-                drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-            )
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
 
         assert drive_file.rag_status == RagStatus.FAILED
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     @patch("app.core_plugins.googledrive.utils._set_rag_status")
-    async def test_set_rag_status_failure_in_fallback_is_swallowed(
+    async def test_set_rag_status_failure_in_sqlalchemy_fallback_is_swallowed(
         self, mock_set_status: AsyncMock, mock_download: AsyncMock
     ) -> None:
-        """When _set_rag_status itself raises inside the except Exception block, original error is re-raised."""
+        """When _set_rag_status itself raises inside except SQLAlchemyError, error is swallowed."""
         session = AsyncMock()
         provider = AsyncMock()
         store = AsyncMock()
 
-        mock_download.side_effect = KeyError("unexpected key")
+        mock_download.side_effect = SQLAlchemyError("db connection lost")
         # First call sets PROCESSING (succeeds), second raises
-        mock_set_status.side_effect = [None, Exception("db gone")]
+        mock_set_status.side_effect = [None, SQLAlchemyError("db gone")]
 
         drive_file = _make_drive_file(name="bad.pdf")
 
-        # Original KeyError re-raised, db error swallowed
-        with pytest.raises(KeyError, match="unexpected key"):
-            await _process_single_file(
-                drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-            )
+        # No exception re-raised, error is swallowed
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -757,7 +756,6 @@ class TestProcessFolderRag:
             return ctx
 
         mock_session_cls.side_effect = make_ctx
-
         await process_folder_rag(1, user_id=1, access_token="tok")
 
         # Only the pending file should be processed (ready + processing skipped)

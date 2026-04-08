@@ -458,7 +458,7 @@ def delete_folder(
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
-    """Soft delete a synced folder and its files from Sparkth (does not delete from Drive)."""
+    """Remove a folder and all its files from Sparkth tracking (soft-delete; content remains in Google Drive)."""
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,

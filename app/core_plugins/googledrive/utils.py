@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 import httpx
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -237,13 +237,16 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
-    except Exception:
-        logger.exception("Unexpected RAG processing error for '%s'", drive_file.name)
+    except SQLAlchemyError as e:
+        logger.error("Database error during RAG processing for '%s': %s", drive_file.name, e)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED)
-        except Exception:
-            logger.exception("Failed to set RAG status to FAILED for '%s'", drive_file.name)
-        raise
+        except SQLAlchemyError as status_err:
+            logger.error(
+                "Failed to set RAG status to FAILED for '%s': %s",
+                drive_file.name,
+                status_err,
+            )
 
 
 async def process_folder_rag(
