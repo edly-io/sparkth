@@ -108,7 +108,7 @@ Any schema change — add column, drop column, rename, alter type, add index —
 Editing an existing migration breaks environments that have already applied it, causing irreproducible state across dev, staging, and production.
 
 To run migrations use the following command:
-```
+```bash
 make migrations
 ```
 
