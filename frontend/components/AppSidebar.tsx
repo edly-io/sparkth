@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Settings,
+  Puzzle,
   ChevronDown,
   LogOut,
   User as UserIcon,
@@ -141,7 +142,7 @@ export default function AppSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 overflow-y-auto">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Spinner size="md" className="text-muted mb-2" />
@@ -160,7 +161,7 @@ export default function AppSidebar({
               />
             ))}
 
-            <div className="pt-3 mt-3">
+            <div>
               <Link
                 href={`${basePath}/settings`}
                 onClick={handleNavClick}
@@ -175,7 +176,7 @@ export default function AppSidebar({
                 `}
                 title={isCollapsed ? "My Plugins" : undefined}
               >
-                <Settings className="w-5 h-5 flex-shrink-0" />
+                <Puzzle className="w-5 h-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
                   <span className="font-medium">My Plugins</span>
                 )}

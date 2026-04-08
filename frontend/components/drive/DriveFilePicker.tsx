@@ -38,8 +38,8 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
     if (!token) return;
     setLoading(true);
     try {
-      const result = await listFolders(token);
-      setFolders(result);
+      const result = await listFolders(token, 0, 100);
+      setFolders(result.items);
     } catch (error) {
       console.error("Failed to load synced folders:", error);
     } finally {
@@ -52,8 +52,8 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
       if (!token) return;
       setLoading(true);
       try {
-        const result = await listFiles(folderId, token);
-        setFiles(result);
+        const result = await listFiles(folderId, token, 0, 100);
+        setFiles(result.items);
       } catch (error) {
         console.error("Failed to load files:", error);
       } finally {
