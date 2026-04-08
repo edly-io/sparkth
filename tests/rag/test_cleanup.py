@@ -42,34 +42,42 @@ class TestCleanupDeletedFiles:
         session.execute.assert_awaited_once()
         session.commit.assert_not_awaited()
 
-    async def test_no_linked_chunks_exits_early(self, patch_session: MagicMock) -> None:
+    async def test_duplicate_files_with_no_chunks_are_deleted(self, patch_session: MagicMock) -> None:
+        """Deleted drive files with no chunks (duplicates) are still hard-deleted."""
         session = _make_session(
             [
                 _rows(1, 2),  # deleted file ids
                 _rows(),  # no candidate chunks
+                MagicMock(),  # DELETE DriveFileChunkLink
+                MagicMock(),  # DELETE DriveFile
             ]
         )
         patch_session.return_value = session
 
         await cleanup_deleted_files()
 
-        assert session.execute.await_count == 2
-        session.commit.assert_not_awaited()
+        # 4 executes: deleted ids, candidates, delete links, delete files
+        assert session.execute.await_count == 4
+        session.commit.assert_awaited_once()
 
-    async def test_all_chunks_still_alive_exits_early(self, patch_session: MagicMock) -> None:
+    async def test_all_chunks_still_alive_deletes_files_only(self, patch_session: MagicMock) -> None:
+        """When all chunks are still alive, delete file links and files but not chunks."""
         session = _make_session(
             [
                 _rows(1),  # deleted file ids
                 _rows(10, 11),  # candidate chunk ids
                 _rows(10, 11),  # alive chunk ids (same set → no orphans)
+                MagicMock(),  # DELETE DriveFileChunkLink
+                MagicMock(),  # DELETE DriveFile
             ]
         )
         patch_session.return_value = session
 
         await cleanup_deleted_files()
 
-        assert session.execute.await_count == 3
-        session.commit.assert_not_awaited()
+        # 5 executes: deleted ids, candidates, alive, delete links, delete files
+        assert session.execute.await_count == 5
+        session.commit.assert_awaited_once()
 
     async def test_orphaned_chunks_are_deleted(self, patch_session: MagicMock) -> None:
         session = _make_session(
@@ -115,15 +123,17 @@ class TestCleanupDeletedFiles:
                 _rows(1),  # file 1 deleted
                 _rows(99),  # chunk 99 linked to deleted file 1
                 _rows(99),  # chunk 99 also alive (linked to live file 2)
+                MagicMock(),  # DELETE DriveFileChunkLink
+                MagicMock(),  # DELETE DriveFile
             ]
         )
         patch_session.return_value = session
 
         await cleanup_deleted_files()
 
-        # No orphans → no delete statements, no commit
-        assert session.execute.await_count == 3
-        session.commit.assert_not_awaited()
+        # 5 executes: deleted ids, candidates, alive, delete links, delete files
+        assert session.execute.await_count == 5
+        session.commit.assert_awaited_once()
 
     async def test_delete_statements_use_correct_ids(self, patch_session: MagicMock) -> None:
         """DELETE statements reference the right file/chunk ids."""

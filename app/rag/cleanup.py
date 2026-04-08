@@ -15,10 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 async def cleanup_deleted_files() -> None:
-    """Delete chunks orphaned by soft-deleted Drive files.
+    """Delete chunks orphaned by soft-deleted Drive files and duplicate files.
 
     A chunk is only deleted when every Drive file that references it
     has been soft-deleted (i.e. shared chunks are preserved).
+
+    Duplicate drive_file records (with no chunks) are always hard-deleted
+    when marked as soft-deleted.
 
     This is a system-wide background job: it operates across all users
     intentionally, as orphan cleanup is not scoped per user.
@@ -43,28 +46,26 @@ async def cleanup_deleted_files() -> None:
         )
         candidate_chunk_ids = {row[0] for row in candidate_result.all()}
 
-        if not candidate_chunk_ids:
-            logger.info("No chunks linked to deleted files.")
-            return
+        orphan_chunk_ids = set()
 
-        # Chunks still referenced by at least one live file
-        alive_result = await session.execute(
-            select(DriveFileChunkLink.chunk_id)
-            .join(DriveFile, DriveFileChunkLink.drive_file_id == DriveFile.id)  # type: ignore[arg-type]
-            .where(
-                DriveFileChunkLink.chunk_id.in_(candidate_chunk_ids),  # type: ignore[attr-defined]
-                col(DriveFile.is_deleted) == False,  # noqa: E712
+        if candidate_chunk_ids:
+            # Chunks still referenced by at least one live file
+            alive_result = await session.execute(
+                select(DriveFileChunkLink.chunk_id)
+                .join(DriveFile, DriveFileChunkLink.drive_file_id == DriveFile.id)  # type: ignore[arg-type]
+                .where(
+                    DriveFileChunkLink.chunk_id.in_(candidate_chunk_ids),  # type: ignore[attr-defined]
+                    col(DriveFile.is_deleted) == False,  # noqa: E712
+                )
             )
-        )
-        alive_chunk_ids = {row[0] for row in alive_result.all()}
+            alive_chunk_ids = {row[0] for row in alive_result.all()}
 
-        orphan_chunk_ids = candidate_chunk_ids - alive_chunk_ids
+            orphan_chunk_ids = candidate_chunk_ids - alive_chunk_ids
 
-        if not orphan_chunk_ids:
-            logger.info("No orphaned chunks. All candidates still referenced by live files.")
-            return
-
-        logger.info("%d orphaned chunks will be deleted.", len(orphan_chunk_ids))
+        if orphan_chunk_ids:
+            logger.info("%d orphaned chunks will be deleted.", len(orphan_chunk_ids))
+        else:
+            logger.info("No orphaned chunks found.")
 
         # Remove ALL bridge-table links for deleted files (not just orphan links)
         # so the FK constraint on DriveFile.id is satisfied before hard-deletion.
@@ -75,13 +76,14 @@ async def cleanup_deleted_files() -> None:
         )
 
         # Delete orphaned chunks
-        await session.execute(
-            delete(DocumentChunk).where(
-                DocumentChunk.id.in_(orphan_chunk_ids)  # type: ignore[union-attr]
+        if orphan_chunk_ids:
+            await session.execute(
+                delete(DocumentChunk).where(
+                    DocumentChunk.id.in_(orphan_chunk_ids)  # type: ignore[union-attr]
+                )
             )
-        )
 
-        # Hard-delete the soft-deleted DriveFile rows
+        # Hard-delete the soft-deleted DriveFile rows (including duplicates with no chunks)
         await session.execute(
             delete(DriveFile).where(
                 DriveFile.id.in_(deleted_file_ids)  # type: ignore[union-attr]
