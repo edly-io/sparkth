@@ -59,13 +59,11 @@ shell: ## Open shell inside the API container
 
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U sparkth -d sparkth
-migrations: ## Run Alembic migrations in Docker
-	docker compose -f docker-compose.yml up migrations
 
 migrations: ## Run Alembic migrations in Docker
 	docker compose -f docker-compose.yml up migrations
 
-rag-cleanup:
+rag-cleanup: ## Run RAG cleanup task in Docker
 	docker compose -f docker-compose.yml up rag-cleanup
 
 # --------------------------------------------------
