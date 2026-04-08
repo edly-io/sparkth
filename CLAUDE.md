@@ -63,6 +63,7 @@ make frontend.build  # Static export → frontend/out/
 make frontend.lint   # ESLint
 
 # Database
+make migrations      # Run pending Alembic migrations
 make shell           # Shell inside API container
 make db-shell        # PostgreSQL shell
 make create-user     # Create user (pass args after --)
@@ -107,7 +108,12 @@ Any schema change — add column, drop column, rename, alter type, add index —
 
 Editing an existing migration breaks environments that have already applied it, causing irreproducible state across dev, staging, and production.
 
-To run migrations use the following command:
+To create a new migration, use:
+```bash
+alembic revision --autogenerate -m "describe your change"
+```
+
+To apply all pending migrations:
 ```bash
 make migrations
 ```
