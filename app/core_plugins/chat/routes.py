@@ -344,6 +344,8 @@ async def chat_completion(
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
             messages.insert(0, {"role": "system", "content": tool_list_message})
 
+        # Mutate system_prompt before the stream branch so both the streaming
+        # and non-streaming paths receive the credentials hint.
         lms_credentials_message = await build_lms_credentials_message(
             session=session,
             user_id=current_user.id,  # type: ignore[arg-type]

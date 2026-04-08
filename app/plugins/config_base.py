@@ -22,6 +22,10 @@ class PluginConfig(BaseModel):
         """
         return None
 
+    # SECURITY NOTE: This string is injected into the LLM system prompt and is
+    # transmitted to the configured LLM provider (Anthropic/OpenAI/etc.) in
+    # plaintext on every chat request. The LLM uses it to call the authenticate
+    # tool automatically.
     def to_lms_credentials_hint(self) -> str | None:
         """
         Return a human-readable, newline-formatted block of credentials for the

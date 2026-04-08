@@ -33,7 +33,7 @@ def _lms_tool_prefixes() -> tuple[str, ...]:
 def _has_lms_tools(tools: list[Any]) -> bool:
     """Return True if any tool name starts with an LMS-specific prefix."""
     prefixes = _lms_tool_prefixes()
-    return any(getattr(tool, "name", "").startswith(prefix) for tool in tools for prefix in prefixes)
+    return any(getattr(tool, "name", "").startswith(prefixes) for tool in tools)
 
 
 async def build_lms_credentials_message(
@@ -54,6 +54,9 @@ async def build_lms_credentials_message(
     ``lms_tool_prefix()`` and ``to_lms_credentials_hint()`` on its
     ``PluginConfig`` subclass — no changes to this function are needed.
     """
+    # Intentional early-exit for both None (tools disabled by caller) and []
+    # (tool names were requested but none resolved). Either way there are no
+    # active tools to inspect, so no credentials hint is needed.
     if not tools or not _has_lms_tools(tools):
         return None
 
@@ -75,7 +78,7 @@ async def build_lms_credentials_message(
 
         try:
             config_instance = config_class(**user_plugin.config)
-        except Exception:
+        except (ValueError, TypeError):
             continue
 
         hint = config_instance.to_lms_credentials_hint()
