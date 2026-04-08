@@ -132,11 +132,12 @@ export interface PluginDefinition extends PluginMetadata, PluginSidebarConfig {
   }>;
 
   /**
-   * Optional: Load a settings/config component for the plugin
+   * Optional: Load a settings/config component for the plugin.
+   * Settings components use their own prop contract (not PluginComponentProps),
+   * so the return type is intentionally widened to ComponentType<any>.
    */
-  loadSettingsComponent?: () => Promise<{
-    default: ComponentType<PluginComponentProps>;
-  }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  loadSettingsComponent?: () => Promise<{ default: ComponentType<any> }>;
 
   /** Plugin routes */
   routes?: PluginRoute[];

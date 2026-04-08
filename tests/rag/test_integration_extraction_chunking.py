@@ -251,3 +251,137 @@ class TestPDFExtractionToChunking:
     def test_source_name_preserved(self, structured_pdf_bytes: bytes) -> None:
         chunks = _run(structured_pdf_bytes, "rl.pdf")
         assert all(c.metadata.source_name == "rl.pdf" for c in chunks)
+
+
+class TestChunkingDeterminism:
+    """Same input must always produce identical chunks (required for hash-based dedup)."""
+
+    def test_html_is_deterministic(self) -> None:
+        a = _run(STRUCTURED_HTML, "course.html")
+        b = _run(STRUCTURED_HTML, "course.html")
+        assert a == b
+
+    def test_markdown_is_deterministic(self) -> None:
+        a = _run(STRUCTURED_MD, "notes.md")
+        b = _run(STRUCTURED_MD, "notes.md")
+        assert a == b
+
+    def test_txt_is_deterministic(self) -> None:
+        data = b"Some plain text content.\nAnother line.\n"
+        a = _run(data, "doc.txt")
+        b = _run(data, "doc.txt")
+        assert a == b
+
+    def test_docx_is_deterministic(self) -> None:
+        docx_bytes = _make_docx(
+            [
+                (1, "Chapter"),
+                (0, "Body text here."),
+                (2, "Section"),
+                (0, "Section body."),
+            ]
+        )
+        a = _run(docx_bytes, "doc.docx")
+        b = _run(docx_bytes, "doc.docx")
+        assert a == b
+
+
+class TestChunkingEdgeCases:
+    _LONG_SENTENCE = "This is a sentence that contributes tokens to the chunk. " * 20
+    _OVERSIZED_MD = "\n".join(
+        [
+            "# Chapter One",
+            "",
+            "## Long Section",
+            "",
+            "  ".join([_LONG_SENTENCE] * 6),
+            "",
+            "## Short Section",
+            "",
+            "A brief paragraph.",
+            "",
+        ]
+    ).encode()
+
+    def test_oversized_chunk_is_split(self) -> None:
+        chunks = _run(self._OVERSIZED_MD, "big.md")
+        long_section_chunks = [c for c in chunks if c.metadata.section == "Long Section"]
+        assert len(long_section_chunks) > 1
+
+    def test_secondary_split_inherits_chapter_metadata(self) -> None:
+        chunks = _run(self._OVERSIZED_MD, "big.md")
+        long_section_chunks = [c for c in chunks if c.metadata.section == "Long Section"]
+        assert all(c.metadata.chapter == "Chapter One" for c in long_section_chunks)
+
+    def test_secondary_split_inherits_section_metadata(self) -> None:
+        chunks = _run(self._OVERSIZED_MD, "big.md")
+        long_section_chunks = [c for c in chunks if c.metadata.section == "Long Section"]
+        assert all(c.metadata.section == "Long Section" for c in long_section_chunks)
+
+    def test_short_section_unaffected_by_secondary_split(self) -> None:
+        chunks = _run(self._OVERSIZED_MD, "big.md")
+        short_chunks = [c for c in chunks if c.metadata.section == "Short Section"]
+        assert len(short_chunks) == 1
+        assert "brief paragraph" in short_chunks[0].content
+
+    def test_h4_not_a_split_boundary(self) -> None:
+        md = b"# Chapter\n\n## Section\n\n#### Deep Heading\n\nBody under deep heading.\n"
+        chunks = _run(md, "deep.md")
+        assert all(c.metadata.subsection is None for c in chunks)
+        content = _all_content(chunks)
+        assert "Deep Heading" in content
+        assert "Body under deep heading" in content
+
+    def test_non_sequential_headings_h1_then_h3(self) -> None:
+        md = b"# Top\n\nIntro text.\n\n### Sub without parent section\n\nSub body.\n"
+        chunks = _run(md, "nonseq.md")
+        sub_chunks = [c for c in chunks if c.metadata.subsection == "Sub without parent section"]
+        assert len(sub_chunks) == 1
+        assert sub_chunks[0].metadata.chapter == "Top"
+        assert sub_chunks[0].metadata.section is None
+
+    def test_multiple_h1s_produce_separate_chapters(self) -> None:
+        md = b"# Alpha\n\nAlpha body.\n\n# Beta\n\nBeta body.\n"
+        chunks = _run(md, "multi.md")
+        chapters = {c.metadata.chapter for c in chunks if c.metadata.chapter}
+        assert "Alpha" in chapters
+        assert "Beta" in chapters
+
+    def test_heading_only_section_not_empty(self) -> None:
+        md = b"# Chapter\n\n## Section\n\n### Subsection\n\nActual content here.\n"
+        chunks = _run(md, "headings.md")
+        assert all(c.content.strip() for c in chunks)
+
+    def test_whitespace_only_returns_empty(self) -> None:
+        chunks = _run(b"   \n\n\t\n  ", "empty.md")
+        assert chunks == []
+
+    def test_unicode_content_preserved(self) -> None:
+        md = "# \u0627\u0644\u0639\u0646\u0648\u0627\u0646\n\n\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u0646\u0635 \u0628\u0627\u0644\u0639\u0631\u0628\u064a\u0629.\n\n## \u6807\u9898\n\n\u4e2d\u6587\u5185\u5bb9\u3002\n".encode()
+        chunks = _run(md, "unicode.md")
+        content = _all_content(chunks)
+        assert "\u0645\u062d\u062a\u0648\u0649" in content
+        assert "\u4e2d\u6587\u5185\u5bb9" in content
+
+    def test_unicode_metadata_preserved(self) -> None:
+        md = "# \u0627\u0644\u0639\u0646\u0648\u0627\u0646\n\nBody.\n".encode()
+        chunks = _run(md, "unicode.md")
+        assert any(c.metadata.chapter == "\u0627\u0644\u0639\u0646\u0648\u0627\u0646" for c in chunks)
+
+    def test_all_chunks_have_source_name(self) -> None:
+        chunks = _run(self._OVERSIZED_MD, "big.md")
+        assert all(c.metadata.source_name == "big.md" for c in chunks)
+
+    def test_html_h4_not_a_split_boundary(self) -> None:
+        html = b"""
+        <html><body>
+          <h1>Chapter</h1>
+          <h2>Section</h2>
+          <h4>Deep Heading</h4>
+          <p>Paragraph under h4.</p>
+        </body></html>
+        """
+        chunks = _run(html, "deep.html")
+        assert all(c.metadata.subsection is None for c in chunks)
+        content = _all_content(chunks)
+        assert "Paragraph under h4" in content

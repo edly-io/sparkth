@@ -46,7 +46,7 @@ down: ## Stop and remove containers
 	docker compose down
 
 clean: ## Stop and wipe database volume (fresh start)
-	docker compose down -v
+	docker compose down -v db
 
 restart: ## Restart all containers
 	docker compose restart
@@ -61,6 +61,12 @@ db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U sparkth -d sparkth
 migrations: ## Run Alembic migrations in Docker
 	docker compose -f docker-compose.yml up migrations
+
+migrations: ## Run Alembic migrations in Docker
+	docker compose -f docker-compose.yml up migrations
+
+rag-cleanup:
+	docker compose -f docker-compose.yml up rag-cleanup
 
 # --------------------------------------------------
 # User Management (Runs inside Docker)

@@ -4,14 +4,17 @@ from typing import Any
 
 from pgvector.sqlalchemy import Vector  # type: ignore[import-untyped]
 from sqlalchemy import Column, Index, Text
-from sqlmodel import Field
+from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampedModel
 from app.rag.embeddings import DEFAULT_EMBEDDING_DIMENSIONS
 
 
-class DriveFileChunkLink(TimestampedModel, table=True):
-    """Many-to-many bridge between drive_files and rag_document_chunks."""
+class DriveFileChunkLink(SQLModel, table=True):
+    """Many-to-many bridge between drive_files and rag_document_chunks.
+
+    Rows are immutable once inserted — no timestamps needed.
+    """
 
     __tablename__ = "rag_drive_file_chunk_links"
 

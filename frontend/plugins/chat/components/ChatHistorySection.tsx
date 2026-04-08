@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 
 interface Conversation {
-  id: number;
+  id: string;
   title: string;
   message_count: number;
   created_at: string;

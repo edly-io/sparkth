@@ -596,3 +596,22 @@ class TestExtractToMarkdown:
         buf = io.BytesIO()
         doc.save(buf)
         assert extract_to_markdown(buf.getvalue(), "file.docx").doc_type == DocType.DOCX
+
+
+class TestSupportedExtensions:
+    def test_exported_constant_exists(self) -> None:
+        from app.rag.extraction import SUPPORTED_EXTENSIONS
+
+        assert isinstance(SUPPORTED_EXTENSIONS, frozenset)
+
+    def test_matches_dispatch_keys(self) -> None:
+        from app.rag.extraction import _DISPATCH, SUPPORTED_EXTENSIONS
+
+        assert SUPPORTED_EXTENSIONS == frozenset(_DISPATCH)
+
+    def test_utils_uses_extraction_constant(self) -> None:
+        from app.core_plugins.googledrive.utils import _is_supported_for_rag
+        from app.rag.extraction import SUPPORTED_EXTENSIONS
+
+        for ext in SUPPORTED_EXTENSIONS:
+            assert _is_supported_for_rag(f"file.{ext}") is True
