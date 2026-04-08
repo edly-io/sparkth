@@ -269,11 +269,20 @@ async def process_folder_rag(
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
 
-    pending = [
-        _process_with_own_session(df) for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)
-    ]
+    pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
+    # Capture file names before sessions close (avoid detached instance errors)
+    pending_with_names = [(df, df.name) for df in pending_files]
+    pending = [_process_with_own_session(df) for df, _ in pending_with_names]
     if pending:
         results = await asyncio.gather(*pending, return_exceptions=True)
+        for (drive_file, file_name), result in zip(pending_with_names, results):  # type: ignore[assignment]
+            if isinstance(result, BaseException):
+                logger.error(
+                    "RAG processing failed for '%s': %s",
+                    file_name,
+                    result,
+                    exc_info=result,
+                )
         errors = [r for r in results if isinstance(r, BaseException)]
         if errors:
             logger.warning(
