@@ -99,6 +99,19 @@ For every new feature, endpoint, service method, utility, or plugin tool:
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
 
+## Database Migrations
+
+**Never edit an existing migration file. No exceptions.**
+
+Any schema change — add column, drop column, rename, alter type, add index — requires a new Alembic migration file.
+
+Editing an existing migration breaks environments that have already applied it, causing irreproducible state across dev, staging, and production.
+
+To run migrations use the following command:
+```
+make migrations
+```
+
 ## Commit Messages
 
 Every commit must follow Conventional Commits. No exceptions.
