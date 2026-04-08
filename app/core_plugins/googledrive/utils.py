@@ -5,23 +5,23 @@ import hashlib
 import logging
 from pathlib import Path
 
+import httpx
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
 from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
-from app.rag.extraction import extract_to_markdown
+from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
 logger = logging.getLogger(__name__)
-
-_RAG_SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
 
 
 def _resolve_filename(drive_file: DriveFile) -> str:
@@ -37,7 +37,7 @@ def _resolve_filename(drive_file: DriveFile) -> str:
 def _is_supported_for_rag(filename: str) -> bool:
     """Check whether the file extension is supported by the extraction module."""
     ext = Path(filename).suffix.lower().lstrip(".")
-    return ext in _RAG_SUPPORTED_EXTENSIONS
+    return ext in SUPPORTED_EXTENSIONS
 
 
 async def _set_rag_status(session: AsyncSession, drive_file: DriveFile, status: RagStatus) -> None:
@@ -221,7 +221,15 @@ async def _process_single_file(
             reused_count,
         )
 
-    except (GoogleDriveAPIError, RuntimeError, ValueError, OSError) as e:
+    except (
+        GoogleDriveAPIError,
+        RuntimeError,
+        ValueError,
+        OSError,
+        httpx.HTTPStatusError,
+        httpx.ConnectError,
+        httpx.TimeoutException,
+    ) as e:
         logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
     except IntegrityError:
@@ -229,9 +237,13 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
-
-
-_RAG_CONCURRENCY = 3  # max files processed in parallel
+    except Exception:
+        logger.exception("Unexpected RAG processing error for '%s'", drive_file.name)
+        try:
+            await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        except Exception:
+            logger.exception("Failed to set RAG status to FAILED for '%s'", drive_file.name)
+        raise
 
 
 async def process_folder_rag(
@@ -260,18 +272,28 @@ async def process_folder_rag(
 
     provider = get_embedding_provider()
     store = VectorStoreService()
-    semaphore = asyncio.Semaphore(_RAG_CONCURRENCY)
+    semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:
         async with semaphore:
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
 
-    pending = [
-        _process_with_own_session(df) for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)
-    ]
+    pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
+    # Capture file names before sessions close (avoid detached instance errors)
+    pending_with_names = [(df, df.name) for df in pending_files]
+    pending = [_process_with_own_session(df) for df, _ in pending_with_names]
     if pending:
         results = await asyncio.gather(*pending, return_exceptions=True)
+        for i, task_result in enumerate(results):
+            if isinstance(task_result, BaseException):
+                _, file_name = pending_with_names[i]
+                logger.error(
+                    "RAG processing failed for '%s': %s",
+                    file_name,
+                    task_result,
+                    exc_info=task_result,
+                )
         errors = [r for r in results if isinstance(r, BaseException)]
         if errors:
             logger.warning(
