@@ -654,7 +654,7 @@ class TestProcessSingleFile:
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_unexpected_exception_marks_failed(self, mock_download: AsyncMock) -> None:
-        """Unexpected exception hits except Exception fallback → FAILED."""
+        """Unexpected exception hits except Exception fallback → sets FAILED then re-raises."""
         session = AsyncMock()
         provider = AsyncMock()
         store = AsyncMock()
@@ -663,9 +663,10 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="err.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        with pytest.raises(KeyError, match="unexpected key"):
+            await _process_single_file(
+                drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+            )
 
         assert drive_file.rag_status == RagStatus.FAILED
 
@@ -674,7 +675,7 @@ class TestProcessSingleFile:
     async def test_set_rag_status_failure_in_fallback_is_swallowed(
         self, mock_set_status: AsyncMock, mock_download: AsyncMock
     ) -> None:
-        """When _set_rag_status itself raises inside the except Exception block, error is logged not re-raised."""
+        """When _set_rag_status itself raises inside the except Exception block, original error is re-raised."""
         session = AsyncMock()
         provider = AsyncMock()
         store = AsyncMock()
@@ -685,10 +686,11 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="bad.pdf")
 
-        # Must not propagate
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        # Original KeyError re-raised, db error swallowed
+        with pytest.raises(KeyError, match="unexpected key"):
+            await _process_single_file(
+                drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+            )
 
 
 # ---------------------------------------------------------------------------
