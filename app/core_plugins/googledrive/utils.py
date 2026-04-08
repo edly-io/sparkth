@@ -5,6 +5,7 @@ import hashlib
 import logging
 from pathlib import Path
 
+import httpx
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -220,7 +221,15 @@ async def _process_single_file(
             reused_count,
         )
 
-    except (GoogleDriveAPIError, RuntimeError, ValueError, OSError) as e:
+    except (
+        GoogleDriveAPIError,
+        RuntimeError,
+        ValueError,
+        OSError,
+        httpx.HTTPStatusError,
+        httpx.ConnectError,
+        httpx.TimeoutException,
+    ) as e:
         logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
     except IntegrityError:
@@ -228,12 +237,6 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
-    except Exception:
-        logger.exception("Unexpected RAG processing error for '%s'", drive_file.name)
-        try:
-            await _set_rag_status(session, drive_file, RagStatus.FAILED)
-        except Exception:
-            logger.exception("Failed to set RAG status to FAILED for '%s'", drive_file.name)
 
 
 async def process_folder_rag(

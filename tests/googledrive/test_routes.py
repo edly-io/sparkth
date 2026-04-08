@@ -544,6 +544,22 @@ class TestDeleteFile:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @pytest.mark.asyncio
+    async def test_deleted_file_no_longer_accessible(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /files/{id}/rag-status should return 404 after deletion."""
+        # Delete the file
+        response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+        assert response.status_code == status.HTTP_200_OK
+
+        # Try to access it after deletion
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 # ---------------------------------------------------------------------------
 # Browse Endpoint
@@ -700,6 +716,40 @@ class TestGetFolderRagStatus:
         response = await drive_client.get("/api/v1/googledrive/folders/99999/rag-status")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_excludes_deleted_files(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        sync_session: Session,
+        test_user: User,
+    ) -> None:
+        """GET /folders/{id}/rag-status should exclude soft-deleted files."""
+        # Create two files, one active and one deleted
+        test_file.rag_status = RagStatus.READY
+        deleted_file = DriveFile(
+            folder_id=cast(int, test_folder.id),
+            user_id=cast(int, test_user.id),
+            drive_file_id="drive_file_deleted",
+            name="deleted_doc.pdf",
+            mime_type="application/pdf",
+            size=1024,
+            rag_status=RagStatus.READY,
+            last_synced_at=test_file.last_synced_at,
+        )
+        deleted_file.soft_delete()
+        sync_session.add(test_file)
+        sync_session.add(deleted_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["files"]) == 1
+        assert data["files"][0]["name"] == "test_document.pdf"
 
 
 class TestBrowseDrive:
