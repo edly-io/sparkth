@@ -237,6 +237,13 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
+    except Exception:
+        logger.exception("Unexpected RAG processing error for '%s'", drive_file.name)
+        try:
+            await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        except Exception:
+            logger.exception("Failed to set RAG status to FAILED for '%s'", drive_file.name)
+        raise
 
 
 async def process_folder_rag(
@@ -278,13 +285,14 @@ async def process_folder_rag(
     pending = [_process_with_own_session(df) for df, _ in pending_with_names]
     if pending:
         results = await asyncio.gather(*pending, return_exceptions=True)
-        for (drive_file, file_name), result in zip(pending_with_names, results):  # type: ignore[assignment]
-            if isinstance(result, BaseException):
+        for i, task_result in enumerate(results):
+            if isinstance(task_result, BaseException):
+                _, file_name = pending_with_names[i]
                 logger.error(
                     "RAG processing failed for '%s': %s",
                     file_name,
-                    result,
-                    exc_info=result,
+                    task_result,
+                    exc_info=task_result,
                 )
         errors = [r for r in results if isinstance(r, BaseException)]
         if errors:
