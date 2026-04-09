@@ -117,6 +117,82 @@ To apply all pending migrations:
 ```bash
 make migrations
 ```
+## Exception Handling
+
+**Never use bare `except Exception` blocks. Always catch specific exception types.**
+
+This rule applies to all layers: API endpoints, services, plugins, MCP tools, and utilities.
+
+### Rules
+
+1. **Catch only what you expect.** Name the exact exception(s) a call can raise.
+2. **Always log the exception** with enough context to diagnose the failure (module, operation, relevant IDs).
+3. **Re-raise or not — developer's call.** If the caller can recover or needs to know, re-raise (the original or a domain-specific exception). If the error is fully handled at this level, swallowing is acceptable — but the log entry is still mandatory.
+4. **Never silence exceptions silently.** A bare `except` or `except Exception` with no log is always wrong.
+
+### Examples
+
+```python
+# ✅ Good — specific exception, logged, re-raise is a conscious choice
+from app.core.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Re-raising (caller needs to know)
+try:
+    result = await canvas_client.get_course(course_id)
+except HTTPStatusError as exc:
+    # When you need the full traceback (not just the message):
+    logger.exception("Canvas API error fetching course %s", course_id)
+    # or equivalently:
+    logger.error("Canvas API error fetching course %s: %s", course_id, exc, exc_info=True)
+    raise
+
+# Not re-raising (fully handled here)
+try:
+    await cache.set(key, value)
+except RedisError as exc:
+    logger.warning("Cache write failed for key %s: %s", key, exc)
+    # continue without cache — non-fatal
+
+# ✅ Good — multiple specific exceptions
+try:
+    data = json.loads(raw)
+except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    logger.error("Failed to parse response payload: %s", exc)
+    raise ValueError("Invalid response format") from exc
+
+# ❌ Bad — bare except, no log
+try:
+    result = await some_service.call()
+except Exception:
+    pass
+
+# ❌ Bad — catches too broadly, replaces with a vague error
+try:
+    result = await some_service.call()
+except Exception as exc:
+    raise RuntimeError("something went wrong") from exc
+```
+
+### Choosing whether to re-raise
+
+| Situation | Recommendation |
+|---|---|
+| Error is fatal to the current request/operation | Re-raise (original or domain exception) |
+| Error is non-fatal and a fallback exists | Swallow — but log at `warning` or `error` level |
+| Unsure | Re-raise — it's always safer to surface than to hide |
+
+### Finding the right exceptions to catch
+
+- Check the library's documentation or source for declared exceptions.
+- For `httpx` use `httpx.HTTPStatusError`, `httpx.RequestError`.
+- For SQLAlchemy/SQLModel use `sqlalchemy.exc.SQLAlchemyError` and its subclasses.
+- For Redis use `redis.exceptions.RedisError` and its subclasses.
+- For FastAPI/Starlette use `fastapi.HTTPException`, `starlette.exceptions.HTTPException`.
+- For LangChain use `langchain_core.exceptions.LangChainException`, `OutputParserException`, and provider-specific errors.
+- For standard I/O use `OSError`, `FileNotFoundError`, `PermissionError`, etc.
+- For Pydantic use `pydantic.ValidationError`.
 
 ## Commit Messages
 
