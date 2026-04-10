@@ -217,8 +217,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Claude Code
-.claude/*
-!.claude/docs/
+.claude/settings.local.json
+.claude/agent-memory
 
 # Lefthook
 lefthook.local.yml
