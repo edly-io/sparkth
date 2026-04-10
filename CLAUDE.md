@@ -63,6 +63,7 @@ make frontend.build  # Static export → frontend/out/
 make frontend.lint   # ESLint
 
 # Database
+make migrations      # Run pending Alembic migrations
 make shell           # Shell inside API container
 make db-shell        # PostgreSQL shell
 make create-user     # Create user (pass args after --)
@@ -98,6 +99,24 @@ For every new feature, endpoint, service method, utility, or plugin tool:
 > Never write implementation code before a corresponding failing test exists.
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
+
+## Database Migrations
+
+**Never edit an existing migration file. No exceptions.**
+
+Any schema change — add column, drop column, rename, alter type, add index — requires a new Alembic migration file.
+
+Editing an existing migration breaks environments that have already applied it, causing irreproducible state across dev, staging, and production.
+
+To create a new migration, use:
+```bash
+alembic revision --autogenerate -m "describe your change"
+```
+
+To apply all pending migrations:
+```bash
+make migrations
+```
 
 ## Commit Messages
 
