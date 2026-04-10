@@ -219,7 +219,6 @@ __marimo__/
 # Claude Code
 .claude/settings.local.json
 .claude/agent-memory
-!.claude/docs/
 
 # Lefthook
 lefthook.local.yml
