@@ -118,7 +118,7 @@ Follow the project's PR template from `.github/PULL_REQUEST_TEMPLATE.md`. The PR
 
 **Title format:** `<type>(<scope>): short description` — max 70 chars, lowercase
 
-**Description sections (populate all relevant sections):**
+**Description sections (populate ALL sections — if a section has no relevant changes, explicitly write "No changes" rather than omitting it):**
 
 ```markdown
 ## What
