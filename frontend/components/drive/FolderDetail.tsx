@@ -16,7 +16,9 @@ import {
 import {
   DriveFolder,
   DriveFile,
+  RagStatus,
   getFolder,
+  getFolderRagStatus,
   uploadFile,
   downloadFile,
   renameFile,
@@ -40,6 +42,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const [actionFileId, setActionFileId] = useState<number | null>(null);
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [ragStatuses, setRagStatuses] = useState<Record<number, RagStatus | null>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
@@ -59,6 +62,35 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   useEffect(() => {
     loadFiles();
   }, [loadFiles]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
+    const fetchRagStatuses = async () => {
+      try {
+        const data = await getFolderRagStatus(folder.id, token);
+        if (!cancelled) {
+          const map: Record<number, RagStatus | null> = {};
+          for (const f of data.files) {
+            map[f.file_id] = f.rag_status;
+          }
+          setRagStatuses(map);
+        }
+      } catch {
+        // silently ignore polling errors
+      }
+    };
+
+    fetchRagStatuses();
+    const interval = setInterval(fetchRagStatuses, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token, folder.id]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files?.length) return;
@@ -182,9 +214,10 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
           ) : (
             <table className="w-full table-fixed">
               <colgroup>
-                <col className="w-[45%]" />
+                <col className="w-[38%]" />
+                <col className="w-[12%]" />
                 <col className="w-[15%]" />
-                <col className="w-[20%]" />
+                <col className="w-[15%]" />
                 <col className="w-[20%]" />
               </colgroup>
               <thead>
@@ -197,6 +230,9 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                   </th>
                   <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Modified
+                  </th>
+                  <th className="px-6 py-2.5 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Status
                   </th>
                   <th className="px-6 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Actions
@@ -233,6 +269,21 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
                       {formatDate(file.modified_time)}
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap text-center">
+                      <span
+                        data-testid={`rag-status-${file.id}`}
+                        title={ragStatuses[file.id] ?? undefined}
+                        className={`inline-block w-3 h-3 rounded-full ${
+                          ragStatuses[file.id] === "ready"
+                            ? "bg-green-500"
+                            : ragStatuses[file.id] === "processing"
+                              ? "bg-yellow-500"
+                              : ragStatuses[file.id] === "failed"
+                                ? "bg-red-500"
+                                : "bg-gray-300"
+                        }`}
+                      />
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-1">
