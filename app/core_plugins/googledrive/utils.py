@@ -170,6 +170,7 @@ async def _process_single_file(
 
     if not _is_supported_for_rag(filename):
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
+        await _set_rag_status(session, drive_file, RagStatus.READY)
         return
 
     if drive_file.id is None:
