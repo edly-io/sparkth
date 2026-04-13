@@ -42,7 +42,11 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const [actionFileId, setActionFileId] = useState<number | null>(null);
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
-  const [ragStatuses, setRagStatuses] = useState<Record<number, RagStatus | null>>({});
+  const [ragStatuses, setRagStatuses] = useState<
+    Record<number, { status: RagStatus | null; error: string | null }>
+  >({});
+  const [hoveredFileId, setHoveredFileId] = useState<number | null>(null);
+  const [pollKey, setPollKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
@@ -68,29 +72,42 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
 
     let cancelled = false;
 
+    let allTerminal = false;
+
     const fetchRagStatuses = async () => {
       try {
         const data = await getFolderRagStatus(folder.id, token);
         if (!cancelled) {
-          const map: Record<number, RagStatus | null> = {};
+          const map: Record<number, { status: RagStatus | null; error: string | null }> = {};
           for (const f of data.files) {
-            map[f.file_id] = f.rag_status;
+            map[f.file_id] = { status: f.rag_status, error: f.rag_error };
           }
           setRagStatuses(map);
+          allTerminal =
+            data.files.length > 0 &&
+            data.files.every((f) => f.rag_status === "ready" || f.rag_status === "failed");
         }
       } catch {
         // silently ignore polling errors
       }
     };
 
-    fetchRagStatuses();
-    const interval = setInterval(fetchRagStatuses, 5000);
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      await fetchRagStatuses();
+      if (!cancelled && !allTerminal) {
+        timerId = setTimeout(poll, 5000);
+      }
+    };
+
+    poll();
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timerId) clearTimeout(timerId);
     };
-  }, [token, folder.id]);
+  }, [token, folder.id, pollKey]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files?.length) return;
@@ -101,6 +118,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       await uploadFile(folder.id, file, token);
       await loadFiles();
       onFolderChange();
+      setPollKey((k) => k + 1);
     } catch (error) {
       alert(`Upload failed: ${error}`);
     } finally {
@@ -169,11 +187,26 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       await refreshFolder(folder.id, token);
       await loadFiles();
       onFolderChange();
+      setPollKey((k) => k + 1);
     } catch (error) {
       alert(`Sync failed: ${error}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const ragStatusColor: Record<string, string> = {
+    queued: "bg-gray-300",
+    ready: "bg-green-500",
+    processing: "bg-yellow-500",
+    failed: "bg-red-500",
+  };
+
+  const ragStatusLabel: Record<string, string> = {
+    queued: "Queued",
+    ready: "Ready",
+    processing: "Processing",
+    failed: "Failed",
   };
 
   return (
@@ -195,6 +228,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
             size="icon"
             onClick={handleSync}
             disabled={loading}
+            aria-label="Sync folder"
             className="h-8 w-8"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -271,19 +305,29 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                       {formatDate(file.modified_time)}
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-center">
-                      <span
-                        data-testid={`rag-status-${file.id}`}
-                        title={ragStatuses[file.id] ?? undefined}
-                        className={`inline-block w-3 h-3 rounded-full ${
-                          ragStatuses[file.id] === "ready"
-                            ? "bg-green-500"
-                            : ragStatuses[file.id] === "processing"
-                              ? "bg-yellow-500"
-                              : ragStatuses[file.id] === "failed"
-                                ? "bg-red-500"
-                                : "bg-gray-300"
-                        }`}
-                      />
+                      <div className="relative inline-flex items-center justify-center">
+                        <span
+                          data-testid={`rag-status-${file.id}`}
+                          onMouseEnter={() => setHoveredFileId(file.id)}
+                          onMouseLeave={() => setHoveredFileId(null)}
+                          className={`inline-block w-3 h-3 rounded-full cursor-default ${ragStatusColor[ragStatuses[file.id]?.status ?? ""] ?? "bg-gray-300"}`}
+                        />
+                        {hoveredFileId === file.id && (
+                          <div
+                            data-testid={`rag-tooltip-${file.id}`}
+                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 min-w-max rounded-md bg-popover border border-border px-3 py-2 text-xs text-popover-foreground shadow-md"
+                          >
+                            <p className="font-medium">
+                              {ragStatusLabel[ragStatuses[file.id]?.status ?? ""] ?? "Queued"}
+                            </p>
+                            {ragStatuses[file.id]?.error && (
+                              <p className="mt-1 text-muted-foreground">
+                                {ragStatuses[file.id]!.error}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-1">

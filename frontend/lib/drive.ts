@@ -322,12 +322,13 @@ export async function browseDrive(
 }
 
 // RAG status types and functions
-export type RagStatus = "processing" | "ready" | "failed";
+export type RagStatus = "queued" | "processing" | "ready" | "failed";
 
 export interface FileRagStatus {
   file_id: number;
   name: string;
   rag_status: RagStatus | null;
+  rag_error: string | null;
 }
 
 export interface FolderRagStatusResponse {

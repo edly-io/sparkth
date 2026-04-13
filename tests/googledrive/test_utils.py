@@ -800,3 +800,35 @@ class TestProcessFolderRag:
 
         # Must not propagate
         await process_folder_rag(1, user_id=1, access_token="tok")
+
+
+# ---------------------------------------------------------------------------
+# _set_rag_status with error message
+# ---------------------------------------------------------------------------
+
+
+class TestSetRagStatusWithError:
+    @pytest.mark.asyncio
+    async def test_stores_error_message_on_failed(self) -> None:
+        """_set_rag_status should persist rag_error when provided."""
+        file = _make_drive_file()
+        session = AsyncMock()
+
+        await _set_rag_status(session, file, RagStatus.FAILED, error="Download failed: 403 Forbidden")
+
+        assert file.rag_status == RagStatus.FAILED
+        assert file.rag_error == "Download failed: 403 Forbidden"
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_clears_error_message_on_ready(self) -> None:
+        """_set_rag_status should clear rag_error when status is not failed."""
+        file = _make_drive_file(rag_status=RagStatus.FAILED)
+        file.rag_error = "old error"
+        session = AsyncMock()
+
+        await _set_rag_status(session, file, RagStatus.READY)
+
+        assert file.rag_status == RagStatus.READY
+        assert file.rag_error is None
+        session.commit.assert_awaited_once()

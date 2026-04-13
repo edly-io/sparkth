@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:7727/api/v1/googledrive/oauth/callback"
 
     RAG_CONCURRENCY: int = 3  # max number of files to process in parallel for RAG
+    ENV: str = "PROD"
 
 
 @lru_cache
