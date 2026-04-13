@@ -181,10 +181,6 @@ async def _process_single_file(
     try:
         await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
 
-        # TEMPORARY: simulate failure for frontend testing
-        if filename == "test.1.2.3.pdf" and get_settings().ENV == "LOCAL":
-            raise ValueError("Simulated error for test.1.2.3.pdf")
-
         file_bytes = await _download_file(access_token, drive_file)
 
         content_hash = hashlib.sha256(file_bytes).hexdigest()

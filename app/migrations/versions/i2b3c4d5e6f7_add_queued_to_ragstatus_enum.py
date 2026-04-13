@@ -15,7 +15,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE ragstatus ADD VALUE IF NOT EXISTS 'QUEUED'")
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute("ALTER TYPE ragstatus ADD VALUE IF NOT EXISTS 'QUEUED'")
 
 
 def downgrade() -> None:
