@@ -12,15 +12,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import {
-  listFolders,
-  listFiles,
-  getFolderRagStatus,
-  DriveFolder,
-  DriveFile,
-  RagStatus,
-} from "@/lib/drive";
+import { listFolders, listFiles, DriveFolder, DriveFile } from "@/lib/drive";
 import { ragStatusColor, ragStatusLabel } from "@/lib/rag-status";
+import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
@@ -41,10 +35,9 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [loading, setLoading] = useState(true);
-  const [ragStatuses, setRagStatuses] = useState<
-    Record<number, { status: RagStatus | null; error: string | null }>
-  >({});
   const [hoveredFileId, setHoveredFileId] = useState<number | null>(null);
+
+  const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
   const loadFolders = useCallback(async () => {
     if (!token) return;
@@ -79,56 +72,14 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
     loadFolders();
   }, [loadFolders]);
 
-  useEffect(() => {
-    if (!token || !selectedFolder) return;
-
-    let cancelled = false;
-    let allTerminal = false;
-    let timerId: ReturnType<typeof setTimeout> | undefined;
-
-    const fetchRagStatuses = async () => {
-      try {
-        const data = await getFolderRagStatus(selectedFolder.id, token);
-        if (!cancelled) {
-          const map: Record<number, { status: RagStatus | null; error: string | null }> = {};
-          for (const f of data.files) {
-            map[f.file_id] = { status: f.rag_status, error: f.rag_error };
-          }
-          setRagStatuses(map);
-          allTerminal =
-            data.files.length > 0 &&
-            data.files.every((f) => f.rag_status === "ready" || f.rag_status === "failed");
-        }
-      } catch {
-        // silently ignore polling errors
-      }
-    };
-
-    const poll = async () => {
-      await fetchRagStatuses();
-      if (!cancelled && !allTerminal) {
-        timerId = setTimeout(poll, 5000);
-      }
-    };
-
-    poll();
-
-    return () => {
-      cancelled = true;
-      if (timerId) clearTimeout(timerId);
-    };
-  }, [token, selectedFolder]);
-
   const handleFolderClick = (folder: DriveFolder) => {
     setSelectedFolder(folder);
-    setRagStatuses({});
     loadFiles(folder.id);
   };
 
   const handleBackToFolders = () => {
     setSelectedFolder(null);
     setFiles([]);
-    setRagStatuses({});
   };
 
   return (

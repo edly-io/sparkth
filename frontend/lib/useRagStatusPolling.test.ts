@@ -76,13 +76,31 @@ describe("useRagStatusPolling", () => {
     expect(getFolderRagStatus).not.toHaveBeenCalled();
   });
 
-  it("stops polling when all files are terminal", async () => {
+  it("stops polling when all files are terminal (ready/failed)", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [
         { file_id: 10, name: "a.pdf", rag_status: "ready", rag_error: null },
         { file_id: 20, name: "b.pdf", rag_status: "failed", rag_error: null },
       ],
+    });
+
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    renderHook(() => useRagStatusPolling(1, "token"));
+
+    await waitFor(() => {
+      expect(getFolderRagStatus).toHaveBeenCalled();
+    });
+
+    const pollTimeout = setTimeoutSpy.mock.calls.find((call) => call[1] === 5000);
+    expect(pollTimeout).toBeUndefined();
+  });
+
+  it("stops polling when all files have null status", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({
+      folder_id: 1,
+      files: [{ file_id: 10, name: "a.pdf", rag_status: null, rag_error: null }],
     });
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
