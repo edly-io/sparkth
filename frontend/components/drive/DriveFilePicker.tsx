@@ -20,6 +20,7 @@ import {
   DriveFile,
   RagStatus,
 } from "@/lib/drive";
+import { ragStatusColor, ragStatusLabel } from "@/lib/rag-status";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
@@ -33,20 +34,6 @@ interface DriveFilePickerProps {
   onClose: () => void;
   onFileSelected: (file: SelectedDriveFile) => void;
 }
-
-const ragStatusColor: Record<string, string> = {
-  queued: "bg-gray-300",
-  ready: "bg-green-500",
-  processing: "bg-yellow-500",
-  failed: "bg-red-500",
-};
-
-const ragStatusLabel: Record<string, string> = {
-  queued: "Queued",
-  ready: "Ready",
-  processing: "Processing",
-  failed: "Failed",
-};
 
 export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePickerProps) {
   const { token } = useAuth();

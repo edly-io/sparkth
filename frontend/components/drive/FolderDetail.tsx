@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
@@ -16,9 +17,7 @@ import {
 import {
   DriveFolder,
   DriveFile,
-  RagStatus,
   getFolder,
-  getFolderRagStatus,
   uploadFile,
   downloadFile,
   renameFile,
@@ -27,6 +26,7 @@ import {
   formatFileSize,
   formatDate,
 } from "@/lib/drive";
+import { ragStatusColor, ragStatusLabel } from "@/lib/rag-status";
 
 interface FolderDetailProps {
   folder: DriveFolder;
@@ -42,11 +42,8 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const [actionFileId, setActionFileId] = useState<number | null>(null);
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
-  const [ragStatuses, setRagStatuses] = useState<
-    Record<number, { status: RagStatus | null; error: string | null }>
-  >({});
+  const { ragStatuses, restart: restartRagPolling } = useRagStatusPolling(folder.id, token);
   const [hoveredFileId, setHoveredFileId] = useState<number | null>(null);
-  const [pollKey, setPollKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
@@ -67,48 +64,6 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     loadFiles();
   }, [loadFiles]);
 
-  useEffect(() => {
-    if (!token) return;
-
-    let cancelled = false;
-
-    let allTerminal = false;
-
-    const fetchRagStatuses = async () => {
-      try {
-        const data = await getFolderRagStatus(folder.id, token);
-        if (!cancelled) {
-          const map: Record<number, { status: RagStatus | null; error: string | null }> = {};
-          for (const f of data.files) {
-            map[f.file_id] = { status: f.rag_status, error: f.rag_error };
-          }
-          setRagStatuses(map);
-          allTerminal =
-            data.files.length > 0 &&
-            data.files.every((f) => f.rag_status === "ready" || f.rag_status === "failed");
-        }
-      } catch {
-        // silently ignore polling errors
-      }
-    };
-
-    let timerId: ReturnType<typeof setTimeout> | undefined;
-
-    const poll = async () => {
-      await fetchRagStatuses();
-      if (!cancelled && !allTerminal) {
-        timerId = setTimeout(poll, 5000);
-      }
-    };
-
-    poll();
-
-    return () => {
-      cancelled = true;
-      if (timerId) clearTimeout(timerId);
-    };
-  }, [token, folder.id, pollKey]);
-
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files?.length) return;
 
@@ -118,7 +73,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       await uploadFile(folder.id, file, token);
       await loadFiles();
       onFolderChange();
-      setPollKey((k) => k + 1);
+      restartRagPolling();
     } catch (error) {
       alert(`Upload failed: ${error}`);
     } finally {
@@ -187,26 +142,12 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       await refreshFolder(folder.id, token);
       await loadFiles();
       onFolderChange();
-      setPollKey((k) => k + 1);
+      restartRagPolling();
     } catch (error) {
       alert(`Sync failed: ${error}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  const ragStatusColor: Record<string, string> = {
-    queued: "bg-gray-300",
-    ready: "bg-green-500",
-    processing: "bg-yellow-500",
-    failed: "bg-red-500",
-  };
-
-  const ragStatusLabel: Record<string, string> = {
-    queued: "Queued",
-    ready: "Ready",
-    processing: "Processing",
-    failed: "Failed",
   };
 
   return (
