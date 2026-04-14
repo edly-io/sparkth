@@ -749,6 +749,49 @@ class TestGetFolderRagStatus:
         assert data["files"][0]["name"] == "test_document.pdf"
 
 
+class TestRagErrorInResponse:
+    @pytest.mark.asyncio
+    async def test_failed_file_includes_rag_error(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /folders/{id}/rag-status should include rag_error for failed files."""
+        test_file.rag_status = RagStatus.FAILED
+        test_file.rag_error = "Download failed: 403 Forbidden"
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        file_data = data["files"][0]
+        assert file_data["rag_error"] == "Download failed: 403 Forbidden"
+
+    @pytest.mark.asyncio
+    async def test_non_failed_file_has_null_rag_error(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /folders/{id}/rag-status should return null rag_error for non-failed files."""
+        test_file.rag_status = RagStatus.READY
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        file_data = data["files"][0]
+        assert file_data["rag_error"] is None
+
+
 class TestBrowseDrive:
     @pytest.mark.asyncio
     async def test_browse_root(

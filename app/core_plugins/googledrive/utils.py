@@ -40,9 +40,15 @@ def _is_supported_for_rag(filename: str) -> bool:
     return ext in SUPPORTED_EXTENSIONS
 
 
-async def _set_rag_status(session: AsyncSession, drive_file: DriveFile, status: RagStatus) -> None:
+async def _set_rag_status(
+    session: AsyncSession,
+    drive_file: DriveFile,
+    status: RagStatus,
+    error: str | None = None,
+) -> None:
     """Update rag_status on a DriveFile and commit."""
     drive_file.rag_status = status
+    drive_file.rag_error = error if status == RagStatus.FAILED else None
     drive_file.update_timestamp()
     session.add(drive_file)
     await session.commit()
@@ -231,16 +237,16 @@ async def _process_single_file(
         httpx.TimeoutException,
     ) as e:
         logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error=str(e))
     except IntegrityError:
         logger.error("RAG processing failed for '%s': database integrity error", drive_file.name)
         await session.rollback()
         await session.refresh(drive_file)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
     except SQLAlchemyError as e:
         logger.error("Database error during RAG processing for '%s': %s", drive_file.name, e)
         try:
-            await _set_rag_status(session, drive_file, RagStatus.FAILED)
+            await _set_rag_status(session, drive_file, RagStatus.FAILED, error=f"Database error: {e}")
         except SQLAlchemyError as status_err:
             logger.error(
                 "Failed to set RAG status to FAILED for '%s': %s",
