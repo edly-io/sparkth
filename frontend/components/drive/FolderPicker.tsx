@@ -114,7 +114,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
         <nav className="flex" aria-label="Breadcrumb">
           <ol className="flex items-center gap-1 text-sm">
             {currentPath.map((item, index) => (
-              <li key={index} className="flex items-center">
+              <li key={item.id ?? "root"} className="flex items-center">
                 {index > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mx-0.5" />}
                 <button
                   onClick={() => handleBreadcrumbClick(index)}

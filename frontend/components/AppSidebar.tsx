@@ -76,7 +76,19 @@ export default function AppSidebar({
   return (
     <div
       className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300 ${isCollapsedDesktop ? "cursor-e-resize" : ""}`}
+      role={isCollapsedDesktop ? "button" : undefined}
+      tabIndex={isCollapsedDesktop ? 0 : undefined}
       onClick={handleSidebarClick}
+      onKeyDown={
+        isCollapsedDesktop
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggleCollapse?.();
+              }
+            }
+          : undefined
+      }
     >
       {/* Header */}
       <div

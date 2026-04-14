@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import { listFolders, listFiles, DriveFolder, DriveFile } from "@/lib/drive";
+import { listFolders, listFiles, fetchAllPages, DriveFolder, DriveFile } from "@/lib/drive";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
@@ -38,8 +38,8 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
     if (!token) return;
     setLoading(true);
     try {
-      const result = await listFolders(token, 0, 100);
-      setFolders(result.items);
+      const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
+      setFolders(allFolders);
     } catch (error) {
       console.error("Failed to load synced folders:", error);
     } finally {
@@ -52,8 +52,10 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
       if (!token) return;
       setLoading(true);
       try {
-        const result = await listFiles(folderId, token, 0, 100);
-        setFiles(result.items);
+        const allFiles = await fetchAllPages((skip, limit) =>
+          listFiles(folderId, token, skip, limit),
+        );
+        setFiles(allFiles);
       } catch (error) {
         console.error("Failed to load files:", error);
       } finally {
