@@ -302,7 +302,8 @@ export default function GoogleDrive() {
 
   const handleDelete = async (resource: ResourceRow) => {
     if (!token) return;
-    if (!confirm(`Delete "${resource.name}"? This will also remove it from Google Drive.`)) return;
+    if (!confirm(`Remove "${resource.name}" from Sparkth? The file will remain in Google Drive.`))
+      return;
 
     setDeletingId(resource.id);
     try {

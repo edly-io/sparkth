@@ -28,6 +28,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
   const { token } = useAuth();
   const [items, setItems] = useState<DriveBrowseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
   const [syncedDriveFolderIds, setSyncedDriveFolderIds] = useState<Set<string>>(new Set());
   const [currentPath, setCurrentPath] = useState<BreadcrumbItem[]>([
@@ -57,8 +58,10 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
       const result = await browseDrive(currentFolderId, token);
       const folders = result.items.filter((item) => item.is_folder);
       setItems(folders);
-    } catch (error) {
-      console.error("Failed to browse Drive:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to browse Drive";
+      setError(message);
+      console.error("Failed to browse Drive:", err);
     } finally {
       setLoading(false);
     }
@@ -105,6 +108,8 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
             Browse your Google Drive and pick a folder to sync with Sparkth.
           </DialogDescription>
         </DialogHeader>
+
+        {error && <p className="text-sm text-error-600 dark:text-error-400">{error}</p>}
 
         <nav className="flex" aria-label="Breadcrumb">
           <ol className="flex items-center gap-1 text-sm">
