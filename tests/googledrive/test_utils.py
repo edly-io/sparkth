@@ -450,7 +450,7 @@ class TestEmbedAndStoreChunks:
 
 class TestProcessSingleFile:
     async def test_skips_unsupported_file(self) -> None:
-        """Files with unsupported extensions should be skipped entirely."""
+        """Unsupported files should be set to READY so polling stops."""
         session = AsyncMock()
         provider = AsyncMock()
         store = AsyncMock()
@@ -460,9 +460,8 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        # Should not touch the session at all
-        session.commit.assert_not_awaited()
-        assert drive_file.rag_status is None
+        assert drive_file.rag_status == RagStatus.READY
+        session.commit.assert_awaited()
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     @patch("app.core_plugins.googledrive.utils._find_duplicate_file")

@@ -113,6 +113,8 @@ To create a new migration, use:
 alembic revision --autogenerate -m "describe your change"
 ```
 
+**Never hand-craft migration filenames or revision IDs.** Always use `alembic revision --autogenerate` — it generates a valid random hex revision ID. Hand-crafted IDs risk tooling confusion and non-hex characters that break Alembic expectations.
+
 To apply all pending migrations:
 ```bash
 make migrations

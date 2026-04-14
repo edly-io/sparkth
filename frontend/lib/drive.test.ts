@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// getFolderRagStatus does not exist yet — this test must fail
 import { getFolderRagStatus } from "./drive";
 
 describe("getFolderRagStatus", () => {
