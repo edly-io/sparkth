@@ -4,6 +4,8 @@ from pydantic import Field
 
 from app.plugins.config_base import PluginConfig
 
+MAX_TIMESTAMP_DELTA = 60 * 5  # 5 minutes
+
 
 class SlackBotConfig(PluginConfig):
     """Per-user Slack TA Bot configuration stored in the user-plugins table."""

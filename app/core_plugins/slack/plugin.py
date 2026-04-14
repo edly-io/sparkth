@@ -31,9 +31,3 @@ class SlackBotPlugin(SparkthPlugin):
 
     def get_route_tags(self) -> list[str]:
         return ["Slack TA Bot"]
-
-    def enable(self) -> None:
-        super().enable()
-
-    def disable(self) -> None:
-        super().disable()

@@ -1,7 +1,6 @@
 """FastAPI routes for the Slack TA Bot plugin."""
 
-from logging import getLogger
-
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
@@ -9,6 +8,7 @@ from sqlmodel import Session
 from app.api.v1.auth import get_current_user
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.core.logger import get_logger
 from app.core_plugins.slack.oauth import (
     decode_state,
     delete_workspace,
@@ -21,7 +21,7 @@ from app.core_plugins.slack.types import AuthorizationUrlResponse, ConnectionSta
 from app.models.user import User
 
 router: APIRouter = APIRouter()
-logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def require_user_id(current_user: User = Depends(get_current_user)) -> int:
@@ -31,16 +31,17 @@ def require_user_id(current_user: User = Depends(get_current_user)) -> int:
 
 
 def get_slack_credentials() -> tuple[str, str, str, str]:
-    """Return (client_id, client_secret, redirect_uri, signing_secret).
+    """
+    Return (client_id, client_secret, redirect_uri, signing_secret).
 
-    Raises HTTPException 400 if any credential is missing.
+    Raises HTTPException 503 if any environmental credential is missing.
     """
     s = get_settings()
-    if not s.SLACK_CLIENT_ID or not s.SLACK_CLIENT_SECRET or not s.SLACK_SIGNING_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Slack credentials not configured. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET.",
+    if not s.SLACK_CLIENT_ID or not s.SLACK_CLIENT_SECRET or not s.SLACK_SIGNING_SECRET or not s.SLACK_REDIRECT_URI:
+        logger.error(
+            "Slack credentials not configured. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET, SLACK_REDIRECT_URI"
         )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Slack credentials not configured.")
     return s.SLACK_CLIENT_ID, s.SLACK_CLIENT_SECRET, s.SLACK_REDIRECT_URI, s.SLACK_SIGNING_SECRET
 
 
@@ -65,19 +66,24 @@ async def oauth_callback(
         state_data = decode_state(state)
         user_id = state_data["user_id"]
     except SignatureExpired:
+        logger.warning("Slack OAuth state expired for callback request")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again.")
-    except (BadSignature, KeyError, ValueError, TypeError):
+    except (BadSignature, KeyError, ValueError, TypeError) as exc:
+        logger.warning("Invalid Slack OAuth state received: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.")
 
     client_id, client_secret, redirect_uri, _ = get_slack_credentials()
 
     try:
         token_data = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
-    except ValueError as exc:
+    except (ValueError, httpx.HTTPStatusError) as exc:
         logger.error("Slack OAuth code exchange failed for user %s: %s", user_id, exc)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange Slack authorization code."
         )
+    except httpx.RequestError as exc:
+        logger.error("Network error during Slack OAuth for user %s: %s", user_id, exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not reach Slack. Please try again.")
 
     try:
         save_workspace(
@@ -88,7 +94,8 @@ async def oauth_callback(
             bot_token=token_data["access_token"],
             bot_user_id=token_data["bot_user_id"],
         )
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.error("Unexpected Slack token response structure for user %s: %s", user_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unexpected response from Slack. Please try again.",

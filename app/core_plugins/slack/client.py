@@ -9,14 +9,10 @@ from typing import Any, cast
 import httpx
 
 from app.core.logger import get_logger
+from app.core_plugins.slack.config import MAX_TIMESTAMP_DELTA
+from app.core_plugins.slack.exceptions import SlackSignatureError
 
 logger = get_logger(__name__)
-
-_MAX_TIMESTAMP_DELTA = 60 * 5  # 5 minutes
-
-
-class SlackSignatureError(Exception):
-    """Raised when a Slack request signature cannot be verified."""
 
 
 class SlackClient:
@@ -74,10 +70,14 @@ class SlackClient:
         except ValueError as exc:
             raise SlackSignatureError("Invalid timestamp header") from exc
 
-        if abs(time.time() - ts) > _MAX_TIMESTAMP_DELTA:
+        if abs(time.time() - ts) > MAX_TIMESTAMP_DELTA:
             raise SlackSignatureError("Request timestamp is too old — possible replay attack")
 
-        base_string = f"v0:{timestamp}:{raw_body.decode('utf-8')}"
+        try:
+            body_str = raw_body.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SlackSignatureError("Request body is not valid UTF-8") from exc
+        base_string = f"v0:{timestamp}:{body_str}"
         expected = (
             "v0="
             + hmac.new(

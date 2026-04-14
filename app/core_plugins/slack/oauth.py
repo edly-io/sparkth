@@ -12,28 +12,10 @@ from sqlmodel import Session, select
 
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.core_plugins.slack.constants import BOT_SCOPES, SLACK_AUTHORIZE_URL, SLACK_TOKEN_URL, STATE_MAX_AGE
 from app.core_plugins.slack.models import SlackWorkspace
 
 logger = get_logger(__name__)
-
-SLACK_AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize"
-SLACK_TOKEN_URL = "https://slack.com/api/oauth.v2.access"
-
-_BOT_SCOPES = [
-    "app_mentions:read",
-    "channels:history",
-    "chat:write",
-    "im:history",
-    "im:read",
-    "im:write",
-]
-
-_STATE_MAX_AGE = 600  # 10 minutes
-
-
-# ---------------------------------------------------------------------------
-# Encryption (Fernet key derived from SECRET_KEY — same approach as googledrive)
-# ---------------------------------------------------------------------------
 
 
 def _get_fernet() -> Fernet:
@@ -68,7 +50,7 @@ def generate_state(user_id: int) -> str:
 
 
 def decode_state(state: str) -> dict[str, int]:
-    data: dict[str, int] = _get_signer().loads(state, max_age=_STATE_MAX_AGE)
+    data: dict[str, int] = _get_signer().loads(state, max_age=STATE_MAX_AGE)
     return data
 
 
@@ -80,7 +62,7 @@ def decode_state(state: str) -> dict[str, int]:
 def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str) -> str:
     params = {
         "client_id": client_id,
-        "scope": ",".join(_BOT_SCOPES),
+        "scope": ",".join(BOT_SCOPES),
         "redirect_uri": redirect_uri,
         "state": generate_state(user_id),
     }
@@ -98,6 +80,14 @@ async def exchange_code_for_tokens(
     client_secret: str,
     redirect_uri: str,
 ) -> dict[str, Any]:
+    """
+    Exchange an OAuth code for Slack tokens.
+
+    Raises:
+        httpx.HTTPStatusError: If Slack returns a non-2xx response.
+        httpx.RequestError: If the request fails due to a network error.
+        ValueError: If Slack returns ok=false in the response body.
+    """
     async with httpx.AsyncClient() as http:
         response = await http.post(
             SLACK_TOKEN_URL,

@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.slack.client import SlackClient, SlackSignatureError
+from app.core_plugins.slack.client import SlackClient
+from app.core_plugins.slack.exceptions import SlackSignatureError
 
 
 def _make_signature(secret: str, timestamp: str, body: bytes) -> str:
