@@ -1,5 +1,4 @@
 import { PluginDefinition } from "@/lib/plugins";
-import ResourcesIcon from "./ResourcesIcon";
 
 export const googleDrivePlugin: PluginDefinition = {
   name: "google-drive",
@@ -8,8 +7,5 @@ export const googleDrivePlugin: PluginDefinition = {
   isCore: true,
   category: "integration",
   loadComponent: () => import("./GoogleDrive"),
-  showInSidebar: true,
-  sidebarIcon: ResourcesIcon,
-  sidebarLabel: "Resources",
-  sidebarOrder: 2,
+  showInSidebar: false,
 };

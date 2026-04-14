@@ -11,7 +11,6 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  FolderSync,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
@@ -27,6 +26,7 @@ import {
   getConnectionStatus,
   listFolders,
   listFiles,
+  fetchAllPages,
   downloadFile,
   deleteFile,
   DriveFolder,
@@ -169,18 +169,7 @@ export default function GoogleDrive() {
       setConnectionStatus(status);
 
       if (status.connected) {
-        const allFolders: DriveFolder[] = [];
-        let skip = 0;
-        const limit = 100;
-        let hasMore = true;
-
-        while (hasMore) {
-          const result = await listFolders(token, skip, limit);
-          allFolders.push(...result.items);
-          skip += limit;
-          hasMore = allFolders.length < result.total;
-        }
-
+        const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
         setFolders(allFolders);
       }
     } catch (err) {
@@ -371,18 +360,16 @@ export default function GoogleDrive() {
               All imported files from your connected plugins
             </p>
           </div>
-          {connectionStatus?.connected && (
-            <Button variant="primary" size="sm" onClick={() => setShowFolderPicker(true)}>
-              <FolderSync className="w-4 h-4 mr-2" />
-              Sync Folder
-            </Button>
-          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <ConnectionStatus status={connectionStatus} onStatusChange={handleReload} />
+        <ConnectionStatus
+          status={connectionStatus}
+          onStatusChange={handleReload}
+          onSyncFolder={() => setShowFolderPicker(true)}
+        />
 
         {error && (
           <div className="flex items-center justify-between rounded-lg border border-error-200 bg-error-50 dark:border-error-800 dark:bg-error-900/30 px-4 py-3">

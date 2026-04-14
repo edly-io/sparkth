@@ -220,7 +220,7 @@ async def oauth_callback(
             detail="Failed to save tokens.",
         )
 
-    return RedirectResponse(url="/dashboard/google-drive?connected=true")
+    return RedirectResponse(url="/dashboard/resources?connected=true")
 
 
 @router.delete("/oauth/disconnect")

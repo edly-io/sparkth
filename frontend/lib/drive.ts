@@ -114,6 +114,25 @@ export async function disconnectGoogle(token: string): Promise<void> {
   }
 }
 
+/**
+ * Fetch all pages from a paginated endpoint, collecting every item.
+ */
+export async function fetchAllPages<T>(
+  fetcher: (skip: number, limit: number) => Promise<PaginatedResponse<T>>,
+  limit = 100,
+): Promise<T[]> {
+  const items: T[] = [];
+  let skip = 0;
+  let total = 0;
+  do {
+    const page = await fetcher(skip, limit);
+    items.push(...page.items);
+    total = page.total;
+    skip += limit;
+  } while (skip < total);
+  return items;
+}
+
 // Folder functions
 export async function listFolders(
   token: string,

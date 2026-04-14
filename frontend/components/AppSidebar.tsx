@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Settings,
   Puzzle,
+  Folder,
   ChevronDown,
   LogOut,
   User as UserIcon,
@@ -150,16 +151,40 @@ export default function AppSidebar({
           </div>
         ) : (
           <>
-            {plugins.map((plugin) => (
-              <PluginNavItem
-                key={plugin.name}
-                plugin={plugin}
-                basePath={basePath}
-                isActive={isActiveRoute(plugin.name)}
+            {plugins
+              .filter((plugin) => plugin.showInSidebar !== false)
+              .map((plugin) => (
+                <PluginNavItem
+                  key={plugin.name}
+                  plugin={plugin}
+                  basePath={basePath}
+                  isActive={isActiveRoute(plugin.name)}
+                  onClick={handleNavClick}
+                  isCollapsed={isCollapsed && variant === "desktop"}
+                />
+              ))}
+
+            <div>
+              <Link
+                href={`${basePath}/resources`}
                 onClick={handleNavClick}
-                isCollapsed={isCollapsed && variant === "desktop"}
-              />
-            ))}
+                className={`
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                  ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                  ${
+                    isActiveRoute("resources")
+                      ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                      : "text-foreground hover:bg-surface-variant"
+                  }
+                `}
+                title={isCollapsed ? "Resources" : undefined}
+              >
+                <Folder className="w-5 h-5 flex-shrink-0" />
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">Resources</span>
+                )}
+              </Link>
+            </div>
 
             <div>
               <Link

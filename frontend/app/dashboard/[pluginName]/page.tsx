@@ -1,7 +1,7 @@
 import PluginPageClient from "./page-client";
 
 export function generateStaticParams() {
-  return [{ pluginName: "chat" }, { pluginName: "google-drive" }];
+  return [{ pluginName: "chat" }];
 }
 
 export default function PluginPage() {

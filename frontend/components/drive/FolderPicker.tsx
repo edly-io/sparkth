@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import { browseDrive, syncFolder, DriveBrowseItem } from "@/lib/drive";
+import { browseDrive, syncFolder, listFolders, fetchAllPages, DriveBrowseItem } from "@/lib/drive";
 
 interface FolderPickerProps {
   onClose: () => void;
@@ -29,11 +29,25 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
   const [items, setItems] = useState<DriveBrowseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
+  const [syncedDriveFolderIds, setSyncedDriveFolderIds] = useState<Set<string>>(new Set());
   const [currentPath, setCurrentPath] = useState<BreadcrumbItem[]>([
     { id: undefined, name: "My Drive" },
   ]);
 
   const currentFolderId = currentPath[currentPath.length - 1].id;
+
+  // Load already-synced folder IDs once on mount
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
+        setSyncedDriveFolderIds(new Set(allFolders.map((f) => f.drive_folder_id)));
+      } catch (err) {
+        console.error("Failed to load synced folders:", err);
+      }
+    })();
+  }, [token]);
 
   const loadItems = useCallback(async () => {
     if (!token) return;
@@ -70,8 +84,13 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
       await syncFolder(item.id, token);
       onFolderSynced();
       onClose();
-    } catch (error) {
-      alert(`Failed to sync folder: ${error}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("already synced")) {
+        setSyncedDriveFolderIds((prev) => new Set(prev).add(item.id));
+      } else {
+        alert(`Failed to sync folder: ${message}`);
+      }
     } finally {
       setSyncingFolderId(null);
     }
@@ -130,15 +149,19 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
                     <Folder className="h-5 w-5 text-warning-500 shrink-0" />
                     <span className="text-sm text-foreground">{item.name}</span>
                   </button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSync(item)}
-                    disabled={syncingFolderId !== null}
-                    loading={syncingFolderId === item.id}
-                  >
-                    Sync
-                  </Button>
+                  {syncedDriveFolderIds.has(item.id) ? (
+                    <span className="text-xs text-muted-foreground px-2">Synced</span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSync(item)}
+                      disabled={syncingFolderId !== null}
+                      loading={syncingFolderId === item.id}
+                    >
+                      Sync
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
