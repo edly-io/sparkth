@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -177,9 +178,9 @@ class ChatService:
         logger.info(f"Created conversation {conversation.id} for user {user_id}")
         return conversation
 
-    async def get_conversation(self, session: AsyncSession, conversation_id: int, user_id: int) -> Conversation | None:
+    async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
         statement = select(Conversation).where(
-            Conversation.id == conversation_id,
+            Conversation.uuid == uuid,
             Conversation.user_id == user_id,
         )
         result = await session.exec(statement)
@@ -281,3 +282,23 @@ class ChatService:
 
         result = await session.exec(statement)
         return list(result.all())
+
+    async def update_conversation_title(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        user_id: int,
+        title: str,
+    ) -> None:
+        statement = select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+        result = await session.exec(statement)
+        conversation = result.first()
+        if conversation:
+            conversation.title = title
+            session.add(conversation)
+            await session.commit()
+        else:
+            logger.warning(f"Conversation {conversation_id} not found for title update")

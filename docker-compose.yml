@@ -30,7 +30,7 @@ services:
       POSTGRES_PASSWORD: sparkth_password
       POSTGRES_DB: sparkth
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
   # ----------------------------------------
   # Redis
@@ -42,12 +42,30 @@ services:
       - redis_data:/data
 
   # ----------------------------------------
+  # RAG Cleanup Job
+  # ----------------------------------------
+  rag-cleanup:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+    volumes:
+      - ./app:/app/app
+    command: python -m app.rag.cleanup
+    depends_on:
+      - db
+    restart: "no"
+
+  # ----------------------------------------
   # Alembic Migrations
   # ----------------------------------------
   migrations:
     build: .
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+    volumes:
+      - ./app:/app/app
     command: >
       sh -c "
       echo '⏳ Waiting for DB...' &&

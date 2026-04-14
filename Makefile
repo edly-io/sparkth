@@ -11,7 +11,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # PHONY TARGETS
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build mypy \
-        up dev.up down clean restart logs shell db-shell \
+        up dev.up down clean restart logs shell db-shell migrations \
         frontend frontend.build frontend.lint frontend.fix frontend.format frontend.format.check \
         create-user reset-password \
         api mcp cli
@@ -46,7 +46,7 @@ down: ## Stop and remove containers
 	docker compose down
 
 clean: ## Stop and wipe database volume (fresh start)
-	docker compose down -v
+	docker compose down -v db
 
 restart: ## Restart all containers
 	docker compose restart
@@ -59,6 +59,12 @@ shell: ## Open shell inside the API container
 
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U sparkth -d sparkth
+
+migrations: ## Run Alembic migrations in Docker
+	docker compose -f docker-compose.yml up migrations
+
+rag-cleanup: ## Run RAG cleanup task in Docker
+	docker compose -f docker-compose.yml up rag-cleanup
 
 # --------------------------------------------------
 # User Management (Runs inside Docker)

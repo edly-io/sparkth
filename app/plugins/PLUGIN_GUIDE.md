@@ -18,6 +18,38 @@ class MyPluginConfig(PluginConfig):
 
 ```
 
+### LMS Plugins: Automatic Credential Injection
+
+If your plugin is an LMS (i.e. it has tools that require stored credentials), override two methods on the config class. The chat system will then automatically inject the user's stored credentials into the LLM system prompt — no manual wiring needed.
+
+```python
+class MyLmsConfig(PluginConfig):
+    api_url: str = Field(..., description="LMS API URL")
+    api_key: str = Field(..., description="LMS API key")
+
+    @classmethod
+    def lms_tool_prefix(cls) -> str:
+        """
+        Prefix shared by all tool names for this LMS (e.g. "mylms_").
+        Used to detect whether any active tools belong to this LMS before
+        hitting the database.
+        """
+        return "mylms_"
+
+    def to_lms_credentials_hint(self) -> str:
+        """
+        Human-readable credential block included in the LLM system prompt.
+        Return None (or omit the override) for non-LMS plugins.
+        """
+        return (
+            "My <LMS> credentials:\n"
+            f"  api_url: {self.api_url}\n"
+            f"  api_key: {self.api_key}"
+        )
+```
+
+Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is registered in `PLUGIN_CONFIG_CLASSES`.
+
 
 ## Register the plugin configuration class
 Each plugin must register its Pydantic configuration class so the system can validate and normalize user-provided configuration.

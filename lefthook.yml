@@ -9,6 +9,10 @@ pre-commit:
       glob: "**/*.py"
       run: uv run ruff check --select I {staged_files} && uv run ruff check {staged_files}
 
+    python-typecheck:
+      glob: "**/*.py"
+      run: uv run mypy --strict app/ tests/
+
     frontend-format:
       root: "frontend/"
       glob: "**/*.{js,jsx,ts,tsx}"
