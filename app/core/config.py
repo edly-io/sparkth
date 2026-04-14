@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Google Drive OAuth (uses same client credentials, different redirect URI)
     GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:7727/api/v1/googledrive/oauth/callback"
 
+    # Slack TA Bot OAuth
+    SLACK_CLIENT_ID: str = ""
+    SLACK_CLIENT_SECRET: str = ""
+    SLACK_SIGNING_SECRET: str = ""
+    SLACK_REDIRECT_URI: str = "http://localhost:7727/api/v1/slack/oauth/callback"
+
     RAG_CONCURRENCY: int = 3  # max number of files to process in parallel for RAG
 
 
@@ -38,6 +44,7 @@ PLUGINS = [
     "app.core_plugins.openedx.plugin:OpenEdxPlugin",
     "app.core_plugins.chat.plugin:ChatPlugin",
     "app.core_plugins.googledrive.plugin:GoogleDrivePlugin",
+    "app.core_plugins.slack.plugin:SlackBotPlugin",
 ]
 
 
