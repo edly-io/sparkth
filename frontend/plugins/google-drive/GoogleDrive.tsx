@@ -146,6 +146,7 @@ export default function GoogleDrive() {
   const [totalResources, setTotalResources] = useState(0);
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
+  const [totalsLoading, setTotalsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -195,6 +196,7 @@ export default function GoogleDrive() {
   const loadFolderTotals = useCallback(async () => {
     if (!token || folders.length === 0) return;
 
+    setTotalsLoading(true);
     try {
       const results = await Promise.all(
         folders.map(async (folder) => {
@@ -210,6 +212,8 @@ export default function GoogleDrive() {
       const message = err instanceof Error ? err.message : "Failed to load file counts";
       setError(message);
       console.error("Failed to load folder totals:", err);
+    } finally {
+      setTotalsLoading(false);
     }
   }, [token, folders]);
 
@@ -298,8 +302,10 @@ export default function GoogleDrive() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Failed to download:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to download file";
+      setError(message);
+      console.error("Failed to download:", err);
     } finally {
       setDownloadingId(null);
     }
@@ -320,8 +326,10 @@ export default function GoogleDrive() {
         setCurrentPage(maxPage);
       }
       // useEffect on totalResources/currentPage will trigger loadPage
-    } catch (error) {
-      console.error("Failed to delete:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete file";
+      setError(message);
+      console.error("Failed to delete:", err);
     } finally {
       setDeletingId(null);
     }
@@ -386,7 +394,11 @@ export default function GoogleDrive() {
           </div>
         )}
 
-        {connectionStatus?.connected && totalResources === 0 && !pageLoading && !error ? (
+        {connectionStatus?.connected &&
+        totalResources === 0 &&
+        !pageLoading &&
+        !totalsLoading &&
+        !error ? (
           /* Empty state */
           <div className="rounded-xl border border-border bg-card p-12 text-center">
             <DefaultFileIcon className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
