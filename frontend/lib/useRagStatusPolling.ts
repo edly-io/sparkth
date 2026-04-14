@@ -38,7 +38,7 @@ export function useRagStatusPolling(
           }
           setRagStatuses(map);
           allTerminal =
-            data.files.length > 0 &&
+            data.files.length === 0 ||
             data.files.every(
               (f) => f.rag_status === "ready" || f.rag_status === "failed" || f.rag_status === null,
             );

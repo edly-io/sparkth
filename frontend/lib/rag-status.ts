@@ -11,3 +11,6 @@ export const ragStatusLabel: Record<string, string> = {
   processing: "Processing",
   failed: "Failed",
 };
+
+export const RAG_STATUS_FALLBACK_COLOR = "bg-gray-300";
+export const RAG_STATUS_FALLBACK_LABEL = "Queued";

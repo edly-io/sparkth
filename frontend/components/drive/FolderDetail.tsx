@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
+import { RagStatusIndicator } from "./RagStatusIndicator";
 import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
@@ -26,7 +27,6 @@ import {
   formatFileSize,
   formatDate,
 } from "@/lib/drive";
-import { ragStatusColor, ragStatusLabel } from "@/lib/rag-status";
 
 interface FolderDetailProps {
   folder: DriveFolder;
@@ -43,7 +43,6 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const { ragStatuses, restart: restartRagPolling } = useRagStatusPolling(folder.id, token);
-  const [hoveredFileId, setHoveredFileId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
@@ -246,29 +245,11 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                       {formatDate(file.modified_time)}
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-center">
-                      <div className="relative inline-flex items-center justify-center">
-                        <span
-                          data-testid={`rag-status-${file.id}`}
-                          onMouseEnter={() => setHoveredFileId(file.id)}
-                          onMouseLeave={() => setHoveredFileId(null)}
-                          className={`inline-block w-3 h-3 rounded-full cursor-default ${ragStatusColor[ragStatuses[file.id]?.status ?? ""] ?? "bg-gray-300"}`}
-                        />
-                        {hoveredFileId === file.id && (
-                          <div
-                            data-testid={`rag-tooltip-${file.id}`}
-                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 min-w-max rounded-md bg-popover border border-border px-3 py-2 text-xs text-popover-foreground shadow-md"
-                          >
-                            <p className="font-medium">
-                              {ragStatusLabel[ragStatuses[file.id]?.status ?? ""] ?? "Queued"}
-                            </p>
-                            {ragStatuses[file.id]?.error && (
-                              <p className="mt-1 text-muted-foreground">
-                                {ragStatuses[file.id]!.error}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <RagStatusIndicator
+                        fileId={file.id}
+                        status={ragStatuses[file.id]?.status ?? null}
+                        error={ragStatuses[file.id]?.error}
+                      />
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-1">

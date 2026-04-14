@@ -13,8 +13,8 @@ import {
   DialogDescription,
 } from "@/components/ui/Dialog";
 import { listFolders, listFiles, DriveFolder, DriveFile } from "@/lib/drive";
-import { ragStatusColor, ragStatusLabel } from "@/lib/rag-status";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
+import { RagStatusIndicator } from "./RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
@@ -35,8 +35,6 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hoveredFileId, setHoveredFileId] = useState<number | null>(null);
-
   const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
   const loadFolders = useCallback(async () => {
@@ -165,24 +163,8 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
                       <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
                       <span className="text-sm text-foreground truncate">{file.name}</span>
                     </div>
-                    <div className="relative inline-flex items-center justify-center mx-3 shrink-0">
-                      <span
-                        data-testid={`rag-status-${file.id}`}
-                        onMouseEnter={() => setHoveredFileId(file.id)}
-                        onMouseLeave={() => setHoveredFileId(null)}
-                        className={`inline-block w-3 h-3 rounded-full cursor-default ${ragStatusColor[ragStatus ?? ""] ?? "bg-gray-300"}`}
-                      />
-                      {hoveredFileId === file.id && (
-                        <div
-                          data-testid={`rag-tooltip-${file.id}`}
-                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 min-w-max rounded-md bg-popover border border-border px-3 py-2 text-xs text-popover-foreground shadow-md"
-                        >
-                          <p className="font-medium">
-                            {ragStatusLabel[ragStatus ?? ""] ?? "Queued"}
-                          </p>
-                          {ragError && <p className="mt-1 text-muted-foreground">{ragError}</p>}
-                        </div>
-                      )}
+                    <div className="mx-3 shrink-0">
+                      <RagStatusIndicator fileId={file.id} status={ragStatus} error={ragError} />
                     </div>
                     <Button
                       data-testid={`select-file-${file.id}`}

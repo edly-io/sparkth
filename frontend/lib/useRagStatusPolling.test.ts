@@ -76,6 +76,21 @@ describe("useRagStatusPolling", () => {
     expect(getFolderRagStatus).not.toHaveBeenCalled();
   });
 
+  it("stops polling when folder is empty", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({ folder_id: 1, files: [] });
+
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    renderHook(() => useRagStatusPolling(1, "token"));
+
+    await waitFor(() => {
+      expect(getFolderRagStatus).toHaveBeenCalled();
+    });
+
+    const pollTimeout = setTimeoutSpy.mock.calls.find((call) => call[1] === 5000);
+    expect(pollTimeout).toBeUndefined();
+  });
+
   it("stops polling when all files are terminal (ready/failed)", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
