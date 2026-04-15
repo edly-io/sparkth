@@ -88,19 +88,7 @@ export default function AppSidebar({
           : undefined
       }
       className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300 ${isCollapsedDesktop ? "cursor-e-resize" : ""}`}
-      role={isCollapsedDesktop ? "button" : undefined}
-      tabIndex={isCollapsedDesktop ? 0 : undefined}
       onClick={handleSidebarClick}
-      onKeyDown={
-        isCollapsedDesktop
-          ? (e: React.KeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onToggleCollapse?.();
-              }
-            }
-          : undefined
-      }
     >
       {/* Header */}
       <div
@@ -167,7 +155,7 @@ export default function AppSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 overflow-y-auto">
+      <div className="flex-1 px-3 py-2 overflow-y-auto">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Spinner size="md" className="text-muted mb-2" />
@@ -233,7 +221,7 @@ export default function AppSidebar({
             </div>
           </>
         )}
-      </nav>
+      </div>
 
       {isOnChatPlugin && (
         <ChatHistorySection

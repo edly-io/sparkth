@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 interface Conversation {
-  id: number;
+  id: string;
   title: string;
   message_count: number;
   created_at: string;

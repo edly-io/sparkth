@@ -51,11 +51,14 @@ export function useConversation(
     messages: conversationId ? [] : [WELCOME_MESSAGE],
   });
 
-  const setMessages = (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) =>
-    setHistoryState((prev) => ({
-      ...prev,
-      messages: typeof updater === "function" ? updater(prev.messages) : updater,
-    }));
+  const setMessages = useCallback(
+    (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) =>
+      setHistoryState((prev) => ({
+        ...prev,
+        messages: typeof updater === "function" ? updater(prev.messages) : updater,
+      })),
+    [],
+  );
 
   const loadConversation = useCallback(
     async (signal: AbortSignal) => {
