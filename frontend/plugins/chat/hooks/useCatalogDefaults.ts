@@ -23,6 +23,7 @@ export function useCatalogDefaults(token: string | null): CatalogDefaults | null
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        console.warn("Failed to fetch chat provider defaults:", err);
       }
     },
     [token],
