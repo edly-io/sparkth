@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import ChatInterfaceInner from "./components/ChatInterfaceInner";
+import ChatInterfaceWithParams from "./components/ChatInterfaceWithParams";
 
 export default function ChatInterface() {
   return (
@@ -12,7 +12,7 @@ export default function ChatInterface() {
         </div>
       }
     >
-      <ChatInterfaceInner />
+      <ChatInterfaceWithParams />
     </Suspense>
   );
 }

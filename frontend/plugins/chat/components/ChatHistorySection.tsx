@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import ChatHistorySectionInner from "./ChatHistorySectionInner";
+import ChatHistorySectionWithParams from "./ChatHistorySectionWithParams";
 
 interface ChatHistorySectionProps {
   isCollapsed: boolean;
@@ -11,7 +11,7 @@ interface ChatHistorySectionProps {
 export function ChatHistorySection(props: ChatHistorySectionProps) {
   return (
     <Suspense fallback={null}>
-      <ChatHistorySectionInner {...props} />
+      <ChatHistorySectionWithParams {...props} />
     </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessages } from "./messages/ChatMessages";
 import { ChatInput } from "./input/ChatInput";
@@ -13,7 +13,7 @@ import { Alert } from "@/components/ui/Alert";
 import { useConversation } from "../hooks/useConversation";
 import { useCatalogDefaults } from "../hooks/useCatalogDefaults";
 
-export default function ChatInterfaceInner() {
+export default function ChatInterfaceInner({ conversationId }: { conversationId: string | null }) {
   const { token } = useAuth();
   const { config: chatConfig } = usePlugin("chat");
   const catalogDefaults = useCatalogDefaults(token);
@@ -21,8 +21,6 @@ export default function ChatInterfaceInner() {
   const provider = (chatConfig?.provider as string | undefined) ?? catalogDefaults?.provider;
   const model = (chatConfig?.model as string | undefined) ?? catalogDefaults?.model;
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const conversationId = searchParams.get("id");
   const [previewOpen, setPreviewOpen] = useState(false);
   const lastSentRef = useRef<{ message: string; attachment: TextAttachment | null }>({
     message: "",

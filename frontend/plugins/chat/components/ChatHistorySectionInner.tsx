@@ -3,7 +3,6 @@
 import { MessageSquare, Plus } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
@@ -12,6 +11,7 @@ import { useConversations } from "../hooks/useConversations";
 interface ChatHistorySectionInnerProps {
   isCollapsed: boolean;
   onNavigate?: () => void;
+  activeId: string | null;
 }
 
 function formatDate(iso: string) {
@@ -27,10 +27,9 @@ function formatDate(iso: string) {
 export default function ChatHistorySectionInner({
   isCollapsed,
   onNavigate,
+  activeId,
 }: ChatHistorySectionInnerProps) {
   const { token } = useAuth();
-  const searchParams = useSearchParams();
-  const activeId = searchParams.get("id");
 
   const { conversations, loading, error, clearError } = useConversations(token, activeId);
 
