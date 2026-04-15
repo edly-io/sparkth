@@ -33,18 +33,12 @@ export function ChatHistorySection(props: ChatHistorySectionProps) {
   );
 }
 
-function ChatHistorySectionInner({
-  isCollapsed,
-  onNavigate,
-}: ChatHistorySectionProps) {
+function ChatHistorySectionInner({ isCollapsed, onNavigate }: ChatHistorySectionProps) {
   const { token } = useAuth();
   const searchParams = useSearchParams();
   const activeId = searchParams.get("id");
 
-  const { conversations, loading, error, clearError } = useConversations(
-    token,
-    activeId,
-  );
+  const { conversations, loading, error, clearError } = useConversations(token, activeId);
 
   if (isCollapsed) {
     return (

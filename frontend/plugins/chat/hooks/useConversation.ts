@@ -30,9 +30,7 @@ interface UseConversationResult {
   error: string | null;
   inputAttachment: TextAttachment | null;
   setInputAttachment: (attachment: TextAttachment | null) => void;
-  setMessages: (
-    updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
-  ) => void;
+  setMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   clearError: () => void;
   skipNextLoadRef: React.RefObject<boolean>;
 }
@@ -53,13 +51,10 @@ export function useConversation(
     messages: conversationId ? [] : [WELCOME_MESSAGE],
   });
 
-  const setMessages = (
-    updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
-  ) =>
+  const setMessages = (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) =>
     setHistoryState((prev) => ({
       ...prev,
-      messages:
-        typeof updater === "function" ? updater(prev.messages) : updater,
+      messages: typeof updater === "function" ? updater(prev.messages) : updater,
     }));
 
   const loadConversation = useCallback(
@@ -81,15 +76,11 @@ export function useConversation(
 
       setHistoryState({ loading: true, messages: [] });
       try {
-        const r = await fetch(
-          `/api/v1/chat/conversations/${conversationId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-          },
-        );
-        if (!r.ok)
-          throw new Error(`Load conversation failed with status ${r.status}`);
+        const r = await fetch(`/api/v1/chat/conversations/${conversationId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal,
+        });
+        if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
         const data: ApiConversation = await r.json();
         const loaded: ChatMessage[] = data.messages.map((m) => ({
           id: String(m.id),

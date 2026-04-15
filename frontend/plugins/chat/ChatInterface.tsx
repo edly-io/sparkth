@@ -14,7 +14,13 @@ import { useConversation } from "./hooks/useConversation";
 
 export default function ChatInterface() {
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Loading…</div>}>
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+          Loading…
+        </div>
+      }
+    >
       <ChatInterfaceInner />
     </Suspense>
   );

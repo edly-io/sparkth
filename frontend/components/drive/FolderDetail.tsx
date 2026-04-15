@@ -268,7 +268,9 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                           <input
                             type="text"
                             value={editName}
-                            onChange={(e) => dispatch({ type: "SET_EDIT_NAME", name: e.target.value })}
+                            onChange={(e) =>
+                              dispatch({ type: "SET_EDIT_NAME", name: e.target.value })
+                            }
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleRename(file);
                               if (e.key === "Escape") dispatch({ type: "CANCEL_EDIT" });
@@ -331,7 +333,9 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => dispatch({ type: "START_EDIT", fileId: file.id, name: file.name })}
+                              onClick={() =>
+                                dispatch({ type: "START_EDIT", fileId: file.id, name: file.name })
+                              }
                               disabled={actionFileId === file.id}
                             >
                               <Pencil className="h-4 w-4" />

@@ -33,8 +33,7 @@ export function useConversations(
           headers: { Authorization: `Bearer ${token}` },
           signal,
         });
-        if (!r.ok)
-          throw new Error(`Failed to load conversations: HTTP ${r.status}`);
+        if (!r.ok) throw new Error(`Failed to load conversations: HTTP ${r.status}`);
         const data = await r.json();
         setConversations(data.conversations ?? []);
       } catch (err) {
