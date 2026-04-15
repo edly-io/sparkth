@@ -19,6 +19,15 @@ _SLACK_PREFIX = "/api/v1/slack"
 _slack_routes_registered = False
 
 
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> Generator[None, None, None]:
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 def _ensure_slack_routes() -> None:
     global _slack_routes_registered
     if _slack_routes_registered:

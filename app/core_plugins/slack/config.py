@@ -18,3 +18,7 @@ class SlackBotConfig(PluginConfig):
         default="I couldn't find an answer in the course material. Please contact your instructor.",
         description="Message sent when no RAG match is found",
     )
+    greeting_message: str = Field(
+        default="Hello! I'm your TA Bot. How can I help you?",
+        description="Message sent in response to casual greetings",
+    )
