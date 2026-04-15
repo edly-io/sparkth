@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatMessages } from "./components/messages/ChatMessages";
@@ -35,6 +35,14 @@ interface ApiConversation {
 }
 
 export default function ChatInterface() {
+  return (
+    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Loading…</div>}>
+      <ChatInterfaceInner />
+    </Suspense>
+  );
+}
+
+function ChatInterfaceInner() {
   const { token } = useAuth();
   const { config: chatConfig } = usePlugin("chat");
   const [catalogDefaults, setCatalogDefaults] = useState<{

@@ -229,7 +229,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                               if (e.key === "Escape") setEditingFileId(null);
                             }}
                             className="text-sm text-foreground bg-input border border-border rounded-md px-2 py-1 focus:border-primary-500 focus:outline-none w-full"
-                            autoFocus
+                            ref={(el) => el?.focus()}
                           />
                         ) : (
                           <span className="text-sm text-foreground truncate" title={file.name}>

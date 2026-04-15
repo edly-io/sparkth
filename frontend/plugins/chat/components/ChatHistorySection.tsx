@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { MessageSquare, Plus } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
@@ -32,7 +32,18 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function ChatHistorySection({ isCollapsed, onNavigate }: ChatHistorySectionProps) {
+export function ChatHistorySection(props: ChatHistorySectionProps) {
+  return (
+    <Suspense fallback={null}>
+      <ChatHistorySectionInner {...props} />
+    </Suspense>
+  );
+}
+
+function ChatHistorySectionInner({
+  isCollapsed,
+  onNavigate,
+}: ChatHistorySectionProps) {
   const { token } = useAuth();
   const searchParams = useSearchParams();
   const activeId = searchParams.get("id");

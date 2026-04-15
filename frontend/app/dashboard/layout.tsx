@@ -6,8 +6,7 @@ import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/components/AppSidebar";
 import MobileSidebar from "@/components/MobileSidebar";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -65,13 +64,10 @@ function DashboardContent({
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, isAuthenticated, loading, logout } = useAuth();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [loading, isAuthenticated, router]);
+  if (!loading && !isAuthenticated) {
+    redirect("/login");
+  }
 
   if (loading) {
     return (

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, redirect } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/Spinner";
 import { usePlugin } from "@/lib/plugins/context";
@@ -11,7 +10,6 @@ import Link from "next/link";
 
 export default function PluginPageClient() {
   const params = useParams();
-  const router = useRouter();
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   const pluginName = params?.pluginName as string;
@@ -19,11 +17,9 @@ export default function PluginPageClient() {
   const { isEnabled } = usePlugin(pluginName);
   const pluginDef = getPlugin(pluginName);
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push(`/login?redirect=/dashboard/${pluginName}`);
-    }
-  }, [authLoading, isAuthenticated, router, pluginName]);
+  if (!authLoading && !isAuthenticated) {
+    redirect(`/login?redirect=/dashboard/${pluginName}`);
+  }
 
   if (authLoading) {
     return (

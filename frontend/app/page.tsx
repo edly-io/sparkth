@@ -1,29 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Spinner } from "@/components/Spinner";
 import SparkthHeader from "@/components/SparkthHeader";
 import { SparkthLogo } from "@/components/SparkthLogo";
 
 export default function Home() {
   const { isAuthenticated, logout } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, router]);
 
   if (isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner />
-      </div>
-    );
+    redirect("/dashboard");
   }
 
   return (

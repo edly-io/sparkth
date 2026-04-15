@@ -19,7 +19,16 @@ export function UploadMenu({
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>
-      <div className="fixed inset-0 z-0" onClick={onClose} />
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Close upload menu"
+        className="fixed inset-0 z-0"
+        onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
+      />
 
       <input
         ref={inputRef}
