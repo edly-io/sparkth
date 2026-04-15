@@ -10,29 +10,7 @@ import { Preview } from "./components/attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
-
-const WELCOME_MESSAGE: ChatMessage = {
-  id: "welcome",
-  role: "assistant",
-  content: "Hi! Upload a document or tell me what you'd like to create.",
-};
-
-interface ApiMessage {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  message_type: "text" | "attachment";
-  attachment_name: string | null;
-  attachment_size: number | null;
-  created_at: string;
-}
-
-interface ApiConversation {
-  id: string;
-  messages: ApiMessage[];
-  active_drive_file_id: number | null;
-  active_drive_file_name: string | null;
-}
+import { useConversation } from "./hooks/useConversation";
 
 export default function ChatInterface() {
   return (
@@ -68,114 +46,23 @@ function ChatInterfaceInner() {
   const searchParams = useSearchParams();
   const conversationId = searchParams.get("id");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const lastSentRef = useRef<{ message: string; attachment: TextAttachment | null }>({
     message: "",
     attachment: null,
   });
   const lastSentThresholdRef = useRef<number>(0.45);
-  // Prevents loadConversation from overwriting messages when we navigated there ourselves
-  const skipNextLoadRef = useRef(false);
-  const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
-  const [historyState, setHistoryState] = useState<{
-    loading: boolean;
-    messages: ChatMessage[];
-  }>({
-    loading: !!conversationId,
-    messages: conversationId ? [] : [WELCOME_MESSAGE],
-  });
 
-  const { loading: loadingHistory, messages } = historyState;
-
-  const setMessages = (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) =>
-    setHistoryState((prev) => ({
-      ...prev,
-      messages: typeof updater === "function" ? updater(prev.messages) : updater,
-    }));
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadConversation = async () => {
-      if (!conversationId) {
-        setHistoryState({
-          loading: false,
-          messages: [WELCOME_MESSAGE],
-        });
-        setInputAttachment(null);
-        return;
-      }
-
-      // We just navigated here ourselves after a send — keep current messages state
-      if (skipNextLoadRef.current) {
-        skipNextLoadRef.current = false;
-        return;
-      }
-
-      setHistoryState({
-        loading: true,
-        messages: [],
-      });
-      fetch(`/api/v1/chat/conversations/${conversationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => {
-          if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
-          return r.json();
-        })
-        .then((data: ApiConversation) => {
-          if (cancelled) return;
-          const loaded: ChatMessage[] = data.messages.map((m) => ({
-            id: String(m.id),
-            role: m.role,
-            content:
-              m.message_type === "attachment"
-                ? m.content !== "[File attachment]"
-                  ? m.content
-                  : ""
-                : m.content,
-            attachment:
-              m.message_type === "attachment" && m.attachment_name
-                ? {
-                    name: m.attachment_name,
-                    size: m.attachment_size ?? 0,
-                    text: m.content,
-                  }
-                : undefined,
-          }));
-
-          setHistoryState({
-            loading: false,
-            messages: loaded.length ? loaded : [WELCOME_MESSAGE],
-          });
-
-          // Restore persistent drive file attachment (or clear if this conversation has none)
-          if (data.active_drive_file_id && data.active_drive_file_name) {
-            setInputAttachment({
-              name: data.active_drive_file_name,
-              size: 0,
-              text: `[File: ${data.active_drive_file_name}]`,
-              driveFileDbId: data.active_drive_file_id,
-            });
-          } else {
-            setInputAttachment(null);
-          }
-        })
-        .catch((e) => {
-          if (cancelled) return;
-          console.error(e);
-          setError("Failed to load conversation. Please try again.");
-          setHistoryState({
-            loading: false,
-            messages: [WELCOME_MESSAGE],
-          });
-        });
-    };
-    loadConversation();
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, token]);
+  const {
+    loading: loadingHistory,
+    messages,
+    error,
+    inputAttachment,
+    setInputAttachment,
+    setMessages,
+    clearError,
+    skipNextLoadRef,
+  } = useConversation(conversationId, token);
 
   const failAssistantMessage = (id: string, errorText: string) => {
     setMessages((prev) =>
@@ -495,7 +382,7 @@ function ChatInterfaceInner() {
       <ChatHeader />
       {error && (
         <div className="px-4 pt-4">
-          <Alert severity="error" title="Something went wrong" onClose={() => setError(null)}>
+          <Alert severity="error" title="Something went wrong" onClose={clearError}>
             {error}
           </Alert>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import { MessageSquare, Plus } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
@@ -8,14 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
-
-interface Conversation {
-  id: string;
-  title: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
+import { useConversations } from "../hooks/useConversations";
 
 interface ChatHistorySectionProps {
   isCollapsed: boolean;
@@ -48,38 +41,10 @@ function ChatHistorySectionInner({
   const searchParams = useSearchParams();
   const activeId = searchParams.get("id");
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchConversations = async () => {
-      setLoading(true);
-      setError(null);
-      fetch("/api/v1/chat/conversations", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => {
-          if (!r.ok) throw new Error(`Failed to load conversations: HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((data) => {
-          if (!cancelled) setConversations(data.conversations ?? []);
-        })
-        .catch((err) => {
-          console.error(err);
-          setError("Failed to load conversations. Please try again.");
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    };
-    fetchConversations();
-    return () => {
-      cancelled = true;
-    };
-  }, [token, activeId]);
+  const { conversations, loading, error, clearError } = useConversations(
+    token,
+    activeId,
+  );
 
   if (isCollapsed) {
     return (
@@ -112,7 +77,7 @@ function ChatHistorySectionInner({
       </div>
       {error && (
         <div className="px-4 pt-4">
-          <Alert severity="error" title="Something went wrong" onClose={() => setError(null)}>
+          <Alert severity="error" title="Something went wrong" onClose={clearError}>
             {error}
           </Alert>
         </div>
