@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { RagStatusIndicator } from "./RagStatusIndicator";
 import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload } from "lucide-react";
@@ -34,28 +34,73 @@ interface FolderDetailProps {
   onFolderChange: () => void;
 }
 
+interface FolderDetailState {
+  files: DriveFile[];
+  loading: boolean;
+  uploading: boolean;
+  actionFileId: number | null;
+  editingFileId: number | null;
+  editName: string;
+}
+
+type FolderDetailAction =
+  | { type: "SET_FILES"; files: DriveFile[] }
+  | { type: "SET_LOADING"; loading: boolean }
+  | { type: "SET_UPLOADING"; uploading: boolean }
+  | { type: "SET_ACTION_FILE"; id: number | null }
+  | { type: "START_EDIT"; fileId: number; name: string }
+  | { type: "CANCEL_EDIT" }
+  | { type: "SET_EDIT_NAME"; name: string };
+
+function folderDetailReducer(
+  state: FolderDetailState,
+  action: FolderDetailAction,
+): FolderDetailState {
+  switch (action.type) {
+    case "SET_FILES":
+      return { ...state, files: action.files };
+    case "SET_LOADING":
+      return { ...state, loading: action.loading };
+    case "SET_UPLOADING":
+      return { ...state, uploading: action.uploading };
+    case "SET_ACTION_FILE":
+      return { ...state, actionFileId: action.id };
+    case "START_EDIT":
+      return { ...state, editingFileId: action.fileId, editName: action.name };
+    case "CANCEL_EDIT":
+      return { ...state, editingFileId: null };
+    case "SET_EDIT_NAME":
+      return { ...state, editName: action.name };
+  }
+}
+
+const initialState: FolderDetailState = {
+  files: [],
+  loading: true,
+  uploading: false,
+  actionFileId: null,
+  editingFileId: null,
+  editName: "",
+};
+
 export default function FolderDetail({ folder, onClose, onFolderChange }: FolderDetailProps) {
   const { token } = useAuth();
-  const [files, setFiles] = useState<DriveFile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [actionFileId, setActionFileId] = useState<number | null>(null);
-  const [editingFileId, setEditingFileId] = useState<number | null>(null);
-  const [editName, setEditName] = useState("");
+  const [state, dispatch] = useReducer(folderDetailReducer, initialState);
+  const { files, loading, uploading, actionFileId, editingFileId, editName } = state;
   const { ragStatuses, restart: restartRagPolling } = useRagStatusPolling(folder.id, token);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
     if (!token) return;
 
-    setLoading(true);
+    dispatch({ type: "SET_LOADING", loading: true });
     try {
       const data = await getFolder(folder.id, token);
-      setFiles(data.files);
+      dispatch({ type: "SET_FILES", files: data.files });
     } catch (error) {
       console.error("Failed to load files:", error);
     } finally {
-      setLoading(false);
+      dispatch({ type: "SET_LOADING", loading: false });
     }
   }, [token, folder.id]);
 
@@ -67,7 +112,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     if (!token || !e.target.files?.length) return;
 
     const file = e.target.files[0];
-    setUploading(true);
+    dispatch({ type: "SET_UPLOADING", uploading: true });
     try {
       await uploadFile(folder.id, file, token);
       await loadFiles();
@@ -76,7 +121,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     } catch (error) {
       alert(`Upload failed: ${error}`);
     } finally {
-      setUploading(false);
+      dispatch({ type: "SET_UPLOADING", uploading: false });
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -84,7 +129,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const handleDownload = async (file: DriveFile) => {
     if (!token) return;
 
-    setActionFileId(file.id);
+    dispatch({ type: "SET_ACTION_FILE", id: file.id });
     try {
       const blob = await downloadFile(file.id, token);
       const url = URL.createObjectURL(blob);
@@ -98,22 +143,22 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     } catch (error) {
       alert(`Download failed: ${error}`);
     } finally {
-      setActionFileId(null);
+      dispatch({ type: "SET_ACTION_FILE", id: null });
     }
   };
 
   const handleRename = async (file: DriveFile) => {
     if (!token || !editName.trim()) return;
 
-    setActionFileId(file.id);
+    dispatch({ type: "SET_ACTION_FILE", id: file.id });
     try {
       await renameFile(file.id, editName.trim(), token);
-      setEditingFileId(null);
+      dispatch({ type: "CANCEL_EDIT" });
       await loadFiles();
     } catch (error) {
       alert(`Rename failed: ${error}`);
     } finally {
-      setActionFileId(null);
+      dispatch({ type: "SET_ACTION_FILE", id: null });
     }
   };
 
@@ -121,7 +166,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     if (!token) return;
     if (!confirm(`Delete "${file.name}"? This will also delete it from Google Drive.`)) return;
 
-    setActionFileId(file.id);
+    dispatch({ type: "SET_ACTION_FILE", id: file.id });
     try {
       await deleteFile(file.id, token);
       await loadFiles();
@@ -129,14 +174,14 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     } catch (error) {
       alert(`Delete failed: ${error}`);
     } finally {
-      setActionFileId(null);
+      dispatch({ type: "SET_ACTION_FILE", id: null });
     }
   };
 
   const handleSync = async () => {
     if (!token) return;
 
-    setLoading(true);
+    dispatch({ type: "SET_LOADING", loading: true });
     try {
       await refreshFolder(folder.id, token);
       await loadFiles();
@@ -145,7 +190,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
     } catch (error) {
       alert(`Sync failed: ${error}`);
     } finally {
-      setLoading(false);
+      dispatch({ type: "SET_LOADING", loading: false });
     }
   };
 
@@ -223,10 +268,10 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                           <input
                             type="text"
                             value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
+                            onChange={(e) => dispatch({ type: "SET_EDIT_NAME", name: e.target.value })}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") handleRename(file);
-                              if (e.key === "Escape") setEditingFileId(null);
+                              if (e.key === "Escape") dispatch({ type: "CANCEL_EDIT" });
                             }}
                             className="text-sm text-foreground bg-input border border-border rounded-md px-2 py-1 focus:border-primary-500 focus:outline-none w-full"
                             ref={(el) => el?.focus()}
@@ -266,7 +311,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setEditingFileId(null)}
+                              onClick={() => dispatch({ type: "CANCEL_EDIT" })}
                             >
                               Cancel
                             </Button>
@@ -286,10 +331,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => {
-                                setEditingFileId(file.id);
-                                setEditName(file.name);
-                              }}
+                              onClick={() => dispatch({ type: "START_EDIT", fileId: file.id, name: file.name })}
                               disabled={actionFileId === file.id}
                             >
                               <Pencil className="h-4 w-4" />

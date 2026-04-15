@@ -74,8 +74,8 @@ export default function AppSidebar({
   };
 
   return (
-    <div
-      role={isCollapsedDesktop ? "button" : undefined}
+    <nav
+      aria-label={isCollapsedDesktop ? "Sidebar (click to expand)" : "Sidebar"}
       tabIndex={isCollapsedDesktop ? 0 : undefined}
       onKeyDown={
         isCollapsedDesktop
@@ -316,7 +316,7 @@ export default function AppSidebar({
           </PopoverContent>
         </Popover>
       </div>
-    </div>
+    </nav>
   );
 }
 
