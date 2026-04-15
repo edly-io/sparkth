@@ -13,6 +13,8 @@ import {
   DialogDescription,
 } from "@/components/ui/Dialog";
 import { listFolders, listFiles, fetchAllPages, DriveFolder, DriveFile } from "@/lib/drive";
+import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
+import { RagStatusIndicator } from "./RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
@@ -33,6 +35,7 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [loading, setLoading] = useState(true);
+  const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
   const loadFolders = useCallback(async () => {
     if (!token) return;
@@ -149,31 +152,41 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {files.map((file) => (
-                <li
-                  key={file.id}
-                  className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
-                    <span className="text-sm text-foreground truncate">{file.name}</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      onFileSelected({
-                        id: file.id,
-                        name: file.name,
-                        mime_type: file.mime_type,
-                        size: file.size,
-                      })
-                    }
+              {files.map((file) => {
+                const ragStatus = ragStatuses[file.id]?.status ?? null;
+                const ragError = ragStatuses[file.id]?.error ?? null;
+                const isReady = ragStatus === "ready";
+                return (
+                  <li
+                    key={file.id}
+                    className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
                   >
-                    Select
-                  </Button>
-                </li>
-              ))}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
+                      <span className="text-sm text-foreground truncate">{file.name}</span>
+                    </div>
+                    <div className="mx-3 shrink-0">
+                      <RagStatusIndicator fileId={file.id} status={ragStatus} error={ragError} />
+                    </div>
+                    <Button
+                      data-testid={`select-file-${file.id}`}
+                      variant="outline"
+                      size="sm"
+                      disabled={!isReady}
+                      onClick={() =>
+                        onFileSelected({
+                          id: file.id,
+                          name: file.name,
+                          mime_type: file.mime_type,
+                          size: file.size,
+                        })
+                      }
+                    >
+                      Select
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

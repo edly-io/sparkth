@@ -450,7 +450,7 @@ class TestEmbedAndStoreChunks:
 
 class TestProcessSingleFile:
     async def test_skips_unsupported_file(self) -> None:
-        """Files with unsupported extensions should be skipped entirely."""
+        """Unsupported files should be set to READY so polling stops."""
         session = AsyncMock()
         provider = AsyncMock()
         store = AsyncMock()
@@ -460,9 +460,8 @@ class TestProcessSingleFile:
             drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
         )
 
-        # Should not touch the session at all
-        session.commit.assert_not_awaited()
-        assert drive_file.rag_status is None
+        assert drive_file.rag_status == RagStatus.READY
+        session.commit.assert_awaited()
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     @patch("app.core_plugins.googledrive.utils._find_duplicate_file")
@@ -800,3 +799,35 @@ class TestProcessFolderRag:
 
         # Must not propagate
         await process_folder_rag(1, user_id=1, access_token="tok")
+
+
+# ---------------------------------------------------------------------------
+# _set_rag_status with error message
+# ---------------------------------------------------------------------------
+
+
+class TestSetRagStatusWithError:
+    @pytest.mark.asyncio
+    async def test_stores_error_message_on_failed(self) -> None:
+        """_set_rag_status should persist rag_error when provided."""
+        file = _make_drive_file()
+        session = AsyncMock()
+
+        await _set_rag_status(session, file, RagStatus.FAILED, error="Download failed: 403 Forbidden")
+
+        assert file.rag_status == RagStatus.FAILED
+        assert file.rag_error == "Download failed: 403 Forbidden"
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_clears_error_message_on_ready(self) -> None:
+        """_set_rag_status should clear rag_error when status is not failed."""
+        file = _make_drive_file(rag_status=RagStatus.FAILED)
+        file.rag_error = "old error"
+        session = AsyncMock()
+
+        await _set_rag_status(session, file, RagStatus.READY)
+
+        assert file.rag_status == RagStatus.READY
+        assert file.rag_error is None
+        session.commit.assert_awaited_once()

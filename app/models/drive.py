@@ -64,6 +64,8 @@ class DriveFile(TimestampedModel, SoftDeleteModel, table=True):
 
     # RAG processing status: queued, processing, ready, failed (None = not processed)
     rag_status: Optional[RagStatus] = Field(default=None)
+    # Error message when rag_status is FAILED
+    rag_error: Optional[str] = Field(default=None)
     # SHA-256 hash of downloaded file contents
     content_hash: Optional[str] = Field(default=None, max_length=64, index=True)
 

@@ -108,6 +108,7 @@ class FileRagStatusResponse(BaseModel):
     file_id: int
     name: str
     rag_status: RagStatus | None = None
+    rag_error: str | None = None
 
 
 class FolderRagStatusResponse(BaseModel):

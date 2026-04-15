@@ -358,6 +358,40 @@ export async function browseDrive(
   return response.json();
 }
 
+// RAG status types and functions
+export type RagStatus = "queued" | "processing" | "ready" | "failed";
+
+export interface FileRagStatus {
+  file_id: number;
+  name: string;
+  rag_status: RagStatus | null;
+  rag_error: string | null;
+}
+
+export interface FolderRagStatusResponse {
+  folder_id: number;
+  files: FileRagStatus[];
+}
+
+export async function getFolderRagStatus(
+  folderId: number,
+  token: string,
+): Promise<FolderRagStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/rag-status`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    await handleError("Failed to get RAG status", response);
+  }
+
+  return response.json();
+}
+
 // Helper functions
 export function formatFileSize(bytes?: number): string {
   if (!bytes) return "-";

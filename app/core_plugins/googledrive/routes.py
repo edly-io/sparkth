@@ -46,6 +46,7 @@ from app.core_plugins.googledrive.types import (
 from app.core_plugins.googledrive.utils import process_folder_rag
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
+from app.rag.types import RagStatus
 
 router: APIRouter = APIRouter()
 logger = logging.getLogger(__name__)
@@ -128,6 +129,7 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
                 md5_checksum=df.get("md5Checksum"),
                 modified_time=modified_time,
                 last_synced_at=now,
+                rag_status=RagStatus.QUEUED,
             )
             session.add(new_file)
 
@@ -659,6 +661,7 @@ async def upload_file(
         md5_checksum=file_metadata.get("md5Checksum"),
         modified_time=modified_time,
         last_synced_at=now,
+        rag_status=RagStatus.QUEUED,
     )
     session.add(drive_file)
     session.commit()
@@ -724,6 +727,7 @@ def get_file_rag_status(
         file_id=drive_file.id,  # type: ignore[arg-type]
         name=drive_file.name,
         rag_status=drive_file.rag_status,
+        rag_error=drive_file.rag_error,
     )
 
 
@@ -758,6 +762,7 @@ def get_folder_rag_status(
                 file_id=f.id,  # type: ignore[arg-type]
                 name=f.name,
                 rag_status=f.rag_status,
+                rag_error=f.rag_error,
             )
             for f in files
         ],

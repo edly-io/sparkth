@@ -10,6 +10,7 @@ class DocType(StrEnum):
 
 
 class RagStatus(StrEnum):
+    QUEUED = "queued"
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"

@@ -40,9 +40,15 @@ def _is_supported_for_rag(filename: str) -> bool:
     return ext in SUPPORTED_EXTENSIONS
 
 
-async def _set_rag_status(session: AsyncSession, drive_file: DriveFile, status: RagStatus) -> None:
+async def _set_rag_status(
+    session: AsyncSession,
+    drive_file: DriveFile,
+    status: RagStatus,
+    error: str | None = None,
+) -> None:
     """Update rag_status on a DriveFile and commit."""
     drive_file.rag_status = status
+    drive_file.rag_error = error[:1000] if error and status == RagStatus.FAILED else None
     drive_file.update_timestamp()
     session.add(drive_file)
     await session.commit()
@@ -164,6 +170,7 @@ async def _process_single_file(
 
     if not _is_supported_for_rag(filename):
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
+        await _set_rag_status(session, drive_file, RagStatus.READY)
         return
 
     if drive_file.id is None:
@@ -221,26 +228,29 @@ async def _process_single_file(
             reused_count,
         )
 
-    except (
-        GoogleDriveAPIError,
-        RuntimeError,
-        ValueError,
-        OSError,
-        httpx.HTTPStatusError,
-        httpx.ConnectError,
-        httpx.TimeoutException,
-    ) as e:
+    except GoogleDriveAPIError as e:
         logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Google Drive error")
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Could not reach Google Drive")
+    except httpx.HTTPStatusError as e:
+        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        await _set_rag_status(
+            session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
+        )
+    except (RuntimeError, ValueError, OSError) as e:
+        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
     except IntegrityError:
         logger.error("RAG processing failed for '%s': database integrity error", drive_file.name)
         await session.rollback()
         await session.refresh(drive_file)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
     except SQLAlchemyError as e:
         logger.error("Database error during RAG processing for '%s': %s", drive_file.name, e)
         try:
-            await _set_rag_status(session, drive_file, RagStatus.FAILED)
+            await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
         except SQLAlchemyError as status_err:
             logger.error(
                 "Failed to set RAG status to FAILED for '%s': %s",

@@ -223,5 +223,8 @@ __marimo__/
 # Lefthook
 lefthook.local.yml
 
+# Node
+node_modules/
+
 # Docker
 data/

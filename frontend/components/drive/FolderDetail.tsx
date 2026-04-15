@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
+import { RagStatusIndicator } from "./RagStatusIndicator";
 import { Folder, FileText, RefreshCw, Download, Pencil, Trash2, Upload } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
@@ -40,6 +42,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const [actionFileId, setActionFileId] = useState<number | null>(null);
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const { ragStatuses, restart: restartRagPolling } = useRagStatusPolling(folder.id, token);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {
@@ -69,6 +72,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       await uploadFile(folder.id, file, token);
       await loadFiles();
       onFolderChange();
+      restartRagPolling();
     } catch (error) {
       alert(`Upload failed: ${error}`);
     } finally {
@@ -137,6 +141,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       await refreshFolder(folder.id, token);
       await loadFiles();
       onFolderChange();
+      restartRagPolling();
     } catch (error) {
       alert(`Sync failed: ${error}`);
     } finally {
@@ -163,6 +168,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
             size="icon"
             onClick={handleSync}
             disabled={loading}
+            aria-label="Sync folder"
             className="h-8 w-8"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -182,9 +188,10 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
           ) : (
             <table className="w-full table-fixed">
               <colgroup>
-                <col className="w-[45%]" />
+                <col className="w-[38%]" />
+                <col className="w-[12%]" />
                 <col className="w-[15%]" />
-                <col className="w-[20%]" />
+                <col className="w-[15%]" />
                 <col className="w-[20%]" />
               </colgroup>
               <thead>
@@ -197,6 +204,9 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                   </th>
                   <th className="px-6 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Modified
+                  </th>
+                  <th className="px-6 py-2.5 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Status
                   </th>
                   <th className="px-6 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Actions
@@ -233,6 +243,13 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
                       {formatDate(file.modified_time)}
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap text-center">
+                      <RagStatusIndicator
+                        fileId={file.id}
+                        status={ragStatuses[file.id]?.status ?? null}
+                        error={ragStatuses[file.id]?.error}
+                      />
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-1">
