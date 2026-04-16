@@ -74,6 +74,10 @@ class ChatMessage(BaseModel):
                         raise ValueError("Invalid base64 data in content block")
                     if size > MAX_FILE_SIZE:
                         raise ValueError("File size exceeds 30MB limit")
+                if block.get("type") == "drive_file":
+                    file_id = block.get("file_id")
+                    if not isinstance(file_id, int) or file_id <= 0:
+                        raise ValueError("drive_file content block must have a positive integer 'file_id'")
         return v
 
 

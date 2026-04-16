@@ -54,6 +54,8 @@ from app.core_plugins.chat.schemas import (
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.models.user import User
+from app.rag.context_service import RAGContextService
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 logger = get_logger(__name__)
 
@@ -94,6 +96,11 @@ def get_chat_service(config: ChatSystemConfig = Depends(get_chat_system_config))
     encryption = get_encryption_service(config.encryption_key)
     cache = get_cache_service(config.redis_url, config.redis_key_ttl)
     return ChatService(encryption, cache)
+
+
+def get_rag_context_service() -> RAGContextService:
+    """FastAPI dependency: returns a stateless RAGContextService."""
+    return RAGContextService()
 
 
 @chat_router.get("/providers", response_model=ProviderCatalogResponse)
@@ -233,6 +240,95 @@ async def delete_api_key(
         )
 
 
+def _extract_query_text(messages: list[ChatMessage]) -> str:
+    """Extract the user's plain text from the last user message for RAG query embedding."""
+    for msg in reversed(messages):
+        if msg.role != "user":
+            continue
+        if isinstance(msg.content, str):
+            return msg.content.strip()
+        text_parts = [
+            block.get("text", "") for block in msg.content if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        joined = " ".join(text_parts).strip()
+        if joined:
+            return joined
+    return ""
+
+
+async def _resolve_drive_file_blocks(
+    messages: list[ChatMessage],
+    session: AsyncSession,
+    user_id: int,
+    rag_service: RAGContextService,
+) -> list[ChatMessage]:
+    """Replace drive_file content blocks with RAG context text blocks.
+
+    Returns a new list; original messages are not mutated.
+    Base64 and plain text blocks pass through unchanged.
+
+    Raises:
+        HTTPException(422): file not found, not owned, or RAG not ready.
+        HTTPException(500): embedding or similarity search failure.
+    """
+    query_text = _extract_query_text(messages)
+    resolved: list[ChatMessage] = []
+
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            resolved.append(msg)
+            continue
+
+        has_drive_file = any(isinstance(b, dict) and b.get("type") == "drive_file" for b in msg.content)
+        if not has_drive_file:
+            resolved.append(msg)
+            continue
+
+        new_blocks: list[dict[str, Any]] = []
+        for block in msg.content:
+            if not isinstance(block, dict) or block.get("type") != "drive_file":
+                new_blocks.append(block)
+                continue
+
+            file_id: int = block["file_id"]
+            try:
+                context = await rag_service.get_context_for_drive_file(
+                    session=session,
+                    user_id=user_id,
+                    file_db_id=file_id,
+                    query=query_text,
+                )
+                new_blocks.append({"type": "text", "text": context.formatted_text})
+                logger.info(
+                    "Replaced drive_file block file_id=%d with %d RAG chunks",
+                    file_id,
+                    len(context.chunks),
+                )
+            except DriveFileNotFoundError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"File (id={file_id}) not found or not accessible.",
+                ) from exc
+            except RAGNotReadyError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"File (id={file_id}) is still being processed "
+                        f"(status: {exc.rag_status}). Please wait and try again."
+                    ),
+                ) from exc
+            except RAGRetrievalError as exc:
+                logger.error("RAG retrieval error for file_id=%d: %s", file_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to retrieve document context. Please try again.",
+                ) from exc
+
+        resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
+
+    return resolved
+
+
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
@@ -241,6 +337,7 @@ async def chat_completion(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
     config: ChatSystemConfig = Depends(get_chat_system_config),
+    rag_service: RAGContextService = Depends(get_rag_context_service),
 ) -> Any:
     api_key = await service.get_api_key(
         session=session,
@@ -317,6 +414,13 @@ async def chat_completion(
             attachment_size=msg.attachment.size if msg.attachment else None,
         )
 
+    resolved_messages = await _resolve_drive_file_blocks(
+        messages=request.messages,
+        session=session,
+        user_id=current_user.id,  # type: ignore[arg-type]
+        rag_service=rag_service,
+    )
+
     db_messages = await service.get_conversation_messages(
         session=session,
         conversation_id=conversation.id,  # type: ignore
@@ -339,7 +443,7 @@ async def chat_completion(
             if len(db_messages) > num_current
             else []
         )
-        current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
         messages = history + current
 
         tool_registry = get_tool_registry()
