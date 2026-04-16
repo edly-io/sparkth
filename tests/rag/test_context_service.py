@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.rag.context_service import (
     RAGContext,
@@ -164,6 +165,24 @@ class TestRAGContextService:
         service = RAGContextService(vector_store=AsyncMock(), embedding_provider=mock_embedding)
 
         with pytest.raises(RAGRetrievalError, match="Failed to embed query"):
+            await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
+
+    @pytest.mark.asyncio
+    async def test_similarity_search_failure_raises_retrieval_error(self) -> None:
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = _make_drive_file()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        mock_store = AsyncMock()
+        mock_store.similarity_search = AsyncMock(side_effect=SQLAlchemyError("connection lost"))
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+
+        with pytest.raises(RAGRetrievalError, match="Similarity search failed"):
             await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
 
     @pytest.mark.asyncio
