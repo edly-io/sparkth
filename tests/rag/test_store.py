@@ -183,7 +183,7 @@ class TestVectorStoreService:
         assert results[0].chunk == mock_chunk
         assert results[0].similarity == 0.95
 
-    async def test_similarity_search_with_source_name_filter(
+    async def test_similarity_search_with_single_source_filter(
         self,
         service: VectorStoreService,
     ) -> None:
@@ -196,7 +196,29 @@ class TestVectorStoreService:
             mock_session,
             user_id=1,
             query_embedding=make_deterministic_embedding(0.5),
-            source_name="specific.pdf",
+            source_names=["specific.pdf"],
+        )
+
+        mock_session.execute.assert_awaited_once()
+        call_args = mock_session.execute.call_args
+        stmt = call_args[0][0]
+        compiled = str(stmt.compile(compile_kwargs={"literal_binds": False}))
+        assert "source_name" in compiled
+
+    async def test_similarity_search_with_multiple_source_filter(
+        self,
+        service: VectorStoreService,
+    ) -> None:
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await service.similarity_search(
+            mock_session,
+            user_id=1,
+            query_embedding=make_deterministic_embedding(0.5),
+            source_names=["doc1.pdf", "doc2.pdf"],
         )
 
         mock_session.execute.assert_awaited_once()
@@ -206,6 +228,24 @@ class TestVectorStoreService:
         # The compiled SQL should contain the source_name filter
         compiled = str(stmt.compile(compile_kwargs={"literal_binds": False}))
         assert "source_name" in compiled
+
+    async def test_similarity_search_no_source_filter_searches_all(
+        self,
+        service: VectorStoreService,
+    ) -> None:
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        await service.similarity_search(
+            mock_session,
+            user_id=1,
+            query_embedding=make_deterministic_embedding(0.5),
+            source_names=None,
+        )
+
+        mock_session.execute.assert_awaited_once()
 
     async def test_similarity_search_custom_limit_and_threshold(
         self,

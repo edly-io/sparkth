@@ -22,3 +22,7 @@ class SlackBotConfig(PluginConfig):
         default="Hello! I'm your TA Bot. How can I help you?",
         description="Message sent in response to casual greetings",
     )
+    allowed_sources: list[str] = Field(
+        default_factory=list,
+        description="Document sources this bot can search. Empty list means all sources.",
+    )
