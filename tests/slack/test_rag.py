@@ -1,6 +1,6 @@
 """Unit tests for Slack RAG dispatch."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -40,8 +40,6 @@ async def test_returns_rag_answer_when_chunks_found() -> None:
     provider = _make_provider()
     store = _make_store([_make_result("Recursion is a function that calls itself.")])
 
-    from unittest.mock import patch
-
     with patch("app.core_plugins.slack.rag._store", store):
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="what is recursion?", config=config, provider=provider
@@ -57,8 +55,6 @@ async def test_returns_fallback_when_no_chunks_found() -> None:
     mock_session = AsyncMock()
     provider = _make_provider()
     store = _make_store([])
-
-    from unittest.mock import patch
 
     with patch("app.core_plugins.slack.rag._store", store):
         answer, rag_matched = await answer_question(
@@ -76,8 +72,6 @@ async def test_joins_multiple_chunks_with_newlines() -> None:
     provider = _make_provider()
     store = _make_store([_make_result("First chunk."), _make_result("Second chunk.")])
 
-    from unittest.mock import patch
-
     with patch("app.core_plugins.slack.rag._store", store):
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="explain loops", config=config, provider=provider
@@ -89,14 +83,40 @@ async def test_joins_multiple_chunks_with_newlines() -> None:
 
 
 @pytest.mark.asyncio
+async def test_allowed_sources_passed_to_similarity_search() -> None:
+    config = SlackBotConfig(allowed_sources=["python.pdf", "ai.pdf"])
+    mock_session = AsyncMock()
+    provider = _make_provider()
+    store = _make_store([])
+
+    with patch("app.core_plugins.slack.rag._store", store):
+        await answer_question(mock_session, user_id=1, question="test", config=config, provider=provider)
+
+    _, kwargs = store.similarity_search.call_args
+    assert kwargs["source_names"] == ["python.pdf", "ai.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_empty_allowed_sources_passes_none_to_similarity_search() -> None:
+    config = SlackBotConfig(allowed_sources=[])
+    mock_session = AsyncMock()
+    provider = _make_provider()
+    store = _make_store([])
+
+    with patch("app.core_plugins.slack.rag._store", store):
+        await answer_question(mock_session, user_id=1, question="test", config=config, provider=provider)
+
+    _, kwargs = store.similarity_search.call_args
+    assert kwargs["source_names"] is None
+
+
+@pytest.mark.asyncio
 async def test_similarity_search_receives_correct_params() -> None:
     config = SlackBotConfig()
     mock_session = AsyncMock()
     embedding = [0.5] * 384
     provider = _make_provider(embedding)
     store = _make_store([])
-
-    from unittest.mock import patch
 
     with patch("app.core_plugins.slack.rag._store", store):
         await answer_question(
@@ -115,4 +135,5 @@ async def test_similarity_search_receives_correct_params() -> None:
         query_embedding=embedding,
         limit=3,
         similarity_threshold=0.85,
+        source_names=None,
     )

@@ -96,13 +96,16 @@ class VectorStoreService:
         user_id: int,
         query_embedding: list[float],
         limit: int = 5,
-        source_name: str | None = None,
+        source_names: list[str] | None = None,
         similarity_threshold: float = 0.7,
     ) -> list[SimilarityResult]:
         """Find the most similar chunks using cosine similarity.
 
         Uses pgvector's ``cosine_distance`` via SQLAlchemy ORM.
         Cosine similarity = 1 - cosine distance.
+
+        ``source_names`` restricts the search to a specific set of sources.
+        Pass ``None`` (default) to search all sources for the user.
         """
         distance = DocumentChunk.embedding.cosine_distance(query_embedding)
         similarity = (literal(1) - distance).label("similarity")
@@ -113,8 +116,8 @@ class VectorStoreService:
             .where(similarity >= similarity_threshold)
         )
 
-        if source_name is not None:
-            stmt = stmt.where(col(DocumentChunk.source_name) == source_name)
+        if source_names:
+            stmt = stmt.where(col(DocumentChunk.source_name).in_(source_names))
 
         stmt = stmt.order_by(distance).limit(limit)
 

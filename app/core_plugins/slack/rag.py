@@ -37,6 +37,7 @@ async def answer_question(
         query_embedding=query_embedding,
         limit=limit,
         similarity_threshold=similarity_threshold,
+        source_names=config.allowed_sources or None,
     )
 
     logger.info(
