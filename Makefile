@@ -11,7 +11,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # PHONY TARGETS
 # --------------------------------------------------
 .PHONY: help uv dev lock install test cov lint fix build mypy \
-        up dev.up down clean restart logs shell db-shell migrations \
+        up dev.up down clean restart logs shell db-shell migrations base \
         frontend frontend.build frontend.lint frontend.fix frontend.format frontend.format.check \
         create-user reset-password \
         api mcp cli
@@ -36,11 +36,16 @@ help: ## Show this help
 # --------------------------------------------------
 # Docker Operations
 # --------------------------------------------------
+base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
+	docker build -f Dockerfile.base -t sparkth-base:local .
+
 up: ## Build and start app (frontend + API + db)
-	docker compose up -d --build
+	docker compose build api
+	docker compose up -d
 
 dev.up: ## Build and start app in dev mode (hot reload)
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+	docker compose build api
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 down: ## Stop and remove containers
 	docker compose down
