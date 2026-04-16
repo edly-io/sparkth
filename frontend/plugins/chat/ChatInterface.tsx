@@ -174,8 +174,24 @@ export default function ChatInterface() {
       attachment?: { name: string; size: number };
     }> = [];
 
-    if (attachment?.base64Data) {
-      // Send file directly as a content block to the LLM
+    if (attachment?.driveFileDbId !== undefined) {
+      // Drive file with RAG processing — send file_id for server-side retrieval
+      const contentBlocks: object[] = [
+        {
+          type: "drive_file",
+          file_id: attachment.driveFileDbId,
+        },
+      ];
+      if (message.trim()) {
+        contentBlocks.push({ type: "text", text: message });
+      }
+      newUserMessages.push({
+        role: "user",
+        content: contentBlocks,
+        attachment: { name: attachment.name, size: attachment.size },
+      });
+    } else if (attachment?.base64Data) {
+      // Legacy local file upload — send base64 directly to LLM
       const contentBlocks: object[] = [
         {
           type: "document",
