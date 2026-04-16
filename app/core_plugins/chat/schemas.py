@@ -15,7 +15,7 @@ class ProviderAPIKeyCreate(BaseModel):
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        from app.core_plugins.chat.providers import get_supported_providers
+        from app.llm.providers import get_supported_providers
 
         supported = get_supported_providers()
         if v.lower() not in supported:
@@ -110,7 +110,7 @@ class ChatCompletionRequest(BaseModel):
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        from app.core_plugins.chat.providers import get_supported_providers
+        from app.llm.providers import get_supported_providers
 
         supported = get_supported_providers()
         if v.lower() not in supported:

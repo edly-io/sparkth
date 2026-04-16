@@ -2,9 +2,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import async_engine
 from app.core.logger import get_logger
-from app.core_plugins.chat.providers import get_provider
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
+from app.llm.providers import get_provider
 
 logger = get_logger(__name__)
 

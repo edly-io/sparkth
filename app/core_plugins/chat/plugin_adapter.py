@@ -3,8 +3,8 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core_plugins.chat.cache import get_cache_service
-from app.core_plugins.chat.encryption import get_encryption_service
+from app.core.cache import get_cache_service
+from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.models import ProviderAPIKey
 from app.core_plugins.chat.routes import get_chat_system_config
 from app.core_plugins.chat.service import ChatService
