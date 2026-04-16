@@ -1,7 +1,7 @@
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core_plugins.chat.providers import DEFAULT_MODEL
+from app.llm.providers import DEFAULT_MODEL
 from app.plugins.config_base import PluginConfig
 
 
@@ -45,7 +45,7 @@ class ChatUserConfig(PluginConfig):
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        from app.core_plugins.chat.providers import get_supported_providers
+        from app.llm.providers import get_supported_providers
 
         supported = get_supported_providers()
         if v.lower() not in supported:
@@ -54,7 +54,7 @@ class ChatUserConfig(PluginConfig):
 
     @model_validator(mode="after")
     def validate_model_for_provider(self) -> "ChatUserConfig":
-        from app.core_plugins.chat.providers import get_models_for_provider
+        from app.llm.providers import get_models_for_provider
 
         allowed = get_models_for_provider(self.provider)
         if self.model not in allowed:

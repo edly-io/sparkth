@@ -4,8 +4,8 @@ from typing import Any, Callable
 from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core.cache import CacheService
 from app.core.logger import get_logger
-from app.core_plugins.chat.cache import CacheService
 
 logger = get_logger(__name__)
 
