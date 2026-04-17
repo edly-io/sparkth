@@ -220,6 +220,7 @@ class TestRAGContextService:
 
         mock_store = AsyncMock()
         mock_store.similarity_search = AsyncMock(return_value=[])
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
 
         mock_embedding = AsyncMock()
         mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
@@ -241,6 +242,7 @@ class TestRAGContextService:
             limit=5,
             source_name="doc.pdf",
             similarity_threshold=0.8,
+            sections=None,
         )
 
     @pytest.mark.asyncio

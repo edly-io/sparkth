@@ -27,6 +27,17 @@ _GOOGLE_NATIVE_MIMES = frozenset(
 
 DEFAULT_RAG_CHUNKS = 12
 DEFAULT_SIMILARITY_THRESHOLD = 0.3
+DEFAULT_TOP_SECTIONS = 8
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Compute cosine similarity between two vectors (pure Python, no numpy)."""
+    dot: float = sum(x * y for x, y in zip(a, b))
+    norm_a: float = sum(x * x for x in a) ** 0.5
+    norm_b: float = sum(x * x for x in b) ** 0.5
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 @dataclass
@@ -37,6 +48,7 @@ class RAGContext:
     source_name: str
     chunks: list[SimilarityResult]
     formatted_text: str
+    ranked_sections: list[dict[str, str | None]] | None = None
 
 
 class RAGContextService:
@@ -83,6 +95,21 @@ class RAGContextService:
             logger.error("Failed to embed query for file_db_id=%d: %s", file_db_id, exc)
             raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
+        ranked_sections = await self._rank_sections(
+            session=session,
+            user_id=user_id,
+            source_name=source_name,
+            query_embedding=query_embedding,
+        )
+
+        section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
+
+        logger.info(
+            "RAG section ranking for file_db_id=%d: %d sections selected",
+            file_db_id,
+            len(ranked_sections),
+        )
+
         try:
             results = await self._store.similarity_search(
                 session=session,
@@ -91,6 +118,7 @@ class RAGContextService:
                 limit=limit,
                 source_name=source_name,
                 similarity_threshold=similarity_threshold,
+                sections=section_filter,
             )
         except SQLAlchemyError as exc:
             logger.error("Similarity search failed for file_db_id=%d: %s", file_db_id, exc)
@@ -108,7 +136,36 @@ class RAGContextService:
             source_name=source_name,
             chunks=results,
             formatted_text=_format_chunks_as_context(source_name, results),
+            ranked_sections=ranked_sections,
         )
+
+    async def _rank_sections(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        source_name: str,
+        query_embedding: list[float],
+        top_n: int = DEFAULT_TOP_SECTIONS,
+    ) -> list[dict[str, str | None]]:
+        """Rank document sections by title similarity to the query embedding."""
+        all_sections = await self._store.get_distinct_sections(session, user_id, source_name)
+        if not all_sections:
+            return []
+
+        section_titles = []
+        for sec in all_sections:
+            parts: list[str] = [cast(str, sec[k]) for k in ("chapter", "section", "subsection") if sec[k]]
+            section_titles.append(" / ".join(parts) if parts else "General")
+
+        title_embeddings = await self._embedding_provider.embed_documents(section_titles)
+
+        scored: list[tuple[float, dict[str, str | None]]] = []
+        for i, title_emb in enumerate(title_embeddings):
+            sim = _cosine_similarity(query_embedding, title_emb)
+            scored.append((sim, all_sections[i]))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [s[1] for s in scored[:top_n]]
 
     async def _lookup_drive_file(
         self,
