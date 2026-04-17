@@ -9,7 +9,7 @@ jobs:
   frontend:
     name: Frontend Lint & Format
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -34,7 +34,7 @@ jobs:
   backend:
     name: Backend Lint, Type Check & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
