@@ -329,6 +329,18 @@ async def _resolve_drive_file_blocks(
     return resolved
 
 
+def _extract_drive_file_id_from_messages(messages: list[ChatMessage]) -> int | None:
+    """Extract the first drive_file file_id from message content blocks."""
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if isinstance(block, dict) and block.get("type") == "drive_file":
+                file_id = block["file_id"]
+                return int(file_id)
+    return None
+
+
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
@@ -352,6 +364,7 @@ async def chat_completion(
         )
 
     conversation_uuid = request.conversation_id
+    active_drive_file_id = _extract_drive_file_id_from_messages(request.messages)
 
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(
@@ -363,6 +376,13 @@ async def chat_completion(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Conversation {conversation_uuid} not found",
+            )
+        if active_drive_file_id is not None and conversation.active_drive_file_id != active_drive_file_id:
+            await service.set_active_drive_file(
+                session=session,
+                conversation_id=conversation.id,  # type: ignore
+                user_id=current_user.id,  # type: ignore
+                drive_file_id=active_drive_file_id,
             )
     else:
         stmt = select(ProviderAPIKey).where(
@@ -381,6 +401,7 @@ async def chat_completion(
             provider=request.provider,
             model=request.model,
             title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
+            active_drive_file_id=active_drive_file_id,
         )
 
         first_user_text = get_first_user_text(request.messages)
@@ -684,6 +705,16 @@ async def list_conversations(
     count_result = await session.exec(count_stmt)
     message_counts = {row[0]: row[1] for row in count_result.all()}
 
+    from app.models.drive import DriveFile as DriveFileModel
+
+    drive_file_ids = [conv.active_drive_file_id for conv in conversations if conv.active_drive_file_id]
+    drive_file_names: dict[int, str] = {}
+    if drive_file_ids:
+        df_stmt = select(DriveFileModel).where(col(DriveFileModel.id).in_(drive_file_ids))
+        df_result = await session.execute(df_stmt)
+        for df in df_result.scalars().all():
+            drive_file_names[df.id] = df.name
+
     conversation_responses = [
         ConversationResponse(
             id=conv.uuid,
@@ -695,6 +726,10 @@ async def list_conversations(
             message_count=message_counts.get(conv.id, 0),  # type: ignore
             created_at=conv.created_at,
             updated_at=conv.updated_at,
+            active_drive_file_id=conv.active_drive_file_id,
+            active_drive_file_name=drive_file_names.get(conv.active_drive_file_id)
+            if conv.active_drive_file_id
+            else None,
         )
         for conv in conversations
     ]
@@ -735,6 +770,17 @@ async def get_conversation(
 
     message_count = len(messages)
 
+    active_drive_file_name = None
+    if conversation.active_drive_file_id:
+        from app.models.drive import DriveFile as DriveFileModel
+
+        df_result = await session.execute(
+            select(DriveFileModel).where(DriveFileModel.id == conversation.active_drive_file_id)
+        )
+        df = df_result.scalars().first()
+        if df:
+            active_drive_file_name = df.name
+
     return ConversationDetailResponse(
         id=conversation.uuid,
         provider=conversation.provider,
@@ -745,6 +791,8 @@ async def get_conversation(
         message_count=message_count,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
+        active_drive_file_id=conversation.active_drive_file_id,
+        active_drive_file_name=active_drive_file_name,
         messages=[
             MessageResponse(
                 id=msg.id,  # type: ignore
@@ -759,6 +807,32 @@ async def get_conversation(
             )
             for msg in messages
         ],
+    )
+
+
+@chat_router.delete("/conversations/{conversation_id}/active-file", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_active_drive_file(
+    conversation_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> None:
+    """Clear the active drive file attachment for a conversation."""
+    conversation = await service.get_conversation_by_uuid(
+        session=session,
+        uuid=conversation_id,
+        user_id=current_user.id,  # type: ignore
+    )
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+    await service.set_active_drive_file(
+        session=session,
+        conversation_id=conversation.id,  # type: ignore
+        user_id=current_user.id,  # type: ignore
+        drive_file_id=None,
     )
 
 

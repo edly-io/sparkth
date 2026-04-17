@@ -162,6 +162,8 @@ class ConversationResponse(BaseModel):
     message_count: int
     created_at: datetime
     updated_at: datetime
+    active_drive_file_id: int | None = None
+    active_drive_file_name: str | None = None
 
 
 class ConversationDetailResponse(ConversationResponse):
