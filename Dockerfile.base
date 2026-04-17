@@ -21,4 +21,4 @@ COPY uv.lock pyproject.toml ./
 
 # Install all third-party deps into /opt/venv (no project package, no dev deps)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --no-dev
+    uv sync --locked --no-install-project --no-dev --all-extras

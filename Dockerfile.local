@@ -36,7 +36,7 @@ WORKDIR /app
 COPY . /app
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+    uv sync --locked --no-dev --all-extras
 
 # -------------------
 # Stage 3: Runtime image
