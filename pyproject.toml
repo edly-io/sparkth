@@ -99,6 +99,10 @@ module = [
     "fastmcp.*",
 ]
 
+[[tool.mypy.overrides]]
+module = ["langchain_huggingface.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 filterwarnings = [
