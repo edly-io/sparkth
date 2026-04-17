@@ -30,6 +30,8 @@ interface ApiMessage {
 interface ApiConversation {
   id: string;
   messages: ApiMessage[];
+  active_drive_file_id: number | null;
+  active_drive_file_name: string | null;
 }
 
 export default function ChatInterface() {
@@ -119,6 +121,16 @@ export default function ChatInterface() {
             loading: false,
             messages: loaded.length ? loaded : [WELCOME_MESSAGE],
           });
+
+          // Restore persistent drive file attachment
+          if (data.active_drive_file_id && data.active_drive_file_name) {
+            setInputAttachment({
+              name: data.active_drive_file_name,
+              size: 0,
+              text: `[File: ${data.active_drive_file_name}]`,
+              driveFileDbId: data.active_drive_file_id,
+            });
+          }
         })
         .catch((e) => {
           if (cancelled) return;
@@ -348,6 +360,17 @@ export default function ChatInterface() {
     }
   };
 
+  const handleSetAttachment = (attachment: TextAttachment | null) => {
+    setInputAttachment(attachment);
+    // If clearing (null) and there's an active drive file, clear on backend too
+    if (attachment === null && conversationId && inputAttachment?.driveFileDbId) {
+      fetch(`/api/v1/chat/conversations/${conversationId}/active-file`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
       <ChatHeader />
@@ -374,7 +397,7 @@ export default function ChatInterface() {
 
       <ChatInput
         attachment={inputAttachment}
-        setAttachment={setInputAttachment}
+        setAttachment={handleSetAttachment}
         setPreviewOpen={setPreviewOpen}
         setPreviewAttachment={setPreviewAttachment}
         onSend={handleSend}

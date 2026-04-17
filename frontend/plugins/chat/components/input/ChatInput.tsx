@@ -83,7 +83,10 @@ export function ChatInput({
     });
 
     setMessage("");
-    setAttachment(null);
+    // Drive file attachments persist across the session until explicitly removed
+    if (!attachment?.driveFileDbId) {
+      setAttachment(null);
+    }
   };
 
   return (
