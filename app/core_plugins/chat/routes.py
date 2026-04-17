@@ -435,11 +435,11 @@ async def chat_completion(
             attachment_size=msg.attachment.size if msg.attachment else None,
         )
 
-    resolved_messages = await _resolve_drive_file_blocks(
-        messages=request.messages,
-        session=session,
-        user_id=current_user.id,  # type: ignore[arg-type]
-        rag_service=rag_service,
+    has_drive_files = any(
+        isinstance(b, dict) and b.get("type") == "drive_file"
+        for msg in request.messages
+        if isinstance(msg.content, list)
+        for b in msg.content
     )
 
     db_messages = await service.get_conversation_messages(
@@ -464,7 +464,20 @@ async def chat_completion(
             if len(db_messages) > num_current
             else []
         )
-        current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
+
+        if request.stream and has_drive_files:
+            # For streaming with drive files, RAG resolution happens in the generator
+            current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        else:
+            # For non-streaming, or streaming without drive files, resolve synchronously
+            resolved_messages = await _resolve_drive_file_blocks(
+                messages=request.messages,
+                session=session,
+                user_id=current_user.id,  # type: ignore[arg-type]
+                rag_service=rag_service,
+            )
+            current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
+
         messages = history + current
 
         tool_registry = get_tool_registry()
@@ -497,6 +510,13 @@ async def chat_completion(
             provider.system_prompt += f"\n\n{lms_credentials_message}"
 
         if request.stream:
+            stream_kwargs: dict[str, Any] = {}
+            if has_drive_files:
+                stream_kwargs = {
+                    "unresolved_messages": request.messages,
+                    "rag_service": rag_service,
+                    "user_id": current_user.id,
+                }
             return StreamingResponse(
                 stream_chat_response(
                     provider=provider,
@@ -505,6 +525,7 @@ async def chat_completion(
                     service=service,
                     session=session,
                     tools=tools,
+                    **stream_kwargs,
                 ),
                 media_type="text/event-stream",
             )
@@ -562,7 +583,56 @@ async def stream_chat_response(
     service: ChatService,
     session: AsyncSession,
     tools: list[Any] | None = None,
+    unresolved_messages: list[ChatMessage] | None = None,
+    rag_service: RAGContextService | None = None,
+    user_id: int | None = None,
 ) -> Any:
+    # --- Phase 1: In-stream RAG resolution (emits status events) ---
+    if unresolved_messages and rag_service and user_id is not None:
+        query_text = _extract_query_text(unresolved_messages)
+
+        for msg in unresolved_messages:
+            if not isinstance(msg.content, list):
+                continue
+            for block in msg.content:
+                if not isinstance(block, dict) or block.get("type") != "drive_file":
+                    continue
+
+                file_id: int = block["file_id"]
+
+                yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
+
+                try:
+                    context = await rag_service.get_context_for_drive_file(
+                        session=session,
+                        user_id=user_id,
+                        file_db_id=file_id,
+                        query=query_text,
+                    )
+                except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
+                    logger.error("RAG retrieval failed in stream for file_id=%d: %s", file_id, exc)
+                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                    return
+
+                section_names: list[str] = []
+                if context.ranked_sections:
+                    for sec in context.ranked_sections:
+                        parts = [str(sec[k]) for k in ("chapter", "section", "subsection") if sec.get(k)]
+                        section_names.append(" / ".join(parts) if parts else "General")
+
+                yield f"data: {json.dumps({'status': 'sections_found', 'sections': section_names, 'chunk_count': len(context.chunks), 'done': False})}\n\n"
+
+                # Replace drive_file block in messages with RAG text
+                for m in messages:
+                    if not isinstance(m.get("content"), list):
+                        continue
+                    for i, b in enumerate(m["content"]):
+                        if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
+                            m["content"][i] = {"type": "text", "text": context.formatted_text}
+
+        yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
+
+    # --- Phase 2: LLM streaming ---
     full_response = ""
     conversation_id: int = conversation.id  # type: ignore[assignment]
 
