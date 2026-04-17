@@ -6,6 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.local
+      # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
     image: sparkth:local
     restart: unless-stopped
     ports:

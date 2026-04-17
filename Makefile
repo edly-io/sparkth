@@ -40,10 +40,12 @@ base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or 
 	docker build -f Dockerfile.base -t sparkth-base:local .
 
 up: ## Build and start app (frontend + API + db)
+	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
 	docker compose build api
 	docker compose up -d
 
 dev.up: ## Build and start app in dev mode (hot reload)
+	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
 	docker compose build api
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
