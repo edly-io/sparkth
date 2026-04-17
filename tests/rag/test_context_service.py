@@ -1,6 +1,6 @@
 """Tests for RAGContextService."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -259,3 +259,37 @@ class TestRAGContextService:
         service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
         result = await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
         assert "No relevant excerpts found" in result.formatted_text
+
+
+class TestChunkIDLogging:
+    @pytest.mark.asyncio
+    async def test_chunk_ids_logged_on_successful_retrieval(self) -> None:
+        """Verify that chunk IDs are logged after successful retrieval."""
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="biology.pdf")
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        chunk1 = _make_chunk("Content 1")
+        chunk1.id = 13
+        chunk2 = _make_chunk("Content 2")
+        chunk2.id = 85
+        similarity_results = [
+            SimilarityResult(chunk=chunk1, similarity=0.9),
+            SimilarityResult(chunk=chunk2, similarity=0.8),
+        ]
+        mock_store = AsyncMock()
+        mock_store.similarity_search = AsyncMock(return_value=similarity_results)
+
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+
+        with patch("app.rag.context_service.logger") as mock_logger:
+            await service.get_context_for_drive_file(
+                session=mock_session, user_id=1, file_db_id=1, query="photosynthesis"
+            )
+            # Verify chunk IDs are logged
+            log_calls = [str(call) for call in mock_logger.info.call_args_list]
+            assert any("[13, 85]" in call for call in log_calls)

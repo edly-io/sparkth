@@ -26,7 +26,7 @@ _GOOGLE_NATIVE_MIMES = frozenset(
 )
 
 DEFAULT_RAG_CHUNKS = 12
-DEFAULT_SIMILARITY_THRESHOLD = 0.7
+DEFAULT_SIMILARITY_THRESHOLD = 0.3
 
 
 @dataclass
@@ -97,6 +97,11 @@ class RAGContextService:
             raise RAGRetrievalError(f"Similarity search failed: {exc}") from exc
 
         logger.info("RAG: found %d chunks for file_db_id=%d", len(results), file_db_id)
+        logger.info(
+            "RAG chunk IDs in context for file_db_id=%d: %s",
+            file_db_id,
+            [r.chunk.id for r in results],
+        )
 
         return RAGContext(
             file_db_id=file_db_id,
