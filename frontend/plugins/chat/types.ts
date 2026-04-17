@@ -19,4 +19,5 @@ export interface ChatMessage {
   isError?: boolean;
   options?: string[];
   pillAttachment?: TextAttachment | null;
+  statusText?: string;
 }

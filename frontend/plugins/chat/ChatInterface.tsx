@@ -312,6 +312,27 @@ export default function ChatInterface() {
               break;
             }
 
+            if (parsed.status) {
+              let statusText = "";
+              if (parsed.status === "searching_document") {
+                statusText = "Searching document for relevant content...";
+              } else if (parsed.status === "sections_found" && Array.isArray(parsed.sections)) {
+                const sections = parsed.sections as string[];
+                const displayed = sections.slice(0, 5);
+                const suffix = sections.length > 5 ? ` and ${sections.length - 5} more` : "";
+                statusText = `Taking into context: ${displayed.join(", ")}${suffix}`;
+              } else if (parsed.status === "generating") {
+                statusText = "Generating response...";
+              }
+
+              if (statusText) {
+                setMessages((prev) =>
+                  prev.map((msg) => (msg.id === assistantId ? { ...msg, statusText } : msg)),
+                );
+              }
+              continue;
+            }
+
             if (parsed.token) {
               assistantText += parsed.token;
               setMessages((prev) =>
@@ -345,6 +366,7 @@ export default function ChatInterface() {
                   content: assistantText,
                   streamedContent: undefined,
                   isTyping: false,
+                  statusText: undefined,
                 }
               : msg,
           ),

@@ -55,7 +55,14 @@ export function AssistantMessage({
         ) : (
           <Card variant="outlined" className="p-4">
             {isThinking ? (
-              <ThinkingDots />
+              message.statusText ? (
+                <div className="flex items-center gap-2 py-1">
+                  <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
+                  <p className="text-sm text-muted-foreground">{message.statusText}</p>
+                </div>
+              ) : (
+                <ThinkingDots />
+              )
             ) : (
               <div className="prose prose-neutral dark:prose-invert max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
