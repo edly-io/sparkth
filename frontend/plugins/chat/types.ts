@@ -20,4 +20,5 @@ export interface ChatMessage {
   options?: string[];
   pillAttachment?: TextAttachment | null;
   statusText?: string;
+  ragSections?: { type: string; name: string; state: "scanning" | "confirmed" }[];
 }

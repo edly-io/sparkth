@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatMessages } from "./components/messages/ChatMessages";
@@ -61,6 +61,13 @@ export default function ChatInterface() {
   const conversationId = searchParams.get("id");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastSentRef = useRef<{ message: string; attachment: TextAttachment | null }>({
+    message: "",
+    attachment: null,
+  });
+  const lastSentThresholdRef = useRef<number>(0.45);
+  // Prevents loadConversation from overwriting messages when we navigated there ourselves
+  const skipNextLoadRef = useRef(false);
   const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
   const [historyState, setHistoryState] = useState<{
@@ -87,6 +94,13 @@ export default function ChatInterface() {
           loading: false,
           messages: [WELCOME_MESSAGE],
         });
+        setInputAttachment(null);
+        return;
+      }
+
+      // We just navigated here ourselves after a send — keep current messages state
+      if (skipNextLoadRef.current) {
+        skipNextLoadRef.current = false;
         return;
       }
 
@@ -106,7 +120,12 @@ export default function ChatInterface() {
           const loaded: ChatMessage[] = data.messages.map((m) => ({
             id: String(m.id),
             role: m.role,
-            content: m.message_type === "attachment" ? "" : m.content,
+            content:
+              m.message_type === "attachment"
+                ? m.content !== "[File attachment]"
+                  ? m.content
+                  : ""
+                : m.content,
             attachment:
               m.message_type === "attachment" && m.attachment_name
                 ? {
@@ -122,7 +141,7 @@ export default function ChatInterface() {
             messages: loaded.length ? loaded : [WELCOME_MESSAGE],
           });
 
-          // Restore persistent drive file attachment
+          // Restore persistent drive file attachment (or clear if this conversation has none)
           if (data.active_drive_file_id && data.active_drive_file_name) {
             setInputAttachment({
               name: data.active_drive_file_name,
@@ -130,6 +149,8 @@ export default function ChatInterface() {
               text: `[File: ${data.active_drive_file_name}]`,
               driveFileDbId: data.active_drive_file_id,
             });
+          } else {
+            setInputAttachment(null);
           }
         })
         .catch((e) => {
@@ -167,10 +188,15 @@ export default function ChatInterface() {
   const handleSend = async ({
     message,
     attachment,
+    similarityThreshold = 0.45,
   }: {
     message: string;
     attachment: TextAttachment | null;
+    similarityThreshold?: number;
   }) => {
+    lastSentRef.current = { message, attachment };
+    lastSentThresholdRef.current = similarityThreshold;
+
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -266,6 +292,7 @@ export default function ChatInterface() {
           tools: "*",
           tool_choice: "auto",
           include_system_tools_message: true,
+          similarity_threshold: similarityThreshold,
           ...(conversationId && { conversation_id: conversationId }),
         }),
       });
@@ -287,6 +314,7 @@ export default function ChatInterface() {
       let newConversationId: string | null = null;
       let streamDone = false;
       let hasError = false;
+      let doneOptions: string[] = [];
 
       while (true) {
         const { value, done } = await reader.read();
@@ -313,23 +341,61 @@ export default function ChatInterface() {
             }
 
             if (parsed.status) {
-              let statusText = "";
-              if (parsed.status === "searching_document") {
-                statusText = "Searching document for relevant content...";
-              } else if (parsed.status === "sections_found" && Array.isArray(parsed.sections)) {
-                const sections = parsed.sections as string[];
-                const displayed = sections.slice(0, 5);
-                const suffix = sections.length > 5 ? ` and ${sections.length - 5} more` : "";
-                statusText = `Taking into context: ${displayed.join(", ")}${suffix}`;
-              } else if (parsed.status === "generating") {
-                statusText = "Generating response...";
-              }
-
-              if (statusText) {
+              if (parsed.status === "section_scanning" && parsed.section) {
+                const section = parsed.section as { type: string; name: string };
+                // Server emits scanning events 80ms apart — add immediately, no client stagger
                 setMessages((prev) =>
-                  prev.map((msg) => (msg.id === assistantId ? { ...msg, statusText } : msg)),
+                  prev.map((msg) =>
+                    msg.id === assistantId
+                      ? {
+                          ...msg,
+                          statusText: undefined,
+                          ragSections: [
+                            ...(msg.ragSections ?? []),
+                            { ...section, state: "scanning" as const },
+                          ],
+                        }
+                      : msg,
+                  ),
+                );
+              } else if (parsed.status === "section_confirmed" && parsed.section) {
+                const sectionName = (parsed.section as { name: string }).name;
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantId
+                      ? {
+                          ...msg,
+                          ragSections: msg.ragSections?.map((s) =>
+                            s.name === sectionName ? { ...s, state: "confirmed" as const } : s,
+                          ),
+                        }
+                      : msg,
+                  ),
+                );
+              } else if (parsed.status === "section_removed" && parsed.section) {
+                const sectionName = (parsed.section as { name: string }).name;
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantId
+                      ? {
+                          ...msg,
+                          ragSections: (msg.ragSections ?? []).filter(
+                            (s) => s.name !== sectionName,
+                          ),
+                        }
+                      : msg,
+                  ),
+                );
+              } else if (parsed.status === "searching_document") {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantId
+                      ? { ...msg, statusText: "Scanning document sections..." }
+                      : msg,
+                  ),
                 );
               }
+              // "generating" is intentionally ignored
               continue;
             }
 
@@ -337,7 +403,9 @@ export default function ChatInterface() {
               assistantText += parsed.token;
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === assistantId ? { ...msg, streamedContent: assistantText } : msg,
+                  msg.id === assistantId
+                    ? { ...msg, streamedContent: assistantText, statusText: undefined }
+                    : msg,
                 ),
               );
             }
@@ -345,6 +413,13 @@ export default function ChatInterface() {
             if (parsed.done) {
               if (parsed.conversation_id) {
                 newConversationId = String(parsed.conversation_id);
+              }
+              // done event may carry pre-built content (e.g. no RAG chunks found)
+              if (parsed.content) {
+                assistantText = parsed.content;
+              }
+              if (parsed.options) {
+                doneOptions = parsed.options as string[];
               }
               streamDone = true;
               break;
@@ -367,18 +442,32 @@ export default function ChatInterface() {
                   streamedContent: undefined,
                   isTyping: false,
                   statusText: undefined,
+                  ...(doneOptions.length > 0 && { options: doneOptions }),
                 }
               : msg,
           ),
         );
 
         if (!conversationId && newConversationId) {
+          skipNextLoadRef.current = true;
           router.replace(`/dashboard/chat?id=${newConversationId}`);
         }
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
       failAssistantMessage(assistantId, errorMsg);
+    }
+  };
+
+  const handleOptionClick = (text: string) => {
+    if (text === "Try with less strict matching") {
+      const { message, attachment } = lastSentRef.current;
+      const last = lastSentThresholdRef.current;
+      // Stepped threshold: 0.45 → 0.30 → 0.15
+      const nextThreshold = last > 0.3 ? 0.3 : 0.15;
+      handleSend({ message, attachment, similarityThreshold: nextThreshold });
+    } else {
+      handleSend({ message: text, attachment: null });
     }
   };
 
@@ -414,6 +503,7 @@ export default function ChatInterface() {
           setPreviewOpen={setPreviewOpen}
           setPreviewAttachment={setPreviewAttachment}
           onSend={handleSend}
+          onOptionClick={handleOptionClick}
         />
       )}
 

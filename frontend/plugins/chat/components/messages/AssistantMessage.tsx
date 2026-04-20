@@ -45,6 +45,55 @@ export function AssistantMessage({
       </div>
 
       <div className="max-w-[75%] w-fit space-y-2">
+        {/* RAG context indicator — outside bubble, persistent */}
+        {message.ragSections && message.ragSections.length > 0 && (
+          <div className="px-1 space-y-0.5">
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">Taking into context:</p>
+            <ul className="space-y-0.5">
+              {message.ragSections.slice(0, 5).map((section, i) => (
+                <li
+                  key={i}
+                  className="text-xs text-neutral-400 dark:text-neutral-500 flex items-baseline gap-1.5"
+                >
+                  {section.state === "scanning" ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-0.5 animate-pulse" />
+                  ) : (
+                    <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
+                  )}
+                  <span className="capitalize">{section.type}</span>
+                  <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                  <span className={section.state === "scanning" ? "opacity-50" : ""}>
+                    {section.name}
+                  </span>
+                </li>
+              ))}
+              {message.ragSections.length > 5 && (
+                <li className="relative group ml-2.5 w-fit">
+                  <span className="text-xs text-neutral-300 dark:text-neutral-600 cursor-default underline decoration-dotted">
+                    +{message.ragSections.length - 5} more
+                  </span>
+                  {/* Hover tooltip showing remaining sections */}
+                  <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
+                    <ul className="space-y-1">
+                      {message.ragSections.slice(5).map((section, i) => (
+                        <li
+                          key={i}
+                          className="text-xs text-neutral-500 dark:text-neutral-400 flex items-baseline gap-1.5"
+                        >
+                          <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
+                          <span className="capitalize">{section.type}</span>
+                          <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                          <span>{section.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+
         {message.isError ? (
           <Card variant="outlined" className="p-4 border-error bg-error-50">
             <div className="flex items-start gap-2 text-error-500">
