@@ -63,6 +63,8 @@ class TestScopeValidation:
 
 
 class TestStreamOutOfScopeRefusal:
+    """Test the _stream_out_of_scope_refusal SSE generator."""
+
     @pytest.mark.asyncio
     async def test_emits_single_done_event_with_refusal_content(self) -> None:
         """_stream_out_of_scope_refusal yields exactly one SSE done event."""
@@ -74,6 +76,6 @@ class TestStreamOutOfScopeRefusal:
 
         assert len(events) == 1
         assert events[0].startswith("data: ")
-        payload = json.loads(events[0].replace("data: ", "").strip())
+        payload = json.loads(events[0].removeprefix("data: ").strip())
         assert payload["done"] is True
         assert payload["content"] == REFUSAL_MESSAGE
