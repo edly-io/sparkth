@@ -59,7 +59,7 @@ from app.llm.providers import (
 )
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
-from app.rag.context_service import RAGContextService, _format_chunks_as_context
+from app.rag.context_service import RAGContextService, format_chunks_as_context
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 logger = get_logger(__name__)
@@ -758,7 +758,7 @@ async def stream_chat_response(
                     yield f"data: {json.dumps(done_payload)}\n\n"
                     return
 
-                formatted_text = _format_chunks_as_context(source_name, results)
+                formatted_text = format_chunks_as_context(source_name, results)
 
                 # Replace drive_file block in messages with RAG text
                 for m in messages:

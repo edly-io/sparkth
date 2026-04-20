@@ -141,7 +141,7 @@ class RAGContextService:
             file_db_id=file_db_id,
             source_name=source_name,
             chunks=results,
-            formatted_text=_format_chunks_as_context(source_name, results),
+            formatted_text=format_chunks_as_context(source_name, results),
             ranked_sections=ranked_sections,
         )
 
@@ -280,7 +280,7 @@ def _resolve_source_name(drive_file: DriveFile) -> str:
     return filename
 
 
-def _format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
+def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
     """Format retrieved chunks as a structured text block for the LLM."""
     if not results:
         return f"[DOCUMENT CONTEXT: {source_name}]\nNo relevant excerpts found."

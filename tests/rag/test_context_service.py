@@ -8,8 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.rag.context_service import (
     RAGContext,
     RAGContextService,
-    _format_chunks_as_context,
     _resolve_source_name,
+    format_chunks_as_context,
 )
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.models import DocumentChunk
@@ -56,31 +56,31 @@ def _make_sr(content: str = "Content", sim: float = 0.9) -> SimilarityResult:
 
 class TestFormatChunksAsContext:
     def test_no_results_returns_no_excerpts_message(self) -> None:
-        result = _format_chunks_as_context("doc.pdf", [])
+        result = format_chunks_as_context("doc.pdf", [])
         assert "[DOCUMENT CONTEXT: doc.pdf]" in result
         assert "No relevant excerpts found" in result
 
     def test_single_result_formatted(self) -> None:
-        result = _format_chunks_as_context("bio.pdf", [_make_sr("Chlorophyll content")])
+        result = format_chunks_as_context("bio.pdf", [_make_sr("Chlorophyll content")])
         assert "[DOCUMENT CONTEXT: bio.pdf]" in result
         assert "Chlorophyll content" in result
         assert "Excerpt 1" in result
 
     def test_multiple_results_numbered(self) -> None:
         results = [_make_sr(f"Content {i}") for i in range(3)]
-        result = _format_chunks_as_context("doc.pdf", results)
+        result = format_chunks_as_context("doc.pdf", results)
         assert "Excerpt 1" in result
         assert "Excerpt 2" in result
         assert "Excerpt 3" in result
 
     def test_section_label_uses_metadata(self) -> None:
         chunk = _make_chunk(content="Text", chapter="Ch1", section="Sec2", subsection=None)
-        result = _format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
+        result = format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
         assert "Ch1 / Sec2" in result
 
     def test_no_metadata_uses_general(self) -> None:
         chunk = _make_chunk(content="Text", chapter=None, section=None, subsection=None)
-        result = _format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
+        result = format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
         assert "General" in result
 
 
