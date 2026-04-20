@@ -328,7 +328,11 @@ async def _resolve_drive_file_blocks(
                 new_blocks.append(block)
                 continue
 
-            file_id: int = block["file_id"]
+            raw_id = block.get("file_id")
+            if raw_id is None:
+                logger.warning("Skipping drive_file block missing file_id: %s", block)
+                continue
+            file_id: int = int(raw_id)
             try:
                 context = await rag_service.get_context_for_drive_file(
                     session=session,
@@ -374,8 +378,9 @@ def _extract_drive_file_id_from_messages(messages: list[ChatMessage]) -> int | N
             continue
         for block in msg.content:
             if isinstance(block, dict) and block.get("type") == "drive_file":
-                file_id = block["file_id"]
-                return int(file_id)
+                raw_id = block.get("file_id")
+                if raw_id is not None:
+                    return int(raw_id)
     return None
 
 
@@ -642,7 +647,11 @@ async def stream_chat_response(
                     if not isinstance(block, dict) or block.get("type") != "drive_file":
                         continue
 
-                    file_id: int = block["file_id"]
+                    raw_id = block.get("file_id")
+                    if raw_id is None:
+                        logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                        continue
+                    file_id: int = int(raw_id)
 
                     yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
 
