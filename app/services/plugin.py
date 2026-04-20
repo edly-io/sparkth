@@ -139,6 +139,11 @@ class PluginService:
         plugin = await self.get_by_name(session, name)
 
         if plugin is not None:
+            if plugin.config_schema != schema:
+                plugin.config_schema = schema
+                session.add(plugin)
+                await session.commit()
+                await session.refresh(plugin)
             return plugin
 
         plugin = Plugin(
