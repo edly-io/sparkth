@@ -390,11 +390,9 @@ class BaseChatProvider(ABC):
                     tool_args = tool_call.get("args", {})
                     tool_id = tool_call.get("id", "")
 
-                    yield f"\n\n🔧 *Executing tool: {tool_name}...*\n"
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
-                    yield "✅ *Tool completed*\n\n"
 
                     langchain_messages.append(
                         ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
