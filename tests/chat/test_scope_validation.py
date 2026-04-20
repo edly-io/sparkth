@@ -1,6 +1,10 @@
 """Tests for query scope validation (is_query_in_scope in prompt.py)."""
 
-from app.llm.prompt import is_query_in_scope
+import json
+
+import pytest
+
+from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 
 
 class TestScopeValidation:
@@ -56,3 +60,20 @@ class TestScopeValidation:
         assert is_query_in_scope("Write a learning objective for data analysis") is True
         # "curriculum" (in-scope) wins
         assert is_query_in_scope("Who is responsible for curriculum design in K-12?") is True
+
+
+class TestStreamOutOfScopeRefusal:
+    @pytest.mark.asyncio
+    async def test_emits_single_done_event_with_refusal_content(self) -> None:
+        """_stream_out_of_scope_refusal yields exactly one SSE done event."""
+        from app.core_plugins.chat.routes import _stream_out_of_scope_refusal
+
+        events = []
+        async for chunk in _stream_out_of_scope_refusal():
+            events.append(chunk)
+
+        assert len(events) == 1
+        assert events[0].startswith("data: ")
+        payload = json.loads(events[0].replace("data: ", "").strip())
+        assert payload["done"] is True
+        assert payload["content"] == REFUSAL_MESSAGE

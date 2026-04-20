@@ -2,7 +2,7 @@ import asyncio
 import json
 import re
 from functools import lru_cache
-from typing import Any
+from typing import Any, AsyncGenerator
 from uuid import UUID
 
 import anthropic
@@ -48,6 +48,8 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
+from app.llm.classifier import ScopeClassifier
+from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -104,6 +106,11 @@ def get_chat_service(config: ChatSystemConfig = Depends(get_chat_system_config))
 def get_rag_context_service() -> RAGContextService:
     """FastAPI dependency: returns a stateless RAGContextService."""
     return RAGContextService()
+
+
+async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
+    """Yield a single SSE done-event carrying the refusal message as content."""
+    yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
 
 
 @chat_router.get("/providers", response_model=ProviderCatalogResponse)
@@ -472,6 +479,38 @@ async def chat_completion(
     )
 
     try:
+        # --- Tiered scope check (plain-text only; drive-file/RAG paths skip entirely) ---
+        if not has_drive_files:
+            query_text = _extract_query_text(request.messages)
+            _in_scope = True
+            if query_text:
+                # Tier 1: fast keyword pre-filter — catches obvious out-of-scope at zero LLM cost
+                if not is_query_in_scope(query_text):
+                    _in_scope = False
+                else:
+                    # Tier 2: LLM classifier for nuanced cases keywords can't handle
+                    classifier = ScopeClassifier(provider_name=request.provider, api_key=api_key)
+                    _in_scope = await classifier.classify(query_text)
+            if not _in_scope:
+                await service.add_message(
+                    session=session,
+                    conversation_id=conversation.id,  # type: ignore
+                    role="assistant",
+                    content=REFUSAL_MESSAGE,
+                    message_type="text",
+                )
+                if request.stream:
+                    return StreamingResponse(
+                        _stream_out_of_scope_refusal(),
+                        media_type="text/event-stream",
+                    )
+                return ChatCompletionResponse(
+                    message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
+                    conversation_id=conversation.uuid,
+                    model=request.model,
+                    provider=request.provider,
+                )
+
         provider = get_provider(
             provider_name=request.provider,
             api_key=api_key,
