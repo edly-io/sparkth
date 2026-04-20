@@ -23,6 +23,20 @@ from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, ChunkMetadata, RagStatus
 
 
+def _make_async_session() -> AsyncMock:
+    """Return an AsyncMock session with synchronous add/add_all as plain MagicMock.
+
+    SQLAlchemy's AsyncSession.add() and add_all() are synchronous methods.
+    Using AsyncMock for the whole session makes them return coroutines, which
+    triggers 'coroutine was never awaited' warnings when the production code
+    calls them without await (correctly).
+    """
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.add_all = MagicMock()
+    return session
+
+
 def _make_drive_file(
     *,
     name: str = "doc.pdf",
@@ -127,7 +141,7 @@ class TestIsSupportedForRag:
 
 class TestSetRagStatus:
     async def test_updates_status_and_commits(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
         drive_file = _make_drive_file()
         original_updated_at = drive_file.updated_at
 
@@ -139,7 +153,7 @@ class TestSetRagStatus:
         session.commit.assert_awaited_once()
 
     async def test_sets_ready_status(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
         drive_file = _make_drive_file(rag_status=RagStatus.PROCESSING)
 
         await _set_rag_status(session, drive_file, RagStatus.READY)
@@ -147,7 +161,7 @@ class TestSetRagStatus:
         assert drive_file.rag_status == RagStatus.READY
 
     async def test_sets_failed_status(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
         drive_file = _make_drive_file(rag_status=RagStatus.PROCESSING)
 
         await _set_rag_status(session, drive_file, RagStatus.FAILED)
@@ -187,7 +201,7 @@ class TestDownloadFile:
 
 class TestFindDuplicateFile:
     async def test_returns_none_when_no_duplicate(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
         mock_result = MagicMock()
         mock_result.scalars.return_value.first.return_value = None
         session.execute = AsyncMock(return_value=mock_result)
@@ -200,7 +214,7 @@ class TestFindDuplicateFile:
 
     async def test_returns_duplicate_when_found(self) -> None:
         duplicate = _make_drive_file(file_id=99, name="duplicate.pdf")
-        session = AsyncMock()
+        session = _make_async_session()
         mock_result = MagicMock()
         mock_result.scalars.return_value.first.return_value = duplicate
         session.execute = AsyncMock(return_value=mock_result)
@@ -218,7 +232,7 @@ class TestFindDuplicateFile:
 
 class TestLinkChunksFromDuplicate:
     async def test_links_missing_chunks(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
 
         # Source file has chunks 1, 2, 3
         source_result = MagicMock()
@@ -240,7 +254,7 @@ class TestLinkChunksFromDuplicate:
         session.flush.assert_awaited_once()
 
     async def test_no_links_when_all_exist(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
 
         source_result = MagicMock()
         source_result.all.return_value = [(1,), (2,)]
@@ -256,7 +270,7 @@ class TestLinkChunksFromDuplicate:
         session.flush.assert_not_awaited()
 
     async def test_links_all_when_none_exist(self) -> None:
-        session = AsyncMock()
+        session = _make_async_session()
 
         source_result = MagicMock()
         source_result.all.return_value = [(5,), (6,)]
@@ -284,7 +298,7 @@ class TestEmbedAndStoreChunks:
 
     async def test_all_new_chunks(self) -> None:
         """When no chunks exist in DB, all should be embedded."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
@@ -325,7 +339,7 @@ class TestEmbedAndStoreChunks:
 
     async def test_all_reused_chunks(self) -> None:
         """When all chunks already exist, none should be embedded."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
@@ -364,7 +378,7 @@ class TestEmbedAndStoreChunks:
 
     async def test_mixed_new_and_reused(self) -> None:
         """When some chunks exist and some don't."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
@@ -404,7 +418,7 @@ class TestEmbedAndStoreChunks:
 
     async def test_skips_already_linked_chunks(self) -> None:
         """Bridge-link rows that already exist should not be re-inserted."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
@@ -451,7 +465,7 @@ class TestEmbedAndStoreChunks:
 class TestProcessSingleFile:
     async def test_skips_unsupported_file(self) -> None:
         """Unsupported files should be set to READY so polling stops."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
         drive_file = _make_drive_file(name="image.png", mime_type="image/png")
@@ -473,7 +487,7 @@ class TestProcessSingleFile:
         mock_download: AsyncMock,
     ) -> None:
         """Duplicate files should link to existing chunks and be marked ready."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
 
@@ -507,7 +521,7 @@ class TestProcessSingleFile:
         mock_download: AsyncMock,
     ) -> None:
         """New files should go through extract -> chunk -> embed -> store."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
 
@@ -543,7 +557,7 @@ class TestProcessSingleFile:
         mock_download: AsyncMock,
     ) -> None:
         """Files that produce no chunks should still be marked ready."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
         mock_download.return_value = b"content"
@@ -560,7 +574,7 @@ class TestProcessSingleFile:
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_drive_api_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """GoogleDriveAPIError should mark the file as failed."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
         mock_download.side_effect = GoogleDriveAPIError(500, "Server Error")
@@ -576,7 +590,7 @@ class TestProcessSingleFile:
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_value_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """ValueError (e.g. unsupported file type in extraction) should mark failed."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
         mock_download.side_effect = ValueError("Unsupported file type")
@@ -592,7 +606,7 @@ class TestProcessSingleFile:
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_google_doc_filename_resolved(self, mock_download: AsyncMock) -> None:
         """Google Docs should have .pdf appended for extraction."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
         mock_download.return_value = b"content"
@@ -617,7 +631,7 @@ class TestProcessSingleFile:
 
     async def test_none_id_returns_early(self) -> None:
         """drive_file.id is None should log error and return without touching session."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
 
@@ -636,7 +650,7 @@ class TestProcessSingleFile:
         """IntegrityError triggers rollback → refresh → FAILED."""
         from sqlalchemy.exc import IntegrityError
 
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
 
@@ -655,7 +669,7 @@ class TestProcessSingleFile:
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_sqlalchemy_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """SQLAlchemyError during processing sets FAILED status."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
 
@@ -675,7 +689,7 @@ class TestProcessSingleFile:
         self, mock_set_status: AsyncMock, mock_download: AsyncMock
     ) -> None:
         """When _set_rag_status itself raises inside except SQLAlchemyError, error is swallowed."""
-        session = AsyncMock()
+        session = _make_async_session()
         provider = AsyncMock()
         store = AsyncMock()
 
@@ -811,7 +825,7 @@ class TestSetRagStatusWithError:
     async def test_stores_error_message_on_failed(self) -> None:
         """_set_rag_status should persist rag_error when provided."""
         file = _make_drive_file()
-        session = AsyncMock()
+        session = _make_async_session()
 
         await _set_rag_status(session, file, RagStatus.FAILED, error="Download failed: 403 Forbidden")
 
@@ -824,7 +838,7 @@ class TestSetRagStatusWithError:
         """_set_rag_status should clear rag_error when status is not failed."""
         file = _make_drive_file(rag_status=RagStatus.FAILED)
         file.rag_error = "old error"
-        session = AsyncMock()
+        session = _make_async_session()
 
         await _set_rag_status(session, file, RagStatus.READY)
 

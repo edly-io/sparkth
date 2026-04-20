@@ -336,12 +336,12 @@ async def _resolve_drive_file_blocks(
                 )
             except DriveFileNotFoundError as exc:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=f"File (id={file_id}) not found or not accessible.",
                 ) from exc
             except RAGNotReadyError as exc:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=(
                         f"File (id={file_id}) is still being processed "
                         f"(status: {exc.rag_status}). Please wait and try again."

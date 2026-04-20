@@ -277,7 +277,11 @@ class TestConversationUUIDRoutes:
             patch("app.core_plugins.chat.routes.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
+            mock_classifier = AsyncMock()
+            mock_classifier.classify = AsyncMock(return_value=True)
+            mock_classifier_cls.return_value = mock_classifier
             mock_provider = AsyncMock()
             mock_provider.send_message = AsyncMock(return_value=mock_response)
             mock_get_provider.return_value = mock_provider
@@ -339,7 +343,11 @@ class TestConversationUUIDRoutes:
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
             patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
+            mock_classifier = AsyncMock()
+            mock_classifier.classify = AsyncMock(return_value=True)
+            mock_classifier_cls.return_value = mock_classifier
             mock_provider = AsyncMock()
             mock_provider.send_message = AsyncMock(return_value=mock_response)
             mock_get_provider.return_value = mock_provider

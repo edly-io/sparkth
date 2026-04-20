@@ -66,6 +66,7 @@ class TestVectorStoreService:
             ChunkInput(content="chunk 2", source_name="doc.pdf", section="Sec1"),
         ]
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
 
         result = await service.store_chunks(mock_session, user_id=1, chunks=chunks, provider=mock_embedding_provider)
 
@@ -91,6 +92,7 @@ class TestVectorStoreService:
             ),
         ]
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
 
         result = await service.store_chunks(mock_session, user_id=42, chunks=chunks, provider=mock_embedding_provider)
 
@@ -112,6 +114,7 @@ class TestVectorStoreService:
     ) -> None:
         chunks = [ChunkInput(content="test", source_name="doc.pdf")]
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
 
         result = await service.store_chunks(mock_session, user_id=1, chunks=chunks, provider=mock_embedding_provider)
 
