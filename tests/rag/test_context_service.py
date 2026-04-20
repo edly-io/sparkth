@@ -240,7 +240,7 @@ class TestRAGContextService:
             user_id=1,
             query_embedding=[0.1] * 384,
             limit=5,
-            source_name="doc.pdf",
+            source_names=["doc.pdf"],
             similarity_threshold=0.8,
             sections=None,
         )

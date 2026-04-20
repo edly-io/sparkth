@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import cast
@@ -30,6 +31,13 @@ REFUSAL_MESSAGE: str = cast(str, _cfg["refusal_message"])
 _IN_SCOPE_KEYWORDS: frozenset[str] = frozenset(cast(list[str], _cfg["in_scope"]))
 _OUT_OF_SCOPE_KEYWORDS: frozenset[str] = frozenset(cast(list[str], _cfg["out_of_scope"]))
 
+# Word-boundary patterns compiled once at import time — avoids per-request compilation
+# and prevents substring collisions (e.g. "code" matching "barcode").
+_IN_SCOPE_PATTERNS: list[re.Pattern[str]] = [re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _IN_SCOPE_KEYWORDS]
+_OUT_OF_SCOPE_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _OUT_OF_SCOPE_KEYWORDS
+]
+
 
 def get_learning_design_system_prompt() -> str:
     return _SYSTEM_PROMPT_TEMPLATE.format(
@@ -50,8 +58,8 @@ def is_query_in_scope(query: str) -> bool:
 
     query_lower = query.lower()
 
-    in_scope_count = sum(1 for kw in _IN_SCOPE_KEYWORDS if kw in query_lower)
-    out_of_scope_count = sum(1 for kw in _OUT_OF_SCOPE_KEYWORDS if kw in query_lower)
+    in_scope_count = sum(1 for p in _IN_SCOPE_PATTERNS if p.search(query_lower))
+    out_of_scope_count = sum(1 for p in _OUT_OF_SCOPE_PATTERNS if p.search(query_lower))
 
     if out_of_scope_count > 0 and in_scope_count == 0:
         return False

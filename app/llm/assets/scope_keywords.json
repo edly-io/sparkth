@@ -8,7 +8,6 @@
     "education",
     "training",
     "outline",
-    "content",
     "assessment",
     "quiz",
     "exam",
@@ -32,19 +31,14 @@
     "audience"
   ],
   "out_of_scope": [
-    "what is the",
     "who is",
     "when was",
     "where is",
-    "tell me",
-    "can you help with",
+    "what does",
     "can you write",
     "can you code",
     "debug",
     "fix this",
-    "what does",
-    "explain",
-    "summarize",
     "translate",
     "rewrite",
     "python",
@@ -68,8 +62,6 @@
     "creative writing",
     "fiction",
     "capital of",
-    "population of",
-    "how many",
-    "list of"
+    "population of"
   ]
 }

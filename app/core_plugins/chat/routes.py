@@ -47,7 +47,6 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
-from app.llm.prompt import is_query_in_scope
 from app.llm.providers import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -287,20 +286,12 @@ async def _resolve_drive_file_blocks(
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
 
-    If query is out-of-scope, drive_file blocks are removed (not replaced with RAG context),
-    allowing the LLM to respond with its refusal message.
-
     Raises:
         HTTPException(422): file not found, not owned, or RAG not ready.
         HTTPException(500): embedding or similarity search failure.
     """
     query_text = _extract_query_text(messages)
     resolved: list[ChatMessage] = []
-
-    # If query is out-of-scope, skip RAG and remove drive_file blocks
-    skip_rag = not is_query_in_scope(query_text)
-    if skip_rag:
-        logger.info("Skipping RAG for out-of-scope query (non-streaming): %s", query_text[:100])
 
     for msg in messages:
         if not isinstance(msg.content, list):
@@ -310,16 +301,6 @@ async def _resolve_drive_file_blocks(
         has_drive_file = any(isinstance(b, dict) and b.get("type") == "drive_file" for b in msg.content)
         if not has_drive_file:
             resolved.append(msg)
-            continue
-
-        # If out-of-scope, remove drive_file blocks entirely (don't process with RAG)
-        if skip_rag:
-            filtered_blocks = [b for b in msg.content if not (isinstance(b, dict) and b.get("type") == "drive_file")]
-            if filtered_blocks:
-                resolved.append(ChatMessage(role=msg.role, content=filtered_blocks, attachment=msg.attachment))
-            else:
-                # If only drive_file block exists, convert to empty text message
-                resolved.append(ChatMessage(role=msg.role, content="", attachment=msg.attachment))
             continue
 
         new_blocks: list[dict[str, Any]] = []
@@ -636,125 +617,119 @@ async def stream_chat_response(
     if unresolved_messages and rag_service and user_id is not None:
         query_text = _extract_query_text(unresolved_messages)
 
-        # Skip RAG if query is out-of-scope (let LLM respond with refusal message)
-        if not is_query_in_scope(query_text):
-            logger.info("Skipping RAG for out-of-scope query: %s", query_text[:100])
-        else:
-            for msg in unresolved_messages:
-                if not isinstance(msg.content, list):
+        for msg in unresolved_messages:
+            if not isinstance(msg.content, list):
+                continue
+            for block in msg.content:
+                if not isinstance(block, dict) or block.get("type") != "drive_file":
                     continue
-                for block in msg.content:
-                    if not isinstance(block, dict) or block.get("type") != "drive_file":
+
+                raw_id = block.get("file_id")
+                if raw_id is None:
+                    logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                    continue
+                file_id: int = int(raw_id)
+
+                yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
+
+                # --- Phase 1a: Rank sections and emit scanning events ---
+                try:
+                    source_name, query_embedding, ranked_sections = await rag_service.rank_sections_for_query(
+                        session=session,
+                        user_id=user_id,
+                        file_db_id=file_id,
+                        query=query_text,
+                    )
+                except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
+                    logger.error("RAG section ranking failed for file_id=%d: %s", file_id, exc)
+                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                    return
+
+                for sec in ranked_sections:
+                    info = _section_label_and_name(sec)
+                    if not info:
                         continue
+                    label, name = info
+                    yield f"data: {json.dumps({'status': 'section_scanning', 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
+                    await asyncio.sleep(0.08)  # flush each event so browser receives them one at a time
 
-                    raw_id = block.get("file_id")
-                    if raw_id is None:
-                        logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                # --- Phase 1b: Similarity search then emit confirmed/removed ---
+                section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
+
+                try:
+                    results = await rag_service.search_with_embedding(
+                        session=session,
+                        user_id=user_id,
+                        source_name=source_name,
+                        query_embedding=query_embedding,
+                        similarity_threshold=similarity_threshold,
+                        sections=section_filter,
+                    )
+                except RAGRetrievalError as exc:
+                    logger.error("RAG similarity search failed for file_id=%d: %s", file_id, exc)
+                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                    return
+
+                confirmed_section_names = {r.chunk.section for r in results if r.chunk.section}
+                for sec in ranked_sections:
+                    info = _section_label_and_name(sec)
+                    if not info:
                         continue
-                    file_id: int = int(raw_id)
+                    label, name = info
+                    sec_name = sec.get("section")
+                    event = (
+                        "section_confirmed" if (sec_name and sec_name in confirmed_section_names) else "section_removed"
+                    )
+                    yield f"data: {json.dumps({'status': event, 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
+                    await asyncio.sleep(0)
 
-                    yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
-
-                    # --- Phase 1a: Rank sections and emit scanning events ---
-                    try:
-                        source_name, query_embedding, ranked_sections = await rag_service.rank_sections_for_query(
-                            session=session,
-                            user_id=user_id,
-                            file_db_id=file_id,
-                            query=query_text,
+                # If no chunks matched the threshold, terminate early with user-facing options
+                if not results:
+                    if similarity_threshold <= 0.15:
+                        no_chunks_msg = (
+                            f"I searched **{source_name}** with progressively less strict matching "
+                            f"but still couldn't find relevant content for your query.\n\n"
+                            f"Please try rephrasing your question, or check that your document contains "
+                            f"information about this topic."
                         )
-                    except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
-                        logger.error("RAG section ranking failed for file_id=%d: %s", file_id, exc)
-                        yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
-                        return
-
-                    for sec in ranked_sections:
-                        info = _section_label_and_name(sec)
-                        if not info:
-                            continue
-                        label, name = info
-                        yield f"data: {json.dumps({'status': 'section_scanning', 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
-                        await asyncio.sleep(0.08)  # flush each event so browser receives them one at a time
-
-                    # --- Phase 1b: Similarity search then emit confirmed/removed ---
-                    section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
-
-                    try:
-                        results = await rag_service.search_with_embedding(
-                            session=session,
-                            user_id=user_id,
-                            source_name=source_name,
-                            query_embedding=query_embedding,
-                            similarity_threshold=similarity_threshold,
-                            sections=section_filter,
+                        done_payload: dict[str, object] = {
+                            "done": True,
+                            "content": no_chunks_msg,
+                            "conversation_id": str(conversation.uuid),
+                        }
+                    else:
+                        no_chunks_msg = (
+                            f"I searched **{source_name}** but couldn't find content closely "
+                            f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
+                            f"Would you like me to try again with less strict matching?"
                         )
-                    except RAGRetrievalError as exc:
-                        logger.error("RAG similarity search failed for file_id=%d: %s", file_id, exc)
-                        yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
-                        return
+                        done_payload = {
+                            "done": True,
+                            "content": no_chunks_msg,
+                            "options": ["Try with less strict matching"],
+                            "conversation_id": str(conversation.uuid),
+                        }
+                    await service.add_message(
+                        session=session,
+                        conversation_id=conversation.id,  # type: ignore[arg-type]
+                        role="assistant",
+                        content=no_chunks_msg,
+                        message_type="text",
+                    )
+                    yield f"data: {json.dumps(done_payload)}\n\n"
+                    return
 
-                    confirmed_section_names = {r.chunk.section for r in results if r.chunk.section}
-                    for sec in ranked_sections:
-                        info = _section_label_and_name(sec)
-                        if not info:
-                            continue
-                        label, name = info
-                        sec_name = sec.get("section")
-                        event = (
-                            "section_confirmed"
-                            if (sec_name and sec_name in confirmed_section_names)
-                            else "section_removed"
-                        )
-                        yield f"data: {json.dumps({'status': event, 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
-                        await asyncio.sleep(0)
+                formatted_text = _format_chunks_as_context(source_name, results)
 
-                    # If no chunks matched the threshold, terminate early with user-facing options
-                    if not results:
-                        if similarity_threshold <= 0.15:
-                            no_chunks_msg = (
-                                f"I searched **{source_name}** with progressively less strict matching "
-                                f"but still couldn't find relevant content for your query.\n\n"
-                                f"Please try rephrasing your question, or check that your document contains "
-                                f"information about this topic."
-                            )
-                            done_payload: dict[str, object] = {
-                                "done": True,
-                                "content": no_chunks_msg,
-                                "conversation_id": str(conversation.uuid),
-                            }
-                        else:
-                            no_chunks_msg = (
-                                f"I searched **{source_name}** but couldn't find content closely "
-                                f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
-                                f"Would you like me to try again with less strict matching?"
-                            )
-                            done_payload = {
-                                "done": True,
-                                "content": no_chunks_msg,
-                                "options": ["Try with less strict matching"],
-                                "conversation_id": str(conversation.uuid),
-                            }
-                        await service.add_message(
-                            session=session,
-                            conversation_id=conversation.id,  # type: ignore[arg-type]
-                            role="assistant",
-                            content=no_chunks_msg,
-                            message_type="text",
-                        )
-                        yield f"data: {json.dumps(done_payload)}\n\n"
-                        return
+                # Replace drive_file block in messages with RAG text
+                for m in messages:
+                    if not isinstance(m.get("content"), list):
+                        continue
+                    for i, b in enumerate(m["content"]):
+                        if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
+                            m["content"][i] = {"type": "text", "text": formatted_text}
 
-                    formatted_text = _format_chunks_as_context(source_name, results)
-
-                    # Replace drive_file block in messages with RAG text
-                    for m in messages:
-                        if not isinstance(m.get("content"), list):
-                            continue
-                        for i, b in enumerate(m["content"]):
-                            if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
-                                m["content"][i] = {"type": "text", "text": formatted_text}
-
-            yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
+        yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
 
     # --- Phase 2: LLM streaming ---
     full_response = ""
