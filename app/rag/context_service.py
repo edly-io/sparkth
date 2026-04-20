@@ -164,6 +164,9 @@ class RAGContextService:
         drive_file = await self._lookup_drive_file(session, user_id, file_db_id)
         source_name = _resolve_source_name(drive_file)
 
+        if not query.strip():
+            query = source_name
+
         try:
             query_embedding = await self._embedding_provider.embed_query(query)
         except (RuntimeError, ValueError, OSError) as exc:

@@ -329,6 +329,61 @@ class TestEmptyQueryFallback:
         mock_embedding.embed_query.assert_awaited_once_with("explain data privacy")
 
 
+class TestRankSectionsForQueryEmptyFallback:
+    """rank_sections_for_query must apply the same empty-query fallback as get_context_for_drive_file."""
+
+    def _make_session(self, file_name: str) -> AsyncMock:
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name=file_name)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        return mock_session
+
+    @pytest.mark.asyncio
+    async def test_empty_query_uses_source_name(self) -> None:
+        """embed_query must receive the file name, not an empty string."""
+        mock_session = self._make_session("course_outline.pdf")
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+        await service.rank_sections_for_query(session=mock_session, user_id=1, file_db_id=1, query="")
+
+        mock_embedding.embed_query.assert_awaited_once_with("course_outline.pdf")
+
+    @pytest.mark.asyncio
+    async def test_whitespace_query_uses_source_name(self) -> None:
+        """A whitespace-only query is treated the same as empty."""
+        mock_session = self._make_session("syllabus.pdf")
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+        await service.rank_sections_for_query(session=mock_session, user_id=1, file_db_id=1, query="   ")
+
+        mock_embedding.embed_query.assert_awaited_once_with("syllabus.pdf")
+
+    @pytest.mark.asyncio
+    async def test_non_empty_query_passes_through(self) -> None:
+        """A non-empty query must pass through as-is."""
+        mock_session = self._make_session("course_outline.pdf")
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+        await service.rank_sections_for_query(
+            session=mock_session, user_id=1, file_db_id=1, query="create a quiz on module 3"
+        )
+
+        mock_embedding.embed_query.assert_awaited_once_with("create a quiz on module 3")
+
+
 class TestChunkIDLogging:
     @pytest.mark.asyncio
     async def test_chunk_ids_logged_on_successful_retrieval(self) -> None:
