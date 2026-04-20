@@ -50,9 +50,9 @@ export function AssistantMessage({
           <div className="px-1 space-y-0.5">
             <p className="text-xs text-neutral-400 dark:text-neutral-500">Taking into context:</p>
             <ul className="space-y-0.5">
-              {message.ragSections.slice(0, 5).map((section, i) => (
+              {message.ragSections.slice(0, 5).map((section) => (
                 <li
-                  key={i}
+                  key={`${section.type}-${section.name}`}
                   className="text-xs text-neutral-400 dark:text-neutral-500 flex items-baseline gap-1.5"
                 >
                   {section.state === "scanning" ? (
@@ -75,9 +75,9 @@ export function AssistantMessage({
                   {/* Hover tooltip showing remaining sections */}
                   <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
                     <ul className="space-y-1">
-                      {message.ragSections.slice(5).map((section, i) => (
+                      {message.ragSections.slice(5).map((section) => (
                         <li
-                          key={i}
+                          key={`${section.type}-${section.name}`}
                           className="text-xs text-neutral-500 dark:text-neutral-400 flex items-baseline gap-1.5"
                         >
                           <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
