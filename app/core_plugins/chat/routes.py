@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from functools import lru_cache
 from typing import Any
 from uuid import UUID
@@ -244,8 +245,6 @@ async def delete_api_key(
 
 def _strip_md(text: str) -> str:
     """Remove markdown emphasis markers (* and **) from a string."""
-    import re
-
     return re.sub(r"\*+", "", text).strip()
 
 
