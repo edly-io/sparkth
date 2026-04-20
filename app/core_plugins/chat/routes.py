@@ -54,6 +54,7 @@ from app.llm.providers import (
     get_provider,
     get_provider_catalog,
 )
+from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
 from app.rag.context_service import RAGContextService, _format_chunks_as_context
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
@@ -874,8 +875,6 @@ async def list_conversations(
     count_result = await session.exec(count_stmt)
     message_counts = {row[0]: row[1] for row in count_result.all()}
 
-    from app.models.drive import DriveFile as DriveFileModel
-
     drive_file_ids = [conv.active_drive_file_id for conv in conversations if conv.active_drive_file_id]
     drive_file_names: dict[int, str] = {}
     if drive_file_ids:
@@ -941,8 +940,6 @@ async def get_conversation(
 
     active_drive_file_name = None
     if conversation.active_drive_file_id:
-        from app.models.drive import DriveFile as DriveFileModel
-
         df_result = await session.execute(
             select(DriveFileModel).where(DriveFileModel.id == conversation.active_drive_file_id)
         )
