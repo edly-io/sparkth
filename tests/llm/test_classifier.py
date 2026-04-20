@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.exceptions import LangChainException
 
-# Not yet importable — will fail with ImportError until classifier.py is created
 from app.llm.classifier import ScopeClassifier, _ScopeResult
 
 
@@ -70,6 +69,24 @@ class TestScopeClassifierInit:
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
             ScopeClassifier(provider_name="anthropic", api_key="test")
+        _, kwargs = MockChat.call_args
+        assert kwargs.get("temperature") == 0
+
+    def test_temperature_is_zero_for_openai(self) -> None:
+        with patch("app.llm.classifier.ChatOpenAI") as MockChat:
+            mock_llm = MagicMock()
+            mock_llm.with_structured_output.return_value = MagicMock()
+            MockChat.return_value = mock_llm
+            ScopeClassifier(provider_name="openai", api_key="test")
+        _, kwargs = MockChat.call_args
+        assert kwargs.get("temperature") == 0
+
+    def test_temperature_is_zero_for_google(self) -> None:
+        with patch("app.llm.classifier.ChatGoogleGenerativeAI") as MockChat:
+            mock_llm = MagicMock()
+            mock_llm.with_structured_output.return_value = MagicMock()
+            MockChat.return_value = mock_llm
+            ScopeClassifier(provider_name="google", api_key="test")
         _, kwargs = MockChat.call_args
         assert kwargs.get("temperature") == 0
 

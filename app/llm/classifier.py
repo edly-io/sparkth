@@ -70,8 +70,6 @@ class ScopeClassifier:
                 llm = ChatAnthropic(api_key=api_key, model=classifier_model, temperature=0)  # type: ignore[call-arg]
             case "google":
                 llm = ChatGoogleGenerativeAI(google_api_key=api_key, model=classifier_model, temperature=0)
-            case _:
-                raise ValueError(f"Unsupported provider for classifier: {provider_name!r}")
 
         self._chain: Any = llm.with_structured_output(_ScopeResult)
 
