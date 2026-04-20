@@ -29,9 +29,11 @@ import {
   fetchAllPages,
   downloadFile,
   deleteFile,
+  refreshFolder,
   DriveFolder,
   ConnectionStatus as ConnectionStatusType,
   formatDate,
+  RagStatus,
 } from "@/lib/drive";
 
 enum ResourceStatus {
@@ -45,6 +47,8 @@ interface ResourceRow {
   name: string;
   mimeType: string;
   status: ResourceStatus;
+  ragStatus: RagStatus | null;
+  ragError: string | null;
   dateImported: string;
   source: string;
   folderId: number;
@@ -107,6 +111,44 @@ function mapSyncStatus(syncStatus: string): ResourceStatus {
   }
 }
 
+function RagStatusChip({ status, error }: { status: RagStatus | null; error: string | null }) {
+  switch (status) {
+    case "ready":
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400">
+          <CheckCircle className="w-3.5 h-3.5" />
+          Indexed
+        </span>
+      );
+    case "queued":
+    case "processing":
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+          <Clock className="w-3.5 h-3.5" />
+          {status === "queued" ? "Queued" : "Processing"}
+        </span>
+      );
+    case "failed":
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400 cursor-default">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Failed
+            </span>
+          </TooltipTrigger>
+          {error && <TooltipContent>{error}</TooltipContent>}
+        </Tooltip>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs text-muted-foreground">
+          —
+        </span>
+      );
+  }
+}
+
 const ITEMS_PER_PAGE = 10;
 const MAX_VISIBLE_PAGES = 5;
 
@@ -151,6 +193,7 @@ export default function GoogleDrive() {
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [resyncing, setResyncing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Cache folder totals to avoid N+1 requests on every page change
@@ -237,6 +280,8 @@ export default function GoogleDrive() {
                 name: file.name,
                 mimeType: file.mime_type || "",
                 status: mapSyncStatus(folder.sync_status),
+                ragStatus: file.rag_status ?? null,
+                ragError: file.rag_error ?? null,
                 dateImported: formatDate(file.last_synced_at || folder.last_synced_at),
                 source: "Google Drive",
                 folderId: folder.id,
@@ -325,6 +370,23 @@ export default function GoogleDrive() {
     }
   };
 
+  const handleResync = async () => {
+    if (!token || folders.length === 0) return;
+
+    setResyncing(true);
+    setError(null);
+    try {
+      await Promise.all(folders.map((folder) => refreshFolder(folder.id, token)));
+      handleReload();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to re-sync folders";
+      setError(message);
+      console.error("Failed to re-sync:", err);
+    } finally {
+      setResyncing(false);
+    }
+  };
+
   const handleReload = () => {
     setCurrentPage(1);
     setFolders([]);
@@ -370,6 +432,8 @@ export default function GoogleDrive() {
           status={connectionStatus}
           onStatusChange={handleReload}
           onSyncFolder={() => setShowFolderPicker(true)}
+          onResync={handleResync}
+          resyncing={resyncing}
         />
 
         {error && (
@@ -408,7 +472,10 @@ export default function GoogleDrive() {
                     Type
                   </th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    Status
+                    Sync Status
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+                    RAG Status
                   </th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
                     Source
@@ -424,7 +491,7 @@ export default function GoogleDrive() {
               <tbody className="divide-y divide-border">
                 {pageLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center">
+                    <td colSpan={7} className="py-12 text-center">
                       <Spinner className="mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Loading resources...</p>
                     </td>
@@ -450,6 +517,9 @@ export default function GoogleDrive() {
                       </td>
                       <td className="px-5 py-3">
                         <StatusChip status={resource.status} />
+                      </td>
+                      <td className="px-5 py-3">
+                        <RagStatusChip status={resource.ragStatus} error={resource.ragError} />
                       </td>
                       <td className="px-5 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-surface-variant text-muted-foreground">
