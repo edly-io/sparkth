@@ -263,6 +263,72 @@ class TestRAGContextService:
         assert "No relevant excerpts found" in result.formatted_text
 
 
+class TestEmptyQueryFallback:
+    """When no user text accompanies a drive file, embed_query should use the file name."""
+
+    @pytest.mark.asyncio
+    async def test_empty_query_uses_source_name_for_embedding(self) -> None:
+        """embed_query must receive the file name, not an empty string."""
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="data_privacy.pdf")
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
+        mock_store.similarity_search = AsyncMock(return_value=[])
+
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+        await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="")
+
+        mock_embedding.embed_query.assert_awaited_once_with("data_privacy.pdf")
+
+    @pytest.mark.asyncio
+    async def test_whitespace_query_uses_source_name_for_embedding(self) -> None:
+        """A whitespace-only query is treated the same as empty."""
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="lecture_notes.pdf")
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
+        mock_store.similarity_search = AsyncMock(return_value=[])
+
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+        await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="   ")
+
+        mock_embedding.embed_query.assert_awaited_once_with("lecture_notes.pdf")
+
+    @pytest.mark.asyncio
+    async def test_non_empty_query_is_unchanged(self) -> None:
+        """A non-empty query must pass through as-is."""
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="data_privacy.pdf")
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=[])
+        mock_store.similarity_search = AsyncMock(return_value=[])
+
+        mock_embedding = AsyncMock()
+        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
+
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
+        await service.get_context_for_drive_file(
+            session=mock_session, user_id=1, file_db_id=1, query="explain data privacy"
+        )
+
+        mock_embedding.embed_query.assert_awaited_once_with("explain data privacy")
+
+
 class TestChunkIDLogging:
     @pytest.mark.asyncio
     async def test_chunk_ids_logged_on_successful_retrieval(self) -> None:

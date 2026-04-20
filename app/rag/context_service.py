@@ -82,6 +82,11 @@ class RAGContextService:
         drive_file = await self._lookup_drive_file(session, user_id, file_db_id)
         source_name = _resolve_source_name(drive_file)
 
+        # When the user sends only a file with no accompanying text, fall back to
+        # the file name so the embedding is semantically meaningful.
+        if not query.strip():
+            query = source_name
+
         logger.info(
             "RAG retrieval: user=%d file_db_id=%d source_name=%s query_len=%d",
             user_id,
