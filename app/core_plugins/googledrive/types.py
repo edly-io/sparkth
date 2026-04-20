@@ -67,6 +67,8 @@ class DriveFileResponse(BaseModel):
     size: int | None = None
     modified_time: datetime | None = None
     last_synced_at: datetime | None = None
+    rag_status: RagStatus | None = None
+    rag_error: str | None = None
 
 
 class DriveFolderWithFilesResponse(DriveFolderResponse):

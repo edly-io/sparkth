@@ -456,6 +456,8 @@ def get_folder(
             size=f.size,
             modified_time=f.modified_time,
             last_synced_at=f.last_synced_at,
+            rag_status=f.rag_status,
+            rag_error=f.rag_error,
         )
         for f in folder_files
     ]
@@ -601,6 +603,8 @@ def list_files(
                 size=f.size,
                 modified_time=f.modified_time,
                 last_synced_at=f.last_synced_at,
+                rag_status=f.rag_status,
+                rag_error=f.rag_error,
             )
             for f in files
         ],
@@ -675,6 +679,8 @@ async def upload_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
+        rag_status=drive_file.rag_status,
+        rag_error=drive_file.rag_error,
     )
 
 
@@ -703,6 +709,8 @@ def get_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
+        rag_status=drive_file.rag_status,
+        rag_error=drive_file.rag_error,
     )
 
 
@@ -861,6 +869,8 @@ async def rename_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
+        rag_status=drive_file.rag_status,
+        rag_error=drive_file.rag_error,
     )
 
 

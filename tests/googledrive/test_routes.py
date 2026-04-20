@@ -333,6 +333,26 @@ class TestListFiles:
         assert data["items"][0]["mime_type"] == "application/pdf"
 
     @pytest.mark.asyncio
+    async def test_list_files_includes_rag_status(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /folders/{id}/files should include rag_status for each file."""
+        test_file.rag_status = RagStatus.READY
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/files")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["items"][0]["rag_status"] == "ready"
+        assert data["items"][0]["rag_error"] is None
+
+    @pytest.mark.asyncio
     async def test_list_files_folder_not_found(self, drive_client: AsyncClient) -> None:
         """GET /folders/{id}/files should return 404 for non-existent folder."""
         response = await drive_client.get("/api/v1/googledrive/folders/99999/files")
@@ -355,6 +375,25 @@ class TestGetFile:
         assert data["name"] == "test_document.pdf"
         assert data["drive_file_id"] == "drive_file_xyz789"
         assert data["size"] == 1024
+
+    @pytest.mark.asyncio
+    async def test_get_file_includes_rag_status(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        sync_session: Session,
+    ) -> None:
+        """GET /files/{id} should include rag_status and rag_error fields."""
+        test_file.rag_status = RagStatus.PROCESSING
+        sync_session.add(test_file)
+        sync_session.commit()
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["rag_status"] == "processing"
+        assert data["rag_error"] is None
 
     @pytest.mark.asyncio
     async def test_get_file_not_found(self, drive_client: AsyncClient) -> None:

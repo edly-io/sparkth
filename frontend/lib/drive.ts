@@ -24,6 +24,8 @@ export interface DriveFile {
   size?: number;
   modified_time?: string;
   last_synced_at?: string;
+  rag_status?: RagStatus | null;
+  rag_error?: string | null;
 }
 
 export interface DriveFolderWithFiles extends DriveFolder {
