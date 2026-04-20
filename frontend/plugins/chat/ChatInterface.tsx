@@ -478,7 +478,7 @@ export default function ChatInterface() {
       fetch(`/api/v1/chat/conversations/${conversationId}/active-file`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+      }).catch((err) => console.warn("Failed to clear active drive file on backend:", err));
     }
   };
 
