@@ -12,6 +12,11 @@ from app.rag.context_service import RAGContext, RAGContextService
 
 def _make_rag_service(context: RAGContext) -> RAGContextService:
     mock_service = MagicMock(spec=RAGContextService)
+    # Mock the two-phase RAG flow
+    mock_service.rank_sections_for_query = AsyncMock(
+        return_value=(context.source_name, [0.1] * 384, context.ranked_sections or [])
+    )
+    mock_service.search_with_embedding = AsyncMock(return_value=context.chunks)
     mock_service.get_context_for_drive_file = AsyncMock(return_value=context)
     return mock_service
 
@@ -89,7 +94,8 @@ async def test_status_events_emitted_before_tokens() -> None:
     assert len(statuses) >= 2
     status_names = [e["status"] for e in statuses]
     assert "searching_document" in status_names
-    assert "sections_found" in status_names
+    # Check for section events (scanning and confirmed/removed)
+    assert any(st.startswith("section_") for st in status_names)
 
     # Verify status events come before token events
     first_status_idx = next(i for i, e in enumerate(parsed) if "status" in e)
@@ -130,9 +136,13 @@ async def test_sections_found_includes_section_names() -> None:
         if event.startswith("data:"):
             parsed.append(json.loads(event.replace("data: ", "").strip()))
 
-    sections_found = next((e for e in parsed if e.get("status") == "sections_found"), None)
-    assert sections_found is not None
-    assert "**Data Privacy**" in sections_found.get("sections", [])
+    # Check that section scanning events include the section names
+    section_events = [e for e in parsed if e.get("status") and e["status"].startswith("section_")]
+    assert len(section_events) > 0, "Should have section status events"
+
+    # Find any event that has the section info
+    has_section = any("Data Privacy" in str(e.get("section", {}).get("name", "")) for e in section_events)
+    assert has_section, f"Should find 'Data Privacy' in section events: {section_events}"
 
 
 @pytest.mark.asyncio

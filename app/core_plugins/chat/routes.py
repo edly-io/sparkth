@@ -1,3 +1,4 @@
+import asyncio
 import json
 from functools import lru_cache
 from typing import Any
@@ -54,7 +55,7 @@ from app.core_plugins.chat.schemas import (
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.models.user import User
-from app.rag.context_service import RAGContextService
+from app.rag.context_service import RAGContextService, _format_chunks_as_context
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 logger = get_logger(__name__)
@@ -240,6 +241,130 @@ async def delete_api_key(
         )
 
 
+def _strip_md(text: str) -> str:
+    """Remove markdown emphasis markers (* and **) from a string."""
+    import re
+
+    return re.sub(r"\*+", "", text).strip()
+
+
+def _is_query_in_scope(query: str) -> bool:
+    """Check if a query is related to course creation (in-scope).
+
+    Returns True if the query appears to be about course creation,
+    False if it's likely out-of-scope (general knowledge, code, personal advice, etc.).
+    """
+    if not query:
+        return True  # Empty queries default to in-scope (let LLM handle it)
+
+    query_lower = query.lower()
+
+    # In-scope keywords (course creation, instructional design)
+    in_scope_keywords = {
+        "course",
+        "lesson",
+        "module",
+        "learning",
+        "education",
+        "training",
+        "outline",
+        "content",
+        "assessment",
+        "quiz",
+        "exam",
+        "evaluation",
+        "instructional",
+        "pedagogy",
+        "pedagogical",
+        "curriculum",
+        "syllabus",
+        "learning objective",
+        "learning outcome",
+        "ilo",
+        "competency",
+        "instructional design",
+        "course design",
+        "elearning",
+        "e-learning",
+        "teach",
+        "teach",
+        "student",
+        "learner",
+        "audience",
+    }
+
+    # Out-of-scope keywords (general knowledge, code, personal advice, web search, etc.)
+    out_of_scope_keywords = {
+        "what is the",
+        "who is",
+        "when was",
+        "where is",
+        "how to",
+        "tell me",
+        "can you help with",
+        "can you write",
+        "can you code",
+        "debug",
+        "fix this",
+        "what does",
+        "explain",
+        "summarize",
+        "translate",
+        "rewrite",
+        "python",
+        "javascript",
+        "java",
+        "c++",
+        "code",
+        "algorithm",
+        "algorithm",
+        "legal",
+        "medical",
+        "financial",
+        "psychological",
+        "advice",
+        "weather",
+        "news",
+        "current events",
+        "real-time",
+        "poem",
+        "poetry",
+        "story",
+        "creative writing",
+        "fiction",
+        "capital of",
+        "population of",
+        "how many",
+        "list of",
+    }
+
+    # Count in-scope and out-of-scope keyword matches
+    in_scope_count = sum(1 for kw in in_scope_keywords if kw in query_lower)
+    out_of_scope_count = sum(1 for kw in out_of_scope_keywords if kw in query_lower)
+
+    # If query contains explicit out-of-scope keywords with no in-scope keywords, it's out-of-scope
+    if out_of_scope_count > 0 and in_scope_count == 0:
+        return False
+
+    # If query contains in-scope keywords, it's in-scope
+    if in_scope_count > 0:
+        return True
+
+    # Default to in-scope (let LLM decide with system prompt)
+    return True
+
+
+def _section_label_and_name(sec: dict[str, str | None]) -> tuple[str, str] | None:
+    """Return (type_label, cleaned_name) for a section dict, or None if all fields empty."""
+    if sec.get("subsection"):
+        return "subsection", _strip_md(str(sec["subsection"]))
+    if sec.get("section"):
+        return "section", _strip_md(str(sec["section"]))
+    if sec.get("chapter"):
+        return "chapter", _strip_md(str(sec["chapter"]))
+    return None
+
+
 def _extract_query_text(messages: list[ChatMessage]) -> str:
     """Extract the user's plain text from the last user message for RAG query embedding."""
     for msg in reversed(messages):
@@ -267,12 +392,20 @@ async def _resolve_drive_file_blocks(
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
 
+    If query is out-of-scope, drive_file blocks are removed (not replaced with RAG context),
+    allowing the LLM to respond with its refusal message.
+
     Raises:
         HTTPException(422): file not found, not owned, or RAG not ready.
         HTTPException(500): embedding or similarity search failure.
     """
     query_text = _extract_query_text(messages)
     resolved: list[ChatMessage] = []
+
+    # If query is out-of-scope, skip RAG and remove drive_file blocks
+    skip_rag = not _is_query_in_scope(query_text)
+    if skip_rag:
+        logger.info("Skipping RAG for out-of-scope query (non-streaming): %s", query_text[:100])
 
     for msg in messages:
         if not isinstance(msg.content, list):
@@ -282,6 +415,16 @@ async def _resolve_drive_file_blocks(
         has_drive_file = any(isinstance(b, dict) and b.get("type") == "drive_file" for b in msg.content)
         if not has_drive_file:
             resolved.append(msg)
+            continue
+
+        # If out-of-scope, remove drive_file blocks entirely (don't process with RAG)
+        if skip_rag:
+            filtered_blocks = [b for b in msg.content if not (isinstance(b, dict) and b.get("type") == "drive_file")]
+            if filtered_blocks:
+                resolved.append(ChatMessage(role=msg.role, content=filtered_blocks, attachment=msg.attachment))
+            else:
+                # If only drive_file block exists, convert to empty text message
+                resolved.append(ChatMessage(role=msg.role, content="", attachment=msg.attachment))
             continue
 
         new_blocks: list[dict[str, Any]] = []
@@ -516,6 +659,7 @@ async def chat_completion(
                     "unresolved_messages": request.messages,
                     "rag_service": rag_service,
                     "user_id": current_user.id,
+                    "similarity_threshold": request.similarity_threshold,
                 }
             return StreamingResponse(
                 stream_chat_response(
@@ -586,51 +730,127 @@ async def stream_chat_response(
     unresolved_messages: list[ChatMessage] | None = None,
     rag_service: RAGContextService | None = None,
     user_id: int | None = None,
+    similarity_threshold: float = 0.45,
 ) -> Any:
     # --- Phase 1: In-stream RAG resolution (emits status events) ---
     if unresolved_messages and rag_service and user_id is not None:
         query_text = _extract_query_text(unresolved_messages)
 
-        for msg in unresolved_messages:
-            if not isinstance(msg.content, list):
-                continue
-            for block in msg.content:
-                if not isinstance(block, dict) or block.get("type") != "drive_file":
+        # Skip RAG if query is out-of-scope (let LLM respond with refusal message)
+        if not _is_query_in_scope(query_text):
+            logger.info("Skipping RAG for out-of-scope query: %s", query_text[:100])
+        else:
+            for msg in unresolved_messages:
+                if not isinstance(msg.content, list):
                     continue
-
-                file_id: int = block["file_id"]
-
-                yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
-
-                try:
-                    context = await rag_service.get_context_for_drive_file(
-                        session=session,
-                        user_id=user_id,
-                        file_db_id=file_id,
-                        query=query_text,
-                    )
-                except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
-                    logger.error("RAG retrieval failed in stream for file_id=%d: %s", file_id, exc)
-                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
-                    return
-
-                section_names: list[str] = []
-                if context.ranked_sections:
-                    for sec in context.ranked_sections:
-                        parts = [str(sec[k]) for k in ("chapter", "section", "subsection") if sec.get(k)]
-                        section_names.append(" / ".join(parts) if parts else "General")
-
-                yield f"data: {json.dumps({'status': 'sections_found', 'sections': section_names, 'chunk_count': len(context.chunks), 'done': False})}\n\n"
-
-                # Replace drive_file block in messages with RAG text
-                for m in messages:
-                    if not isinstance(m.get("content"), list):
+                for block in msg.content:
+                    if not isinstance(block, dict) or block.get("type") != "drive_file":
                         continue
-                    for i, b in enumerate(m["content"]):
-                        if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
-                            m["content"][i] = {"type": "text", "text": context.formatted_text}
 
-        yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
+                    file_id: int = block["file_id"]
+
+                    yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
+
+                    # --- Phase 1a: Rank sections and emit scanning events ---
+                    try:
+                        source_name, query_embedding, ranked_sections = await rag_service.rank_sections_for_query(
+                            session=session,
+                            user_id=user_id,
+                            file_db_id=file_id,
+                            query=query_text,
+                        )
+                    except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
+                        logger.error("RAG section ranking failed for file_id=%d: %s", file_id, exc)
+                        yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                        return
+
+                    for sec in ranked_sections:
+                        info = _section_label_and_name(sec)
+                        if not info:
+                            continue
+                        label, name = info
+                        yield f"data: {json.dumps({'status': 'section_scanning', 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
+                        await asyncio.sleep(0.08)  # flush each event so browser receives them one at a time
+
+                    # --- Phase 1b: Similarity search then emit confirmed/removed ---
+                    section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
+
+                    try:
+                        results = await rag_service.search_with_embedding(
+                            session=session,
+                            user_id=user_id,
+                            source_name=source_name,
+                            query_embedding=query_embedding,
+                            similarity_threshold=similarity_threshold,
+                            sections=section_filter,
+                        )
+                    except RAGRetrievalError as exc:
+                        logger.error("RAG similarity search failed for file_id=%d: %s", file_id, exc)
+                        yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                        return
+
+                    confirmed_section_names = {r.chunk.section for r in results if r.chunk.section}
+                    for sec in ranked_sections:
+                        info = _section_label_and_name(sec)
+                        if not info:
+                            continue
+                        label, name = info
+                        sec_name = sec.get("section")
+                        event = (
+                            "section_confirmed"
+                            if (sec_name and sec_name in confirmed_section_names)
+                            else "section_removed"
+                        )
+                        yield f"data: {json.dumps({'status': event, 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
+                        await asyncio.sleep(0)
+
+                    # If no chunks matched the threshold, terminate early with user-facing options
+                    if not results:
+                        if similarity_threshold <= 0.15:
+                            no_chunks_msg = (
+                                f"I searched **{source_name}** with progressively less strict matching "
+                                f"but still couldn't find relevant content for your query.\n\n"
+                                f"Please try rephrasing your question, or check that your document contains "
+                                f"information about this topic."
+                            )
+                            done_payload: dict[str, object] = {
+                                "done": True,
+                                "content": no_chunks_msg,
+                                "conversation_id": str(conversation.uuid),
+                            }
+                        else:
+                            no_chunks_msg = (
+                                f"I searched **{source_name}** but couldn't find content closely "
+                                f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
+                                f"Would you like me to try again with less strict matching?"
+                            )
+                            done_payload = {
+                                "done": True,
+                                "content": no_chunks_msg,
+                                "options": ["Try with less strict matching"],
+                                "conversation_id": str(conversation.uuid),
+                            }
+                        await service.add_message(
+                            session=session,
+                            conversation_id=conversation.id,  # type: ignore[arg-type]
+                            role="assistant",
+                            content=no_chunks_msg,
+                            message_type="text",
+                        )
+                        yield f"data: {json.dumps(done_payload)}\n\n"
+                        return
+
+                    formatted_text = _format_chunks_as_context(source_name, results)
+
+                    # Replace drive_file block in messages with RAG text
+                    for m in messages:
+                        if not isinstance(m.get("content"), list):
+                            continue
+                        for i, b in enumerate(m["content"]):
+                            if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
+                                m["content"][i] = {"type": "text", "text": formatted_text}
+
+            yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
 
     # --- Phase 2: LLM streaming ---
     full_response = ""
