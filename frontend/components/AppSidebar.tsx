@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Settings,
+  Puzzle,
+  Folder,
   ChevronDown,
   LogOut,
   User as UserIcon,
@@ -74,7 +76,19 @@ export default function AppSidebar({
   return (
     <div
       className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300 ${isCollapsedDesktop ? "cursor-e-resize" : ""}`}
+      role={isCollapsedDesktop ? "button" : undefined}
+      tabIndex={isCollapsedDesktop ? 0 : undefined}
       onClick={handleSidebarClick}
+      onKeyDown={
+        isCollapsedDesktop
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggleCollapse?.();
+              }
+            }
+          : undefined
+      }
     >
       {/* Header */}
       <div
@@ -141,7 +155,7 @@ export default function AppSidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 overflow-y-auto">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Spinner size="md" className="text-muted mb-2" />
@@ -149,18 +163,42 @@ export default function AppSidebar({
           </div>
         ) : (
           <>
-            {plugins.map((plugin) => (
-              <PluginNavItem
-                key={plugin.name}
-                plugin={plugin}
-                basePath={basePath}
-                isActive={isActiveRoute(plugin.name)}
-                onClick={handleNavClick}
-                isCollapsed={isCollapsed && variant === "desktop"}
-              />
-            ))}
+            {plugins
+              .filter((plugin) => plugin.showInSidebar !== false)
+              .map((plugin) => (
+                <PluginNavItem
+                  key={plugin.name}
+                  plugin={plugin}
+                  basePath={basePath}
+                  isActive={isActiveRoute(plugin.name)}
+                  onClick={handleNavClick}
+                  isCollapsed={isCollapsed && variant === "desktop"}
+                />
+              ))}
 
-            <div className="pt-3 mt-3">
+            <div>
+              <Link
+                href={`${basePath}/resources`}
+                onClick={handleNavClick}
+                className={`
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                  ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                  ${
+                    isActiveRoute("resources")
+                      ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                      : "text-foreground hover:bg-surface-variant"
+                  }
+                `}
+                title={isCollapsed ? "Resources" : undefined}
+              >
+                <Folder className="w-5 h-5 flex-shrink-0" />
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">Resources</span>
+                )}
+              </Link>
+            </div>
+
+            <div>
               <Link
                 href={`${basePath}/settings`}
                 onClick={handleNavClick}
@@ -175,7 +213,7 @@ export default function AppSidebar({
                 `}
                 title={isCollapsed ? "My Plugins" : undefined}
               >
-                <Settings className="w-5 h-5 flex-shrink-0" />
+                <Puzzle className="w-5 h-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
                   <span className="font-medium">My Plugins</span>
                 )}

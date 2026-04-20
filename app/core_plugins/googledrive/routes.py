@@ -5,7 +5,6 @@ import re
 import urllib.parse
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -39,6 +38,7 @@ from app.core_plugins.googledrive.types import (
     DriveFolderWithFilesResponse,
     FileRagStatusResponse,
     FolderRagStatusResponse,
+    PaginatedResponse,
     RenameFileRequest,
     SyncFolderRequest,
     SyncStatusResponse,
@@ -222,7 +222,7 @@ async def oauth_callback(
             detail="Failed to save tokens.",
         )
 
-    return RedirectResponse(url="/dashboard/google-drive?connected=true")
+    return RedirectResponse(url="/dashboard/resources?connected=true")
 
 
 @router.delete("/oauth/disconnect")
@@ -274,12 +274,14 @@ async def get_connection_status(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/folders", response_model=list[DriveFolderResponse])
+@router.get("/folders", response_model=PaginatedResponse[DriveFolderResponse])
 def list_folders(
+    skip: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
-) -> list[DriveFolderResponse]:
-    """List all synced Google Drive folders for the current user."""
+) -> PaginatedResponse[DriveFolderResponse]:
+    """List synced Google Drive folders for the current user with pagination."""
     # Single query with file count to avoid N+1
     file_count_subq = (
         select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))  # type: ignore[arg-type]
@@ -288,7 +290,7 @@ def list_folders(
         .subquery()
     )
 
-    stmt = (
+    base_stmt = (
         select(DriveFolder, file_count_subq.c.file_count)
         .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)  # type: ignore[arg-type]
         .where(
@@ -296,20 +298,36 @@ def list_folders(
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     )
-    rows = session.exec(stmt).all()
 
-    return [
-        DriveFolderResponse(
-            id=folder.id,  # type: ignore[arg-type]
-            drive_folder_id=folder.drive_folder_id,
-            name=folder.drive_folder_name,
-            parent_id=folder.drive_parent_id,
-            file_count=file_count or 0,
-            last_synced_at=folder.last_synced_at,
-            sync_status=folder.sync_status,
+    count_stmt = select(func.count()).select_from(
+        select(DriveFolder.id)
+        .where(
+            DriveFolder.user_id == user_id,
+            DriveFolder.is_deleted == False,  # noqa: E712
         )
-        for folder, file_count in rows
-    ]
+        .subquery()
+    )
+    total = session.exec(count_stmt).one()
+
+    rows = session.exec(base_stmt.offset(skip).limit(limit)).all()
+
+    return PaginatedResponse(
+        items=[
+            DriveFolderResponse(
+                id=folder.id,  # type: ignore[arg-type]
+                drive_folder_id=folder.drive_folder_id,
+                name=folder.drive_folder_name,
+                parent_id=folder.drive_parent_id,
+                file_count=file_count or 0,
+                last_synced_at=folder.last_synced_at,
+                sync_status=folder.sync_status,
+            )
+            for folder, file_count in rows
+        ],
+        total=total,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.post("/folders/sync", response_model=DriveFolderResponse)
@@ -545,13 +563,15 @@ async def refresh_folder(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/folders/{folder_id}/files", response_model=list[DriveFileResponse])
+@router.get("/folders/{folder_id}/files", response_model=PaginatedResponse[DriveFileResponse])
 def list_files(
     folder_id: int,
+    skip: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
-) -> list[DriveFileResponse]:
-    """List files in a synced folder."""
+) -> PaginatedResponse[DriveFileResponse]:
+    """List files in a synced folder with pagination."""
     folder = session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
@@ -562,25 +582,32 @@ def list_files(
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
-    files = session.exec(
-        select(DriveFile).where(
-            DriveFile.folder_id == folder_id,
-            DriveFile.is_deleted == False,  # noqa: E712
-        )
-    ).all()
+    base_query = select(DriveFile).where(
+        DriveFile.folder_id == folder_id,
+        DriveFile.is_deleted == False,  # noqa: E712
+    )
 
-    return [
-        DriveFileResponse(
-            id=f.id,  # type: ignore[arg-type]
-            drive_file_id=f.drive_file_id,
-            name=f.name,
-            mime_type=f.mime_type,
-            size=f.size,
-            modified_time=f.modified_time,
-            last_synced_at=f.last_synced_at,
-        )
-        for f in files
-    ]
+    total = session.exec(select(func.count()).select_from(base_query.subquery())).one()
+
+    files = session.exec(base_query.offset(skip).limit(limit)).all()
+
+    return PaginatedResponse(
+        items=[
+            DriveFileResponse(
+                id=f.id,  # type: ignore[arg-type]
+                drive_file_id=f.drive_file_id,
+                name=f.name,
+                mime_type=f.mime_type,
+                size=f.size,
+                modified_time=f.modified_time,
+                last_synced_at=f.last_synced_at,
+            )
+            for f in files
+        ],
+        total=total,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.post("/folders/{folder_id}/files", response_model=DriveFileResponse)
@@ -868,8 +895,8 @@ def delete_file(
 
 @router.get("/browse", response_model=DriveBrowseResponse)
 async def browse_drive(
-    folder_id: Optional[str] = Query(None, description="Drive folder ID to browse (root if omitted)"),
-    page_token: Optional[str] = Query(None, description="Pagination token"),
+    folder_id: str | None = Query(None, description="Drive folder ID to browse (root if omitted)"),
+    page_token: str | None = Query(None, description="Pagination token"),
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
 ) -> DriveBrowseResponse:
