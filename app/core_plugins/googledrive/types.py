@@ -1,11 +1,13 @@
 """Pydantic models for Google Drive plugin requests and responses."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
 from app.rag.types import RagStatus
+
+T = TypeVar("T")
 
 
 # Request models
@@ -19,7 +21,7 @@ class CreateFolderRequest(BaseModel):
     """Request to create a new folder in Google Drive."""
 
     name: str = Field(..., description="Name of the folder to create")
-    parent_id: Optional[str] = Field(None, description="Parent folder ID in Google Drive")
+    parent_id: str | None = Field(None, description="Parent folder ID in Google Drive")
 
 
 class RenameFileRequest(BaseModel):
@@ -33,8 +35,8 @@ class ConnectionStatusResponse(BaseModel):
     """Google Drive connection status."""
 
     connected: bool
-    email: Optional[str] = None
-    expires_at: Optional[datetime] = None
+    email: str | None = None
+    expires_at: datetime | None = None
 
 
 class AuthorizationUrlResponse(BaseModel):
@@ -49,9 +51,9 @@ class DriveFolderResponse(BaseModel):
     id: int
     drive_folder_id: str
     name: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     file_count: int = 0
-    last_synced_at: Optional[datetime] = None
+    last_synced_at: datetime | None = None
     sync_status: str
 
 
@@ -61,10 +63,10 @@ class DriveFileResponse(BaseModel):
     id: int
     drive_file_id: str
     name: str
-    mime_type: Optional[str] = None
-    size: Optional[int] = None
-    modified_time: Optional[datetime] = None
-    last_synced_at: Optional[datetime] = None
+    mime_type: str | None = None
+    size: int | None = None
+    modified_time: datetime | None = None
+    last_synced_at: datetime | None = None
 
 
 class DriveFolderWithFilesResponse(DriveFolderResponse):
@@ -78,8 +80,8 @@ class SyncStatusResponse(BaseModel):
 
     folder_id: int
     sync_status: str
-    last_synced_at: Optional[datetime] = None
-    error: Optional[str] = None
+    last_synced_at: datetime | None = None
+    error: str | None = None
 
 
 class DriveBrowseItem(BaseModel):
@@ -89,15 +91,15 @@ class DriveBrowseItem(BaseModel):
     name: str
     mime_type: str
     is_folder: bool
-    modified_time: Optional[datetime] = None
-    size: Optional[int] = None
+    modified_time: datetime | None = None
+    size: int | None = None
 
 
 class DriveBrowseResponse(BaseModel):
     """Response for browsing Drive folders."""
 
     items: list[DriveBrowseItem] = []
-    next_page_token: Optional[str] = None
+    next_page_token: str | None = None
 
 
 class FileRagStatusResponse(BaseModel):
@@ -114,3 +116,12 @@ class FolderRagStatusResponse(BaseModel):
 
     folder_id: int
     files: list[FileRagStatusResponse] = []
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Generic paginated response wrapper."""
+
+    items: list[T] = []
+    total: int = 0
+    skip: int = 0
+    limit: int = 20

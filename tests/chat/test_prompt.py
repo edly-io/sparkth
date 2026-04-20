@@ -1,4 +1,4 @@
-from app.core_plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
+from app.llm.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 
 
 class TestLearningDesignSystemPrompt:

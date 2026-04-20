@@ -1,6 +1,6 @@
 """Tests for query scope validation (is_query_in_scope in prompt.py)."""
 
-from app.core_plugins.chat.prompt import is_query_in_scope
+from app.llm.prompt import is_query_in_scope
 
 
 class TestScopeValidation:

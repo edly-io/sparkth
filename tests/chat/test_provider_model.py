@@ -14,7 +14,8 @@ import openai
 import pytest
 from google.api_core import exceptions as google_exceptions
 
-from app.core_plugins.chat.providers import (
+from app.core_plugins.chat.routes import _streaming_error_message
+from app.llm.providers import (
     DEFAULT_MODEL,
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
@@ -23,7 +24,6 @@ from app.core_plugins.chat.providers import (
     get_provider_catalog,
     get_supported_providers,
 )
-from app.core_plugins.chat.routes import _streaming_error_message
 
 
 def _anthropic_response(status_code: int) -> httpx.Response:

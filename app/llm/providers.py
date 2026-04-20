@@ -15,7 +15,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
 from app.core.logger import get_logger
-from app.core_plugins.chat.prompt import get_learning_design_system_prompt
+from app.llm.prompt import get_learning_design_system_prompt
 
 logger = get_logger(__name__)
 

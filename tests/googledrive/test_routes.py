@@ -100,7 +100,9 @@ class TestListFolders:
         response = await drive_client.get("/api/v1/googledrive/folders")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == []
+        data = response.json()
+        assert data["items"] == []
+        assert data["total"] == 0
 
     @pytest.mark.asyncio
     async def test_returns_synced_folders(
@@ -113,10 +115,11 @@ class TestListFolders:
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "Test Folder"
-        assert data[0]["drive_folder_id"] == "drive_folder_abc123"
-        assert data[0]["sync_status"] == "synced"
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["name"] == "Test Folder"
+        assert data["items"][0]["drive_folder_id"] == "drive_folder_abc123"
+        assert data["items"][0]["sync_status"] == "synced"
 
     @pytest.mark.asyncio
     async def test_excludes_deleted_folders(
@@ -133,7 +136,9 @@ class TestListFolders:
         response = await drive_client.get("/api/v1/googledrive/folders")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == []
+        data = response.json()
+        assert data["items"] == []
+        assert data["total"] == 0
 
 
 class TestGetFolder:
@@ -322,9 +327,10 @@ class TestListFiles:
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "test_document.pdf"
-        assert data[0]["mime_type"] == "application/pdf"
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["name"] == "test_document.pdf"
+        assert data["items"][0]["mime_type"] == "application/pdf"
 
     @pytest.mark.asyncio
     async def test_list_files_folder_not_found(self, drive_client: AsyncClient) -> None:

@@ -17,26 +17,18 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.core.cache import get_cache_service
 from app.core.db import get_async_session
+from app.core.encryption import get_encryption_service
 from app.core.logger import get_logger
-from app.core_plugins.chat.cache import get_cache_service
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.conversation_title import (
     extract_title_from_messages,
     generate_conversation_title,
     get_first_user_text,
 )
-from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
-from app.core_plugins.chat.prompt import is_query_in_scope
-from app.core_plugins.chat.providers import (
-    DEFAULT_MODEL,
-    DEFAULT_PROVIDER,
-    BaseChatProvider,
-    get_provider,
-    get_provider_catalog,
-)
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -55,6 +47,14 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
+from app.llm.prompt import is_query_in_scope
+from app.llm.providers import (
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    BaseChatProvider,
+    get_provider,
+    get_provider_catalog,
+)
 from app.models.user import User
 from app.rag.context_service import RAGContextService, _format_chunks_as_context
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError

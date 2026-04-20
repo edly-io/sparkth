@@ -14,9 +14,14 @@ import {
 interface ConnectionStatusProps {
   status: ConnectionStatusType | null;
   onStatusChange: () => void;
+  onSyncFolder?: () => void;
 }
 
-export default function ConnectionStatus({ status, onStatusChange }: ConnectionStatusProps) {
+export default function ConnectionStatus({
+  status,
+  onStatusChange,
+  onSyncFolder,
+}: ConnectionStatusProps) {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -63,9 +68,16 @@ export default function ConnectionStatus({ status, onStatusChange }: ConnectionS
         </div>
 
         {status?.connected ? (
-          <Button variant="outline" size="sm" onClick={handleDisconnect} loading={loading}>
-            Disconnect
-          </Button>
+          <div className="flex items-center gap-2">
+            {onSyncFolder && (
+              <Button variant="primary" size="sm" onClick={onSyncFolder}>
+                Sync Folder
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleDisconnect} loading={loading}>
+              Disconnect
+            </Button>
+          </div>
         ) : (
           <Button variant="primary" size="sm" onClick={handleConnect} loading={loading}>
             Connect Google Drive

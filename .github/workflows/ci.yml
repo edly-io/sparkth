@@ -9,6 +9,7 @@ jobs:
   frontend:
     name: Frontend Lint & Format
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -33,6 +34,7 @@ jobs:
   backend:
     name: Backend Lint, Type Check & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -43,7 +45,7 @@ jobs:
           enable-cache: true
 
       - name: Install the project
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --locked --dev
 
       - name: Check formatting (ruff)
         run: uv run ruff format --check .
@@ -62,3 +64,7 @@ jobs:
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
           SECRET_KEY: secret-key-for-ci
+          SLACK_CLIENT_ID: fake-client-id
+          SLACK_CLIENT_SECRET: fake-client-secret
+          SLACK_SIGNING_SECRET: fake-signing-secret
+          SLACK_REDIRECT_URI: http://localhost/callback

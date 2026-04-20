@@ -52,7 +52,12 @@ function DashboardContent({
           />
         </div>
         <MobileSidebar user={user} onLogout={logout} />
-        <main className="flex-1 overflow-auto bg-background">{children}</main>
+        <main className="flex-1 overflow-auto bg-background relative">
+          <div className="absolute top-3 right-3 z-10 hidden lg:block">
+            <ThemeToggle />
+          </div>
+          {children}
+        </main>
       </div>
     </div>
   );

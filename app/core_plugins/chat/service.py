@@ -6,9 +6,9 @@ from uuid import UUID
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.cache import CacheService
+from app.core.encryption import EncryptionService
 from app.core.logger import get_logger
-from app.core_plugins.chat.cache import CacheService
-from app.core_plugins.chat.encryption import EncryptionService
 from app.core_plugins.chat.models import Conversation, Message, MessageType, ProviderAPIKey
 
 logger = get_logger(__name__)

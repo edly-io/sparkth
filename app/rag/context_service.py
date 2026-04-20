@@ -117,7 +117,7 @@ class RAGContextService:
                 user_id=user_id,
                 query_embedding=query_embedding,
                 limit=limit,
-                source_name=source_name,
+                source_names=[source_name],
                 similarity_threshold=similarity_threshold,
                 sections=section_filter,
             )
@@ -194,7 +194,7 @@ class RAGContextService:
                 user_id=user_id,
                 query_embedding=query_embedding,
                 limit=limit,
-                source_name=source_name,
+                source_names=[source_name],
                 similarity_threshold=similarity_threshold,
                 sections=sections,
             )
