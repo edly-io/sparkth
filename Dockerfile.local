@@ -1,0 +1,59 @@
+# Dockerfile.local — used by docker-compose.yml for local development only.
+# Requires sparkth-base:local to exist: run `make base` once, then re-run
+# whenever uv.lock or pyproject.toml changes.
+#
+# CI/prod deployments use Dockerfile (no base image dependency).
+
+# -------------------
+# Stage 1: Build frontend
+# -------------------
+FROM oven/bun:1 AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/bun.lock ./
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
+
+COPY frontend/ ./
+RUN bun run build
+
+# -------------------
+# Stage 2: Install project on top of pre-baked deps
+# -------------------
+# sparkth-base:local has all heavy Python deps pre-installed at /opt/venv.
+# /opt/venv is outside /app so COPY . /app cannot shadow it.
+# This stage only installs the local sparkth package — takes seconds.
+FROM sparkth-base:local AS builder
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_DOWNLOADS=0
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+
+WORKDIR /app
+
+COPY . /app
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --all-extras
+
+# -------------------
+# Stage 3: Runtime image
+# -------------------
+FROM python:3.14-slim-trixie
+
+RUN groupadd --system --gid 999 nonroot \
+ && useradd --system --gid 999 --uid 999 --create-home nonroot
+
+COPY --from=builder --chown=nonroot:nonroot /app /app
+COPY --from=builder --chown=nonroot:nonroot /opt/venv /opt/venv
+COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+USER nonroot
+
+WORKDIR /app
+
+CMD ["fastapi", "run", "app/main.py"]

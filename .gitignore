@@ -228,3 +228,5 @@ node_modules/
 
 # Docker
 data/
+
+docs/

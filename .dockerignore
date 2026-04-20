@@ -28,3 +28,11 @@ LICENSE
 Makefile
 docker-compose.yml
 tests/
+
+# Frontend build artifacts (Docker installs deps fresh inside the container)
+frontend/node_modules
+frontend/.next
+frontend/out
+
+# Repo tooling
+.claude

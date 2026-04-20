@@ -12,6 +12,7 @@ jobs:
   react-doctor:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: write
