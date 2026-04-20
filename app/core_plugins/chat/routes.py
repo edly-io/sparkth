@@ -29,6 +29,7 @@ from app.core_plugins.chat.conversation_title import (
 from app.core_plugins.chat.encryption import get_encryption_service
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
+from app.core_plugins.chat.prompt import is_query_in_scope
 from app.core_plugins.chat.providers import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -248,112 +249,6 @@ def _strip_md(text: str) -> str:
     return re.sub(r"\*+", "", text).strip()
 
 
-def _is_query_in_scope(query: str) -> bool:
-    """Check if a query is related to course creation (in-scope).
-
-    Returns True if the query appears to be about course creation,
-    False if it's likely out-of-scope (general knowledge, code, personal advice, etc.).
-    """
-    if not query:
-        return True  # Empty queries default to in-scope (let LLM handle it)
-
-    query_lower = query.lower()
-
-    # In-scope keywords (course creation, instructional design)
-    in_scope_keywords = {
-        "course",
-        "lesson",
-        "module",
-        "learning",
-        "education",
-        "training",
-        "outline",
-        "content",
-        "assessment",
-        "quiz",
-        "exam",
-        "evaluation",
-        "instructional",
-        "pedagogy",
-        "pedagogical",
-        "curriculum",
-        "syllabus",
-        "learning objective",
-        "learning outcome",
-        "ilo",
-        "competency",
-        "instructional design",
-        "course design",
-        "elearning",
-        "e-learning",
-        "teach",
-        "teach",
-        "student",
-        "learner",
-        "audience",
-    }
-
-    # Out-of-scope keywords (general knowledge, code, personal advice, web search, etc.)
-    out_of_scope_keywords = {
-        "what is the",
-        "who is",
-        "when was",
-        "where is",
-        "how to",
-        "tell me",
-        "can you help with",
-        "can you write",
-        "can you code",
-        "debug",
-        "fix this",
-        "what does",
-        "explain",
-        "summarize",
-        "translate",
-        "rewrite",
-        "python",
-        "javascript",
-        "java",
-        "c++",
-        "code",
-        "algorithm",
-        "algorithm",
-        "legal",
-        "medical",
-        "financial",
-        "psychological",
-        "advice",
-        "weather",
-        "news",
-        "current events",
-        "real-time",
-        "poem",
-        "poetry",
-        "story",
-        "creative writing",
-        "fiction",
-        "capital of",
-        "population of",
-        "how many",
-        "list of",
-    }
-
-    # Count in-scope and out-of-scope keyword matches
-    in_scope_count = sum(1 for kw in in_scope_keywords if kw in query_lower)
-    out_of_scope_count = sum(1 for kw in out_of_scope_keywords if kw in query_lower)
-
-    # If query contains explicit out-of-scope keywords with no in-scope keywords, it's out-of-scope
-    if out_of_scope_count > 0 and in_scope_count == 0:
-        return False
-
-    # If query contains in-scope keywords, it's in-scope
-    if in_scope_count > 0:
-        return True
-
-    # Default to in-scope (let LLM decide with system prompt)
-    return True
-
-
 def _section_label_and_name(sec: dict[str, str | None]) -> tuple[str, str] | None:
     """Return (type_label, cleaned_name) for a section dict, or None if all fields empty."""
     if sec.get("subsection"):
@@ -403,7 +298,7 @@ async def _resolve_drive_file_blocks(
     resolved: list[ChatMessage] = []
 
     # If query is out-of-scope, skip RAG and remove drive_file blocks
-    skip_rag = not _is_query_in_scope(query_text)
+    skip_rag = not is_query_in_scope(query_text)
     if skip_rag:
         logger.info("Skipping RAG for out-of-scope query (non-streaming): %s", query_text[:100])
 
@@ -737,7 +632,7 @@ async def stream_chat_response(
         query_text = _extract_query_text(unresolved_messages)
 
         # Skip RAG if query is out-of-scope (let LLM respond with refusal message)
-        if not _is_query_in_scope(query_text):
+        if not is_query_in_scope(query_text):
             logger.info("Skipping RAG for out-of-scope query: %s", query_text[:100])
         else:
             for msg in unresolved_messages:
