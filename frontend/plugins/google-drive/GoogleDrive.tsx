@@ -128,18 +128,21 @@ function RagStatusChip({ status, error }: { status: RagStatus | null; error: str
           {status === "queued" ? "Queued" : "Processing"}
         </span>
       );
-    case "failed":
+    case "failed": {
+      const chip = (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400 cursor-default">
+          <AlertCircle className="w-3.5 h-3.5" />
+          Failed
+        </span>
+      );
+      if (!error) return chip;
       return (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400 cursor-default">
-              <AlertCircle className="w-3.5 h-3.5" />
-              Failed
-            </span>
-          </TooltipTrigger>
-          {error && <TooltipContent>{error}</TooltipContent>}
+          <TooltipTrigger asChild>{chip}</TooltipTrigger>
+          <TooltipContent>{error}</TooltipContent>
         </Tooltip>
       );
+    }
     default:
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs text-muted-foreground">
@@ -376,7 +379,13 @@ export default function GoogleDrive() {
     setResyncing(true);
     setError(null);
     try {
-      await Promise.all(folders.map((folder) => refreshFolder(folder.id, token)));
+      const results = await Promise.allSettled(
+        folders.map((folder) => refreshFolder(folder.id, token)),
+      );
+      const failures = results.filter((r) => r.status === "rejected");
+      if (failures.length > 0) {
+        setError(`Re-sync failed for ${failures.length} of ${folders.length} folder(s)`);
+      }
       handleReload();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to re-sync folders";
