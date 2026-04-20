@@ -58,13 +58,13 @@ def is_query_in_scope(query: str) -> bool:
 
     query_lower = query.lower()
 
-    in_scope_count = sum(1 for p in _IN_SCOPE_PATTERNS if p.search(query_lower))
-    out_of_scope_count = sum(1 for p in _OUT_OF_SCOPE_PATTERNS if p.search(query_lower))
+    has_in_scope = any(p.search(query_lower) for p in _IN_SCOPE_PATTERNS)
+    has_out_of_scope = any(p.search(query_lower) for p in _OUT_OF_SCOPE_PATTERNS)
 
-    if out_of_scope_count > 0 and in_scope_count == 0:
+    if has_out_of_scope and not has_in_scope:
         return False
 
-    if in_scope_count > 0:
+    if has_in_scope:
         return True
 
     # Default to in-scope — let the LLM's system prompt handle the refusal
