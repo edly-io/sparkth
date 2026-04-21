@@ -11,6 +11,7 @@ from app.core.logger import get_logger
 from app.models.drive import DriveFile
 from app.rag.embeddings import BaseEmbeddingProvider, HuggingFaceEmbeddingProvider
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.memory_profiler import profile_memory
 from app.rag.store import SimilarityResult, VectorStoreService
 from app.rag.types import RagStatus
 
@@ -95,55 +96,61 @@ class RAGContextService:
             len(query),
         )
 
-        try:
-            query_embedding = await self._embedding_provider.embed_query(query)
-        except (RuntimeError, ValueError, OSError) as exc:
-            logger.error("Failed to embed query for file_db_id=%d: %s", file_db_id, exc)
-            raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
+        async with profile_memory(
+            "rag_retrieval_total", file_db_id=file_db_id, source=source_name, query_len=len(query)
+        ):
+            try:
+                async with profile_memory("embed_query", source=source_name):
+                    query_embedding = await self._embedding_provider.embed_query(query)
+            except (RuntimeError, ValueError, OSError) as exc:
+                logger.error("Failed to embed query for file_db_id=%d: %s", file_db_id, exc)
+                raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
-        ranked_sections = await self._rank_sections(
-            session=session,
-            user_id=user_id,
-            source_name=source_name,
-            query_embedding=query_embedding,
-        )
+            async with profile_memory("section_ranking", source=source_name):
+                ranked_sections = await self._rank_sections(
+                    session=session,
+                    user_id=user_id,
+                    source_name=source_name,
+                    query_embedding=query_embedding,
+                )
 
-        section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
+            section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
 
-        logger.info(
-            "RAG section ranking for file_db_id=%d: %d sections selected",
-            file_db_id,
-            len(ranked_sections),
-        )
-
-        try:
-            results = await self._store.similarity_search(
-                session=session,
-                user_id=user_id,
-                query_embedding=query_embedding,
-                limit=limit,
-                source_names=[source_name],
-                similarity_threshold=similarity_threshold,
-                sections=section_filter,
+            logger.info(
+                "RAG section ranking for file_db_id=%d: %d sections selected",
+                file_db_id,
+                len(ranked_sections),
             )
-        except SQLAlchemyError as exc:
-            logger.error("Similarity search failed for file_db_id=%d: %s", file_db_id, exc)
-            raise RAGRetrievalError(f"Similarity search failed: {exc}") from exc
 
-        logger.info("RAG: found %d chunks for file_db_id=%d", len(results), file_db_id)
-        logger.info(
-            "RAG chunk IDs in context for file_db_id=%d: %s",
-            file_db_id,
-            [r.chunk.id for r in results],
-        )
+            try:
+                async with profile_memory("similarity_search", source=source_name):
+                    results = await self._store.similarity_search(
+                        session=session,
+                        user_id=user_id,
+                        query_embedding=query_embedding,
+                        limit=limit,
+                        source_names=[source_name],
+                        similarity_threshold=similarity_threshold,
+                        sections=section_filter,
+                    )
+            except SQLAlchemyError as exc:
+                logger.error("Similarity search failed for file_db_id=%d: %s", file_db_id, exc)
+                raise RAGRetrievalError(f"Similarity search failed: {exc}") from exc
 
-        return RAGContext(
-            file_db_id=file_db_id,
-            source_name=source_name,
-            chunks=results,
-            formatted_text=format_chunks_as_context(source_name, results),
-            ranked_sections=ranked_sections,
-        )
+            logger.info("RAG: found %d chunks for file_db_id=%d", len(results), file_db_id)
+            logger.info(
+                "RAG chunk IDs in context for file_db_id=%d: %s",
+                file_db_id,
+                [r.chunk.id for r in results],
+            )
+
+            return RAGContext(
+                file_db_id=file_db_id,
+                source_name=source_name,
+                chunks=results,
+                formatted_text=format_chunks_as_context(source_name, results),
+                ranked_sections=ranked_sections,
+            )
 
     async def rank_sections_for_query(
         self,
@@ -168,17 +175,19 @@ class RAGContextService:
             query = source_name
 
         try:
-            query_embedding = await self._embedding_provider.embed_query(query)
+            async with profile_memory("embed_query", source=source_name):
+                query_embedding = await self._embedding_provider.embed_query(query)
         except (RuntimeError, ValueError, OSError) as exc:
             logger.error("Failed to embed query for file_db_id=%d: %s", file_db_id, exc)
             raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
-        ranked_sections = await self._rank_sections(
-            session=session,
-            user_id=user_id,
-            source_name=source_name,
-            query_embedding=query_embedding,
-        )
+        async with profile_memory("section_ranking", source=source_name):
+            ranked_sections = await self._rank_sections(
+                session=session,
+                user_id=user_id,
+                source_name=source_name,
+                query_embedding=query_embedding,
+            )
         return source_name, query_embedding, ranked_sections
 
     async def search_with_embedding(
@@ -197,15 +206,16 @@ class RAGContextService:
             RAGRetrievalError: Database query failed.
         """
         try:
-            results = await self._store.similarity_search(
-                session=session,
-                user_id=user_id,
-                query_embedding=query_embedding,
-                limit=limit,
-                source_names=[source_name],
-                similarity_threshold=similarity_threshold,
-                sections=sections,
-            )
+            async with profile_memory("similarity_search", source=source_name):
+                results = await self._store.similarity_search(
+                    session=session,
+                    user_id=user_id,
+                    query_embedding=query_embedding,
+                    limit=limit,
+                    source_names=[source_name],
+                    similarity_threshold=similarity_threshold,
+                    sections=sections,
+                )
         except SQLAlchemyError as exc:
             logger.error("Similarity search failed for source_name=%s: %s", source_name, exc)
             raise RAGRetrievalError(f"Similarity search failed: {exc}") from exc
