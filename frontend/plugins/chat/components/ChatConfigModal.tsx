@@ -220,9 +220,14 @@ export default function ChatConfigModal({
     [token],
   );
 
-  const prevOpenRef = useRef(false);
+  const prevOpenRef = useRef(open);
 
-  if (open && !prevOpenRef.current) {
+  useEffect(() => {
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+
+    if (!justOpened) return;
+
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -244,14 +249,9 @@ export default function ChatConfigModal({
         });
       }
     });
-  }
 
-  useEffect(() => {
-    prevOpenRef.current = open;
-    return () => {
-      if (!open) abortRef.current?.abort();
-    };
-  }, [open]);
+    return () => controller.abort();
+  }, [open, fetchProviders, plugin.config]);
 
   const handleProviderChange = (newProvider: string) => {
     const providerInfo = providers.find((p) => p.id === newProvider);

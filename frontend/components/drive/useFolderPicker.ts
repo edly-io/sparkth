@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { browseDrive, syncFolder, listFolders, fetchAllPages, DriveBrowseItem } from "@/lib/drive";
 
@@ -28,39 +28,49 @@ export function useFolderPicker({ onClose, onFolderSynced }: UseFolderPickerPara
 
   const currentFolderId = currentPath[currentPath.length - 1].id;
 
-  // Load already-synced folder IDs once on mount
   useEffect(() => {
     if (!token) return;
+    const controller = new AbortController();
     (async () => {
       try {
         const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
-        setSyncedDriveFolderIds(new Set(allFolders.map((f) => f.drive_folder_id)));
+        if (!controller.signal.aborted) {
+          setSyncedDriveFolderIds(new Set(allFolders.map((f) => f.drive_folder_id)));
+        }
       } catch (err) {
-        console.error("Failed to load synced folders:", err);
+        if (!controller.signal.aborted) {
+          console.error("Failed to load synced folders:", err);
+        }
       }
     })();
+    return () => controller.abort();
   }, [token]);
 
-  const loadItems = useCallback(async () => {
-    if (!token) return;
-
-    setLoading(true);
-    try {
-      const result = await browseDrive(currentFolderId, token);
-      const folders = result.items.filter((item) => item.is_folder);
-      setItems(folders);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to browse Drive";
-      setError(message);
-      console.error("Failed to browse Drive:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, currentFolderId]);
-
   useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+    if (!token) return;
+    const controller = new AbortController();
+    setLoading(true);
+    (async () => {
+      try {
+        const result = await browseDrive(currentFolderId, token);
+        if (!controller.signal.aborted) {
+          const folders = result.items.filter((item) => item.is_folder);
+          setItems(folders);
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          const message = err instanceof Error ? err.message : "Failed to browse Drive";
+          setError(message);
+          console.error("Failed to browse Drive:", err);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [token, currentFolderId]);
 
   const handleFolderClick = (item: DriveBrowseItem) => {
     setCurrentPath([...currentPath, { id: item.id, name: item.name }]);
