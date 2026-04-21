@@ -20,6 +20,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
+      - ./logs:/app/logs
     depends_on:
       - db
       - redis

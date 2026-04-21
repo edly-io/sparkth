@@ -8,6 +8,7 @@ Emits one structured log line per stage when MEMORY_PROFILING_ENABLED is true.
 import time
 import tracemalloc
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncGenerator
 
 import psutil
@@ -16,6 +17,17 @@ from app.core.config import get_settings
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Ensure logs directory exists and write to logs/ram-logs.txt
+LOG_FILE_PATH = Path(__file__).parent.parent.parent / "logs" / "ram-logs.txt"
+LOG_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+def clear_ram_logs() -> None:
+    """Clear the RAM profiling log file."""
+    if LOG_FILE_PATH.exists():
+        LOG_FILE_PATH.unlink()
+        logger.info("Cleared RAM logs file")
 
 
 def _fmt(value: Any) -> str:
@@ -80,18 +92,23 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
         if rss_start is not None and rss_end is not None:
             rss_delta = round(rss_end - rss_start, 1)
 
-        logger.info(
-            _build_log_line(
-                stage,
-                extra,
-                duration_ms=duration_ms,
-                py_peak_kb=peak_kb,
-                py_current_kb=current_kb,
-                rss_start_mb=round(rss_start, 1) if rss_start is not None else None,
-                rss_end_mb=round(rss_end, 1) if rss_end is not None else None,
-                rss_delta_mb=rss_delta,
-            )
+        log_line = _build_log_line(
+            stage,
+            extra,
+            duration_ms=duration_ms,
+            py_peak_kb=peak_kb,
+            py_current_kb=current_kb,
+            rss_start_mb=round(rss_start, 1) if rss_start is not None else None,
+            rss_end_mb=round(rss_end, 1) if rss_end is not None else None,
+            rss_delta_mb=rss_delta,
         )
+
+        # Log to console
+        logger.info(log_line)
+
+        # Log to file
+        with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
+            f.write(log_line + "\n")
 
 
 def log_memory_snapshot(label: str, **extra: Any) -> None:
@@ -105,10 +122,15 @@ def log_memory_snapshot(label: str, **extra: Any) -> None:
     except psutil.Error:
         rss_mb = None
 
-    logger.info(
-        _build_log_line(
-            "snapshot",
-            {"label": label, **extra},
-            rss_mb=rss_mb,
-        )
+    log_line = _build_log_line(
+        "snapshot",
+        {"label": label, **extra},
+        rss_mb=rss_mb,
     )
+
+    # Log to console
+    logger.info(log_line)
+
+    # Log to file
+    with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
+        f.write(log_line + "\n")
