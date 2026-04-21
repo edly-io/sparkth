@@ -9,6 +9,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.cache import CacheService
 from app.core.encryption import EncryptionService
 from app.core.logger import get_logger
+from app.llm.exceptions import LLMConfigModelNotSetError, LLMConfigNotFoundError, LLMConfigValidationError
+from app.llm.providers import get_models_for_provider
 from app.models.llm import LLMConfig
 
 logger = get_logger(__name__)
@@ -61,12 +63,13 @@ class LLMConfigService:
         return config
 
     async def list(self, session: AsyncSession, user_id: int) -> list[LLMConfig]:
-        """Return all non-deleted LLM configs for a user, newest first."""
+        """Return all non-deleted and active LLM configs for a user, newest first."""
         result = await session.exec(
             select(LLMConfig)
             .where(
                 col(LLMConfig.user_id) == user_id,
                 col(LLMConfig.is_deleted) == False,  # noqa: E712
+                col(LLMConfig.is_active) == True,  # noqa: E712
             )
             .order_by(col(LLMConfig.created_at).desc())
         )
@@ -98,6 +101,11 @@ class LLMConfigService:
         if name is not None:
             config.name = name
         if model is not None:
+            allowed = get_models_for_provider(config.provider)
+            if model not in allowed:
+                raise LLMConfigValidationError(
+                    f"Model '{model}' not available for provider '{config.provider}'. Allowed: {', '.join(allowed)}"
+                )
             config.model = model
         config.update_timestamp()
         session.add(config)
@@ -144,28 +152,49 @@ class LLMConfigService:
         logger.info("Soft-deleted LLMConfig id=%s for user_id=%s", config_id, user_id)
         return True
 
-    async def resolve(self, session: AsyncSession, user_id: int, config_id: int) -> str:
-        """Return decrypted API key. Caches by (user_id, config_id). Updates last_used_at."""
+    async def set_active(self, session: AsyncSession, user_id: int, config_id: int, is_active: bool) -> LLMConfig:
+        """Activate or deactivate a config. Bypasses the is_active filter so inactive configs can be re-activated."""
+        result = await session.exec(
+            select(LLMConfig).where(
+                LLMConfig.id == config_id,
+                col(LLMConfig.user_id) == user_id,
+                col(LLMConfig.is_deleted) == False,  # noqa: E712
+            )
+        )
+        config = result.first()
+        if config is None:
+            raise ValueError(f"LLMConfig {config_id} not found for user {user_id}")
+        config.is_active = is_active
+        config.update_timestamp()
+        session.add(config)
+        await session.flush()
+        await session.refresh(config)
+        logger.info("Set LLMConfig id=%s is_active=%s for user_id=%s", config_id, is_active, user_id)
+        return config
+
+    async def resolve(self, session: AsyncSession, user_id: int, config_id: int) -> tuple[LLMConfig, str]:
+        """Return (config, decrypted_api_key). Caches by (user_id, config_id). Updates last_used_at."""
+        config = await self.get(session, user_id, config_id)
+        if config is None:
+            raise LLMConfigNotFoundError(f"LLMConfig {config_id} not found for user {user_id}")
+        if not config.model:
+            raise LLMConfigModelNotSetError(
+                f"LLMConfig {config_id} has no model set. Update it via PATCH /api/v1/llm/{config_id} before use."
+            )
+        if not config.is_active:
+            raise LLMConfigNotFoundError(f"LLMConfig {config_id} is inactive")
         cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
         cached = await self.cache.get(cache_key)
         if cached:
             try:
-                return self.encryption.decrypt(cached)
+                return config, self.encryption.decrypt(cached)
             except ValueError as exc:
                 logger.warning("Cached key for config_id=%s invalid, evicting: %s", config_id, exc)
                 await self.cache.delete(cache_key)
-
-        config = await self.get(session, user_id, config_id)
-        if config is None:
-            raise ValueError(f"LLMConfig {config_id} not found for user {user_id}")
-        if not config.model:
-            raise ValueError(
-                f"LLMConfig {config_id} has no model set. Update it via PATCH /api/v1/llm-configs/{config_id} before use."
-            )
 
         decrypted = self.encryption.decrypt(config.encrypted_key)
         await self.cache.set(cache_key, config.encrypted_key)
         config.last_used_at = datetime.now(timezone.utc)
         session.add(config)
         await session.flush()
-        return decrypted
+        return config, decrypted

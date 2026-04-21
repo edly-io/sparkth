@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     MEMORY_PROFILING_ENABLED: bool = False
     RAG_MCP_URL: str
 
+    LLM_ENCRYPTION_KEY: str
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_KEY_TTL: int = 3600
+
 
 @lru_cache
 def get_settings() -> Settings:
