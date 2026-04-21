@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FolderSync, RefreshCw, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -15,12 +16,16 @@ interface ConnectionStatusProps {
   status: ConnectionStatusType | null;
   onStatusChange: () => void;
   onSyncFolder?: () => void;
+  onResync?: () => void;
+  resyncing?: boolean;
 }
 
 export default function ConnectionStatus({
   status,
   onStatusChange,
   onSyncFolder,
+  onResync,
+  resyncing,
 }: ConnectionStatusProps) {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -69,12 +74,26 @@ export default function ConnectionStatus({
 
         {status?.connected ? (
           <div className="flex items-center gap-2">
+            {onResync && (
+              <Button variant="outline" size="sm" onClick={onResync} disabled={resyncing}>
+                <RefreshCw className={`w-4 h-4 mr-1 ${resyncing ? "animate-spin" : ""}`} />
+                Re-sync
+              </Button>
+            )}
             {onSyncFolder && (
-              <Button variant="primary" size="sm" onClick={onSyncFolder}>
+              <Button variant="outline" size="sm" onClick={onSyncFolder}>
+                <FolderSync className="w-4 h-4 mr-1" />
                 Sync Folder
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={handleDisconnect} loading={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              loading={loading}
+              className="border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-900/20"
+            >
+              <Unplug className="w-4 h-4 mr-1" />
               Disconnect
             </Button>
           </div>
