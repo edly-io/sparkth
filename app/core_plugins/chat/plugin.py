@@ -2,7 +2,7 @@ from starlette.middleware import Middleware
 
 from app.core.logger import get_logger
 from app.core_plugins.chat.config import ChatUserConfig
-from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
+from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.routes import chat_router
 from app.plugins.base import SparkthPlugin
 
@@ -20,7 +20,6 @@ class ChatPlugin(SparkthPlugin):
             author="Sparkth Team",
         )
 
-        self.add_model(ProviderAPIKey)
         self.add_model(Conversation)
         self.add_model(Message)
 

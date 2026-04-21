@@ -15,7 +15,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
-from app.core_plugins.chat.models import Conversation
+from app.core_plugins.chat.models import Conversation  # noqa: F401 used in route fixture tests
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -57,7 +57,7 @@ class TestGetConversationByUUID:
     async def test_returns_conversation_matching_uuid_and_user(self, session: "AsyncSession") -> None:
         from app.core_plugins.chat.service import ChatService
 
-        svc = ChatService(encryption_service=MagicMock(), cache_service=MagicMock())
+        svc = ChatService()
         conv = Conversation(user_id=42, provider="openai", model="gpt-4o")
         session.add(conv)
         await session.commit()
@@ -71,7 +71,7 @@ class TestGetConversationByUUID:
     async def test_returns_none_for_wrong_user(self, session: "AsyncSession") -> None:
         from app.core_plugins.chat.service import ChatService
 
-        svc = ChatService(encryption_service=MagicMock(), cache_service=MagicMock())
+        svc = ChatService()
         conv = Conversation(user_id=42, provider="openai", model="gpt-4o")
         session.add(conv)
         await session.commit()
@@ -83,7 +83,7 @@ class TestGetConversationByUUID:
     async def test_returns_none_for_nonexistent_uuid(self, session: "AsyncSession") -> None:
         from app.core_plugins.chat.service import ChatService
 
-        svc = ChatService(encryption_service=MagicMock(), cache_service=MagicMock())
+        svc = ChatService()
         result = await svc.get_conversation_by_uuid(session, uuid=uuid4(), user_id=1)
         assert result is None
 
@@ -97,8 +97,7 @@ class TestConversationUUIDSchemas:
     def test_chat_completion_request_accepts_uuid_conversation_id(self) -> None:
         uid = uuid7()
         req = ChatCompletionRequest(
-            provider="openai",
-            model="gpt-4o",
+            llm_config_id=1,
             messages=[ChatMessage(role="user", content="hello")],
             conversation_id=uid,
         )
@@ -106,8 +105,7 @@ class TestConversationUUIDSchemas:
 
     def test_chat_completion_request_accepts_none_conversation_id(self) -> None:
         req = ChatCompletionRequest(
-            provider="openai",
-            model="gpt-4o",
+            llm_config_id=1,
             messages=[ChatMessage(role="user", content="hello")],
         )
         assert req.conversation_id is None
@@ -115,8 +113,7 @@ class TestConversationUUIDSchemas:
     def test_chat_completion_request_accepts_uuid_string(self) -> None:
         uid = uuid7()
         req = ChatCompletionRequest(
-            provider="openai",
-            model="gpt-4o",
+            llm_config_id=1,
             messages=[ChatMessage(role="user", content="hello")],
             conversation_id=str(uid),  # type: ignore[arg-type]
         )
@@ -127,8 +124,7 @@ class TestConversationUUIDSchemas:
 
         with pytest.raises(ValidationError):
             ChatCompletionRequest(
-                provider="openai",
-                model="gpt-4o",
+                llm_config_id=1,
                 messages=[ChatMessage(role="user", content="hello")],
                 conversation_id=123,  # type: ignore[arg-type]
             )
@@ -173,6 +169,7 @@ class TestConversationUUIDRoutes:
     @pytest.fixture(autouse=True)
     def _override_chat_deps(self, client: httpx.AsyncClient) -> None:  # noqa: PT004
         """Override chat dependencies so route tests don't need real env vars."""
+        from app.api.v1.llm import get_llm_service
         from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
         from app.core_plugins.chat.service import ChatService
         from app.main import app
@@ -181,13 +178,19 @@ class TestConversationUUIDRoutes:
         mock_config.max_tool_executions = 50
         mock_config.title_max_length = 60
 
-        mock_service = ChatService(
-            encryption_service=MagicMock(),
-            cache_service=MagicMock(),
-        )
+        mock_service = ChatService()
+
+        mock_llm_config = MagicMock()
+        mock_llm_config.provider = "openai"
+        mock_llm_config.model = "gpt-4o"
+
+        mock_llm_service = AsyncMock()
+        mock_llm_service.get = AsyncMock(return_value=mock_llm_config)
+        mock_llm_service.resolve = AsyncMock(return_value=(mock_llm_config, "sk-fake-key"))
 
         app.dependency_overrides[get_chat_system_config] = lambda: mock_config
         app.dependency_overrides[get_chat_service] = lambda: mock_service
+        app.dependency_overrides[get_llm_service] = lambda: mock_llm_service
 
     async def test_list_conversations_returns_uuids(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
@@ -250,17 +253,7 @@ class TestConversationUUIDRoutes:
     async def test_completions_returns_uuid_conversation_id(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
     ) -> None:
-        from app.core_plugins.chat.models import Message, ProviderAPIKey
-
-        key = ProviderAPIKey(
-            user_id=current_user.id,
-            provider="openai",
-            encrypted_key="enc",
-            masked_key="****",
-            is_active=True,
-        )
-        session.add(key)
-        await session.commit()
+        from app.core_plugins.chat.models import Message
 
         mock_response: dict[str, Any] = {
             "content": "Hello!",
@@ -275,7 +268,6 @@ class TestConversationUUIDRoutes:
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
             patch("app.core_plugins.chat.routes.generate_conversation_title"),
-            patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
@@ -285,14 +277,12 @@ class TestConversationUUIDRoutes:
             mock_provider = AsyncMock()
             mock_provider.send_message = AsyncMock(return_value=mock_response)
             mock_get_provider.return_value = mock_provider
-            mock_get_key.return_value = "sk-fake-key"
             mock_add_message.return_value = mock_message
 
             response = await client.post(
                 "/api/v1/chat/completions",
                 json={
-                    "provider": "openai",
-                    "model": "gpt-4o",
+                    "llm_config_id": 1,
                     "messages": [{"role": "user", "content": "hi"}],
                     "tools": "none",
                 },
@@ -306,21 +296,10 @@ class TestConversationUUIDRoutes:
     async def test_completions_with_existing_uuid_conversation(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
     ) -> None:
-        from app.core_plugins.chat.models import Message, ProviderAPIKey
-
-        key = ProviderAPIKey(
-            user_id=current_user.id,
-            provider="openai",
-            encrypted_key="enc",
-            masked_key="****",
-            is_active=True,
-        )
-        session.add(key)
-        await session.flush()
+        from app.core_plugins.chat.models import Message
 
         conv = Conversation(
             user_id=current_user.id,
-            api_key_id=key.id,
             provider="openai",
             model="gpt-4o",
         )
@@ -341,7 +320,6 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
@@ -351,14 +329,12 @@ class TestConversationUUIDRoutes:
             mock_provider = AsyncMock()
             mock_provider.send_message = AsyncMock(return_value=mock_response)
             mock_get_provider.return_value = mock_provider
-            mock_get_key.return_value = "sk-fake-key"
             mock_add_message.return_value = mock_message
 
             response = await client.post(
                 "/api/v1/chat/completions",
                 json={
-                    "provider": "openai",
-                    "model": "gpt-4o",
+                    "llm_config_id": 1,
                     "messages": [{"role": "user", "content": "hello again"}],
                     "conversation_id": str(conv_uuid),
                     "tools": "none",
@@ -372,20 +348,15 @@ class TestConversationUUIDRoutes:
     async def test_completions_with_nonexistent_uuid_returns_404(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
     ) -> None:
-        with patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key:
-            mock_get_key.return_value = "sk-fake-key"
-
-            response = await client.post(
-                "/api/v1/chat/completions",
-                json={
-                    "provider": "openai",
-                    "model": "gpt-4o",
-                    "messages": [{"role": "user", "content": "hi"}],
-                    "conversation_id": str(uuid4()),
-                    "tools": "none",
-                },
-            )
-
+        response = await client.post(
+            "/api/v1/chat/completions",
+            json={
+                "llm_config_id": 1,
+                "messages": [{"role": "user", "content": "hi"}],
+                "conversation_id": str(uuid4()),
+                "tools": "none",
+            },
+        )
         assert response.status_code == 404
 
     async def test_completions_with_integer_conversation_id_returns_422(
@@ -394,8 +365,7 @@ class TestConversationUUIDRoutes:
         response = await client.post(
             "/api/v1/chat/completions",
             json={
-                "provider": "openai",
-                "model": "gpt-4o",
+                "llm_config_id": 1,
                 "messages": [{"role": "user", "content": "hi"}],
                 "conversation_id": 123,
             },

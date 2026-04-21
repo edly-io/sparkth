@@ -1,34 +1,14 @@
-from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import field_validator
 from sqlalchemy import ForeignKey, Index, Integer
-from sqlmodel import Column, DateTime, Field, Relationship, SQLModel, Text
+from sqlmodel import Column, Field, Relationship, SQLModel, Text
 from uuid6 import uuid7
 
-from app.models.base import SoftDeleteModel, TimestampedModel
+from app.models.base import TimestampedModel
 
 MessageType = Literal["text", "attachment"]
-
-
-class ProviderAPIKey(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
-    __tablename__ = "chat_provider_api_keys"
-    __table_args__ = (Index("idx_user_provider_active", "user_id", "provider", "is_active"),)
-
-    id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
-    provider: str = Field(max_length=50, index=True, nullable=False)
-    encrypted_key: str = Field(sa_column=Column(Text, nullable=False))
-    masked_key: str = Field(sa_column=Column(Text, nullable=False, server_default="****"))
-    is_active: bool = Field(default=True)
-    last_used_at: datetime | None = Field(
-        default=None,
-        sa_type=DateTime(timezone=True),  # type: ignore
-        nullable=True,
-    )
-
-    conversations: list["Conversation"] = Relationship(back_populates="api_key")
 
 
 class Conversation(TimestampedModel, SQLModel, table=True):
@@ -41,11 +21,11 @@ class Conversation(TimestampedModel, SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     uuid: UUID = Field(default_factory=uuid7, unique=True, index=True)
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
-    api_key_id: int | None = Field(
+    llm_config_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("chat_provider_api_keys.id", ondelete="SET NULL"),
+            ForeignKey("llm_configs.id", ondelete="SET NULL"),
             index=True,
             nullable=True,
         ),
@@ -66,7 +46,6 @@ class Conversation(TimestampedModel, SQLModel, table=True):
         ),
     )
 
-    api_key: ProviderAPIKey | None = Relationship(back_populates="conversations")
     messages: list["Message"] = Relationship(
         back_populates="conversation",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
