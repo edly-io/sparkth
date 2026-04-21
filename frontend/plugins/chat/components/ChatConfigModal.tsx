@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useReducer, useEffect, useCallback, useRef } from "react";
 import { ChevronDown, Save } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { UserPluginState } from "@/lib/plugins";
@@ -30,6 +30,68 @@ interface ChatConfigModalProps {
   onOpenChange: (open: boolean) => void;
   onSave: (config: Record<string, string>) => Promise<void>;
   onRefresh: () => void;
+}
+
+interface ConfigState {
+  providers: ProviderInfo[];
+  loadingProviders: boolean;
+  fetchError: string | null;
+  provider: string;
+  model: string;
+  apiKey: string;
+  apiKeyChanged: boolean;
+  isSaving: boolean;
+  submitError: string | null;
+}
+
+type ConfigAction =
+  | { type: "RESET_FOR_OPEN"; provider: string; model: string; apiKey: string }
+  | { type: "FETCH_START" }
+  | { type: "FETCH_SUCCESS"; providers: ProviderInfo[] }
+  | { type: "FETCH_ERROR"; error: string }
+  | { type: "FETCH_END" }
+  | { type: "PROVIDERS_LOADED"; provider: string; model: string }
+  | { type: "SET_PROVIDER"; provider: string; model: string }
+  | { type: "SET_MODEL"; model: string }
+  | { type: "SET_API_KEY"; apiKey: string }
+  | { type: "SAVE_START" }
+  | { type: "SAVE_ERROR"; error: string }
+  | { type: "SAVE_END" };
+
+function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
+  switch (action.type) {
+    case "RESET_FOR_OPEN":
+      return {
+        ...state,
+        provider: action.provider,
+        model: action.model,
+        apiKey: action.apiKey,
+        apiKeyChanged: false,
+        submitError: null,
+      };
+    case "FETCH_START":
+      return { ...state, loadingProviders: true, fetchError: null };
+    case "FETCH_SUCCESS":
+      return { ...state, providers: action.providers };
+    case "FETCH_ERROR":
+      return { ...state, fetchError: action.error };
+    case "FETCH_END":
+      return { ...state, loadingProviders: false };
+    case "PROVIDERS_LOADED":
+      return { ...state, provider: action.provider, model: action.model };
+    case "SET_PROVIDER":
+      return { ...state, provider: action.provider, model: action.model };
+    case "SET_MODEL":
+      return { ...state, model: action.model };
+    case "SET_API_KEY":
+      return { ...state, apiKey: action.apiKey, apiKeyChanged: true };
+    case "SAVE_START":
+      return { ...state, isSaving: true, submitError: null };
+    case "SAVE_ERROR":
+      return { ...state, submitError: action.error };
+    case "SAVE_END":
+      return { ...state, isSaving: false };
+  }
 }
 
 // ─── Select component (styled to match Input) ────────────────────────────────
@@ -104,24 +166,36 @@ export default function ChatConfigModal({
 }: ChatConfigModalProps) {
   const { token } = useAuth();
 
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [loadingProviders, setLoadingProviders] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(configReducer, {
+    providers: [],
+    loadingProviders: false,
+    fetchError: null,
+    provider: (plugin.config?.provider as string) ?? "",
+    model: (plugin.config?.model as string) ?? "",
+    apiKey: (plugin.config?.api_key as string) ?? "",
+    apiKeyChanged: false,
+    isSaving: false,
+    submitError: null,
+  });
 
-  const [provider, setProvider] = useState<string>((plugin.config?.provider as string) ?? "");
-  const [model, setModel] = useState<string>((plugin.config?.model as string) ?? "");
-  const [apiKey, setApiKey] = useState<string>((plugin.config?.api_key as string) ?? "");
+  const {
+    providers,
+    loadingProviders,
+    fetchError,
+    provider,
+    model,
+    apiKey,
+    apiKeyChanged,
+    isSaving,
+    submitError,
+  } = state;
 
-  const [apiKeyChanged, setApiKeyChanged] = useState<boolean>(false);
-
-  const [isSaving, setIsSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchProviders = useCallback(
     async (signal: AbortSignal) => {
       if (!token) return null;
-      setLoadingProviders(true);
-      setFetchError(null);
+      dispatch({ type: "FETCH_START" });
       try {
         const res = await fetch("/api/v1/chat/providers", {
           headers: { Authorization: `Bearer ${token}` },
@@ -130,42 +204,58 @@ export default function ChatConfigModal({
         if (!res.ok) throw new Error(`Failed to load providers (${res.status})`);
         const data: { providers: ProviderInfo[]; default_provider: string; default_model: string } =
           await res.json();
-        setProviders(data.providers);
+        dispatch({ type: "FETCH_SUCCESS", providers: data.providers });
         return data;
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return null;
-        setFetchError(err instanceof Error ? err.message : "Could not load providers.");
+        dispatch({
+          type: "FETCH_ERROR",
+          error: err instanceof Error ? err.message : "Could not load providers.",
+        });
         return null;
       } finally {
-        setLoadingProviders(false);
+        dispatch({ type: "FETCH_END" });
       }
     },
     [token],
   );
 
+  const prevOpenRef = useRef(false);
+
+  if (open && !prevOpenRef.current) {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const configProvider = (plugin.config?.provider as string) ?? "";
+    const configModel = (plugin.config?.model as string) ?? "";
+    dispatch({
+      type: "RESET_FOR_OPEN",
+      provider: configProvider,
+      model: configModel,
+      apiKey: (plugin.config?.api_key as string) ?? "",
+    });
+    fetchProviders(controller.signal).then((data) => {
+      if (!data) return;
+      if (!configProvider || !configModel) {
+        dispatch({
+          type: "PROVIDERS_LOADED",
+          provider: configProvider || data.default_provider,
+          model: configModel || data.default_model,
+        });
+      }
+    });
+  }
+
   useEffect(() => {
-    if (open) {
-      const controller = new AbortController();
-      const configProvider = (plugin.config?.provider as string) ?? "";
-      const configModel = (plugin.config?.model as string) ?? "";
-      setProvider(configProvider);
-      setModel(configModel);
-      setApiKey((plugin.config?.api_key as string) ?? "");
-      setApiKeyChanged(false);
-      setSubmitError(null);
-      fetchProviders(controller.signal).then((data) => {
-        if (!data) return;
-        if (!configProvider) setProvider(data.default_provider);
-        if (!configModel) setModel(data.default_model);
-      });
-      return () => controller.abort();
-    }
-  }, [open, fetchProviders, plugin.config]);
+    prevOpenRef.current = open;
+    return () => {
+      if (!open) abortRef.current?.abort();
+    };
+  }, [open]);
 
   const handleProviderChange = (newProvider: string) => {
-    setProvider(newProvider);
     const providerInfo = providers.find((p) => p.id === newProvider);
-    setModel(providerInfo?.models[0] ?? "");
+    dispatch({ type: "SET_PROVIDER", provider: newProvider, model: providerInfo?.models[0] ?? "" });
   };
 
   const availableModels = providers.find((p) => p.id === provider)?.models ?? [];
@@ -175,8 +265,7 @@ export default function ChatConfigModal({
 
   const handleSave = async () => {
     try {
-      setIsSaving(true);
-      setSubmitError(null);
+      dispatch({ type: "SAVE_START" });
       const payload: Record<string, string> = { provider, model };
       if (apiKeyChanged) {
         payload.api_key = apiKey;
@@ -185,9 +274,9 @@ export default function ChatConfigModal({
       onRefresh();
       onOpenChange(false);
     } catch {
-      setSubmitError("Failed to save configuration. Please try again.");
+      dispatch({ type: "SAVE_ERROR", error: "Failed to save configuration. Please try again." });
     } finally {
-      setIsSaving(false);
+      dispatch({ type: "SAVE_END" });
     }
   };
 
@@ -220,7 +309,7 @@ export default function ChatConfigModal({
             label="Model"
             value={model}
             options={modelOptions}
-            onChange={setModel}
+            onChange={(m) => dispatch({ type: "SET_MODEL", model: m })}
             disabled={loadingProviders || provider === ""}
             placeholder="Select a model"
           />
@@ -232,10 +321,7 @@ export default function ChatConfigModal({
             type="password"
             placeholder="Enter your API key"
             value={apiKey}
-            onChange={(e) => {
-              setApiKey(e.target.value);
-              setApiKeyChanged(true);
-            }}
+            onChange={(e) => dispatch({ type: "SET_API_KEY", apiKey: e.target.value })}
             autoComplete="off"
           />
         </div>

@@ -1,10 +1,9 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useActiveConversationId } from "@/plugins/chat/hooks/useActiveConversationId";
 import ChatInterfaceInner from "./ChatInterfaceInner";
 
 export default function ChatInterfaceWithParams() {
-  const searchParams = useSearchParams();
-  const conversationId = searchParams.get("id");
+  const conversationId = useActiveConversationId();
   return <ChatInterfaceInner conversationId={conversationId} />;
 }

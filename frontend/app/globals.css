@@ -125,7 +125,17 @@
   --animate-slide-out-left: slide-out-left 200ms ease-in;
   --animate-slide-in-right: slide-in-right 300ms ease-out;
   --animate-slide-out-right: slide-out-right 200ms ease-in;
+  --animate-thinking-dot: thinking-dot 0.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 
+  @keyframes thinking-dot {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
   @keyframes fade-in {
     from {
       opacity: 0;

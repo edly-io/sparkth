@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useActiveConversationId } from "@/plugins/chat/hooks/useActiveConversationId";
 import ChatHistorySectionInner from "./ChatHistorySectionInner";
 
 export default function ChatHistorySectionWithParams({
@@ -10,8 +10,7 @@ export default function ChatHistorySectionWithParams({
   isCollapsed: boolean;
   onNavigate?: () => void;
 }) {
-  const searchParams = useSearchParams();
-  const activeId = searchParams.get("id");
+  const activeId = useActiveConversationId();
   return (
     <ChatHistorySectionInner
       isCollapsed={isCollapsed}
