@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { Folder, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
-import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
 import {
   Dialog,
@@ -12,92 +10,25 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import { browseDrive, syncFolder, listFolders, fetchAllPages, DriveBrowseItem } from "@/lib/drive";
+import { useFolderPicker } from "./useFolderPicker";
 
 interface FolderPickerProps {
   onClose: () => void;
   onFolderSynced: () => void;
 }
 
-interface BreadcrumbItem {
-  id: string | undefined;
-  name: string;
-}
-
 export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerProps) {
-  const { token } = useAuth();
-  const [items, setItems] = useState<DriveBrowseItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
-  const [syncedDriveFolderIds, setSyncedDriveFolderIds] = useState<Set<string>>(new Set());
-  const [currentPath, setCurrentPath] = useState<BreadcrumbItem[]>([
-    { id: undefined, name: "My Drive" },
-  ]);
-
-  const currentFolderId = currentPath[currentPath.length - 1].id;
-
-  // Load already-synced folder IDs once on mount
-  useEffect(() => {
-    if (!token) return;
-    (async () => {
-      try {
-        const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
-        setSyncedDriveFolderIds(new Set(allFolders.map((f) => f.drive_folder_id)));
-      } catch (err) {
-        console.error("Failed to load synced folders:", err);
-      }
-    })();
-  }, [token]);
-
-  const loadItems = useCallback(async () => {
-    if (!token) return;
-
-    setLoading(true);
-    try {
-      const result = await browseDrive(currentFolderId, token);
-      const folders = result.items.filter((item) => item.is_folder);
-      setItems(folders);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to browse Drive";
-      setError(message);
-      console.error("Failed to browse Drive:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, currentFolderId]);
-
-  useEffect(() => {
-    loadItems();
-  }, [loadItems]);
-
-  const handleFolderClick = (item: DriveBrowseItem) => {
-    setCurrentPath([...currentPath, { id: item.id, name: item.name }]);
-  };
-
-  const handleBreadcrumbClick = (index: number) => {
-    setCurrentPath(currentPath.slice(0, index + 1));
-  };
-
-  const handleSync = async (item: DriveBrowseItem) => {
-    if (!token) return;
-
-    setSyncingFolderId(item.id);
-    try {
-      await syncFolder(item.id, token);
-      onFolderSynced();
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (message.includes("already synced")) {
-        setSyncedDriveFolderIds((prev) => new Set(prev).add(item.id));
-      } else {
-        alert(`Failed to sync folder: ${message}`);
-      }
-    } finally {
-      setSyncingFolderId(null);
-    }
-  };
+  const {
+    items,
+    loading,
+    error,
+    syncingFolderId,
+    syncedDriveFolderIds,
+    currentPath,
+    handleFolderClick,
+    handleBreadcrumbClick,
+    handleSync,
+  } = useFolderPicker({ onClose, onFolderSynced });
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

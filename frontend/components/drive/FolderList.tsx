@@ -82,6 +82,14 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
           {folders.map((folder) => (
             <li
               key={folder.id}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedFolder(folder);
+                }
+              }}
               className="px-5 py-4 hover:bg-surface-variant/50 cursor-pointer transition-colors"
               onClick={() => setSelectedFolder(folder)}
             >
@@ -98,7 +106,12 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex items-center gap-2"
+                  role="group"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getSyncStatusStyles(folder.sync_status)}`}
                   >
