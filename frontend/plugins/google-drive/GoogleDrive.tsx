@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import {
   FileText,
   Image as ImageIcon,
@@ -164,40 +164,357 @@ function formatMimeType(mimeType?: string): string {
   return part.toUpperCase();
 }
 
-/** Build a windowed list of page numbers with ellipsis gaps. */
-function getPageNumbers(current: number, total: number): (number | "ellipsis")[] {
+/** Build a windowed list of page numbers with distinct ellipsis markers. */
+function getPageNumbers(
+  current: number,
+  total: number,
+): (number | "ellipsis-start" | "ellipsis-end")[] {
   if (total <= MAX_VISIBLE_PAGES) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
 
-  const pages: (number | "ellipsis")[] = [1];
+  const pages: (number | "ellipsis-start" | "ellipsis-end")[] = [1];
   const start = Math.max(2, current - 1);
   const end = Math.min(total - 1, current + 1);
 
-  if (start > 2) pages.push("ellipsis");
+  if (start > 2) pages.push("ellipsis-start");
   for (let i = start; i <= end; i++) pages.push(i);
-  if (end < total - 1) pages.push("ellipsis");
+  if (end < total - 1) pages.push("ellipsis-end");
   pages.push(total);
 
   return pages;
 }
 
+/* ------------------------------------------------------------------ */
+/*  State management via useReducer                                    */
+/* ------------------------------------------------------------------ */
+
+interface DriveState {
+  connectionStatus: ConnectionStatusType | null;
+  folders: DriveFolder[];
+  resources: ResourceRow[];
+  totalResources: number;
+  loading: boolean;
+  pageLoading: boolean;
+  totalsLoading: boolean;
+  error: string | null;
+  showFolderPicker: boolean;
+  deletingId: number | null;
+  downloadingId: number | null;
+  resyncing: boolean;
+  currentPage: number;
+}
+
+type DriveAction =
+  | { type: "SET_CONNECTION_STATUS"; payload: ConnectionStatusType | null }
+  | { type: "SET_FOLDERS"; payload: DriveFolder[] }
+  | { type: "SET_RESOURCES"; payload: ResourceRow[] }
+  | { type: "SET_TOTAL_RESOURCES"; payload: number }
+  | { type: "SET_LOADING"; payload: boolean }
+  | { type: "SET_PAGE_LOADING"; payload: boolean }
+  | { type: "SET_TOTALS_LOADING"; payload: boolean }
+  | { type: "SET_ERROR"; payload: string | null }
+  | { type: "SET_SHOW_FOLDER_PICKER"; payload: boolean }
+  | { type: "SET_DELETING_ID"; payload: number | null }
+  | { type: "SET_DOWNLOADING_ID"; payload: number | null }
+  | { type: "SET_RESYNCING"; payload: boolean }
+  | { type: "SET_CURRENT_PAGE"; payload: number }
+  | { type: "RELOAD" };
+
+const initialDriveState: DriveState = {
+  connectionStatus: null,
+  folders: [],
+  resources: [],
+  totalResources: 0,
+  loading: true,
+  pageLoading: false,
+  totalsLoading: false,
+  error: null,
+  showFolderPicker: false,
+  deletingId: null,
+  downloadingId: null,
+  resyncing: false,
+  currentPage: 1,
+};
+
+function driveReducer(state: DriveState, action: DriveAction): DriveState {
+  switch (action.type) {
+    case "SET_CONNECTION_STATUS":
+      return { ...state, connectionStatus: action.payload };
+    case "SET_FOLDERS":
+      return { ...state, folders: action.payload };
+    case "SET_RESOURCES":
+      return { ...state, resources: action.payload };
+    case "SET_TOTAL_RESOURCES":
+      return { ...state, totalResources: action.payload };
+    case "SET_LOADING":
+      return { ...state, loading: action.payload };
+    case "SET_PAGE_LOADING":
+      return { ...state, pageLoading: action.payload };
+    case "SET_TOTALS_LOADING":
+      return { ...state, totalsLoading: action.payload };
+    case "SET_ERROR":
+      return { ...state, error: action.payload };
+    case "SET_SHOW_FOLDER_PICKER":
+      return { ...state, showFolderPicker: action.payload };
+    case "SET_DELETING_ID":
+      return { ...state, deletingId: action.payload };
+    case "SET_DOWNLOADING_ID":
+      return { ...state, downloadingId: action.payload };
+    case "SET_RESYNCING":
+      return { ...state, resyncing: action.payload };
+    case "SET_CURRENT_PAGE":
+      return { ...state, currentPage: action.payload };
+    case "RELOAD":
+      return {
+        ...state,
+        currentPage: 1,
+        folders: [],
+        resources: [],
+        totalResources: 0,
+        error: null,
+        loading: true,
+      };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Extracted sub-components                                           */
+/* ------------------------------------------------------------------ */
+
+function ResourcesHeader() {
+  return (
+    <div className="bg-card border-b border-border px-6 py-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Resources</h2>
+          <p className="text-sm text-muted-foreground">
+            All imported files from your connected plugins
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-xl border border-border bg-card p-12 text-center">
+      <DefaultFileIcon className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
+      <h3 className="text-lg font-semibold text-foreground mb-1">No resources yet</h3>
+      <p className="text-sm text-muted-foreground">
+        Import files from your connected plugins to get started
+      </p>
+    </div>
+  );
+}
+
+interface ResourcesTableProps {
+  resources: ResourceRow[];
+  pageLoading: boolean;
+  currentPage: number;
+  totalPages: number;
+  totalResources: number;
+  startIndex: number;
+  downloadingId: number | null;
+  deletingId: number | null;
+  onDownload: (resource: ResourceRow) => void;
+  onDelete: (resource: ResourceRow) => void;
+  onPageChange: (page: number) => void;
+}
+
+function ResourcesTable({
+  resources,
+  pageLoading,
+  currentPage,
+  totalPages,
+  totalResources,
+  startIndex,
+  downloadingId,
+  deletingId,
+  onDownload,
+  onDelete,
+  onPageChange,
+}: ResourcesTableProps) {
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <table className="w-full">
+        <thead>
+          <tr className="bg-surface-variant/50">
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+              File Name
+            </th>
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+              Type
+            </th>
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+              Sync Status
+            </th>
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+              RAG Status
+            </th>
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+              Source
+            </th>
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
+              Date Imported
+            </th>
+            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground w-24">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {pageLoading ? (
+            <tr>
+              <td colSpan={7} className="py-12 text-center">
+                <Spinner className="mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Loading resources...</p>
+              </td>
+            </tr>
+          ) : (
+            resources.map((resource) => (
+              <tr
+                key={`${resource.folderId}-${resource.id}`}
+                className="hover:bg-surface-variant/30 transition-colors"
+              >
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    {getFileIcon(resource.mimeType)}
+                    <span className="text-sm font-medium text-foreground">{resource.name}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    {formatMimeType(resource.mimeType)}
+                  </span>
+                </td>
+                <td className="px-5 py-3">
+                  <StatusChip status={resource.status} />
+                </td>
+                <td className="px-5 py-3">
+                  <RagStatusChip status={resource.ragStatus} error={resource.ragError} />
+                </td>
+                <td className="px-5 py-3">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-surface-variant text-muted-foreground">
+                    {resource.source}
+                  </span>
+                </td>
+                <td className="px-5 py-3">
+                  <span className="text-xs text-muted-foreground">{resource.dateImported}</span>
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => onDownload(resource)}
+                          disabled={downloadingId === resource.id}
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Download</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-error-500 hover:bg-error-50 dark:hover:bg-error-900/30"
+                          onClick={() => onDelete(resource)}
+                          disabled={deletingId === resource.id}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+          <span className="text-xs text-muted-foreground">
+            Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, totalResources)} of{" "}
+            {totalResources} resources
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={currentPage === 1 || pageLoading}
+              onClick={() => onPageChange(currentPage - 1)}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            {getPageNumbers(currentPage, totalPages).map((page) =>
+              page === "ellipsis-start" || page === "ellipsis-end" ? (
+                <span key={page} className="w-8 h-8 flex items-center justify-center">
+                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                </span>
+              ) : (
+                <Button
+                  key={page}
+                  variant={page === currentPage ? "primary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8 text-xs"
+                  disabled={pageLoading}
+                  onClick={() => onPageChange(page)}
+                >
+                  {page}
+                </Button>
+              ),
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={currentPage === totalPages || pageLoading}
+              onClick={() => onPageChange(currentPage + 1)}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main component                                                     */
+/* ------------------------------------------------------------------ */
+
 export default function GoogleDrive() {
   const { token } = useAuth();
+  const [state, dispatch] = useReducer(driveReducer, initialDriveState);
 
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatusType | null>(null);
-  const [folders, setFolders] = useState<DriveFolder[]>([]);
-  const [resources, setResources] = useState<ResourceRow[]>([]);
-  const [totalResources, setTotalResources] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [pageLoading, setPageLoading] = useState(false);
-  const [totalsLoading, setTotalsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showFolderPicker, setShowFolderPicker] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [downloadingId, setDownloadingId] = useState<number | null>(null);
-  const [resyncing, setResyncing] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const {
+    connectionStatus,
+    folders,
+    resources,
+    totalResources,
+    loading,
+    pageLoading,
+    totalsLoading,
+    error,
+    showFolderPicker,
+    deletingId,
+    downloadingId,
+    resyncing,
+    currentPage,
+  } = state;
 
   // Cache folder totals to avoid N+1 requests on every page change
   const folderTotalsRef = useRef<FolderTotal[]>([]);
@@ -205,25 +522,25 @@ export default function GoogleDrive() {
   // Load connection status and all folders (paginated fetch)
   const loadFolders = useCallback(async () => {
     if (!token) {
-      setLoading(false);
+      dispatch({ type: "SET_LOADING", payload: false });
       return;
     }
 
-    setError(null);
+    dispatch({ type: "SET_ERROR", payload: null });
     try {
       const status = await getConnectionStatus(token);
-      setConnectionStatus(status);
+      dispatch({ type: "SET_CONNECTION_STATUS", payload: status });
 
       if (status.connected) {
         const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
-        setFolders(allFolders);
+        dispatch({ type: "SET_FOLDERS", payload: allFolders });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load resources";
-      setError(message);
+      dispatch({ type: "SET_ERROR", payload: message });
       console.error("Failed to load folders:", err);
     } finally {
-      setLoading(false);
+      dispatch({ type: "SET_LOADING", payload: false });
     }
   }, [token]);
 
@@ -231,7 +548,7 @@ export default function GoogleDrive() {
   const loadFolderTotals = useCallback(async () => {
     if (!token || folders.length === 0) return;
 
-    setTotalsLoading(true);
+    dispatch({ type: "SET_TOTALS_LOADING", payload: true });
     try {
       const results = await Promise.all(
         folders.map(async (folder) => {
@@ -241,14 +558,17 @@ export default function GoogleDrive() {
       );
 
       folderTotalsRef.current = results;
-      setTotalResources(results.reduce((sum, r) => sum + r.total, 0));
-      setError(null);
+      dispatch({
+        type: "SET_TOTAL_RESOURCES",
+        payload: results.reduce((sum, r) => sum + r.total, 0),
+      });
+      dispatch({ type: "SET_ERROR", payload: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load file counts";
-      setError(message);
+      dispatch({ type: "SET_ERROR", payload: message });
       console.error("Failed to load folder totals:", err);
     } finally {
-      setTotalsLoading(false);
+      dispatch({ type: "SET_TOTALS_LOADING", payload: false });
     }
   }, [token, folders]);
 
@@ -257,7 +577,7 @@ export default function GoogleDrive() {
     async (page: number) => {
       if (!token || folderTotalsRef.current.length === 0) return;
 
-      setPageLoading(true);
+      dispatch({ type: "SET_PAGE_LOADING", payload: true });
       try {
         const skip = (page - 1) * ITEMS_PER_PAGE;
         const pageResources: ResourceRow[] = [];
@@ -296,13 +616,13 @@ export default function GoogleDrive() {
           skipped += total;
         }
 
-        setResources(pageResources);
+        dispatch({ type: "SET_RESOURCES", payload: pageResources });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to load resources";
-        setError(message);
+        dispatch({ type: "SET_ERROR", payload: message });
         console.error("Failed to load resources:", err);
       } finally {
-        setPageLoading(false);
+        dispatch({ type: "SET_PAGE_LOADING", payload: false });
       }
     },
     [token],
@@ -328,7 +648,7 @@ export default function GoogleDrive() {
 
   const handleDownload = async (resource: ResourceRow) => {
     if (!token) return;
-    setDownloadingId(resource.id);
+    dispatch({ type: "SET_DOWNLOADING_ID", payload: resource.id });
     try {
       const blob = await downloadFile(resource.id, token);
       const url = URL.createObjectURL(blob);
@@ -341,10 +661,10 @@ export default function GoogleDrive() {
       URL.revokeObjectURL(url);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to download file";
-      setError(message);
+      dispatch({ type: "SET_ERROR", payload: message });
       console.error("Failed to download:", err);
     } finally {
-      setDownloadingId(null);
+      dispatch({ type: "SET_DOWNLOADING_ID", payload: null });
     }
   };
 
@@ -353,7 +673,7 @@ export default function GoogleDrive() {
     if (!confirm(`Remove "${resource.name}" from Sparkth? The file will remain in Google Drive.`))
       return;
 
-    setDeletingId(resource.id);
+    dispatch({ type: "SET_DELETING_ID", payload: resource.id });
     try {
       await deleteFile(resource.id, token);
       // Refresh totals cache and adjust page
@@ -361,49 +681,47 @@ export default function GoogleDrive() {
       const newTotal = folderTotalsRef.current.reduce((sum, r) => sum + r.total, 0);
       const maxPage = Math.max(1, Math.ceil(newTotal / ITEMS_PER_PAGE));
       if (currentPage > maxPage) {
-        setCurrentPage(maxPage);
+        dispatch({ type: "SET_CURRENT_PAGE", payload: maxPage });
       }
       // useEffect on totalResources/currentPage will trigger loadPage
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete file";
-      setError(message);
+      dispatch({ type: "SET_ERROR", payload: message });
       console.error("Failed to delete:", err);
     } finally {
-      setDeletingId(null);
+      dispatch({ type: "SET_DELETING_ID", payload: null });
     }
   };
 
   const handleResync = async () => {
     if (!token || folders.length === 0) return;
 
-    setResyncing(true);
-    setError(null);
+    dispatch({ type: "SET_RESYNCING", payload: true });
+    dispatch({ type: "SET_ERROR", payload: null });
     try {
       const results = await Promise.allSettled(
         folders.map((folder) => refreshFolder(folder.id, token)),
       );
       const failures = results.filter((r) => r.status === "rejected");
       if (failures.length > 0) {
-        setError(`Re-sync failed for ${failures.length} of ${folders.length} folder(s)`);
+        dispatch({
+          type: "SET_ERROR",
+          payload: `Re-sync failed for ${failures.length} of ${folders.length} folder(s)`,
+        });
       }
       handleReload();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to re-sync folders";
-      setError(message);
+      dispatch({ type: "SET_ERROR", payload: message });
       console.error("Failed to re-sync:", err);
     } finally {
-      setResyncing(false);
+      dispatch({ type: "SET_RESYNCING", payload: false });
     }
   };
 
   const handleReload = () => {
-    setCurrentPage(1);
-    setFolders([]);
-    setResources([]);
-    setTotalResources(0);
-    setError(null);
+    dispatch({ type: "RELOAD" });
     folderTotalsRef.current = [];
-    setLoading(true);
     loadFolders();
   };
 
@@ -423,24 +741,14 @@ export default function GoogleDrive() {
 
   return (
     <div className="flex flex-col h-full bg-surface-variant/30">
-      {/* Header */}
-      <div className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Resources</h2>
-            <p className="text-sm text-muted-foreground">
-              All imported files from your connected plugins
-            </p>
-          </div>
-        </div>
-      </div>
+      <ResourcesHeader />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <ConnectionStatus
           status={connectionStatus}
           onStatusChange={handleReload}
-          onSyncFolder={() => setShowFolderPicker(true)}
+          onSyncFolder={() => dispatch({ type: "SET_SHOW_FOLDER_PICKER", payload: true })}
           onResync={handleResync}
           resyncing={resyncing}
         />
@@ -460,180 +768,29 @@ export default function GoogleDrive() {
         !pageLoading &&
         !totalsLoading &&
         !error ? (
-          /* Empty state */
-          <div className="rounded-xl border border-border bg-card p-12 text-center">
-            <DefaultFileIcon className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-1">No resources yet</h3>
-            <p className="text-sm text-muted-foreground">
-              Import files from your connected plugins to get started
-            </p>
-          </div>
+          <EmptyState />
         ) : connectionStatus?.connected ? (
-          /* Resources table */
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-surface-variant/50">
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    File Name
-                  </th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    Type
-                  </th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    Sync Status
-                  </th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    RAG Status
-                  </th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    Source
-                  </th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-                    Date Imported
-                  </th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground w-24">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {pageLoading ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center">
-                      <Spinner className="mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Loading resources...</p>
-                    </td>
-                  </tr>
-                ) : (
-                  resources.map((resource) => (
-                    <tr
-                      key={`${resource.folderId}-${resource.id}`}
-                      className="hover:bg-surface-variant/30 transition-colors"
-                    >
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          {getFileIcon(resource.mimeType)}
-                          <span className="text-sm font-medium text-foreground">
-                            {resource.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="text-xs text-muted-foreground">
-                          {formatMimeType(resource.mimeType)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <StatusChip status={resource.status} />
-                      </td>
-                      <td className="px-5 py-3">
-                        <RagStatusChip status={resource.ragStatus} error={resource.ragError} />
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-surface-variant text-muted-foreground">
-                          {resource.source}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="text-xs text-muted-foreground">
-                          {resource.dateImported}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                onClick={() => handleDownload(resource)}
-                                disabled={downloadingId === resource.id}
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Download</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-error-500 hover:bg-error-50 dark:hover:bg-error-900/30"
-                                onClick={() => handleDelete(resource)}
-                                disabled={deletingId === resource.id}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Delete</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-                <span className="text-xs text-muted-foreground">
-                  Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, totalResources)}{" "}
-                  of {totalResources} resources
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={currentPage === 1 || pageLoading}
-                    onClick={() => setCurrentPage((p) => p - 1)}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  {getPageNumbers(currentPage, totalPages).map((page, idx) =>
-                    page === "ellipsis" ? (
-                      <span
-                        key={`ellipsis-${idx}`}
-                        className="w-8 h-8 flex items-center justify-center"
-                      >
-                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                      </span>
-                    ) : (
-                      <Button
-                        key={page}
-                        variant={page === currentPage ? "primary" : "ghost"}
-                        size="icon"
-                        className="h-8 w-8 text-xs"
-                        disabled={pageLoading}
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    ),
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={currentPage === totalPages || pageLoading}
-                    onClick={() => setCurrentPage((p) => p + 1)}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+          <ResourcesTable
+            resources={resources}
+            pageLoading={pageLoading}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalResources={totalResources}
+            startIndex={startIndex}
+            downloadingId={downloadingId}
+            deletingId={deletingId}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onPageChange={(page) => dispatch({ type: "SET_CURRENT_PAGE", payload: page })}
+          />
         ) : null}
       </div>
 
       {showFolderPicker && (
-        <FolderPicker onClose={() => setShowFolderPicker(false)} onFolderSynced={handleReload} />
+        <FolderPicker
+          onClose={() => dispatch({ type: "SET_SHOW_FOLDER_PICKER", payload: false })}
+          onFolderSynced={handleReload}
+        />
       )}
     </div>
   );

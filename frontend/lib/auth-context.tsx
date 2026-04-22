@@ -55,11 +55,12 @@ function getInitialToken(): string | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(getInitialToken);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => getInitialToken() !== null);
 
   const login = (newToken: string, expiresAt: string) => {
     setAuthTokens(newToken, expiresAt);
     setToken(newToken);
+    setLoading(true);
   };
 
   const logout = useCallback(() => {
@@ -94,12 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (token) {
-      fetchUser(token);
-    } else {
-      setLoading(false);
-      setUser(null);
-    }
+    if (!token) return;
+    fetchUser(token);
   }, [token, fetchUser]);
 
   const refreshUser = async () => {

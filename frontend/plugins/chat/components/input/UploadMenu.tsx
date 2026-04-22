@@ -19,7 +19,7 @@ export function UploadMenu({
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>
-      <div className="fixed inset-0 z-0" onClick={onClose} />
+      <div aria-hidden="true" className="fixed inset-0 z-0" onClick={onClose} />
 
       <input
         ref={inputRef}
