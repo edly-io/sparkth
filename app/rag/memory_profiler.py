@@ -5,6 +5,9 @@ Provides an async context manager that measures peak Python allocations
 Emits one structured log line per stage when MEMORY_PROFILING_ENABLED is true.
 """
 
+import asyncio
+import logging
+import logging.handlers
 import time
 import tracemalloc
 from contextlib import asynccontextmanager
@@ -18,13 +21,49 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Ensure logs directory exists and write to logs/ram-logs.txt
-LOG_FILE_PATH = Path(__file__).parent.parent.parent / "logs" / "ram-logs.txt"
-LOG_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+def _find_project_root(start: Path | None = None) -> Path:
+    """Find project root by searching upward for pyproject.toml."""
+    current = start or Path(__file__).resolve().parent
+    while current != current.parent:
+        if (current / "pyproject.toml").exists():
+            return current
+        current = current.parent
+    # Fallback: use current directory if no marker found
+    return Path(__file__).resolve().parent.parent.parent
+
+
+# Logs directory and file path (created lazily when profiling is enabled)
+PROJECT_ROOT = _find_project_root()
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_FILE_PATH = LOG_DIR / "ram-logs.txt"
 
 # Nesting depth counter for tracemalloc start/stop — prevents inner profilers
 # from stopping tracemalloc while an outer profiler is still measuring.
 _tracing_depth: int = 0
+
+# Lazy-initialized logger and handler (set up only when profiling is enabled)
+_memprof_handler: logging.handlers.RotatingFileHandler | None = None
+_memprof_logger: logging.Logger | None = None
+
+
+def _ensure_log_dir_and_handler() -> None:
+    """Create logs directory and set up rotating file handler (called only when profiling is active)."""
+    global _memprof_handler, _memprof_logger
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    if _memprof_handler is None:
+        _memprof_handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE_PATH,
+            maxBytes=1 * 1024 * 1024,  # 1MB
+            backupCount=5,
+            encoding="utf-8",
+        )
+        _memprof_logger = logging.getLogger("sparkth.app.rag.memory_profiler.file")
+        _memprof_logger.setLevel(logging.INFO)
+        _memprof_logger.addHandler(_memprof_handler)
+        _memprof_logger.propagate = False  # Don't duplicate to console logger
 
 
 def clear_ram_logs() -> None:
@@ -62,6 +101,8 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
     if not get_settings().MEMORY_PROFILING_ENABLED:
         yield
         return
+
+    _ensure_log_dir_and_handler()
 
     if not tracemalloc.is_tracing():
         tracemalloc.start()
@@ -118,18 +159,20 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
             rss_delta_mb=rss_delta,
         )
 
-        # Log to console
+        # Log to console (sync - fast, no I/O)
         logger.info(log_line)
 
-        # Log to file
-        with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
-            f.write(log_line + "\n")
+        # Log to file with rotation (offloaded to thread pool to avoid blocking event loop)
+        assert _memprof_logger is not None  # noqa: S101  # Set by _ensure_log_dir_and_handler()
+        asyncio.create_task(asyncio.to_thread(_memprof_logger.info, log_line))
 
 
 def log_memory_snapshot(label: str, **extra: Any) -> None:
     """Emit a one-shot RSS sample as a MEMPROF log line."""
     if not get_settings().MEMORY_PROFILING_ENABLED:
         return
+
+    _ensure_log_dir_and_handler()
 
     rss_mb: float | None = None
     try:
@@ -143,9 +186,15 @@ def log_memory_snapshot(label: str, **extra: Any) -> None:
         rss_mb=rss_mb,
     )
 
-    # Log to console
+    # Log to console (sync - fast, no I/O)
     logger.info(log_line)
 
-    # Log to file
-    with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
-        f.write(log_line + "\n")
+    # Log to file with rotation
+    # Offload to thread pool if there's a running event loop, otherwise write sync
+    assert _memprof_logger is not None  # noqa: S101  # Set by _ensure_log_dir_and_handler()
+    try:
+        asyncio.get_running_loop()
+        asyncio.create_task(asyncio.to_thread(_memprof_logger.info, log_line))
+    except RuntimeError:
+        # No running event loop (sync call) - write synchronously
+        _memprof_logger.info(log_line)

@@ -77,13 +77,13 @@ def _print_summary(records: list[dict[str, str]]) -> None:
         by_file.setdefault(key, []).append(r)
 
     typer.echo("\n" + "=" * 90)
-    typer.echo(f"{'File':<25} {'Stage':<22} {'py_peak_kb':>12} {'rss_delta_mb':>14} {'duration_ms':>12}")
+    typer.echo(f"{'File':<25} {'Stage':<22} {'py_peak_delta_kb':>16} {'rss_delta_mb':>14} {'duration_ms':>12}")
     typer.echo("-" * 90)
     for file_name, rows in by_file.items():
         for row in rows:
             typer.echo(
                 f"{file_name:<25} {row.get('stage', '-'):<22} "
-                f"{row.get('py_peak_kb', '-'):>12} {row.get('rss_delta_mb', '-'):>14} "
+                f"{row.get('py_peak_delta_kb', '-'):>16} {row.get('rss_delta_mb', '-'):>14} "
                 f"{row.get('duration_ms', '-'):>12}"
             )
     typer.echo("=" * 90)
