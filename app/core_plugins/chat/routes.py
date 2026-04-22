@@ -1,6 +1,8 @@
+import asyncio
 import json
+import re
 from functools import lru_cache
-from typing import Any
+from typing import Any, AsyncGenerator
 from uuid import UUID
 
 import anthropic
@@ -46,6 +48,8 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
+from app.llm.classifier import ScopeClassifier
+from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -53,7 +57,10 @@ from app.llm.providers import (
     get_provider,
     get_provider_catalog,
 )
+from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
+from app.rag.context_service import RAGContextService, format_chunks_as_context
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 logger = get_logger(__name__)
 
@@ -94,6 +101,16 @@ def get_chat_service(config: ChatSystemConfig = Depends(get_chat_system_config))
     encryption = get_encryption_service(config.encryption_key)
     cache = get_cache_service(config.redis_url, config.redis_key_ttl)
     return ChatService(encryption, cache)
+
+
+def get_rag_context_service() -> RAGContextService:
+    """FastAPI dependency: returns a stateless RAGContextService."""
+    return RAGContextService()
+
+
+async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
+    """Yield a single SSE done-event carrying the refusal message as content."""
+    yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
 
 
 @chat_router.get("/providers", response_model=ProviderCatalogResponse)
@@ -233,6 +250,128 @@ async def delete_api_key(
         )
 
 
+def _strip_md(text: str) -> str:
+    """Remove markdown emphasis markers (* and **) from a string."""
+    return re.sub(r"\*+", "", text).strip()
+
+
+def _section_label_and_name(sec: dict[str, str | None]) -> tuple[str, str] | None:
+    """Return (type_label, cleaned_name) for a section dict, or None if all fields empty."""
+    if sec.get("subsection"):
+        return "subsection", _strip_md(str(sec["subsection"]))
+    if sec.get("section"):
+        return "section", _strip_md(str(sec["section"]))
+    if sec.get("chapter"):
+        return "chapter", _strip_md(str(sec["chapter"]))
+    return None
+
+
+def _extract_query_text(messages: list[ChatMessage]) -> str:
+    """Extract the user's plain text from the last user message for RAG query embedding."""
+    for msg in reversed(messages):
+        if msg.role != "user":
+            continue
+        if isinstance(msg.content, str):
+            return msg.content.strip()
+        text_parts = [
+            block.get("text", "") for block in msg.content if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        joined = " ".join(text_parts).strip()
+        if joined:
+            return joined
+    return ""
+
+
+async def _resolve_drive_file_blocks(
+    messages: list[ChatMessage],
+    session: AsyncSession,
+    user_id: int,
+    rag_service: RAGContextService,
+) -> list[ChatMessage]:
+    """Replace drive_file content blocks with RAG context text blocks.
+
+    Returns a new list; original messages are not mutated.
+    Base64 and plain text blocks pass through unchanged.
+
+    Raises:
+        HTTPException(422): file not found, not owned, or RAG not ready.
+        HTTPException(500): embedding or similarity search failure.
+    """
+    query_text = _extract_query_text(messages)
+    resolved: list[ChatMessage] = []
+
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            resolved.append(msg)
+            continue
+
+        has_drive_file = any(isinstance(b, dict) and b.get("type") == "drive_file" for b in msg.content)
+        if not has_drive_file:
+            resolved.append(msg)
+            continue
+
+        new_blocks: list[dict[str, Any]] = []
+        for block in msg.content:
+            if not isinstance(block, dict) or block.get("type") != "drive_file":
+                new_blocks.append(block)
+                continue
+
+            raw_id = block.get("file_id")
+            if raw_id is None:
+                logger.warning("Skipping drive_file block missing file_id: %s", block)
+                continue
+            file_id: int = int(raw_id)
+            try:
+                context = await rag_service.get_context_for_drive_file(
+                    session=session,
+                    user_id=user_id,
+                    file_db_id=file_id,
+                    query=query_text,
+                )
+                new_blocks.append({"type": "text", "text": context.formatted_text})
+                logger.info(
+                    "Replaced drive_file block file_id=%d with %d RAG chunks",
+                    file_id,
+                    len(context.chunks),
+                )
+            except DriveFileNotFoundError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"File (id={file_id}) not found or not accessible.",
+                ) from exc
+            except RAGNotReadyError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=(
+                        f"File (id={file_id}) is still being processed "
+                        f"(status: {exc.rag_status}). Please wait and try again."
+                    ),
+                ) from exc
+            except RAGRetrievalError as exc:
+                logger.error("RAG retrieval error for file_id=%d: %s", file_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to retrieve document context. Please try again.",
+                ) from exc
+
+        resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
+
+    return resolved
+
+
+def _extract_drive_file_id_from_messages(messages: list[ChatMessage]) -> int | None:
+    """Extract the first drive_file file_id from message content blocks."""
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if isinstance(block, dict) and block.get("type") == "drive_file":
+                raw_id = block.get("file_id")
+                if raw_id is not None:
+                    return int(raw_id)
+    return None
+
+
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
@@ -241,6 +380,7 @@ async def chat_completion(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
     config: ChatSystemConfig = Depends(get_chat_system_config),
+    rag_service: RAGContextService = Depends(get_rag_context_service),
 ) -> Any:
     api_key = await service.get_api_key(
         session=session,
@@ -255,6 +395,7 @@ async def chat_completion(
         )
 
     conversation_uuid = request.conversation_id
+    active_drive_file_id = _extract_drive_file_id_from_messages(request.messages)
 
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(
@@ -266,6 +407,13 @@ async def chat_completion(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Conversation {conversation_uuid} not found",
+            )
+        if active_drive_file_id is not None and conversation.active_drive_file_id != active_drive_file_id:
+            await service.set_active_drive_file(
+                session=session,
+                conversation_id=conversation.id,  # type: ignore
+                user_id=current_user.id,  # type: ignore
+                drive_file_id=active_drive_file_id,
             )
     else:
         stmt = select(ProviderAPIKey).where(
@@ -284,6 +432,7 @@ async def chat_completion(
             provider=request.provider,
             model=request.model,
             title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
+            active_drive_file_id=active_drive_file_id,
         )
 
         first_user_text = get_first_user_text(request.messages)
@@ -317,12 +466,51 @@ async def chat_completion(
             attachment_size=msg.attachment.size if msg.attachment else None,
         )
 
+    has_drive_files = any(
+        isinstance(b, dict) and b.get("type") == "drive_file"
+        for msg in request.messages
+        if isinstance(msg.content, list)
+        for b in msg.content
+    )
+
     db_messages = await service.get_conversation_messages(
         session=session,
         conversation_id=conversation.id,  # type: ignore
     )
 
     try:
+        # --- Tiered scope check (plain-text only; drive-file/RAG paths skip entirely) ---
+        if not has_drive_files:
+            query_text = _extract_query_text(request.messages)
+            _in_scope = True
+            if query_text:
+                # Tier 1: fast keyword pre-filter — catches obvious out-of-scope at zero LLM cost
+                if not is_query_in_scope(query_text):
+                    _in_scope = False
+                else:
+                    # Tier 2: LLM classifier for nuanced cases keywords can't handle
+                    classifier = ScopeClassifier(provider_name=request.provider, api_key=api_key)
+                    _in_scope = await classifier.classify(query_text)
+            if not _in_scope:
+                await service.add_message(
+                    session=session,
+                    conversation_id=conversation.id,  # type: ignore
+                    role="assistant",
+                    content=REFUSAL_MESSAGE,
+                    message_type="text",
+                )
+                if request.stream:
+                    return StreamingResponse(
+                        _stream_out_of_scope_refusal(),
+                        media_type="text/event-stream",
+                    )
+                return ChatCompletionResponse(
+                    message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
+                    conversation_id=conversation.uuid,
+                    model=request.model,
+                    provider=request.provider,
+                )
+
         provider = get_provider(
             provider_name=request.provider,
             api_key=api_key,
@@ -339,7 +527,20 @@ async def chat_completion(
             if len(db_messages) > num_current
             else []
         )
-        current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+
+        if request.stream and has_drive_files:
+            # For streaming with drive files, RAG resolution happens in the generator
+            current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        else:
+            # For non-streaming, or streaming without drive files, resolve synchronously
+            resolved_messages = await _resolve_drive_file_blocks(
+                messages=request.messages,
+                session=session,
+                user_id=current_user.id,  # type: ignore[arg-type]
+                rag_service=rag_service,
+            )
+            current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
+
         messages = history + current
 
         tool_registry = get_tool_registry()
@@ -372,6 +573,14 @@ async def chat_completion(
             provider.system_prompt += f"\n\n{lms_credentials_message}"
 
         if request.stream:
+            stream_kwargs: dict[str, Any] = {}
+            if has_drive_files:
+                stream_kwargs = {
+                    "unresolved_messages": request.messages,
+                    "rag_service": rag_service,
+                    "user_id": current_user.id,
+                    "similarity_threshold": request.similarity_threshold,
+                }
             return StreamingResponse(
                 stream_chat_response(
                     provider=provider,
@@ -380,6 +589,7 @@ async def chat_completion(
                     service=service,
                     session=session,
                     tools=tools,
+                    **stream_kwargs,
                 ),
                 media_type="text/event-stream",
             )
@@ -437,7 +647,130 @@ async def stream_chat_response(
     service: ChatService,
     session: AsyncSession,
     tools: list[Any] | None = None,
+    unresolved_messages: list[ChatMessage] | None = None,
+    rag_service: RAGContextService | None = None,
+    user_id: int | None = None,
+    similarity_threshold: float = 0.45,
 ) -> Any:
+    # --- Phase 1: In-stream RAG resolution (emits status events) ---
+    if unresolved_messages and rag_service and user_id is not None:
+        query_text = _extract_query_text(unresolved_messages)
+
+        for msg in unresolved_messages:
+            if not isinstance(msg.content, list):
+                continue
+            for block in msg.content:
+                if not isinstance(block, dict) or block.get("type") != "drive_file":
+                    continue
+
+                raw_id = block.get("file_id")
+                if raw_id is None:
+                    logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                    continue
+                file_id: int = int(raw_id)
+
+                yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
+
+                # --- Phase 1a: Rank sections and emit scanning events ---
+                try:
+                    source_name, query_embedding, ranked_sections = await rag_service.rank_sections_for_query(
+                        session=session,
+                        user_id=user_id,
+                        file_db_id=file_id,
+                        query=query_text,
+                    )
+                except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
+                    logger.error("RAG section ranking failed for file_id=%d: %s", file_id, exc)
+                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                    return
+
+                for sec in ranked_sections:
+                    info = _section_label_and_name(sec)
+                    if not info:
+                        continue
+                    label, name = info
+                    yield f"data: {json.dumps({'status': 'section_scanning', 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
+                    await asyncio.sleep(0.08)  # flush each event so browser receives them one at a time
+
+                # --- Phase 1b: Similarity search then emit confirmed/removed ---
+                section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
+
+                try:
+                    results = await rag_service.search_with_embedding(
+                        session=session,
+                        user_id=user_id,
+                        source_name=source_name,
+                        query_embedding=query_embedding,
+                        similarity_threshold=similarity_threshold,
+                        sections=section_filter,
+                    )
+                except RAGRetrievalError as exc:
+                    logger.error("RAG similarity search failed for file_id=%d: %s", file_id, exc)
+                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+                    return
+
+                confirmed_section_names = {r.chunk.section for r in results if r.chunk.section}
+                for sec in ranked_sections:
+                    info = _section_label_and_name(sec)
+                    if not info:
+                        continue
+                    label, name = info
+                    sec_name = sec.get("section")
+                    event = (
+                        "section_confirmed" if (sec_name and sec_name in confirmed_section_names) else "section_removed"
+                    )
+                    yield f"data: {json.dumps({'status': event, 'section': {'type': label, 'name': name}, 'done': False})}\n\n"
+                    await asyncio.sleep(0)
+
+                # If no chunks matched the threshold, terminate early with user-facing options
+                if not results:
+                    if similarity_threshold <= 0.15:
+                        no_chunks_msg = (
+                            f"I searched **{source_name}** with progressively less strict matching "
+                            f"but still couldn't find relevant content for your query.\n\n"
+                            f"Please try rephrasing your question, or check that your document contains "
+                            f"information about this topic."
+                        )
+                        done_payload: dict[str, object] = {
+                            "done": True,
+                            "content": no_chunks_msg,
+                            "conversation_id": str(conversation.uuid),
+                        }
+                    else:
+                        no_chunks_msg = (
+                            f"I searched **{source_name}** but couldn't find content closely "
+                            f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
+                            f"Would you like me to try again with less strict matching?"
+                        )
+                        done_payload = {
+                            "done": True,
+                            "content": no_chunks_msg,
+                            "options": ["Try with less strict matching"],
+                            "conversation_id": str(conversation.uuid),
+                        }
+                    await service.add_message(
+                        session=session,
+                        conversation_id=conversation.id,  # type: ignore[arg-type]
+                        role="assistant",
+                        content=no_chunks_msg,
+                        message_type="text",
+                    )
+                    yield f"data: {json.dumps(done_payload)}\n\n"
+                    return
+
+                formatted_text = format_chunks_as_context(source_name, results)
+
+                # Replace drive_file block in messages with RAG text
+                for m in messages:
+                    if not isinstance(m.get("content"), list):
+                        continue
+                    for i, b in enumerate(m["content"]):
+                        if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
+                            m["content"][i] = {"type": "text", "text": formatted_text}
+
+        yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
+
+    # --- Phase 2: LLM streaming ---
     full_response = ""
     conversation_id: int = conversation.id  # type: ignore[assignment]
 
@@ -580,6 +913,14 @@ async def list_conversations(
     count_result = await session.exec(count_stmt)
     message_counts = {row[0]: row[1] for row in count_result.all()}
 
+    drive_file_ids = [conv.active_drive_file_id for conv in conversations if conv.active_drive_file_id]
+    drive_file_names: dict[int, str] = {}
+    if drive_file_ids:
+        df_stmt = select(DriveFileModel).where(col(DriveFileModel.id).in_(drive_file_ids))
+        df_result = await session.execute(df_stmt)
+        for df in df_result.scalars().all():
+            drive_file_names[df.id] = df.name
+
     conversation_responses = [
         ConversationResponse(
             id=conv.uuid,
@@ -591,6 +932,10 @@ async def list_conversations(
             message_count=message_counts.get(conv.id, 0),  # type: ignore
             created_at=conv.created_at,
             updated_at=conv.updated_at,
+            active_drive_file_id=conv.active_drive_file_id,
+            active_drive_file_name=drive_file_names.get(conv.active_drive_file_id)
+            if conv.active_drive_file_id
+            else None,
         )
         for conv in conversations
     ]
@@ -631,6 +976,15 @@ async def get_conversation(
 
     message_count = len(messages)
 
+    active_drive_file_name = None
+    if conversation.active_drive_file_id:
+        df_result = await session.execute(
+            select(DriveFileModel).where(DriveFileModel.id == conversation.active_drive_file_id)
+        )
+        df = df_result.scalars().first()
+        if df:
+            active_drive_file_name = df.name
+
     return ConversationDetailResponse(
         id=conversation.uuid,
         provider=conversation.provider,
@@ -641,6 +995,8 @@ async def get_conversation(
         message_count=message_count,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
+        active_drive_file_id=conversation.active_drive_file_id,
+        active_drive_file_name=active_drive_file_name,
         messages=[
             MessageResponse(
                 id=msg.id,  # type: ignore
@@ -655,6 +1011,32 @@ async def get_conversation(
             )
             for msg in messages
         ],
+    )
+
+
+@chat_router.delete("/conversations/{conversation_id}/active-file", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_active_drive_file(
+    conversation_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> None:
+    """Clear the active drive file attachment for a conversation."""
+    conversation = await service.get_conversation_by_uuid(
+        session=session,
+        uuid=conversation_id,
+        user_id=current_user.id,  # type: ignore
+    )
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+    await service.set_active_drive_file(
+        session=session,
+        conversation_id=conversation.id,  # type: ignore
+        user_id=current_user.id,  # type: ignore
+        drive_file_id=None,
     )
 
 

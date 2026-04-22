@@ -98,6 +98,9 @@ class VectorStoreService:
         limit: int = 5,
         source_names: list[str] | None = None,
         similarity_threshold: float = 0.7,
+        chapters: list[str] | None = None,
+        sections: list[str] | None = None,
+        subsections: list[str] | None = None,
     ) -> list[SimilarityResult]:
         """Find the most similar chunks using cosine similarity.
 
@@ -119,12 +122,39 @@ class VectorStoreService:
         if source_names:
             stmt = stmt.where(col(DocumentChunk.source_name).in_(source_names))
 
+        if chapters is not None:
+            stmt = stmt.where(col(DocumentChunk.chapter).in_(chapters))
+        if sections is not None:
+            stmt = stmt.where(col(DocumentChunk.section).in_(sections))
+        if subsections is not None:
+            stmt = stmt.where(col(DocumentChunk.subsection).in_(subsections))
+
         stmt = stmt.order_by(distance).limit(limit)
 
         result = await session.execute(stmt)
         rows = result.all()
 
         return [SimilarityResult(chunk=row[0], similarity=row[1]) for row in rows]
+
+    async def get_distinct_sections(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        source_name: str,
+    ) -> list[dict[str, str | None]]:
+        """Return distinct (chapter, section, subsection) tuples for a source."""
+        stmt = (
+            select(
+                DocumentChunk.chapter,
+                DocumentChunk.section,
+                DocumentChunk.subsection,
+            )
+            .where(col(DocumentChunk.user_id) == user_id)
+            .where(col(DocumentChunk.source_name) == source_name)
+            .distinct()
+        )
+        result = await session.execute(stmt)
+        return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in result.all()]
 
     async def delete_by_source(
         self,

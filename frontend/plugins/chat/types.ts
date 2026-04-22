@@ -4,6 +4,7 @@ export interface TextAttachment {
   size: number;
   base64Data?: string;
   mediaType?: string;
+  driveFileDbId?: number; // Database ID of the DriveFile — triggers RAG retrieval on send
 }
 
 export type ChatRole = "user" | "assistant";
@@ -18,4 +19,6 @@ export interface ChatMessage {
   isError?: boolean;
   options?: string[];
   pillAttachment?: TextAttachment | null;
+  statusText?: string;
+  ragSections?: { type: string; name: string; state: "scanning" | "confirmed" }[];
 }

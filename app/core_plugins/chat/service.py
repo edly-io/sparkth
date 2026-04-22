@@ -161,6 +161,7 @@ class ChatService:
         title: str | None = None,
         system_prompt: str | None = None,
         tools_config: str | None = None,
+        active_drive_file_id: int | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
@@ -169,6 +170,7 @@ class ChatService:
             model=model,
             title=title,
             system_prompt=system_prompt,
+            active_drive_file_id=active_drive_file_id,
         )
 
         session.add(conversation)
@@ -207,6 +209,25 @@ class ChatService:
         conversations = list(result.all())
 
         return conversations, total
+
+    async def set_active_drive_file(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        user_id: int,
+        drive_file_id: int | None,
+    ) -> None:
+        """Set or clear the active drive file for a conversation."""
+        stmt = select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+        result = await session.exec(stmt)
+        conversation = result.first()
+        if conversation:
+            conversation.active_drive_file_id = drive_file_id
+            session.add(conversation)
+            await session.commit()
 
     async def add_message(
         self,

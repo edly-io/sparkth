@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Paperclip, ArrowUp, X } from "lucide-react";
-import { Spinner } from "@/components/Spinner";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
@@ -10,7 +9,6 @@ import { Pill } from "../attachment/Pill";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
-import { downloadFile } from "@/lib/drive";
 import DriveFilePicker, { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 
 interface ChatInputProps {
@@ -32,7 +30,6 @@ export function ChatInput({
   const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const [showDriveFilePicker, setShowDriveFilePicker] = useState(false);
-  const [isLoadingDriveFile, setIsLoadingDriveFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
@@ -66,46 +63,15 @@ export function ChatInput({
     }
   };
 
-  const handleDriveFileSelected = async (driveFile: SelectedDriveFile) => {
-    if (!token) return;
-
+  const handleDriveFileSelected = (driveFile: SelectedDriveFile) => {
     setShowDriveFilePicker(false);
-    setIsLoadingDriveFile(true);
     setUploadError(null);
-
-    try {
-      const blob = await downloadFile(driveFile.id, token);
-
-      if (blob.size > MAX_FILE_SIZE) {
-        setUploadError("File size exceeds 30MB limit");
-        return;
-      }
-
-      const mediaType = blob.type || driveFile.mime_type || "application/octet-stream";
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1]);
-        };
-        reader.onerror = () => reject(new Error("Failed to read file"));
-        reader.readAsDataURL(blob);
-      });
-
-      setAttachment({
-        name: driveFile.name,
-        size: blob.size,
-        text: `[File: ${driveFile.name}]`,
-        base64Data,
-        mediaType,
-      });
-    } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "Failed to download file from Google Drive";
-      setUploadError(msg);
-    } finally {
-      setIsLoadingDriveFile(false);
-    }
+    setAttachment({
+      name: driveFile.name,
+      size: driveFile.size ?? 0,
+      text: `[File: ${driveFile.name}]`,
+      driveFileDbId: driveFile.id,
+    });
   };
 
   const handleSend = () => {
@@ -117,7 +83,10 @@ export function ChatInput({
     });
 
     setMessage("");
-    setAttachment(null);
+    // Drive file attachments persist across the session until explicitly removed
+    if (!attachment?.driveFileDbId) {
+      setAttachment(null);
+    }
   };
 
   return (
@@ -130,14 +99,6 @@ export function ChatInput({
             <button onClick={() => setUploadError(null)} className="shrink-0">
               <X className="w-4 h-4" />
             </button>
-          </div>
-        )}
-
-        {/* Loading indicator for Drive file download */}
-        {isLoadingDriveFile && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground bg-surface-variant">
-            <Spinner size="sm" />
-            <span>Downloading file from Google Drive...</span>
           </div>
         )}
 
@@ -159,7 +120,7 @@ export function ChatInput({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                if (!isLoadingDriveFile) handleSend();
+                handleSend();
               }
             }}
             placeholder="Describe the course you want to create..."
@@ -194,7 +155,7 @@ export function ChatInput({
                 variant="primary"
                 size="icon"
                 onClick={handleSend}
-                disabled={isLoadingDriveFile || (!message.trim() && !attachment)}
+                disabled={!message.trim() && !attachment}
                 className="rounded-full bg-foreground text-background"
               >
                 <ArrowUp className="w-5 h-5" />
