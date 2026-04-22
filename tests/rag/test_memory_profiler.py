@@ -28,6 +28,9 @@ def mock_log_file_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect LOG_FILE_PATH to a temp file to avoid disk side effects."""
     temp_log = tmp_path / "ram-logs.txt"
     monkeypatch.setattr("app.rag.memory_profiler.LOG_FILE_PATH", temp_log)
+    monkeypatch.setattr("app.rag.memory_profiler.LOG_DIR", tmp_path)
+    monkeypatch.setattr("app.rag.memory_profiler._memprof_handler", None)
+    monkeypatch.setattr("app.rag.memory_profiler._memprof_logger", None)
     return temp_log
 
 

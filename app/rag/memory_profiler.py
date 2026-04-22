@@ -47,6 +47,16 @@ _memprof_handler: logging.handlers.RotatingFileHandler | None = None
 _memprof_logger: logging.Logger | None = None
 
 
+async def _log_to_file(msg: str) -> None:
+    """Write to log file, catching and logging any errors (best-effort)."""
+    try:
+        # Type narrowing: _ensure_log_dir_and_handler() guarantees non-None when profiling is enabled
+        assert _memprof_logger is not None  # noqa: S101
+        await asyncio.to_thread(_memprof_logger.info, msg)
+    except (OSError, IOError) as exc:
+        logger.warning("Failed to write MEMPROF log to file: %s", exc)
+
+
 def _ensure_log_dir_and_handler() -> None:
     """Create logs directory and set up rotating file handler (called only when profiling is active)."""
     global _memprof_handler, _memprof_logger
@@ -163,8 +173,7 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
         logger.info(log_line)
 
         # Log to file with rotation (offloaded to thread pool to avoid blocking event loop)
-        assert _memprof_logger is not None  # noqa: S101  # Set by _ensure_log_dir_and_handler()
-        asyncio.create_task(asyncio.to_thread(_memprof_logger.info, log_line))
+        asyncio.create_task(_log_to_file(log_line))
 
 
 def log_memory_snapshot(label: str, **extra: Any) -> None:
@@ -194,7 +203,10 @@ def log_memory_snapshot(label: str, **extra: Any) -> None:
     assert _memprof_logger is not None  # noqa: S101  # Set by _ensure_log_dir_and_handler()
     try:
         asyncio.get_running_loop()
-        asyncio.create_task(asyncio.to_thread(_memprof_logger.info, log_line))
+        asyncio.create_task(_log_to_file(log_line))
     except RuntimeError:
         # No running event loop (sync call) - write synchronously
-        _memprof_logger.info(log_line)
+        try:
+            _memprof_logger.info(log_line)
+        except (OSError, IOError) as exc:
+            logger.warning("Failed to write MEMPROF log to file: %s", exc)
