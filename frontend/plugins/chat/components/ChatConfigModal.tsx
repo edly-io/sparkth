@@ -273,8 +273,10 @@ export default function ChatConfigModal({
       await onSave(payload);
       onRefresh();
       onOpenChange(false);
-    } catch {
-      dispatch({ type: "SAVE_ERROR", error: "Failed to save configuration. Please try again." });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to save configuration. Please try again.";
+      dispatch({ type: "SAVE_ERROR", error: message });
     } finally {
       dispatch({ type: "SAVE_END" });
     }
