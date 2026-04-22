@@ -17,6 +17,7 @@ from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
 from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
+from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
@@ -182,51 +183,56 @@ async def _process_single_file(
     try:
         await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
 
-        file_bytes = await _download_file(access_token, drive_file)
+        async with profile_memory("pipeline_total", file=filename):
+            async with profile_memory("download", file=filename):
+                file_bytes = await _download_file(access_token, drive_file)
 
-        content_hash = hashlib.sha256(file_bytes).hexdigest()
-        drive_file.content_hash = content_hash
-        session.add(drive_file)
-        await session.flush()
+            content_hash = hashlib.sha256(file_bytes).hexdigest()
+            drive_file.content_hash = content_hash
+            session.add(drive_file)
+            await session.flush()
 
-        # Duplicate document check
-        duplicate = await _find_duplicate_file(session, user_id, drive_file, content_hash)
-        if duplicate and duplicate.id is not None:
-            await _link_chunks_from_duplicate(session, file_id, duplicate.id)
+            # Duplicate document check
+            duplicate = await _find_duplicate_file(session, user_id, drive_file, content_hash)
+            if duplicate and duplicate.id is not None:
+                await _link_chunks_from_duplicate(session, file_id, duplicate.id)
+                await _set_rag_status(session, drive_file, RagStatus.READY)
+                logger.info(
+                    "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
+                    filename,
+                    content_hash[:12],
+                    duplicate.name,
+                )
+                return
+
+            # Extract → Chunk (CPU-bound, run off the event loop)
+            async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):
+                extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
+            async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
+                chunks = await asyncio.to_thread(chunk_document, extraction_result)
+
+            if not chunks:
+                await _set_rag_status(session, drive_file, RagStatus.READY)
+                return
+
+            # Embed → Store → Link
+            async with profile_memory("embed_and_store", file=filename, chunks=len(chunks)):
+                new_count, reused_count = await _embed_and_store_chunks(
+                    session,
+                    user_id,
+                    file_id,
+                    chunks,
+                    provider,
+                    store,
+                )
+
             await _set_rag_status(session, drive_file, RagStatus.READY)
             logger.info(
-                "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
+                "RAG processing complete for '%s': %d new chunks embedded, %d reused.",
                 filename,
-                content_hash[:12],
-                duplicate.name,
+                new_count,
+                reused_count,
             )
-            return
-
-        # Extract → Chunk (CPU-bound, run off the event loop)
-        extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
-        chunks = await asyncio.to_thread(chunk_document, extraction_result)
-
-        if not chunks:
-            await _set_rag_status(session, drive_file, RagStatus.READY)
-            return
-
-        # Embed → Store → Link
-        new_count, reused_count = await _embed_and_store_chunks(
-            session,
-            user_id,
-            file_id,
-            chunks,
-            provider,
-            store,
-        )
-
-        await _set_rag_status(session, drive_file, RagStatus.READY)
-        logger.info(
-            "RAG processing complete for '%s': %d new chunks embedded, %d reused.",
-            filename,
-            new_count,
-            reused_count,
-        )
 
     except GoogleDriveAPIError as e:
         logger.error("RAG processing failed for '%s': %s", drive_file.name, e)

@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
 from app.rag.embeddings import BaseEmbeddingProvider
+from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk
 
 logger = get_logger(__name__)
@@ -60,7 +61,8 @@ class VectorStoreService:
             return []
 
         texts = [c.content for c in chunks]
-        embeddings = await provider.embed_documents(texts)
+        async with profile_memory("embedding", source=chunks[0].source_name, n_chunks=len(chunks)):
+            embeddings = await provider.embed_documents(texts)
 
         rows: list[DocumentChunk] = []
         for chunk, embedding in zip(chunks, embeddings):
@@ -80,7 +82,8 @@ class VectorStoreService:
             session.add(row)
             rows.append(row)
 
-        await session.flush()
+        async with profile_memory("vectorstore_write", source=chunks[0].source_name, n_rows=len(rows)):
+            await session.flush()
 
         logger.info(
             "Stored %d chunks for user_id=%d, source='%s'",

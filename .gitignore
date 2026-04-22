@@ -230,3 +230,5 @@ node_modules/
 data/
 
 docs/
+logs/
+*.DS_Store
