@@ -22,6 +22,10 @@ logger = get_logger(__name__)
 LOG_FILE_PATH = Path(__file__).parent.parent.parent / "logs" / "ram-logs.txt"
 LOG_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+# Nesting depth counter for tracemalloc start/stop — prevents inner profilers
+# from stopping tracemalloc while an outer profiler is still measuring.
+_tracing_depth: int = 0
+
 
 def clear_ram_logs() -> None:
     """Clear the RAM profiling log file."""
@@ -47,20 +51,29 @@ def _build_log_line(stage: str, extra: dict[str, Any], **fields: Any) -> str:
 
 @asynccontextmanager
 async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]:
-    """Async context manager that profiles memory for a named pipeline stage."""
+    """Async context manager that profiles memory for a named pipeline stage.
+
+    Safe for nested use: uses a reference counter for tracemalloc start/stop
+    and snapshot diffs instead of reset_peak() so inner profilers don't
+    corrupt outer measurements.
+    """
+    global _tracing_depth
+
     if not get_settings().MEMORY_PROFILING_ENABLED:
         yield
         return
 
-    started_tracing = False
     if not tracemalloc.is_tracing():
         tracemalloc.start()
-        started_tracing = True
+    _tracing_depth += 1
 
-    tracemalloc.reset_peak()
+    # Snapshot baseline — diff after yield instead of reset_peak
+    peak_before: int | None = None
+    current_before: int | None = None
+    if tracemalloc.is_tracing():
+        current_before, peak_before = tracemalloc.get_traced_memory()
 
     rss_start: float | None = None
-    rss_end: float | None = None
     try:
         rss_start = psutil.Process().memory_info().rss / (1024 * 1024)
     except psutil.Error:
@@ -73,16 +86,18 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
     finally:
         duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
-        current_kb: float | None = None
-        peak_kb: float | None = None
-        if tracemalloc.is_tracing():
-            current, peak = tracemalloc.get_traced_memory()
-            current_kb = round(current / 1024, 1)
-            peak_kb = round(peak / 1024, 1)
+        peak_delta_kb: float | None = None
+        current_delta_kb: float | None = None
+        if tracemalloc.is_tracing() and peak_before is not None and current_before is not None:
+            current_after, peak_after = tracemalloc.get_traced_memory()
+            peak_delta_kb = round((peak_after - peak_before) / 1024, 1)
+            current_delta_kb = round((current_after - current_before) / 1024, 1)
 
-        if started_tracing and tracemalloc.is_tracing():
+        _tracing_depth -= 1
+        if _tracing_depth == 0 and tracemalloc.is_tracing():
             tracemalloc.stop()
 
+        rss_end: float | None = None
         try:
             rss_end = psutil.Process().memory_info().rss / (1024 * 1024)
         except psutil.Error:
@@ -96,8 +111,8 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
             stage,
             extra,
             duration_ms=duration_ms,
-            py_peak_kb=peak_kb,
-            py_current_kb=current_kb,
+            py_peak_delta_kb=peak_delta_kb,
+            py_current_delta_kb=current_delta_kb,
             rss_start_mb=round(rss_start, 1) if rss_start is not None else None,
             rss_end_mb=round(rss_end, 1) if rss_end is not None else None,
             rss_delta_mb=rss_delta,
