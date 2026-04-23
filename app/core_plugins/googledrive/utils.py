@@ -1,6 +1,7 @@
 """RAG pipeline utilities for Google Drive file processing."""
 
 import asyncio
+import gc
 import hashlib
 import logging
 from pathlib import Path
@@ -15,10 +16,11 @@ from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
-from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
+from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
 from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk, DriveFileChunkLink
+from app.rag.provider import get_provider
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
@@ -187,6 +189,23 @@ async def _process_single_file(
             async with profile_memory("download", file=filename):
                 file_bytes = await _download_file(access_token, drive_file)
 
+            # Reject files that exceed configured size limit
+            max_bytes = get_settings().RAG_MAX_FILE_SIZE_MB * 1024 * 1024
+            if len(file_bytes) > max_bytes:
+                logger.warning(
+                    "Skipping '%s': file size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+                    filename,
+                    len(file_bytes),
+                    get_settings().RAG_MAX_FILE_SIZE_MB,
+                )
+                await _set_rag_status(
+                    session,
+                    drive_file,
+                    RagStatus.FAILED,
+                    error=f"File too large for RAG ingestion (limit: {get_settings().RAG_MAX_FILE_SIZE_MB} MB)",
+                )
+                return
+
             content_hash = hashlib.sha256(file_bytes).hexdigest()
             drive_file.content_hash = content_hash
             session.add(drive_file)
@@ -208,6 +227,13 @@ async def _process_single_file(
             # Extract → Chunk (CPU-bound, run off the event loop)
             async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):
                 extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
+
+            # Release raw PDF bytes immediately — extractor has already copied
+            # what it needs into extraction_result.markdown. Keeping file_bytes alive
+            # through chunking wastes memory equal to the full file size.
+            del file_bytes
+            gc.collect()
+
             async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
                 chunks = await asyncio.to_thread(chunk_document, extraction_result)
 
@@ -289,7 +315,7 @@ async def process_folder_rag(
     if not files:
         return
 
-    provider = get_embedding_provider()
+    provider = get_provider()
     store = VectorStoreService()
     semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 
