@@ -18,9 +18,8 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.cache import get_cache_service
+from app.api.v1.llm import get_llm_service
 from app.core.db import get_async_session
-from app.core.encryption import get_encryption_service
 from app.core.logger import get_logger
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.conversation_title import (
@@ -29,7 +28,7 @@ from app.core_plugins.chat.conversation_title import (
     get_first_user_text,
 )
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
-from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
+from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -38,9 +37,6 @@ from app.core_plugins.chat.schemas import (
     ConversationListResponse,
     ConversationResponse,
     MessageResponse,
-    ProviderAPIKeyCreate,
-    ProviderAPIKeyListResponse,
-    ProviderAPIKeyResponse,
     ProviderCatalogResponse,
     ProviderInfo,
     ToolListResponse,
@@ -49,6 +45,7 @@ from app.core_plugins.chat.schemas import (
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.llm.classifier import ScopeClassifier
+from app.llm.exceptions import LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import (
     DEFAULT_MODEL,
@@ -57,6 +54,7 @@ from app.llm.providers import (
     get_provider,
     get_provider_catalog,
 )
+from app.llm.service import LLMConfigService
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
 from app.rag.context_service import RAGContextService, format_chunks_as_context
@@ -96,11 +94,9 @@ def get_chat_system_config() -> ChatSystemConfig:
     return ChatSystemConfig()
 
 
-def get_chat_service(config: ChatSystemConfig = Depends(get_chat_system_config)) -> ChatService:
-    """Dependency to get chat service with encryption and cache."""
-    encryption = get_encryption_service(config.encryption_key)
-    cache = get_cache_service(config.redis_url, config.redis_key_ttl)
-    return ChatService(encryption, cache)
+def get_chat_service() -> ChatService:
+    """Dependency to get chat service."""
+    return ChatService()
 
 
 def get_rag_context_service() -> RAGContextService:
@@ -123,131 +119,6 @@ async def list_providers(
         default_provider=DEFAULT_PROVIDER,
         default_model=DEFAULT_MODEL,
     )
-
-
-@chat_router.post("/keys", response_model=ProviderAPIKeyResponse, status_code=status.HTTP_201_CREATED)
-async def create_api_key(
-    key_data: ProviderAPIKeyCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> ProviderAPIKeyResponse:
-    try:
-        db_key = await service.create_api_key(
-            session=session,
-            user_id=current_user.id,  # type: ignore
-            provider=key_data.provider,
-            api_key=key_data.api_key,
-        )
-
-        return ProviderAPIKeyResponse(
-            id=db_key.id,  # type: ignore
-            provider=db_key.provider,
-            is_active=db_key.is_active,
-            created_at=db_key.created_at,
-            last_used_at=db_key.last_used_at,
-        )
-    except (SQLAlchemyError, ValueError) as e:
-        logger.error(f"Failed to create API key: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create API key",
-        )
-
-
-@chat_router.get("/keys", response_model=ProviderAPIKeyListResponse)
-async def list_api_keys(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> ProviderAPIKeyListResponse:
-    keys = await service.list_api_keys(session, current_user.id)  # type: ignore
-
-    return ProviderAPIKeyListResponse(
-        keys=[
-            ProviderAPIKeyResponse(
-                id=key.id,  # type: ignore
-                provider=key.provider,
-                is_active=key.is_active,
-                created_at=key.created_at,
-                last_used_at=key.last_used_at,
-            )
-            for key in keys
-        ],
-        total=len(keys),
-    )
-
-
-@chat_router.put("/keys/{key_id}", response_model=ProviderAPIKeyResponse)
-async def update_api_key(
-    key_id: int,
-    key_update: ProviderAPIKeyCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> Any:
-    """Update an existing API key."""
-    result = await session.exec(
-        select(ProviderAPIKey)
-        .where(ProviderAPIKey.id == key_id)
-        .where(ProviderAPIKey.user_id == current_user.id)
-        .where(ProviderAPIKey.deleted_at == None)
-    )
-    key = result.first()
-
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found",
-        )
-
-    if key.provider != key_update.provider:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot change provider for existing key. Delete and create a new one instead.",
-        )
-
-    encrypted_key = service.encryption.encrypt(key_update.api_key)
-    key.encrypted_key = encrypted_key
-    key.masked_key = ChatService.mask_api_key(key_update.api_key)
-    key.update_timestamp()
-
-    session.add(key)
-    await session.commit()
-    await session.refresh(key)
-
-    cache_key = service.cache.make_key("api_key", str(current_user.id), key.provider)
-    await service.cache.set(cache_key, encrypted_key)
-
-    logger.info(f"Updated API key {key_id} for user {current_user.id}")
-
-    return ProviderAPIKeyResponse(
-        id=key.id,  # type: ignore
-        provider=key.provider,
-        is_active=key.is_active,
-        created_at=key.created_at,
-        last_used_at=key.last_used_at,
-    )
-
-
-@chat_router.delete("/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_api_key(
-    key_id: int,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> None:
-    deleted = await service.delete_api_key(
-        session=session,
-        user_id=current_user.id,  # type: ignore
-        key_id=key_id,
-    )
-
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found",
-        )
 
 
 def _strip_md(text: str) -> str:
@@ -379,20 +250,23 @@ async def chat_completion(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
+    llm_service: LLMConfigService = Depends(get_llm_service),
     config: ChatSystemConfig = Depends(get_chat_system_config),
     rag_service: RAGContextService = Depends(get_rag_context_service),
 ) -> Any:
-    api_key = await service.get_api_key(
-        session=session,
-        user_id=current_user.id,  # type: ignore
-        provider=request.provider,
-    )
-
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No API key found for provider: {request.provider}",
+    try:
+        llm_config, api_key = await llm_service.resolve(
+            session=session,
+            user_id=current_user.id,  # type: ignore[arg-type]
+            config_id=request.llm_config_id,
         )
+    except LLMConfigNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except LLMConfigModelNotSetError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+
+    provider_name = llm_config.provider
+    model = request.model_override or llm_config.model
 
     conversation_uuid = request.conversation_id
     active_drive_file_id = _extract_drive_file_id_from_messages(request.messages)
@@ -416,21 +290,12 @@ async def chat_completion(
                 drive_file_id=active_drive_file_id,
             )
     else:
-        stmt = select(ProviderAPIKey).where(
-            ProviderAPIKey.user_id == current_user.id,
-            ProviderAPIKey.provider == request.provider,
-            ProviderAPIKey.is_active == True,  # noqa: E712
-            ProviderAPIKey.deleted_at == None,
-        )
-        result = await session.exec(stmt)
-        api_key_record = result.first()
-
         conversation = await service.create_conversation(
             session=session,
             user_id=current_user.id,  # type: ignore
-            api_key_id=api_key_record.id if api_key_record else None,  # type: ignore
-            provider=request.provider,
-            model=request.model,
+            llm_config_id=request.llm_config_id,
+            provider=provider_name,
+            model=model,
             title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
             active_drive_file_id=active_drive_file_id,
         )
@@ -489,7 +354,7 @@ async def chat_completion(
                     _in_scope = False
                 else:
                     # Tier 2: LLM classifier for nuanced cases keywords can't handle
-                    classifier = ScopeClassifier(provider_name=request.provider, api_key=api_key)
+                    classifier = ScopeClassifier(provider_name=llm_config.provider, api_key=api_key)
                     _in_scope = await classifier.classify(query_text)
             if not _in_scope:
                 await service.add_message(
@@ -507,14 +372,14 @@ async def chat_completion(
                 return ChatCompletionResponse(
                     message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
                     conversation_id=conversation.uuid,
-                    model=request.model,
-                    provider=request.provider,
+                    model=llm_config.model,
+                    provider=llm_config.provider,
                 )
 
         provider = get_provider(
-            provider_name=request.provider,
+            provider_name=provider_name,
             api_key=api_key,
-            model=request.model,
+            model=model,
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )
@@ -551,11 +416,11 @@ async def chat_completion(
             tools = None
         elif request.tools == "*" or request.tools == "all":
             tools = await tool_registry.get_all_tools()
-            logger.info(f"Auto-including all {len(tools)} available tools (default)")
+            logger.info("Auto-including all %d available tools (default)", len(tools))
         elif request.tools and isinstance(request.tools, list):
             tools = await tool_registry.get_tools_by_names(request.tools)
             if not tools:
-                logger.warning(f"No tools found for: {request.tools}")
+                logger.warning("No tools found for: %s", request.tools)
 
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
@@ -619,8 +484,8 @@ async def chat_completion(
                     content=response["content"],
                 ),
                 conversation_id=conversation.uuid,
-                model=request.model,
-                provider=request.provider,
+                model=model,
+                provider=provider_name,
                 tokens_used=tokens_used,
                 tool_calls=tool_calls,
                 metadata=response.get("metadata", {}),
@@ -633,7 +498,7 @@ async def chat_completion(
             detail=_streaming_error_message(e),
         )
     except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
-        logger.error(f"Chat completion failed: {e}")
+        logger.error("Chat completion failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Chat completion failed",
@@ -806,7 +671,7 @@ async def stream_chat_response(
 
     except _PROVIDER_API_ERRORS as e:
         user_message = _streaming_error_message(e)
-        logger.error(f"Streaming failed: {e}")
+        logger.error("Streaming failed: %s", e)
         try:
             await service.add_message(
                 session=session,
@@ -820,7 +685,7 @@ async def stream_chat_response(
         error_data = json.dumps({"error": user_message, "done": True})
         yield f"data: {error_data}\n\n"
     except (OSError, LangChainException, SQLAlchemyError) as e:
-        logger.exception(f"Unexpected streaming error: {e}")
+        logger.exception("Unexpected streaming error: %s", e)
         user_message = "An error occurred while generating a response. Please try again."
         try:
             await service.add_message(

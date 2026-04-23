@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     SLACK_SIGNING_SECRET: str
     SLACK_REDIRECT_URI: str
 
+    # Encryption & cache (shared across plugins)
+    LLM_ENCRYPTION_KEY: str
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_KEY_TTL: int = 3600
+
     RAG_CONCURRENCY: int = 3  # max number of files to process in parallel for RAG
     MEMORY_PROFILING_ENABLED: bool = False
 

@@ -8,6 +8,28 @@ from app.llm.service import LLMConfigService
 from app.models.llm import LLMConfig
 
 
+class TestMaskKey:
+    def test_empty_string_returns_stars(self) -> None:
+        assert LLMConfigService.mask_key("") == "****"
+
+    def test_short_key_up_to_four_chars_returns_stars(self) -> None:
+        assert LLMConfigService.mask_key("abc") == "****"
+        assert LLMConfigService.mask_key("abcd") == "****"
+
+    def test_key_without_dash_uses_no_prefix(self) -> None:
+        assert LLMConfigService.mask_key("abcde12345") == "****2345"
+
+    def test_key_with_one_dash_uses_first_segment_as_prefix(self) -> None:
+        assert LLMConfigService.mask_key("sk-abcde12345") == "sk-****2345"
+
+    def test_key_with_multiple_dashes_uses_only_first_segment_as_prefix(self) -> None:
+        # "sk-ant-api03-abcde12345" → prefix is "sk", suffix is last 4 chars
+        assert LLMConfigService.mask_key("sk-ant-api03-abcde12345") == "sk-****2345"
+
+    def test_exactly_five_chars_no_dash_shows_suffix(self) -> None:
+        assert LLMConfigService.mask_key("abcde") == "****bcde"
+
+
 def _make_service() -> tuple[LLMConfigService, MagicMock, MagicMock]:
     enc = MagicMock()
     enc.encrypt.return_value = "enc-secret"
@@ -28,6 +50,7 @@ def _make_session(result: LLMConfig | None = None) -> AsyncMock:
     mock_result.one_or_none.return_value = result
     mock_result.all.return_value = [result] if result else []
     session.exec.return_value = mock_result
+    session.add = MagicMock()
     return session
 
 
@@ -37,6 +60,7 @@ async def test_create_stores_encrypted_key() -> None:
     session = AsyncMock()
     session.flush = AsyncMock()
     session.refresh = AsyncMock()
+    session.add = MagicMock()
 
     await service.create(
         session=session,
@@ -62,6 +86,7 @@ async def test_create_duplicate_name_raises() -> None:
     service, _, _ = _make_service()
     session = AsyncMock()
     session.flush = AsyncMock(side_effect=IntegrityError("", {}, Exception()))
+    session.add = MagicMock()
 
     with pytest.raises(ValueError, match="name.*already exists"):
         await service.create(
@@ -95,24 +120,29 @@ async def test_resolve_returns_decrypted_key_and_updates_last_used() -> None:
     )
     session = _make_session(config)
 
-    result = await service.resolve(session=session, user_id=1, config_id=5)
+    returned_config, api_key = await service.resolve(session=session, user_id=1, config_id=5)
 
-    assert result == "sk-plaintext"
+    assert api_key == "sk-plaintext"
+    assert returned_config is config
     enc.decrypt.assert_called_once_with("enc-abc")
     cache.set.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_resolve_cache_hit_skips_db() -> None:
+async def test_resolve_cache_hit_skips_encryption_of_stored_key() -> None:
     service, enc, cache = _make_service()
     cache.get = AsyncMock(return_value="enc-cached")
-    session = AsyncMock()
+    config = LLMConfig(
+        id=5, user_id=1, name="K", provider="openai", model="gpt-4o", encrypted_key="enc-abc", masked_key="sk-...abcd"
+    )
+    session = _make_session(config)
 
-    result = await service.resolve(session=session, user_id=1, config_id=5)
+    returned_config, api_key = await service.resolve(session=session, user_id=1, config_id=5)
 
-    assert result == "sk-plaintext"
+    assert api_key == "sk-plaintext"
+    assert returned_config is config
     enc.decrypt.assert_called_once_with("enc-cached")
-    session.exec.assert_not_awaited()
+    cache.set.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -190,6 +220,19 @@ async def test_update_name_only_leaves_model_unchanged() -> None:
 
 
 @pytest.mark.asyncio
+async def test_update_invalid_model_raises_validation_error() -> None:
+    from app.llm.exceptions import LLMConfigValidationError
+
+    service, _, _ = _make_service()
+    config = LLMConfig(
+        id=5, user_id=1, name="Old", provider="openai", model="gpt-4o", encrypted_key="enc", masked_key="sk-...abcd"
+    )
+    session = _make_session(config)
+    with pytest.raises(LLMConfigValidationError, match="not available for provider 'openai'"):
+        await service.update(session=session, user_id=1, config_id=5, model="claude-sonnet-4-20250514")
+
+
+@pytest.mark.asyncio
 async def test_update_not_found_raises() -> None:
     service, _, _ = _make_service()
     session = _make_session(None)
@@ -248,3 +291,54 @@ async def test_rotate_key_not_found_raises() -> None:
 
     with pytest.raises(ValueError, match="LLMConfig 99 not found"):
         await service.rotate_key(session=session, user_id=1, config_id=99, api_key="sk-new")
+
+
+@pytest.mark.asyncio
+async def test_set_active_deactivates_config() -> None:
+    service, _, _ = _make_service()
+    config = LLMConfig(
+        id=5,
+        user_id=1,
+        name="K",
+        provider="openai",
+        model="gpt-4o",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+        is_active=True,
+    )
+    session = _make_session(config)
+
+    result = await service.set_active(session=session, user_id=1, config_id=5, is_active=False)
+
+    assert result.is_active is False
+    session.add.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_set_active_activates_config() -> None:
+    service, _, _ = _make_service()
+    config = LLMConfig(
+        id=5,
+        user_id=1,
+        name="K",
+        provider="openai",
+        model="gpt-4o",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+        is_active=False,
+    )
+    # set_active bypasses the is_active filter — fetch directly
+    session = _make_session(config)
+
+    result = await service.set_active(session=session, user_id=1, config_id=5, is_active=True)
+
+    assert result.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_set_active_not_found_raises() -> None:
+    service, _, _ = _make_service()
+    session = _make_session(None)
+
+    with pytest.raises(ValueError, match="LLMConfig 99 not found"):
+        await service.set_active(session=session, user_id=1, config_id=99, is_active=False)

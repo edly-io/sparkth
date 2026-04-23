@@ -77,7 +77,7 @@ Copy `.env.example` → `.env`. Required variables:
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SECRET_KEY` | JWT signing key |
-| `CHAT_ENCRYPTION_KEY` | Fernet key for conversation encryption |
+| `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
 | `CHAT_REDIS_URL` | Redis for chat session caching |
 | `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
 

@@ -68,3 +68,4 @@ jobs:
           SLACK_CLIENT_SECRET: fake-client-secret
           SLACK_SIGNING_SECRET: fake-signing-secret
           SLACK_REDIRECT_URI: http://localhost/callback
+          LLM_ENCRYPTION_KEY: fake-encryption-key-for-ci
