@@ -206,6 +206,7 @@ async def _process_single_file(
                 )
                 return
 
+
             content_hash = hashlib.sha256(file_bytes).hexdigest()
             drive_file.content_hash = content_hash
             session.add(drive_file)
@@ -233,6 +234,7 @@ async def _process_single_file(
             # through chunking wastes memory equal to the full file size.
             del file_bytes
             gc.collect()
+
 
             async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
                 chunks = await asyncio.to_thread(chunk_document, extraction_result)
