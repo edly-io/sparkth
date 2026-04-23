@@ -7,9 +7,9 @@ import pytest
 
 def _reset() -> None:
     """Helper: reset singleton between tests."""
-    import app.rag.provider as p
+    from app.rag.provider import reset_provider
 
-    p._provider = None
+    reset_provider()
 
 
 def test_get_provider_before_init_raises() -> None:

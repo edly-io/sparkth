@@ -1,5 +1,6 @@
 """Tests for batched chunk storage in VectorStoreService."""
 
+from typing import List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -21,12 +22,14 @@ async def test_store_chunks_splits_into_batches(session: AsyncSession) -> None:
 
     # Each embed call returns a list of [0.1, 0.2, ...] vectors (384 dims)
     fake_embedding = [0.1] * 384
-    fake_batch_result = AsyncMock(return_value=[fake_embedding] * 10)
+
+    async def dynamic_embedding_side_effect(texts: List[str]) -> List[List[float]]:
+        return [fake_embedding] * len(texts)
 
     mock_provider = MagicMock()
     mock_provider.model_name = "test-model"
     mock_provider.provider_name = "test"
-    mock_provider.embed_documents = fake_batch_result
+    mock_provider.embed_documents = AsyncMock(side_effect=dynamic_embedding_side_effect)
 
     with patch("app.rag.store.get_settings") as mock_settings:
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10

@@ -22,9 +22,13 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
         mime_type="application/pdf",
         folder_id=1,
         rag_status=RagStatus.QUEUED,
+        size=100 * 1024 * 1024,  # 100MB
     )
     session.add(drive_file)
     await session.flush()
+
+    # ADD THIS LINE:
+    await session.refresh(drive_file)
 
     # 51 MB of bytes — exceeds default limit of 50 MB
     big_bytes = b"x" * (51 * 1024 * 1024)
@@ -47,6 +51,43 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
     assert "too large" in (drive_file.rag_error or "").lower()
     # Extraction must NOT have been called
     mock_extract.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_pre_download_size_guard_skips_download(session: AsyncSession) -> None:
+    """When DriveFile.size exceeds the limit, file is rejected without downloading."""
+    from app.models.drive import DriveFile
+
+    drive_file = DriveFile(
+        id=3,
+        user_id=1,
+        name="massive.pdf",
+        drive_file_id="drive-id-789",
+        mime_type="application/pdf",
+        folder_id=1,
+        rag_status=RagStatus.QUEUED,
+        size=500 * 1024 * 1024,  # 500 MB — far exceeds 50 MB limit
+    )
+    session.add(drive_file)
+    await session.flush()
+
+    mock_provider = MagicMock()
+    mock_store = MagicMock()
+
+    with (
+        patch("app.core_plugins.googledrive.utils._download_file") as mock_download,
+        patch("app.core_plugins.googledrive.utils.get_settings") as mock_settings,
+    ):
+        mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=mock_provider, store=mock_store
+        )
+
+    await session.refresh(drive_file)
+    assert drive_file.rag_status == RagStatus.FAILED
+    assert "too large" in (drive_file.rag_error or "").lower()
+    # _download_file must NOT have been called — file was rejected from metadata alone
+    mock_download.assert_not_called()
 
 
 @pytest.mark.asyncio

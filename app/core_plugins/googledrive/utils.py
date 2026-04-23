@@ -1,7 +1,6 @@
 """RAG pipeline utilities for Google Drive file processing."""
 
 import asyncio
-import gc
 import hashlib
 import logging
 from pathlib import Path
@@ -170,6 +169,7 @@ async def _process_single_file(
 ) -> None:
     """Run the full RAG pipeline for a single Drive file."""
     filename = _resolve_filename(drive_file)
+    log_name = drive_file.name or filename
 
     if not _is_supported_for_rag(filename):
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
@@ -177,32 +177,52 @@ async def _process_single_file(
         return
 
     if drive_file.id is None:
-        logger.error("Cannot process file '%s' without a database ID.", drive_file.name)
+        logger.error("Cannot process file '%s' without a database ID.", log_name)
         return
 
     file_id: int = drive_file.id
 
     try:
         await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
+        # This brings .size and other attributes back into memory after the status update.
+        await session.refresh(drive_file)
+
+        settings = get_settings()
+        max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
+
+        # Early size check using Drive API metadata — skip download entirely for oversized files
+        if drive_file.size is not None and drive_file.size > max_bytes:
+            logger.warning(
+                "Skipping '%s': Drive-reported size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+                filename,
+                drive_file.size,
+                settings.RAG_MAX_FILE_SIZE_MB,
+            )
+            await _set_rag_status(
+                session,
+                drive_file,
+                RagStatus.FAILED,
+                error=f"File too large for RAG ingestion (limit: {settings.RAG_MAX_FILE_SIZE_MB} MB)",
+            )
+            return
 
         async with profile_memory("pipeline_total", file=filename):
             async with profile_memory("download", file=filename):
                 file_bytes = await _download_file(access_token, drive_file)
 
-            # Reject files that exceed configured size limit
-            max_bytes = get_settings().RAG_MAX_FILE_SIZE_MB * 1024 * 1024
+            # Post-download fallback for files without Drive-reported size
             if len(file_bytes) > max_bytes:
                 logger.warning(
                     "Skipping '%s': file size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
                     filename,
                     len(file_bytes),
-                    get_settings().RAG_MAX_FILE_SIZE_MB,
+                    settings.RAG_MAX_FILE_SIZE_MB,
                 )
                 await _set_rag_status(
                     session,
                     drive_file,
                     RagStatus.FAILED,
-                    error=f"File too large for RAG ingestion (limit: {get_settings().RAG_MAX_FILE_SIZE_MB} MB)",
+                    error=f"File too large for RAG ingestion (limit: {settings.RAG_MAX_FILE_SIZE_MB} MB)",
                 )
                 return
 
@@ -232,7 +252,6 @@ async def _process_single_file(
             # what it needs into extraction_result.markdown. Keeping file_bytes alive
             # through chunking wastes memory equal to the full file size.
             del file_bytes
-            gc.collect()
 
             async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
                 chunks = await asyncio.to_thread(chunk_document, extraction_result)
@@ -261,32 +280,32 @@ async def _process_single_file(
             )
 
     except GoogleDriveAPIError as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Google Drive error")
     except (httpx.ConnectError, httpx.TimeoutException) as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Could not reach Google Drive")
     except httpx.HTTPStatusError as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(
             session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
         )
     except (RuntimeError, ValueError, OSError) as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
     except IntegrityError:
-        logger.error("RAG processing failed for '%s': database integrity error", drive_file.name)
+        logger.error("RAG processing failed for '%s': database integrity error", log_name)
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
     except SQLAlchemyError as e:
-        logger.error("Database error during RAG processing for '%s': %s", drive_file.name, e)
+        logger.error("Database error during RAG processing for '%s': %s", log_name, e)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
         except SQLAlchemyError as status_err:
             logger.error(
                 "Failed to set RAG status to FAILED for '%s': %s",
-                drive_file.name,
+                log_name,
                 status_err,
             )
 
