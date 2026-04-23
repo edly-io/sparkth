@@ -1,10 +1,12 @@
 """Tests for per-file size guard in RAG pipeline."""
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
-from app.rag.types import RagStatus
-from app.core_plugins.googledrive.utils import _process_single_file
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core_plugins.googledrive.utils import _process_single_file
+from app.rag.types import RagStatus
 
 
 @pytest.mark.asyncio
@@ -36,8 +38,9 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
         patch("app.core_plugins.googledrive.utils.extract_to_markdown") as mock_extract,
     ):
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
-        await _process_single_file(drive_file, user_id=1, access_token="tok",
-                                   session=session, provider=mock_provider, store=mock_store)
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=mock_provider, store=mock_store
+        )
 
     await session.refresh(drive_file)
     assert drive_file.rag_status == RagStatus.FAILED
@@ -77,8 +80,9 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
         mock_settings.return_value.RAG_CONCURRENCY = 1
         # RuntimeError is caught by _process_single_file's except clause
-        await _process_single_file(drive_file, user_id=1, access_token="tok",
-                                   session=session, provider=mock_provider, store=mock_store)
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=mock_provider, store=mock_store
+        )
 
     # The file should NOT be QUEUED (guard did not fire); it reached extraction and then FAILED
     await session.refresh(drive_file)

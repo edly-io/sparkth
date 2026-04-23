@@ -374,7 +374,11 @@ class TestConversationUUIDRoutes:
         assert UUID(body["conversation_id"]) == conv_uuid
 
     async def test_completions_with_nonexistent_uuid_returns_404(
-        self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession", mock_rag_provider: MagicMock
+        self,
+        client: "httpx.AsyncClient",
+        current_user: MagicMock,
+        session: "AsyncSession",
+        mock_rag_provider: MagicMock,
     ) -> None:
         with patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key:
             mock_get_key.return_value = "sk-fake-key"

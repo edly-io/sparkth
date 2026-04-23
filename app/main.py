@@ -107,6 +107,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             # Load embedding model before server starts accepting requests.
             # asyncio.to_thread keeps the event loop unblocked during model loading.
             from app.rag.provider import init_provider
+
             await asyncio.to_thread(init_provider)
 
             # Mount frontend static files AFTER plugin routes are registered,

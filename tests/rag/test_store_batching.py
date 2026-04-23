@@ -1,17 +1,16 @@
 """Tests for batched chunk storage in VectorStoreService."""
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock, call
 
-from app.rag.store import VectorStoreService, ChunkInput
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.rag.store import ChunkInput, VectorStoreService
 
 
 def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
     """Helper to create test chunks."""
-    return [
-        ChunkInput(content=f"chunk {i}", source_name=source, chunk_content_hash=f"hash{i}")
-        for i in range(n)
-    ]
+    return [ChunkInput(content=f"chunk {i}", source_name=source, chunk_content_hash=f"hash{i}") for i in range(n)]
 
 
 @pytest.mark.asyncio
@@ -38,7 +37,7 @@ async def test_store_chunks_splits_into_batches(session: AsyncSession) -> None:
     call_args_list = mock_provider.embed_documents.call_args_list
     assert len(call_args_list[0][0][0]) == 10  # first batch: 10 texts
     assert len(call_args_list[1][0][0]) == 10  # second batch: 10 texts
-    assert len(call_args_list[2][0][0]) == 5   # third batch: 5 texts (remainder)
+    assert len(call_args_list[2][0][0]) == 5  # third batch: 5 texts (remainder)
     assert len(rows) == 25
 
 

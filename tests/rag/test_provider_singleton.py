@@ -36,7 +36,7 @@ def test_init_provider_warms_model() -> None:
 def test_get_provider_returns_same_instance() -> None:
     """Multiple calls to get_provider() return exact same object."""
     _reset()
-    from app.rag.provider import init_provider, get_provider
+    from app.rag.provider import get_provider, init_provider
 
     mock_provider = MagicMock()
     with patch("app.rag.provider._build_provider", return_value=mock_provider):
@@ -65,7 +65,7 @@ def test_init_provider_reads_settings() -> None:
 def test_reset_provider_clears_singleton() -> None:
     """reset_provider() sets singleton back to None (for use in tests)."""
     _reset()
-    from app.rag.provider import init_provider, get_provider, reset_provider
+    from app.rag.provider import get_provider, init_provider, reset_provider
 
     mock_provider = MagicMock()
     with patch("app.rag.provider._build_provider", return_value=mock_provider):

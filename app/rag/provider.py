@@ -7,8 +7,8 @@ All other code calls get_provider() to obtain warmed instance.
 from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.rag.embeddings import (
-    BaseEmbeddingProvider,
     DEFAULT_EMBEDDING_DIMENSIONS,
+    BaseEmbeddingProvider,
     get_embedding_provider,
 )
 from app.rag.memory_profiler import log_memory_snapshot
