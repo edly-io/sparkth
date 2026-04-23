@@ -75,7 +75,7 @@ class VectorStoreService:
                 embeddings = await provider.embed_documents(texts)
 
             batch_rows: list[DocumentChunk] = []
-            for chunk, embedding in zip(batch, embeddings):
+            for chunk, embedding in zip(batch, embeddings, strict=True):
                 row = DocumentChunk(
                     user_id=user_id,
                     source_name=chunk.source_name,

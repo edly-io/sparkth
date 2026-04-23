@@ -1,7 +1,7 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 import hashlib
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -663,7 +663,8 @@ class TestProcessSingleFile:
         )
 
         session.rollback.assert_awaited_once()
-        session.refresh.assert_awaited_once_with(drive_file)
+        # session.refresh.assert_awaited_once_with(drive_file)
+        session.refresh.assert_has_awaits([call(drive_file), call(drive_file)])
         assert drive_file.rag_status == RagStatus.FAILED
 
     @patch("app.core_plugins.googledrive.utils._download_file")

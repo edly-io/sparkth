@@ -1,6 +1,5 @@
 """Tests for batched chunk storage in VectorStoreService."""
 
-from typing import List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,7 +22,7 @@ async def test_store_chunks_splits_into_batches(session: AsyncSession) -> None:
     # Each embed call returns a list of [0.1, 0.2, ...] vectors (384 dims)
     fake_embedding = [0.1] * 384
 
-    async def dynamic_embedding_side_effect(texts: List[str]) -> List[List[float]]:
+    async def dynamic_embedding_side_effect(texts: list[str]) -> list[list[float]]:
         return [fake_embedding] * len(texts)
 
     mock_provider = MagicMock()

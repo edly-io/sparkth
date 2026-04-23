@@ -26,8 +26,6 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
     )
     session.add(drive_file)
     await session.flush()
-
-    # ADD THIS LINE:
     await session.refresh(drive_file)
 
     # 51 MB of bytes — exceeds default limit of 50 MB
