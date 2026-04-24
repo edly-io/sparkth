@@ -50,14 +50,14 @@ class VectorStoreService:
         user_id: int,
         chunks: list[ChunkInput],
         provider: BaseEmbeddingProvider,
-    ) -> list[DocumentChunk]:
+    ) -> list[int]:
         """Embed and persist chunks in configurable sub-batches.
 
-        Processes RAG_STORE_BATCH_SIZE chunks per iteration so that embedding
-        tensors and ORM row objects are released after each flush rather than
-        accumulating for the entire document.
+        Processes RAG_STORE_BATCH_SIZE chunks per iteration, expunging batch
+        objects from session identity map after each flush to prevent
+        accumulating ORM objects in memory.
 
-        Returns: created DocumentChunk rows (with IDs populated).
+        Returns: list of created DocumentChunk IDs.
         Note: flushes after each batch but does not commit. The caller commits.
         """
         if not chunks:
@@ -65,7 +65,7 @@ class VectorStoreService:
 
         batch_size = get_settings().RAG_STORE_BATCH_SIZE
         source = chunks[0].source_name
-        all_rows: list[DocumentChunk] = []
+        all_ids: list[int] = []
 
         for batch_start in range(0, len(chunks), batch_size):
             batch = chunks[batch_start : batch_start + batch_size]
@@ -95,15 +95,18 @@ class VectorStoreService:
             async with profile_memory("vectorstore_write", source=source, n_rows=len(batch_rows)):
                 await session.flush()
 
-            all_rows.extend(batch_rows)
+            batch_ids = [row.id for row in batch_rows if row.id is not None]
+            session.expunge_all()
+            del batch_rows
+            all_ids.extend(batch_ids)
 
         logger.info(
             "Stored %d chunks for user_id=%d, source='%s'",
-            len(all_rows),
+            len(all_ids),
             user_id,
             source,
         )
-        return all_rows
+        return all_ids
 
     async def similarity_search(
         self,

@@ -5,7 +5,7 @@ SQLite, these tests mock the database layer and verify service logic:
 batching, metadata mapping, and method contracts.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -67,11 +67,27 @@ class TestVectorStoreService:
         ]
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.expunge_all = AsyncMock()
 
-        result = await service.store_chunks(mock_session, user_id=1, chunks=chunks, provider=mock_embedding_provider)
+        # Patch DocumentChunk to have assignable id attribute
+        with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
+            # Configure mock chunk instances to have id attributes
+            mock_chunk1 = MagicMock()
+            mock_chunk1.id = 1
+            mock_chunk2 = MagicMock()
+            mock_chunk2.id = 2
+            mock_chunk_class.side_effect = [mock_chunk1, mock_chunk2]
+
+            result = await service.store_chunks(
+                mock_session, user_id=1, chunks=chunks, provider=mock_embedding_provider
+            )
 
         mock_embedding_provider.embed_documents.assert_awaited_once_with(["chunk 1", "chunk 2"])  # type: ignore[attr-defined]
         assert len(result) == 2
+        assert isinstance(result[0], int)
+        assert isinstance(result[1], int)
+        assert result == [1, 2]
         # Verify session.add was called for each row
         assert mock_session.add.call_count == 2
         mock_session.flush.assert_awaited_once()
@@ -93,19 +109,47 @@ class TestVectorStoreService:
         ]
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.expunge_all = AsyncMock()
 
-        result = await service.store_chunks(mock_session, user_id=42, chunks=chunks, provider=mock_embedding_provider)
+        # Patch DocumentChunk to have assignable id attribute
+        with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
+            # Configure mock chunk instances to have id and other attributes
+            mock_chunk = MagicMock()
+            mock_chunk.id = 123
+            mock_chunk.user_id = 42
+            mock_chunk.source_name = "lecture.pdf"
+            mock_chunk.content = "test content"
+            mock_chunk.chapter = "Chapter 1"
+            mock_chunk.section = "Section 1.1"
+            mock_chunk.subsection = "1.1.1"
+            mock_chunk.token_count = 100
+            mock_chunk.embedding_model = "mock-model"
+            mock_chunk.embedding_provider = "mock"
+            mock_chunk.embedding = make_deterministic_embedding(0.1)
+            mock_chunk_class.return_value = mock_chunk
 
-        row = result[0]
-        assert row.user_id == 42
-        assert row.source_name == "lecture.pdf"
-        assert row.content == "test content"
-        assert row.chapter == "Chapter 1"
-        assert row.section == "Section 1.1"
-        assert row.subsection == "1.1.1"
-        assert row.token_count == 100
-        assert row.embedding_model == "mock-model"
-        assert row.embedding_provider == "mock"
+            result = await service.store_chunks(
+                mock_session, user_id=42, chunks=chunks, provider=mock_embedding_provider
+            )
+
+        # Result is now list[int], verify metadata via mock_session.add call
+        assert len(result) == 1
+        assert isinstance(result[0], int)
+        assert result[0] == 123
+
+        # Inspect DocumentChunk passed to session.add()
+        call_args = mock_session.add.call_args_list[0][0][0]
+        assert call_args.user_id == 42
+        assert call_args.source_name == "lecture.pdf"
+        assert call_args.content == "test content"
+        assert call_args.chapter == "Chapter 1"
+        assert call_args.section == "Section 1.1"
+        assert call_args.subsection == "1.1.1"
+        assert call_args.token_count == 100
+        assert call_args.embedding_model == "mock-model"
+        assert call_args.embedding_provider == "mock"
+        mock_session.flush.assert_awaited_once()
 
     async def test_store_chunks_embedding_assigned(
         self,
@@ -115,11 +159,35 @@ class TestVectorStoreService:
         chunks = [ChunkInput(content="test", source_name="doc.pdf")]
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.expunge_all = AsyncMock()
 
-        result = await service.store_chunks(mock_session, user_id=1, chunks=chunks, provider=mock_embedding_provider)
+        # Patch DocumentChunk to have assignable id attribute
+        with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
+            # Configure mock chunk instances to have id and other attributes
+            mock_chunk = MagicMock()
+            mock_chunk.id = 456
+            mock_chunk.user_id = 1
+            mock_chunk.source_name = "doc.pdf"
+            mock_chunk.content = "test"
+            mock_chunk.embedding = make_deterministic_embedding(0.1)
+            mock_chunk.embedding_model = "mock-model"
+            mock_chunk.embedding_provider = "mock"
+            mock_chunk_class.return_value = mock_chunk
 
-        # The mock returns [0.1] * EMBEDDING_DIMS for the first chunk
-        assert result[0].embedding == make_deterministic_embedding(0.1)
+            result = await service.store_chunks(
+                mock_session, user_id=1, chunks=chunks, provider=mock_embedding_provider
+            )
+
+        # Result is list[int], verify embedding via mock
+        assert len(result) == 1
+        assert isinstance(result[0], int)
+        assert result[0] == 456
+
+        # Inspect embedding via mock_session.add call
+        call_args = mock_session.add.call_args_list[0][0][0]
+        assert call_args.embedding == make_deterministic_embedding(0.1)
+        mock_session.flush.assert_awaited_once()
 
     async def test_delete_by_source(self, service: VectorStoreService) -> None:
         mock_session = AsyncMock()

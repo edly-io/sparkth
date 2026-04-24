@@ -1,8 +1,11 @@
 """RAG pipeline utilities for Google Drive file processing."""
 
 import asyncio
+import ctypes
+import gc
 import hashlib
 import logging
+import sys
 from pathlib import Path
 
 import httpx
@@ -150,10 +153,15 @@ async def _embed_and_store_chunks(
             )
 
     # Embed and store only new chunks
-    new_rows = await store.store_chunks(session, user_id, new_chunk_inputs, provider)
+    new_ids = await store.store_chunks(
+        session,
+        user_id,
+        new_chunk_inputs,
+        provider,
+    )
 
     # Create bridge-table links, skipping any that already exist
-    all_chunk_ids: set[int] = {row.id for row in new_rows if row.id is not None} | set(reused_chunk_ids)
+    all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
     await _create_missing_links(session, drive_file_id, all_chunk_ids)
 
     return len(new_chunk_inputs), len(reused_chunk_ids)
@@ -256,6 +264,8 @@ async def _process_single_file(
             async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
                 chunks = await asyncio.to_thread(chunk_document, extraction_result)
 
+            del extraction_result
+
             if not chunks:
                 await _set_rag_status(session, drive_file, RagStatus.READY)
                 return
@@ -270,6 +280,8 @@ async def _process_single_file(
                     provider,
                     store,
                 )
+
+            del chunks
 
             await _set_rag_status(session, drive_file, RagStatus.READY)
             logger.info(
@@ -308,6 +320,9 @@ async def _process_single_file(
                 log_name,
                 status_err,
             )
+    finally:
+        session.expunge_all()
+        gc.collect()
 
 
 async def process_folder_rag(
@@ -342,6 +357,15 @@ async def process_folder_rag(
         async with semaphore:
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
+            # Session is now fully closed: connection returned to pool, identity map
+            # cleared. Run GC + malloc_trim here so freed connection buffers and
+            # ORM object memory are reclaimed before the next file starts.
+            gc.collect()
+            if sys.platform == "linux":
+                try:
+                    ctypes.CDLL("libc.so.6").malloc_trim(0)
+                except (OSError, AttributeError):
+                    pass
 
     pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
     # Capture file names before sessions close (avoid detached instance errors)

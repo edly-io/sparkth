@@ -396,8 +396,7 @@ class TestEmbedAndStoreChunks:
 
         session.execute = AsyncMock(side_effect=[existing_result, links_result])
 
-        new_row = MagicMock(id=51)
-        store.store_chunks = AsyncMock(return_value=[new_row])
+        store.store_chunks = AsyncMock(return_value=[51])
 
         new_count, reused_count = await _embed_and_store_chunks(
             session,

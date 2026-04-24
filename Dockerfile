@@ -37,6 +37,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # -------------------
 FROM python:3.14-slim-trixie
 
+RUN apt-get update && apt-get install -y --no-install-recommends libjemalloc2 \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 999 nonroot \
  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
@@ -44,6 +48,7 @@ COPY --from=builder      --chown=nonroot:nonroot /app            /app
 COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 
 ENV PATH="/app/.venv/bin:$PATH"
+ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 
 USER nonroot
 

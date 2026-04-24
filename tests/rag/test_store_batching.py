@@ -41,6 +41,8 @@ async def test_store_chunks_splits_into_batches(session: AsyncSession) -> None:
     assert len(call_args_list[1][0][0]) == 10  # second batch: 10 texts
     assert len(call_args_list[2][0][0]) == 5  # third batch: 5 texts (remainder)
     assert len(rows) == 25
+    # Verify all returned values are integers (DocumentChunk IDs)
+    assert all(isinstance(row_id, int) for row_id in rows)
 
 
 @pytest.mark.asyncio
