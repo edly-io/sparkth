@@ -160,3 +160,22 @@ async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
     app_instance.dependency_overrides[get_current_user] = override_user
     yield user
     app_instance.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+def mock_rag_provider() -> Generator[Any, None, None]:
+    """Mock the RAG embedding provider singleton for tests."""
+    from unittest.mock import MagicMock, patch
+
+    with (
+        patch("app.rag.provider.get_provider") as mock_get_provider,
+        patch("app.core_plugins.chat.routes.get_rag_provider") as mock_get_rag_provider,
+        patch("app.core_plugins.googledrive.utils.get_provider") as mock_get_utils_provider,
+        patch("app.core_plugins.slack.rag.get_provider") as mock_get_slack_provider,
+    ):
+        mock_provider = MagicMock()
+        mock_get_provider.return_value = mock_provider
+        mock_get_rag_provider.return_value = mock_provider
+        mock_get_utils_provider.return_value = mock_provider
+        mock_get_slack_provider.return_value = mock_provider
+        yield mock_get_provider

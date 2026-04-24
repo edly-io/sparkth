@@ -18,6 +18,7 @@ from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
+from app.rag.provider import init_provider
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,6 +104,11 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             register_plugin_tools()
             all_tools = await asyncio.create_task(mcp.get_tools())
             logger.info(f"MCP server ready with {len(all_tools)} total tool(s) registered")
+
+            # Load embedding model before server starts accepting requests.
+            # asyncio.to_thread keeps the event loop unblocked during model loading.
+
+            await asyncio.to_thread(init_provider)
 
             # Mount frontend static files AFTER plugin routes are registered,
             # so plugin API routes take precedence over the catch-all "/" mount.

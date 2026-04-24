@@ -1,7 +1,7 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 import hashlib
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -396,8 +396,7 @@ class TestEmbedAndStoreChunks:
 
         session.execute = AsyncMock(side_effect=[existing_result, links_result])
 
-        new_row = MagicMock(id=51)
-        store.store_chunks = AsyncMock(return_value=[new_row])
+        store.store_chunks = AsyncMock(return_value=[51])
 
         new_count, reused_count = await _embed_and_store_chunks(
             session,
@@ -663,7 +662,8 @@ class TestProcessSingleFile:
         )
 
         session.rollback.assert_awaited_once()
-        session.refresh.assert_awaited_once_with(drive_file)
+        # session.refresh.assert_awaited_once_with(drive_file)
+        session.refresh.assert_has_awaits([call(drive_file), call(drive_file)])
         assert drive_file.rag_status == RagStatus.FAILED
 
     @patch("app.core_plugins.googledrive.utils._download_file")
@@ -712,7 +712,7 @@ class TestProcessSingleFile:
 
 class TestProcessFolderRag:
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
-    @patch("app.core_plugins.googledrive.utils.get_embedding_provider")
+    @patch("app.core_plugins.googledrive.utils.get_provider")
     async def test_skips_when_no_files(self, mock_provider: MagicMock, mock_session_cls: MagicMock) -> None:
         """Empty folder should return early."""
         folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
@@ -732,7 +732,7 @@ class TestProcessFolderRag:
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
-    @patch("app.core_plugins.googledrive.utils.get_embedding_provider")
+    @patch("app.core_plugins.googledrive.utils.get_provider")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_skips_ready_files(
         self,
@@ -778,7 +778,7 @@ class TestProcessFolderRag:
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
-    @patch("app.core_plugins.googledrive.utils.get_embedding_provider")
+    @patch("app.core_plugins.googledrive.utils.get_provider")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_base_exception_from_gather_is_logged(
         self,

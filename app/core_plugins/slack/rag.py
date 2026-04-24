@@ -4,13 +4,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
 from app.core_plugins.slack.config import SlackBotConfig
-from app.rag.embeddings import BaseEmbeddingProvider, HuggingFaceEmbeddingProvider
+from app.rag.embeddings import BaseEmbeddingProvider
+from app.rag.provider import get_provider
 from app.rag.store import VectorStoreService
 
 logger = get_logger(__name__)
 
-# Module-level singletons — model loaded once per process
-_default_provider: BaseEmbeddingProvider = HuggingFaceEmbeddingProvider()
+# Module-level singleton
 _store: VectorStoreService = VectorStoreService()
 
 
@@ -28,7 +28,7 @@ async def answer_question(
     Returns (config.fallback_message, False) when no chunks meet the threshold.
     provider defaults to HuggingFaceEmbeddingProvider; pass a mock for testing.
     """
-    embedding_provider = provider or _default_provider
+    embedding_provider = provider or get_provider()
     query_embedding = await embedding_provider.embed_query(question)
 
     results = await _store.similarity_search(

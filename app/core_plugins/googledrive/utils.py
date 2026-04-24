@@ -1,8 +1,11 @@
 """RAG pipeline utilities for Google Drive file processing."""
 
 import asyncio
+import ctypes
+import gc
 import hashlib
 import logging
+import sys
 from pathlib import Path
 
 import httpx
@@ -15,10 +18,11 @@ from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
-from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
+from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
 from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk, DriveFileChunkLink
+from app.rag.provider import get_provider
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
@@ -149,10 +153,15 @@ async def _embed_and_store_chunks(
             )
 
     # Embed and store only new chunks
-    new_rows = await store.store_chunks(session, user_id, new_chunk_inputs, provider)
+    new_ids = await store.store_chunks(
+        session,
+        user_id,
+        new_chunk_inputs,
+        provider,
+    )
 
     # Create bridge-table links, skipping any that already exist
-    all_chunk_ids: set[int] = {row.id for row in new_rows if row.id is not None} | set(reused_chunk_ids)
+    all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
     await _create_missing_links(session, drive_file_id, all_chunk_ids)
 
     return len(new_chunk_inputs), len(reused_chunk_ids)
@@ -168,6 +177,7 @@ async def _process_single_file(
 ) -> None:
     """Run the full RAG pipeline for a single Drive file."""
     filename = _resolve_filename(drive_file)
+    log_name = drive_file.name or filename
 
     if not _is_supported_for_rag(filename):
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
@@ -175,17 +185,54 @@ async def _process_single_file(
         return
 
     if drive_file.id is None:
-        logger.error("Cannot process file '%s' without a database ID.", drive_file.name)
+        logger.error("Cannot process file '%s' without a database ID.", log_name)
         return
 
     file_id: int = drive_file.id
 
     try:
         await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
+        # This brings .size and other attributes back into memory after the status update.
+        await session.refresh(drive_file)
+
+        settings = get_settings()
+        max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
+
+        # Early size check using Drive API metadata — skip download entirely for oversized files
+        if drive_file.size is not None and drive_file.size > max_bytes:
+            logger.warning(
+                "Skipping '%s': Drive-reported size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+                filename,
+                drive_file.size,
+                settings.RAG_MAX_FILE_SIZE_MB,
+            )
+            await _set_rag_status(
+                session,
+                drive_file,
+                RagStatus.FAILED,
+                error=f"File too large for RAG ingestion (limit: {settings.RAG_MAX_FILE_SIZE_MB} MB)",
+            )
+            return
 
         async with profile_memory("pipeline_total", file=filename):
             async with profile_memory("download", file=filename):
                 file_bytes = await _download_file(access_token, drive_file)
+
+            # Post-download fallback for files without Drive-reported size
+            if len(file_bytes) > max_bytes:
+                logger.warning(
+                    "Skipping '%s': file size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+                    filename,
+                    len(file_bytes),
+                    settings.RAG_MAX_FILE_SIZE_MB,
+                )
+                await _set_rag_status(
+                    session,
+                    drive_file,
+                    RagStatus.FAILED,
+                    error=f"File too large for RAG ingestion (limit: {settings.RAG_MAX_FILE_SIZE_MB} MB)",
+                )
+                return
 
             content_hash = hashlib.sha256(file_bytes).hexdigest()
             drive_file.content_hash = content_hash
@@ -208,8 +255,16 @@ async def _process_single_file(
             # Extract → Chunk (CPU-bound, run off the event loop)
             async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):
                 extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
+
+            # Release raw PDF bytes immediately — extractor has already copied
+            # what it needs into extraction_result.markdown. Keeping file_bytes alive
+            # through chunking wastes memory equal to the full file size.
+            del file_bytes
+
             async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
                 chunks = await asyncio.to_thread(chunk_document, extraction_result)
+
+            del extraction_result
 
             if not chunks:
                 await _set_rag_status(session, drive_file, RagStatus.READY)
@@ -226,6 +281,8 @@ async def _process_single_file(
                     store,
                 )
 
+            del chunks
+
             await _set_rag_status(session, drive_file, RagStatus.READY)
             logger.info(
                 "RAG processing complete for '%s': %d new chunks embedded, %d reused.",
@@ -235,34 +292,37 @@ async def _process_single_file(
             )
 
     except GoogleDriveAPIError as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Google Drive error")
     except (httpx.ConnectError, httpx.TimeoutException) as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Could not reach Google Drive")
     except httpx.HTTPStatusError as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(
             session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
         )
     except (RuntimeError, ValueError, OSError) as e:
-        logger.error("RAG processing failed for '%s': %s", drive_file.name, e)
+        logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
     except IntegrityError:
-        logger.error("RAG processing failed for '%s': database integrity error", drive_file.name)
+        logger.error("RAG processing failed for '%s': database integrity error", log_name)
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
     except SQLAlchemyError as e:
-        logger.error("Database error during RAG processing for '%s': %s", drive_file.name, e)
+        logger.error("Database error during RAG processing for '%s': %s", log_name, e)
         try:
             await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
         except SQLAlchemyError as status_err:
             logger.error(
                 "Failed to set RAG status to FAILED for '%s': %s",
-                drive_file.name,
+                log_name,
                 status_err,
             )
+    finally:
+        session.expunge_all()
+        gc.collect()
 
 
 async def process_folder_rag(
@@ -289,7 +349,7 @@ async def process_folder_rag(
     if not files:
         return
 
-    provider = get_embedding_provider()
+    provider = get_provider()
     store = VectorStoreService()
     semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 
@@ -297,6 +357,15 @@ async def process_folder_rag(
         async with semaphore:
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
+            # Session is now fully closed: connection returned to pool, identity map
+            # cleared. Run GC + malloc_trim here so freed connection buffers and
+            # ORM object memory are reclaimed before the next file starts.
+            gc.collect()
+            if sys.platform == "linux":
+                try:
+                    ctypes.CDLL("libc.so.6").malloc_trim(0)
+                except (OSError, AttributeError):
+                    pass
 
     pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
     # Capture file names before sessions close (avoid detached instance errors)

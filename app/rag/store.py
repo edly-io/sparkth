@@ -6,6 +6,7 @@ from sqlalchemy import delete, literal
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.memory_profiler import profile_memory
@@ -49,49 +50,63 @@ class VectorStoreService:
         user_id: int,
         chunks: list[ChunkInput],
         provider: BaseEmbeddingProvider,
-    ) -> list[DocumentChunk]:
-        """Embed and persist a batch of chunks.
+    ) -> list[int]:
+        """Embed and persist chunks in configurable sub-batches.
 
-        Returns the created ``DocumentChunk`` rows (with IDs populated).
+        Processes RAG_STORE_BATCH_SIZE chunks per iteration, expunging batch
+        objects from session identity map after each flush to prevent
+        accumulating ORM objects in memory.
 
-        Note: this method flushes but does not commit. The caller is
-        responsible for committing (or rolling back) the transaction.
+        Returns: list of created DocumentChunk IDs.
+        Note: flushes after each batch but does not commit. The caller commits.
         """
         if not chunks:
             return []
 
-        texts = [c.content for c in chunks]
-        async with profile_memory("embedding", source=chunks[0].source_name, n_chunks=len(chunks)):
-            embeddings = await provider.embed_documents(texts)
+        batch_size = get_settings().RAG_STORE_BATCH_SIZE
+        source = chunks[0].source_name
+        all_ids: list[int] = []
 
-        rows: list[DocumentChunk] = []
-        for chunk, embedding in zip(chunks, embeddings):
-            row = DocumentChunk(
-                user_id=user_id,
-                source_name=chunk.source_name,
-                content=chunk.content,
-                chunk_content_hash=chunk.chunk_content_hash,
-                chapter=chunk.chapter,
-                section=chunk.section,
-                subsection=chunk.subsection,
-                embedding=embedding,
-                embedding_model=provider.model_name,
-                embedding_provider=provider.provider_name,
-                token_count=chunk.token_count,
-            )
-            session.add(row)
-            rows.append(row)
+        for batch_start in range(0, len(chunks), batch_size):
+            batch = chunks[batch_start : batch_start + batch_size]
+            texts = [c.content for c in batch]
 
-        async with profile_memory("vectorstore_write", source=chunks[0].source_name, n_rows=len(rows)):
-            await session.flush()
+            async with profile_memory("embedding", source=source, n_chunks=len(batch)):
+                embeddings = await provider.embed_documents(texts)
+
+            batch_rows: list[DocumentChunk] = []
+            for chunk, embedding in zip(batch, embeddings, strict=True):
+                row = DocumentChunk(
+                    user_id=user_id,
+                    source_name=chunk.source_name,
+                    content=chunk.content,
+                    chunk_content_hash=chunk.chunk_content_hash,
+                    chapter=chunk.chapter,
+                    section=chunk.section,
+                    subsection=chunk.subsection,
+                    embedding=embedding,
+                    embedding_model=provider.model_name,
+                    embedding_provider=provider.provider_name,
+                    token_count=chunk.token_count,
+                )
+                session.add(row)
+                batch_rows.append(row)
+
+            async with profile_memory("vectorstore_write", source=source, n_rows=len(batch_rows)):
+                await session.flush()
+
+            batch_ids = [row.id for row in batch_rows if row.id is not None]
+            session.expunge_all()
+            del batch_rows
+            all_ids.extend(batch_ids)
 
         logger.info(
             "Stored %d chunks for user_id=%d, source='%s'",
-            len(rows),
+            len(all_ids),
             user_id,
-            chunks[0].source_name,
+            source,
         )
-        return rows
+        return all_ids
 
     async def similarity_search(
         self,

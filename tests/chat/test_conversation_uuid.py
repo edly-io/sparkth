@@ -274,11 +274,13 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.get_rag_provider") as mock_get_rag_provider,
             patch("app.core_plugins.chat.routes.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
+            mock_get_rag_provider.return_value = MagicMock()
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
@@ -341,10 +343,12 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.get_rag_provider") as mock_get_rag_provider,
             patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
+            mock_get_rag_provider.return_value = MagicMock()
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
@@ -370,7 +374,11 @@ class TestConversationUUIDRoutes:
         assert UUID(body["conversation_id"]) == conv_uuid
 
     async def test_completions_with_nonexistent_uuid_returns_404(
-        self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
+        self,
+        client: "httpx.AsyncClient",
+        current_user: MagicMock,
+        session: "AsyncSession",
+        mock_rag_provider: MagicMock,
     ) -> None:
         with patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key:
             mock_get_key.return_value = "sk-fake-key"
@@ -389,7 +397,7 @@ class TestConversationUUIDRoutes:
         assert response.status_code == 404
 
     async def test_completions_with_integer_conversation_id_returns_422(
-        self, client: "httpx.AsyncClient", current_user: MagicMock
+        self, client: "httpx.AsyncClient", current_user: MagicMock, mock_rag_provider: MagicMock
     ) -> None:
         response = await client.post(
             "/api/v1/chat/completions",

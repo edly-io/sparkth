@@ -100,16 +100,21 @@ class ExtractionResult:
 
 
 def _extract_pdf(data: bytes, source_name: str) -> ExtractionResult:
-    with fitz.open(stream=data, filetype="pdf") as doc:
-        md = pymupdf4llm.to_markdown(doc=doc, page_chunks=False)
-        page_count = md.count("\n-----\n") + 1
-        md = md.replace("\n-----\n", "\n\n")
-        return ExtractionResult(
-            markdown=md,
-            doc_type=DocType.PDF,
-            source_name=source_name,
-            page_count=page_count,
-        )
+    try:
+        with fitz.open(stream=data, filetype="pdf") as doc:
+            md = pymupdf4llm.to_markdown(doc=doc, page_chunks=False)
+            page_count = md.count("\n-----\n") + 1
+            md = md.replace("\n-----\n", "\n\n")
+            return ExtractionResult(
+                markdown=md,
+                doc_type=DocType.PDF,
+                source_name=source_name,
+                page_count=page_count,
+            )
+    finally:
+        # Release MuPDF's C-level font/image store. Without this, MuPDF holds
+        # ~256 MB of decoded fonts and CMap tables for the lifetime of the process.
+        fitz.TOOLS.store_shrink(100)
 
 
 _ORDERED_NUM_FMTS = {"decimal", "upperRoman", "lowerRoman", "upperLetter", "lowerLetter"}
