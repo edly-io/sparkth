@@ -23,7 +23,6 @@ export interface RegisterResponse {
   name: string;
   username: string;
   email: string;
-  is_superuser: boolean;
 }
 
 export interface GoogleAuthUrlResponse {

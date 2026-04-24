@@ -17,9 +17,31 @@ class User(UserBase):
     id: int
     name: str
     username: str
-    is_superuser: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserWithRoles(User):
+    """User response that includes role information."""
+
+    roles: list[str] = []
+
+
+class RoleSchema(BaseModel):
+    role: str
+
+
+class AssignRoleRequest(BaseModel):
+    role: str
+
+
+class AdminUserList(BaseModel):
+    """Paginated user list for admin endpoints."""
+
+    users: list[UserWithRoles]
+    total: int
+    page: int
+    page_size: int
 
 
 class Token(BaseModel):
