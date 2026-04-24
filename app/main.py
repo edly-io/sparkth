@@ -118,16 +118,6 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                     "/", StaticFiles(directory=frontend_settings.FRONTEND_DIR, html=True), name="frontend"
                 )
 
-            # dummy_pdf = b"%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"
-            # try:
-            #     from app.rag.extraction import extract_to_markdown
-            #     # This 'faults in' the C-libraries (PyMuPDF, etc.) into RSS
-            #     extract_to_markdown(dummy_pdf, "warmup.pdf")
-            # except Exception:
-            #     # We don't care if the dummy PDF is 'invalid',
-            #     # we just need the libraries to initialize.
-            #     pass
-
             yield
 
 
