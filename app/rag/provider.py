@@ -41,7 +41,7 @@ def init_provider() -> BaseEmbeddingProvider:
     # With 1 thread, all matrix ops run in the calling thread — one arena —
     # and malloc_trim fully reclaims freed tensor memory after each inference.
     try:
-        import torch  # type: ignore[import-not-found]
+        import torch  # type: ignore[import-not-found,unused-ignore]
 
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)

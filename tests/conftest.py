@@ -13,8 +13,10 @@ from app.api.v1.auth import get_current_user
 from app.core.db import get_async_session
 from app.main import app
 from app.models.plugin import Plugin, UserPlugin
+from app.models.rbac import RoleName
 from app.models.user import User
 from app.services.plugin import PluginService, get_plugin_service
+from app.services.rbac import assign_role
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -179,3 +181,72 @@ def mock_rag_provider() -> Generator[Any, None, None]:
         mock_get_utils_provider.return_value = mock_provider
         mock_get_slack_provider.return_value = mock_provider
         yield mock_get_provider
+
+
+@pytest.fixture
+async def superuser_user(client: AsyncClient, session: AsyncSession) -> AsyncGenerator[User, None]:
+    """Create a superuser with the SUPERUSER role assigned."""
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
+    user = User(
+        name="Super User",
+        username="superuser",
+        email="super@example.com",
+        hashed_password="fakehashedpassword",
+    )
+    session.add(user)
+    await session.flush()
+    await assign_role(session, cast(int, user.id), RoleName.SUPERUSER)
+
+    async def override_user() -> User:
+        return user
+
+    app_instance.dependency_overrides[get_current_user] = override_user
+    yield user
+    app_instance.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+async def admin_user(client: AsyncClient, session: AsyncSession) -> AsyncGenerator[User, None]:
+    """Create an admin user with the ADMIN role assigned."""
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
+    user = User(
+        name="Admin User",
+        username="adminuser",
+        email="admin@example.com",
+        hashed_password="fakehashedpassword",
+    )
+    session.add(user)
+    await session.flush()
+    await assign_role(session, cast(int, user.id), RoleName.ADMIN)
+
+    async def override_user() -> User:
+        return user
+
+    app_instance.dependency_overrides[get_current_user] = override_user
+    yield user
+    app_instance.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+async def member_user(client: AsyncClient, session: AsyncSession) -> AsyncGenerator[User, None]:
+    """Create a member user with the MEMBER role assigned."""
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
+    user = User(
+        name="Member User",
+        username="memberuser",
+        email="member@example.com",
+        hashed_password="fakehashedpassword",
+    )
+    session.add(user)
+    await session.flush()
+    await assign_role(session, cast(int, user.id), RoleName.MEMBER)
+
+    async def override_user() -> User:
+        return user
+
+    app_instance.dependency_overrides[get_current_user] = override_user
+    yield user
+    app_instance.dependency_overrides.pop(get_current_user, None)

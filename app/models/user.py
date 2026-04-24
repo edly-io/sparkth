@@ -17,5 +17,3 @@ class User(TimestampedModel, SoftDeleteModel, table=True):
     google_id: str | None = Field(default=None, unique=True, index=True)
 
     uuid: UUID = Field(default_factory=uuid7, unique=True, index=True)
-
-    is_superuser: bool = Field(default=False)
