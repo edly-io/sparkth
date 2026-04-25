@@ -52,7 +52,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => onRemove(firstAttachment.driveFileDbId)}
+        onClick={() => onRemove()}
         className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
       >
         <X className="w-4 h-4" />
