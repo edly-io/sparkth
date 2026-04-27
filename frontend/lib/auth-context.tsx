@@ -22,6 +22,7 @@ interface User {
   email?: string;
   avatar?: string;
   plan?: string;
+  is_superuser?: boolean;
 }
 
 interface AuthContextType {

@@ -188,3 +188,58 @@ export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
 
   return response.json();
 }
+
+export interface WhitelistEntry {
+  id: number;
+  value: string;
+  entry_type: string;
+  created_at: string;
+}
+
+export async function getWhitelist(token: string): Promise<WhitelistEntry[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/whitelist/`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const error: ApiError = await response.json();
+    throw new ApiRequestError(formatApiError(error));
+  }
+
+  return response.json();
+}
+
+export async function addWhitelistEntry(token: string, value: string): Promise<WhitelistEntry> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/whitelist/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ value }),
+  });
+
+  if (!response.ok) {
+    const error: ApiError = await response.json();
+    throw new ApiRequestError(formatApiError(error));
+  }
+
+  return response.json();
+}
+
+export async function removeWhitelistEntry(token: string, id: number): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/whitelist/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error: ApiError = await response.json();
+    throw new ApiRequestError(formatApiError(error));
+  }
+}
