@@ -88,7 +88,6 @@ export default function DriveFilePicker({
   const handleBackToFolders = () => {
     setSelectedFolder(null);
     setFiles([]);
-    setSelectedFileIds(new Set());
   };
 
   const toggleFileSelection = (fileId: number) => {
