@@ -51,4 +51,4 @@ async def remove_whitelist_entry(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Whitelist entry not found",
-        )
+        ) from None

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -217,7 +218,7 @@ async def google_callback(
 
     except ValueError as e:
         # Redirect to login page with error
-        return RedirectResponse(url=f"/login?error={str(e)}", status_code=302)
+        return RedirectResponse(url=f"/login?error={quote(str(e))}", status_code=302)
 
 
 async def require_superuser(

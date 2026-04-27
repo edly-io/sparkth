@@ -22,7 +22,14 @@ class WhitelistService:
 
         if normalized.startswith("@"):
             domain_part = normalized[1:]
-            if "." not in domain_part or len(domain_part) < 3:
+            if (
+                not domain_part
+                or "." not in domain_part
+                or len(domain_part) < 3
+                or domain_part.startswith(".")
+                or domain_part.endswith(".")
+                or ".." in domain_part
+            ):
                 raise ValueError(f"Invalid domain format: {value}")
             entry_type = "domain"
         else:
@@ -64,7 +71,9 @@ class WhitelistService:
     @staticmethod
     async def is_email_allowed(session: AsyncSession, email: str) -> bool:
         normalized = email.strip().lower()
-        domain = "@" + normalized.split("@")[1] if "@" in normalized else ""
+        if "@" not in normalized:
+            return False
+        domain = "@" + normalized.split("@")[1]
 
         result = await session.exec(
             select(WhitelistedEmail.id).where(
