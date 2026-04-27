@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useReducer, useEffect, useCallback } from "react";
+import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -24,35 +24,79 @@ import {
   DialogFooter,
 } from "@/components/ui/Dialog";
 
+interface WhitelistState {
+  entries: WhitelistEntry[];
+  loading: boolean;
+  error: string;
+  newValue: string;
+  addError: string;
+  adding: boolean;
+  deleteTarget: WhitelistEntry | null;
+  deleting: boolean;
+}
+
+type WhitelistAction =
+  | { type: "SET_ENTRIES"; entries: WhitelistEntry[] }
+  | { type: "SET_LOADING"; loading: boolean }
+  | { type: "SET_ERROR"; error: string }
+  | { type: "SET_NEW_VALUE"; value: string }
+  | { type: "SET_ADD_ERROR"; error: string }
+  | { type: "SET_ADDING"; adding: boolean }
+  | { type: "SET_DELETE_TARGET"; target: WhitelistEntry | null }
+  | { type: "SET_DELETING"; deleting: boolean };
+
+function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState {
+  switch (action.type) {
+    case "SET_ENTRIES":
+      return { ...state, entries: action.entries, error: "" };
+    case "SET_LOADING":
+      return { ...state, loading: action.loading };
+    case "SET_ERROR":
+      return { ...state, error: action.error };
+    case "SET_NEW_VALUE":
+      return { ...state, newValue: action.value, addError: "" };
+    case "SET_ADD_ERROR":
+      return { ...state, addError: action.error };
+    case "SET_ADDING":
+      return { ...state, adding: action.adding };
+    case "SET_DELETE_TARGET":
+      return { ...state, deleteTarget: action.target };
+    case "SET_DELETING":
+      return { ...state, deleting: action.deleting };
+  }
+}
+
+const initialState: WhitelistState = {
+  entries: [],
+  loading: true,
+  error: "",
+  newValue: "",
+  addError: "",
+  adding: false,
+  deleteTarget: null,
+  deleting: false,
+};
+
 export default function WhitelistPage() {
   const { token, user } = useAuth();
-  const router = useRouter();
+  const [state, dispatch] = useReducer(reducer, initialState);
 
-  const [entries, setEntries] = useState<WhitelistEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [newValue, setNewValue] = useState("");
-  const [addError, setAddError] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<WhitelistEntry | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    if (user && !user.is_superuser) {
-      router.replace("/dashboard");
-    }
-  }, [user, router]);
+  if (user && !user.is_superuser) {
+    redirect("/dashboard");
+  }
 
   const fetchEntries = useCallback(async () => {
     if (!token) return;
     try {
       const data = await getWhitelist(token);
-      setEntries(data);
-      setError("");
+      dispatch({ type: "SET_ENTRIES", entries: data });
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Failed to load whitelist");
+      dispatch({
+        type: "SET_ERROR",
+        error: err instanceof ApiRequestError ? err.message : "Failed to load whitelist",
+      });
     } finally {
-      setLoading(false);
+      dispatch({ type: "SET_LOADING", loading: false });
     }
   }, [token]);
 
@@ -62,41 +106,45 @@ export default function WhitelistPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !newValue.trim()) return;
+    if (!token || !state.newValue.trim()) return;
 
-    setAdding(true);
-    setAddError("");
+    dispatch({ type: "SET_ADDING", adding: true });
+    dispatch({ type: "SET_ADD_ERROR", error: "" });
 
     try {
-      await addWhitelistEntry(token, newValue.trim());
-      setNewValue("");
+      await addWhitelistEntry(token, state.newValue.trim());
+      dispatch({ type: "SET_NEW_VALUE", value: "" });
       await fetchEntries();
     } catch (err) {
-      setAddError(err instanceof ApiRequestError ? err.message : "Failed to add entry");
+      dispatch({
+        type: "SET_ADD_ERROR",
+        error: err instanceof ApiRequestError ? err.message : "Failed to add entry",
+      });
     } finally {
-      setAdding(false);
+      dispatch({ type: "SET_ADDING", adding: false });
     }
   };
 
   const handleDelete = async () => {
-    if (!token || !deleteTarget) return;
+    if (!token || !state.deleteTarget) return;
 
-    setDeleting(true);
+    dispatch({ type: "SET_DELETING", deleting: true });
     try {
-      await removeWhitelistEntry(token, deleteTarget.id);
-      setDeleteTarget(null);
+      await removeWhitelistEntry(token, state.deleteTarget.id);
+      dispatch({ type: "SET_DELETE_TARGET", target: null });
       await fetchEntries();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Failed to remove entry");
-      setDeleteTarget(null);
+      dispatch({
+        type: "SET_ERROR",
+        error: err instanceof ApiRequestError ? err.message : "Failed to remove entry",
+      });
+      dispatch({ type: "SET_DELETE_TARGET", target: null });
     } finally {
-      setDeleting(false);
+      dispatch({ type: "SET_DELETING", deleting: false });
     }
   };
 
-  if (user && !user.is_superuser) return null;
-
-  if (loading) {
+  if (state.loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center">
@@ -118,9 +166,9 @@ export default function WhitelistPage() {
           </p>
         </div>
 
-        {error && (
+        {state.error && (
           <Alert severity="error" className="mb-4">
-            {error}
+            {state.error}
           </Alert>
         )}
 
@@ -130,21 +178,23 @@ export default function WhitelistPage() {
               name="whitelist-value"
               type="text"
               placeholder="Email (user@example.com) or domain (@example.com)"
-              value={newValue}
-              onChange={(e) => {
-                setNewValue(e.target.value);
-                setAddError("");
-              }}
-              error={addError}
+              value={state.newValue}
+              onChange={(e) => dispatch({ type: "SET_NEW_VALUE", value: e.target.value })}
+              error={state.addError}
             />
           </div>
-          <Button type="submit" loading={adding} disabled={!newValue.trim()} spinnerLabel="Adding">
+          <Button
+            type="submit"
+            loading={state.adding}
+            disabled={!state.newValue.trim()}
+            spinnerLabel="Adding"
+          >
             <Plus className="w-4 h-4 mr-1" />
             Add
           </Button>
         </form>
 
-        {entries.length > 0 ? (
+        {state.entries.length > 0 ? (
           <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
             <table className="w-full">
               <thead>
@@ -162,7 +212,7 @@ export default function WhitelistPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => (
+                {state.entries.map((entry) => (
                   <tr key={entry.id} className="border-b border-border last:border-b-0">
                     <td className="px-4 py-3 text-sm text-foreground font-mono">{entry.value}</td>
                     <td className="px-4 py-3">
@@ -188,7 +238,7 @@ export default function WhitelistPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setDeleteTarget(entry)}
+                        onClick={() => dispatch({ type: "SET_DELETE_TARGET", target: entry })}
                         aria-label={`Remove ${entry.value}`}
                         className="text-error-500 hover:text-error-700 hover:bg-error-50 dark:hover:bg-error-900/30"
                       >
@@ -210,26 +260,36 @@ export default function WhitelistPage() {
         )}
       </div>
 
-      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+      <Dialog
+        open={!!state.deleteTarget}
+        onOpenChange={() => dispatch({ type: "SET_DELETE_TARGET", target: null })}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Remove whitelist entry</DialogTitle>
             <DialogDescription>
               Are you sure you want to remove{" "}
-              <span className="font-mono font-medium text-foreground">{deleteTarget?.value}</span>?
-              {deleteTarget?.entry_type === "domain"
+              <span className="font-mono font-medium text-foreground">
+                {state.deleteTarget?.value}
+              </span>
+              ?
+              {state.deleteTarget?.entry_type === "domain"
                 ? " Users from this domain will no longer be able to register."
                 : " This email will no longer be able to register."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            <Button
+              variant="outline"
+              onClick={() => dispatch({ type: "SET_DELETE_TARGET", target: null })}
+              disabled={state.deleting}
+            >
               Cancel
             </Button>
             <Button
               variant="error"
               onClick={handleDelete}
-              loading={deleting}
+              loading={state.deleting}
               spinnerLabel="Removing"
             >
               Remove
