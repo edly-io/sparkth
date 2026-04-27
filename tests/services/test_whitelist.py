@@ -46,6 +46,18 @@ class TestAddEntry:
         with pytest.raises(ValueError, match="Invalid domain"):
             await WhitelistService.add_entry(session, value="@localhost", added_by_id=1)
 
+    async def test_add_domain_with_leading_dot_raises(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="Invalid domain"):
+            await WhitelistService.add_entry(session, value="@.example.com", added_by_id=1)
+
+    async def test_add_domain_with_trailing_dot_raises(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="Invalid domain"):
+            await WhitelistService.add_entry(session, value="@example.com.", added_by_id=1)
+
+    async def test_add_domain_with_consecutive_dots_raises(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="Invalid domain"):
+            await WhitelistService.add_entry(session, value="@example..com", added_by_id=1)
+
 
 class TestRemoveEntry:
     async def test_remove_existing(self, session: AsyncSession) -> None:

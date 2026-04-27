@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import require_superuser
@@ -34,8 +35,13 @@ async def add_whitelist_entry(
     except ValueError as exc:
         msg = str(exc)
         if "already exists" in msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg) from None
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg) from None
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Entry already exists: {payload.value}",
+        ) from None
     return WhitelistedEmailResponse.model_validate(entry)
 
 
