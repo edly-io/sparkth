@@ -19,6 +19,7 @@ from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import GoogleAuthUrl, Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
+from app.services.whitelist import WhitelistService
 
 settings = get_settings()
 
@@ -64,6 +65,11 @@ async def get_current_user(
 async def register_user(user: UserCreate, session: AsyncSession = Depends(get_async_session)) -> User:
     if not settings.REGISTRATION_ENABLED:
         raise HTTPException(status_code=403, detail="Registration is currently disabled")
+    if not await WhitelistService.is_email_allowed(session, user.email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This email address is not authorized to register. Contact an administrator.",
+        )
     result = await session.exec(select(User).where(User.username == user.username))
     db_user = result.one_or_none()
     if db_user:
@@ -172,6 +178,10 @@ async def google_callback(
                 await session.commit()
                 await session.refresh(user)
             else:
+                # Check whitelist before creating new user
+                if not await WhitelistService.is_email_allowed(session, email):
+                    return RedirectResponse(url="/login?error=email_not_whitelisted", status_code=302)
+
                 # Create new user with username from email prefix
                 base_username = email.split("@")[0][:20]
                 username = base_username
@@ -185,8 +195,8 @@ async def google_callback(
                     username = f"{base_username[:13]}{suffix}"
 
                 user = User(
-                    name=name[:30],  # Limit name to field max length
-                    username=username[:20],  # Limit username to field max length
+                    name=name[:30],
+                    username=username[:20],
                     email=email,
                     google_id=google_id,
                     hashed_password=None,
