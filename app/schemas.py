@@ -39,3 +39,16 @@ class UserLogin(BaseModel):
 
 class GoogleAuthUrl(BaseModel):
     url: str
+
+
+class WhitelistedEmailCreate(BaseModel):
+    value: str
+
+
+class WhitelistedEmailResponse(BaseModel):
+    id: int
+    value: str
+    entry_type: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
