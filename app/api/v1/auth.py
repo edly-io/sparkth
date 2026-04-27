@@ -208,3 +208,14 @@ async def google_callback(
     except ValueError as e:
         # Redirect to login page with error
         return RedirectResponse(url=f"/login?error={str(e)}", status_code=302)
+
+
+async def require_superuser(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superuser access required",
+        )
+    return current_user
