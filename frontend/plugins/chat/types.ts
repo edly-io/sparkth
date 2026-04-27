@@ -13,7 +13,7 @@ export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
-  attachment?: TextAttachment | null;
+  attachments?: TextAttachment[];
   streamedContent?: string;
   isTyping?: boolean;
   isError?: boolean;

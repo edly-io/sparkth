@@ -29,8 +29,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     loading: loadingHistory,
     messages,
     error,
-    inputAttachment,
-    setInputAttachment,
+    inputAttachments,
+    setInputAttachments,
     setMessages,
     clearError,
     skipNextLoadRef,
@@ -53,17 +53,20 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     onNewConversation,
   });
 
-  const handleSetAttachment = useCallback(
-    (attachment: TextAttachment | null) => {
-      setInputAttachment(attachment);
-      if (attachment === null && conversationId && inputAttachment?.driveFileDbId) {
-        fetch(`/api/v1/chat/conversations/${conversationId}/active-file`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch((err) => console.warn("Failed to clear active drive file on backend:", err));
+  const handleSetAttachments = useCallback(
+    (attachments: TextAttachment[]) => {
+      setInputAttachments(attachments);
+      if (attachments.length === 0 && conversationId) {
+        const hasDriveFiles = inputAttachments.some((a) => a.driveFileDbId);
+        if (hasDriveFiles) {
+          fetch(`/api/v1/chat/conversations/${conversationId}/active-file`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch((err) => console.warn("Failed to clear active drive file on backend:", err));
+        }
       }
     },
-    [setInputAttachment, conversationId, inputAttachment?.driveFileDbId, token],
+    [setInputAttachments, conversationId, inputAttachments, token],
   );
 
   return (
@@ -92,21 +95,15 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       )}
 
       <ChatInput
-        attachment={inputAttachment}
-        setAttachment={handleSetAttachment}
+        attachments={inputAttachments}
+        setAttachments={handleSetAttachments}
         setPreviewOpen={setPreviewOpen}
         setPreviewAttachment={setPreviewAttachment}
         onSend={handleSend}
       />
 
       {previewOpen && previewAttachment && (
-        <Preview
-          attachment={previewAttachment}
-          onClose={() => {
-            setPreviewOpen(false);
-            setPreviewAttachment(null);
-          }}
-        />
+        <Preview attachment={previewAttachment} onClose={() => setPreviewOpen(false)} />
       )}
     </div>
   );

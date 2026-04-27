@@ -3,7 +3,7 @@ import { ChatMessage, TextAttachment } from "../types";
 
 interface SendPayload {
   message: string;
-  attachment: TextAttachment | null;
+  attachments: TextAttachment[];
   similarityThreshold?: number;
 }
 
@@ -16,49 +16,52 @@ interface UseChatStreamOptions {
   onNewConversation: (id: string) => void;
 }
 
-function buildUserMessages(message: string, attachment: TextAttachment | null) {
+function buildUserMessages(message: string, attachments: TextAttachment[]) {
   const out: Array<{
     role: string;
     content: string | object[];
     attachment?: { name: string; size: number };
   }> = [];
 
-  if (attachment?.driveFileDbId !== undefined) {
-    const contentBlocks: object[] = [{ type: "drive_file", file_id: attachment.driveFileDbId }];
-    if (message.trim()) contentBlocks.push({ type: "text", text: message });
-    out.push({
-      role: "user",
-      content: contentBlocks,
-      attachment: { name: attachment.name, size: attachment.size },
-    });
-  } else if (attachment?.base64Data) {
-    const contentBlocks: object[] = [
-      {
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: attachment.mediaType || "application/pdf",
-          data: attachment.base64Data,
-        },
-      },
-    ];
-    if (message.trim()) contentBlocks.push({ type: "text", text: message });
-    out.push({
-      role: "user",
-      content: contentBlocks,
-      attachment: { name: attachment.name, size: attachment.size },
-    });
-  } else {
-    if (attachment?.text) {
+  for (const attachment of attachments) {
+    if (attachment.driveFileDbId !== undefined) {
+      const contentBlocks: object[] = [{ type: "drive_file", file_id: attachment.driveFileDbId }];
+      if (message.trim()) contentBlocks.push({ type: "text", text: message });
       out.push({
         role: "user",
-        content: attachment.text,
+        content: contentBlocks,
         attachment: { name: attachment.name, size: attachment.size },
       });
+    } else if (attachment.base64Data) {
+      const contentBlocks: object[] = [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: attachment.mediaType || "application/pdf",
+            data: attachment.base64Data,
+          },
+        },
+      ];
+      if (message.trim()) contentBlocks.push({ type: "text", text: message });
+      out.push({
+        role: "user",
+        content: contentBlocks,
+        attachment: { name: attachment.name, size: attachment.size },
+      });
+    } else {
+      if (attachment.text) {
+        out.push({
+          role: "user",
+          content: attachment.text,
+          attachment: { name: attachment.name, size: attachment.size },
+        });
+      }
     }
-    if (message.trim()) {
-      out.push({ role: "user", content: message });
-    }
+  }
+
+  if (message.trim() && out.length === 0) {
+    out.push({ role: "user", content: message });
   }
 
   return out;
@@ -193,9 +196,9 @@ export function useChatStream({
   setMessages,
   onNewConversation,
 }: UseChatStreamOptions) {
-  const lastSentRef = useRef<{ message: string; attachment: TextAttachment | null }>({
+  const lastSentRef = useRef<{ message: string; attachments: TextAttachment[] }>({
     message: "",
-    attachment: null,
+    attachments: [],
   });
   const lastSentThresholdRef = useRef<number>(0.45);
 
@@ -219,19 +222,19 @@ export function useChatStream({
   );
 
   const handleSend = useCallback(
-    async ({ message, attachment, similarityThreshold = 0.45 }: SendPayload) => {
-      lastSentRef.current = { message, attachment };
+    async ({ message, attachments, similarityThreshold = 0.45 }: SendPayload) => {
+      lastSentRef.current = { message, attachments };
       lastSentThresholdRef.current = similarityThreshold;
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        content: message || "Uploaded a document",
-        attachment,
+        content: message || (attachments.length > 0 ? "Uploaded a document" : ""),
+        attachments,
       };
       setMessages((prev) => [...prev, userMessage]);
 
-      const newUserMessages = buildUserMessages(message, attachment);
+      const newUserMessages = buildUserMessages(message, attachments);
       const assistantId = crypto.randomUUID();
 
       setMessages((prev) => [
@@ -306,12 +309,12 @@ export function useChatStream({
   const handleOptionClick = useCallback(
     (text: string) => {
       if (text === "Try with less strict matching") {
-        const { message, attachment } = lastSentRef.current;
+        const { message, attachments } = lastSentRef.current;
         const last = lastSentThresholdRef.current;
         const nextThreshold = last > 0.3 ? 0.3 : 0.15;
-        handleSend({ message, attachment, similarityThreshold: nextThreshold });
+        handleSend({ message, attachments, similarityThreshold: nextThreshold });
       } else {
-        handleSend({ message: text, attachment: null });
+        handleSend({ message: text, attachments: [] });
       }
     },
     [handleSend],

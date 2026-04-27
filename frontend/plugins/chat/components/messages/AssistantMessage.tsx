@@ -32,9 +32,8 @@ export function AssistantMessage({
   const displayText = message.streamedContent ?? message.content;
   const isThinking = message.isTyping && !displayText;
 
-  const openPreview = () => {
-    if (!message.pillAttachment) return;
-    setPreviewAttachment(message.pillAttachment);
+  const openPreview = (attachment: TextAttachment) => {
+    setPreviewAttachment(attachment);
     setPreviewOpen(true);
   };
 
@@ -119,7 +118,11 @@ export function AssistantMessage({
             )}
 
             {!message.isTyping && (
-              <Pill attachment={message.pillAttachment ?? null} onOpen={openPreview} />
+              <Pill
+                attachments={message.pillAttachment ? [message.pillAttachment] : []}
+                onPreview={openPreview}
+                onRemove={() => {}}
+              />
             )}
 
             {!message.isTyping && message.options && (

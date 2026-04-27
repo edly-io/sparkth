@@ -28,8 +28,8 @@ interface UseConversationResult {
   loading: boolean;
   messages: ChatMessage[];
   error: string | null;
-  inputAttachment: TextAttachment | null;
-  setInputAttachment: (attachment: TextAttachment | null) => void;
+  inputAttachments: TextAttachment[];
+  setInputAttachments: (attachments: TextAttachment[]) => void;
   setMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   clearError: () => void;
   skipNextLoadRef: React.RefObject<boolean>;
@@ -40,7 +40,7 @@ export function useConversation(
   token: string | null,
 ): UseConversationResult {
   const [error, setError] = useState<string | null>(null);
-  const [inputAttachment, setInputAttachment] = useState<TextAttachment | null>(null);
+  const [inputAttachments, setInputAttachments] = useState<TextAttachment[]>([]);
   // Prevents loadConversation from overwriting messages when we navigated there ourselves
   const skipNextLoadRef = useRef(false);
   const [historyState, setHistoryState] = useState<{
@@ -67,7 +67,7 @@ export function useConversation(
           loading: false,
           messages: [WELCOME_MESSAGE],
         });
-        setInputAttachment(null);
+        setInputAttachments([]);
         return;
       }
 
@@ -110,14 +110,16 @@ export function useConversation(
 
         // Restore persistent drive file attachment (or clear if this conversation has none)
         if (data.active_drive_file_id && data.active_drive_file_name) {
-          setInputAttachment({
-            name: data.active_drive_file_name,
-            size: 0,
-            text: `[File: ${data.active_drive_file_name}]`,
-            driveFileDbId: data.active_drive_file_id,
-          });
+          setInputAttachments([
+            {
+              name: data.active_drive_file_name,
+              size: 0,
+              text: `[File: ${data.active_drive_file_name}]`,
+              driveFileDbId: data.active_drive_file_id,
+            },
+          ]);
         } else {
-          setInputAttachment(null);
+          setInputAttachments([]);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -139,8 +141,8 @@ export function useConversation(
     loading: historyState.loading,
     messages: historyState.messages,
     error,
-    inputAttachment,
-    setInputAttachment,
+    inputAttachments,
+    setInputAttachments,
     setMessages,
     clearError: () => setError(null),
     skipNextLoadRef,

@@ -9,12 +9,12 @@ const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
 
 interface UseChatInputProps {
   token: string | null;
-  attachment: TextAttachment | null;
-  setAttachment: (a: TextAttachment | null) => void;
-  onSend: (payload: { message: string; attachment: TextAttachment | null }) => void;
+  attachments: TextAttachment[];
+  setAttachments: (attachments: TextAttachment[]) => void;
+  onSend: (payload: { message: string; attachments: TextAttachment[] }) => void;
 }
 
-export function useChatInput({ token, attachment, setAttachment, onSend }: UseChatInputProps) {
+export function useChatInput({ token, attachments, setAttachments, onSend }: UseChatInputProps) {
   const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const [showDriveFilePicker, setShowDriveFilePicker] = useState(false);
@@ -34,11 +34,14 @@ export function useChatInput({ token, attachment, setAttachment, onSend }: UseCh
 
       const data: UploadResponse = await uploadFile(formData, token ?? undefined);
 
-      setAttachment({
-        name: file.name,
-        size: file.size,
-        text: data.text,
-      });
+      setAttachments([
+        ...attachments,
+        {
+          name: file.name,
+          size: file.size,
+          text: data.text,
+        },
+      ]);
 
       setShowUploadMenu(false);
     } catch (error) {
@@ -47,29 +50,35 @@ export function useChatInput({ token, attachment, setAttachment, onSend }: UseCh
     }
   };
 
-  const handleDriveFileSelected = (driveFile: SelectedDriveFile) => {
+  const handleDriveFileSelected = (driveFiles: SelectedDriveFile[]) => {
     setShowDriveFilePicker(false);
     setUploadError(null);
-    setAttachment({
-      name: driveFile.name,
-      size: driveFile.size ?? 0,
-      text: `[File: ${driveFile.name}]`,
-      driveFileDbId: driveFile.id,
-    });
+    const newAttachments = driveFiles.map((file) => ({
+      name: file.name,
+      size: file.size ?? 0,
+      text: `[File: ${file.name}]`,
+      driveFileDbId: file.id,
+    }));
+    setAttachments([...attachments, ...newAttachments]);
+  };
+
+  const handleRemoveAttachment = () => {
+    setAttachments([]);
   };
 
   const handleSend = () => {
-    if (!message.trim() && !attachment) return;
+    if (!message.trim() && attachments.length === 0) return;
 
     onSend({
       message: message.trim(),
-      attachment,
+      attachments,
     });
 
     setMessage("");
     // Drive file attachments persist across the session until explicitly removed
-    if (!attachment?.driveFileDbId) {
-      setAttachment(null);
+    const hasDriveFiles = attachments.some((a) => a.driveFileDbId);
+    if (!hasDriveFiles) {
+      setAttachments([]);
     }
   };
 
@@ -84,6 +93,7 @@ export function useChatInput({ token, attachment, setAttachment, onSend }: UseCh
     setUploadError,
     handleUploadAsText,
     handleDriveFileSelected,
+    handleRemoveAttachment,
     handleSend,
   };
 }
