@@ -30,14 +30,18 @@ interface DriveFilePickerProps {
   selectedFileIds?: number[];
 }
 
-export default function DriveFilePicker({ onClose, onFileSelected, selectedFileIds: initialSelectedIds }: DriveFilePickerProps) {
+export default function DriveFilePicker({
+  onClose,
+  onFileSelected,
+  selectedFileIds: initialSelectedIds,
+}: DriveFilePickerProps) {
   const { token } = useAuth();
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(
-    () => new Set(initialSelectedIds ?? [])
+    () => new Set(initialSelectedIds ?? []),
   );
   const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
@@ -199,7 +203,9 @@ export default function DriveFilePicker({ onClose, onFileSelected, selectedFileI
                         aria-label={`Select ${file.name}`}
                       />
                       <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
-                      <span className="text-sm text-foreground truncate flex-1 min-w-0">{file.name}</span>
+                      <span className="text-sm text-foreground truncate flex-1 min-w-0">
+                        {file.name}
+                      </span>
                       <div className="mx-3 shrink-0">
                         <RagStatusIndicator fileId={file.id} status={ragStatus} error={ragError} />
                       </div>

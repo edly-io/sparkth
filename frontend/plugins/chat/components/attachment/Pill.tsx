@@ -39,9 +39,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             <TooltipContent side="top">
               <div className="space-y-1">
                 {attachments.slice(1).map((attachment) => (
-                  <div key={attachment.driveFileDbId || attachment.name}>
-                    {attachment.name}
-                  </div>
+                  <div key={attachment.driveFileDbId || attachment.name}>{attachment.name}</div>
                 ))}
               </div>
             </TooltipContent>
