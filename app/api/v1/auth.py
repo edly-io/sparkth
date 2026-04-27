@@ -196,8 +196,8 @@ async def google_callback(
                     username = f"{base_username[:13]}{suffix}"
 
                 user = User(
-                    name=name[:30],
-                    username=username[:20],
+                    name=name[:30],  # Limit name to field max length
+                    username=username[:20],  # Limit username to field max length
                     email=email,
                     google_id=google_id,
                     hashed_password=None,
