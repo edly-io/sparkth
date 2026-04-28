@@ -121,7 +121,6 @@ export function AssistantMessage({
               <Pill
                 attachments={message.pillAttachment ? [message.pillAttachment] : []}
                 onPreview={openPreview}
-                onRemove={() => {}}
               />
             )}
 

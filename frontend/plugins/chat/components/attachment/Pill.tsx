@@ -6,7 +6,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/Tooltip
 interface PillProps {
   attachments: TextAttachment[];
   onPreview: (attachment: TextAttachment) => void;
-  onRemove: (driveFileDbId?: number) => void;
+  onRemove?: (driveFileDbId?: number) => void;
 }
 
 export function Pill({ attachments, onPreview, onRemove }: PillProps) {
@@ -19,7 +19,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
   return (
     <div className="flex items-center gap-2 bg-surface-variant px-3 py-2 rounded-lg text-sm">
       {isSingleFile ? (
-        // Single file: show filename + remove button
+        // Single file: show filename + optional remove button
         <>
           <Button
             variant="ghost"
@@ -30,15 +30,17 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             <FileText className="w-4 h-4" />
             <span className="truncate">{firstAttachment.name}</span>
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onRemove(firstAttachment.driveFileDbId)}
-            className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
-            title="Remove attachment"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          {onRemove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRemove(firstAttachment.driveFileDbId)}
+              className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
+              title="Remove attachment"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
         </>
       ) : (
         // Multiple files: show first + counter, with expandable list
@@ -53,15 +55,17 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
               <FileText className="w-4 h-4" />
               <span className="truncate">{firstAttachment.name}</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onRemove(firstAttachment.driveFileDbId)}
-              className="text-muted-foreground hover:text-foreground p-0 h-auto"
-              title="Remove attachment"
-            >
-              <X className="w-3 h-3" />
-            </Button>
+            {onRemove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onRemove(firstAttachment.driveFileDbId)}
+                className="text-muted-foreground hover:text-foreground p-0 h-auto"
+                title="Remove attachment"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -77,13 +81,15 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                       className="flex items-center justify-between gap-2"
                     >
                       <span>{attachment.name}</span>
-                      <button
-                        onClick={() => onRemove(attachment.driveFileDbId)}
-                        className="ml-2 text-muted-foreground hover:text-foreground"
-                        title="Remove attachment"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      {onRemove && (
+                        <button
+                          onClick={() => onRemove(attachment.driveFileDbId)}
+                          className="ml-2 text-muted-foreground hover:text-foreground"
+                          title="Remove attachment"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -91,15 +97,17 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             </Tooltip>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onRemove()}
-            className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
-            title="Remove all attachments"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          {onRemove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRemove()}
+              className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
+              title="Remove all attachments"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
         </>
       )}
     </div>
