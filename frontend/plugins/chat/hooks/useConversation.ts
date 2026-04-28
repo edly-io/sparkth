@@ -94,13 +94,9 @@ export function useConversation(
                 ? m.content
                 : ""
               : m.content,
-          attachment:
+          attachments:
             m.message_type === "attachment" && m.attachment_name
-              ? {
-                  name: m.attachment_name,
-                  size: m.attachment_size ?? 0,
-                  text: m.content,
-                }
+              ? [{ name: m.attachment_name, size: m.attachment_size ?? 0, text: m.content }]
               : undefined,
         }));
         setHistoryState({
