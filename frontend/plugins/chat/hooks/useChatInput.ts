@@ -62,8 +62,12 @@ export function useChatInput({ token, attachments, setAttachments, onSend }: Use
     setAttachments([...attachments, ...newAttachments]);
   };
 
-  const handleRemoveAttachment = () => {
-    setAttachments([]);
+  const handleRemoveAttachment = (driveFileDbId?: number) => {
+    if (driveFileDbId !== undefined) {
+      setAttachments(attachments.filter((a) => a.driveFileDbId !== driveFileDbId));
+    } else {
+      setAttachments([]);
+    }
   };
 
   const handleSend = () => {

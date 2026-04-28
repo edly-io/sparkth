@@ -18,45 +18,90 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
 
   return (
     <div className="flex items-center gap-2 bg-surface-variant px-3 py-2 rounded-lg text-sm">
-      <div className="flex items-center gap-1 min-w-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onPreview(firstAttachment)}
-          className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
-        >
-          <FileText className="w-4 h-4" />
-          <span className="truncate">{firstAttachment.name}</span>
-        </Button>
+      {isSingleFile ? (
+        // Single file: show filename + remove button
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onPreview(firstAttachment)}
+            className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
+          >
+            <FileText className="w-4 h-4" />
+            <span className="truncate">{firstAttachment.name}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemove(firstAttachment.driveFileDbId)}
+            className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
+            title="Remove attachment"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </>
+      ) : (
+        // Multiple files: show first + counter, with expandable list
+        <>
+          <div className="flex items-center gap-1 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onPreview(firstAttachment)}
+              className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="truncate">{firstAttachment.name}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onRemove(firstAttachment.driveFileDbId)}
+              className="text-muted-foreground hover:text-foreground p-0 h-auto"
+              title="Remove attachment"
+            >
+              <X className="w-3 h-3" />
+            </Button>
 
-        {!isSingleFile && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-muted-foreground cursor-help whitespace-nowrap">
-                + {remainingCount} {remainingCount === 1 ? "other" : "others"}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <div className="space-y-1">
-                {attachments.slice(1).map((attachment, index) => (
-                  <div key={attachment.driveFileDbId ?? `${attachment.name}-${index}`}>
-                    {attachment.name}
-                  </div>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground cursor-help whitespace-nowrap">
+                  + {remainingCount} {remainingCount === 1 ? "other" : "others"}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <div className="space-y-1">
+                  {attachments.slice(1).map((attachment, index) => (
+                    <div
+                      key={attachment.driveFileDbId ?? `${attachment.name}-${index}`}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span>{attachment.name}</span>
+                      <button
+                        onClick={() => onRemove(attachment.driveFileDbId)}
+                        className="ml-2 text-muted-foreground hover:text-foreground"
+                        title="Remove attachment"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onRemove()}
-        className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
-      >
-        <X className="w-4 h-4" />
-      </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemove()}
+            className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
+            title="Remove all attachments"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </>
+      )}
     </div>
   );
 }

@@ -95,7 +95,7 @@ describe("Pill", () => {
       expect(screen.getByText("first.pdf")).toBeInTheDocument();
     });
 
-    it("calls onRemove with file id when removing specific drive file", async () => {
+    it("supports per-file removal of attachments", async () => {
       const attachments: TextAttachment[] = [
         { name: "first.pdf", size: 1024, text: "content" },
         { name: "second.pdf", size: 2048, text: "content", driveFileDbId: 123 },
@@ -107,12 +107,14 @@ describe("Pill", () => {
         </TooltipProvider>,
       );
 
-      const removeButton = screen
-        .getByRole("button", { name: "" })
-        .parentElement?.querySelector("button:last-child");
-      if (removeButton) {
-        await userEvent.click(removeButton);
-      }
+      // Click remove button for first file (no driveFileDbId)
+      const removeButtons = screen
+        .getAllByRole("button")
+        .filter(
+          (btn) => btn.querySelector("svg[class*='w-3']") || btn.querySelector("svg[class*='w-4']"),
+        );
+      const firstRemoveButton = removeButtons[0];
+      await userEvent.click(firstRemoveButton);
 
       expect(mockOnRemove).toHaveBeenCalledWith(undefined);
     });
