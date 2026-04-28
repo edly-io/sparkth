@@ -1,6 +1,6 @@
 """add idempotency guards to schema fixes
 
-Revision ID: 679e83f6c154
+Revision ID: 3623a8f30805
 Revises: acc6f4381f88
 Create Date: 2026-04-27 12:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "679e83f6c154"
+revision: str = "3623a8f30805"
 down_revision: Union[str, Sequence[str], None] = "acc6f4381f88"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
