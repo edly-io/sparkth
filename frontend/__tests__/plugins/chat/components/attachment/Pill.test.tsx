@@ -1,4 +1,3 @@
-import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -95,9 +94,9 @@ describe("Pill", () => {
       expect(screen.getByText("first.pdf")).toBeInTheDocument();
     });
 
-    it("supports per-file removal of attachments", async () => {
+    it("calls onRemove with driveFileDbId for per-file removal", async () => {
       const attachments: TextAttachment[] = [
-        { name: "first.pdf", size: 1024, text: "content" },
+        { name: "first.pdf", size: 1024, text: "content", driveFileDbId: 100 },
         { name: "second.pdf", size: 2048, text: "content", driveFileDbId: 123 },
       ];
 
@@ -107,16 +106,11 @@ describe("Pill", () => {
         </TooltipProvider>,
       );
 
-      // Click remove button for first file (no driveFileDbId)
-      const removeButtons = screen
-        .getAllByRole("button")
-        .filter(
-          (btn) => btn.querySelector("svg[class*='w-3']") || btn.querySelector("svg[class*='w-4']"),
-        );
-      const firstRemoveButton = removeButtons[0];
+      // First "Remove attachment" button belongs to the first file in the visible area
+      const firstRemoveButton = screen.getAllByTitle("Remove attachment")[0];
       await userEvent.click(firstRemoveButton);
 
-      expect(mockOnRemove).toHaveBeenCalledWith(undefined);
+      expect(mockOnRemove).toHaveBeenCalledWith(100);
     });
   });
 

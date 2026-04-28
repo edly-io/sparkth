@@ -23,10 +23,12 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
     attachment?: { name: string; size: number };
   }> = [];
 
-  for (const attachment of attachments) {
+  for (let i = 0; i < attachments.length; i++) {
+    const attachment = attachments[i];
+    const isLast = i === attachments.length - 1;
     if (attachment.driveFileDbId !== undefined) {
       const contentBlocks: object[] = [{ type: "drive_file", file_id: attachment.driveFileDbId }];
-      if (message.trim()) contentBlocks.push({ type: "text", text: message });
+      if (isLast && message.trim()) contentBlocks.push({ type: "text", text: message });
       out.push({
         role: "user",
         content: contentBlocks,
@@ -43,7 +45,7 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
           },
         },
       ];
-      if (message.trim()) contentBlocks.push({ type: "text", text: message });
+      if (isLast && message.trim()) contentBlocks.push({ type: "text", text: message });
       out.push({
         role: "user",
         content: contentBlocks,
@@ -51,9 +53,11 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
       });
     } else {
       if (attachment.text) {
+        const content =
+          isLast && message.trim() ? `${message}\n\n---\n\n${attachment.text}` : attachment.text;
         out.push({
           role: "user",
-          content: attachment.text,
+          content,
           attachment: { name: attachment.name, size: attachment.size },
         });
       }

@@ -53,13 +53,14 @@ export function useChatInput({ token, attachments, setAttachments, onSend }: Use
   const handleDriveFileSelected = (driveFiles: SelectedDriveFile[]) => {
     setShowDriveFilePicker(false);
     setUploadError(null);
-    const newAttachments = driveFiles.map((file) => ({
+    const nonDriveAttachments = attachments.filter((a) => a.driveFileDbId === undefined);
+    const newDriveAttachments = driveFiles.map((file) => ({
       name: file.name,
       size: file.size ?? 0,
       text: `[File: ${file.name}]`,
       driveFileDbId: file.id,
     }));
-    setAttachments([...attachments, ...newAttachments]);
+    setAttachments([...nonDriveAttachments, ...newDriveAttachments]);
   };
 
   const handleRemoveAttachment = (driveFileDbId?: number) => {
@@ -80,10 +81,8 @@ export function useChatInput({ token, attachments, setAttachments, onSend }: Use
 
     setMessage("");
     // Drive file attachments persist across the session until explicitly removed
-    const hasDriveFiles = attachments.some((a) => a.driveFileDbId);
-    if (!hasDriveFiles) {
-      setAttachments([]);
-    }
+    const driveFileAttachments = attachments.filter((a) => a.driveFileDbId);
+    setAttachments(driveFileAttachments);
   };
 
   return {

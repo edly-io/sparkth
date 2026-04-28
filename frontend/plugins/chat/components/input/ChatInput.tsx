@@ -130,7 +130,9 @@ export function ChatInput({
         <DriveFilePicker
           onClose={() => setShowDriveFilePicker(false)}
           onFileSelected={handleDriveFileSelected}
-          selectedFileIds={attachments.map((a) => a.driveFileDbId).filter((id) => id !== undefined)}
+          initialSelectedFiles={attachments
+            .filter((a) => a.driveFileDbId !== undefined)
+            .map((a) => ({ id: a.driveFileDbId!, name: a.name, size: a.size }))}
         />
       )}
     </div>

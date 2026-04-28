@@ -27,13 +27,13 @@ export interface SelectedDriveFile {
 interface DriveFilePickerProps {
   onClose: () => void;
   onFileSelected: (files: SelectedDriveFile[]) => void;
-  selectedFileIds?: number[];
+  initialSelectedFiles?: SelectedDriveFile[];
 }
 
 export default function DriveFilePicker({
   onClose,
   onFileSelected,
-  selectedFileIds: initialSelectedIds,
+  initialSelectedFiles = [],
 }: DriveFilePickerProps) {
   const { token } = useAuth();
   const [folders, setFolders] = useState<DriveFolder[]>([]);
@@ -41,10 +41,11 @@ export default function DriveFilePicker({
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(
-    () => new Set(initialSelectedIds ?? []),
+    () => new Set(initialSelectedFiles.map((f) => f.id)),
   );
-  const [selectedFilesMap, setSelectedFilesMap] = useState<Map<number, DriveFile>>(() => {
-    const map = new Map<number, DriveFile>();
+  const [selectedFilesMap, setSelectedFilesMap] = useState<Map<number, SelectedDriveFile>>(() => {
+    const map = new Map<number, SelectedDriveFile>();
+    for (const f of initialSelectedFiles) map.set(f.id, f);
     return map;
   });
   const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
@@ -105,7 +106,12 @@ export default function DriveFilePicker({
     } else {
       newSelectedFileIds.add(fileId);
       if (file) {
-        newSelectedFilesMap.set(fileId, file);
+        newSelectedFilesMap.set(fileId, {
+          id: file.id,
+          name: file.name,
+          mime_type: file.mime_type,
+          size: file.size,
+        });
       }
     }
     setSelectedFileIds(newSelectedFileIds);
