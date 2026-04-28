@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -19,6 +20,7 @@ from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import GoogleAuthUrl, Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
+from app.services.whitelist import WhitelistService
 
 settings = get_settings()
 
@@ -64,6 +66,11 @@ async def get_current_user(
 async def register_user(user: UserCreate, session: AsyncSession = Depends(get_async_session)) -> User:
     if not settings.REGISTRATION_ENABLED:
         raise HTTPException(status_code=403, detail="Registration is currently disabled")
+    if not await WhitelistService.is_email_allowed(session, user.email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This email address is not authorized to register. Contact an administrator.",
+        )
     result = await session.exec(select(User).where(User.username == user.username))
     db_user = result.one_or_none()
     if db_user:
@@ -172,6 +179,10 @@ async def google_callback(
                 await session.commit()
                 await session.refresh(user)
             else:
+                # Check whitelist before creating new user
+                if not await WhitelistService.is_email_allowed(session, email):
+                    return RedirectResponse(url="/login?error=email_not_whitelisted", status_code=302)
+
                 # Create new user with username from email prefix
                 base_username = email.split("@")[0][:20]
                 username = base_username
@@ -207,4 +218,15 @@ async def google_callback(
 
     except ValueError as e:
         # Redirect to login page with error
-        return RedirectResponse(url=f"/login?error={str(e)}", status_code=302)
+        return RedirectResponse(url=f"/login?error={quote(str(e))}", status_code=302)
+
+
+async def require_superuser(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superuser access required",
+        )
+    return current_user

@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import get_password_hash
 from app.models.user import User
+from app.services.whitelist import WhitelistService
 
 
 def _uniq(prefix: str) -> str:
@@ -35,9 +36,11 @@ async def create_user_in_db(
     return user
 
 
-async def test_create_user(client: AsyncClient) -> None:
+async def test_create_user(client: AsyncClient, session: AsyncSession) -> None:
     username = _uniq("testuser")
     email = f"{_uniq('test')}@example.com"
+
+    await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
     with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
@@ -61,13 +64,16 @@ async def test_create_user_existing_username(client: AsyncClient, session: Async
     username = _uniq("testuser")
     await create_user_in_db(session, username=username, email=f"{_uniq('test')}@example.com")
 
+    new_email = f"{_uniq('another')}@example.com"
+    await WhitelistService.add_entry(session, value=new_email, added_by_id=1)
+
     with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
                 "name": "Another User",
                 "username": username,
-                "email": f"{_uniq('another')}@example.com",
+                "email": new_email,
                 "password": "testpassword",
             },
         )
@@ -78,6 +84,8 @@ async def test_create_user_existing_username(client: AsyncClient, session: Async
 async def test_create_user_existing_email(client: AsyncClient, session: AsyncSession) -> None:
     email = f"{_uniq('test')}@example.com"
     await create_user_in_db(session, username=_uniq("testuser"), email=email)
+
+    await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
     with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(

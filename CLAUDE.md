@@ -119,6 +119,22 @@ To apply all pending migrations:
 ```bash
 make migrations
 ```
+
+### Preventing Split Heads
+
+Multiple Alembic heads occur when two branches each generate a migration from the same parent revision and merge independently. Before creating a new migration, always check for existing heads:
+
+```bash
+alembic heads
+```
+
+If there are already multiple heads, merge them first:
+```bash
+alembic merge heads -m "merge migration heads"
+```
+
+After merging a PR that adds a migration, any other in-flight branch that also adds a migration must rebase so its `down_revision` points to the new tip — otherwise merging it will create another split head.
+
 ## Exception Handling
 
 **Never use bare `except Exception` blocks. Always catch specific exception types.**

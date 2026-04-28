@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { login as loginApi, getGoogleLoginUrl, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -20,6 +20,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  const searchParams = useSearchParams();
+  const oauthError = searchParams.get("error");
 
   const form = useForm({
     defaultValues: { username: "", password: "" },
@@ -80,6 +83,11 @@ export default function LoginPage() {
         </p>
 
         <form className="space-y-4 sm:space-y-6" onSubmit={handleFormSubmit}>
+          {oauthError === "email_not_whitelisted" && (
+            <Alert severity="error">
+              Your email is not authorized to register. Contact an administrator.
+            </Alert>
+          )}
           {error && <Alert severity="error">{error}</Alert>}
 
           <form.Field name="username">

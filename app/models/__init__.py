@@ -4,5 +4,16 @@ from .drive import DriveFile, DriveFolder, DriveOAuthToken
 from .llm import LLMConfig
 from .plugin import Plugin, UserPlugin
 from .user import User
+from .whitelist import WhitelistedEmail
 
-__all__ = ["User", "Plugin", "UserPlugin", "DriveOAuthToken", "DriveFolder", "DriveFile", "DocumentChunk", "LLMConfig"]
+__all__ = [
+    "User",
+    "Plugin",
+    "UserPlugin",
+    "DriveOAuthToken",
+    "DriveFolder",
+    "DriveFile",
+    "DocumentChunk",
+    "LLMConfig",
+    "WhitelistedEmail",
+]

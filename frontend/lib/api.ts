@@ -188,3 +188,112 @@ export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
 
   return response.json();
 }
+
+export interface WhitelistEntry {
+  id: number;
+  value: string;
+  entry_type: string;
+  created_at: string;
+}
+
+export async function getWhitelist(token: string): Promise<WhitelistEntry[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/whitelist/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${errorMessage}`,
+      fieldErrors: {},
+    });
+  }
+
+  if (!response.ok) {
+    try {
+      const error: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(error));
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError({
+        message: "Failed to load whitelist. Please try again.",
+        fieldErrors: {},
+      });
+    }
+  }
+
+  return response.json();
+}
+
+export async function addWhitelistEntry(token: string, value: string): Promise<WhitelistEntry> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/whitelist/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ value }),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${errorMessage}`,
+      fieldErrors: {},
+    });
+  }
+
+  if (!response.ok) {
+    try {
+      const error: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(error));
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError({
+        message: "Failed to add whitelist entry. Please try again.",
+        fieldErrors: {},
+      });
+    }
+  }
+
+  return response.json();
+}
+
+export async function removeWhitelistEntry(token: string, id: number): Promise<void> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/whitelist/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${errorMessage}`,
+      fieldErrors: {},
+    });
+  }
+
+  if (!response.ok) {
+    try {
+      const error: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(error));
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError({
+        message: "Failed to remove whitelist entry. Please try again.",
+        fieldErrors: {},
+      });
+    }
+  }
+}
