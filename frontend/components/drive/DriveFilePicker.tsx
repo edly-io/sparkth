@@ -43,6 +43,10 @@ export default function DriveFilePicker({
   const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(
     () => new Set(initialSelectedIds ?? []),
   );
+  const [selectedFilesMap, setSelectedFilesMap] = useState<Map<number, DriveFile>>(() => {
+    const map = new Map<number, DriveFile>();
+    return map;
+  });
   const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
   const loadFolders = useCallback(async () => {
@@ -92,23 +96,29 @@ export default function DriveFilePicker({
 
   const toggleFileSelection = (fileId: number) => {
     const newSelectedFileIds = new Set(selectedFileIds);
+    const newSelectedFilesMap = new Map(selectedFilesMap);
+    const file = files.find((f) => f.id === fileId);
+
     if (newSelectedFileIds.has(fileId)) {
       newSelectedFileIds.delete(fileId);
+      newSelectedFilesMap.delete(fileId);
     } else {
       newSelectedFileIds.add(fileId);
+      if (file) {
+        newSelectedFilesMap.set(fileId, file);
+      }
     }
     setSelectedFileIds(newSelectedFileIds);
+    setSelectedFilesMap(newSelectedFilesMap);
   };
 
   const handleConfirmSelection = () => {
-    const selectedFiles = files
-      .filter((f) => selectedFileIds.has(f.id))
-      .map((f) => ({
-        id: f.id,
-        name: f.name,
-        mime_type: f.mime_type,
-        size: f.size,
-      }));
+    const selectedFiles = Array.from(selectedFilesMap.values()).map((f) => ({
+      id: f.id,
+      name: f.name,
+      mime_type: f.mime_type,
+      size: f.size,
+    }));
     onFileSelected(selectedFiles);
   };
 
