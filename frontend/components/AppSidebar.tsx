@@ -141,7 +141,7 @@ export default function AppSidebar({
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 px-3 py-2 overflow-y-auto">
+      <div className="flex-1 px-3 py-2 overflow-y-auto space-y-1">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Spinner size="md" className="text-muted mb-2" />
