@@ -12,7 +12,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import { listFolders, listFiles, fetchAllPages, DriveFolder, DriveFile } from "@/lib/drive";
+import {
+  listFolders,
+  listFiles,
+  fetchAllPages,
+  DriveFolder,
+  DriveFile,
+  RagStatus,
+} from "@/lib/drive";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { RagStatusIndicator } from "./RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
@@ -202,7 +209,7 @@ export default function DriveFilePicker({
                 {files.map((file) => {
                   const ragStatus = ragStatuses[file.id]?.status ?? null;
                   const ragError = ragStatuses[file.id]?.error ?? null;
-                  const isReady = ragStatus === "ready";
+                  const isReady = ragStatus === RagStatus.Ready;
                   const isSelected = selectedFileIds.has(file.id);
                   return (
                     <li

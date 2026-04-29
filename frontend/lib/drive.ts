@@ -361,7 +361,13 @@ export async function browseDrive(
 }
 
 // RAG status types and functions
-export type RagStatus = "queued" | "processing" | "ready" | "failed";
+export const RagStatus = {
+  Queued: "queued",
+  Processing: "processing",
+  Ready: "ready",
+  Failed: "failed",
+} as const;
+export type RagStatus = (typeof RagStatus)[keyof typeof RagStatus];
 
 export interface FileRagStatus {
   file_id: number;

@@ -40,7 +40,10 @@ export function useRagStatusPolling(
           allTerminal =
             data.files.length === 0 ||
             data.files.every(
-              (f) => f.rag_status === "ready" || f.rag_status === "failed" || f.rag_status === null,
+              (f) =>
+                f.rag_status === RagStatus.Ready ||
+                f.rag_status === RagStatus.Failed ||
+                f.rag_status === null,
             );
         }
       } catch {

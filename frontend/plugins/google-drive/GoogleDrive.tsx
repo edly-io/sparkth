@@ -72,32 +72,6 @@ function getFileIcon(mimeType: string) {
   return <DefaultFileIcon className="w-5 h-5 text-muted-foreground flex-shrink-0" />;
 }
 
-function StatusChip({ status }: { status: ResourceStatus }) {
-  switch (status) {
-    case ResourceStatus.Ready:
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400">
-          <CheckCircle className="w-3.5 h-3.5" />
-          Ready
-        </span>
-      );
-    case ResourceStatus.Processing:
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-          <Clock className="w-3.5 h-3.5" />
-          Processing
-        </span>
-      );
-    case ResourceStatus.Failed:
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400">
-          <AlertCircle className="w-3.5 h-3.5" />
-          Failed
-        </span>
-      );
-  }
-}
-
 function mapSyncStatus(syncStatus: string): ResourceStatus {
   switch (syncStatus) {
     case "synced":
@@ -111,45 +85,78 @@ function mapSyncStatus(syncStatus: string): ResourceStatus {
   }
 }
 
-function RagStatusChip({ status, error }: { status: RagStatus | null; error: string | null }) {
-  switch (status) {
-    case "ready":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400">
-          <CheckCircle className="w-3.5 h-3.5" />
-          Indexed
-        </span>
-      );
-    case "queued":
-    case "processing":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-          <Clock className="w-3.5 h-3.5" />
-          {status === "queued" ? "Queued" : "Processing"}
-        </span>
-      );
-    case "failed": {
-      const chip = (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400 cursor-default">
-          <AlertCircle className="w-3.5 h-3.5" />
-          Failed
-        </span>
-      );
-      if (!error) return chip;
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>{chip}</TooltipTrigger>
-          <TooltipContent>{error}</TooltipContent>
-        </Tooltip>
-      );
-    }
-    default:
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs text-muted-foreground">
-          —
-        </span>
-      );
+const CHIP_STYLES = {
+  warning: "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400",
+  error: "bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400",
+  success: "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400",
+  muted: "bg-surface-variant text-muted-foreground",
+} as const;
+
+function StatusChip({
+  tone,
+  icon: Icon,
+  label,
+}: {
+  tone: keyof typeof CHIP_STYLES;
+  icon: typeof Clock;
+  label: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${CHIP_STYLES[tone]}`}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {label}
+    </span>
+  );
+}
+
+/**
+ * Combined sync + RAG status chip. Surfaces the earliest non-final state on
+ * the pipeline: Syncing → Sync Failed | Pending → Queued → Indexing → Index Failed | Indexed.
+ */
+function PipelineStatusChip({
+  syncStatus,
+  ragStatus,
+  ragError,
+}: {
+  syncStatus: ResourceStatus;
+  ragStatus: RagStatus | null;
+  ragError: string | null;
+}) {
+  if (syncStatus === ResourceStatus.Processing) {
+    return <StatusChip tone="warning" icon={Clock} label="Syncing" />;
   }
+  if (syncStatus === ResourceStatus.Failed) {
+    return <StatusChip tone="error" icon={AlertCircle} label="Sync Failed" />;
+  }
+  if (ragStatus === null) {
+    return <StatusChip tone="muted" icon={Clock} label="Pending" />;
+  }
+  if (ragStatus === RagStatus.Queued) {
+    return <StatusChip tone="warning" icon={Clock} label="Queued" />;
+  }
+  if (ragStatus === RagStatus.Processing) {
+    return <StatusChip tone="warning" icon={Clock} label="Indexing" />;
+  }
+  if (ragStatus === RagStatus.Failed) {
+    const chip = <StatusChip tone="error" icon={AlertCircle} label="Index Failed" />;
+    if (!ragError) return chip;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{chip}</TooltipTrigger>
+        <TooltipContent>{ragError}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (ragStatus === RagStatus.Ready) {
+    return <StatusChip tone="success" icon={CheckCircle} label="Indexed" />;
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs text-muted-foreground">
+      —
+    </span>
+  );
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -348,10 +355,7 @@ function ResourcesTable({
               Type
             </th>
             <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-              Sync Status
-            </th>
-            <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
-              RAG Status
+              Status
             </th>
             <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">
               Source
@@ -367,7 +371,7 @@ function ResourcesTable({
         <tbody className="divide-y divide-border">
           {pageLoading ? (
             <tr>
-              <td colSpan={7} className="py-12 text-center">
+              <td colSpan={6} className="py-12 text-center">
                 <Spinner className="mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">Loading resources...</p>
               </td>
@@ -390,10 +394,11 @@ function ResourcesTable({
                   </span>
                 </td>
                 <td className="px-5 py-3">
-                  <StatusChip status={resource.status} />
-                </td>
-                <td className="px-5 py-3">
-                  <RagStatusChip status={resource.ragStatus} error={resource.ragError} />
+                  <PipelineStatusChip
+                    syncStatus={resource.status}
+                    ragStatus={resource.ragStatus}
+                    ragError={resource.ragError}
+                  />
                 </td>
                 <td className="px-5 py-3">
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-surface-variant text-muted-foreground">
