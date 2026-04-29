@@ -231,4 +231,5 @@ data/
 
 docs/
 logs/
+pr-comments/
 *.DS_Store

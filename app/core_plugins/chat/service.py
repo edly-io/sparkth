@@ -162,6 +162,7 @@ class ChatService:
         system_prompt: str | None = None,
         tools_config: str | None = None,
         active_drive_file_id: int | None = None,
+        active_drive_file_ids: list[int] | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
@@ -171,6 +172,7 @@ class ChatService:
             title=title,
             system_prompt=system_prompt,
             active_drive_file_id=active_drive_file_id,
+            active_drive_file_ids=json.dumps(active_drive_file_ids) if active_drive_file_ids else None,
         )
 
         session.add(conversation)
@@ -216,8 +218,9 @@ class ChatService:
         conversation_id: int,
         user_id: int,
         drive_file_id: int | None,
+        drive_file_ids: list[int] | None = None,
     ) -> None:
-        """Set or clear the active drive file for a conversation."""
+        """Set or clear the active drive file(s) for a conversation."""
         stmt = select(Conversation).where(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id,
@@ -225,7 +228,12 @@ class ChatService:
         result = await session.exec(stmt)
         conversation = result.first()
         if conversation:
-            conversation.active_drive_file_id = drive_file_id
+            if drive_file_ids is not None:
+                conversation.active_drive_file_id = drive_file_ids[0] if drive_file_ids else None
+                conversation.active_drive_file_ids = json.dumps(drive_file_ids) if drive_file_ids else None
+            else:
+                conversation.active_drive_file_id = drive_file_id
+                conversation.active_drive_file_ids = json.dumps([drive_file_id]) if drive_file_id else None
             session.add(conversation)
             await session.commit()
 

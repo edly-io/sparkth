@@ -166,3 +166,135 @@ async def test_no_status_events_without_drive_file_blocks() -> None:
 
     statuses = [e for e in parsed if "status" in e]
     assert len(statuses) == 0
+
+
+@pytest.mark.asyncio
+async def test_confirmed_rag_sections_saved_as_metadata() -> None:
+    """Confirmed RAG sections are persisted in model_metadata when saving the assistant message."""
+
+    rag_context = RAGContext(
+        file_db_id=1,
+        source_name="guide.pdf",
+        chunks=[MagicMock()],  # non-empty so sections aren't dropped
+        formatted_text="[DOCUMENT CONTEXT: guide.pdf]\nContent.",
+        ranked_sections=[
+            {"chapter": None, "section": "**Introduction**", "subsection": None},
+            {"chapter": None, "section": "**Conclusion**", "subsection": None},
+        ],
+    )
+
+    unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
+    service = _make_service()
+
+    # Make search_with_embedding return results whose .chunk.section matches ranked sections
+    sr1 = MagicMock()
+    sr1.chunk.section = "**Introduction**"
+    sr1.chunk.chapter = None
+    sr1.chunk.subsection = None
+    sr1.chunk.content = "Intro content"
+    sr2 = MagicMock()
+    sr2.chunk.section = "**Conclusion**"
+    sr2.chunk.chapter = None
+    sr2.chunk.subsection = None
+    sr2.chunk.content = "Conclusion content"
+    mock_rag = MagicMock(spec=RAGContextService)
+    mock_rag.rank_sections_for_query = AsyncMock(
+        return_value=("guide.pdf", [0.1] * 384, rag_context.ranked_sections or [])
+    )
+    mock_rag.search_with_embedding = AsyncMock(return_value=[sr1, sr2])
+
+    async for _ in stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+        conversation=_make_conversation(),
+        service=service,
+        session=AsyncMock(),
+        tools=None,
+        unresolved_messages=unresolved,
+        rag_service=mock_rag,
+        user_id=1,
+    ):
+        pass
+
+    # The last add_message call (assistant message) should include rag_sections in metadata
+    add_message_calls = service.add_message.call_args_list
+    assistant_call = next(
+        (c for c in add_message_calls if c.kwargs.get("role") == "assistant"),
+        None,
+    )
+    assert assistant_call is not None, "add_message should have been called for the assistant"
+    metadata = assistant_call.kwargs.get("metadata")
+    assert metadata is not None, "metadata should be passed when RAG sections were confirmed"
+    sections = metadata.get("rag_sections")
+    assert sections is not None, "rag_sections key should be present in metadata"
+    assert len(sections) == 2
+    names = {s["name"] for s in sections}
+    assert "Introduction" in names
+    assert "Conclusion" in names
+
+
+@pytest.mark.asyncio
+async def test_no_rag_sections_metadata_without_drive_files() -> None:
+    """When no drive files are processed, add_message is called without rag_sections metadata."""
+    service = _make_service()
+
+    async for _ in stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": "Hello"}],
+        conversation=_make_conversation(),
+        service=service,
+        session=AsyncMock(),
+        tools=None,
+    ):
+        pass
+
+    add_message_calls = service.add_message.call_args_list
+    assistant_call = next(
+        (c for c in add_message_calls if c.kwargs.get("role") == "assistant"),
+        None,
+    )
+    assert assistant_call is not None
+    metadata = assistant_call.kwargs.get("metadata")
+    # No drive files → metadata should be absent or have no rag_sections
+    assert metadata is None or metadata.get("rag_sections") is None
+
+
+class TestMessageResponseRagSections:
+    def test_message_response_accepts_rag_sections(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
+        response = MessageResponse(
+            id=1,
+            role="assistant",
+            content="Here is your answer.",
+            tokens_used=None,
+            cost=None,
+            created_at=datetime(2024, 1, 1),
+            message_type="text",
+            attachment_name=None,
+            attachment_size=None,
+            rag_sections=[{"type": "section", "name": "Introduction", "source": "doc.pdf"}],
+        )
+        assert response.rag_sections is not None
+        assert len(response.rag_sections) == 1
+        assert response.rag_sections[0]["name"] == "Introduction"
+
+    def test_message_response_rag_sections_defaults_to_none(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
+        response = MessageResponse(
+            id=1,
+            role="assistant",
+            content="Hello.",
+            tokens_used=None,
+            cost=None,
+            created_at=datetime(2024, 1, 1),
+            message_type="text",
+            attachment_name=None,
+            attachment_size=None,
+        )
+        assert response.rag_sections is None
