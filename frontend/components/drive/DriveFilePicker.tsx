@@ -26,15 +26,28 @@ export interface SelectedDriveFile {
 
 interface DriveFilePickerProps {
   onClose: () => void;
-  onFileSelected: (file: SelectedDriveFile) => void;
+  onFileSelected: (files: SelectedDriveFile[]) => void;
+  initialSelectedFiles?: SelectedDriveFile[];
 }
 
-export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePickerProps) {
+export default function DriveFilePicker({
+  onClose,
+  onFileSelected,
+  initialSelectedFiles = [],
+}: DriveFilePickerProps) {
   const { token } = useAuth();
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(
+    () => new Set(initialSelectedFiles.map((f) => f.id)),
+  );
+  const [selectedFilesMap, setSelectedFilesMap] = useState<Map<number, SelectedDriveFile>>(() => {
+    const map = new Map<number, SelectedDriveFile>();
+    for (const f of initialSelectedFiles) map.set(f.id, f);
+    return map;
+  });
   const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
   const loadFolders = useCallback(async () => {
@@ -80,6 +93,39 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
   const handleBackToFolders = () => {
     setSelectedFolder(null);
     setFiles([]);
+  };
+
+  const toggleFileSelection = (fileId: number) => {
+    const newSelectedFileIds = new Set(selectedFileIds);
+    const newSelectedFilesMap = new Map(selectedFilesMap);
+    const file = files.find((f) => f.id === fileId);
+
+    if (newSelectedFileIds.has(fileId)) {
+      newSelectedFileIds.delete(fileId);
+      newSelectedFilesMap.delete(fileId);
+    } else {
+      newSelectedFileIds.add(fileId);
+      if (file) {
+        newSelectedFilesMap.set(fileId, {
+          id: file.id,
+          name: file.name,
+          mime_type: file.mime_type,
+          size: file.size,
+        });
+      }
+    }
+    setSelectedFileIds(newSelectedFileIds);
+    setSelectedFilesMap(newSelectedFilesMap);
+  };
+
+  const handleConfirmSelection = () => {
+    const selectedFiles = Array.from(selectedFilesMap.values()).map((f) => ({
+      id: f.id,
+      name: f.name,
+      mime_type: f.mime_type,
+      size: f.size,
+    }));
+    onFileSelected(selectedFiles);
   };
 
   return (
@@ -151,43 +197,51 @@ export default function DriveFilePicker({ onClose, onFileSelected }: DriveFilePi
               No files in this folder
             </div>
           ) : (
-            <ul className="divide-y divide-border">
-              {files.map((file) => {
-                const ragStatus = ragStatuses[file.id]?.status ?? null;
-                const ragError = ragStatuses[file.id]?.error ?? null;
-                const isReady = ragStatus === "ready";
-                return (
-                  <li
-                    key={file.id}
-                    className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
-                      <span className="text-sm text-foreground truncate">{file.name}</span>
-                    </div>
-                    <div className="mx-3 shrink-0">
-                      <RagStatusIndicator fileId={file.id} status={ragStatus} error={ragError} />
-                    </div>
-                    <Button
-                      data-testid={`select-file-${file.id}`}
-                      variant="outline"
-                      size="sm"
-                      disabled={!isReady}
-                      onClick={() =>
-                        onFileSelected({
-                          id: file.id,
-                          name: file.name,
-                          mime_type: file.mime_type,
-                          size: file.size,
-                        })
-                      }
+            <>
+              <ul className="divide-y divide-border">
+                {files.map((file) => {
+                  const ragStatus = ragStatuses[file.id]?.status ?? null;
+                  const ragError = ragStatuses[file.id]?.error ?? null;
+                  const isReady = ragStatus === "ready";
+                  const isSelected = selectedFileIds.has(file.id);
+                  return (
+                    <li
+                      key={file.id}
+                      className="flex items-center gap-3 py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
                     >
-                      Select
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={!isReady}
+                        onChange={() => toggleFileSelection(file.id)}
+                        className="w-4 h-4 rounded border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label={`Select ${file.name}`}
+                      />
+                      <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
+                      <span className="text-sm text-foreground truncate flex-1 min-w-0">
+                        {file.name}
+                      </span>
+                      <div className="mx-3 shrink-0">
+                        <RagStatusIndicator fileId={file.id} status={ragStatus} error={ragError} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex gap-3 mt-6 pt-4 border-t border-border">
+                <Button variant="outline" onClick={onClose} className="flex-1">
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleConfirmSelection}
+                  disabled={selectedFileIds.size === 0}
+                  className="flex-1"
+                >
+                  Confirm selection
+                </Button>
+              </div>
+            </>
           )}
         </div>
       </DialogContent>

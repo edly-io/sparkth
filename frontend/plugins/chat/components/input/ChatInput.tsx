@@ -11,16 +11,16 @@ import DriveFilePicker from "@/components/drive/DriveFilePicker";
 import { useChatInput } from "../../hooks/useChatInput";
 
 interface ChatInputProps {
-  attachment: TextAttachment | null;
-  setAttachment: (attachment: TextAttachment | null) => void;
+  attachments: TextAttachment[];
+  setAttachments: (attachments: TextAttachment[]) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
   setPreviewOpen: (open: boolean) => void;
-  onSend: (payload: { message: string; attachment: TextAttachment | null }) => void;
+  onSend: (payload: { message: string; attachments: TextAttachment[] }) => void;
 }
 
 export function ChatInput({
-  attachment,
-  setAttachment,
+  attachments,
+  setAttachments,
   setPreviewAttachment,
   setPreviewOpen,
   onSend,
@@ -38,8 +38,9 @@ export function ChatInput({
     setUploadError,
     handleUploadAsText,
     handleDriveFileSelected,
+    handleRemoveAttachment,
     handleSend,
-  } = useChatInput({ token, attachment, setAttachment, onSend });
+  } = useChatInput({ token, attachments, setAttachments, onSend });
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 
@@ -57,14 +58,16 @@ export function ChatInput({
         )}
 
         {/* Attachment pill */}
-        <Pill
-          attachment={attachment}
-          onOpen={() => {
-            setPreviewAttachment(attachment);
-            setPreviewOpen(true);
-          }}
-          onRemove={() => setAttachment(null)}
-        />
+        {attachments.length > 0 && (
+          <Pill
+            attachments={attachments}
+            onPreview={(attachment) => {
+              setPreviewAttachment(attachment);
+              setPreviewOpen(true);
+            }}
+            onRemove={handleRemoveAttachment}
+          />
+        )}
 
         {/* Input box */}
         <div className="relative bg-input border border-border rounded-2xl p-3">
@@ -113,7 +116,7 @@ export function ChatInput({
                 variant="primary"
                 size="icon"
                 onClick={handleSend}
-                disabled={!message.trim() && !attachment}
+                disabled={!message.trim() && attachments.length === 0}
                 className="rounded-full bg-foreground text-background"
               >
                 <ArrowUp className="w-5 h-5" />
@@ -127,6 +130,9 @@ export function ChatInput({
         <DriveFilePicker
           onClose={() => setShowDriveFilePicker(false)}
           onFileSelected={handleDriveFileSelected}
+          initialSelectedFiles={attachments
+            .filter((a) => a.driveFileDbId !== undefined)
+            .map((a) => ({ id: a.driveFileDbId!, name: a.name, size: a.size }))}
         />
       )}
     </div>
