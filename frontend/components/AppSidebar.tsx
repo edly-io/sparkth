@@ -108,7 +108,7 @@ export default function AppSidebar({
             {isCollapsed ? (
               onToggleCollapse && (
                 <Tooltip>
-                  <TooltipTrigger>
+                  <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -134,7 +134,7 @@ export default function AppSidebar({
                 </div>
                 {onToggleCollapse && (
                   <Tooltip>
-                    <TooltipTrigger>
+                    <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
