@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   RefreshCw,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
@@ -98,7 +99,7 @@ function StatusChip({
   label,
 }: {
   tone: keyof typeof CHIP_STYLES;
-  icon: typeof Clock;
+  icon: LucideIcon;
   label: string;
 }) {
   return (
@@ -129,6 +130,10 @@ function PipelineStatusChip({
   }
   if (syncStatus === ResourceStatus.Failed) {
     return <StatusChip tone="error" icon={AlertCircle} label="Sync Failed" />;
+  }
+  // Explicit guard so a future ResourceStatus member can't silently fall through to RAG checks.
+  if (syncStatus !== ResourceStatus.Ready) {
+    return <StatusChip tone="muted" icon={Clock} label="Unknown" />;
   }
   if (ragStatus === null) {
     return <StatusChip tone="muted" icon={Clock} label="Pending" />;
