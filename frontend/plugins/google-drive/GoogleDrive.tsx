@@ -37,11 +37,12 @@ import {
   RagStatus,
 } from "@/lib/drive";
 
-enum ResourceStatus {
-  Ready = "ready",
-  Processing = "processing",
-  Failed = "failed",
-}
+const ResourceStatus = {
+  Ready: "ready",
+  Processing: "processing",
+  Failed: "failed",
+} as const;
+type ResourceStatus = (typeof ResourceStatus)[keyof typeof ResourceStatus];
 
 interface ResourceRow {
   id: number;
