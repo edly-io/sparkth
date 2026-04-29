@@ -12,10 +12,11 @@ export function SparkthLogo({ size = 80, iconOnly = false }: SparkthLogoProps) {
 
   return (
     <div
-      className="inline-flex items-center leading-none select-none"
+      className="inline-grid items-center leading-none select-none"
       style={{
-        gap: iconOnly ? 0 : size * 0.06,
-        transition: "gap 300ms ease",
+        gridTemplateColumns: iconOnly ? "auto 0fr" : "auto 1fr",
+        columnGap: iconOnly ? 0 : `${size * 0.06}px`,
+        transition: "grid-template-columns 300ms ease, column-gap 300ms ease",
       }}
     >
       <Image
@@ -24,29 +25,17 @@ export function SparkthLogo({ size = 80, iconOnly = false }: SparkthLogoProps) {
         width={160}
         height={160}
         className="rounded-lg"
-        style={{
-          width: iconSize,
-          height: iconSize,
-          transition: "width 300ms ease, height 300ms ease",
-        }}
+        style={{ width: iconSize, height: iconSize }}
         unoptimized
       />
       <div
-        className="flex flex-col items-center overflow-hidden"
-        style={{
-          maxWidth: iconOnly ? 0 : size * 5,
-          opacity: iconOnly ? 0 : 1,
-          transition: "max-width 300ms ease, opacity 300ms ease",
-        }}
+        className="flex flex-col items-center overflow-hidden min-w-0"
+        style={{ opacity: iconOnly ? 0 : 1, transition: "opacity 300ms ease" }}
         aria-hidden={iconOnly}
       >
         <span
           className="font-extrabold text-primary-500 whitespace-nowrap"
-          style={{
-            fontSize: composeFontSize,
-            lineHeight: 1,
-            transition: "font-size 300ms ease",
-          }}
+          style={{ fontSize: composeFontSize, lineHeight: 1 }}
         >
           compose
         </span>
@@ -57,7 +46,6 @@ export function SparkthLogo({ size = 80, iconOnly = false }: SparkthLogoProps) {
             letterSpacing: `${subtitleFontSize * 0.45}px`,
             lineHeight: 1,
             marginTop: size * 0.05,
-            transition: "font-size 300ms ease, letter-spacing 300ms ease, margin-top 300ms ease",
           }}
         >
           powered by Edly
