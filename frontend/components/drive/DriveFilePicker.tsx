@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import { Folder, FileText, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
@@ -12,7 +12,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import { listFolders, listFiles, fetchAllPages, DriveFolder, DriveFile } from "@/lib/drive";
+import {
+  listFolders,
+  listFiles,
+  fetchAllPages,
+  DriveFolder,
+  DriveFile,
+  RagStatus,
+} from "@/lib/drive";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { RagStatusIndicator } from "./RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
@@ -30,52 +37,111 @@ interface DriveFilePickerProps {
   initialSelectedFiles?: SelectedDriveFile[];
 }
 
+const EMPTY_INITIAL_SELECTED_FILES: SelectedDriveFile[] = [];
+
+interface PickerState {
+  folders: DriveFolder[];
+  files: DriveFile[];
+  selectedFolder: DriveFolder | null;
+  loading: boolean;
+  selectedFileIds: Set<number>;
+  selectedFilesMap: Map<number, SelectedDriveFile>;
+}
+
+type PickerAction =
+  | { type: "SET_FOLDERS"; folders: DriveFolder[] }
+  | { type: "SET_FILES"; files: DriveFile[] }
+  | { type: "SET_LOADING"; loading: boolean }
+  | { type: "SELECT_FOLDER"; folder: DriveFolder }
+  | { type: "BACK_TO_FOLDERS" }
+  | { type: "TOGGLE_FILE_SELECTION"; file: DriveFile };
+
+function pickerReducer(state: PickerState, action: PickerAction): PickerState {
+  switch (action.type) {
+    case "SET_FOLDERS":
+      return { ...state, folders: action.folders };
+    case "SET_FILES":
+      return { ...state, files: action.files };
+    case "SET_LOADING":
+      return { ...state, loading: action.loading };
+    case "SELECT_FOLDER":
+      return { ...state, selectedFolder: action.folder };
+    case "BACK_TO_FOLDERS":
+      return { ...state, selectedFolder: null, files: [] };
+    case "TOGGLE_FILE_SELECTION": {
+      const { file } = action;
+      const newIds = new Set(state.selectedFileIds);
+      const newMap = new Map(state.selectedFilesMap);
+      if (newIds.has(file.id)) {
+        newIds.delete(file.id);
+        newMap.delete(file.id);
+      } else {
+        newIds.add(file.id);
+        newMap.set(file.id, {
+          id: file.id,
+          name: file.name,
+          mime_type: file.mime_type,
+          size: file.size,
+        });
+      }
+      return { ...state, selectedFileIds: newIds, selectedFilesMap: newMap };
+    }
+  }
+}
+
+function buildInitialState(initialSelectedFiles: SelectedDriveFile[]): PickerState {
+  const ids = new Set<number>();
+  const map = new Map<number, SelectedDriveFile>();
+  for (const f of initialSelectedFiles) {
+    ids.add(f.id);
+    map.set(f.id, f);
+  }
+  return {
+    folders: [],
+    files: [],
+    selectedFolder: null,
+    loading: true,
+    selectedFileIds: ids,
+    selectedFilesMap: map,
+  };
+}
+
 export default function DriveFilePicker({
   onClose,
   onFileSelected,
-  initialSelectedFiles = [],
+  initialSelectedFiles = EMPTY_INITIAL_SELECTED_FILES,
 }: DriveFilePickerProps) {
   const { token } = useAuth();
-  const [folders, setFolders] = useState<DriveFolder[]>([]);
-  const [files, setFiles] = useState<DriveFile[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<DriveFolder | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(
-    () => new Set(initialSelectedFiles.map((f) => f.id)),
-  );
-  const [selectedFilesMap, setSelectedFilesMap] = useState<Map<number, SelectedDriveFile>>(() => {
-    const map = new Map<number, SelectedDriveFile>();
-    for (const f of initialSelectedFiles) map.set(f.id, f);
-    return map;
-  });
+  const [state, dispatch] = useReducer(pickerReducer, initialSelectedFiles, buildInitialState);
+  const { folders, files, selectedFolder, loading, selectedFileIds, selectedFilesMap } = state;
   const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
 
   const loadFolders = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
+    dispatch({ type: "SET_LOADING", loading: true });
     try {
       const allFolders = await fetchAllPages((skip, limit) => listFolders(token, skip, limit));
-      setFolders(allFolders);
+      dispatch({ type: "SET_FOLDERS", folders: allFolders });
     } catch (error) {
       console.error("Failed to load synced folders:", error);
     } finally {
-      setLoading(false);
+      dispatch({ type: "SET_LOADING", loading: false });
     }
   }, [token]);
 
   const loadFiles = useCallback(
     async (folderId: number) => {
       if (!token) return;
-      setLoading(true);
+      dispatch({ type: "SET_LOADING", loading: true });
       try {
         const allFiles = await fetchAllPages((skip, limit) =>
           listFiles(folderId, token, skip, limit),
         );
-        setFiles(allFiles);
+        dispatch({ type: "SET_FILES", files: allFiles });
       } catch (error) {
         console.error("Failed to load files:", error);
       } finally {
-        setLoading(false);
+        dispatch({ type: "SET_LOADING", loading: false });
       }
     },
     [token],
@@ -86,36 +152,18 @@ export default function DriveFilePicker({
   }, [loadFolders]);
 
   const handleFolderClick = (folder: DriveFolder) => {
-    setSelectedFolder(folder);
+    dispatch({ type: "SELECT_FOLDER", folder });
     loadFiles(folder.id);
   };
 
   const handleBackToFolders = () => {
-    setSelectedFolder(null);
-    setFiles([]);
+    dispatch({ type: "BACK_TO_FOLDERS" });
   };
 
   const toggleFileSelection = (fileId: number) => {
-    const newSelectedFileIds = new Set(selectedFileIds);
-    const newSelectedFilesMap = new Map(selectedFilesMap);
     const file = files.find((f) => f.id === fileId);
-
-    if (newSelectedFileIds.has(fileId)) {
-      newSelectedFileIds.delete(fileId);
-      newSelectedFilesMap.delete(fileId);
-    } else {
-      newSelectedFileIds.add(fileId);
-      if (file) {
-        newSelectedFilesMap.set(fileId, {
-          id: file.id,
-          name: file.name,
-          mime_type: file.mime_type,
-          size: file.size,
-        });
-      }
-    }
-    setSelectedFileIds(newSelectedFileIds);
-    setSelectedFilesMap(newSelectedFilesMap);
+    if (!file) return;
+    dispatch({ type: "TOGGLE_FILE_SELECTION", file });
   };
 
   const handleConfirmSelection = () => {
@@ -202,7 +250,7 @@ export default function DriveFilePicker({
                 {files.map((file) => {
                   const ragStatus = ragStatuses[file.id]?.status ?? null;
                   const ragError = ragStatuses[file.id]?.error ?? null;
-                  const isReady = ragStatus === "ready";
+                  const isReady = ragStatus === RagStatus.Ready;
                   const isSelected = selectedFileIds.has(file.id);
                   return (
                     <li

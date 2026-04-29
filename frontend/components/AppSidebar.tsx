@@ -104,60 +104,44 @@ export default function AppSidebar({
             </Button>
           </>
         ) : (
-          <>
-            {isCollapsed ? (
-              onToggleCollapse && (
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={onToggleCollapse}
-                      aria-label="Open sidebar"
-                      className="group relative flex-shrink-0"
-                    >
-                      <span className="group-hover:opacity-0 transition-opacity duration-200 absolute inset-0 flex items-center justify-center">
-                        <SparkthLogo size={32} iconOnly />
-                      </span>
+          <div className="relative w-full flex items-center justify-center group">
+            <div
+              className={isCollapsed ? "transition-opacity duration-200 group-hover:opacity-0" : ""}
+            >
+              <SparkthLogo size={isCollapsed ? 22 : 36} iconOnly={isCollapsed} />
+            </div>
+            {onToggleCollapse && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onToggleCollapse}
+                    aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
+                    className={
+                      isCollapsed
+                        ? "absolute inset-0 w-full h-full flex-shrink-0"
+                        : "absolute right-0 h-9 w-9 flex-shrink-0"
+                    }
+                  >
+                    {isCollapsed ? (
                       <PanelLeft className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" sideOffset={8}>
-                    Open sidebar
-                  </TooltipContent>
-                </Tooltip>
-              )
-            ) : (
-              <>
-                <div className="ml-2">
-                  <SparkthLogo size={32} iconOnly />
-                </div>
-                {onToggleCollapse && (
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={onToggleCollapse}
-                        aria-label="Close sidebar"
-                        className="flex-shrink-0"
-                      >
-                        <PanelLeftClose className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" sideOffset={8}>
-                      Close sidebar
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </>
+                    ) : (
+                      <PanelLeftClose className="h-5 w-5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  {isCollapsed ? "Open sidebar" : "Close sidebar"}
+                </TooltipContent>
+              </Tooltip>
             )}
-          </>
+          </div>
         )}
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 px-3 py-2 overflow-y-auto">
+      <div className="flex-1 px-3 py-2 overflow-y-auto space-y-1">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
             <Spinner size="md" className="text-muted mb-2" />
