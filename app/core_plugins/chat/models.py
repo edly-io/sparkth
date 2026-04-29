@@ -65,6 +65,7 @@ class Conversation(TimestampedModel, SQLModel, table=True):
             nullable=True,
         ),
     )
+    active_drive_file_ids: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     api_key: ProviderAPIKey | None = Relationship(back_populates="conversations")
     messages: list["Message"] = Relationship(

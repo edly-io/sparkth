@@ -1,6 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatMessage, TextAttachment } from "../types";
 
+function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
+  const result: ChatMessage[] = [];
+  let i = 0;
+  while (i < messages.length) {
+    const msg = messages[i];
+    if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
+      const attachments: TextAttachment[] = [...msg.attachments];
+      let content = msg.content;
+      let lastId = msg.id;
+      while (
+        i + 1 < messages.length &&
+        messages[i + 1].role === "user" &&
+        messages[i + 1].attachments &&
+        messages[i + 1].attachments!.length > 0
+      ) {
+        i++;
+        const next = messages[i];
+        attachments.push(...next.attachments!);
+        if (next.content) content = next.content;
+        lastId = next.id;
+      }
+      result.push({ ...msg, id: lastId, attachments, content });
+    } else {
+      result.push(msg);
+    }
+    i++;
+  }
+  return result;
+}
+
 const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "assistant",
@@ -15,6 +45,12 @@ interface ApiMessage {
   attachment_name: string | null;
   attachment_size: number | null;
   created_at: string;
+  rag_sections: { type: string; name: string; source?: string }[] | null;
+}
+
+interface ActiveDriveFile {
+  id: number;
+  name: string;
 }
 
 interface ApiConversation {
@@ -22,6 +58,7 @@ interface ApiConversation {
   messages: ApiMessage[];
   active_drive_file_id: number | null;
   active_drive_file_name: string | null;
+  active_drive_files: ActiveDriveFile[];
 }
 
 interface UseConversationResult {
@@ -85,38 +122,47 @@ export function useConversation(
         });
         if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
         const data: ApiConversation = await r.json();
-        const loaded: ChatMessage[] = data.messages.map((m) => ({
-          id: String(m.id),
-          role: m.role,
-          content:
-            m.message_type === "attachment"
-              ? m.content !== "[File attachment]"
-                ? m.content
-                : ""
-              : m.content,
-          attachments:
-            m.message_type === "attachment" && m.attachment_name
-              ? [{ name: m.attachment_name, size: m.attachment_size ?? 0, text: m.content }]
+        const loaded: ChatMessage[] = mergeConsecutiveAttachmentMessages(
+          data.messages.map((m) => ({
+            id: String(m.id),
+            role: m.role,
+            content:
+              m.message_type === "attachment"
+                ? m.content !== "[File attachment]"
+                  ? m.content
+                  : ""
+                : m.content,
+            attachments:
+              m.message_type === "attachment" && m.attachment_name
+                ? [{ name: m.attachment_name, size: m.attachment_size ?? 0, text: m.content }]
+                : undefined,
+            ragSections: m.rag_sections
+              ? m.rag_sections.map((s) => ({ ...s, state: "confirmed" as const }))
               : undefined,
-        }));
+          })),
+        );
         setHistoryState({
           loading: false,
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
 
-        // Restore persistent drive file attachment (or clear if this conversation has none)
-        if (data.active_drive_file_id && data.active_drive_file_name) {
-          setInputAttachments([
-            {
-              name: data.active_drive_file_name,
-              size: 0,
-              text: `[File: ${data.active_drive_file_name}]`,
-              driveFileDbId: data.active_drive_file_id,
-            },
-          ]);
-        } else {
-          setInputAttachments([]);
-        }
+        // Restore persistent drive file attachments (or clear if this conversation has none).
+        // Prefer active_drive_files (multi-file); fall back to single legacy fields for old conversations.
+        const driveFiles: ActiveDriveFile[] =
+          data.active_drive_files?.length > 0
+            ? data.active_drive_files
+            : data.active_drive_file_id && data.active_drive_file_name
+              ? [{ id: data.active_drive_file_id, name: data.active_drive_file_name }]
+              : [];
+
+        setInputAttachments(
+          driveFiles.map((f) => ({
+            name: f.name,
+            size: 0,
+            text: `[File: ${f.name}]`,
+            driveFileDbId: f.id,
+          })),
+        );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(err);

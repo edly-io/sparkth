@@ -2,6 +2,7 @@ import { FileText, X } from "lucide-react";
 import { TextAttachment } from "../../types";
 import { Button } from "@/components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/Tooltip";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 
 interface PillProps {
   attachments: TextAttachment[];
@@ -28,7 +29,9 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
           >
             <FileText className="w-4 h-4" />
-            <span className="truncate">{firstAttachment.name}</span>
+            <span className="truncate">
+              {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+            </span>
           </Button>
           {onRemove && (
             <Button
@@ -53,19 +56,10 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
               className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
             >
               <FileText className="w-4 h-4" />
-              <span className="truncate">{firstAttachment.name}</span>
+              <span className="truncate">
+                {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+              </span>
             </Button>
-            {onRemove && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onRemove(firstAttachment.driveFileDbId)}
-                className="text-muted-foreground hover:text-foreground p-0 h-auto"
-                title="Remove attachment"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            )}
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -78,18 +72,9 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                   {attachments.slice(1).map((attachment, index) => (
                     <div
                       key={attachment.driveFileDbId ?? `${attachment.name}-${index}`}
-                      className="flex items-center justify-between gap-2"
+                      className="flex items-center gap-2"
                     >
-                      <span>{attachment.name}</span>
-                      {onRemove && (
-                        <button
-                          onClick={() => onRemove(attachment.driveFileDbId)}
-                          className="ml-2 text-muted-foreground hover:text-foreground"
-                          title="Remove attachment"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
+                      <span>{truncate(attachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
                     </div>
                   ))}
                 </div>

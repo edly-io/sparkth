@@ -5,6 +5,7 @@ import { ChatMessage, TextAttachment } from "../../types";
 import { Pill } from "../attachment/Pill";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 
 function ThinkingDots() {
   return (
@@ -62,7 +63,16 @@ export function AssistantMessage({
                   <span className="capitalize">{section.type}</span>
                   <span className="text-neutral-300 dark:text-neutral-600">—</span>
                   <span className={section.state === "scanning" ? "opacity-50" : ""}>
-                    {section.name}
+                    {truncate(section.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                    {section.source && (
+                      <>
+                        {" "}
+                        from{" "}
+                        <span className="opacity-70">
+                          {truncate(section.source, RAG_DISPLAY_NAME_MAX_CHARS)}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </li>
               ))}
@@ -82,7 +92,18 @@ export function AssistantMessage({
                           <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
                           <span className="capitalize">{section.type}</span>
                           <span className="text-neutral-300 dark:text-neutral-600">—</span>
-                          <span>{section.name}</span>
+                          <span>
+                            {truncate(section.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                            {section.source && (
+                              <>
+                                {" "}
+                                from{" "}
+                                <span className="opacity-70">
+                                  {truncate(section.source, RAG_DISPLAY_NAME_MAX_CHARS)}
+                                </span>
+                              </>
+                            )}
+                          </span>
                         </li>
                       ))}
                     </ul>
