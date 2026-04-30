@@ -11,6 +11,8 @@ from app.core_plugins.chat.routes import _extract_query_text, _resolve_drive_fil
 from app.core_plugins.chat.schemas import ChatMessage
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.models import DocumentChunk
+from app.rag.store import SimilarityResult
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
@@ -29,6 +31,19 @@ def _text_block(text: str) -> dict[str, Any]:
     return {"type": "text", "text": text}
 
 
+def _make_chunk(content: str = "Some content") -> MagicMock:
+    chunk = MagicMock(spec=DocumentChunk)
+    chunk.content = content
+    chunk.chapter = "Chapter 1"
+    chunk.section = "Section 1"
+    chunk.subsection = None
+    return chunk
+
+
+def _make_sr(content: str = "Content", sim: float = 0.9) -> SimilarityResult:
+    return SimilarityResult(chunk=_make_chunk(content), similarity=sim)
+
+
 def _make_rag_service(
     *,
     context: RAGContext | None = None,
@@ -41,7 +56,7 @@ def _make_rag_service(
         ctx = context or RAGContext(
             file_db_id=1,
             source_name="doc.pdf",
-            chunks=[],
+            chunks=[_make_sr()],
             formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nExcerpts here.",
         )
         mock_service.get_context_via_agent = AsyncMock(return_value=ctx)
@@ -127,7 +142,7 @@ class TestResolveDriveFileBlocks:
             context=RAGContext(
                 file_db_id=42,
                 source_name="doc.pdf",
-                chunks=[],
+                chunks=[_make_sr("Content here.")],
                 formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nContent here.",
             )
         )

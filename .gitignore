@@ -231,4 +231,5 @@ data/
 
 ignored/
 logs/
+pr-comments/
 *.DS_Store

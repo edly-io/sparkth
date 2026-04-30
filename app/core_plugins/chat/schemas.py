@@ -156,7 +156,12 @@ class MessageResponse(BaseModel):
     message_type: str
     attachment_name: str | None
     attachment_size: int | None
-    rag_sections: list[dict[str, str]] | None = None
+    rag_sections: list[dict[str, Any]] | None = None
+
+
+class ActiveDriveFile(BaseModel):
+    id: int
+    name: str
 
 
 class ConversationResponse(BaseModel):
@@ -171,6 +176,7 @@ class ConversationResponse(BaseModel):
     updated_at: datetime
     active_drive_file_id: int | None = None
     active_drive_file_name: str | None = None
+    active_drive_files: list[ActiveDriveFile] = []
 
 
 class ConversationDetailResponse(ConversationResponse):

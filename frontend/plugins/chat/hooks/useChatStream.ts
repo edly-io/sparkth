@@ -77,7 +77,7 @@ function applyStatusEvent(
   setMessages: UseChatStreamOptions["setMessages"],
 ) {
   if (parsed.status === "section_scanning" && parsed.section) {
-    const section = parsed.section as { type: string; name: string };
+    const section = parsed.section as { type: string; name: string; source?: string };
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === assistantId

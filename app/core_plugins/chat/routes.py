@@ -30,6 +30,7 @@ from app.core_plugins.chat.conversation_title import (
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation, Message, ProviderAPIKey
 from app.core_plugins.chat.schemas import (
+    ActiveDriveFile,
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
@@ -331,7 +332,8 @@ async def _resolve_drive_file_blocks(
                     query=query_text,
                     llm=llm,
                 )
-                new_blocks.append({"type": "text", "text": context.formatted_text})
+                if context.chunks:
+                    new_blocks.append({"type": "text", "text": context.formatted_text})
                 logger.info(
                     "Replaced drive_file block file_id=%d with %d RAG chunks",
                     file_id,
@@ -375,6 +377,24 @@ def _extract_drive_file_id_from_messages(messages: list[ChatMessage]) -> int | N
     return None
 
 
+def _extract_all_drive_file_ids_from_messages(messages: list[ChatMessage]) -> list[int]:
+    """Extract all unique drive_file file_ids from message content blocks, preserving order."""
+    seen: set[int] = set()
+    result: list[int] = []
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if isinstance(block, dict) and block.get("type") == "drive_file":
+                raw_id = block.get("file_id")
+                if raw_id is not None:
+                    file_id = int(raw_id)
+                    if file_id not in seen:
+                        seen.add(file_id)
+                        result.append(file_id)
+    return result
+
+
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
@@ -398,7 +418,8 @@ async def chat_completion(
         )
 
     conversation_uuid = request.conversation_id
-    active_drive_file_id = _extract_drive_file_id_from_messages(request.messages)
+    active_drive_file_ids = _extract_all_drive_file_ids_from_messages(request.messages)
+    active_drive_file_id = active_drive_file_ids[0] if active_drive_file_ids else None
 
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(
@@ -411,12 +432,13 @@ async def chat_completion(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Conversation {conversation_uuid} not found",
             )
-        if active_drive_file_id is not None and conversation.active_drive_file_id != active_drive_file_id:
+        if active_drive_file_ids:
             await service.set_active_drive_file(
                 session=session,
                 conversation_id=conversation.id,  # type: ignore
                 user_id=current_user.id,  # type: ignore
                 drive_file_id=active_drive_file_id,
+                drive_file_ids=active_drive_file_ids,
             )
     else:
         stmt = select(ProviderAPIKey).where(
@@ -436,6 +458,7 @@ async def chat_completion(
             model=request.model,
             title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
             active_drive_file_id=active_drive_file_id,
+            active_drive_file_ids=active_drive_file_ids or None,
         )
 
         first_user_text = get_first_user_text(request.messages)
@@ -659,11 +682,12 @@ async def stream_chat_response(
     similarity_threshold: float = 0.45,
     llm: Any | None = None,
 ) -> Any:
-    confirmed_rag_sections: list[dict[str, str]] = []
-
     # --- Phase 1: In-stream RAG resolution (emits status events) ---
+    confirmed_rag_sections: list[dict[str, str | None]] = []
     if unresolved_messages and rag_service and user_id is not None:
         query_text = _extract_query_text(unresolved_messages)
+        files_with_no_results: list[str] = []
+        any_results_found = False
 
         for msg in unresolved_messages:
             if not isinstance(msg.content, list):
@@ -698,41 +722,22 @@ async def stream_chat_response(
                 source_name = context.source_name
                 results = context.chunks
 
-                # If no chunks matched the threshold, terminate early with user-facing options
                 if not results:
-                    if similarity_threshold <= 0.15:
-                        no_chunks_msg = (
-                            f"I searched **{source_name}** with progressively less strict matching "
-                            f"but still couldn't find relevant content for your query.\n\n"
-                            f"Please try rephrasing your question, or check that your document contains "
-                            f"information about this topic."
-                        )
-                        done_payload: dict[str, object] = {
-                            "done": True,
-                            "content": no_chunks_msg,
-                            "conversation_id": str(conversation.uuid),
-                        }
-                    else:
-                        no_chunks_msg = (
-                            f"I searched **{source_name}** but couldn't find content closely "
-                            f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
-                            f"Would you like me to try again with less strict matching?"
-                        )
-                        done_payload = {
-                            "done": True,
-                            "content": no_chunks_msg,
-                            "options": ["Try with less strict matching"],
-                            "conversation_id": str(conversation.uuid),
-                        }
-                    await service.add_message(
-                        session=session,
-                        conversation_id=conversation.id,  # type: ignore[arg-type]
-                        role="assistant",
-                        content=no_chunks_msg,
-                        message_type="text",
-                    )
-                    yield f"data: {json.dumps(done_payload)}\n\n"
-                    return
+                    # This file had no matches — drop its block and try the next file.
+                    files_with_no_results.append(source_name)
+                    for m in messages:
+                        if not isinstance(m.get("content"), list):
+                            continue
+                        m["content"] = [
+                            b
+                            for b in m["content"]
+                            if not (
+                                isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id
+                            )
+                        ]
+                    continue
+
+                any_results_found = True
 
                 # Build confirmed_rag_sections from retrieved chunks for message metadata
                 seen_section_keys: set[str] = set()
@@ -754,6 +759,45 @@ async def stream_chat_response(
                         if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
                             m["content"][i] = {"type": "text", "text": context.formatted_text}
 
+        # If every searched file returned no results, surface the no-match message.
+        if files_with_no_results and not any_results_found:
+            if similarity_threshold <= 0.15:
+                no_chunks_msg = (
+                    "I searched your documents with progressively less strict matching "
+                    "but still couldn't find relevant content for your query.\n\n"
+                    "Please try rephrasing your question, or check that your documents contain "
+                    "information about this topic."
+                )
+                done_payload: dict[str, object] = {
+                    "done": True,
+                    "content": no_chunks_msg,
+                    "conversation_id": str(conversation.uuid),
+                }
+            else:
+                source_label = (
+                    f"**{files_with_no_results[0]}**" if len(files_with_no_results) == 1 else "your documents"
+                )
+                no_chunks_msg = (
+                    f"I searched {source_label} but couldn't find content closely "
+                    f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
+                    f"Would you like me to try again with less strict matching?"
+                )
+                done_payload = {
+                    "done": True,
+                    "content": no_chunks_msg,
+                    "options": ["Try with less strict matching"],
+                    "conversation_id": str(conversation.uuid),
+                }
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,  # type: ignore[arg-type]
+                role="assistant",
+                content=no_chunks_msg,
+                message_type="text",
+            )
+            yield f"data: {json.dumps(done_payload)}\n\n"
+            return
+
         yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
 
     # --- Phase 2: LLM streaming ---
@@ -771,6 +815,7 @@ async def stream_chat_response(
             conversation_id=conversation_id,
             role="assistant",
             content=full_response,
+            metadata={"rag_sections": confirmed_rag_sections} if confirmed_rag_sections else None,
         )
 
         data = json.dumps(
@@ -900,13 +945,27 @@ async def list_conversations(
     count_result = await session.exec(count_stmt)
     message_counts = {row[0]: row[1] for row in count_result.all()}
 
-    drive_file_ids = [conv.active_drive_file_id for conv in conversations if conv.active_drive_file_id]
+    all_file_ids: set[int] = set()
+    for conv in conversations:
+        if conv.active_drive_file_ids:
+            all_file_ids.update(json.loads(conv.active_drive_file_ids))
+        elif conv.active_drive_file_id:
+            all_file_ids.add(conv.active_drive_file_id)
+
     drive_file_names: dict[int, str] = {}
-    if drive_file_ids:
-        df_stmt = select(DriveFileModel).where(col(DriveFileModel.id).in_(drive_file_ids))
+    if all_file_ids:
+        df_stmt = select(DriveFileModel).where(col(DriveFileModel.id).in_(list(all_file_ids)))
         df_result = await session.execute(df_stmt)
         for df in df_result.scalars().all():
             drive_file_names[df.id] = df.name
+
+    def _build_active_files(conv: Conversation) -> list[ActiveDriveFile]:
+        if conv.active_drive_file_ids:
+            ids: list[int] = json.loads(conv.active_drive_file_ids)
+            return [ActiveDriveFile(id=fid, name=drive_file_names[fid]) for fid in ids if fid in drive_file_names]
+        if conv.active_drive_file_id and conv.active_drive_file_id in drive_file_names:
+            return [ActiveDriveFile(id=conv.active_drive_file_id, name=drive_file_names[conv.active_drive_file_id])]
+        return []
 
     conversation_responses = [
         ConversationResponse(
@@ -923,6 +982,7 @@ async def list_conversations(
             active_drive_file_name=drive_file_names.get(conv.active_drive_file_id)
             if conv.active_drive_file_id
             else None,
+            active_drive_files=_build_active_files(conv),
         )
         for conv in conversations
     ]
@@ -964,13 +1024,24 @@ async def get_conversation(
     message_count = len(messages)
 
     active_drive_file_name = None
-    if conversation.active_drive_file_id:
+    active_drive_files_list: list[ActiveDriveFile] = []
+
+    if conversation.active_drive_file_ids:
+        ids: list[int] = json.loads(conversation.active_drive_file_ids)
+        if ids:
+            df_result = await session.execute(select(DriveFileModel).where(col(DriveFileModel.id).in_(ids)))
+            df_map = {df.id: df.name for df in df_result.scalars().all()}
+            active_drive_files_list = [ActiveDriveFile(id=fid, name=df_map[fid]) for fid in ids if fid in df_map]
+            if active_drive_files_list:
+                active_drive_file_name = active_drive_files_list[0].name
+    elif conversation.active_drive_file_id:
         df_result = await session.execute(
             select(DriveFileModel).where(DriveFileModel.id == conversation.active_drive_file_id)
         )
         df = df_result.scalars().first()
         if df:
             active_drive_file_name = df.name
+            active_drive_files_list = [ActiveDriveFile(id=conversation.active_drive_file_id, name=df.name)]
 
     return ConversationDetailResponse(
         id=conversation.uuid,
@@ -984,6 +1055,7 @@ async def get_conversation(
         updated_at=conversation.updated_at,
         active_drive_file_id=conversation.active_drive_file_id,
         active_drive_file_name=active_drive_file_name,
+        active_drive_files=active_drive_files_list,
         messages=[
             MessageResponse(
                 id=msg.id,  # type: ignore
@@ -995,6 +1067,7 @@ async def get_conversation(
                 message_type=msg.message_type,
                 attachment_name=msg.attachment_name,
                 attachment_size=msg.attachment_size,
+                rag_sections=_parse_rag_sections(msg.model_metadata),
             )
             for msg in messages
         ],
@@ -1024,6 +1097,7 @@ async def clear_active_drive_file(
         conversation_id=conversation.id,  # type: ignore
         user_id=current_user.id,  # type: ignore
         drive_file_id=None,
+        drive_file_ids=[],
     )
 
 
