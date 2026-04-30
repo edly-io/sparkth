@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     RAG_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"  # model name passed to provider
     RAG_DISPLAY_NAME_MAX_CHARS: int = 30  # max chars for section/filename labels in the UI
     MEMORY_PROFILING_ENABLED: bool = False
+    RAG_MCP_URL: str  # = "http://rag-mcp:7728/mcp"
 
 
 @lru_cache
