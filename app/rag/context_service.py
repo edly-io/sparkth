@@ -1,7 +1,7 @@
 """RAG context retrieval for chat course generation."""
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
 from app.models.drive import DriveFile
+from app.rag.agent import run_agentic_rag_search
 from app.rag.embeddings import BaseEmbeddingProvider, HuggingFaceEmbeddingProvider
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.memory_profiler import profile_memory
@@ -223,6 +224,86 @@ class RAGContextService:
         logger.info("RAG: found %d chunks for source_name=%s", len(results), source_name)
         logger.info("RAG chunk IDs in context: %s", [r.chunk.id for r in results])
         return results
+
+    async def get_context_via_agent(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        file_db_id: int,
+        query: str,
+        llm: Any,
+        limit: int = DEFAULT_RAG_CHUNKS,
+    ) -> RAGContext:
+        """Retrieve RAG context by agent-driven section selection.
+
+        A LangGraph ReAct agent inspects the document structure via MCP tools,
+        understands the user's intent, and hand-picks the relevant sections.
+        All chunks in those sections are fetched directly — no similarity search.
+
+        Raises:
+            DriveFileNotFoundError: File not found or not owned by user.
+            RAGNotReadyError: File exists but rag_status is not READY.
+            RAGRetrievalError: Agent invocation or section fetch failed.
+        """
+        # Lookup file and verify access/readiness
+        drive_file = await self._lookup_drive_file(session, user_id, file_db_id)
+        source_name = _resolve_source_name(drive_file)
+
+        # Empty query fallback: use source name
+        if not query.strip():
+            query = source_name
+
+        logger.info(
+            "RAG retrieval via agent: user=%d file_db_id=%d source_name=%s query_len=%d",
+            user_id,
+            file_db_id,
+            source_name,
+            len(query),
+        )
+
+        # Call agent to hand-pick sections based on user intent
+        try:
+            decision = await run_agentic_rag_search(
+                llm=llm,
+                user_id=user_id,
+                file_id=file_db_id,
+                user_query=query,
+            )
+        except RAGRetrievalError:
+            raise
+
+        logger.info(
+            "RAG agent selected %d section(s) for file_db_id=%d",
+            len(decision.selected_sections),
+            file_db_id,
+        )
+
+        # Fetch chunks directly for the agent-selected sections — no similarity search
+        try:
+            results = await self._store.fetch_chunks_by_sections(
+                session=session,
+                user_id=user_id,
+                source_name=source_name,
+                section_keys=decision.selected_sections,
+                limit=limit,
+            )
+        except SQLAlchemyError as exc:
+            logger.error("Section fetch failed for file_db_id=%d: %s", file_db_id, exc)
+            raise RAGRetrievalError(f"Section fetch failed: {exc}") from exc
+
+        logger.info("RAG: found %d chunks for file_db_id=%d via agent", len(results), file_db_id)
+        logger.info(
+            "RAG chunk IDs in context for file_db_id=%d: %s",
+            file_db_id,
+            [r.chunk.id for r in results],
+        )
+
+        return RAGContext(
+            file_db_id=file_db_id,
+            source_name=source_name,
+            chunks=results,
+            formatted_text=format_chunks_as_context(source_name, results),
+        )
 
     async def _rank_sections(
         self,

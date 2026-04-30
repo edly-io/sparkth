@@ -156,6 +156,7 @@ class MessageResponse(BaseModel):
     message_type: str
     attachment_name: str | None
     attachment_size: int | None
+    rag_sections: list[dict[str, str]] | None = None
 
 
 class ConversationResponse(BaseModel):

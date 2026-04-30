@@ -137,6 +137,7 @@ async function readStream(
   let newConversationId: string | null = null;
   let hasError = false;
   let doneOptions: string[] = [];
+  let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
 
   outer: while (true) {
     const { value, done } = await reader.read();
@@ -181,6 +182,10 @@ async function readStream(
           if (parsed.conversation_id) newConversationId = String(parsed.conversation_id);
           if (parsed.content) assistantText = parsed.content;
           if (parsed.options) doneOptions = parsed.options as string[];
+          const sections = (parsed.message as Record<string, unknown> | undefined)?.rag_sections;
+          if (Array.isArray(sections) && sections.length > 0) {
+            doneRagSections = sections as { type: string; name: string; source?: string }[];
+          }
           break outer;
         }
       } catch {
@@ -189,7 +194,7 @@ async function readStream(
     }
   }
 
-  return { assistantText, newConversationId, hasError, doneOptions };
+  return { assistantText, newConversationId, hasError, doneOptions, doneRagSections };
 }
 
 export function useChatStream({
@@ -275,12 +280,10 @@ export function useChatStream({
           return;
         }
 
-        const { assistantText, newConversationId, hasError, doneOptions } = await readStream(
-          res.body,
-          assistantId,
-          setMessages,
-          (text) => failAssistantMessage(assistantId, text),
-        );
+        const { assistantText, newConversationId, hasError, doneOptions, doneRagSections } =
+          await readStream(res.body, assistantId, setMessages, (text) =>
+            failAssistantMessage(assistantId, text),
+          );
 
         if (!hasError) {
           setMessages((prev) =>
@@ -293,6 +296,12 @@ export function useChatStream({
                     isTyping: false,
                     statusText: undefined,
                     ...(doneOptions.length > 0 && { options: doneOptions }),
+                    ...(doneRagSections && {
+                      ragSections: doneRagSections.map((s) => ({
+                        ...s,
+                        state: "confirmed" as const,
+                      })),
+                    }),
                   }
                 : msg,
             ),

@@ -1,8 +1,9 @@
 """Vector store service for storing and retrieving document chunks."""
 
 from dataclasses import dataclass
+from typing import Any
 
-from sqlalchemy import delete, literal
+from sqlalchemy import and_, delete, literal, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -173,6 +174,49 @@ class VectorStoreService:
         )
         result = await session.execute(stmt)
         return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in result.all()]
+
+    async def fetch_chunks_by_sections(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        source_name: str,
+        section_keys: list[dict[str, str | None]],
+        limit: int = 50,
+    ) -> list[SimilarityResult]:
+        """Fetch chunks for specific section keys in document order (by id).
+
+        Matches exact (chapter, section, subsection) tuples — NULL-safe.
+        Returns SimilarityResult with similarity=1.0 (no vector scoring).
+        """
+        if not section_keys:
+            return []
+
+        def _key_condition(key: dict[str, str | None]) -> Any:
+            chapter = key.get("chapter")
+            section = key.get("section")
+            subsection = key.get("subsection")
+            return and_(
+                col(DocumentChunk.chapter) == chapter if chapter is not None else col(DocumentChunk.chapter).is_(None),
+                col(DocumentChunk.section) == section if section is not None else col(DocumentChunk.section).is_(None),
+                col(DocumentChunk.subsection) == subsection
+                if subsection is not None
+                else col(DocumentChunk.subsection).is_(None),
+            )
+
+        stmt = (
+            select(DocumentChunk)
+            .where(
+                col(DocumentChunk.user_id) == user_id,
+                col(DocumentChunk.source_name) == source_name,
+                or_(*[_key_condition(k) for k in section_keys]),
+            )
+            .order_by(col(DocumentChunk.id))
+            .limit(limit)
+        )
+
+        result = await session.execute(stmt)
+        chunks = result.scalars().all()
+        return [SimilarityResult(chunk=chunk, similarity=1.0) for chunk in chunks]
 
     async def delete_by_source(
         self,

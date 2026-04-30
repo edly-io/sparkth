@@ -229,6 +229,6 @@ node_modules/
 # Docker
 data/
 
-docs/
+ignored/
 logs/
 *.DS_Store

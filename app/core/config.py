@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     RAG_EMBEDDING_PROVIDER: str = "huggingface"  # embedding provider: huggingface or openai
     RAG_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"  # model name passed to provider
     MEMORY_PROFILING_ENABLED: bool = False
+    RAG_MCP_URL: str  # = "http://rag-mcp:7728/mcp"
 
 
 @lru_cache
