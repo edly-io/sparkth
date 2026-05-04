@@ -18,6 +18,7 @@ class User(UserBase):
     name: str
     username: str
     is_superuser: bool
+    email_verified: bool
 
     model_config = ConfigDict(from_attributes=True)
 
