@@ -217,6 +217,9 @@ async def google_callback(
             if user:
                 # Link Google ID to existing account
                 user.google_id = google_id
+                if not user.email_verified:
+                    user.email_verified = True
+                    user.email_verified_at = utc_now()
                 session.add(user)
                 await session.commit()
                 await session.refresh(user)
@@ -243,6 +246,8 @@ async def google_callback(
                     email=email,
                     google_id=google_id,
                     hashed_password=None,
+                    email_verified=True,
+                    email_verified_at=utc_now(),
                 )
                 session.add(user)
                 await session.commit()
