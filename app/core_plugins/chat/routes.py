@@ -62,8 +62,12 @@ from app.models.user import User
 from app.rag.context_service import RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.provider import get_provider as get_rag_provider
+from app.rag.utils import get_asset
 
 logger = get_logger(__name__)
+
+_RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt", "txt")
+assert isinstance(_RAG_CONTEXT_PROMPT, str)
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -312,10 +316,11 @@ async def _resolve_drive_file_blocks(
             resolved.append(msg)
             continue
 
-        new_blocks: list[dict[str, Any]] = []
+        non_file_blocks: list[dict[str, Any]] = []
+        rag_blocks: list[dict[str, Any]] = []
         for block in msg.content:
             if not isinstance(block, dict) or block.get("type") != "drive_file":
-                new_blocks.append(block)
+                non_file_blocks.append(block)
                 continue
 
             raw_id = block.get("file_id")
@@ -332,7 +337,7 @@ async def _resolve_drive_file_blocks(
                     llm=llm,
                 )
                 if context.chunks:
-                    new_blocks.append({"type": "text", "text": context.formatted_text})
+                    rag_blocks.append({"type": "text", "text": context.formatted_text})
                 logger.info(
                     "Replaced drive_file block file_id=%d with %d RAG chunks",
                     file_id,
@@ -358,6 +363,13 @@ async def _resolve_drive_file_blocks(
                     detail="Failed to retrieve document context. Please try again.",
                 ) from exc
 
+        if rag_blocks:
+            other_blocks = [b for b in non_file_blocks if not (isinstance(b, dict) and b.get("type") == "text")]
+            new_blocks: list[dict[str, Any]] = (
+                [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks
+            )
+        else:
+            new_blocks = non_file_blocks
         resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
 
     return resolved
@@ -749,13 +761,22 @@ async def stream_chat_response(
                         seen_section_keys.add(key)
                         confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
 
-                # Replace drive_file block in messages with RAG text
+                # Replace drive_file block with RAG text; drop original user text in the same message
                 for m in messages:
                     if not isinstance(m.get("content"), list):
                         continue
-                    for i, b in enumerate(m["content"]):
+                    if not any(
+                        isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id
+                        for b in m["content"]
+                    ):
+                        continue
+                    new_content: list[dict[str, Any]] = [{"type": "text", "text": _RAG_CONTEXT_PROMPT}]
+                    for b in m["content"]:
                         if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
-                            m["content"][i] = {"type": "text", "text": context.formatted_text}
+                            new_content.append({"type": "text", "text": context.formatted_text})
+                        elif not (isinstance(b, dict) and b.get("type") == "text"):
+                            new_content.append(b)
+                    m["content"] = new_content
 
         # If every searched file returned no results, surface the no-match message.
         if files_with_no_results and not any_results_found:
