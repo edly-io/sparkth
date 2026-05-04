@@ -1,5 +1,6 @@
 import hashlib
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import Any
 from urllib.parse import quote
 
@@ -281,18 +282,26 @@ async def verify_email(
     return user
 
 
-async def _get_resend_redis() -> Any:
-    """Indirection so tests can override the rate-limit backend.
+@lru_cache(maxsize=1)
+def _resend_redis_client() -> aioredis.Redis:
+    """Process-level singleton Redis client for the resend cooldown.
 
-    Returns a Redis client used only for the resend cooldown (`SET NX EX`).
-    Not routed through `CacheService` because that wraps a different API
-    (string get/set with ttl) and we'd be reaching into private state.
+    `aioredis.from_url` returns immediately; the connection pool is
+    initialized lazily on first command, so the cached client is safe to
+    build at import-adjacent time. Not routed through `CacheService` —
+    that wraps a different API (string get/set with default ttl) and
+    we'd be reaching into private state.
     """
-    return aioredis.from_url(  # type: ignore[no-untyped-call]
+    return aioredis.from_url(  # type: ignore[no-untyped-call,no-any-return]
         settings.REDIS_URL,
         encoding="utf-8",
         decode_responses=True,
     )
+
+
+async def _get_resend_redis() -> Any:
+    """Indirection so tests can override the rate-limit backend."""
+    return _resend_redis_client()
 
 
 @router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
