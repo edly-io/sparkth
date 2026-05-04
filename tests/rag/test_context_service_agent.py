@@ -59,7 +59,7 @@ class TestGetContextViaAgent:
                 assert len(result.chunks) == 1
                 mock_store.fetch_chunks_by_sections.assert_awaited_once()
                 call_kwargs = mock_store.fetch_chunks_by_sections.call_args.kwargs
-                assert call_kwargs["section_keys"] == selected
+                assert call_kwargs["section_keys"] == [s.model_dump() for s in selected]
 
     @pytest.mark.asyncio
     async def test_empty_sections_returns_no_chunks(self) -> None:
