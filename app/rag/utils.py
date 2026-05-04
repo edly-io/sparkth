@@ -19,6 +19,8 @@ def get_asset(file_name: str, file_extension: str) -> str | dict[str, Any]:
             content = f.read()
         elif file_extension.lstrip(".") == "json":
             content = json.load(f)
+        else:
+            raise ValueError(f"Unsupported asset extension: {file_extension}")
 
     return content
 

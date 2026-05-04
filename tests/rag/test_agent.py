@@ -18,7 +18,7 @@ class TestAgentDecision:
     async def test_returns_source_name_and_sections(self) -> None:
         """Test that agent returns source_name and selected_sections."""
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
-            with patch("app.rag.agent.create_react_agent") as mock_create_agent:
+            with patch("app.rag.agent.create_agent") as mock_create_agent:
                 mock_client = AsyncMock()
                 mock_client.__aenter__.return_value = mock_client
                 mock_client.get_tools = AsyncMock(return_value=[])
@@ -56,7 +56,7 @@ class TestAgentDecision:
     async def test_empty_sections_when_agent_returns_no_sections(self) -> None:
         """Test agent returning empty sections."""
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
-            with patch("app.rag.agent.create_react_agent") as mock_create_agent:
+            with patch("app.rag.agent.create_agent") as mock_create_agent:
                 mock_client = AsyncMock()
                 mock_client.__aenter__.return_value = mock_client
                 mock_client.get_tools = AsyncMock(return_value=[])
@@ -104,7 +104,7 @@ class TestAgentDecision:
     async def test_agent_invocation_error_raises(self) -> None:
         """Test that agent invocation errors raise RAGRetrievalError."""
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
-            with patch("app.rag.agent.create_react_agent") as mock_create_agent:
+            with patch("app.rag.agent.create_agent") as mock_create_agent:
                 mock_client = AsyncMock()
                 mock_client.__aenter__.return_value = mock_client
                 mock_client.get_tools = AsyncMock(return_value=[])
@@ -127,7 +127,7 @@ class TestAgentDecision:
     async def test_user_id_forwarded_in_system_prompt(self) -> None:
         """Test that user_id and file_id are forwarded in the system prompt."""
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
-            with patch("app.rag.agent.create_react_agent") as mock_create_agent:
+            with patch("app.rag.agent.create_agent") as mock_create_agent:
                 with patch("app.rag.agent.SystemMessage") as mock_system_message:
                     mock_client = AsyncMock()
                     mock_client.__aenter__.return_value = mock_client

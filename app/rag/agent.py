@@ -4,10 +4,10 @@ import json
 from typing import Any
 
 from httpx import ConnectError, HTTPStatusError
+from langchain.agents import create_agent
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.prebuilt import create_react_agent
 
 from app.core.config import get_settings
 from app.core.logger import get_logger
@@ -39,22 +39,22 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
     rag_mcp_url = get_settings().RAG_MCP_URL
 
     try:
-        client = MultiServerMCPClient(
+        async with MultiServerMCPClient(
             {"rag-meta": {"url": rag_mcp_url, "transport": "http"}}  # type: ignore[misc, dict-item]
-        )
-        tools = await client.get_tools()
+        ) as client:
+            tools = await client.get_tools()
 
-        # Create ReAct agent with the MCP tools
-        agent = create_react_agent(llm, tools)
+            # Create ReAct agent with the MCP tools
+            agent: Any = create_agent(llm, tools)
 
-        # Build system and human messages
-        prompt_template = get_asset("rag_search_agent_system_prompt", "txt")
-        assert isinstance(prompt_template, str), "system prompt asset must be a string"
-        system_message = SystemMessage(content=prompt_template.format(user_id=user_id, file_id=file_id))
-        human_message = HumanMessage(content=user_query)
+            # Build system and human messages
+            prompt_template = get_asset("rag_search_agent_system_prompt", "txt")
+            assert isinstance(prompt_template, str), "system prompt asset must be a string"
+            system_message = SystemMessage(content=prompt_template.format(user_id=user_id, file_id=file_id))
+            human_message = HumanMessage(content=user_query)
 
-        # Invoke the agent
-        result = await agent.ainvoke({"messages": [system_message, human_message]})
+            # Invoke the agent
+            result = await agent.ainvoke({"messages": [system_message, human_message]})
 
         # Extract the final message
         if "messages" not in result or not result["messages"]:

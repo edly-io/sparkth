@@ -315,14 +315,14 @@ class RAGContextService:
         user_id: int,
         file_db_id: int,
     ) -> DriveFile:
-        result = await session.exec(
+        result = await session.execute(
             select(DriveFile).where(
                 col(DriveFile.id) == file_db_id,
                 col(DriveFile.user_id) == user_id,
                 col(DriveFile.is_deleted) == False,  # noqa: E712
             )
         )
-        drive_file_raw = result.first()
+        drive_file_raw: DriveFile | None = result.scalars().first()
 
         if drive_file_raw is None:
             logger.warning("DriveFile not found: id=%d user_id=%d", file_db_id, user_id)
