@@ -20,12 +20,18 @@ def get_password_hash(password: str) -> str:
     return password_hash.hash(password)
 
 
+MAX_PASSWORD_LENGTH = 128
+
+
 def validate_password_complexity(password: str) -> None:
     """Raise ValueError if `password` doesn't meet the complexity rules.
 
-    Rules: at least 8 chars, at least one uppercase letter, at least one
-    digit, and at least one non-alphanumeric character.
+    Rules: 8 to 128 chars, at least one uppercase letter, at least one
+    digit, and at least one non-alphanumeric character. The upper bound
+    is defense-in-depth against hash-DoS via multi-MB inputs.
     """
+    if len(password) > MAX_PASSWORD_LENGTH:
+        raise ValueError(f"Password must not exceed {MAX_PASSWORD_LENGTH} characters.")
     if (
         len(password) < 8
         or not re.search(r"[A-Z]", password)
