@@ -104,7 +104,7 @@ class EmailVerificationService:
 
 
 def _build_verify_url(raw_token: str) -> str:
-    return f"{settings.FRONTEND_BASE_URL}/verify-email?token={raw_token}"
+    return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/verify-email?token={raw_token}"
 
 
 def _render_email(name: str, raw_token: str) -> tuple[str, str]:

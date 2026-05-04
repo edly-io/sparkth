@@ -155,6 +155,22 @@ class TestSendVerificationEmail:
         assert "https://app.test/verify-email?token=abc123" in kwargs["html_body"]
         assert "24" in kwargs["text_body"]
 
+    async def test_strips_trailing_slash_in_frontend_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from unittest.mock import AsyncMock
+
+        from app.services import email_verification as svc
+
+        monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test/")
+        mock = AsyncMock()
+        monkeypatch.setattr(svc, "send_email", mock)
+
+        await svc.send_verification_email(to="a@b.com", name="A", raw_token="t")
+
+        assert mock.await_args is not None
+        text_body = mock.await_args.kwargs["text_body"]
+        assert "https://app.test/verify-email?token=t" in text_body
+        assert "https://app.test//verify-email" not in text_body
+
     async def test_escapes_name_in_html_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """User-controlled name must not be able to inject HTML into the email."""
         from unittest.mock import AsyncMock

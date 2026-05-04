@@ -183,6 +183,7 @@ class TestPasswordComplexity:
             ("alllowercase1!", "no uppercase"),
             ("NoDigits!!", "no digit"),
             ("NoSpecial1A", "no special character"),
+            ("A1!" + "a" * 200, "exceeds max length"),
         ],
     )
     async def test_weak_passwords_rejected(

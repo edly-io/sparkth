@@ -1,4 +1,5 @@
 from email.message import EmailMessage
+from email.utils import formataddr
 
 import aiosmtplib
 
@@ -19,7 +20,7 @@ async def send_email(*, to: str, subject: str, html_body: str, text_body: str) -
         raise RuntimeError("SMTP not configured: set SMTP_HOST")
 
     message = EmailMessage()
-    message["From"] = f'"{settings.SMTP_FROM_NAME}" <{settings.SMTP_FROM_EMAIL}>'
+    message["From"] = formataddr((settings.SMTP_FROM_NAME, settings.SMTP_FROM_EMAIL))
     message["To"] = to
     message["Subject"] = subject
     message.set_content(text_body)
