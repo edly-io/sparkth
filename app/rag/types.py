@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 from app.rag.models import DocumentChunk
 
@@ -40,12 +43,12 @@ class Chunk:
     metadata: ChunkMetadata
 
 
-@dataclass
-class AgentSearchDecision:
-    """Agent's decision about which sections to fetch directly."""
+# @dataclass
+# class AgentSearchDecision:
+#     """Agent's decision about which sections to fetch directly."""
 
-    source_name: str
-    selected_sections: list[dict[str, str | None]]
+#     source_name: str
+#     selected_sections: list[dict[str, str | None]]
 
 
 @dataclass
@@ -83,3 +86,19 @@ class SimilarityResult:
 
     chunk: DocumentChunk
     similarity: float
+
+
+class SectionRef(BaseModel):
+    # We use Optional and default=None to handle the "use null for missing fields" requirement
+    chapter: Optional[str] = Field(default=None, description="The chapter title")
+    section: Optional[str] = Field(default=None, description="The section title")
+    subsection: Optional[str] = Field(default=None, description="The subsection title")
+
+
+class RAGSearchAgentResponse(BaseModel):
+    """Agent's decision about which sections to fetch directly."""
+
+    source_name: str = Field(description="The document's source_name from get_document_structure")
+    selected_sections: list[SectionRef] = Field(
+        description="Sections to retrieve, matching values from get_document_structure exactly"
+    )

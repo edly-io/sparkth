@@ -6,10 +6,9 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.agent import AgentSearchDecision
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.types import RagStatus
+from app.rag.types import RAGSearchAgentResponse, RagStatus, SectionRef
 
 
 class TestGetContextViaAgent:
@@ -24,11 +23,11 @@ class TestGetContextViaAgent:
         mock_file.name = "bio.pdf"
         mock_file.rag_status = RagStatus.READY
 
-        selected = [{"chapter": None, "section": "Photosynthesis", "subsection": None}]
+        selected = [SectionRef(chapter=None, section="Photosynthesis", subsection=None)]
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
             with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
-                mock_agent.return_value = AgentSearchDecision(
+                mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="bio.pdf",
                     selected_sections=selected,
                 )
@@ -73,7 +72,7 @@ class TestGetContextViaAgent:
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
             with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
-                mock_agent.return_value = AgentSearchDecision(
+                mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="test.pdf",
                     selected_sections=[],
                 )
@@ -171,9 +170,9 @@ class TestGetContextViaAgent:
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
             with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
-                mock_agent.return_value = AgentSearchDecision(
+                mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="test.pdf",
-                    selected_sections=[{"chapter": None, "section": "Section A", "subsection": None}],
+                    selected_sections=[SectionRef(chapter=None, section="Section A", subsection=None)],
                 )
 
                 mock_store = MagicMock()
@@ -202,7 +201,7 @@ class TestGetContextViaAgent:
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
             with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
-                mock_agent.return_value = AgentSearchDecision(
+                mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="test.pdf",
                     selected_sections=[],
                 )

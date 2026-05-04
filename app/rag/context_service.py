@@ -260,7 +260,7 @@ class RAGContextService:
                 session=session,
                 user_id=user_id,
                 source_name=source_name,
-                section_keys=decision.selected_sections,
+                section_keys=[s.model_dump() for s in decision.selected_sections],
                 limit=limit,
             )
         except SQLAlchemyError as exc:
