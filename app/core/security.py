@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -17,6 +18,23 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return password_hash.hash(password)
+
+
+def validate_password_complexity(password: str) -> None:
+    """Raise ValueError if `password` doesn't meet the complexity rules.
+
+    Rules: at least 8 chars, at least one uppercase letter, at least one
+    digit, and at least one non-alphanumeric character.
+    """
+    if (
+        len(password) < 8
+        or not re.search(r"[A-Z]", password)
+        or not re.search(r"\d", password)
+        or not re.search(r"[^A-Za-z0-9]", password)
+    ):
+        raise ValueError(
+            "Password must be at least 8 characters and include an uppercase letter, a number, and a special character."
+        )
 
 
 def create_access_token(data: dict[str, str], expires_delta: timedelta | None = None) -> str:
