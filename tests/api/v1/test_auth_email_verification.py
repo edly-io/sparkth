@@ -110,3 +110,84 @@ class TestLoginBlocksUnverified:
         )
         assert response.status_code == 200
         assert "access_token" in response.json()
+
+
+class TestVerifyEmailEndpoint:
+    async def test_happy_path_marks_user_verified(self, client: AsyncClient, session: AsyncSession) -> None:
+        from app.services.email_verification import EmailVerificationService
+
+        username = _uniq("u")
+        user = User(
+            name="Dee",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            email_verified=False,
+        )
+        session.add(user)
+        await session.flush()
+        assert user.id is not None
+        raw = await EmailVerificationService.create_token(session, user_id=user.id)
+        await session.commit()
+
+        response = await client.post("/api/v1/auth/verify-email", json={"token": raw})
+        assert response.status_code == 200
+        assert response.json()["email_verified"] is True
+
+    async def test_invalid_token_returns_400(self, client: AsyncClient) -> None:
+        response = await client.post("/api/v1/auth/verify-email", json={"token": "bogus"})
+        assert response.status_code == 400
+        assert response.json()["detail"] == "invalid_token"
+
+    async def test_expired_token_returns_400(self, client: AsyncClient, session: AsyncSession) -> None:
+        from datetime import datetime, timezone
+
+        from app.services.email_verification import EmailVerificationService
+
+        username = _uniq("u")
+        user = User(
+            name="Eve",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            email_verified=False,
+        )
+        session.add(user)
+        await session.flush()
+        assert user.id is not None
+        raw = await EmailVerificationService.create_token(session, user_id=user.id)
+
+        token_row = (
+            await session.exec(select(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id))
+        ).one()
+        token_row.expires_at = datetime.now(timezone.utc).replace(year=2000)
+        session.add(token_row)
+        await session.commit()
+
+        response = await client.post("/api/v1/auth/verify-email", json={"token": raw})
+        assert response.status_code == 400
+        assert response.json()["detail"] == "expired_token"
+
+    async def test_used_token_returns_400(self, client: AsyncClient, session: AsyncSession) -> None:
+        from app.services.email_verification import EmailVerificationService
+
+        username = _uniq("u")
+        user = User(
+            name="Frank",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            email_verified=False,
+        )
+        session.add(user)
+        await session.flush()
+        assert user.id is not None
+        raw = await EmailVerificationService.create_token(session, user_id=user.id)
+        await session.commit()
+
+        ok = await client.post("/api/v1/auth/verify-email", json={"token": raw})
+        assert ok.status_code == 200
+
+        again = await client.post("/api/v1/auth/verify-email", json={"token": raw})
+        assert again.status_code == 400
+        assert again.json()["detail"] == "invalid_token"

@@ -18,10 +18,18 @@ from app.core.google_auth import (
 )
 from app.models.base import utc_now
 from app.models.user import User
-from app.schemas import GoogleAuthUrl, Token, UserCreate, UserLogin
+from app.schemas import (
+    GoogleAuthUrl,
+    Token,
+    UserCreate,
+    UserLogin,
+    VerifyEmailRequest,
+)
 from app.schemas import User as UserSchema
 from app.services.email_verification import (
     EmailVerificationService,
+    TokenExpiredError,
+    TokenInvalidError,
     send_verification_email,
 )
 from app.services.whitelist import WhitelistService
@@ -249,6 +257,22 @@ async def google_callback(
     except ValueError as e:
         # Redirect to login page with error
         return RedirectResponse(url=f"/login?error={quote(str(e))}", status_code=302)
+
+
+@router.post("/verify-email", response_model=UserSchema)
+async def verify_email(
+    body: VerifyEmailRequest,
+    session: AsyncSession = Depends(get_async_session),
+) -> User:
+    try:
+        user = await EmailVerificationService.verify_token(session, raw_token=body.token)
+    except TokenExpiredError:
+        raise HTTPException(status_code=400, detail="expired_token")
+    except TokenInvalidError:
+        raise HTTPException(status_code=400, detail="invalid_token")
+    await session.commit()
+    await session.refresh(user)
+    return user
 
 
 async def require_superuser(
