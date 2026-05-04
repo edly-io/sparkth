@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import select
@@ -20,6 +20,10 @@ from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import GoogleAuthUrl, Token, UserCreate, UserLogin
 from app.schemas import User as UserSchema
+from app.services.email_verification import (
+    EmailVerificationService,
+    send_verification_email,
+)
 from app.services.whitelist import WhitelistService
 
 settings = get_settings()
@@ -63,7 +67,11 @@ async def get_current_user(
 
 
 @router.post("/register", response_model=UserSchema)
-async def register_user(user: UserCreate, session: AsyncSession = Depends(get_async_session)) -> User:
+async def register_user(
+    user: UserCreate,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_async_session),
+) -> User:
     if not settings.REGISTRATION_ENABLED:
         raise HTTPException(status_code=403, detail="Registration is currently disabled")
     if not await WhitelistService.is_email_allowed(session, user.email):
@@ -91,6 +99,22 @@ async def register_user(user: UserCreate, session: AsyncSession = Depends(get_as
     session.add(db_user)
     await session.commit()
     await session.refresh(db_user)
+
+    assert db_user.id is not None
+    user_id = db_user.id
+    user_email = db_user.email
+    user_name = db_user.name
+
+    raw_token = await EmailVerificationService.create_token(session, user_id=user_id)
+    await session.commit()
+    await session.refresh(db_user)
+
+    background_tasks.add_task(
+        send_verification_email,
+        to=user_email,
+        name=user_name,
+        raw_token=raw_token,
+    )
     return db_user
 
 

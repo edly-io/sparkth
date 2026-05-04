@@ -179,3 +179,16 @@ def mock_rag_provider() -> Generator[Any, None, None]:
         mock_get_utils_provider.return_value = mock_provider
         mock_get_slack_provider.return_value = mock_provider
         yield mock_get_provider
+
+
+@pytest.fixture(autouse=True)
+def stub_send_verification_email() -> Generator[Any, None, None]:
+    """Stub the verification email sender so tests don't hit SMTP.
+
+    Tests that need to assert on send arguments use their own `with patch(...)`
+    inside the test body — the inner patch supersedes this autouse stub.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock) as stub:
+        yield stub
