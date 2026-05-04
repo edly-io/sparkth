@@ -236,6 +236,9 @@ class TestResendEndpoint:
                 store[key] = value
                 return True
 
+            async def aclose(self) -> None:
+                """Match the real client's lifecycle so the endpoint's finally clause works."""
+
         async def get_fake_redis() -> FakeRedis:
             return FakeRedis()
 
