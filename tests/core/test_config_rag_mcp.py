@@ -9,7 +9,7 @@ class TestRAGMCPSettings:
     """Test RAG MCP URL setting."""
 
     def test_default_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test default RAG_MCP_URL value."""
+        """Test RAG_MCP_URL is read from the environment variable."""
         # Set all required environment variables
         monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
         monkeypatch.setenv("SECRET_KEY", "test-secret-key")
@@ -17,6 +17,7 @@ class TestRAGMCPSettings:
         monkeypatch.setenv("SLACK_CLIENT_SECRET", "test-slack-secret")
         monkeypatch.setenv("SLACK_SIGNING_SECRET", "test-slack-signing")
         monkeypatch.setenv("SLACK_REDIRECT_URI", "http://localhost:7727/oauth")
+        monkeypatch.setenv("RAG_MCP_URL", "http://rag-mcp:7728/mcp")
 
         settings = Settings()
         assert settings.RAG_MCP_URL == "http://rag-mcp:7728/mcp"

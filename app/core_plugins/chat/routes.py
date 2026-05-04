@@ -777,13 +777,13 @@ async def stream_chat_response(
                 )
                 no_chunks_msg = (
                     f"I searched {source_label} but couldn't find content closely "
-                    f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
-                    f"Would you like me to try again with less strict matching?"
+                    f"matching your query.\n\n"
+                    f"Please try rephrasing your question, or check that your documents "
+                    f"contain information about this topic."
                 )
                 done_payload = {
                     "done": True,
                     "content": no_chunks_msg,
-                    "options": ["Try with less strict matching"],
                     "conversation_id": str(conversation.uuid),
                 }
             await service.add_message(
