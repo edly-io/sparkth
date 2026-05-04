@@ -67,7 +67,8 @@ from app.rag.utils import get_asset
 logger = get_logger(__name__)
 
 _RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt", "txt")
-assert isinstance(_RAG_CONTEXT_PROMPT, str)
+if not isinstance(_RAG_CONTEXT_PROMPT, str):
+    raise TypeError("rag_context_replacement_prompt asset must be a string")
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 

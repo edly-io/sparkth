@@ -121,7 +121,7 @@ async def run_agentic_rag_search(
         return decision
 
     except ValidationError as exc:
-        logger.warning("submit_answer tool received invalid args for user %d, file %d: %s", user_id, file_id, exc)
+        logger.warning("Agent response validation failed for user %d, file %d: %s", user_id, file_id, exc)
         return RAGSearchAgentResponse(source_name="", selected_sections=[])
     except (ConnectError, HTTPStatusError) as exc:
         logger.exception("MCP client connection error for user %s, file %s", user_id, file_id)
