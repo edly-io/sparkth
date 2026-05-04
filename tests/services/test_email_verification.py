@@ -120,10 +120,13 @@ class TestRequestResend:
         result = await EmailVerificationService.request_resend(session, email=user.email)
         assert result is None
 
-    async def test_returns_raw_token_for_unverified(self, session: AsyncSession) -> None:
+    async def test_returns_raw_token_and_name_for_unverified(self, session: AsyncSession) -> None:
         user = await _create_user(session, verified=False)
-        raw = await EmailVerificationService.request_resend(session, email=user.email)
-        assert raw is not None and len(raw) >= 30
+        result = await EmailVerificationService.request_resend(session, email=user.email)
+        assert result is not None
+        raw, name = result
+        assert len(raw) >= 30
+        assert name == user.name
 
 
 class TestSendVerificationEmail:
@@ -151,3 +154,27 @@ class TestSendVerificationEmail:
         assert "https://app.test/verify-email?token=abc123" in kwargs["text_body"]
         assert "https://app.test/verify-email?token=abc123" in kwargs["html_body"]
         assert "24" in kwargs["text_body"]
+
+    async def test_escapes_name_in_html_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User-controlled name must not be able to inject HTML into the email."""
+        from unittest.mock import AsyncMock
+
+        from app.services import email_verification as svc
+
+        monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test")
+        mock = AsyncMock()
+        monkeypatch.setattr(svc, "send_email", mock)
+
+        await svc.send_verification_email(
+            to="evil@example.com",
+            name='<script>alert("xss")</script><a href="http://evil">click</a>',
+            raw_token="t",
+        )
+
+        assert mock.await_args is not None
+        html_body = mock.await_args.kwargs["html_body"]
+        # No raw script tag, no raw injected anchor
+        assert "<script>" not in html_body
+        assert '<a href="http://evil">' not in html_body
+        # The escaped form should be present
+        assert "&lt;script&gt;" in html_body

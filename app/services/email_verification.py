@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
+from html import escape as html_escape
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -87,17 +88,19 @@ class EmailVerificationService:
         return user
 
     @staticmethod
-    async def request_resend(session: AsyncSession, *, email: str) -> str | None:
+    async def request_resend(session: AsyncSession, *, email: str) -> tuple[str, str] | None:
         """Issue a fresh token for the given email.
 
-        Returns None if the user doesn't exist or is already verified.
-        Caller is responsible for rate-limiting and for actually sending the email.
+        Returns a `(raw_token, name)` tuple, or None if the user doesn't exist
+        or is already verified. Caller is responsible for rate-limiting and
+        for actually sending the email.
         """
         result = await session.exec(select(User).where(User.email == email))
         user = result.one_or_none()
         if user is None or user.email_verified or user.id is None:
             return None
-        return await EmailVerificationService.create_token(session, user_id=user.id)
+        token = await EmailVerificationService.create_token(session, user_id=user.id)
+        return token, user.name
 
 
 def _build_verify_url(raw_token: str) -> str:
@@ -115,9 +118,9 @@ def _render_email(name: str, raw_token: str) -> tuple[str, str]:
         "If you didn't sign up for Sparkth, you can ignore this email.\n"
     )
     html = (
-        f"<p>Hi {name},</p>"
+        f"<p>Hi {html_escape(name)},</p>"
         "<p>Click the link below to confirm your email address:</p>"
-        f'<p><a href="{url}">Confirm my email</a></p>'
+        f'<p><a href="{html_escape(url, quote=True)}">Confirm my email</a></p>'
         f"<p>This link expires in {ttl} hours.</p>"
         "<p>If you didn't sign up for Sparkth, you can ignore this email.</p>"
     )
