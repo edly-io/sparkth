@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
@@ -19,6 +19,17 @@ import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginPage() {
+  // Suspense boundary co-located with useSearchParams: required by Next.js
+  // App Router so only this subtree (not the whole page) bails out to client
+  // rendering. The parent page.tsx wraps this too — nesting is harmless.
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const { push } = useRouter();
   const { login } = useAuth();
 
