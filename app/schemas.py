@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
+from app.core.security import validate_password_complexity
 
 
 class UserBase(BaseModel):
@@ -11,6 +13,12 @@ class UserCreate(UserBase):
     name: str
     username: str
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def _check_password(cls, v: str) -> str:
+        validate_password_complexity(v)
+        return v
 
 
 class User(UserBase):

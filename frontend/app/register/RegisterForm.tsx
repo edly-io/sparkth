@@ -149,16 +149,24 @@ export default function RegisterPage() {
 
               <form.Field name="password">
                 {(field) => (
-                  <Input
-                    name="password"
-                    type="password"
-                    required
-                    placeholder="Enter your password"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    error={fieldErrors.password}
-                  />
+                  <div className="space-y-1">
+                    <Input
+                      name="password"
+                      type="password"
+                      required
+                      placeholder="Enter your password"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      error={fieldErrors.password}
+                    />
+                    {!fieldErrors.password && (
+                      <p className="text-xs text-muted-foreground">
+                        At least 8 characters with an uppercase letter, a number, and a special
+                        character.
+                      </p>
+                    )}
+                  </div>
                 )}
               </form.Field>
 
