@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import security
 from app.core.config import get_settings
 from app.models.email_verification import EmailVerificationToken
 from app.models.user import User
@@ -65,3 +66,47 @@ class TestRegisterSendsVerificationEmail:
         assert kwargs["to"] == email
         assert kwargs["name"] == "Alice"
         assert isinstance(kwargs["raw_token"], str)
+
+
+class TestLoginBlocksUnverified:
+    async def test_unverified_returns_403_with_code(self, client: AsyncClient, session: AsyncSession) -> None:
+        username = _uniq("u")
+        email = f"{username}@example.com"
+        user = User(
+            name="Bob",
+            username=username,
+            email=email,
+            hashed_password=security.get_password_hash("Sup3rSecret!"),
+            email_verified=False,
+        )
+        session.add(user)
+        await session.commit()
+
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": "Sup3rSecret!"},
+        )
+
+        assert response.status_code == 403
+        detail = response.json()["detail"]
+        assert detail["code"] == "email_not_verified"
+        assert detail["email"] == email
+
+    async def test_verified_can_login(self, client: AsyncClient, session: AsyncSession) -> None:
+        username = _uniq("u")
+        user = User(
+            name="Carol",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password=security.get_password_hash("Sup3rSecret!"),
+            email_verified=True,
+        )
+        session.add(user)
+        await session.commit()
+
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": "Sup3rSecret!"},
+        )
+        assert response.status_code == 200
+        assert "access_token" in response.json()
