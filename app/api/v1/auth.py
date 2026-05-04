@@ -4,6 +4,7 @@ from typing import Any
 from urllib.parse import quote
 
 import jwt
+import redis.asyncio as aioredis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -11,7 +12,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import security
-from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.db import get_async_session
 from app.core.google_auth import (
@@ -86,7 +86,9 @@ async def register_user(
 ) -> User:
     if not settings.REGISTRATION_ENABLED:
         raise HTTPException(status_code=403, detail="Registration is currently disabled")
-    if not await WhitelistService.is_email_allowed(session, user.email):
+
+    normalized_email = user.email.strip().lower()
+    if not await WhitelistService.is_email_allowed(session, normalized_email):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This email address is not authorized to register. Contact an administrator.",
@@ -96,7 +98,7 @@ async def register_user(
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
 
-    result = await session.exec(select(User).where(User.email == user.email))
+    result = await session.exec(select(User).where(User.email == normalized_email))
     db_user_email = result.one_or_none()
     if db_user_email:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -105,26 +107,21 @@ async def register_user(
     db_user = User(
         name=user.name,
         username=user.username,
-        email=user.email,
+        email=normalized_email,
         hashed_password=hashed_password,
     )
     session.add(db_user)
-    await session.commit()
-    await session.refresh(db_user)
+    await session.flush()
 
     assert db_user.id is not None
-    user_id = db_user.id
-    user_email = db_user.email
-    user_name = db_user.name
-
-    raw_token = await EmailVerificationService.create_token(session, user_id=user_id)
+    raw_token = await EmailVerificationService.create_token(session, user_id=db_user.id)
     await session.commit()
     await session.refresh(db_user)
 
     background_tasks.add_task(
         send_verification_email,
-        to=user_email,
-        name=user_name,
+        to=db_user.email,
+        name=db_user.name,
         raw_token=raw_token,
     )
     return db_user
@@ -202,7 +199,7 @@ async def google_callback(
         # Get user info from Google
         google_user = await get_google_user_info(access_token)
         google_id = google_user["id"]
-        email = google_user["email"]
+        email = google_user["email"].strip().lower()
         name = google_user.get("name", email.split("@")[0])
 
         # Try to find existing user by google_id
@@ -285,10 +282,17 @@ async def verify_email(
 
 
 async def _get_resend_redis() -> Any:
-    """Indirection so tests can override the rate-limit backend."""
-    cache = get_cache_service(settings.REDIS_URL)
-    await cache.connect()
-    return cache._redis  # noqa: SLF001
+    """Indirection so tests can override the rate-limit backend.
+
+    Returns a Redis client used only for the resend cooldown (`SET NX EX`).
+    Not routed through `CacheService` because that wraps a different API
+    (string get/set with ttl) and we'd be reaching into private state.
+    """
+    return aioredis.from_url(  # type: ignore[no-untyped-call]
+        settings.REDIS_URL,
+        encoding="utf-8",
+        decode_responses=True,
+    )
 
 
 @router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
@@ -309,20 +313,16 @@ async def resend_verification_email(
     if not accepted:
         raise HTTPException(status_code=429, detail="rate_limited")
 
-    raw_token = await EmailVerificationService.request_resend(session, email=email_lower)
-    if raw_token is None:
+    result = await EmailVerificationService.request_resend(session, email=email_lower)
+    if result is None:
         return {}
 
+    raw_token, user_name = result
     await session.commit()
-
-    user_result = await session.exec(select(User).where(User.email == email_lower))
-    user = user_result.one()
-    user_email = user.email
-    user_name = user.name
 
     background_tasks.add_task(
         send_verification_email,
-        to=user_email,
+        to=email_lower,
         name=user_name,
         raw_token=raw_token,
     )

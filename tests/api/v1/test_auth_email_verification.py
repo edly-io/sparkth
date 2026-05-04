@@ -67,6 +67,28 @@ class TestRegisterSendsVerificationEmail:
         assert kwargs["name"] == "Alice"
         assert isinstance(kwargs["raw_token"], str)
 
+    async def test_email_is_normalized_to_lowercase(self, client: AsyncClient, session: AsyncSession) -> None:
+        """Mixed-case email at registration should be stored lowercased so the
+        resend lookup (which lowercases) finds the user."""
+        mixed = f"{_uniq('mixed')}@Example.COM"
+        await _whitelist(session, mixed.lower())
+        await session.commit()
+
+        with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock):
+            response = await client.post(
+                "/api/v1/auth/register",
+                json={
+                    "name": "Mixed",
+                    "username": _uniq("mixed"),
+                    "email": mixed,
+                    "password": "Sup3rSecret!",
+                },
+            )
+
+        assert response.status_code == 200
+        result = await session.exec(select(User).where(User.email == mixed.lower()))
+        assert result.one_or_none() is not None
+
 
 class TestLoginBlocksUnverified:
     async def test_unverified_returns_403_with_code(self, client: AsyncClient, session: AsyncSession) -> None:
@@ -256,10 +278,11 @@ class TestResendEndpoint:
 
     async def test_unverified_sends_email(self, client: AsyncClient, session: AsyncSession) -> None:
         username = _uniq("u")
+        email = f"{username}@example.com"
         user = User(
             name="Hank",
             username=username,
-            email=f"{username}@example.com",
+            email=email,
             hashed_password="x",
             email_verified=False,
         )
@@ -272,19 +295,20 @@ class TestResendEndpoint:
         ) as mock_send:
             response = await client.post(
                 "/api/v1/auth/verify-email/resend",
-                json={"email": user.email},
+                json={"email": email},
             )
         assert response.status_code == 202
         mock_send.assert_awaited_once()
         assert mock_send.await_args is not None
-        assert mock_send.await_args.kwargs["to"] == user.email
+        assert mock_send.await_args.kwargs["to"] == email
 
     async def test_rate_limit_returns_429(self, client: AsyncClient, session: AsyncSession) -> None:
         username = _uniq("u")
+        email = f"{username}@example.com"
         user = User(
             name="Iris",
             username=username,
-            email=f"{username}@example.com",
+            email=email,
             hashed_password="x",
             email_verified=False,
         )
@@ -294,11 +318,11 @@ class TestResendEndpoint:
         with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock):
             first = await client.post(
                 "/api/v1/auth/verify-email/resend",
-                json={"email": user.email},
+                json={"email": email},
             )
             second = await client.post(
                 "/api/v1/auth/verify-email/resend",
-                json={"email": user.email},
+                json={"email": email},
             )
 
         assert first.status_code == 202
