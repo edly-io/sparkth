@@ -315,20 +315,20 @@ class RAGContextService:
         user_id: int,
         file_db_id: int,
     ) -> DriveFile:
-        result = await session.execute(
+        result = await session.exec(
             select(DriveFile).where(
                 col(DriveFile.id) == file_db_id,
                 col(DriveFile.user_id) == user_id,
                 col(DriveFile.is_deleted) == False,  # noqa: E712
             )
         )
-        drive_file_raw = result.scalars().first()
+        drive_file_raw = result.first()
 
         if drive_file_raw is None:
             logger.warning("DriveFile not found: id=%d user_id=%d", file_db_id, user_id)
             raise DriveFileNotFoundError(f"File with id={file_db_id} not found or not accessible.")
 
-        drive_file = cast(DriveFile, drive_file_raw)
+        drive_file = drive_file_raw
 
         if drive_file.rag_status != RagStatus.READY:
             status_str = str(drive_file.rag_status or "None")
