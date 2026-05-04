@@ -1,4 +1,6 @@
+import hashlib
 from datetime import datetime, timedelta
+from typing import Any
 from urllib.parse import quote
 
 import jwt
@@ -9,6 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import security
+from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.db import get_async_session
 from app.core.google_auth import (
@@ -20,6 +23,7 @@ from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
     GoogleAuthUrl,
+    ResendVerificationRequest,
     Token,
     UserCreate,
     UserLogin,
@@ -273,6 +277,51 @@ async def verify_email(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def _get_resend_redis() -> Any:
+    """Indirection so tests can override the rate-limit backend."""
+    cache = get_cache_service(settings.REDIS_URL)
+    await cache.connect()
+    return cache._redis  # noqa: SLF001
+
+
+@router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
+async def resend_verification_email(
+    body: ResendVerificationRequest,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_async_session),
+) -> dict[str, str]:
+    email_lower = body.email.lower()
+    key = f"email_verify_resend:{hashlib.sha256(email_lower.encode()).hexdigest()}"
+    redis = await _get_resend_redis()
+    accepted = await redis.set(
+        key,
+        "1",
+        ex=settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+        nx=True,
+    )
+    if not accepted:
+        raise HTTPException(status_code=429, detail="rate_limited")
+
+    raw_token = await EmailVerificationService.request_resend(session, email=email_lower)
+    if raw_token is None:
+        return {}
+
+    await session.commit()
+
+    user_result = await session.exec(select(User).where(User.email == email_lower))
+    user = user_result.one()
+    user_email = user.email
+    user_name = user.name
+
+    background_tasks.add_task(
+        send_verification_email,
+        to=user_email,
+        name=user_name,
+        raw_token=raw_token,
+    )
+    return {}
 
 
 async def require_superuser(
