@@ -154,11 +154,11 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
         logger.warning("submit_answer tool received invalid args for user %d, file %d: %s", user_id, file_id, exc)
         return AgentSearchDecision(source_name="", selected_sections=[])
     except (ConnectError, HTTPStatusError) as exc:
-        logger.exception(f"MCP client connection error for user {user_id}, file {file_id}")
-        raise RAGRetrievalError(f"Failed to connect to RAG metadata server: {exc}") from exc
+        logger.exception("MCP client connection error for user %s, file %s", user_id, file_id)
+        raise RAGRetrievalError("Failed to connect to RAG metadata server: %s", exc) from exc
     except LangChainException as exc:
-        logger.exception(f"Agent invocation error for user {user_id}, file {file_id}")
-        raise RAGRetrievalError(f"Agent failed to process query: {exc}") from exc
+        logger.exception("Agent invocation error for user %s, file %s", user_id, file_id)
+        raise RAGRetrievalError("Agent failed to process query: %s", exc) from exc
     except ValueError as exc:
-        logger.exception(f"Error parsing agent response for user {user_id}, file {file_id}")
-        raise RAGRetrievalError(f"Invalid agent response format: {exc}") from exc
+        logger.exception("Error parsing agent response for user %s, file %s", user_id, file_id)
+        raise RAGRetrievalError("Invalid agent response format: %s", exc) from exc
