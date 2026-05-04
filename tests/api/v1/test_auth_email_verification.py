@@ -191,3 +191,116 @@ class TestVerifyEmailEndpoint:
         again = await client.post("/api/v1/auth/verify-email", json={"token": raw})
         assert again.status_code == 400
         assert again.json()["detail"] == "invalid_token"
+
+
+class TestResendEndpoint:
+    @pytest.fixture(autouse=True)
+    def fake_redis(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Replace the rate-limit Redis with an in-memory shim."""
+        from app.api.v1 import auth as auth_module
+
+        store: dict[str, str] = {}
+
+        class FakeRedis:
+            async def set(
+                self,
+                key: str,
+                value: str,
+                ex: int | None = None,
+                nx: bool = False,
+            ) -> bool | None:
+                if nx and key in store:
+                    return None
+                store[key] = value
+                return True
+
+        async def get_fake_redis() -> FakeRedis:
+            return FakeRedis()
+
+        monkeypatch.setattr(auth_module, "_get_resend_redis", get_fake_redis)
+
+    async def test_unknown_email_returns_202(self, client: AsyncClient) -> None:
+        with patch(
+            "app.api.v1.auth.send_verification_email",
+            new_callable=AsyncMock,
+        ) as mock_send:
+            response = await client.post(
+                "/api/v1/auth/verify-email/resend",
+                json={"email": "ghost@example.com"},
+            )
+        assert response.status_code == 202
+        mock_send.assert_not_awaited()
+
+    async def test_already_verified_returns_202_no_send(self, client: AsyncClient, session: AsyncSession) -> None:
+        username = _uniq("u")
+        user = User(
+            name="Greta",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            email_verified=True,
+        )
+        session.add(user)
+        await session.flush()
+
+        with patch(
+            "app.api.v1.auth.send_verification_email",
+            new_callable=AsyncMock,
+        ) as mock_send:
+            response = await client.post(
+                "/api/v1/auth/verify-email/resend",
+                json={"email": user.email},
+            )
+        assert response.status_code == 202
+        mock_send.assert_not_awaited()
+
+    async def test_unverified_sends_email(self, client: AsyncClient, session: AsyncSession) -> None:
+        username = _uniq("u")
+        user = User(
+            name="Hank",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            email_verified=False,
+        )
+        session.add(user)
+        await session.flush()
+
+        with patch(
+            "app.api.v1.auth.send_verification_email",
+            new_callable=AsyncMock,
+        ) as mock_send:
+            response = await client.post(
+                "/api/v1/auth/verify-email/resend",
+                json={"email": user.email},
+            )
+        assert response.status_code == 202
+        mock_send.assert_awaited_once()
+        assert mock_send.await_args is not None
+        assert mock_send.await_args.kwargs["to"] == user.email
+
+    async def test_rate_limit_returns_429(self, client: AsyncClient, session: AsyncSession) -> None:
+        username = _uniq("u")
+        user = User(
+            name="Iris",
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            email_verified=False,
+        )
+        session.add(user)
+        await session.flush()
+
+        with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock):
+            first = await client.post(
+                "/api/v1/auth/verify-email/resend",
+                json={"email": user.email},
+            )
+            second = await client.post(
+                "/api/v1/auth/verify-email/resend",
+                json={"email": user.email},
+            )
+
+        assert first.status_code == 202
+        assert second.status_code == 429
+        assert second.json()["detail"] == "rate_limited"
