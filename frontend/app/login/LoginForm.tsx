@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const { push } = useRouter();
   const { login } = useAuth();
 
   const [error, setError] = useState("");
@@ -30,8 +30,8 @@ export default function LoginPage() {
     "idle" | "sending" | "sent" | "rate_limited" | "error"
   >("idle");
 
-  const searchParams = useSearchParams();
-  const oauthError = searchParams.get("error");
+  const { get: getSearchParam } = useSearchParams();
+  const oauthError = getSearchParam("error");
 
   const form = useForm({
     defaultValues: { username: "", password: "" },
@@ -44,7 +44,7 @@ export default function LoginPage() {
       try {
         const response = await loginApi(value);
         login(response.access_token, response.expires_at);
-        router.push("/");
+        push("/");
       } catch (err) {
         if (err instanceof ApiRequestError) {
           if (err.status === 403 && err.code === "email_not_verified" && err.data?.email) {

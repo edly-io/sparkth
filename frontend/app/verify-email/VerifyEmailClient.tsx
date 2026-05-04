@@ -15,9 +15,9 @@ import { ApiRequestError, resendVerificationEmail, verifyEmail } from "@/lib/api
 type Status = "loading" | "success" | "expired" | "invalid";
 
 export default function VerifyEmailClient() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const { push, replace } = useRouter();
+  const { get } = useSearchParams();
+  const token = get("token");
 
   const [status, setStatus] = useState<Status>("loading");
   const [resendEmail, setResendEmail] = useState("");
@@ -27,7 +27,7 @@ export default function VerifyEmailClient() {
 
   useEffect(() => {
     if (!token) {
-      router.replace("/login");
+      replace("/login");
       return;
     }
     verifyEmail(token)
@@ -40,7 +40,7 @@ export default function VerifyEmailClient() {
           setStatus("invalid");
         }
       });
-  }, [token, router]);
+  }, [token, replace]);
 
   const handleResend = async () => {
     if (!resendEmail) return;
@@ -94,7 +94,7 @@ export default function VerifyEmailClient() {
             <p className="text-sm sm:text-base text-muted-foreground">
               You can now sign in to your Sparkth account.
             </p>
-            <Button onClick={() => router.push("/login")} fullWidth size="lg">
+            <Button onClick={() => push("/login")} fullWidth size="lg">
               Go to login
             </Button>
           </div>

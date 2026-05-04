@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <VerifyEmailClient />
     </Suspense>
   );
