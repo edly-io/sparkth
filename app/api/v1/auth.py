@@ -1,6 +1,5 @@
 import hashlib
 from datetime import datetime, timedelta
-from functools import lru_cache
 from typing import Any
 from urllib.parse import quote
 
@@ -282,26 +281,21 @@ async def verify_email(
     return user
 
 
-@lru_cache(maxsize=1)
-def _resend_redis_client() -> aioredis.Redis:
-    """Process-level singleton Redis client for the resend cooldown.
+async def _get_resend_redis() -> Any:
+    """Indirection so tests can override the rate-limit backend.
 
-    `aioredis.from_url` returns immediately; the connection pool is
-    initialized lazily on first command, so the cached client is safe to
-    build at import-adjacent time. Not routed through `CacheService` —
-    that wraps a different API (string get/set with default ttl) and
-    we'd be reaching into private state.
+    Returns a fresh Redis client. The caller is responsible for closing it
+    via `aclose()` (see the resend endpoint's try/finally). The endpoint
+    is rate-limited to roughly one request per email per cooldown window,
+    so per-request pool setup is fine and avoids the shared-mutable-state
+    cost of a long-lived singleton. Not routed through `CacheService` —
+    that wraps a different API (string get/set with default ttl).
     """
-    return aioredis.from_url(  # type: ignore[no-untyped-call,no-any-return]
+    return aioredis.from_url(  # type: ignore[no-untyped-call]
         settings.REDIS_URL,
         encoding="utf-8",
         decode_responses=True,
     )
-
-
-async def _get_resend_redis() -> Any:
-    """Indirection so tests can override the rate-limit backend."""
-    return _resend_redis_client()
 
 
 @router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
@@ -313,12 +307,15 @@ async def resend_verification_email(
     email_lower = body.email.lower()
     key = f"email_verify_resend:{hashlib.sha256(email_lower.encode()).hexdigest()}"
     redis = await _get_resend_redis()
-    accepted = await redis.set(
-        key,
-        "1",
-        ex=settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
-        nx=True,
-    )
+    try:
+        accepted = await redis.set(
+            key,
+            "1",
+            ex=settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+            nx=True,
+        )
+    finally:
+        await redis.aclose()
     if not accepted:
         raise HTTPException(status_code=429, detail="rate_limited")
 
