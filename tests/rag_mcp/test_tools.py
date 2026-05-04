@@ -48,8 +48,8 @@ class TestListUserFiles:
             result = await list_user_files(user_id=1)
 
             assert len(result) == 1
-            assert result[0]["id"] == 1
-            assert result[0]["name"] == "example.pdf"
+            assert result[0].id == 1
+            assert result[0].name == "example.pdf"
 
     @pytest.mark.asyncio
     async def test_excludes_deleted_files(self) -> None:
@@ -120,8 +120,8 @@ class TestGetFileMetadata:
             result = await get_file_metadata(user_id=1, file_id=1)
 
             assert result is not None
-            assert result["id"] == 1
-            assert result["name"] == "example.pdf"
+            assert result.id == 1
+            assert result.name == "example.pdf"
 
     @pytest.mark.asyncio
     async def test_returns_none_for_missing_file(self) -> None:
@@ -142,14 +142,11 @@ class TestGetFileMetadata:
     @pytest.mark.asyncio
     async def test_scoped_to_user_id(self) -> None:
         """Test that the query is scoped to user_id."""
-        mock_file = MagicMock()
-        mock_file.id = 1
-
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_scalars = MagicMock()
-            mock_scalars.first.return_value = mock_file
+            mock_scalars.first.return_value = None
             mock_result.scalars.return_value = mock_scalars
             mock_session.execute = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
@@ -188,8 +185,8 @@ class TestListFileSections:
             result = await list_file_sections(user_id=1, file_id=1)
 
             assert len(result) == 1
-            assert result[0]["chapter"] == "Ch1"
-            assert result[0]["section"] == "Sec1"
+            assert result[0].chapter == "Ch1"
+            assert result[0].section == "Sec1"
 
     @pytest.mark.asyncio
     async def test_file_not_found_returns_empty(self) -> None:
@@ -236,8 +233,8 @@ class TestGetChunkStats:
             result = await get_chunk_stats(user_id=1, file_id=1)
 
             assert result is not None
-            assert result["chunk_count"] == 42
-            assert result["avg_token_count"] == 128.5
+            assert result.chunk_count == 42
+            assert result.avg_token_count == 128.5
 
 
 class TestSearchSectionByKeyword:
@@ -269,7 +266,7 @@ class TestSearchSectionByKeyword:
             result = await search_section_by_keyword(user_id=1, file_id=1, keyword="photo")
 
             assert len(result) == 1
-            assert result[0]["section"] == "Photosynthesis"
+            assert result[0].section == "Photosynthesis"
 
     @pytest.mark.asyncio
     async def test_no_match_returns_empty_list(self) -> None:

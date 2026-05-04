@@ -324,7 +324,6 @@ async def _resolve_drive_file_blocks(
                 continue
             file_id: int = int(raw_id)
             try:
-                logger.info("TEMP - This is a test log")
                 context = await rag_service.get_context_via_agent(
                     session=session,
                     user_id=user_id,
@@ -559,7 +558,6 @@ async def chat_completion(
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         else:
             # For non-streaming, or streaming without drive files, resolve synchronously
-            logger.info("TEMP - calling `_resolve_drive_file_blocks`")
             resolved_messages = await _resolve_drive_file_blocks(
                 messages=request.messages,
                 session=session,

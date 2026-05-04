@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.rag.constants import DEFAULT_TOP_SECTIONS
 from app.rag.context_service import (
-    DEFAULT_TOP_SECTIONS,
     RAGContext,
     RAGContextService,
     _cosine_similarity,

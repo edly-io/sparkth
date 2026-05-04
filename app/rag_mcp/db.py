@@ -4,13 +4,11 @@ import contextlib
 import os
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # Read DATABASE_URL at module import time
 DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is required for RAG MCP server")
 
 
 def _get_async_url(url: str) -> str:
@@ -29,12 +27,19 @@ def _get_async_url(url: str) -> str:
     return url
 
 
+def _get_engine() -> AsyncEngine:
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is required for RAG MCP server")
+
+    return create_async_engine(
+        _get_async_url(DATABASE_URL),
+        echo=False,
+        pool_pre_ping=True,
+    )
+
+
 # Create async engine
-_async_engine = create_async_engine(
-    _get_async_url(DATABASE_URL),
-    echo=False,
-    pool_pre_ping=True,
-)
+_async_engine = _get_engine()
 
 
 @contextlib.asynccontextmanager

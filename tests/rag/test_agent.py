@@ -20,6 +20,7 @@ class TestAgentDecision:
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
             with patch("app.rag.agent.create_react_agent") as mock_create_agent:
                 mock_client = AsyncMock()
+                mock_client.__aenter__.return_value = mock_client
                 mock_client.get_tools = AsyncMock(return_value=[])
                 mock_client_class.return_value = mock_client
 
@@ -57,6 +58,7 @@ class TestAgentDecision:
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
             with patch("app.rag.agent.create_react_agent") as mock_create_agent:
                 mock_client = AsyncMock()
+                mock_client.__aenter__.return_value = mock_client
                 mock_client.get_tools = AsyncMock(return_value=[])
                 mock_client_class.return_value = mock_client
 
@@ -85,6 +87,7 @@ class TestAgentDecision:
         """Test that MCP connection errors raise RAGRetrievalError."""
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
             mock_client = AsyncMock()
+            mock_client.__aenter__.return_value = mock_client
             mock_client.get_tools = AsyncMock(side_effect=ConnectError("Connection failed"))
             mock_client_class.return_value = mock_client
 
@@ -103,6 +106,7 @@ class TestAgentDecision:
         with patch("app.rag.agent.MultiServerMCPClient") as mock_client_class:
             with patch("app.rag.agent.create_react_agent") as mock_create_agent:
                 mock_client = AsyncMock()
+                mock_client.__aenter__.return_value = mock_client
                 mock_client.get_tools = AsyncMock(return_value=[])
                 mock_client_class.return_value = mock_client
 
@@ -126,6 +130,7 @@ class TestAgentDecision:
             with patch("app.rag.agent.create_react_agent") as mock_create_agent:
                 with patch("app.rag.agent.SystemMessage") as mock_system_message:
                     mock_client = AsyncMock()
+                    mock_client.__aenter__.return_value = mock_client
                     mock_client.get_tools = AsyncMock(return_value=[])
                     mock_client_class.return_value = mock_client
 

@@ -15,7 +15,7 @@ class TestRagMcpServer:
 
     @pytest.mark.asyncio
     async def test_server_has_expected_tools(self) -> None:
-        """Test that the server has all five expected tools."""
+        """Test that the server has all six expected tools."""
         tools = await mcp.get_tools()
 
         # Tools is a dict keyed by tool name
@@ -27,6 +27,7 @@ class TestRagMcpServer:
             "_list_file_sections",
             "_get_chunk_stats",
             "_search_section_by_keyword",
+            "_get_document_structure",
         ]
 
         for tool_name in expected_tools:

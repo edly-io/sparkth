@@ -1,7 +1,5 @@
 """Metadata-only tools for RAG MCP server."""
 
-from typing import Any
-
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, func, select
 
@@ -9,20 +7,14 @@ from app.core.logger import get_logger
 from app.models.drive import DriveFile
 from app.rag.models import DocumentChunk
 from app.rag.types import RagStatus
+from app.rag.utils import resolve_source_name
 from app.rag_mcp.db import get_async_session
+from app.rag_mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 
 logger = get_logger(__name__)
 
 
-def _resolve_source_name(drive_file: DriveFile) -> str:
-    source_name = drive_file.name
-    if drive_file.mime_type and "google" in drive_file.mime_type.lower():
-        if not source_name.lower().endswith(".pdf"):
-            source_name += ".pdf"
-    return source_name
-
-
-async def list_user_files(user_id: int) -> list[dict[str, Any]]:
+async def list_user_files(user_id: int) -> list[FileInfo]:
     """List all RAG-ready files owned by a user."""
     try:
         async with get_async_session() as session:
@@ -35,14 +27,14 @@ async def list_user_files(user_id: int) -> list[dict[str, Any]]:
             )
             files = result.scalars().all()
             return [
-                {
-                    "id": f.id,
-                    "name": f.name,
-                    "mime_type": f.mime_type,
-                    "size": f.size,
-                    "modified_time": f.modified_time.isoformat() if f.modified_time else None,
-                    "rag_status": f.rag_status,
-                }
+                FileInfo(
+                    id=f.id,
+                    name=f.name,
+                    mime_type=f.mime_type,
+                    size=f.size,
+                    modified_time=f.modified_time.isoformat() if f.modified_time else None,
+                    rag_status=f.rag_status,
+                )
                 for f in files
             ]
     except SQLAlchemyError:
@@ -50,7 +42,7 @@ async def list_user_files(user_id: int) -> list[dict[str, Any]]:
         raise
 
 
-async def get_file_metadata(user_id: int, file_id: int) -> dict[str, Any] | None:
+async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
     """Get metadata for a specific file owned by a user."""
     try:
         async with get_async_session() as session:
@@ -64,19 +56,19 @@ async def get_file_metadata(user_id: int, file_id: int) -> dict[str, Any] | None
             file = result.scalars().first()
             if not file:
                 return None
-            return {
-                "id": file.id,
-                "name": file.name,
-                "rag_status": file.rag_status,
-                "size": file.size,
-                "modified_time": file.modified_time.isoformat() if file.modified_time else None,
-            }
+            return FileMetadata(
+                id=file.id,
+                name=file.name,
+                rag_status=file.rag_status,
+                size=file.size,
+                modified_time=file.modified_time.isoformat() if file.modified_time else None,
+            )
     except SQLAlchemyError:
         logger.exception("Database error getting file metadata for file %s, user %s", file_id, user_id)
         raise
 
 
-async def list_file_sections(user_id: int, file_id: int) -> list[dict[str, Any]]:
+async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
     """List all distinct sections in a file."""
     try:
         async with get_async_session() as session:
@@ -91,8 +83,7 @@ async def list_file_sections(user_id: int, file_id: int) -> list[dict[str, Any]]
             if not file:
                 return []
 
-            source_name = _resolve_source_name(file)
-
+            source_name = resolve_source_name(file)
             sections_result = await session.execute(
                 select(
                     DocumentChunk.chapter,
@@ -105,13 +96,13 @@ async def list_file_sections(user_id: int, file_id: int) -> list[dict[str, Any]]
                 )
                 .distinct()
             )
-            return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in sections_result.all()]
+            return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in sections_result.all()]
     except SQLAlchemyError:
         logger.exception("Database error listing sections for file %s, user %s", file_id, user_id)
         raise
 
 
-async def get_chunk_stats(user_id: int, file_id: int) -> dict[str, Any] | None:
+async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
     """Get statistics about chunks in a file (count and average token count)."""
     try:
         async with get_async_session() as session:
@@ -126,7 +117,7 @@ async def get_chunk_stats(user_id: int, file_id: int) -> dict[str, Any] | None:
             if not file:
                 return None
 
-            source_name = _resolve_source_name(file)
+            source_name = resolve_source_name(file)
 
             stats_result = await session.execute(
                 select(
@@ -139,17 +130,17 @@ async def get_chunk_stats(user_id: int, file_id: int) -> dict[str, Any] | None:
             )
             row = stats_result.first()
 
-            return {
-                "source_name": source_name,
-                "chunk_count": row[0] if row else 0,
-                "avg_token_count": float(row[1]) if row and row[1] else None,
-            }
+            return ChunkStats(
+                source_name=source_name,
+                chunk_count=row[0] if row else 0,
+                avg_token_count=float(row[1]) if row and row[1] else None,
+            )
     except SQLAlchemyError:
         logger.exception("Database error getting chunk stats for file %s, user %s", file_id, user_id)
         raise
 
 
-async def get_document_structure(user_id: int, file_id: int) -> list[dict[str, Any]]:
+async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSection]:
     """Get the full ordered structure of a document with chunk positions.
 
     Returns sections in document order (ordered by minimum chunk id), with
@@ -169,7 +160,7 @@ async def get_document_structure(user_id: int, file_id: int) -> list[dict[str, A
             if not file:
                 return []
 
-            source_name = _resolve_source_name(file)
+            source_name = resolve_source_name(file)
 
             structure_result = await session.execute(
                 select(
@@ -191,13 +182,14 @@ async def get_document_structure(user_id: int, file_id: int) -> list[dict[str, A
             )
 
             return [
-                {
-                    "chapter": row[0],
-                    "section": row[1],
-                    "subsection": row[2],
-                    "chunk_count": row[3],
-                    "position_index": idx,
-                }
+                DocumentSection(
+                    source_name=source_name,
+                    chapter=row[0],
+                    section=row[1],
+                    subsection=row[2],
+                    chunk_count=row[3],
+                    position_index=idx,
+                )
                 for idx, row in enumerate(structure_result.all())
             ]
     except SQLAlchemyError:
@@ -205,7 +197,7 @@ async def get_document_structure(user_id: int, file_id: int) -> list[dict[str, A
         raise
 
 
-async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) -> list[dict[str, Any]]:
+async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) -> list[SectionKey]:
     """Search for sections matching a keyword within a file."""
     if not keyword.strip():
         return []
@@ -223,8 +215,9 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
             if not file:
                 return []
 
-            source_name = _resolve_source_name(file)
-            keyword_pattern = f"%{keyword}%"
+            source_name = resolve_source_name(file)
+            keyword_safe = keyword.replace("%", r"\%").replace("_", r"\_")
+            keyword_pattern = f"%{keyword_safe}%"
 
             search_result = await session.execute(
                 select(
@@ -236,15 +229,15 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
                     DocumentChunk.user_id == user_id,
                     DocumentChunk.source_name == source_name,
                     (
-                        col(DocumentChunk.chapter).ilike(keyword_pattern)
-                        | col(DocumentChunk.section).ilike(keyword_pattern)
-                        | col(DocumentChunk.subsection).ilike(keyword_pattern)
+                        col(DocumentChunk.chapter).ilike(keyword_pattern, escape="\\")
+                        | col(DocumentChunk.section).ilike(keyword_pattern, escape="\\")
+                        | col(DocumentChunk.subsection).ilike(keyword_pattern, escape="\\")
                     ),
                 )
                 .distinct()
             )
 
-            return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in search_result.all()]
+            return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in search_result.all()]
     except SQLAlchemyError:
         logger.exception(
             "Database error searching sections for file %s, user %s, keyword %s", file_id, user_id, keyword

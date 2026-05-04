@@ -1,6 +1,5 @@
 """Vector store service for storing and retrieving document chunks."""
 
-from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import and_, delete, literal, or_
@@ -12,34 +11,12 @@ from app.core.logger import get_logger
 from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk
+from app.rag.types import ChunkInput, SimilarityResult
+
+# Re-export for backwards-compatibility with modules that import from store
+__all__ = ["ChunkInput", "SimilarityResult", "VectorStoreService"]
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class ChunkInput:
-    """Input data for a single chunk to be embedded and stored.
-
-    This is a standalone type so the store module compiles without
-    the chunking PR (#202). Once that PR merges, callers can map
-    ``Chunk`` / ``ChunkMetadata`` to ``ChunkInput`` trivially.
-    """
-
-    content: str
-    source_name: str
-    chapter: str | None = None
-    section: str | None = None
-    subsection: str | None = None
-    token_count: int | None = None
-    chunk_content_hash: str | None = None
-
-
-@dataclass
-class SimilarityResult:
-    """A chunk together with its cosine similarity score."""
-
-    chunk: DocumentChunk
-    similarity: float
 
 
 class VectorStoreService:
@@ -191,6 +168,10 @@ class VectorStoreService:
         if not section_keys:
             return []
 
+        # Following is a guard for the case where too many sections are being selected.
+        # Adding this as a comment for now, will make implementation in future.
+        # section_keys = section_keys[:MAX_SECTIONS]
+
         def _key_condition(key: dict[str, str | None]) -> Any:
             chapter = key.get("chapter")
             section = key.get("section")
@@ -214,8 +195,8 @@ class VectorStoreService:
             .limit(limit)
         )
 
-        result = await session.execute(stmt)
-        chunks = result.scalars().all()
+        result = await session.exec(stmt)
+        chunks = result.all()
         return [SimilarityResult(chunk=chunk, similarity=1.0) for chunk in chunks]
 
     async def delete_by_source(
