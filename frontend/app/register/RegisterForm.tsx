@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
@@ -58,7 +58,7 @@ export default function RegisterPage() {
     },
   });
 
-  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleFormSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     form.handleSubmit();
   };
