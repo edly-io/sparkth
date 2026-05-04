@@ -136,12 +136,14 @@ async def test_agent_context_injected_into_messages() -> None:
     ):
         pass
 
-    # The drive_file block should have been replaced with the RAG text
+    # The drive_file block should be gone; two text blocks remain:
+    # [0] context-retention prompt, [1] the RAG context
     content = original_messages[0]["content"]
     assert isinstance(content, list)
     injected = [b for b in content if isinstance(b, dict) and b.get("type") == "text"]
-    assert len(injected) == 1
-    assert "Data privacy content." in injected[0]["text"]
+    assert len(injected) == 2
+    assert "context" in injected[0]["text"].lower()
+    assert "Data privacy content." in injected[1]["text"]
 
 
 @pytest.mark.asyncio

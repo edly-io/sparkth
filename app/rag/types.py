@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -43,14 +42,6 @@ class Chunk:
     metadata: ChunkMetadata
 
 
-# @dataclass
-# class AgentSearchDecision:
-#     """Agent's decision about which sections to fetch directly."""
-
-#     source_name: str
-#     selected_sections: list[dict[str, str | None]]
-
-
 @dataclass
 class RAGContext:
     """Retrieved context ready for injection into an LLM prompt."""
@@ -90,9 +81,9 @@ class SimilarityResult:
 
 class SectionRef(BaseModel):
     # We use Optional and default=None to handle the "use null for missing fields" requirement
-    chapter: Optional[str] = Field(default=None, description="The chapter title")
-    section: Optional[str] = Field(default=None, description="The section title")
-    subsection: Optional[str] = Field(default=None, description="The subsection title")
+    chapter: str | None = Field(default=None, description="The chapter title")
+    section: str | None = Field(default=None, description="The section title")
+    subsection: str | None = Field(default=None, description="The subsection title")
 
 
 class RAGSearchAgentResponse(BaseModel):

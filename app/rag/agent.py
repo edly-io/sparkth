@@ -41,7 +41,7 @@ def _bind_user_context(tools: list[Any], user_id: int, file_id: int) -> list[Any
     for tool in tools:
         try:
             tool_arg_names = set((tool.args or {}).keys())
-        except Exception:
+        except (AttributeError, TypeError):
             result.append(tool)
             continue
 
@@ -108,7 +108,8 @@ async def run_agentic_rag_search(
         )
 
         prompt_template = get_asset("rag_search_agent_system_prompt", "txt")
-        assert isinstance(prompt_template, str), "system prompt asset must be a string"
+        if not isinstance(prompt_template, str):
+            raise TypeError("system prompt asset must be a string")
         system_message = SystemMessage(content=prompt_template)
         human_message = HumanMessage(content=user_query)
 
@@ -124,10 +125,10 @@ async def run_agentic_rag_search(
         return RAGSearchAgentResponse(source_name="", selected_sections=[])
     except (ConnectError, HTTPStatusError) as exc:
         logger.exception("MCP client connection error for user %s, file %s", user_id, file_id)
-        raise RAGRetrievalError("Failed to connect to RAG metadata server: %s", exc) from exc
+        raise RAGRetrievalError(f"Failed to connect to RAG metadata server: {exc}") from exc
     except LangChainException as exc:
         logger.exception("Agent invocation error for user %s, file %s", user_id, file_id)
-        raise RAGRetrievalError("Agent failed to process query: %s", exc) from exc
+        raise RAGRetrievalError(f"Agent failed to process query: {exc}") from exc
     except ValueError as exc:
         logger.exception("Error parsing agent response for user %s, file %s", user_id, file_id)
-        raise RAGRetrievalError("Invalid agent response format: %s", exc) from exc
+        raise RAGRetrievalError(f"Invalid agent response format: {exc}") from exc

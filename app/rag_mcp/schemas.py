@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
-# NOTE: To avoid the circular import ag.types → rag.models → models.__init__ → rag.models
-# we will avooid importing `RagStatus` in schemas.py — since it's a StrEnum, str works fine as the field type.
+# NOTE: To avoid the circular import rag.types → rag.models → models.__init__ → rag.models
+# we will avoid importing `RagStatus` in schemas.py — since it's a StrEnum, str works fine as the field type.
 
 
 class FileInfo(BaseModel):
