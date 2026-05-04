@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -15,6 +15,17 @@ import { ApiRequestError, resendVerificationEmail, verifyEmail } from "@/lib/api
 type Status = "loading" | "success" | "expired" | "invalid";
 
 export default function VerifyEmailClient() {
+  // Suspense boundary co-located with useSearchParams: required by Next.js
+  // App Router so only this subtree (not the whole page) bails out to client
+  // rendering. The parent page.tsx wraps this too — nesting is harmless.
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailContent />
+    </Suspense>
+  );
+}
+
+function VerifyEmailContent() {
   const { push, replace } = useRouter();
   const { get } = useSearchParams();
   const token = get("token");
@@ -30,16 +41,21 @@ export default function VerifyEmailClient() {
       replace("/login");
       return;
     }
-    verifyEmail(token)
-      .then(() => setStatus("success"))
-      .catch((err) => {
-        if (err instanceof ApiRequestError) {
-          if (err.message === "expired_token") setStatus("expired");
-          else setStatus("invalid");
-        } else {
-          setStatus("invalid");
-        }
-      });
+    let cancelled = false;
+    (async () => {
+      let next: Status;
+      try {
+        await verifyEmail(token);
+        next = "success";
+      } catch (err) {
+        next =
+          err instanceof ApiRequestError && err.message === "expired_token" ? "expired" : "invalid";
+      }
+      if (!cancelled) setStatus(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [token, replace]);
 
   const handleResend = async () => {
