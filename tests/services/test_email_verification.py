@@ -124,3 +124,30 @@ class TestRequestResend:
         user = await _create_user(session, verified=False)
         raw = await EmailVerificationService.request_resend(session, email=user.email)
         assert raw is not None and len(raw) >= 30
+
+
+class TestSendVerificationEmail:
+    async def test_calls_send_email_with_link_and_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from unittest.mock import AsyncMock
+
+        from app.services import email_verification as svc
+
+        monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test")
+        monkeypatch.setattr(svc.settings, "EMAIL_VERIFICATION_TOKEN_TTL_HOURS", 24)
+        mock = AsyncMock()
+        monkeypatch.setattr(svc, "send_email", mock)
+
+        await svc.send_verification_email(
+            to="alice@example.com",
+            name="Alice",
+            raw_token="abc123",
+        )
+
+        mock.assert_awaited_once()
+        assert mock.await_args is not None
+        kwargs = mock.await_args.kwargs
+        assert kwargs["to"] == "alice@example.com"
+        assert "Alice" in kwargs["text_body"]
+        assert "https://app.test/verify-email?token=abc123" in kwargs["text_body"]
+        assert "https://app.test/verify-email?token=abc123" in kwargs["html_body"]
+        assert "24" in kwargs["text_body"]

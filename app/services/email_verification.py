@@ -6,6 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core.email import send_email
 from app.models.email_verification import EmailVerificationToken
 from app.models.user import User
 
@@ -97,3 +98,37 @@ class EmailVerificationService:
         if user is None or user.email_verified or user.id is None:
             return None
         return await EmailVerificationService.create_token(session, user_id=user.id)
+
+
+def _build_verify_url(raw_token: str) -> str:
+    return f"{settings.FRONTEND_BASE_URL}/verify-email?token={raw_token}"
+
+
+def _render_email(name: str, raw_token: str) -> tuple[str, str]:
+    url = _build_verify_url(raw_token)
+    ttl = settings.EMAIL_VERIFICATION_TOKEN_TTL_HOURS
+    text = (
+        f"Hi {name},\n\n"
+        "Click the link below to confirm your email address:\n\n"
+        f"{url}\n\n"
+        f"This link expires in {ttl} hours.\n\n"
+        "If you didn't sign up for Sparkth, you can ignore this email.\n"
+    )
+    html = (
+        f"<p>Hi {name},</p>"
+        "<p>Click the link below to confirm your email address:</p>"
+        f'<p><a href="{url}">Confirm my email</a></p>'
+        f"<p>This link expires in {ttl} hours.</p>"
+        "<p>If you didn't sign up for Sparkth, you can ignore this email.</p>"
+    )
+    return text, html
+
+
+async def send_verification_email(*, to: str, name: str, raw_token: str) -> None:
+    text_body, html_body = _render_email(name, raw_token)
+    await send_email(
+        to=to,
+        subject="Confirm your Sparkth account",
+        html_body=html_body,
+        text_body=text_body,
+    )
