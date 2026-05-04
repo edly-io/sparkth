@@ -219,6 +219,9 @@ class TestResendEndpoint:
     @pytest.fixture(autouse=True)
     def fake_redis(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Replace the rate-limit Redis with an in-memory shim."""
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
         from app.api.v1 import auth as auth_module
 
         store: dict[str, str] = {}
@@ -236,11 +239,9 @@ class TestResendEndpoint:
                 store[key] = value
                 return True
 
-            async def aclose(self) -> None:
-                """Match the real client's lifecycle so the endpoint's finally clause works."""
-
-        async def get_fake_redis() -> FakeRedis:
-            return FakeRedis()
+        @asynccontextmanager
+        async def get_fake_redis() -> AsyncIterator[FakeRedis]:
+            yield FakeRedis()
 
         monkeypatch.setattr(auth_module, "_get_resend_redis", get_fake_redis)
 

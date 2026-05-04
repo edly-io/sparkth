@@ -1,4 +1,6 @@
 import hashlib
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import quote
@@ -281,21 +283,26 @@ async def verify_email(
     return user
 
 
-async def _get_resend_redis() -> Any:
-    """Indirection so tests can override the rate-limit backend.
+@asynccontextmanager
+async def _get_resend_redis() -> AsyncIterator[Any]:
+    """Yield a Redis client for the resend cooldown; close on exit.
 
-    Returns a fresh Redis client. The caller is responsible for closing it
-    via `aclose()` (see the resend endpoint's try/finally). The endpoint
-    is rate-limited to roughly one request per email per cooldown window,
-    so per-request pool setup is fine and avoids the shared-mutable-state
-    cost of a long-lived singleton. Not routed through `CacheService` —
+    The endpoint is rate-limited to roughly one request per email per
+    cooldown window, so per-request client + pool setup is acceptable
+    and avoids any shared mutable state. Not routed through `CacheService` —
     that wraps a different API (string get/set with default ttl).
+
+    Tests override this with a fake context manager.
     """
-    return aioredis.from_url(  # type: ignore[no-untyped-call]
+    redis = aioredis.from_url(  # type: ignore[no-untyped-call]
         settings.REDIS_URL,
         encoding="utf-8",
         decode_responses=True,
     )
+    try:
+        yield redis
+    finally:
+        await redis.aclose()
 
 
 @router.post("/verify-email/resend", status_code=status.HTTP_202_ACCEPTED)
@@ -306,16 +313,13 @@ async def resend_verification_email(
 ) -> dict[str, str]:
     email_lower = body.email.lower()
     key = f"email_verify_resend:{hashlib.sha256(email_lower.encode()).hexdigest()}"
-    redis = await _get_resend_redis()
-    try:
+    async with _get_resend_redis() as redis:
         accepted = await redis.set(
             key,
             "1",
             ex=settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
             nx=True,
         )
-    finally:
-        await redis.aclose()
     if not accepted:
         raise HTTPException(status_code=429, detail="rate_limited")
 
