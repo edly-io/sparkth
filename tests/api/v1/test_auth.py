@@ -20,6 +20,7 @@ async def create_user_in_db(
     username: str | None = None,
     email: str | None = None,
     password: str = "testpassword",
+    email_verified: bool = True,
 ) -> User:
     username = username or _uniq("testuser")
     email = email or f"{_uniq('test')}@example.com"
@@ -29,6 +30,7 @@ async def create_user_in_db(
         username=username,
         email=email,
         hashed_password=get_password_hash(password),
+        email_verified=email_verified,
     )
     session.add(user)
     await session.commit()
