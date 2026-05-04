@@ -1,5 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy import DateTime
 from sqlmodel import Field
 from uuid6 import uuid7
 
@@ -19,3 +21,9 @@ class User(TimestampedModel, SoftDeleteModel, table=True):
     uuid: UUID = Field(default_factory=uuid7, unique=True, index=True)
 
     is_superuser: bool = Field(default=False)
+
+    email_verified: bool = Field(default=False)
+    email_verified_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
