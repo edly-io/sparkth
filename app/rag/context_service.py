@@ -87,7 +87,7 @@ class RAGContextService:
                 raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
             async with profile_memory("section_ranking", source=source_name):
-                ranked_sections = await self._rank_sections(
+                ranked_sections = await self.rank_sections(
                     session=session,
                     user_id=user_id,
                     source_name=source_name,
@@ -162,7 +162,7 @@ class RAGContextService:
             raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
         async with profile_memory("section_ranking", source=source_name):
-            ranked_sections = await self._rank_sections(
+            ranked_sections = await self.rank_sections(
                 session=session,
                 user_id=user_id,
                 source_name=source_name,

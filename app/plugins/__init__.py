@@ -14,7 +14,7 @@ Provides a flexible, OOP-based plugin architecture with:
 from app.core_plugins.canvas.config import CanvasConfig
 from app.core_plugins.chat.config import ChatUserConfig
 from app.core_plugins.openedx.config import OpenEdxConfig
-from app.core_plugins.slack.config import SlackBotConfig
+from app.core_plugins.slack.config import SlackConfig
 from app.plugins.base import SparkthPlugin
 from app.plugins.config_base import PluginConfig
 from app.plugins.exceptions import (
@@ -66,5 +66,5 @@ PLUGIN_CONFIG_CLASSES: dict[str, type[PluginConfig]] = {
     "canvas": CanvasConfig,
     "open-edx": OpenEdxConfig,
     "chat": ChatUserConfig,
-    "slack": SlackBotConfig,
+    "slack": SlackConfig,
 }

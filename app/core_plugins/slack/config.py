@@ -7,7 +7,7 @@ from app.plugins.config_base import PluginConfig
 MAX_TIMESTAMP_DELTA = 60 * 5  # 5 minutes
 
 
-class SlackBotConfig(PluginConfig):
+class SlackConfig(PluginConfig):
     """Per-user Slack TA Bot configuration stored in the user-plugins table."""
 
     bot_name: str = Field(
@@ -25,4 +25,14 @@ class SlackBotConfig(PluginConfig):
     allowed_sources: list[str] = Field(
         default_factory=list,
         description="Document sources this bot can search. Empty list means all sources.",
+    )
+    llm_config_id: int | None = Field(
+        default=None,
+        description="ID of an LLMConfig row for answer synthesis. None disables synthesis.",
+    )
+    llm_temperature: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for LLM synthesis. Low values for factual Q&A.",
     )
