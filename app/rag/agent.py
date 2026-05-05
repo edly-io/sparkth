@@ -87,7 +87,7 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
         user_query: User's natural language query
 
     Returns:
-        ARAGSearchAgentResponse with source_name and selected_sections
+        RAGSearchAgentResponse with source_name and selected_sections
 
     Raises:
         RAGRetrievalError: If MCP client connection or agent invocation fails
