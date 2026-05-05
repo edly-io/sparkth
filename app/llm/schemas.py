@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.llm.providers import get_models_for_provider, get_supported_providers
 
@@ -34,7 +34,7 @@ class LLMConfigCreate(BaseModel):
 
 class LLMConfigUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    model: str | None = Field(default=None, max_length=100)
+    model: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class LLMConfigRotateKey(BaseModel):
@@ -46,6 +46,8 @@ class LLMConfigSetActive(BaseModel):
 
 
 class LLMConfigResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     provider: str

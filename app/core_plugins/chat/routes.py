@@ -17,7 +17,6 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.api.v1.llm import get_llm_service
 from app.core.db import get_async_session
 from app.core.logger import get_logger
 from app.core_plugins.chat.config import ChatSystemConfig
@@ -45,7 +44,7 @@ from app.core_plugins.chat.schemas import (
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.llm.classifier import HistoryTurn, ScopeClassifier
-from app.llm.exceptions import LLMConfigModelNotSetError, LLMConfigNotFoundError
+from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import (
     DEFAULT_MODEL,
@@ -54,7 +53,7 @@ from app.llm.providers import (
     get_provider,
     get_provider_catalog,
 )
-from app.llm.service import LLMConfigService
+from app.llm.service import LLMConfigService, get_llm_service
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
 from app.rag.context_service import RAGContextService
@@ -298,9 +297,14 @@ async def chat_completion(
             config_id=request.llm_config_id,
         )
     except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except LLMConfigModelNotSetError as exc:
+        logger.warning("LLMConfig %s has no model set: %s", request.llm_config_id, exc)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    except LLMConfigInactiveError as exc:
+        logger.warning("LLMConfig %s is inactive for user %s: %s", request.llm_config_id, current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
@@ -394,7 +398,7 @@ async def chat_completion(
                     _in_scope = False
                 else:
                     # Tier 2: LLM classifier for nuanced cases keywords can't handle
-                    classifier = ScopeClassifier(provider_name=request.provider, api_key=api_key)
+                    classifier = ScopeClassifier(provider_name=llm_config.provider, api_key=api_key)
                     prior_history: list[HistoryTurn] = [
                         {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
                         for m in db_messages

@@ -52,4 +52,20 @@ def downgrade() -> None:
     op.create_index(op.f('ix_chat_provider_api_keys_provider'), 'chat_provider_api_keys', ['provider'], unique=False)
     op.create_index(op.f('ix_chat_provider_api_keys_is_deleted'), 'chat_provider_api_keys', ['is_deleted'], unique=False)
     op.create_index(op.f('idx_user_provider_active'), 'chat_provider_api_keys', ['user_id', 'provider', 'is_active'], unique=False)
+    # Restore row data from llm_configs, which holds all keys as of 2e34759ac1e1.
+    op.execute("""
+        INSERT INTO chat_provider_api_keys
+            (is_deleted, deleted_at, created_at, updated_at,
+             id, user_id, provider, encrypted_key, masked_key, is_active, last_used_at)
+        SELECT
+            is_deleted, deleted_at, created_at, updated_at,
+            id, user_id, provider, encrypted_key, masked_key, is_active, last_used_at
+        FROM llm_configs
+    """)
+    op.execute("""
+        SELECT setval(
+            pg_get_serial_sequence('chat_provider_api_keys', 'id'),
+            COALESCE((SELECT MAX(id) FROM chat_provider_api_keys), 0)
+        )
+    """)
     # ### end Alembic commands ###

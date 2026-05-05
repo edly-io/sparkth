@@ -169,9 +169,9 @@ class TestConversationUUIDRoutes:
     @pytest.fixture(autouse=True)
     def _override_chat_deps(self, client: httpx.AsyncClient) -> None:  # noqa: PT004
         """Override chat dependencies so route tests don't need real env vars."""
-        from app.api.v1.llm import get_llm_service
         from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
         from app.core_plugins.chat.service import ChatService
+        from app.llm.service import get_llm_service
         from app.main import app
 
         mock_config = MagicMock()
@@ -323,7 +323,6 @@ class TestConversationUUIDRoutes:
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
             patch("app.core_plugins.chat.routes.get_rag_provider") as mock_get_rag_provider,
-            patch("app.core_plugins.chat.service.ChatService.get_api_key", new_callable=AsyncMock) as mock_get_key,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):

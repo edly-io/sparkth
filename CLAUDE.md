@@ -78,7 +78,7 @@ Copy `.env.example` → `.env`. Required variables:
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SECRET_KEY` | JWT signing key |
 | `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
-| `CHAT_REDIS_URL` | Redis for chat session caching |
+| `REDIS_URL` | Redis for session caching, used in chat plugin |
 | `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.

@@ -69,4 +69,4 @@ jobs:
           SLACK_SIGNING_SECRET: fake-signing-secret
           SLACK_REDIRECT_URI: http://localhost/callback
           RAG_MCP_URL: http://localhost:7728/mcp
-          LLM_ENCRYPTION_KEY: fake-encryption-key-for-ci
+          LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=

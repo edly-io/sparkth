@@ -9,8 +9,8 @@ from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
 from app.api.v1.auth import get_current_user
-from app.api.v1.llm import get_llm_service
 from app.core.db import get_async_session
+from app.llm.service import get_llm_service
 from app.main import app
 from app.models.user import User
 
@@ -233,8 +233,10 @@ async def test_activate_config_returns_200(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_set_active_not_found_returns_404(llm_client: AsyncClient) -> None:
+    from app.llm.exceptions import LLMConfigNotFoundError
+
     mock_service = MagicMock()
-    mock_service.set_active = AsyncMock(side_effect=ValueError("LLMConfig 99 not found"))
+    mock_service.set_active = AsyncMock(side_effect=LLMConfigNotFoundError(99, 1))
     app.dependency_overrides[get_llm_service] = lambda: mock_service
 
     resp = await llm_client.patch("/api/v1/llm/configs/99/active", json={"is_active": False})
@@ -270,8 +272,10 @@ async def test_rotate_key_returns_200(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_rotate_key_not_found_returns_404(llm_client: AsyncClient) -> None:
+    from app.llm.exceptions import LLMConfigNotFoundError
+
     mock_service = MagicMock()
-    mock_service.rotate_key = AsyncMock(side_effect=ValueError("LLMConfig 99 not found"))
+    mock_service.rotate_key = AsyncMock(side_effect=LLMConfigNotFoundError(99, 1))
     app.dependency_overrides[get_llm_service] = lambda: mock_service
 
     resp = await llm_client.put("/api/v1/llm/configs/99/key", json={"api_key": "sk-key"})
@@ -281,10 +285,10 @@ async def test_rotate_key_not_found_returns_404(llm_client: AsyncClient) -> None
 
 @pytest.mark.asyncio
 async def test_create_duplicate_name_returns_409(llm_client: AsyncClient) -> None:
+    from app.llm.exceptions import LLMConfigDuplicateNameError
+
     mock_service = MagicMock()
-    mock_service.create = AsyncMock(
-        side_effect=ValueError("An LLM config with name 'My Key' already exists for this user.")
-    )
+    mock_service.create = AsyncMock(side_effect=LLMConfigDuplicateNameError("My Key"))
     app.dependency_overrides[get_llm_service] = lambda: mock_service
 
     resp = await llm_client.post(

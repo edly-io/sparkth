@@ -5,12 +5,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.cache import get_cache_service
-from app.core.config import get_settings
 from app.core.db import get_async_session
-from app.core.encryption import get_encryption_service
 from app.core.logger import get_logger
-from app.llm.exceptions import LLMConfigValidationError
+from app.llm.exceptions import LLMConfigDuplicateNameError, LLMConfigNotFoundError, LLMConfigValidationError
 from app.llm.schemas import (
     LLMConfigCreate,
     LLMConfigListResponse,
@@ -19,7 +16,7 @@ from app.llm.schemas import (
     LLMConfigSetActive,
     LLMConfigUpdate,
 )
-from app.llm.service import LLMConfigService
+from app.llm.service import LLMConfigService, get_llm_service
 from app.models.llm import LLMConfig
 from app.models.user import User
 
@@ -27,25 +24,8 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def get_llm_service() -> LLMConfigService:
-    settings = get_settings()
-    return LLMConfigService(
-        encryption=get_encryption_service(settings.LLM_ENCRYPTION_KEY),
-        cache=get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
-    )
-
-
 def _to_response(config: LLMConfig) -> LLMConfigResponse:
-    return LLMConfigResponse(
-        id=config.id,  # type: ignore[arg-type]
-        name=config.name,
-        provider=config.provider,
-        model=config.model,
-        masked_key=config.masked_key,
-        is_active=config.is_active,
-        created_at=config.created_at,
-        last_used_at=config.last_used_at,
-    )
+    return LLMConfigResponse.model_validate(config)
 
 
 @router.post("/configs", response_model=LLMConfigResponse, status_code=status.HTTP_201_CREATED)
@@ -66,7 +46,8 @@ async def create_llm_config(
         )
         await session.commit()
         return _to_response(config)
-    except ValueError as exc:
+    except LLMConfigDuplicateNameError as exc:
+        logger.warning("LLMConfig name conflict for user %s: %s", current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         logger.error("Failed to create LLMConfig for user %s: %s", current_user.id, exc)
@@ -109,9 +90,14 @@ async def update_llm_config(
         )
         await session.commit()
         return _to_response(config)
+    except LLMConfigDuplicateNameError as exc:
+        logger.warning("LLMConfig name conflict updating config %s for user %s: %s", config_id, current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except LLMConfigValidationError as exc:
+        logger.warning("Validation error updating LLMConfig %s: %s", config_id, exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except ValueError as exc:
+    except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for user %s: %s", config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         logger.error("Failed to update LLMConfig %s: %s", config_id, exc)
@@ -137,7 +123,8 @@ async def rotate_llm_config_key(
         )
         await session.commit()
         return _to_response(config)
-    except ValueError as exc:
+    except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for key rotation (user %s): %s", config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         logger.error("Failed to rotate key for LLMConfig %s: %s", config_id, exc)
@@ -161,7 +148,8 @@ async def set_llm_config_active(
         )
         await session.commit()
         return _to_response(config)
-    except ValueError as exc:
+    except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for active state update (user %s): %s", config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         logger.error("Failed to update active state for LLMConfig %s: %s", config_id, exc)
