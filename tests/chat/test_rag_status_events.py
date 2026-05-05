@@ -147,6 +147,60 @@ async def test_agent_context_injected_into_messages() -> None:
 
 
 @pytest.mark.asyncio
+async def test_multi_file_rag_context_preserved() -> None:
+    """RAG context from file₁ is not dropped when file₂ is processed in the same message."""
+
+    def _make_context(file_db_id: int, source: str, text: str) -> RAGContext:
+        sr = MagicMock()
+        sr.chunk.chapter = None
+        sr.chunk.section = "Section"
+        sr.chunk.subsection = None
+        sr.chunk.id = file_db_id
+        return RAGContext(file_db_id=file_db_id, source_name=source, chunks=[sr], formatted_text=text)
+
+    ctx1 = _make_context(1, "file1.pdf", "Context from file 1.")
+    ctx2 = _make_context(2, "file2.pdf", "Context from file 2.")
+
+    async def _get_context(session: object, user_id: object, file_db_id: int, **_: object) -> RAGContext:
+        return ctx1 if file_db_id == 1 else ctx2
+
+    rag_service = MagicMock(spec=RAGContextService)
+    rag_service.get_context_via_agent = _get_context
+
+    original_messages = [
+        {"role": "user", "content": [{"type": "drive_file", "file_id": 1}, {"type": "drive_file", "file_id": 2}]}
+    ]
+    unresolved = [
+        ChatMessage(
+            role="user",
+            content=[{"type": "drive_file", "file_id": 1}, {"type": "drive_file", "file_id": 2}],
+        )
+    ]
+
+    async for _ in stream_chat_response(
+        provider=_make_provider(),
+        messages=original_messages,
+        conversation=_make_conversation(),
+        service=_make_service(),
+        session=AsyncMock(),
+        tools=None,
+        unresolved_messages=unresolved,
+        rag_service=rag_service,
+        user_id=1,
+        llm=MagicMock(),
+    ):
+        pass
+
+    content = original_messages[0]["content"]
+    assert isinstance(content, list)
+    text_blocks = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+    # context prompt + two RAG context blocks — neither file's context is lost
+    assert len(text_blocks) == 3
+    assert any("Context from file 1." in t for t in text_blocks)
+    assert any("Context from file 2." in t for t in text_blocks)
+
+
+@pytest.mark.asyncio
 async def test_no_status_events_without_drive_file_blocks() -> None:
     """When no unresolved_messages passed, no status events are emitted."""
     events = []

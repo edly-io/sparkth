@@ -62,6 +62,7 @@ from app.models.user import User
 from app.rag.context_service import RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.provider import get_provider as get_rag_provider
+from app.rag.types import RAGContext
 from app.rag.utils import get_asset
 
 logger = get_logger(__name__)
@@ -365,9 +366,10 @@ async def _resolve_drive_file_blocks(
                 ) from exc
 
         if rag_blocks:
+            user_text_blocks = [b for b in non_file_blocks if isinstance(b, dict) and b.get("type") == "text"]
             other_blocks = [b for b in non_file_blocks if not (isinstance(b, dict) and b.get("type") == "text")]
             new_blocks: list[dict[str, Any]] = (
-                [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks
+                [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
             )
         else:
             new_blocks = non_file_blocks
@@ -700,6 +702,10 @@ async def stream_chat_response(
         files_with_no_results: list[str] = []
         any_results_found = False
 
+        # Collect RAG context per file_id first; assemble messages in one pass after the loop
+        # to avoid each iteration overwriting context injected by the previous one.
+        rag_context_map: dict[int, RAGContext] = {}
+
         for msg in unresolved_messages:
             if not isinstance(msg.content, list):
                 continue
@@ -734,21 +740,11 @@ async def stream_chat_response(
                 results = context.chunks
 
                 if not results:
-                    # This file had no matches — drop its block and try the next file.
                     files_with_no_results.append(source_name)
-                    for m in messages:
-                        if not isinstance(m.get("content"), list):
-                            continue
-                        m["content"] = [
-                            b
-                            for b in m["content"]
-                            if not (
-                                isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id
-                            )
-                        ]
                     continue
 
                 any_results_found = True
+                rag_context_map[file_id] = context
 
                 # Build confirmed_rag_sections from retrieved chunks for message metadata
                 seen_section_keys: set[str] = set()
@@ -762,22 +758,33 @@ async def stream_chat_response(
                         seen_section_keys.add(key)
                         confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
 
-                # Replace drive_file block with RAG text; drop original user text in the same message
-                for m in messages:
-                    if not isinstance(m.get("content"), list):
-                        continue
-                    if not any(
-                        isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id
-                        for b in m["content"]
-                    ):
-                        continue
-                    new_content: list[dict[str, Any]] = [{"type": "text", "text": _RAG_CONTEXT_PROMPT}]
-                    for b in m["content"]:
-                        if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
-                            new_content.append({"type": "text", "text": context.formatted_text})
-                        elif not (isinstance(b, dict) and b.get("type") == "text"):
-                            new_content.append(b)
-                    m["content"] = new_content
+        # Single assembly pass: replace all drive_file blocks at once so that context
+        # injected for file₁ is not dropped when file₂ is processed.
+        for m in messages:
+            if not isinstance(m.get("content"), list):
+                continue
+            rag_blocks: list[dict[str, Any]] = []
+            user_text_blocks: list[dict[str, Any]] = []
+            other_blocks: list[dict[str, Any]] = []
+            has_drive_file = False
+            for b in m["content"]:
+                if isinstance(b, dict) and b.get("type") == "drive_file":
+                    has_drive_file = True
+                    fid = b.get("file_id")
+                    if fid is not None and int(fid) in rag_context_map:
+                        rag_blocks.append({"type": "text", "text": rag_context_map[int(fid)].formatted_text})
+                elif isinstance(b, dict) and b.get("type") == "text":
+                    user_text_blocks.append(b)
+                else:
+                    other_blocks.append(b)
+            if not has_drive_file:
+                continue
+            if rag_blocks:
+                m["content"] = (
+                    [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
+                )
+            else:
+                m["content"] = other_blocks + user_text_blocks
 
         # If every searched file returned no results, surface the no-match message.
         if files_with_no_results and not any_results_found:

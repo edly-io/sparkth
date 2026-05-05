@@ -77,9 +77,7 @@ def _bind_user_context(tools: list[Any], user_id: int, file_id: int) -> list[Any
     return result
 
 
-async def run_agentic_rag_search(
-    llm: Any, user_id: int, file_id: int, user_query: str
-) -> RAGSearchAgentResponse:  # AgentSearchDecision:
+async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_query: str) -> RAGSearchAgentResponse:
     """Run agentic RAG search to determine target sections.
 
     Args:
@@ -89,7 +87,7 @@ async def run_agentic_rag_search(
         user_query: User's natural language query
 
     Returns:
-        AgentSearchDecision with source_name and target_sections
+        ARAGSearchAgentResponse with source_name and selected_sections
 
     Raises:
         RAGRetrievalError: If MCP client connection or agent invocation fails
