@@ -60,17 +60,6 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                 {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
               </span>
             </Button>
-            {onRemove && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onRemove(firstAttachment.driveFileDbId)}
-                className="text-muted-foreground hover:text-foreground p-0 h-auto"
-                title="Remove attachment"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            )}
 
             <Tooltip>
               <TooltipTrigger asChild>
