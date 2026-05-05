@@ -15,6 +15,7 @@ from bs4.element import NavigableString
 from docx import Document as DocxDocument
 from docx.oxml.ns import qn
 
+from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.rag.types import DocType
 
@@ -289,33 +290,68 @@ def _docx_table_to_md(table: Any) -> str:
 
 def _extract_docx(data: bytes, source_name: str) -> ExtractionResult:
     doc = DocxDocument(io.BytesIO(data))
-    lines: list[str] = []
     warnings: list[str] = []
     ordered_counters: dict[tuple[str, str], int] = {}
 
     body = doc.element.body
+    batch_size = get_settings().RAG_EXTRACTION_BATCH_SIZE
+    body_children = list(body)
+    lines: list[str] = []
 
-    for child in body:
-        tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+    if batch_size > 0:
+        total = len(body_children)
+        all_lines: list[str] = []
+        for start in range(0, total, batch_size):
+            end = min(start + batch_size, total)
+            logger.info(
+                "Processing items %d–%d of %d (%s)",
+                start + 1,
+                end,
+                total,
+                source_name,
+            )
+            for child in body_children[start:end]:
+                tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+                if tag == "p":
+                    from docx.text.paragraph import Paragraph
 
-        if tag == "p":  # paragraph
-            from docx.text.paragraph import Paragraph
+                    para = Paragraph(child, doc)
+                    md = _docx_paragraph_to_md(para, ordered_counters)
+                    if md:
+                        all_lines.append(md)
+                        all_lines.append("")
+                elif tag == "tbl":
+                    from docx.table import Table
 
-            para = Paragraph(child, doc)
-            md = _docx_paragraph_to_md(para, ordered_counters)
-            if md:
-                lines.append(md)
-                lines.append("")
+                    tbl = Table(child, doc)
+                    md = _docx_table_to_md(tbl)
+                    if md:
+                        all_lines.append(md)
+                        all_lines.append("")
+                        warnings.append(f"Table detected in '{source_name}' — verify Markdown rendering.")
+        lines = all_lines
+    else:
+        for child in body_children:
+            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
-        elif tag == "tbl":  # table
-            from docx.table import Table
+            if tag == "p":  # paragraph
+                from docx.text.paragraph import Paragraph
 
-            tbl = Table(child, doc)
-            md = _docx_table_to_md(tbl)
-            if md:
-                lines.append(md)
-                lines.append("")
-                warnings.append(f"Table detected in '{source_name}' — verify Markdown rendering.")
+                para = Paragraph(child, doc)
+                md = _docx_paragraph_to_md(para, ordered_counters)
+                if md:
+                    lines.append(md)
+                    lines.append("")
+
+            elif tag == "tbl":  # table
+                from docx.table import Table
+
+                tbl = Table(child, doc)
+                md = _docx_table_to_md(tbl)
+                if md:
+                    lines.append(md)
+                    lines.append("")
+                    warnings.append(f"Table detected in '{source_name}' — verify Markdown rendering.")
 
     return ExtractionResult(
         markdown="\n".join(lines),
@@ -460,8 +496,27 @@ def _extract_html(data: bytes, source_name: str) -> ExtractionResult:
 
 
 def _extract_txt(data: bytes, source_name: str) -> ExtractionResult:
+    batch_size = get_settings().RAG_EXTRACTION_BATCH_SIZE
+    decoded = data.decode("utf-8", errors="replace")
+    if batch_size > 0:
+        all_lines = decoded.split("\n")
+        total = len(all_lines)
+        parts: list[str] = []
+        for start in range(0, total, batch_size):
+            end = min(start + batch_size, total)
+            logger.info(
+                "Processing lines %d–%d of %d (%s)",
+                start + 1,
+                end,
+                total,
+                source_name,
+            )
+            parts.extend(all_lines[start:end])
+        markdown = "\n".join(parts)
+    else:
+        markdown = decoded
     return ExtractionResult(
-        markdown=data.decode("utf-8", errors="replace"),
+        markdown=markdown,
         doc_type=DocType.TXT,
         source_name=source_name,
     )

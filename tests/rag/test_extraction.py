@@ -598,6 +598,339 @@ class TestExtractToMarkdown:
         assert extract_to_markdown(buf.getvalue(), "file.docx").doc_type == DocType.DOCX
 
 
+class TestExtractDOCXBatching:
+    @pytest.fixture()
+    def simple_3para_docx_bytes(self) -> bytes:
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph("First paragraph")
+        doc.add_paragraph("Second paragraph")
+        doc.add_paragraph("Third paragraph")
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+    @pytest.fixture()
+    def four_para_docx_bytes(self) -> bytes:
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph("Para 1")
+        doc.add_paragraph("Para 2")
+        doc.add_paragraph("Para 3")
+        doc.add_paragraph("Para 4")
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+    @pytest.fixture()
+    def five_para_docx_bytes(self) -> bytes:
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph("Para 1")
+        doc.add_paragraph("Para 2")
+        doc.add_paragraph("Para 3")
+        doc.add_paragraph("Para 4")
+        doc.add_paragraph("Para 5")
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+    @pytest.fixture()
+    def ordered_list_3items_docx_bytes(self) -> bytes:
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph("First", style="List Number")
+        doc.add_paragraph("Second", style="List Number")
+        doc.add_paragraph("Third", style="List Number")
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+    def test_batch_size_zero_behaves_as_single_pass(self, simple_3para_docx_bytes: bytes) -> None:
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 0
+            mock_settings_fn.return_value = mock_settings
+
+            result = _extract_docx(simple_3para_docx_bytes, "doc.docx")
+
+            # Verify logger.info was not called with "Processing items"
+            for call in mock_logger.info.call_args_list:
+                if call[0]:  # positional args
+                    assert "Processing items" not in call[0][0]
+
+            # Result should contain all 3 paragraphs
+            assert "First paragraph" in result.markdown
+            assert "Second paragraph" in result.markdown
+            assert "Third paragraph" in result.markdown
+
+    def test_batch_size_positive_output_identical_to_no_batch(self, four_para_docx_bytes: bytes) -> None:
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            # First call with batch_size=0
+            mock_settings_zero = MagicMock()
+            mock_settings_zero.RAG_EXTRACTION_BATCH_SIZE = 0
+            mock_settings_fn.return_value = mock_settings_zero
+
+            result_nobatch = _extract_docx(four_para_docx_bytes, "doc.docx")
+
+            # Second call with batch_size=2
+            mock_settings_batch = MagicMock()
+            mock_settings_batch.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings_batch
+
+            result_batched = _extract_docx(four_para_docx_bytes, "doc.docx")
+
+            assert result_batched.markdown == result_nobatch.markdown
+
+    def test_partial_last_batch_handled(self, five_para_docx_bytes: bytes) -> None:
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings
+
+            result = _extract_docx(five_para_docx_bytes, "doc.docx")
+
+            # All 5 paragraphs should be in output
+            assert "Para 1" in result.markdown
+            assert "Para 2" in result.markdown
+            assert "Para 3" in result.markdown
+            assert "Para 4" in result.markdown
+            assert "Para 5" in result.markdown
+
+    def test_log_format_per_batch(self, four_para_docx_bytes: bytes) -> None:
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 1
+            mock_settings_fn.return_value = mock_settings
+
+            _extract_docx(four_para_docx_bytes, "doc.docx")
+
+            # Should have logger.info calls with proper format
+            info_calls = mock_logger.info.call_args_list
+            batch_calls = [c for c in info_calls if c[0] and "Processing items" in c[0][0]]
+
+            assert len(batch_calls) >= 1
+            # Check format of first batch call
+            first_batch_call = batch_calls[0]
+            # Format should be: "Processing items %d–%d of %d (%s)"
+            assert first_batch_call[0][0] == "Processing items %d–%d of %d (%s)"
+
+    def test_batch_count_matches_ceil_division(self, five_para_docx_bytes: bytes) -> None:
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings
+
+            _extract_docx(five_para_docx_bytes, "doc.docx")
+
+            # Count calls with "Processing items"
+            info_calls = mock_logger.info.call_args_list
+            batch_calls = [c for c in info_calls if c[0] and "Processing items" in c[0][0]]
+
+            # 5 children with batch_size=2 -> ceil(5/2) = 3 batches
+            assert len(batch_calls) == 3
+
+    def test_ordered_list_numbering_unaffected_by_batch_boundary(self, ordered_list_3items_docx_bytes: bytes) -> None:
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 1
+            mock_settings_fn.return_value = mock_settings
+
+            result = _extract_docx(ordered_list_3items_docx_bytes, "doc.docx")
+
+            # All three items should be numbered 1, 2, 3 (not reset at batch boundary)
+            assert "1. First" in result.markdown
+            assert "2. Second" in result.markdown
+            assert "3. Third" in result.markdown
+
+    def test_batch_size_larger_than_body_children_calls_one_batch(self, four_para_docx_bytes: bytes) -> None:
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 1000
+            mock_settings_fn.return_value = mock_settings
+
+            _extract_docx(four_para_docx_bytes, "doc.docx")
+
+            # Count calls with "Processing items"
+            info_calls = mock_logger.info.call_args_list
+            batch_calls = [c for c in info_calls if c[0] and "Processing items" in c[0][0]]
+
+            assert len(batch_calls) == 1
+
+
+class TestExtractTXTBatching:
+    def test_batch_size_zero_returns_full_content_unchanged(self) -> None:
+        data = b"line1\nline2\nline3"
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 0
+            mock_settings_fn.return_value = mock_settings
+
+            result = _extract_txt(data, "notes.txt")
+
+            assert result.markdown == data.decode("utf-8")
+            # Verify logger.info was not called with "Processing lines"
+            for call in mock_logger.info.call_args_list:
+                if call[0]:  # positional args
+                    assert "Processing lines" not in call[0][0]
+
+    def test_batch_size_positive_output_identical_to_no_batch(self) -> None:
+        data = b"a\nb\nc\nd"
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            # First call with batch_size=0
+            mock_settings_zero = MagicMock()
+            mock_settings_zero.RAG_EXTRACTION_BATCH_SIZE = 0
+            mock_settings_fn.return_value = mock_settings_zero
+
+            result_nobatch = _extract_txt(data, "notes.txt")
+
+            # Second call with batch_size=2
+            mock_settings_batch = MagicMock()
+            mock_settings_batch.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings_batch
+
+            result_batched = _extract_txt(data, "notes.txt")
+
+            assert result_batched.markdown == result_nobatch.markdown
+
+    def test_partial_last_batch_no_content_dropped(self) -> None:
+        data = b"a\nb\nc\nd\ne"
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings
+
+            result = _extract_txt(data, "notes.txt")
+
+            # All 5 lines should be present
+            assert "a" in result.markdown
+            assert "b" in result.markdown
+            assert "c" in result.markdown
+            assert "d" in result.markdown
+            assert "e" in result.markdown
+
+    def test_log_format_per_batch(self) -> None:
+        data = b"a\nb\nc\nd"
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings
+
+            _extract_txt(data, "notes.txt")
+
+            # Count calls with "Processing lines"
+            info_calls = mock_logger.info.call_args_list
+            batch_calls = [c for c in info_calls if c[0] and "Processing lines" in c[0][0]]
+
+            # Should have 2 calls (lines 1-2, 3-4)
+            assert len(batch_calls) == 2
+            # Check format of first call
+            first_batch_call = batch_calls[0]
+            assert first_batch_call[0][0] == "Processing lines %d–%d of %d (%s)"
+            assert first_batch_call[0][1:] == (1, 2, 4, "notes.txt")
+            # Check second call
+            second_batch_call = batch_calls[1]
+            assert second_batch_call[0][1:] == (3, 4, 4, "notes.txt")
+
+    def test_batch_count_matches_ceil_division(self) -> None:
+        data = b"a\nb\nc\nd\ne"
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 2
+            mock_settings_fn.return_value = mock_settings
+
+            _extract_txt(data, "notes.txt")
+
+            # Count calls with "Processing lines"
+            info_calls = mock_logger.info.call_args_list
+            batch_calls = [c for c in info_calls if c[0] and "Processing lines" in c[0][0]]
+
+            # 5 lines with batch_size=2 -> ceil(5/2) = 3 batches
+            assert len(batch_calls) == 3
+
+    def test_trailing_newline_preserved(self) -> None:
+        data = b"line1\nline2\n"
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            # Test with batch_size=0
+            mock_settings_0 = MagicMock()
+            mock_settings_0.RAG_EXTRACTION_BATCH_SIZE = 0
+            mock_settings_fn.return_value = mock_settings_0
+
+            result_0 = _extract_txt(data, "notes.txt")
+
+            # Test with batch_size=1
+            mock_settings_1 = MagicMock()
+            mock_settings_1.RAG_EXTRACTION_BATCH_SIZE = 1
+            mock_settings_fn.return_value = mock_settings_1
+
+            result_1 = _extract_txt(data, "notes.txt")
+
+            # Both should preserve the trailing newline
+            assert result_0.markdown == "line1\nline2\n"
+            assert result_1.markdown == "line1\nline2\n"
+
+    def test_invalid_utf8_still_replaced_in_batched_mode(self) -> None:
+        data = b"hello\xff\nworld"
+        with patch("app.rag.extraction.get_settings") as mock_settings_fn:
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 1
+            mock_settings_fn.return_value = mock_settings
+
+            result = _extract_txt(data, "notes.txt")
+
+            # Should not raise and should contain both parts
+            assert "hello" in result.markdown
+            assert "world" in result.markdown
+            # Replacement character should be present
+            assert "�" in result.markdown
+
+    def test_batch_size_larger_than_line_count_one_batch(self) -> None:
+        data = b"a\nb"
+        with (
+            patch("app.rag.extraction.get_settings") as mock_settings_fn,
+            patch("app.rag.extraction.logger") as mock_logger,
+        ):
+            mock_settings = MagicMock()
+            mock_settings.RAG_EXTRACTION_BATCH_SIZE = 1000
+            mock_settings_fn.return_value = mock_settings
+
+            _extract_txt(data, "notes.txt")
+
+            # Count calls with "Processing lines"
+            info_calls = mock_logger.info.call_args_list
+            batch_calls = [c for c in info_calls if c[0] and "Processing lines" in c[0][0]]
+
+            assert len(batch_calls) == 1
+            # Should log 1, 2, 2
+            call = batch_calls[0]
+            assert call[0][1:] == (1, 2, 2, "notes.txt")
+
+
 class TestSupportedExtensions:
     def test_exported_constant_exists(self) -> None:
         from app.rag.extraction import SUPPORTED_EXTENSIONS
