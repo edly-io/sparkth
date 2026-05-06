@@ -1,6 +1,7 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 import hashlib
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -454,6 +455,102 @@ class TestEmbedAndStoreChunks:
         added_links = session.add_all.call_args[0][0]
         assert len(added_links) == 1
         assert added_links[0].chunk_id == 11
+
+    @pytest.mark.asyncio
+    async def test_deleted_file_chunks_not_reused(self, session: Any) -> None:
+        """Chunks linked only to deleted DriveFiles must never be reused."""
+        from datetime import datetime, timezone
+
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
+        from app.models.drive import DriveFolder
+        from app.rag.models import DocumentChunk, DriveFileChunkLink
+
+        async_session: AsyncSession = session
+
+        # Seed: user already exists in the shared engine fixture — create a minimal one
+        from app.models.user import User
+
+        user = User(name="ReuseTest", username="reusetest", email="reuse@test.com", hashed_password="x")
+        async_session.add(user)
+        await async_session.flush()
+
+        assert user.id is not None
+        folder = DriveFolder(
+            user_id=user.id,
+            drive_folder_id="folder_reuse",
+            drive_folder_name="Reuse Folder",
+            last_synced_at=datetime.now(timezone.utc),
+            sync_status="synced",
+        )
+        async_session.add(folder)
+        await async_session.flush()
+
+        # The NEW file being processed (active)
+        assert folder.id is not None
+        assert user.id is not None
+        new_drive_file = DriveFile(
+            folder_id=folder.id,
+            user_id=user.id,
+            drive_file_id="new_file_id",
+            name="new.pdf",
+            last_synced_at=datetime.now(timezone.utc),
+        )
+        async_session.add(new_drive_file)
+        await async_session.flush()
+
+        # The OLD deleted file whose chunk we must NOT reuse
+        deleted_drive_file = DriveFile(
+            folder_id=folder.id,
+            user_id=user.id,
+            drive_file_id="deleted_file_id",
+            name="deleted.pdf",
+            last_synced_at=datetime.now(timezone.utc),
+            is_deleted=True,
+        )
+        async_session.add(deleted_drive_file)
+        await async_session.flush()
+
+        chunk_content = "some shared chunk content"
+        chunk_hash = hashlib.sha256(chunk_content.encode()).hexdigest()
+
+        existing_chunk = DocumentChunk(
+            user_id=user.id,
+            source_name="deleted.pdf",
+            content=chunk_content,
+            chunk_content_hash=chunk_hash,
+            embedding=[0.1] * 384,
+            embedding_model="test-model",
+            embedding_provider="test-provider",
+        )
+        async_session.add(existing_chunk)
+        await async_session.flush()
+
+        # Link the chunk only to the deleted file
+        assert deleted_drive_file.id is not None
+        assert existing_chunk.id is not None
+        link = DriveFileChunkLink(drive_file_id=deleted_drive_file.id, chunk_id=existing_chunk.id)
+        async_session.add(link)
+        await async_session.flush()
+
+        # Call the function under test
+        provider = AsyncMock(spec=True)
+        store = AsyncMock(spec=VectorStoreService)
+        store.store_chunks = AsyncMock(return_value=[999])  # fake new chunk ID
+
+        assert user.id is not None
+        assert new_drive_file.id is not None
+        new_count, reused_count = await _embed_and_store_chunks(
+            async_session,
+            user_id=user.id,
+            drive_file_id=new_drive_file.id,
+            chunks=[Chunk(content=chunk_content, metadata=ChunkMetadata(source_name="new.pdf"))],
+            provider=provider,
+            store=store,
+        )
+
+        assert reused_count == 0, "chunk linked only to a deleted file must not be reused"
+        assert new_count == 1, "chunk must be re-embedded since its only source is deleted"
 
 
 # ---------------------------------------------------------------------------

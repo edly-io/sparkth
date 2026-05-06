@@ -123,11 +123,22 @@ async def _embed_and_store_chunks(
     """
     chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
 
-    # Batch-lookup which chunk hashes already exist
+    # Batch-lookup which chunk hashes already exist, excluding chunks that are
+    # only linked to soft-deleted files (they must be re-embedded for the new file).
+    active_file_subq = (
+        select(DriveFileChunkLink.chunk_id)
+        .join(DriveFile, col(DriveFile.id) == col(DriveFileChunkLink.drive_file_id))
+        .where(
+            col(DriveFileChunkLink.chunk_id) == col(DocumentChunk.id),
+            col(DriveFile.is_deleted) == False,  # noqa: E712
+        )
+        .exists()
+    )
     existing_rows = await session.execute(
         select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
             DocumentChunk.user_id == user_id,
             DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
+            active_file_subq,
         )
     )
     existing_hash_to_id: dict[str, int] = {row.chunk_content_hash: row.id for row in existing_rows.all()}
