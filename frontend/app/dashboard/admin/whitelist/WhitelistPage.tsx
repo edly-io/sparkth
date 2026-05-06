@@ -217,16 +217,16 @@ export default function WhitelistPage() {
                     <td className="px-4 py-3 text-sm text-foreground font-mono">{entry.value}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ring-1 ring-inset ${
                           entry.entry_type === "domain"
-                            ? "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
-                            : "bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300"
+                            ? "bg-primary-50 text-primary-700 ring-primary-500/20 dark:bg-primary-500/10 dark:text-primary-100 dark:ring-primary-500/30"
+                            : "bg-success-50 text-success-700 ring-success-500/20 dark:bg-success-500/10 dark:text-success-100 dark:ring-success-500/30"
                         }`}
                       >
                         {entry.entry_type === "domain" ? (
-                          <Globe className="w-3 h-3" />
+                          <Globe className="w-3.5 h-3.5" />
                         ) : (
-                          <Mail className="w-3 h-3" />
+                          <Mail className="w-3.5 h-3.5" />
                         )}
                         {entry.entry_type === "domain" ? "Domain" : "Email"}
                       </span>
