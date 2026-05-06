@@ -49,6 +49,8 @@ from app.models.user import User
 from app.rag.types import RagStatus
 
 router: APIRouter = APIRouter()
+
+_FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
 logger = logging.getLogger(__name__)
 
 
@@ -92,7 +94,7 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
         drive_files_data = await client.list_files(folder_id=folder.drive_folder_id)
 
     now = datetime.now(timezone.utc)
-    drive_files = drive_files_data.get("files", [])
+    drive_files = [f for f in drive_files_data.get("files", []) if f.get("mimeType") != _FOLDER_MIME_TYPE]
     drive_file_ids = {f["id"] for f in drive_files}
 
     existing_files = session.exec(
