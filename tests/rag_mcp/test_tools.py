@@ -299,3 +299,35 @@ class TestSearchSectionByKeyword:
         result = await search_section_by_keyword(user_id=1, file_id=1, keyword="")
 
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_backslash_in_keyword_is_escaped(self) -> None:
+        """Test backslash in keyword is escaped to prevent Postgres LIKE error 22025."""
+        from sqlalchemy.dialects import sqlite as sqlite_dialect
+
+        mock_file = MagicMock()
+        mock_file.id = 1
+        mock_file.name = "test.pdf"
+
+        with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
+            mock_session = AsyncMock(spec=AsyncSession)
+
+            mock_file_result = MagicMock()
+            mock_file_scalars = MagicMock()
+            mock_file_scalars.first.return_value = mock_file
+            mock_file_result.scalars.return_value = mock_file_scalars
+
+            mock_search_result = MagicMock()
+            mock_search_result.all.return_value = []
+
+            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_search_result])
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            await search_section_by_keyword(user_id=1, file_id=1, keyword=r"foo\bar")
+
+        search_stmt = mock_session.execute.call_args_list[1][0][0]
+        compiled = search_stmt.compile(
+            dialect=sqlite_dialect.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+        assert r"%foo\\bar%" in str(compiled)

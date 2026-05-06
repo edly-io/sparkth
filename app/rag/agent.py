@@ -8,6 +8,7 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.sessions import StreamableHttpConnection
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.core.config import get_settings
@@ -96,7 +97,7 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
 
     try:
         client = MultiServerMCPClient(
-            {"rag-meta": {"url": rag_mcp_url, "transport": "http"}}  # type: ignore[misc, dict-item]
+            {"rag-meta": StreamableHttpConnection(url=rag_mcp_url, transport="streamable_http")}
         )
         tools = await client.get_tools()
         tools = _bind_user_context(tools, user_id, file_id)

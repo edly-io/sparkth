@@ -216,7 +216,7 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
                 return []
 
             source_name = resolve_source_name(file)
-            keyword_safe = keyword.replace("%", r"\%").replace("_", r"\_")
+            keyword_safe = keyword.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
             keyword_pattern = f"%{keyword_safe}%"
 
             search_result = await session.execute(

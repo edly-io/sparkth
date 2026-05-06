@@ -43,6 +43,14 @@ class Chunk:
 
 
 @dataclass
+class SimilarityResult:
+    """A chunk together with its cosine similarity score."""
+
+    chunk: DocumentChunk
+    similarity: float
+
+
+@dataclass
 class RAGContext:
     """Retrieved context ready for injection into an LLM prompt."""
 
@@ -69,14 +77,6 @@ class ChunkInput:
     subsection: str | None = None
     token_count: int | None = None
     chunk_content_hash: str | None = None
-
-
-@dataclass
-class SimilarityResult:
-    """A chunk together with its cosine similarity score."""
-
-    chunk: DocumentChunk
-    similarity: float
 
 
 class SectionRef(BaseModel):
