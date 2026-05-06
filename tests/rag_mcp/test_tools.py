@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.rag.types import RagStatus
 from app.rag_mcp.tools import (
     get_chunk_stats,
+    get_document_structure,
     get_file_metadata,
     list_file_sections,
     list_user_files,
@@ -235,6 +236,87 @@ class TestGetChunkStats:
             assert result is not None
             assert result.chunk_count == 42
             assert result.avg_token_count == 128.5
+
+
+class TestGetDocumentStructure:
+    """Test get_document_structure tool."""
+
+    def _mock_file(self) -> MagicMock:
+        mock_file = MagicMock()
+        mock_file.id = 1
+        mock_file.name = "test.pdf"
+        mock_file.mime_type = None
+        return mock_file
+
+    def _make_session(self, file: MagicMock | None, rows: list[tuple]) -> AsyncMock:  # type: ignore[type-arg]
+        mock_session = AsyncMock(spec=AsyncSession)
+
+        mock_file_result = MagicMock()
+        mock_file_scalars = MagicMock()
+        mock_file_scalars.first.return_value = file
+        mock_file_result.scalars.return_value = mock_file_scalars
+
+        mock_structure_result = MagicMock()
+        mock_structure_result.all.return_value = rows
+
+        if file is None:
+            mock_session.execute = AsyncMock(return_value=mock_file_result)
+        else:
+            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_structure_result])
+
+        return mock_session
+
+    @pytest.mark.asyncio
+    async def test_position_index_assigned_in_order(self) -> None:
+        """position_index must be zero-based and reflect document order."""
+        rows = [
+            ("Chapter 1", "Introduction", None, 3),
+            ("Chapter 1", "Background", None, 5),
+            ("Chapter 2", None, None, 2),
+        ]
+        with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = self._make_session(self._mock_file(), rows)
+            result = await get_document_structure(user_id=1, file_id=1)
+
+        assert len(result) == 3
+        assert [s.position_index for s in result] == [0, 1, 2]
+
+    @pytest.mark.asyncio
+    async def test_chunk_count_and_fields_populated(self) -> None:
+        """chunk_count and section fields must be taken directly from the aggregation row."""
+        rows = [("Ch1", "Sec1", "Sub1", 7)]
+        with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = self._make_session(self._mock_file(), rows)
+            result = await get_document_structure(user_id=1, file_id=1)
+
+        assert len(result) == 1
+        section = result[0]
+        assert section.chapter == "Ch1"
+        assert section.section == "Sec1"
+        assert section.subsection == "Sub1"
+        assert section.chunk_count == 7
+        assert section.position_index == 0
+        assert section.source_name == "test.pdf"
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_returns_empty(self) -> None:
+        """Returns empty list when the file does not belong to the user."""
+        with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
+            mock_get_session.return_value.__aenter__.return_value = self._make_session(None, [])
+            result = await get_document_structure(user_id=1, file_id=999)
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_sqlalchemy_error_raises(self) -> None:
+        """SQLAlchemyError must propagate to the caller."""
+        with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
+            mock_session = AsyncMock(spec=AsyncSession)
+            mock_session.execute = AsyncMock(side_effect=SQLAlchemyError("DB error"))
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            with pytest.raises(SQLAlchemyError):
+                await get_document_structure(user_id=1, file_id=1)
 
 
 class TestSearchSectionByKeyword:

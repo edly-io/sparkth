@@ -170,15 +170,13 @@ class TestRunAgenticRagSearch:
         assert result.selected_sections == []
 
     @pytest.mark.asyncio
-    async def test_validation_error_returns_empty_response(self) -> None:
+    async def test_validation_error_raises_retrieval_error(self) -> None:
         agent = MagicMock()
         agent.ainvoke = AsyncMock(side_effect=_make_validation_error())
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
-            result = await run_agentic_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
-
-        assert result.source_name == ""
-        assert result.selected_sections == []
+            with pytest.raises(RAGRetrievalError):
+                await run_agentic_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
     async def test_connect_error_raises_retrieval_error(self) -> None:
@@ -204,10 +202,10 @@ class TestRunAgenticRagSearch:
                 await run_agentic_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
-    async def test_value_error_raises_retrieval_error(self) -> None:
+    async def test_value_error_propagates(self) -> None:
         agent = MagicMock()
-        agent.ainvoke = AsyncMock(side_effect=ValueError("bad response"))
+        agent.ainvoke = AsyncMock(side_effect=ValueError("unexpected"))
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
-            with pytest.raises(RAGRetrievalError):
+            with pytest.raises(ValueError):
                 await run_agentic_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
