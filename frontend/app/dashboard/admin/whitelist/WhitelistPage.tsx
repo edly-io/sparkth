@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useEffect, useCallback } from "react";
+import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -104,7 +104,7 @@ export default function WhitelistPage() {
     fetchEntries();
   }, [fetchEntries]);
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleAdd = async (e: SubmitEvent) => {
     e.preventDefault();
     if (!token || !state.newValue.trim()) return;
 
