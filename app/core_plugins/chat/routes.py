@@ -1,4 +1,3 @@
-import asyncio
 import json
 import re
 from functools import lru_cache
@@ -60,11 +59,17 @@ from app.llm.providers import (
 )
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
-from app.rag.context_service import RAGContextService, format_chunks_as_context
+from app.rag.context_service import RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.provider import get_provider as get_rag_provider
+from app.rag.types import RAGContext
+from app.rag.utils import get_asset
 
 logger = get_logger(__name__)
+
+_RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt", "txt")
+if not isinstance(_RAG_CONTEXT_PROMPT, str):
+    raise TypeError("rag_context_replacement_prompt asset must be a string")
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -257,17 +262,6 @@ def _strip_md(text: str) -> str:
     return re.sub(r"\*+", "", text).strip()
 
 
-def _section_label_and_name(sec: dict[str, str | None]) -> tuple[str, str] | None:
-    """Return (type_label, cleaned_name) for a section dict, or None if all fields empty."""
-    if sec.get("subsection"):
-        return "subsection", _strip_md(str(sec["subsection"]))
-    if sec.get("section"):
-        return "section", _strip_md(str(sec["section"]))
-    if sec.get("chapter"):
-        return "chapter", _strip_md(str(sec["chapter"]))
-    return None
-
-
 def _parse_rag_sections(model_metadata: str | None) -> list[dict[str, Any]] | None:
     if not model_metadata:
         return None
@@ -300,6 +294,7 @@ async def _resolve_drive_file_blocks(
     session: AsyncSession,
     user_id: int,
     rag_service: RAGContextService,
+    llm: Any,
 ) -> list[ChatMessage]:
     """Replace drive_file content blocks with RAG context text blocks.
 
@@ -323,10 +318,11 @@ async def _resolve_drive_file_blocks(
             resolved.append(msg)
             continue
 
-        new_blocks: list[dict[str, Any]] = []
+        non_file_blocks: list[dict[str, Any]] = []
+        rag_blocks: list[dict[str, Any]] = []
         for block in msg.content:
             if not isinstance(block, dict) or block.get("type") != "drive_file":
-                new_blocks.append(block)
+                non_file_blocks.append(block)
                 continue
 
             raw_id = block.get("file_id")
@@ -335,14 +331,15 @@ async def _resolve_drive_file_blocks(
                 continue
             file_id: int = int(raw_id)
             try:
-                context = await rag_service.get_context_for_drive_file(
+                context = await rag_service.get_context_via_agent(
                     session=session,
                     user_id=user_id,
                     file_db_id=file_id,
                     query=query_text,
+                    llm=llm,
                 )
                 if context.chunks:
-                    new_blocks.append({"type": "text", "text": context.formatted_text})
+                    rag_blocks.append({"type": "text", "text": context.formatted_text})
                 logger.info(
                     "Replaced drive_file block file_id=%d with %d RAG chunks",
                     file_id,
@@ -368,6 +365,14 @@ async def _resolve_drive_file_blocks(
                     detail="Failed to retrieve document context. Please try again.",
                 ) from exc
 
+        if rag_blocks:
+            user_text_blocks = [b for b in non_file_blocks if isinstance(b, dict) and b.get("type") == "text"]
+            other_blocks = [b for b in non_file_blocks if not (isinstance(b, dict) and b.get("type") == "text")]
+            new_blocks: list[dict[str, Any]] = (
+                [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
+            )
+        else:
+            new_blocks = non_file_blocks
         resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
 
     return resolved
@@ -573,6 +578,7 @@ async def chat_completion(
                 session=session,
                 user_id=current_user.id,  # type: ignore[arg-type]
                 rag_service=rag_service,
+                llm=provider._create_llm(),
             )
             current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
 
@@ -615,6 +621,7 @@ async def chat_completion(
                     "rag_service": rag_service,
                     "user_id": current_user.id,
                     "similarity_threshold": request.similarity_threshold,
+                    "llm": provider._create_llm(),
                 }
             return StreamingResponse(
                 stream_chat_response(
@@ -686,6 +693,7 @@ async def stream_chat_response(
     rag_service: RAGContextService | None = None,
     user_id: int | None = None,
     similarity_threshold: float = 0.45,
+    llm: Any | None = None,
 ) -> Any:
     # --- Phase 1: In-stream RAG resolution (emits status events) ---
     confirmed_rag_sections: list[dict[str, str | None]] = []
@@ -693,6 +701,10 @@ async def stream_chat_response(
         query_text = _extract_query_text(unresolved_messages)
         files_with_no_results: list[str] = []
         any_results_found = False
+
+        # Collect RAG context per file_id first; assemble messages in one pass after the loop
+        # to avoid each iteration overwriting context injected by the previous one.
+        rag_context_map: dict[int, RAGContext] = {}
 
         for msg in unresolved_messages:
             if not isinstance(msg.content, list):
@@ -709,84 +721,70 @@ async def stream_chat_response(
 
                 yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
 
-                # --- Phase 1a: Rank sections and emit scanning events ---
+                # --- Agentic RAG: agent selects relevant sections, then similarity search ---
+                logger.info("Agentic RAG search for file_id=%d query_len=%d", file_id, len(query_text))
                 try:
-                    source_name, query_embedding, ranked_sections = await rag_service.rank_sections_for_query(
+                    context = await rag_service.get_context_via_agent(
                         session=session,
                         user_id=user_id,
                         file_db_id=file_id,
                         query=query_text,
+                        llm=llm,
                     )
                 except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
-                    logger.error("RAG section ranking failed for file_id=%d: %s", file_id, exc)
+                    logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
                     yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
                     return
 
-                for sec in ranked_sections:
-                    info = _section_label_and_name(sec)
-                    if not info:
-                        continue
-                    label, name = info
-                    yield f"data: {json.dumps({'status': 'section_scanning', 'section': {'type': label, 'name': name, 'source': source_name}, 'done': False})}\n\n"
-                    await asyncio.sleep(0.08)  # flush each event so browser receives them one at a time
-
-                # --- Phase 1b: Similarity search then emit confirmed/removed ---
-                section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
-
-                try:
-                    results = await rag_service.search_with_embedding(
-                        session=session,
-                        user_id=user_id,
-                        source_name=source_name,
-                        query_embedding=query_embedding,
-                        similarity_threshold=similarity_threshold,
-                        sections=section_filter,
-                    )
-                except RAGRetrievalError as exc:
-                    logger.error("RAG similarity search failed for file_id=%d: %s", file_id, exc)
-                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
-                    return
-
-                confirmed_section_names = {r.chunk.section for r in results if r.chunk.section}
-                for sec in ranked_sections:
-                    info = _section_label_and_name(sec)
-                    if not info:
-                        continue
-                    label, name = info
-                    sec_name = sec.get("section")
-                    event = (
-                        "section_confirmed" if (sec_name and sec_name in confirmed_section_names) else "section_removed"
-                    )
-                    if event == "section_confirmed":
-                        confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
-                    yield f"data: {json.dumps({'status': event, 'section': {'type': label, 'name': name, 'source': source_name}, 'done': False})}\n\n"
-                    await asyncio.sleep(0)
+                source_name = context.source_name
+                results = context.chunks
 
                 if not results:
-                    # This file had no matches — drop its block and try the next file.
                     files_with_no_results.append(source_name)
-                    for m in messages:
-                        if not isinstance(m.get("content"), list):
-                            continue
-                        m["content"] = [
-                            b
-                            for b in m["content"]
-                            if not (
-                                isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id
-                            )
-                        ]
                     continue
 
                 any_results_found = True
-                formatted_text = format_chunks_as_context(source_name, results)
+                rag_context_map[file_id] = context
 
-                # Replace drive_file block in messages with RAG text
-                for m in messages:
-                    if not isinstance(m.get("content"), list):
-                        continue
-                    for i, b in enumerate(m["content"]):
-                        if isinstance(b, dict) and b.get("type") == "drive_file" and b.get("file_id") == file_id:
-                            m["content"][i] = {"type": "text", "text": formatted_text}
+                # Build confirmed_rag_sections from retrieved chunks for message metadata
+                seen_section_keys: set[str] = set()
+                for r in results:
+                    chunk = r.chunk
+                    label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
+                    parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+                    name = " / ".join(parts) if parts else "General"
+                    key = f"{label}:{name}"
+                    if key not in seen_section_keys:
+                        seen_section_keys.add(key)
+                        confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
+
+        # Single assembly pass: replace all drive_file blocks at once so that context
+        # injected for file₁ is not dropped when file₂ is processed.
+        for m in messages:
+            if not isinstance(m.get("content"), list):
+                continue
+            rag_blocks: list[dict[str, Any]] = []
+            user_text_blocks: list[dict[str, Any]] = []
+            other_blocks: list[dict[str, Any]] = []
+            has_drive_file = False
+            for b in m["content"]:
+                if isinstance(b, dict) and b.get("type") == "drive_file":
+                    has_drive_file = True
+                    fid = b.get("file_id")
+                    if fid is not None and int(fid) in rag_context_map:
+                        rag_blocks.append({"type": "text", "text": rag_context_map[int(fid)].formatted_text})
+                elif isinstance(b, dict) and b.get("type") == "text":
+                    user_text_blocks.append(b)
+                else:
+                    other_blocks.append(b)
+            if not has_drive_file:
+                continue
+            if rag_blocks:
+                m["content"] = (
+                    [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
+                )
+            else:
+                m["content"] = other_blocks + user_text_blocks
 
         # If every searched file returned no results, surface the no-match message.
         if files_with_no_results and not any_results_found:
@@ -808,13 +806,13 @@ async def stream_chat_response(
                 )
                 no_chunks_msg = (
                     f"I searched {source_label} but couldn't find content closely "
-                    f"matching your query (similarity threshold: {similarity_threshold:.0%}).\n\n"
-                    f"Would you like me to try again with less strict matching?"
+                    f"matching your query.\n\n"
+                    f"Please try rephrasing your question, or check that your documents "
+                    f"contain information about this topic."
                 )
                 done_payload = {
                     "done": True,
                     "content": no_chunks_msg,
-                    "options": ["Try with less strict matching"],
                     "conversation_id": str(conversation.uuid),
                 }
             await service.add_message(
@@ -859,6 +857,7 @@ async def stream_chat_response(
                     "message_type": "text",
                     "attachment_name": None,
                     "attachment_size": None,
+                    "rag_sections": confirmed_rag_sections or None,
                 },
             }
         )

@@ -1,8 +1,8 @@
 """Vector store service for storing and retrieving document chunks."""
 
-from dataclasses import dataclass
+from typing import Any
 
-from sqlalchemy import delete, literal
+from sqlalchemy import and_, delete, literal, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -11,34 +11,12 @@ from app.core.logger import get_logger
 from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk
+from app.rag.types import ChunkInput, SimilarityResult
+
+# Re-export for backwards-compatibility with modules that import from store
+__all__ = ["ChunkInput", "SimilarityResult", "VectorStoreService"]
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class ChunkInput:
-    """Input data for a single chunk to be embedded and stored.
-
-    This is a standalone type so the store module compiles without
-    the chunking PR (#202). Once that PR merges, callers can map
-    ``Chunk`` / ``ChunkMetadata`` to ``ChunkInput`` trivially.
-    """
-
-    content: str
-    source_name: str
-    chapter: str | None = None
-    section: str | None = None
-    subsection: str | None = None
-    token_count: int | None = None
-    chunk_content_hash: str | None = None
-
-
-@dataclass
-class SimilarityResult:
-    """A chunk together with its cosine similarity score."""
-
-    chunk: DocumentChunk
-    similarity: float
 
 
 class VectorStoreService:
@@ -173,6 +151,53 @@ class VectorStoreService:
         )
         result = await session.execute(stmt)
         return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in result.all()]
+
+    async def fetch_chunks_by_sections(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        source_name: str,
+        section_keys: list[dict[str, str | None]],
+        limit: int = 50,
+    ) -> list[SimilarityResult]:
+        """Fetch chunks for specific section keys in document order (by id).
+
+        Matches exact (chapter, section, subsection) tuples — NULL-safe.
+        Returns SimilarityResult with similarity=1.0 (no vector scoring).
+        """
+        if not section_keys:
+            return []
+
+        # Following is a guard for the case where too many sections are being selected.
+        # Adding this as a comment for now, will make implementation in future.
+        # section_keys = section_keys[:MAX_SECTIONS]
+
+        def _key_condition(key: dict[str, str | None]) -> Any:
+            chapter = key.get("chapter")
+            section = key.get("section")
+            subsection = key.get("subsection")
+            return and_(
+                col(DocumentChunk.chapter) == chapter if chapter is not None else col(DocumentChunk.chapter).is_(None),
+                col(DocumentChunk.section) == section if section is not None else col(DocumentChunk.section).is_(None),
+                col(DocumentChunk.subsection) == subsection
+                if subsection is not None
+                else col(DocumentChunk.subsection).is_(None),
+            )
+
+        stmt = (
+            select(DocumentChunk)
+            .where(
+                col(DocumentChunk.user_id) == user_id,
+                col(DocumentChunk.source_name) == source_name,
+                or_(*[_key_condition(k) for k in section_keys]),
+            )
+            .order_by(col(DocumentChunk.id))
+            .limit(limit)
+        )
+
+        result = await session.exec(stmt)
+        chunks = result.all()
+        return [SimilarityResult(chunk=chunk, similarity=1.0) for chunk in chunks]
 
     async def delete_by_source(
         self,

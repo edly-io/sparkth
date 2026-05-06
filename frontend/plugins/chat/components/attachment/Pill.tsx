@@ -72,9 +72,18 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                   {attachments.slice(1).map((attachment, index) => (
                     <div
                       key={attachment.driveFileDbId ?? `${attachment.name}-${index}`}
-                      className="flex items-center gap-2"
+                      className="flex items-center justify-between gap-2"
                     >
                       <span>{truncate(attachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
+                      {onRemove && (
+                        <button
+                          onClick={() => onRemove(attachment.driveFileDbId)}
+                          className="ml-2 text-muted-foreground hover:text-foreground"
+                          title="Remove attachment"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

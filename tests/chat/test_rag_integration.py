@@ -51,7 +51,7 @@ def _make_rag_service(
 ) -> RAGContextService:
     mock_service = MagicMock(spec=RAGContextService)
     if raises:
-        mock_service.get_context_for_drive_file = AsyncMock(side_effect=raises)
+        mock_service.get_context_via_agent = AsyncMock(side_effect=raises)
     else:
         ctx = context or RAGContext(
             file_db_id=1,
@@ -59,7 +59,7 @@ def _make_rag_service(
             chunks=[_make_sr()],
             formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nExcerpts here.",
         )
-        mock_service.get_context_for_drive_file = AsyncMock(return_value=ctx)
+        mock_service.get_context_via_agent = AsyncMock(return_value=ctx)
     return mock_service
 
 
@@ -131,6 +131,7 @@ class TestResolveDriveFileBlocks:
             session=AsyncMock(),
             user_id=1,
             rag_service=_make_rag_service(),
+            llm=MagicMock(),
         )
         assert result == messages
 
@@ -147,7 +148,7 @@ class TestResolveDriveFileBlocks:
         )
 
         result = await _resolve_drive_file_blocks(
-            messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service
+            messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service, llm=MagicMock()
         )
 
         assert len(result) == 1
@@ -166,7 +167,7 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([base64_block])]
 
         result = await _resolve_drive_file_blocks(
-            messages=messages, session=AsyncMock(), user_id=1, rag_service=_make_rag_service()
+            messages=messages, session=AsyncMock(), user_id=1, rag_service=_make_rag_service(), llm=MagicMock()
         )
         content = result[0].content
         assert isinstance(content, list)
@@ -178,7 +179,9 @@ class TestResolveDriveFileBlocks:
         rag_service = _make_rag_service(raises=DriveFileNotFoundError("not found"))
 
         with pytest.raises(HTTPException) as exc_info:
-            await _resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service)
+            await _resolve_drive_file_blocks(
+                messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service, llm=MagicMock()
+            )
         assert exc_info.value.status_code == 422
 
     @pytest.mark.asyncio
@@ -187,7 +190,9 @@ class TestResolveDriveFileBlocks:
         rag_service = _make_rag_service(raises=RAGNotReadyError(1, "processing"))
 
         with pytest.raises(HTTPException) as exc_info:
-            await _resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service)
+            await _resolve_drive_file_blocks(
+                messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service, llm=MagicMock()
+            )
         assert exc_info.value.status_code == 422
         assert "processing" in exc_info.value.detail
 
@@ -197,7 +202,9 @@ class TestResolveDriveFileBlocks:
         rag_service = _make_rag_service(raises=RAGRetrievalError("db down"))
 
         with pytest.raises(HTTPException) as exc_info:
-            await _resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service)
+            await _resolve_drive_file_blocks(
+                messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service, llm=MagicMock()
+            )
         assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
@@ -213,7 +220,7 @@ class TestResolveDriveFileBlocks:
         )
 
         result = await _resolve_drive_file_blocks(
-            messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service
+            messages=messages, session=AsyncMock(), user_id=1, rag_service=rag_service, llm=MagicMock()
         )
 
         content = result[0].content
@@ -228,6 +235,6 @@ class TestResolveDriveFileBlocks:
     async def test_string_content_message_passed_through(self) -> None:
         messages = [_user_msg("plain text message")]
         result = await _resolve_drive_file_blocks(
-            messages=messages, session=AsyncMock(), user_id=1, rag_service=_make_rag_service()
+            messages=messages, session=AsyncMock(), user_id=1, rag_service=_make_rag_service(), llm=MagicMock()
         )
         assert result[0].content == "plain text message"

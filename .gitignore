@@ -229,7 +229,7 @@ node_modules/
 # Docker
 data/
 
-docs/
+ignored/
 logs/
 pr-comments/
 *.DS_Store

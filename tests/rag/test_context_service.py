@@ -8,13 +8,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.rag.context_service import (
     RAGContext,
     RAGContextService,
-    _resolve_source_name,
     format_chunks_as_context,
 )
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.models import DocumentChunk
 from app.rag.store import SimilarityResult
 from app.rag.types import RagStatus
+from app.rag.utils import resolve_source_name as _resolve_source_name
 
 
 def _make_drive_file(
