@@ -530,7 +530,8 @@ async def chat_completion(
                 else:
                     # Tier 2: LLM classifier for nuanced cases keywords can't handle
                     classifier = ScopeClassifier(provider_name=request.provider, api_key=api_key)
-                    _in_scope = await classifier.classify(query_text)
+                    prior_history = [{"role": m.role, "content": m.content} for m in db_messages]
+                    _in_scope = await classifier.classify(query_text, history=prior_history)
             if not _in_scope:
                 await service.add_message(
                     session=session,

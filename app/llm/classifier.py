@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.exceptions import LangChainException
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ValidationError
@@ -17,6 +17,8 @@ _CLASSIFIER_SYSTEM_PROMPT = """You are a binary intent classifier for a learning
 
 The chatbot's purpose is ONLY to help users design and create online educational content. Decide whether the user's message is within that scope.
 
+IMPORTANT: Evaluate scope using the full conversation, not the latest message in isolation. If the user's message is a direct reply to a question the assistant asked (e.g., answering "Who is the audience?" with a role or name), it is IN SCOPE — even if the message looks unrelated on its own.
+
 IN SCOPE — respond in_scope: true:
 - Designing or creating courses, lessons, or modules
 - Writing learning objectives, outcomes, or competencies
@@ -25,6 +27,7 @@ IN SCOPE — respond in_scope: true:
 - Applying instructional design principles (cognitive load, scaffolding, spaced repetition, ILO alignment)
 - Reviewing, editing, or improving educational content
 - Analyzing a target audience for a course
+- Short answers, clarifications, or confirmations that are replies to the assistant's own course-creation questions
 
 OUT OF SCOPE — respond in_scope: false:
 - General knowledge questions (history facts, geography, science trivia, current events)
@@ -73,8 +76,11 @@ class ScopeClassifier:
 
         self._chain: Any = llm.with_structured_output(_ScopeResult)
 
-    async def classify(self, query: str) -> bool:
+    async def classify(self, query: str, history: list[dict[str, str]] | None = None) -> bool:
         """Return True if the query is within learning design scope.
+
+        Accepts optional conversation history (list of {"role": ..., "content": ...} dicts)
+        so the classifier can determine if the current message is a reply to an assistant question.
 
         Fails open on any error — the main LLM's system prompt handles
         out-of-scope requests as a fallback.
@@ -82,13 +88,21 @@ class ScopeClassifier:
         if not query.strip():
             return True
 
+        # Build messages: system prompt + up to last 6 history turns + current query
+        messages: list[Any] = [SystemMessage(content=_CLASSIFIER_SYSTEM_PROMPT)]
+        for turn in (history or [])[-6:]:
+            role = turn.get("role", "")
+            content = turn.get("content", "")
+            if not isinstance(content, str):
+                continue
+            if role == "assistant":
+                messages.append(AIMessage(content=content))
+            elif role == "user":
+                messages.append(HumanMessage(content=content))
+        messages.append(HumanMessage(content=query))
+
         try:
-            result: _ScopeResult = await self._chain.ainvoke(
-                [
-                    SystemMessage(content=_CLASSIFIER_SYSTEM_PROMPT),
-                    HumanMessage(content=query),
-                ]
-            )
+            result: _ScopeResult = await self._chain.ainvoke(messages)
             return result.in_scope
         except (LangChainException, ValidationError) as exc:
             logger.warning("Scope classifier failed, defaulting to in_scope=True: %s", exc)
