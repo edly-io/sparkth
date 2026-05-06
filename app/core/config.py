@@ -35,12 +35,26 @@ class Settings(BaseSettings):
     RAG_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"  # model name passed to provider
     RAG_DISPLAY_NAME_MAX_CHARS: int = 30  # max chars for section/filename labels in the UI
     MEMORY_PROFILING_ENABLED: bool = False
+    RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported
     RAG_MCP_URL: str
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def parse_rag_allowed_extensions(raw: str) -> list[str]:
+    """Parse a comma-separated extensions string into a normalised list.
+
+    Strips whitespace, lowercases, and removes leading dots and duplicates.
+    Returns an empty list when *raw* is blank, which means all supported types
+    are permitted.
+    """
+    if not raw.strip():
+        return []
+    parts = [ext.strip().lower().lstrip(".") for ext in raw.split(",")]
+    return list(dict.fromkeys(p for p in parts if p))
 
 
 # Plugin Configuration

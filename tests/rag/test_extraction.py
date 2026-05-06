@@ -598,6 +598,47 @@ class TestExtractToMarkdown:
         assert extract_to_markdown(buf.getvalue(), "file.docx").doc_type == DocType.DOCX
 
 
+class TestAllowedExtensionsFilter:
+    def test_extension_not_in_allowed_list_raises(self) -> None:
+        with patch("app.rag.extraction.get_settings") as mock:
+            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
+            with pytest.raises(ValueError, match="not enabled for RAG processing"):
+                extract_to_markdown(MINIMAL_HTML, "page.html")
+
+    def test_allowed_extension_proceeds(self) -> None:
+        with patch("app.rag.extraction.get_settings") as mock:
+            mock.return_value.RAG_ALLOWED_EXTENSIONS = "txt"
+            result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
+            assert result.doc_type == DocType.TXT
+
+    def test_error_message_includes_filename_and_accepted_types(self) -> None:
+        with patch("app.rag.extraction.get_settings") as mock:
+            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
+            with pytest.raises(ValueError, match=r"notes\.txt") as exc_info:
+                extract_to_markdown(TXT_CONTENT, "notes.txt")
+            msg = str(exc_info.value)
+            assert ".pdf" in msg
+            assert ".docx" in msg
+
+    def test_empty_string_permits_all_supported(self) -> None:
+        with patch("app.rag.extraction.get_settings") as mock:
+            mock.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
+            assert result.doc_type == DocType.TXT
+
+    def test_uppercase_file_extension_normalised(self) -> None:
+        with patch("app.rag.extraction.get_settings") as mock:
+            mock.return_value.RAG_ALLOWED_EXTENSIONS = "txt"
+            result = extract_to_markdown(TXT_CONTENT, "lecture.TXT")
+            assert result.doc_type == DocType.TXT
+
+    def test_disallowed_extension_raises_descriptive_error_not_unsupported(self) -> None:
+        with patch("app.rag.extraction.get_settings") as mock:
+            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
+            with pytest.raises(ValueError, match="not enabled for RAG processing"):
+                extract_to_markdown(TXT_CONTENT, "notes.txt")
+
+
 class TestSupportedExtensions:
     def test_exported_constant_exists(self) -> None:
         from app.rag.extraction import SUPPORTED_EXTENSIONS
