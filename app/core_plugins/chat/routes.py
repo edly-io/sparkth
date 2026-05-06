@@ -1,7 +1,7 @@
 import json
 import re
 from functools import lru_cache
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Literal, cast
 from uuid import UUID
 
 import anthropic
@@ -48,7 +48,7 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
-from app.llm.classifier import ScopeClassifier
+from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import (
     DEFAULT_MODEL,
@@ -530,7 +530,11 @@ async def chat_completion(
                 else:
                     # Tier 2: LLM classifier for nuanced cases keywords can't handle
                     classifier = ScopeClassifier(provider_name=request.provider, api_key=api_key)
-                    prior_history = [{"role": m.role, "content": m.content} for m in db_messages]
+                    prior_history: list[HistoryTurn] = [
+                        {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
+                        for m in db_messages
+                        if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
+                    ]
                     _in_scope = await classifier.classify(query_text, history=prior_history)
             if not _in_scope:
                 await service.add_message(
