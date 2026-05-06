@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
-import { login as loginApi, getGoogleLoginUrl, ApiRequestError } from "@/lib/api";
+import {
+  login as loginApi,
+  getGoogleLoginUrl,
+  resendVerificationEmail,
+  ApiRequestError,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/components/ui/Button";
@@ -14,28 +19,49 @@ import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginPage() {
-  const router = useRouter();
+  // Suspense boundary co-located with useSearchParams: required by Next.js
+  // App Router so only this subtree (not the whole page) bails out to client
+  // rendering. The parent page.tsx wraps this too — nesting is harmless.
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
+  const { push } = useRouter();
   const { login } = useAuth();
 
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resendStatus, setResendStatus] = useState<
+    "idle" | "sending" | "sent" | "rate_limited" | "error"
+  >("idle");
 
-  const searchParams = useSearchParams();
-  const oauthError = searchParams.get("error");
+  const { get: getSearchParam } = useSearchParams();
+  const oauthError = getSearchParam("error");
 
   const form = useForm({
     defaultValues: { username: "", password: "" },
     onSubmit: async ({ value }) => {
       setError("");
       setFieldErrors({});
+      setUnverifiedEmail(null);
+      setResendStatus("idle");
 
       try {
         const response = await loginApi(value);
         login(response.access_token, response.expires_at);
-        router.push("/");
+        push("/");
       } catch (err) {
         if (err instanceof ApiRequestError) {
+          if (err.status === 403 && err.code === "email_not_verified" && err.data?.email) {
+            setUnverifiedEmail(err.data.email);
+            return;
+          }
           setError(err.message);
           setFieldErrors(err.fieldErrors);
         } else {
@@ -44,6 +70,36 @@ export default function LoginPage() {
       }
     },
   });
+
+  const handleResend = async () => {
+    if (!unverifiedEmail) return;
+    setResendStatus("sending");
+    try {
+      await resendVerificationEmail(unverifiedEmail);
+      setResendStatus("sent");
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 429) {
+        setResendStatus("rate_limited");
+      } else {
+        setResendStatus("error");
+      }
+    }
+  };
+
+  const resendButtonLabel = (() => {
+    switch (resendStatus) {
+      case "sending":
+        return "Sending…";
+      case "sent":
+        return "Email sent — check your inbox";
+      case "rate_limited":
+        return "Please wait before resending";
+      case "error":
+        return "Try again";
+      default:
+        return "Resend confirmation email";
+    }
+  })();
 
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -86,6 +142,24 @@ export default function LoginPage() {
           {oauthError === "email_not_whitelisted" && (
             <Alert severity="error">
               Your email is not authorized to register. Contact an administrator.
+            </Alert>
+          )}
+          {unverifiedEmail && (
+            <Alert severity="warning">
+              <p>
+                Please confirm your email before logging in. We sent a link to{" "}
+                <strong>{unverifiedEmail}</strong>.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={handleResend}
+                disabled={resendStatus === "sending" || resendStatus === "sent"}
+              >
+                {resendButtonLabel}
+              </Button>
             </Alert>
           )}
           {error && <Alert severity="error">{error}</Alert>}

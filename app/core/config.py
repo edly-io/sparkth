@@ -28,6 +28,21 @@ class Settings(BaseSettings):
     SLACK_SIGNING_SECRET: str
     SLACK_REDIRECT_URI: str
 
+    # Email / SMTP
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "Sparkth"
+
+    # Email verification
+    EMAIL_VERIFICATION_TOKEN_TTL_HOURS: int = 24
+    EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     RAG_CONCURRENCY: int = 1  # max number of files to process in parallel for RAG
     RAG_MAX_FILE_SIZE_MB: int = 50  # skip files larger than this during RAG ingestion
     RAG_STORE_BATCH_SIZE: int = 32  # number of chunks to embed + write to DB per batch

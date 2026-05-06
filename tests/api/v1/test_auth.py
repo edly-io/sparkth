@@ -1,6 +1,7 @@
 import uuid
 from unittest.mock import patch
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,6 +21,7 @@ async def create_user_in_db(
     username: str | None = None,
     email: str | None = None,
     password: str = "testpassword",
+    email_verified: bool = True,
 ) -> User:
     username = username or _uniq("testuser")
     email = email or f"{_uniq('test')}@example.com"
@@ -29,6 +31,7 @@ async def create_user_in_db(
         username=username,
         email=email,
         hashed_password=get_password_hash(password),
+        email_verified=email_verified,
     )
     session.add(user)
     await session.commit()
@@ -49,7 +52,7 @@ async def test_create_user(client: AsyncClient, session: AsyncSession) -> None:
                 "name": "Test User",
                 "username": username,
                 "email": email,
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 200
@@ -74,7 +77,7 @@ async def test_create_user_existing_username(client: AsyncClient, session: Async
                 "name": "Another User",
                 "username": username,
                 "email": new_email,
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 400
@@ -94,7 +97,7 @@ async def test_create_user_existing_email(client: AsyncClient, session: AsyncSes
                 "name": "Another User",
                 "username": _uniq("anotheruser"),
                 "email": email,
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 400
@@ -110,7 +113,7 @@ async def test_registration_disabled(client: AsyncClient) -> None:
                 "name": "Test User",
                 "username": "testuser",
                 "email": "test@example.com",
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 403
@@ -147,7 +150,52 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession) 
 async def test_login_non_existent_user(client: AsyncClient) -> None:
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": _uniq("nonexistent"), "password": "testpassword"},
+        json={"username": _uniq("nonexistent"), "password": "Sup3rSecret!"},
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Incorrect username or password"}
+
+
+class TestPasswordComplexity:
+    """Server-side enforcement of registration password rules."""
+
+    async def _register(self, client: AsyncClient, session: AsyncSession, password: str) -> int:
+        username = _uniq("pw")
+        email = f"{username}@example.com"
+        await WhitelistService.add_entry(session, value=email, added_by_id=1)
+
+        with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+            response = await client.post(
+                "/api/v1/auth/register",
+                json={
+                    "name": "Pat",
+                    "username": username,
+                    "email": email,
+                    "password": password,
+                },
+            )
+        return response.status_code
+
+    @pytest.mark.parametrize(
+        "weak_password,reason",
+        [
+            ("Aa1!aa", "too short"),
+            ("alllowercase1!", "no uppercase"),
+            ("NoDigits!!", "no digit"),
+            ("NoSpecial1A", "no special character"),
+            ("A1!" + "a" * 200, "exceeds max length"),
+        ],
+    )
+    async def test_weak_passwords_rejected(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        weak_password: str,
+        reason: str,
+    ) -> None:
+        status_code = await self._register(client, session, weak_password)
+        assert status_code == 422, f"Expected 422 for {reason} ({weak_password!r})"
+
+    async def test_strong_password_accepted(self, client: AsyncClient, session: AsyncSession) -> None:
+        status_code = await self._register(client, session, "Sup3rSecret!")
+        assert status_code == 200

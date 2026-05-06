@@ -24,6 +24,7 @@ export interface RegisterResponse {
   username: string;
   email: string;
   is_superuser: boolean;
+  email_verified: boolean;
 }
 
 export interface GoogleAuthUrlResponse {
@@ -36,13 +37,27 @@ export interface ValidationError {
   type: string;
 }
 
+export interface StructuredErrorDetail {
+  code: string;
+  email?: string;
+}
+
 export interface ApiError {
-  detail: string | ValidationError[];
+  detail: string | ValidationError[] | StructuredErrorDetail;
 }
 
 export interface FormattedError {
   message: string;
   fieldErrors: Record<string, string>;
+}
+
+function isStructuredDetail(value: unknown): value is StructuredErrorDetail {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as { code?: unknown }).code === "string"
+  );
 }
 
 function formatApiError(error: ApiError): FormattedError {
@@ -72,16 +87,28 @@ function formatApiError(error: ApiError): FormattedError {
     };
   }
 
+  if (isStructuredDetail(error.detail)) {
+    return { message: error.detail.code, fieldErrors: {} };
+  }
+
   return { message: "An unexpected error occurred", fieldErrors: {} };
 }
 
 export class ApiRequestError extends Error {
   fieldErrors: Record<string, string>;
+  status?: number;
+  code?: string;
+  data?: StructuredErrorDetail;
 
-  constructor(formatted: FormattedError) {
+  constructor(formatted: FormattedError, status?: number, detail?: StructuredErrorDetail) {
     super(formatted.message);
     this.name = "ApiRequestError";
     this.fieldErrors = formatted.fieldErrors;
+    this.status = status;
+    if (detail) {
+      this.code = detail.code;
+      this.data = detail;
+    }
   }
 }
 
@@ -107,13 +134,14 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
   if (!response.ok) {
     try {
       const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
+      const structured = isStructuredDetail(error.detail) ? error.detail : undefined;
+      throw new ApiRequestError(formatApiError(error), response.status, structured);
     } catch (e) {
       if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: "Login failed. Please try again.",
-        fieldErrors: {},
-      });
+      throw new ApiRequestError(
+        { message: "Login failed. Please try again.", fieldErrors: {} },
+        response.status,
+      );
     }
   }
 
@@ -295,5 +323,67 @@ export async function removeWhitelistEntry(token: string, id: number): Promise<v
         fieldErrors: {},
       });
     }
+  }
+}
+
+export async function verifyEmail(token: string): Promise<RegisterResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/auth/verify-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${errorMessage}`,
+      fieldErrors: {},
+    });
+  }
+
+  if (!response.ok) {
+    try {
+      const error: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(error), response.status);
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError(
+        { message: "Verification failed. Please try again.", fieldErrors: {} },
+        response.status,
+      );
+    }
+  }
+
+  return response.json();
+}
+
+export async function resendVerificationEmail(email: string): Promise<void> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/auth/verify-email/resend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${errorMessage}`,
+      fieldErrors: {},
+    });
+  }
+
+  if (response.status === 429) {
+    throw new ApiRequestError({ message: "rate_limited", fieldErrors: {} }, 429);
+  }
+
+  if (!response.ok) {
+    throw new ApiRequestError(
+      { message: "Could not resend confirmation email. Please try again.", fieldErrors: {} },
+      response.status,
+    );
   }
 }
