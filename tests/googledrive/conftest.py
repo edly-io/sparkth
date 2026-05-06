@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -32,6 +32,21 @@ def _ensure_drive_routes() -> None:
 
 
 _ensure_drive_routes()
+
+
+@pytest.fixture(autouse=True)
+def _default_rag_settings() -> Generator[None, None, None]:
+    """Patch get_settings in utils so the local .env does not block test files.
+
+    Tests that need a specific RAG_ALLOWED_EXTENSIONS value override this with
+    their own inner patch() context manager.
+    """
+    mock_settings = MagicMock()
+    mock_settings.RAG_ALLOWED_EXTENSIONS = ""
+    mock_settings.RAG_MAX_FILE_SIZE_MB = 50
+    mock_settings.RAG_CONCURRENCY = 1
+    with patch("app.core_plugins.googledrive.utils.get_settings", return_value=mock_settings):
+        yield
 
 
 @pytest.fixture

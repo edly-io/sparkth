@@ -462,6 +462,68 @@ class TestEmbedAndStoreChunks:
 
 
 class TestProcessSingleFile:
+    async def test_disallowed_extension_fails_with_error(self) -> None:
+        """Files whose extension is not in RAG_ALLOWED_EXTENSIONS should be FAILED."""
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="lecture.mp3", mime_type="audio/mpeg")
+
+        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,txt,docx"
+            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(
+                drive_file,
+                user_id=1,
+                access_token="tok",
+                session=session,
+                provider=AsyncMock(),
+                store=AsyncMock(),
+            )
+
+        assert drive_file.rag_status == RagStatus.FAILED
+        assert drive_file.rag_error is not None
+        assert ".mp3" in drive_file.rag_error
+        assert "not enabled for RAG" in drive_file.rag_error
+
+    async def test_disallowed_extension_error_lists_accepted_types(self) -> None:
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="song.mp3", mime_type="audio/mpeg")
+
+        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
+            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(
+                drive_file,
+                user_id=1,
+                access_token="tok",
+                session=session,
+                provider=AsyncMock(),
+                store=AsyncMock(),
+            )
+
+        assert drive_file.rag_error is not None
+        assert ".pdf" in drive_file.rag_error
+        assert ".docx" in drive_file.rag_error
+
+    async def test_empty_allowed_extensions_does_not_block_supported_file(self) -> None:
+        """When RAG_ALLOWED_EXTENSIONS is empty all technically-supported types are allowed."""
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="image.png", mime_type="image/png")
+
+        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(
+                drive_file,
+                user_id=1,
+                access_token="tok",
+                session=session,
+                provider=AsyncMock(),
+                store=AsyncMock(),
+            )
+
+        # .png is technically unsupported — should still be READY (silent skip), not FAILED
+        assert drive_file.rag_status == RagStatus.READY
+
     async def test_skips_unsupported_file(self) -> None:
         """Unsupported files should be set to READY so polling stops."""
         session = _make_async_session()

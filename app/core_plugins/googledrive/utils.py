@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 from app.models.drive import DriveFile, DriveFolder
@@ -178,6 +178,20 @@ async def _process_single_file(
     """Run the full RAG pipeline for a single Drive file."""
     filename = _resolve_filename(drive_file)
     log_name = drive_file.name or filename
+    settings = get_settings()
+
+    allowed = parse_rag_allowed_extensions(settings.RAG_ALLOWED_EXTENSIONS)
+    if allowed:
+        ext = Path(filename).suffix.lower().lstrip(".")
+        if ext not in allowed:
+            accepted = ", ".join(f".{e}" for e in allowed)
+            error_msg = (
+                f"'{filename}' could not be processed — .{ext} files are not enabled for RAG ingestion. "
+                f"Accepted file types: {accepted}."
+            )
+            logger.warning("Blocked disallowed file type for '%s'", log_name)
+            await _set_rag_status(session, drive_file, RagStatus.FAILED, error=error_msg)
+            return
 
     if not _is_supported_for_rag(filename):
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
@@ -195,7 +209,6 @@ async def _process_single_file(
         # This brings .size and other attributes back into memory after the status update.
         await session.refresh(drive_file)
 
-        settings = get_settings()
         max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
 
         # Early size check using Drive API metadata — skip download entirely for oversized files
