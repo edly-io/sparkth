@@ -491,6 +491,7 @@ def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
     """
     suffix = Path(filename).suffix.lower().lstrip(".")
 
+    # This is defense-in-depth for non-Drive callers of extract_to_markdown
     allowed = parse_rag_allowed_extensions(get_settings().RAG_ALLOWED_EXTENSIONS)
     if allowed and suffix not in allowed:
         accepted = ", ".join(f".{e}" for e in allowed)

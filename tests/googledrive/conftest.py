@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session
 
 from app.api.v1.auth import get_current_user
+from app.core.config import Settings
 from app.core.db import get_session
 from app.core_plugins.googledrive.routes import router as drive_router
 from app.main import app
@@ -41,7 +42,7 @@ def _default_rag_settings() -> Generator[None, None, None]:
     Tests that need a specific RAG_ALLOWED_EXTENSIONS value override this with
     their own inner patch() context manager.
     """
-    mock_settings = MagicMock()
+    mock_settings = MagicMock(spec=Settings)
     mock_settings.RAG_ALLOWED_EXTENSIONS = ""
     mock_settings.RAG_MAX_FILE_SIZE_MB = 50
     mock_settings.RAG_CONCURRENCY = 1
