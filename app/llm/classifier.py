@@ -1,10 +1,10 @@
 """LLM-based scope classifier for the learning design assistant."""
 
-from typing import Any
+from typing import Any, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.exceptions import LangChainException
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ValidationError
@@ -45,6 +45,13 @@ _CLASSIFIER_MODELS: dict[str, str] = {
     "google": "gemini-2.0-flash",
 }
 
+_MAX_HISTORY_TURNS = 6
+
+
+class HistoryTurn(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
+
 
 class _ScopeResult(BaseModel):
     in_scope: bool
@@ -76,7 +83,7 @@ class ScopeClassifier:
 
         self._chain: Any = llm.with_structured_output(_ScopeResult)
 
-    async def classify(self, query: str, history: list[dict[str, str]] | None = None) -> bool:
+    async def classify(self, query: str, history: list[HistoryTurn] | None = None) -> bool:
         """Return True if the query is within learning design scope.
 
         Accepts optional conversation history (list of {"role": ..., "content": ...} dicts)
@@ -89,8 +96,8 @@ class ScopeClassifier:
             return True
 
         # Build messages: system prompt + up to last 6 history turns + current query
-        messages: list[Any] = [SystemMessage(content=_CLASSIFIER_SYSTEM_PROMPT)]
-        for turn in (history or [])[-6:]:
+        messages: list[BaseMessage] = [SystemMessage(content=_CLASSIFIER_SYSTEM_PROMPT)]
+        for turn in (history or [])[-_MAX_HISTORY_TURNS:]:
             role = turn.get("role", "")
             content = turn.get("content", "")
             if not isinstance(content, str):

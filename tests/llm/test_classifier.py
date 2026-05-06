@@ -1,11 +1,12 @@
 """Unit tests for LLM-based scope classifier."""
 
+from typing import Literal, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.exceptions import LangChainException
 
-from app.llm.classifier import ScopeClassifier, _ScopeResult
+from app.llm.classifier import HistoryTurn, ScopeClassifier, _ScopeResult
 
 
 def _build_classifier(provider: str = "anthropic") -> tuple["ScopeClassifier", AsyncMock]:
@@ -137,3 +138,89 @@ class TestScopeClassifierClassify:
         assert isinstance(msgs[0], SystemMessage)
         assert isinstance(msgs[1], HumanMessage)
         assert msgs[1].content == "design a quiz"
+
+    @pytest.mark.asyncio
+    async def test_history_user_role_maps_to_human_message(self) -> None:
+        from langchain_core.messages import HumanMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        history: list[HistoryTurn] = [{"role": "user", "content": "prior user turn"}]
+        await classifier.classify("follow-up", history=history)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        # msgs[0] is SystemMessage; msgs[1] is history turn; msgs[2] is current query
+        assert isinstance(msgs[1], HumanMessage)
+        assert msgs[1].content == "prior user turn"
+
+    @pytest.mark.asyncio
+    async def test_history_assistant_role_maps_to_ai_message(self) -> None:
+        from langchain_core.messages import AIMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        history: list[HistoryTurn] = [{"role": "assistant", "content": "prior assistant turn"}]
+        await classifier.classify("follow-up", history=history)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        assert isinstance(msgs[1], AIMessage)
+        assert msgs[1].content == "prior assistant turn"
+
+    @pytest.mark.asyncio
+    async def test_history_unknown_role_is_skipped(self) -> None:
+        """Turns with unrecognised roles must not appear in the message list."""
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        history: list[HistoryTurn] = [
+            {"role": cast(Literal["user", "assistant"], "system"), "content": "injected system turn"}
+        ]
+        await classifier.classify("the query", history=history)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        # Only SystemMessage + HumanMessage(query) — the unknown-role turn is dropped
+        assert len(msgs) == 2
+        assert isinstance(msgs[0], SystemMessage)
+        assert isinstance(msgs[1], HumanMessage)
+        assert msgs[1].content == "the query"
+
+    @pytest.mark.asyncio
+    async def test_history_capped_at_six_turns(self) -> None:
+        """Only the last 6 history turns are forwarded to the chain."""
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        history: list[HistoryTurn] = [{"role": "user", "content": f"turn {i}"} for i in range(8)]
+        await classifier.classify("final query", history=history)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        # 1 SystemMessage + 6 history turns + 1 current query = 8
+        assert len(msgs) == 8
+        # First history turn in messages should be turn 2 (index 2), not turn 0
+        assert msgs[1].content == "turn 2"
+
+    @pytest.mark.asyncio
+    async def test_query_appears_exactly_once_when_history_does_not_end_with_it(self) -> None:
+        """classify() always appends the query — callers must not include it in history."""
+        from langchain_core.messages import HumanMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        history: list[HistoryTurn] = [{"role": "assistant", "content": "What topic?"}]
+        await classifier.classify("machine learning", history=history)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        human_contents = [m.content for m in msgs if isinstance(m, HumanMessage)]
+        assert human_contents.count("machine learning") == 1
+
+    @pytest.mark.asyncio
+    async def test_query_duplicated_when_caller_includes_it_in_history(self) -> None:
+        """Documents the double-send bug: if the caller passes the current query as the
+        last history entry, it will appear twice in the message list. Callers are
+        responsible for excluding the current message from history (use db_messages[:-1]).
+        """
+        from langchain_core.messages import HumanMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        # Caller incorrectly includes the current query as the last history entry
+        history: list[HistoryTurn] = [{"role": "user", "content": "machine learning"}]
+        await classifier.classify("machine learning", history=history)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        human_contents = [m.content for m in msgs if isinstance(m, HumanMessage)]
+        assert human_contents.count("machine learning") == 2
