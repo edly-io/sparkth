@@ -494,10 +494,7 @@ def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
     allowed = parse_rag_allowed_extensions(get_settings().RAG_ALLOWED_EXTENSIONS)
     if allowed and suffix not in allowed:
         accepted = ", ".join(f".{e}" for e in allowed)
-        raise ValueError(
-            f"'{filename}' could not be processed — .{suffix} files are not enabled for RAG processing. "
-            f"Accepted file types: {accepted}."
-        )
+        raise ValueError(f"Unsupported file extension. Allowed: {accepted}.")
 
     handler = _DISPATCH.get(suffix)
 

@@ -185,10 +185,7 @@ async def _process_single_file(
         ext = Path(filename).suffix.lower().lstrip(".")
         if ext not in allowed:
             accepted = ", ".join(f".{e}" for e in allowed)
-            error_msg = (
-                f"'{filename}' could not be processed — .{ext} files are not enabled for RAG ingestion. "
-                f"Accepted file types: {accepted}."
-            )
+            error_msg = f"Unsupported file extension. Allowed: {accepted}."
             logger.warning("Blocked disallowed file type for '%s'", log_name)
             await _set_rag_status(session, drive_file, RagStatus.FAILED, error=error_msg)
             return

@@ -602,7 +602,7 @@ class TestAllowedExtensionsFilter:
     def test_extension_not_in_allowed_list_raises(self) -> None:
         with patch("app.rag.extraction.get_settings") as mock:
             mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(ValueError, match="not enabled for RAG processing"):
+            with pytest.raises(ValueError, match="Unsupported file extension"):
                 extract_to_markdown(MINIMAL_HTML, "page.html")
 
     def test_allowed_extension_proceeds(self) -> None:
@@ -611,10 +611,10 @@ class TestAllowedExtensionsFilter:
             result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
             assert result.doc_type == DocType.TXT
 
-    def test_error_message_includes_filename_and_accepted_types(self) -> None:
+    def test_error_message_includes_accepted_types(self) -> None:
         with patch("app.rag.extraction.get_settings") as mock:
             mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
-            with pytest.raises(ValueError, match=r"notes\.txt") as exc_info:
+            with pytest.raises(ValueError, match="Unsupported file extension") as exc_info:
                 extract_to_markdown(TXT_CONTENT, "notes.txt")
             msg = str(exc_info.value)
             assert ".pdf" in msg
@@ -635,7 +635,7 @@ class TestAllowedExtensionsFilter:
     def test_disallowed_extension_raises_descriptive_error_not_unsupported(self) -> None:
         with patch("app.rag.extraction.get_settings") as mock:
             mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(ValueError, match="not enabled for RAG processing"):
+            with pytest.raises(ValueError, match="Unsupported file extension"):
                 extract_to_markdown(TXT_CONTENT, "notes.txt")
 
 

@@ -481,8 +481,7 @@ class TestProcessSingleFile:
 
         assert drive_file.rag_status == RagStatus.FAILED
         assert drive_file.rag_error is not None
-        assert ".mp3" in drive_file.rag_error
-        assert "not enabled for RAG" in drive_file.rag_error
+        assert "Unsupported file extension" in drive_file.rag_error
 
     async def test_disallowed_extension_error_lists_accepted_types(self) -> None:
         session = _make_async_session()
