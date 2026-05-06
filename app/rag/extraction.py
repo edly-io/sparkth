@@ -15,6 +15,7 @@ from bs4.element import NavigableString
 from docx import Document as DocxDocument
 from docx.oxml.ns import qn
 
+from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core.logger import get_logger
 from app.rag.types import DocType
 
@@ -489,6 +490,13 @@ def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
         print(result.markdown)
     """
     suffix = Path(filename).suffix.lower().lstrip(".")
+
+    # This is defense-in-depth for non-Drive callers of extract_to_markdown
+    allowed = parse_rag_allowed_extensions(get_settings().RAG_ALLOWED_EXTENSIONS)
+    if allowed and suffix not in allowed:
+        accepted = ", ".join(f".{e}" for e in allowed)
+        raise ValueError(f"Unsupported file extension. Allowed: {accepted}.")
+
     handler = _DISPATCH.get(suffix)
 
     if handler is None:

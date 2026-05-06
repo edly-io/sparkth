@@ -1,6 +1,7 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 import hashlib
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -455,6 +456,102 @@ class TestEmbedAndStoreChunks:
         assert len(added_links) == 1
         assert added_links[0].chunk_id == 11
 
+    @pytest.mark.asyncio
+    async def test_deleted_file_chunks_not_reused(self, session: Any) -> None:
+        """Chunks linked only to deleted DriveFiles must never be reused."""
+        from datetime import datetime, timezone
+
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
+        from app.models.drive import DriveFolder
+        from app.rag.models import DocumentChunk, DriveFileChunkLink
+
+        async_session: AsyncSession = session
+
+        # Seed: user already exists in the shared engine fixture — create a minimal one
+        from app.models.user import User
+
+        user = User(name="ReuseTest", username="reusetest", email="reuse@test.com", hashed_password="x")
+        async_session.add(user)
+        await async_session.flush()
+
+        assert user.id is not None
+        folder = DriveFolder(
+            user_id=user.id,
+            drive_folder_id="folder_reuse",
+            drive_folder_name="Reuse Folder",
+            last_synced_at=datetime.now(timezone.utc),
+            sync_status="synced",
+        )
+        async_session.add(folder)
+        await async_session.flush()
+
+        # The NEW file being processed (active)
+        assert folder.id is not None
+        assert user.id is not None
+        new_drive_file = DriveFile(
+            folder_id=folder.id,
+            user_id=user.id,
+            drive_file_id="new_file_id",
+            name="new.pdf",
+            last_synced_at=datetime.now(timezone.utc),
+        )
+        async_session.add(new_drive_file)
+        await async_session.flush()
+
+        # The OLD deleted file whose chunk we must NOT reuse
+        deleted_drive_file = DriveFile(
+            folder_id=folder.id,
+            user_id=user.id,
+            drive_file_id="deleted_file_id",
+            name="deleted.pdf",
+            last_synced_at=datetime.now(timezone.utc),
+            is_deleted=True,
+        )
+        async_session.add(deleted_drive_file)
+        await async_session.flush()
+
+        chunk_content = "some shared chunk content"
+        chunk_hash = hashlib.sha256(chunk_content.encode()).hexdigest()
+
+        existing_chunk = DocumentChunk(
+            user_id=user.id,
+            source_name="deleted.pdf",
+            content=chunk_content,
+            chunk_content_hash=chunk_hash,
+            embedding=[0.1] * 384,
+            embedding_model="test-model",
+            embedding_provider="test-provider",
+        )
+        async_session.add(existing_chunk)
+        await async_session.flush()
+
+        # Link the chunk only to the deleted file
+        assert deleted_drive_file.id is not None
+        assert existing_chunk.id is not None
+        link = DriveFileChunkLink(drive_file_id=deleted_drive_file.id, chunk_id=existing_chunk.id)
+        async_session.add(link)
+        await async_session.flush()
+
+        # Call the function under test
+        provider = AsyncMock(spec=True)
+        store = AsyncMock(spec=VectorStoreService)
+        store.store_chunks = AsyncMock(return_value=[999])  # fake new chunk ID
+
+        assert user.id is not None
+        assert new_drive_file.id is not None
+        new_count, reused_count = await _embed_and_store_chunks(
+            async_session,
+            user_id=user.id,
+            drive_file_id=new_drive_file.id,
+            chunks=[Chunk(content=chunk_content, metadata=ChunkMetadata(source_name="new.pdf"))],
+            provider=provider,
+            store=store,
+        )
+
+        assert reused_count == 0, "chunk linked only to a deleted file must not be reused"
+        assert new_count == 1, "chunk must be re-embedded since its only source is deleted"
+
 
 # ---------------------------------------------------------------------------
 # _process_single_file
@@ -462,6 +559,67 @@ class TestEmbedAndStoreChunks:
 
 
 class TestProcessSingleFile:
+    async def test_disallowed_extension_fails_with_error(self) -> None:
+        """Files whose extension is not in RAG_ALLOWED_EXTENSIONS should be FAILED."""
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="lecture.mp3", mime_type="audio/mpeg")
+
+        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,txt,docx"
+            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(
+                drive_file,
+                user_id=1,
+                access_token="tok",
+                session=session,
+                provider=AsyncMock(),
+                store=AsyncMock(),
+            )
+
+        assert drive_file.rag_status == RagStatus.FAILED
+        assert drive_file.rag_error is not None
+        assert "Unsupported file extension" in drive_file.rag_error
+
+    async def test_disallowed_extension_error_lists_accepted_types(self) -> None:
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="song.mp3", mime_type="audio/mpeg")
+
+        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
+            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(
+                drive_file,
+                user_id=1,
+                access_token="tok",
+                session=session,
+                provider=AsyncMock(),
+                store=AsyncMock(),
+            )
+
+        assert drive_file.rag_error is not None
+        assert ".pdf" in drive_file.rag_error
+        assert ".docx" in drive_file.rag_error
+
+    async def test_empty_allowed_extensions_does_not_block_supported_file(self) -> None:
+        """When RAG_ALLOWED_EXTENSIONS is empty all technically-supported types are allowed."""
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="image.png", mime_type="image/png")
+
+        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(
+                drive_file,
+                user_id=1,
+                access_token="tok",
+                session=session,
+                provider=AsyncMock(),
+                store=AsyncMock(),
+            )
+
+        # .png is technically unsupported — should still be READY (silent skip), not FAILED
+        assert drive_file.rag_status == RagStatus.READY
+
     async def test_skips_unsupported_file(self) -> None:
         """Unsupported files should be set to READY so polling stops."""
         session = _make_async_session()

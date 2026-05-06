@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
 from app.models.drive import DriveFile, DriveFolder
@@ -123,11 +123,22 @@ async def _embed_and_store_chunks(
     """
     chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
 
-    # Batch-lookup which chunk hashes already exist
+    # Batch-lookup which chunk hashes already exist, excluding chunks that are
+    # only linked to soft-deleted files (they must be re-embedded for the new file).
+    active_file_subq = (
+        select(DriveFileChunkLink.chunk_id)
+        .join(DriveFile, col(DriveFile.id) == col(DriveFileChunkLink.drive_file_id))
+        .where(
+            col(DriveFileChunkLink.chunk_id) == col(DocumentChunk.id),
+            col(DriveFile.is_deleted) == False,  # noqa: E712
+        )
+        .exists()
+    )
     existing_rows = await session.execute(
         select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
             DocumentChunk.user_id == user_id,
             DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
+            active_file_subq,
         )
     )
     existing_hash_to_id: dict[str, int] = {row.chunk_content_hash: row.id for row in existing_rows.all()}
@@ -178,6 +189,17 @@ async def _process_single_file(
     """Run the full RAG pipeline for a single Drive file."""
     filename = _resolve_filename(drive_file)
     log_name = drive_file.name or filename
+    settings = get_settings()
+
+    allowed = parse_rag_allowed_extensions(settings.RAG_ALLOWED_EXTENSIONS)
+    if allowed:
+        ext = Path(filename).suffix.lower().lstrip(".")
+        if ext not in allowed:
+            accepted = ", ".join(f".{e}" for e in allowed)
+            error_msg = f"Unsupported file extension. Allowed: {accepted}."
+            logger.warning("Blocked disallowed file type for '%s'", log_name)
+            await _set_rag_status(session, drive_file, RagStatus.FAILED, error=error_msg)
+            return
 
     if not _is_supported_for_rag(filename):
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
@@ -195,7 +217,6 @@ async def _process_single_file(
         # This brings .size and other attributes back into memory after the status update.
         await session.refresh(drive_file)
 
-        settings = get_settings()
         max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
 
         # Early size check using Drive API metadata — skip download entirely for oversized files

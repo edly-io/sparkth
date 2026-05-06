@@ -1,8 +1,8 @@
 """Shared fixtures for RAG tests."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -12,6 +12,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.rag.embeddings import BaseEmbeddingProvider
 
 EMBEDDING_DIMS = 384
+
+
+@pytest.fixture(autouse=True)
+def _allow_all_extensions() -> Generator[None, None, None]:
+    """Patch extraction settings so no extension is blocked by default.
+
+    Tests that specifically test the allowed-extensions filter override this
+    via their own inner patch() context managers.
+    """
+    with patch("app.rag.extraction.get_settings") as mock:
+        mock.return_value.RAG_ALLOWED_EXTENSIONS = ""
+        yield
 
 
 def make_deterministic_embedding(seed: float = 0.1) -> list[float]:

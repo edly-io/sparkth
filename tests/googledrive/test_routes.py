@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import status
 from httpx import AsyncClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
@@ -296,6 +296,48 @@ class TestRefreshFolder:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["sync_status"] == "synced"
+
+    @pytest.mark.asyncio
+    async def test_refresh_skips_subfolder_items(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_oauth_token: DriveOAuthToken,
+        mock_valid_access_token: None,
+        sync_session: Session,
+    ) -> None:
+        """Subfolder entries returned by the Drive API must not be stored as DriveFiles."""
+        with (
+            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+        ):
+            mock_client = AsyncMock()
+            mock_client.list_files.return_value = {
+                "files": [
+                    {
+                        "id": "real_file_1",
+                        "name": "lecture.pdf",
+                        "mimeType": "application/pdf",
+                        "size": "1024",
+                    },
+                    {
+                        "id": "subfolder_1",
+                        "name": "Week 1",
+                        "mimeType": "application/vnd.google-apps.folder",
+                    },
+                ]
+            }
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_cls.return_value = mock_client
+
+            response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
+
+        assert response.status_code == status.HTTP_200_OK
+        stored = sync_session.exec(select(DriveFile).where(DriveFile.folder_id == test_folder.id)).all()
+        stored_ids = {f.drive_file_id for f in stored}
+        assert "real_file_1" in stored_ids
+        assert "subfolder_1" not in stored_ids
 
     @pytest.mark.asyncio
     async def test_refresh_nonexistent_folder(
