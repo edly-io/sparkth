@@ -61,3 +61,15 @@ class LLMConfigResponse(BaseModel):
 class LLMConfigListResponse(BaseModel):
     configs: list[LLMConfigResponse]
     total: int
+
+
+class ProviderInfo(BaseModel):
+    id: str
+    label: str
+    models: list[str]
+
+
+class ProviderCatalogResponse(BaseModel):
+    providers: list[ProviderInfo]
+    default_provider: str
+    default_model: str

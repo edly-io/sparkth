@@ -41,6 +41,17 @@ class LLMConfigService:
         prefix = parts[0] + "-" if len(parts) >= 2 else ""
         return f"{prefix}****{suffix}"
 
+    async def _assert_name_available(
+        self, session: AsyncSession, user_id: int, name: str, exclude_id: int | None = None
+    ) -> None:
+        """Raise LLMConfigDuplicateNameError if name is already taken for this user."""
+        clauses = [col(LLMConfig.user_id) == user_id, col(LLMConfig.name) == name]
+        if exclude_id is not None:
+            clauses.append(col(LLMConfig.id) != exclude_id)
+        dup = await session.exec(select(LLMConfig).where(*clauses))
+        if dup.first() is not None:
+            raise LLMConfigDuplicateNameError(name)
+
     async def create(
         self,
         session: AsyncSession,
@@ -50,7 +61,8 @@ class LLMConfigService:
         model: str,
         api_key: str,
     ) -> LLMConfig:
-        """Create a new LLM config, encrypting the API key. Raises ValueError on duplicate name."""
+        """Create a new LLM config, encrypting the API key. Raises LLMConfigDuplicateNameError on duplicate name."""
+        await self._assert_name_available(session, user_id, name)
         config = LLMConfig(
             user_id=user_id,
             name=name,
@@ -63,23 +75,24 @@ class LLMConfigService:
         try:
             await session.flush()
         except IntegrityError as exc:
-            await session.rollback()
             raise LLMConfigDuplicateNameError(name) from exc
         await session.refresh(config)
         logger.info("Created LLMConfig id=%s for user_id=%s provider=%s", config.id, user_id, provider)
         return config
 
-    async def list(self, session: AsyncSession, user_id: int) -> list[LLMConfig]:
-        """Return all non-deleted and active LLM configs for a user, newest first."""
-        result = await session.exec(
-            select(LLMConfig)
-            .where(
-                col(LLMConfig.user_id) == user_id,
-                col(LLMConfig.is_deleted) == False,  # noqa: E712
-                col(LLMConfig.is_active) == True,  # noqa: E712
-            )
-            .order_by(col(LLMConfig.created_at).desc())
-        )
+    async def list(self, session: AsyncSession, user_id: int, include_inactive: bool = False) -> list[LLMConfig]:
+        """Return all non-deleted LLM configs for a user, newest first.
+
+        By default only active configs are returned. Pass include_inactive=True
+        to also include deactivated configs (e.g. for the settings page).
+        """
+        clauses = [
+            col(LLMConfig.user_id) == user_id,
+            col(LLMConfig.is_deleted) == False,  # noqa: E712
+        ]
+        if not include_inactive:
+            clauses.append(col(LLMConfig.is_active) == True)  # noqa: E712
+        result = await session.exec(select(LLMConfig).where(*clauses).order_by(col(LLMConfig.created_at).desc()))
         return list(result.all())
 
     async def get(self, session: AsyncSession, user_id: int, config_id: int) -> LLMConfig | None:
@@ -106,6 +119,7 @@ class LLMConfigService:
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
         if name is not None:
+            await self._assert_name_available(session, user_id, name, exclude_id=config_id)
             config.name = name
         if model is not None:
             allowed = get_models_for_provider(config.provider)
@@ -119,7 +133,6 @@ class LLMConfigService:
         try:
             await session.flush()
         except IntegrityError as exc:
-            await session.rollback()
             raise LLMConfigDuplicateNameError(config.name) from exc
         await session.refresh(config)
         logger.info("Updated LLMConfig id=%s for user_id=%s", config.id, user_id)

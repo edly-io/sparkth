@@ -46,6 +46,7 @@ interface ApiMessage {
   attachment_size: number | null;
   created_at: string;
   rag_sections: { type: string; name: string; source?: string }[] | null;
+  is_error: boolean;
 }
 
 interface ActiveDriveFile {
@@ -139,6 +140,7 @@ export function useConversation(
             ragSections: m.rag_sections
               ? m.rag_sections.map((s) => ({ ...s, state: "confirmed" as const }))
               : undefined,
+            isError: m.is_error ?? false,
           })),
         );
         setHistoryState({

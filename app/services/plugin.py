@@ -282,6 +282,11 @@ class PluginService:
         else:
             merged_config = user_config
 
+        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        if config_class:
+            known_fields = set(config_class.model_fields.keys())
+            merged_config = {k: v for k, v in merged_config.items() if k in known_fields}
+
         validated_config = self.validate_user_config(plugin, merged_config)
 
         if user_plugin:

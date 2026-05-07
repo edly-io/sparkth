@@ -122,6 +122,7 @@ class MessageResponse(BaseModel):
     attachment_name: str | None
     attachment_size: int | None
     rag_sections: list[dict[str, Any]] | None = None
+    is_error: bool = False
 
 
 class ActiveDriveFile(BaseModel):

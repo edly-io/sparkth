@@ -11,16 +11,15 @@ import { useAuth } from "@/lib/auth-context";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
 import { useConversation } from "../hooks/useConversation";
-import { useCatalogDefaults } from "../hooks/useCatalogDefaults";
 import { useChatStream } from "../hooks/useChatStream";
 
 export default function ChatInterfaceInner({ conversationId }: { conversationId: string | null }) {
   const { token } = useAuth();
   const { config: chatConfig } = usePlugin("chat");
-  const catalogDefaults = useCatalogDefaults(token);
 
-  const provider = (chatConfig?.provider as string | undefined) ?? catalogDefaults?.provider;
-  const model = (chatConfig?.model as string | undefined) ?? catalogDefaults?.model;
+  const rawId = chatConfig?.llm_config_id;
+  const llmConfigId = rawId != null ? Number(rawId) : undefined;
+  const modelOverride = (chatConfig?.llm_model_override as string | null | undefined) ?? undefined;
   const router = useRouter();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
@@ -46,8 +45,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
 
   const { handleSend, handleOptionClick } = useChatStream({
     token,
-    provider,
-    model,
+    llmConfigId,
+    modelOverride,
     conversationId,
     setMessages,
     onNewConversation,

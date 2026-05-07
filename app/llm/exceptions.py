@@ -17,7 +17,10 @@ class LLMConfigInactiveError(ValueError):
     """Raised when an LLM config exists but is inactive."""
 
     def __init__(self, config_id: int, user_id: int) -> None:
-        super().__init__(f"LLMConfig {config_id} is inactive for user {user_id}")
+        super().__init__(
+            "The selected AI configuration is deactivated. "
+            "Go to AI Keys to reactivate it, or choose a different configuration in the chat settings."
+        )
 
 
 class LLMConfigDuplicateNameError(ValueError):

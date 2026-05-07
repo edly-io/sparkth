@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   Shield,
+  Key,
 } from "lucide-react";
 import { ComponentType } from "react";
 import { useEnabledPlugins } from "@/lib/plugins/context";
@@ -202,6 +203,29 @@ export default function AppSidebar({
                 <Puzzle className="w-5 h-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
                   <span className="font-medium">My Plugins</span>
+                )}
+              </Link>
+            </div>
+
+            <div>
+              <Link
+                href={`${basePath}/llm/configure`}
+                onClick={handleNavClick}
+                aria-label="AI Keys"
+                className={`
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                  ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                  ${
+                    isActiveRoute("llm")
+                      ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                      : "text-foreground hover:bg-surface-variant"
+                  }
+                `}
+                title={isCollapsed ? "AI Keys" : undefined}
+              >
+                <Key className="w-5 h-5 flex-shrink-0" />
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">AI Keys</span>
                 )}
               </Link>
             </div>

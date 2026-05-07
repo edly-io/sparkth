@@ -3,7 +3,7 @@ Unit tests for the provider/model feature:
   - PROVIDER_MODELS registry and catalog helpers (providers.py)
   - ChatUserConfig.provider validation and model field (config.py)
   - _streaming_error_message error mapping (routes.py)
-  - GET /api/v1/chat/providers endpoint (routes.py)
+  - GET /api/v1/llm/providers endpoint (routes.py)
 """
 
 from unittest.mock import MagicMock
@@ -281,7 +281,7 @@ class TestStreamingErrorMessage:
 
 
 # ===========================================================================
-# GET /api/v1/chat/providers endpoint
+# GET /api/v1/llm/providers endpoint
 # ===========================================================================
 
 
@@ -289,24 +289,24 @@ class TestListProvidersEndpoint:
     async def test_returns_200_for_authenticated_user(
         self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         assert response.status_code == 200
 
     async def test_response_contains_providers_list(self, client: "httpx.AsyncClient", current_user: MagicMock) -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         body = response.json()
         assert "providers" in body
         assert isinstance(body["providers"], list)
 
     async def test_provider_count_matches_registry(self, client: "httpx.AsyncClient", current_user: MagicMock) -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         providers = response.json()["providers"]
         assert len(providers) == len(PROVIDER_REGISTRY)
 
     async def test_each_provider_entry_has_required_keys(
         self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         for entry in response.json()["providers"]:
             assert "id" in entry
             assert "label" in entry
@@ -315,18 +315,18 @@ class TestListProvidersEndpoint:
     async def test_each_provider_has_non_empty_models_list(
         self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         for entry in response.json()["providers"]:
             assert isinstance(entry["models"], list)
             assert len(entry["models"]) > 0
 
     async def test_all_known_provider_ids_present(self, client: "httpx.AsyncClient", current_user: MagicMock) -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         ids = {entry["id"] for entry in response.json()["providers"]}
         assert ids == set(get_supported_providers())
 
     async def test_unauthenticated_request_is_rejected(self, client: "httpx.AsyncClient") -> None:
-        response = await client.get("/api/v1/chat/providers")
+        response = await client.get("/api/v1/llm/providers")
         assert response.status_code in (401, 403)
 
 
