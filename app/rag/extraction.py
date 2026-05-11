@@ -17,6 +17,7 @@ from docx.oxml.ns import qn
 
 from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core.logger import get_logger
+from app.rag.exceptions import ScannedPDFError
 from app.rag.types import DocType
 
 logger = get_logger(__name__)
@@ -100,8 +101,33 @@ class ExtractionResult:
         return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
 
 
+def _is_scanned_pdf(doc: Any, min_chars_per_page: int, sample_pages: int = 5) -> bool:
+    """Detect scanned/image-only PDFs by sampling text density across pages.
+
+    A born-digital PDF averages thousands of chars per page. A scanned PDF
+    averages near zero because the page content lives in embedded images.
+    """
+    page_count = len(doc)
+    if page_count == 0:
+        return False
+
+    step = max(1, page_count // sample_pages)
+    sampled = list(range(0, page_count, step))[:sample_pages]
+
+    total_chars = 0
+    for page_idx in sampled:
+        text = doc[page_idx].get_text("text").strip()
+        total_chars += len(text)
+
+    return (total_chars / len(sampled)) < min_chars_per_page
+
+
 def _extract_pdf(data: bytes, source_name: str, *, batch_size: int = 10) -> ExtractionResult:
+    settings = get_settings()
     with fitz.open(stream=data, filetype="pdf") as doc:
+        if _is_scanned_pdf(doc, min_chars_per_page=settings.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE):
+            raise ScannedPDFError(source_name)
+
         page_count = len(doc)
         parts: list[str] = []
         for start in range(0, page_count, batch_size):

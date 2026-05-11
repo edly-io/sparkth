@@ -20,3 +20,14 @@ class RAGNotReadyError(RAGError):
 
 class RAGRetrievalError(RAGError):
     """Raised when embedding or similarity search fails."""
+
+
+class ScannedPDFError(RAGError):
+    """Raised when a PDF appears to be scanned/image-only and cannot be text-extracted."""
+
+    def __init__(self, source_name: str) -> None:
+        self.source_name = source_name
+        super().__init__(
+            f"'{source_name}' appears to be a scanned PDF (image-only pages with no extractable text). "
+            f"OCR-based ingestion is not yet supported — please upload a text-based PDF."
+        )

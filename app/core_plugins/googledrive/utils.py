@@ -19,6 +19,7 @@ from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDrive
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
 from app.rag.embeddings import BaseEmbeddingProvider
+from app.rag.exceptions import ScannedPDFError
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
 from app.rag.memory_profiler import profile_memory
 from app.rag.models import DocumentChunk, DriveFileChunkLink
@@ -323,6 +324,9 @@ async def _process_single_file(
         await _set_rag_status(
             session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
         )
+    except ScannedPDFError as e:
+        logger.warning("RAG processing rejected scanned PDF '%s': %s", log_name, e)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error=str(e))
     except (RuntimeError, ValueError, OSError) as e:
         logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
