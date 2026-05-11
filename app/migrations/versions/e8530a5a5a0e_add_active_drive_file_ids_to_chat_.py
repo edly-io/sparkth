@@ -30,7 +30,7 @@ def upgrade() -> None:
     )
     op.drop_table("conversation_active_drive_files")
     op.add_column("chat_conversations", sa.Column("active_drive_file_ids", sa.Text(), nullable=True))
-    op.drop_column("chat_messages", "attachments_json")
+    op.execute("ALTER TABLE chat_messages DROP COLUMN IF EXISTS attachments_json")
     op.drop_constraint(op.f("whitelisted_email_value_key"), "whitelisted_email", type_="unique")
     op.drop_index(op.f("ix_whitelisted_email_value"), table_name="whitelisted_email")
     op.create_index(op.f("ix_whitelisted_email_value"), "whitelisted_email", ["value"], unique=True)

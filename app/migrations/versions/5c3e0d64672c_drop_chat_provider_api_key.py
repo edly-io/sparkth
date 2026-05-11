@@ -65,7 +65,8 @@ def downgrade() -> None:
     op.execute("""
         SELECT setval(
             pg_get_serial_sequence('chat_provider_api_keys', 'id'),
-            COALESCE((SELECT MAX(id) FROM chat_provider_api_keys), 0)
+            COALESCE((SELECT MAX(id) FROM chat_provider_api_keys), 1),
+            COALESCE((SELECT MAX(id) FROM chat_provider_api_keys) IS NOT NULL, false)
         )
     """)
     # ### end Alembic commands ###

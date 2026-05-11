@@ -43,7 +43,8 @@ def upgrade() -> None:
     op.execute("""
         SELECT setval(
             pg_get_serial_sequence('llm_configs', 'id'),
-            COALESCE((SELECT MAX(id) FROM llm_configs), 0)
+            COALESCE((SELECT MAX(id) FROM llm_configs), 1),
+            COALESCE((SELECT MAX(id) FROM llm_configs) IS NOT NULL, false)
         )
     """)
     op.execute(
