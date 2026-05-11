@@ -324,9 +324,9 @@ async def _process_single_file(
         await _set_rag_status(
             session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
         )
-    except ScannedPDFError as e:
-        logger.warning("RAG processing rejected scanned PDF '%s': %s", log_name, e)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error=str(e))
+    except ScannedPDFError:
+        logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error=ScannedPDFError.USER_MESSAGE)
     except (RuntimeError, ValueError, OSError) as e:
         logger.error("RAG processing failed for '%s': %s", log_name, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
