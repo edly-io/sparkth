@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     MEMORY_PROFILING_ENABLED: bool = False
     RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported
     RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE: int = 100  # below this avg, a PDF is treated as scanned/image-only
+    RAG_PDF_EXTRACTION_BATCH_SIZE: int = 10  # number of pages per pymupdf4llm.to_markdown() call
     RAG_MCP_URL: str
 
     LLM_ENCRYPTION_KEY: str
