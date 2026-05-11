@@ -1,6 +1,6 @@
 """REST endpoints for LLMConfig management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -73,11 +73,12 @@ async def create_llm_config(
 
 @router.get("/configs", response_model=LLMConfigListResponse)
 async def list_llm_configs(
+    include_inactive: bool = Query(default=False),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigListResponse:
-    configs = await service.list(session=session, user_id=current_user.id, include_inactive=True)  # type: ignore[arg-type]
+    configs = await service.list(session=session, user_id=current_user.id, include_inactive=include_inactive)  # type: ignore[arg-type]
     return LLMConfigListResponse(
         configs=[_to_response(c) for c in configs],
         total=len(configs),

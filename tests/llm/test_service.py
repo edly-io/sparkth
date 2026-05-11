@@ -1,11 +1,17 @@
 """Tests for LLMConfigService."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.llm.service import LLMConfigService
 from app.models.llm import LLMConfig
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class TestMaskKey:
@@ -422,3 +428,40 @@ async def test_set_active_not_found_raises() -> None:
 
     with pytest.raises(ValueError, match="LLMConfig 99 not found"):
         await service.set_active(session=session, user_id=1, config_id=99, is_active=False)
+
+
+@pytest.mark.asyncio
+async def test_assert_name_available_filters_out_deleted_rows() -> None:
+    """WHERE clause must include is_deleted = false so deleted names remain reusable."""
+    service, _, _ = _make_service()
+    session = AsyncMock()
+    no_result = MagicMock()
+    no_result.first.return_value = None
+    session.exec = AsyncMock(return_value=no_result)
+
+    await service._assert_name_available(session, user_id=1, name="my-key")
+
+    stmt = session.exec.call_args[0][0]
+    assert "is_deleted" in str(stmt.whereclause).lower()
+
+
+@pytest.mark.asyncio
+async def test_name_reuse_after_soft_delete(session: "AsyncSession") -> None:
+    """After soft-deleting a config, the same name must be accepted for a new one."""
+
+    service, _, _ = _make_service()
+
+    deleted = LLMConfig(
+        user_id=99,
+        name="reusable",
+        provider="openai",
+        model="gpt-4o",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+    )
+    deleted.soft_delete()
+    session.add(deleted)
+    await session.flush()
+
+    # Must not raise — the deleted row should be invisible to the name check
+    await service._assert_name_available(session, user_id=99, name="reusable")

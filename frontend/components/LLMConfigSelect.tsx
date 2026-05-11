@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { Select } from "@/components/ui/Select";
@@ -45,7 +45,7 @@ export function LLMConfigSelect({
     setLoading(true);
     setFetchError("");
 
-    fetchLLMConfigs(token)
+    fetchLLMConfigs(token, { includeInactive: true })
       .then((result) => {
         if (!ignore) setConfigs(result.configs);
       })
@@ -64,10 +64,17 @@ export function LLMConfigSelect({
   const selectedConfig = configs.find((c) => c.id === value);
   const selectedIsInactive = selectedConfig !== undefined && !selectedConfig.is_active;
 
+  const onConfigSelectRef = useRef(onConfigSelect);
+  onConfigSelectRef.current = onConfigSelect;
+
+  const selectedConfigId = selectedConfig?.id;
+
   // Notify parent when the resolved config object changes (on load or user selection).
+  // The ref ensures we always call the latest callback without making it a dependency
+  // that would re-fire the effect on every parent render.
   useEffect(() => {
-    if (!loading) onConfigSelect?.(selectedConfig);
-  }, [selectedConfig?.id, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!loading) onConfigSelectRef.current?.(selectedConfig);
+  }, [selectedConfigId, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const options = configs.map((c) => ({
     value: String(c.id),
@@ -81,14 +88,14 @@ export function LLMConfigSelect({
           {label ?? "LLM Config"}
         </label>
         <p className="text-sm text-muted-foreground">
-          No LLM configs available.{" "}
+          No LLM configs available. Go to{" "}
           <Link
-            href="/dashboard/llm/configure/new/"
+            href="/dashboard/llm/configure"
             className="text-primary-500 hover:text-primary-600 underline"
           >
-            Create one
+            AI Keys
           </Link>{" "}
-          to get started.
+          to create one.
         </p>
       </div>
     );

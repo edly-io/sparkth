@@ -44,8 +44,8 @@ class LLMConfigService:
     async def _assert_name_available(
         self, session: AsyncSession, user_id: int, name: str, exclude_id: int | None = None
     ) -> None:
-        """Raise LLMConfigDuplicateNameError if name is already taken for this user."""
-        clauses = [col(LLMConfig.user_id) == user_id, col(LLMConfig.name) == name]
+        """Raise LLMConfigDuplicateNameError if name is already taken by a non-deleted config for this user."""
+        clauses = [col(LLMConfig.user_id) == user_id, col(LLMConfig.name) == name, col(LLMConfig.is_deleted) == False]  # noqa: E712
         if exclude_id is not None:
             clauses.append(col(LLMConfig.id) != exclude_id)
         dup = await session.exec(select(LLMConfig).where(*clauses))
@@ -205,7 +205,7 @@ class LLMConfigService:
                 f"LLMConfig {config_id} has no model set. Update it via PATCH /api/v1/llm/configs/{config_id} before use."
             )
         if not config.is_active:
-            raise LLMConfigInactiveError(config_id, user_id)
+            raise LLMConfigInactiveError()
         cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
         cached = await self.cache.get(cache_key)
         if cached:

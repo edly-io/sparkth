@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { KeyRound, Pencil, Plus, RotateCw, Save, Trash2 } from "lucide-react";
 
 import { Spinner } from "@/components/Spinner";
@@ -19,7 +18,9 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { useAuth } from "@/lib/auth-context";
+import { validateLLMConfigName } from "@/lib/llm-validation";
 import {
+  createLLMConfig,
   deleteLLMConfig,
   fetchLLMConfigs,
   fetchProviderCatalog,
@@ -29,16 +30,6 @@ import {
   type LLMConfig,
   type ProviderInfo,
 } from "@/lib/llm-api";
-
-// ─── Name validation ─────────────────────────────────────────────────────────
-
-const NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
-function validateName(value: string): string {
-  if (!value.trim()) return "Name is required";
-  if (!NAME_PATTERN.test(value)) return "Only letters, numbers, hyphens, and underscores allowed";
-  return "";
-}
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
@@ -67,7 +58,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
   const [rotateSuccess, setRotateSuccess] = useState(false);
 
   async function handleSave() {
-    const err = validateName(name);
+    const err = validateLLMConfigName(name);
     if (err) {
       setNameError(err);
       return;
@@ -124,9 +115,9 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
             error={nameError}
             onChange={(e) => {
               setName(e.target.value);
-              if (nameError) setNameError(validateName(e.target.value));
+              if (nameError) setNameError(validateLLMConfigName(e.target.value));
             }}
-            onBlur={() => setNameError(validateName(name))}
+            onBlur={() => setNameError(validateLLMConfigName(name))}
             placeholder="e.g. my-openai-key"
           />
 
@@ -407,6 +398,209 @@ function ConfigRow({
   );
 }
 
+// ─── New Config Modal ─────────────────────────────────────────────────────────
+
+interface NewConfigModalProps {
+  token: string;
+  onClose: () => void;
+  onCreated: () => void;
+}
+
+function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+    fetchProviderCatalog(token)
+      .then((catalog) => {
+        if (ignore) return;
+        setProviders(catalog.providers);
+        if (catalog.default_provider) {
+          setSelectedProvider(catalog.default_provider);
+          const info = catalog.providers.find((p) => p.id === catalog.default_provider);
+          setSelectedModel(catalog.default_model || info?.models?.[0] || "");
+        } else if (catalog.providers.length > 0) {
+          setSelectedProvider(catalog.providers[0].id);
+          setSelectedModel(catalog.providers[0].models[0] ?? "");
+        }
+      })
+      .catch((e) => {
+        if (!ignore)
+          setCatalogError(e instanceof Error ? e.message : "Failed to load provider catalog");
+      })
+      .finally(() => {
+        if (!ignore) setCatalogLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [token]);
+
+  function handleProviderChange(providerId: string) {
+    setSelectedProvider(providerId);
+    const info = providers.find((p) => p.id === providerId);
+    setSelectedModel(info?.models?.[0] ?? "");
+  }
+
+  const currentProviderInfo = providers.find((p) => p.id === selectedProvider);
+  const modelOptions = (currentProviderInfo?.models ?? []).map((m) => ({ value: m, label: m }));
+  const providerOptions = providers.map((p) => ({ value: p.id, label: p.label }));
+
+  const formValid =
+    !catalogError &&
+    !validateLLMConfigName(name) &&
+    name.trim().length > 0 &&
+    selectedProvider !== "" &&
+    selectedModel !== "" &&
+    apiKey.trim() !== "";
+
+  async function handleSubmit() {
+    const nameErr = validateLLMConfigName(name);
+    if (nameErr) {
+      setNameError(nameErr);
+      return;
+    }
+    if (!selectedProvider || !selectedModel || !apiKey.trim()) return;
+
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await createLLMConfig(token, {
+        name: name.trim(),
+        provider: selectedProvider,
+        model: selectedModel,
+        api_key: apiKey.trim(),
+      });
+      onCreated();
+      onClose();
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Failed to create LLM config");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New LLM Config</DialogTitle>
+          <DialogDescription>
+            Add an API key and model configuration for an LLM provider.
+          </DialogDescription>
+        </DialogHeader>
+
+        {catalogLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Spinner />
+          </div>
+        ) : (
+          <form
+            aria-label="Create LLM config"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSubmit();
+            }}
+            noValidate
+          >
+            <div className="space-y-4">
+              {catalogError && <Alert severity="error">{catalogError}</Alert>}
+              {submitError && <Alert severity="error">{submitError}</Alert>}
+
+              <Input
+                label="Name"
+                name="name"
+                required
+                placeholder="e.g. my-openai-key"
+                value={name}
+                error={nameError}
+                autoFocus
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (nameError) setNameError(validateLLMConfigName(e.target.value));
+                }}
+                onBlur={(e) => setNameError(validateLLMConfigName(e.target.value))}
+                disabled={submitting || !!catalogError}
+              />
+
+              <Select
+                label="Provider"
+                name="provider"
+                required
+                placeholder="Select a provider"
+                value={selectedProvider}
+                options={providerOptions}
+                onChange={(e) => handleProviderChange(e.target.value)}
+                disabled={submitting || !!catalogError || providers.length === 0}
+              />
+
+              <div aria-live="polite">
+                <Select
+                  label="Model"
+                  name="model"
+                  required
+                  placeholder="Select a model"
+                  value={selectedModel}
+                  options={modelOptions}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  disabled={
+                    submitting || !!catalogError || !selectedProvider || modelOptions.length === 0
+                  }
+                />
+              </div>
+
+              <Input
+                label="API Key"
+                name="api_key"
+                type="password"
+                required
+                autoComplete="off"
+                placeholder="sk-..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                disabled={submitting || !!catalogError}
+              />
+            </div>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={submitting}
+                spinnerLabel="Creating"
+                disabled={!formValid || submitting}
+              >
+                Create Config
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LLMConfigurePage() {
@@ -417,6 +611,7 @@ export default function LLMConfigurePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [showNewModal, setShowNewModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<LLMConfig | null>(null);
   const [deletingConfig, setDeletingConfig] = useState<LLMConfig | null>(null);
 
@@ -430,7 +625,7 @@ export default function LLMConfigurePage() {
     setError("");
     try {
       const [configsResult, providersResult] = await Promise.all([
-        fetchLLMConfigs(token),
+        fetchLLMConfigs(token, { includeInactive: true }),
         fetchProviderCatalog(token),
       ]);
       setConfigs(configsResult.configs);
@@ -465,7 +660,10 @@ export default function LLMConfigurePage() {
   if (error) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
+        <div className="border-b border-border px-6 py-4">
+          <h1 className="text-xl font-semibold text-foreground">AI Keys</h1>
+        </div>
+        <div className="px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
           <Alert severity="error">{error}</Alert>
         </div>
       </div>
@@ -474,20 +672,20 @@ export default function LLMConfigurePage() {
 
   return (
     <div className="min-h-screen bg-background transition-colors">
-      <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">AI Keys</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Manage API keys and model configurations for connected LLM providers.
-            </p>
-          </div>
-          <Button variant="primary" size="sm" asChild>
-            <Link href="/dashboard/llm/configure/new/">
-              <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              New Config
-            </Link>
+      {/* Header */}
+      <div className="border-b border-border px-6 py-4">
+        <h1 className="text-xl font-semibold text-foreground">AI Keys</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage API keys and model configurations for connected LLM providers.
+        </p>
+      </div>
+
+      <div className="px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
+        {/* New Config button */}
+        <div className="mb-4 sm:mb-6">
+          <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
+            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+            New Config
           </Button>
         </div>
 
@@ -514,15 +712,18 @@ export default function LLMConfigurePage() {
           <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
             <KeyRound className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
             <p className="text-muted-foreground mb-4">No LLM configs found.</p>
-            <Button variant="primary" size="sm" asChild>
-              <Link href="/dashboard/llm/configure/new/">
-                <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                Create Your First Config
-              </Link>
+            <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
+              <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+              Create Your First Config
             </Button>
           </div>
         )}
       </div>
+
+      {/* New Config Modal */}
+      {showNewModal && (
+        <NewConfigModal token={token} onClose={() => setShowNewModal(false)} onCreated={loadData} />
+      )}
 
       {/* Edit Modal */}
       {editingConfig && (

@@ -17,6 +17,32 @@ function readHeaders(token: string): HeadersInit {
   };
 }
 
+async function llmFetch(url: string, init: RequestInit, errorAction: string): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${message}`,
+      fieldErrors: {},
+    });
+  }
+  if (!response.ok) {
+    try {
+      const apiError: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(apiError));
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError({
+        message: `${errorAction} (HTTP ${response.status}). Please try again.`,
+        fieldErrors: {},
+      });
+    }
+  }
+  return response;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface LLMConfig {
@@ -61,71 +87,27 @@ export interface UpdateLLMConfigPayload {
 
 // ─── API Functions ───────────────────────────────────────────────────────────
 
-export async function fetchLLMConfigs(token: string): Promise<LLMConfigListResponse> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/configs`, {
-      headers: readHeaders(token),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to fetch LLM configs (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  return response.json();
+export async function fetchLLMConfigs(
+  token: string,
+  { includeInactive = false }: { includeInactive?: boolean } = {},
+): Promise<LLMConfigListResponse> {
+  const url = includeInactive ? `${API_BASE}/configs?include_inactive=true` : `${API_BASE}/configs`;
+  return (
+    await llmFetch(url, { headers: readHeaders(token) }, "Failed to fetch LLM configs")
+  ).json();
 }
 
 export async function createLLMConfig(
   token: string,
   payload: CreateLLMConfigPayload,
 ): Promise<LLMConfig> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/configs`, {
-      method: "POST",
-      headers: jsonHeaders(token),
-      body: JSON.stringify(payload),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to create LLM config (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  return response.json();
+  return (
+    await llmFetch(
+      `${API_BASE}/configs`,
+      { method: "POST", headers: jsonHeaders(token), body: JSON.stringify(payload) },
+      "Failed to create LLM config",
+    )
+  ).json();
 }
 
 export async function updateLLMConfig(
@@ -136,37 +118,13 @@ export async function updateLLMConfig(
   if (payload.name === undefined && payload.model === undefined) {
     throw new Error("updateLLMConfig: at least one of name or model must be provided");
   }
-
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/configs/${configId}`, {
-      method: "PATCH",
-      headers: jsonHeaders(token),
-      body: JSON.stringify(payload),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to update LLM config (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  return response.json();
+  return (
+    await llmFetch(
+      `${API_BASE}/configs/${configId}`,
+      { method: "PATCH", headers: jsonHeaders(token), body: JSON.stringify(payload) },
+      "Failed to update LLM config",
+    )
+  ).json();
 }
 
 export async function rotateLLMConfigKey(
@@ -174,36 +132,13 @@ export async function rotateLLMConfigKey(
   configId: number,
   apiKey: string,
 ): Promise<LLMConfig> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/configs/${configId}/key`, {
-      method: "PUT",
-      headers: jsonHeaders(token),
-      body: JSON.stringify({ api_key: apiKey }),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to rotate API key (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  return response.json();
+  return (
+    await llmFetch(
+      `${API_BASE}/configs/${configId}/key`,
+      { method: "PUT", headers: jsonHeaders(token), body: JSON.stringify({ api_key: apiKey }) },
+      "Failed to rotate API key",
+    )
+  ).json();
 }
 
 export async function setLLMConfigActive(
@@ -211,95 +146,33 @@ export async function setLLMConfigActive(
   configId: number,
   isActive: boolean,
 ): Promise<LLMConfig> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/configs/${configId}/active`, {
-      method: "PATCH",
-      headers: jsonHeaders(token),
-      body: JSON.stringify({ is_active: isActive }),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to update config status (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  return response.json();
+  return (
+    await llmFetch(
+      `${API_BASE}/configs/${configId}/active`,
+      {
+        method: "PATCH",
+        headers: jsonHeaders(token),
+        body: JSON.stringify({ is_active: isActive }),
+      },
+      "Failed to update config status",
+    )
+  ).json();
 }
 
 export async function deleteLLMConfig(token: string, configId: number): Promise<void> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/configs/${configId}`, {
-      method: "DELETE",
-      headers: readHeaders(token),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to delete LLM config (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
+  await llmFetch(
+    `${API_BASE}/configs/${configId}`,
+    { method: "DELETE", headers: readHeaders(token) },
+    "Failed to delete LLM config",
+  );
 }
 
 export async function fetchProviderCatalog(token: string): Promise<ProviderCatalogResponse> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE}/providers`, {
-      headers: readHeaders(token),
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new ApiRequestError({
-      message: `Unable to connect to server: ${errorMessage}`,
-      fieldErrors: {},
-    });
-  }
-
-  if (!response.ok) {
-    try {
-      const error: ApiError = await response.json();
-      throw new ApiRequestError(formatApiError(error));
-    } catch (e) {
-      if (e instanceof ApiRequestError) throw e;
-      throw new ApiRequestError({
-        message: `Failed to fetch providers (HTTP ${response.status}). Please try again.`,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  return response.json();
+  return (
+    await llmFetch(
+      `${API_BASE}/providers`,
+      { headers: readHeaders(token) },
+      "Failed to fetch providers",
+    )
+  ).json();
 }

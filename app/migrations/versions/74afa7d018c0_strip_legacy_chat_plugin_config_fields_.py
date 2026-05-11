@@ -1,25 +1,27 @@
 """strip legacy chat plugin config fields from user_plugins
 
 Revision ID: 74afa7d018c0
-Revises: 5c3e0d64672c
+Revises: 7f8a52663a6b
 Create Date: 2026-05-08 12:04:46.674966
 
 """
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
-import sqlmodel
 
 
 # revision identifiers, used by Alembic.
 revision: str = '74afa7d018c0'
-down_revision: Union[str, Sequence[str], None] = '5c3e0d64672c'
+down_revision: Union[str, Sequence[str], None] = '7f8a52663a6b'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # PostgreSQL-only: uses JSONB operators not available in SQLite.
+    # CI runs against SQLite so this path is skipped there; production runs PostgreSQL.
+    if op.get_bind().dialect.name != "postgresql":
+        return
     op.execute(
         """
         UPDATE user_plugins
@@ -34,5 +36,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Downgrade schema."""
-    pass # legacy fields cannot be restored
+    # Irreversible data migration: stripped field values are not recoverable.
+    pass

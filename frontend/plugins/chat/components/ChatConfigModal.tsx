@@ -8,7 +8,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Select } from "@/components/ui/Select";
 import { LLMConfigSelect } from "@/components/LLMConfigSelect";
 import { useAuth } from "@/lib/auth-context";
-import { fetchProviderCatalog, type LLMConfig } from "@/lib/llm-api";
+import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm-api";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +46,7 @@ export default function ChatConfigModal({
   });
   const [modelOverride, setModelOverride] = useState<string>("");
   const [selectedConfig, setSelectedConfig] = useState<LLMConfig | undefined>(undefined);
+  const [catalogProviders, setCatalogProviders] = useState<ProviderInfo[]>([]);
   const [providerModels, setProviderModels] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -67,29 +68,31 @@ export default function ChatConfigModal({
     setSubmitError(null);
   }, [open, plugin.config]);
 
-  // Fetch provider models when the selected config's provider changes.
+  // Fetch the full provider catalog once per token — independent of selected config.
   useEffect(() => {
-    if (!selectedConfig || !token) {
-      setProviderModels([]);
-      return;
-    }
-
+    if (!token) return;
     let ignore = false;
     fetchProviderCatalog(token)
       .then((catalog) => {
-        if (!ignore) {
-          const info = catalog.providers.find((p) => p.id === selectedConfig.provider);
-          setProviderModels(info?.models ?? []);
-        }
+        if (!ignore) setCatalogProviders(catalog.providers);
       })
       .catch(() => {
-        if (!ignore) setProviderModels([]);
+        if (!ignore) setCatalogProviders([]);
       });
-
     return () => {
       ignore = true;
     };
-  }, [selectedConfig?.provider, token]);
+  }, [token]);
+
+  // Derive available models from the already-fetched catalog whenever the provider changes.
+  useEffect(() => {
+    if (!selectedConfig) {
+      setProviderModels([]);
+      return;
+    }
+    const info = catalogProviders.find((p) => p.id === selectedConfig.provider);
+    setProviderModels(info?.models ?? []);
+  }, [selectedConfig?.provider, catalogProviders]);
 
   const handleConfigSelect = (config: LLMConfig | undefined) => {
     setSelectedConfig(config);
