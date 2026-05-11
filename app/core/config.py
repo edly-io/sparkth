@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported
     RAG_MCP_URL: str
 
+    LLM_ENCRYPTION_KEY: str
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_KEY_TTL: int = 3600
+
 
 @lru_cache
 def get_settings() -> Settings:

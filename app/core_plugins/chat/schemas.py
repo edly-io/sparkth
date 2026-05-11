@@ -8,34 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
 
-class ProviderAPIKeyCreate(BaseModel):
-    provider: str = Field(..., examples=["openai"])
-    api_key: str = Field(..., min_length=1)
-
-    @field_validator("provider")
-    @classmethod
-    def validate_provider(cls, v: str) -> str:
-        from app.llm.providers import get_supported_providers
-
-        supported = get_supported_providers()
-        if v.lower() not in supported:
-            raise ValueError(f"Unsupported provider: {v}. Supported: {', '.join(supported)}")
-        return v.lower()
-
-
-class ProviderAPIKeyResponse(BaseModel):
-    id: int
-    provider: str
-    is_active: bool
-    created_at: datetime
-    last_used_at: datetime | None
-
-
-class ProviderAPIKeyListResponse(BaseModel):
-    keys: list[ProviderAPIKeyResponse]
-    total: int
-
-
 class AttachmentMeta(BaseModel):
     name: str
     size: int
@@ -94,8 +66,11 @@ class ToolResult(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    provider: str = Field(..., examples=["openai"])
-    model: str = Field(..., examples=["gpt-4", "claude-3-opus", "gemini-pro"])
+    llm_config_id: int = Field(..., description="ID of the LLMConfig to use for this completion")
+    model_override: str | None = Field(
+        default=None,
+        description="Overrides the model in the selected LLMConfig",
+    )
     messages: list[ChatMessage] = Field(..., min_length=1)
     conversation_id: UUID | None = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
@@ -116,16 +91,6 @@ class ChatCompletionRequest(BaseModel):
         le=1.0,
         description="Cosine similarity threshold for RAG chunk retrieval (0 = very loose, 1 = exact match)",
     )
-
-    @field_validator("provider")
-    @classmethod
-    def validate_provider(cls, v: str) -> str:
-        from app.llm.providers import get_supported_providers
-
-        supported = get_supported_providers()
-        if v.lower() not in supported:
-            raise ValueError(f"Unsupported provider: {v}. Supported: {', '.join(supported)}")
-        return v.lower()
 
 
 class ChatCompletionResponse(BaseModel):

@@ -16,7 +16,6 @@ from google.api_core import exceptions as google_exceptions
 
 from app.core_plugins.chat.routes import _streaming_error_message
 from app.llm.providers import (
-    DEFAULT_MODEL,
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
     get_models_for_provider,
@@ -108,106 +107,36 @@ class TestProviderModels:
 class TestChatUserConfig:
     """
     ChatUserConfig lives in app.core_plugins.chat.config.
-    We import it lazily inside each test because the module graph has a
-    circular dependency that only resolves when the full app is loaded
-    (which pytest's conftest initialises for us).
+    It now uses llm_config_id (FK to LLMConfig) and an optional
+    llm_model_override instead of inline provider/model/key fields.
     """
 
-    def test_valid_config_accepted(self) -> None:
+    def test_valid_config_with_llm_config_id(self) -> None:
         from app.core_plugins.chat.config import ChatUserConfig
 
-        cfg = ChatUserConfig(provider="anthropic", provider_api_key_ref=1, model="claude-opus-4-5")
-        assert cfg.provider == "anthropic"
-        assert cfg.model == "claude-opus-4-5"
+        cfg = ChatUserConfig(llm_config_id=1)
+        assert cfg.llm_config_id == 1
+        assert cfg.llm_model_override is None
 
-    def test_provider_is_normalised_to_lowercase(self) -> None:
+    def test_llm_model_override_defaults_to_none(self) -> None:
         from app.core_plugins.chat.config import ChatUserConfig
 
-        cfg = ChatUserConfig(provider="Anthropic", provider_api_key_ref=1, model="claude-sonnet-4-5")
-        assert cfg.provider == "anthropic"
+        cfg = ChatUserConfig(llm_config_id=42)
+        assert cfg.llm_model_override is None
 
-    def test_all_supported_providers_are_accepted(self) -> None:
+    def test_llm_model_override_can_be_set(self) -> None:
         from app.core_plugins.chat.config import ChatUserConfig
 
-        for provider in get_supported_providers():
-            cfg = ChatUserConfig(
-                provider=provider,
-                provider_api_key_ref=1,
-                model=PROVIDER_MODELS[provider][0],
-            )
-            assert cfg.provider == provider
+        cfg = ChatUserConfig(llm_config_id=1, llm_model_override="claude-opus-4-5")
+        assert cfg.llm_model_override == "claude-opus-4-5"
 
-    def test_invalid_provider_raises_validation_error(self) -> None:
-        from pydantic import ValidationError
-
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        with pytest.raises(ValidationError, match="Unsupported provider"):
-            ChatUserConfig(provider="badprovider", provider_api_key_ref=1, model="gpt-4o")
-
-    def test_model_defaults_to_claude_sonnet(self) -> None:
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        cfg = ChatUserConfig(provider="anthropic", provider_api_key_ref=1)
-        assert cfg.model == DEFAULT_MODEL
-
-    def test_model_can_be_set_explicitly(self) -> None:
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        cfg = ChatUserConfig(provider="openai", provider_api_key_ref=5, model="gpt-4o-mini")
-        assert cfg.model == "gpt-4o-mini"
-
-    def test_missing_provider_raises_validation_error(self) -> None:
+    def test_missing_llm_config_id_raises_validation_error(self) -> None:
         from pydantic import ValidationError
 
         from app.core_plugins.chat.config import ChatUserConfig
 
         with pytest.raises(ValidationError):
-            ChatUserConfig(provider_api_key_ref=1, model="gpt-4o")  # type: ignore[call-arg]
-
-    def test_missing_provider_api_key_ref_raises_validation_error(self) -> None:
-        from pydantic import ValidationError
-
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        with pytest.raises(ValidationError):
-            ChatUserConfig(provider="openai", model="gpt-4o")  # type: ignore[call-arg]
-
-    def test_model_from_wrong_provider_raises_validation_error(self) -> None:
-        from pydantic import ValidationError
-
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        with pytest.raises(ValidationError, match="not available for provider"):
-            ChatUserConfig(provider="openai", provider_api_key_ref=1, model="claude-opus-4-5")
-
-    def test_openai_model_rejected_for_anthropic_provider(self) -> None:
-        from pydantic import ValidationError
-
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        with pytest.raises(ValidationError, match="not available for provider"):
-            ChatUserConfig(provider="anthropic", provider_api_key_ref=1, model="gpt-4o")
-
-    def test_error_message_names_invalid_model_and_provider(self) -> None:
-        from pydantic import ValidationError
-
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        with pytest.raises(ValidationError) as exc_info:
-            ChatUserConfig(provider="google", provider_api_key_ref=1, model="gpt-4o-mini")
-
-        errors = exc_info.value.errors()
-        assert any("gpt-4o-mini" in str(e) for e in errors)
-        assert any("google" in str(e) for e in errors)
-
-    def test_every_model_is_valid_for_its_own_provider(self) -> None:
-        from app.core_plugins.chat.config import ChatUserConfig
-
-        for provider, models in PROVIDER_MODELS.items():
-            for model in models:
-                cfg = ChatUserConfig(provider=provider, provider_api_key_ref=1, model=model)
-                assert cfg.model == model
+            ChatUserConfig()  # type: ignore[call-arg]
 
 
 # ===========================================================================
