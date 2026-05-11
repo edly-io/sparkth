@@ -63,24 +63,40 @@ class TestExtractionResult:
         assert r.page_count is None
 
 
+def _make_mock_pdf_doc(page_count: int, text_per_page: str = "lorem ipsum " * 50) -> MagicMock:
+    """Build a MagicMock that emulates the parts of a fitz.Document used by _extract_pdf.
+
+    Supports `with fitz.open(...) as doc`, `len(doc)`, and `doc[i].get_text("text")`.
+    Pages return the same text by default — enough to avoid being flagged as scanned.
+    """
+    doc = MagicMock()
+    doc.__enter__ = MagicMock(return_value=doc)
+    doc.__exit__ = MagicMock(return_value=False)
+    doc.__len__ = MagicMock(return_value=page_count)
+    page = MagicMock()
+    page.get_text = MagicMock(return_value=text_per_page)
+    doc.__getitem__ = MagicMock(return_value=page)
+    return doc
+
+
 class TestExtractPDF:
     def test_calls_pymupdf4llm_and_returns_result(self) -> None:
-        fake_md = "# Chapter 1\n\nContent here.\n-----\n# Chapter 2\n"
         with (
-            patch("app.rag.extraction.fitz.open"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value=fake_md) as mock_to_md,
+            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.extraction.fitz.TOOLS"),
+            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="# Chapter 1") as mock_to_md,
         ):
             result = extract_to_markdown(b"%PDF-fake", "notes.pdf")
 
         mock_to_md.assert_called_once()
         assert result.doc_type == DocType.PDF
         assert result.source_name == "notes.pdf"
-        assert "\n-----\n" not in result.markdown
 
     def test_fitz_open_called_with_stream_and_filetype(self) -> None:
         raw = b"%PDF-fake"
         with (
-            patch("app.rag.extraction.fitz.open") as mock_fitz,
+            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(1)) as mock_fitz,
+            patch("app.rag.extraction.fitz.TOOLS"),
             patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
         ):
             extract_to_markdown(raw, "notes.pdf")
@@ -90,7 +106,8 @@ class TestExtractPDF:
     def test_separators_stripped_from_markdown(self) -> None:
         fake_md = "page1\n-----\npage2\n-----\npage3"
         with (
-            patch("app.rag.extraction.fitz.open"),
+            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.extraction.fitz.TOOLS"),
             patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value=fake_md),
         ):
             result = extract_to_markdown(b"%PDF-fake", "book.pdf")
@@ -100,21 +117,21 @@ class TestExtractPDF:
         assert "page2" in result.markdown
         assert "page3" in result.markdown
 
-    def test_page_count_inferred_from_separators(self) -> None:
-        fake_md = "page1\n-----\npage2\n-----\npage3"
+    def test_page_count_comes_from_doc_length(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value=fake_md),
+            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(7)),
+            patch("app.rag.extraction.fitz.TOOLS"),
+            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
         ):
             result = extract_to_markdown(b"%PDF-fake", "book.pdf")
 
-        assert result.page_count == 3
+        assert result.page_count == 7
 
-    def test_single_page_no_separator(self) -> None:
-        fake_md = "just one page, no separator"
+    def test_single_page_doc(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value=fake_md),
+            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(1)),
+            patch("app.rag.extraction.fitz.TOOLS"),
+            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="one page"),
         ):
             result = extract_to_markdown(b"%PDF-fake", "one.pdf")
 
@@ -582,7 +599,8 @@ class TestExtractToMarkdown:
 
     def test_pdf_routing_calls_pymupdf(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open"),
+            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.extraction.fitz.TOOLS"),
             patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="# MD") as m,
         ):
             extract_to_markdown(b"%PDF", "deck.pdf")
