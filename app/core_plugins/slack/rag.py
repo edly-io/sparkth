@@ -12,12 +12,7 @@ from app.llm.providers import BaseChatProvider
 from app.rag.context_service import RAGContextService, format_chunks_as_context
 from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.provider import get_provider
-from app.rag.store import SimilarityResult, VectorStoreService
-
-logger = get_logger(__name__)
-
-# Module-level singleton
-_store: VectorStoreService = VectorStoreService()
+from app.rag.store import SimilarityResult
 
 logger = get_logger(__name__)
 
@@ -86,7 +81,7 @@ async def answer_question(
         all_results = all_results[:limit]
     else:
         # No source filter: broad search across all user content
-        all_results = await _rag_service._store.similarity_search(
+        all_results = await _rag_service.search_all_sources(
             session=session,
             user_id=user_id,
             query_embedding=query_embedding,
@@ -132,5 +127,6 @@ async def answer_question(
                 type(exc).__name__,
                 exc,
             )
+            return f"Could not generate an AI summary, but here is what RAG found:\n\n{formatted_context}", True
 
-    return f"AI summary is not available at the moment, but here is what RAG found:\n\n{formatted_context}", True
+    return f"AI summary is not available, but here is what RAG found:\n\n{formatted_context}", True

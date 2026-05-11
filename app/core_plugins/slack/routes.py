@@ -167,7 +167,8 @@ def get_connection_status(
 async def _build_llm_provider(
     session: AsyncSession,
     user_id: int,
-    config: SlackConfig,
+    config_id: int,
+    temperature: float,
 ) -> BaseChatProvider | None:
     """Resolve the user's LLMConfig and build a chat provider for synthesis.
 
@@ -179,7 +180,7 @@ async def _build_llm_provider(
             encryption=get_encryption_service(settings.LLM_ENCRYPTION_KEY),
             cache=get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
         )
-    except Exception as exc:  # noqa: BLE001
+    except (ValidationError, ValueError) as exc:
         logger.error("Failed to initialise LLM service for user %d: %s", user_id, exc)
         return None
 
@@ -187,7 +188,7 @@ async def _build_llm_provider(
         llm_config, api_key = await llm_service.resolve(
             session=session,
             user_id=user_id,
-            config_id=config.llm_config_id,  # type: ignore[arg-type]
+            config_id=config_id,
         )
 
         return get_provider(
@@ -195,12 +196,12 @@ async def _build_llm_provider(
             api_key=api_key,
             model=llm_config.model,
             system_prompt=SYNTHESIS_SYSTEM_PROMPT,
-            temperature=config.llm_temperature,
+            temperature=temperature,
         )
     except (ValueError, SQLAlchemyError) as exc:
         logger.warning(
             "Could not resolve LLM config %s for user %d — synthesis disabled: %s",
-            config.llm_config_id,
+            config_id,
             user_id,
             exc,
         )
@@ -306,7 +307,7 @@ async def _dispatch_event(
         else:
             llm_provider: BaseChatProvider | None = None
             if config.llm_config_id is not None:
-                llm_provider = await _build_llm_provider(session, user_id, config)
+                llm_provider = await _build_llm_provider(session, user_id, config.llm_config_id, config.llm_temperature)
 
             try:
                 answer, rag_matched = await answer_question(

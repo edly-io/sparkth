@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.core_plugins.slack.synthesis import synthesize_answer
+from app.core_plugins.slack.synthesis import _MAX_QUESTION_LEN, SYNTHESIS_SYSTEM_PROMPT, synthesize_answer
 
 
 @pytest.mark.asyncio
@@ -53,3 +53,40 @@ async def test_synthesize_raises_when_content_missing() -> None:
             context="test context",
             provider=provider,
         )
+
+
+@pytest.mark.asyncio
+async def test_question_wrapped_in_xml_delimiters() -> None:
+    provider = AsyncMock()
+    provider.send_message = AsyncMock(return_value={"content": "Answer."})
+
+    await synthesize_answer(
+        question="What is OOP?",
+        context="context",
+        provider=provider,
+    )
+
+    user_content = provider.send_message.call_args.kwargs["messages"][0]["content"]
+    assert "<student_question>What is OOP?</student_question>" in user_content
+
+
+@pytest.mark.asyncio
+async def test_question_truncated_to_max_length() -> None:
+    provider = AsyncMock()
+    provider.send_message = AsyncMock(return_value={"content": "Answer."})
+    long_question = "x" * (_MAX_QUESTION_LEN + 500)
+
+    await synthesize_answer(
+        question=long_question,
+        context="context",
+        provider=provider,
+    )
+
+    user_content = provider.send_message.call_args.kwargs["messages"][0]["content"]
+    assert "x" * (_MAX_QUESTION_LEN + 500) not in user_content
+    assert "x" * _MAX_QUESTION_LEN in user_content
+
+
+def test_system_prompt_contains_injection_guardrail() -> None:
+    assert "override" in SYNTHESIS_SYSTEM_PROMPT.lower() or "instruction" in SYNTHESIS_SYSTEM_PROMPT.lower()
+    assert "reveal" in SYNTHESIS_SYSTEM_PROMPT.lower() or "sensitive" in SYNTHESIS_SYSTEM_PROMPT.lower()

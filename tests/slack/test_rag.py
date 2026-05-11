@@ -39,9 +39,7 @@ async def test_returns_rag_answer_when_chunks_found() -> None:
     result.chunk.source_name = "docs.pdf"
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=[result])
+        mock_svc.search_all_sources = AsyncMock(return_value=[result])
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="what is recursion?", config=config, provider=provider
         )
@@ -57,9 +55,7 @@ async def test_returns_fallback_when_no_chunks_found() -> None:
     provider = _make_provider()
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=[])
+        mock_svc.search_all_sources = AsyncMock(return_value=[])
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="who are you?", config=config, provider=provider
         )
@@ -79,9 +75,7 @@ async def test_joins_multiple_chunks_with_newlines() -> None:
     r2.chunk.source_name = "docs.pdf"
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=[r1, r2])
+        mock_svc.search_all_sources = AsyncMock(return_value=[r1, r2])
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="explain loops", config=config, provider=provider
         )
@@ -110,33 +104,27 @@ async def test_allowed_sources_passed_to_similarity_search() -> None:
 
 
 @pytest.mark.asyncio
-async def test_empty_allowed_sources_passes_none_to_similarity_search() -> None:
+async def test_empty_allowed_sources_uses_search_all_sources() -> None:
     config = SlackConfig(allowed_sources=[])
     mock_session = AsyncMock()
     provider = _make_provider()
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=[])
+        mock_svc.search_all_sources = AsyncMock(return_value=[])
         await answer_question(mock_session, user_id=1, question="test", config=config, provider=provider)
 
-    mock_svc._store.similarity_search.assert_awaited_once()
-    _, kwargs = mock_svc._store.similarity_search.call_args
-    assert "source_names" not in kwargs or kwargs.get("source_names") is None
+    mock_svc.search_all_sources.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_similarity_search_receives_correct_params() -> None:
+async def test_search_all_sources_receives_correct_params() -> None:
     config = SlackConfig()
     mock_session = AsyncMock()
     embedding = [0.5] * 384
     provider = _make_provider(embedding)
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=[])
+        mock_svc.search_all_sources = AsyncMock(return_value=[])
         await answer_question(
             mock_session,
             user_id=42,
@@ -147,7 +135,7 @@ async def test_similarity_search_receives_correct_params() -> None:
             limit=3,
         )
 
-    mock_svc._store.similarity_search.assert_awaited_once_with(
+    mock_svc.search_all_sources.assert_awaited_once_with(
         session=mock_session,
         user_id=42,
         query_embedding=embedding,
@@ -173,9 +161,7 @@ async def test_returns_synthesized_answer_when_llm_provider_given() -> None:
         patch("app.core_plugins.slack.rag._rag_service") as mock_svc,
         patch("app.core_plugins.slack.rag.synthesize_answer", new_callable=AsyncMock) as mock_synthesize,
     ):
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=results)
+        mock_svc.search_all_sources = AsyncMock(return_value=results)
         mock_synthesize.return_value = "Synthesized: recursion is self-referential."
 
         answer, rag_matched = await answer_question(
@@ -198,7 +184,7 @@ async def test_returns_synthesized_answer_when_llm_provider_given() -> None:
 
 @pytest.mark.asyncio
 async def test_returns_raw_chunks_when_no_llm_provider() -> None:
-    """When llm_provider is None, returns prefixed message with raw formatted chunks."""
+    """When llm_provider is None (no LLM configured), returns formatted chunks with unavailability message."""
     config = SlackConfig()
     mock_session = AsyncMock()
     provider = _make_provider()
@@ -208,9 +194,7 @@ async def test_returns_raw_chunks_when_no_llm_provider() -> None:
     results = [SimilarityResult(chunk=chunk, similarity=0.9)]
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=results)
+        mock_svc.search_all_sources = AsyncMock(return_value=results)
         answer, rag_matched = await answer_question(
             mock_session,
             user_id=1,
@@ -233,9 +217,7 @@ async def test_synthesis_not_called_when_no_chunks() -> None:
     llm_provider = AsyncMock()
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=[])
+        mock_svc.search_all_sources = AsyncMock(return_value=[])
         answer, rag_matched = await answer_question(
             mock_session,
             user_id=1,
@@ -265,9 +247,7 @@ async def test_falls_back_to_raw_chunks_on_synthesis_error() -> None:
     llm_provider.send_message = AsyncMock(side_effect=LangChainException("API rate limit"))
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
-        mock_svc._store = MagicMock()
-        mock_svc._store.similarity_search = AsyncMock(return_value=results)
+        mock_svc.search_all_sources = AsyncMock(return_value=results)
         answer, rag_matched = await answer_question(
             mock_session,
             user_id=1,
