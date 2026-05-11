@@ -87,7 +87,7 @@ class RAGContextService:
                 raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
             async with profile_memory("section_ranking", source=source_name):
-                ranked_sections = await self._rank_sections(
+                ranked_sections = await self.rank_sections(
                     session=session,
                     user_id=user_id,
                     source_name=source_name,
@@ -162,7 +162,7 @@ class RAGContextService:
             raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
 
         async with profile_memory("section_ranking", source=source_name):
-            ranked_sections = await self._rank_sections(
+            ranked_sections = await self.rank_sections(
                 session=session,
                 user_id=user_id,
                 source_name=source_name,
@@ -203,6 +203,23 @@ class RAGContextService:
         logger.info("RAG: found %d chunks for source_name=%s", len(results), source_name)
         logger.info("RAG chunk IDs in context: %s", [r.chunk.id for r in results])
         return results
+
+    async def search_all_sources(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        query_embedding: list[float],
+        limit: int = constants.DEFAULT_RAG_CHUNKS,
+        similarity_threshold: float = constants.DEFAULT_SIMILARITY_THRESHOLD,
+    ) -> list[SimilarityResult]:
+        """Broad similarity search across all sources for a user."""
+        return await self._store.similarity_search(
+            session=session,
+            user_id=user_id,
+            query_embedding=query_embedding,
+            limit=limit,
+            similarity_threshold=similarity_threshold,
+        )
 
     async def get_context_via_agent(
         self,
@@ -281,7 +298,7 @@ class RAGContextService:
             formatted_text=format_chunks_as_context(source_name, results),
         )
 
-    async def _rank_sections(
+    async def rank_sections(
         self,
         session: AsyncSession,
         user_id: int,

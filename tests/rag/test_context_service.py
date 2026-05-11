@@ -416,3 +416,31 @@ class TestChunkIDLogging:
             # Verify chunk IDs are logged
             log_calls = [str(call) for call in mock_logger.info.call_args_list]
             assert any("[13, 85]" in call for call in log_calls)
+
+    @pytest.mark.asyncio
+    async def test_search_all_sources_delegates_to_store(self) -> None:
+        """search_all_sources is a thin public wrapper around _store.similarity_search."""
+        embedding = [0.5] * 384
+        mock_session = AsyncMock()
+        mock_store = AsyncMock()
+        chunk = _make_chunk("All-source result.")
+        mock_store.similarity_search = AsyncMock(return_value=[SimilarityResult(chunk=chunk, similarity=0.8)])
+        service = RAGContextService(vector_store=mock_store, embedding_provider=MagicMock())
+
+        results = await service.search_all_sources(
+            session=mock_session,
+            user_id=7,
+            query_embedding=embedding,
+            limit=3,
+            similarity_threshold=0.6,
+        )
+
+        mock_store.similarity_search.assert_awaited_once_with(
+            session=mock_session,
+            user_id=7,
+            query_embedding=embedding,
+            limit=3,
+            similarity_threshold=0.6,
+        )
+        assert len(results) == 1
+        assert results[0].chunk.content == "All-source result."

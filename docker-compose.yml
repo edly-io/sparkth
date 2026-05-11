@@ -15,7 +15,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      CHAT_REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://redis:6379
       PORT: "7727"
       TOKENIZERS_PARALLELISM: "false"
     volumes:

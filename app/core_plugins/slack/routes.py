@@ -13,11 +13,13 @@ from sqlmodel import Session, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.db import async_engine, get_session
+from app.core.encryption import get_encryption_service
 from app.core.logger import get_logger
 from app.core_plugins.slack.client import SlackClient
-from app.core_plugins.slack.config import SlackBotConfig
+from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.events import extract_question, is_greeting, should_handle_event
 from app.core_plugins.slack.exceptions import SlackSignatureError
 from app.core_plugins.slack.models import BotResponseLog
@@ -32,12 +34,15 @@ from app.core_plugins.slack.oauth import (
     save_workspace,
 )
 from app.core_plugins.slack.rag import answer_question
+from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.core_plugins.slack.types import (
     AuthorizationUrlResponse,
     BotResponseLogItem,
     ConnectionStatusResponse,
     LogsResponse,
 )
+from app.llm.providers import BaseChatProvider, get_provider
+from app.llm.service import LLMConfigService
 from app.models.user import User
 from app.services.plugin import PluginService
 
@@ -159,6 +164,73 @@ def get_connection_status(
     )
 
 
+async def _build_llm_provider(
+    session: AsyncSession,
+    user_id: int,
+    config_id: int,
+    temperature: float,
+) -> BaseChatProvider | None:
+    """Resolve the user's LLMConfig and build a chat provider for synthesis.
+
+    Returns None if the config cannot be resolved or the provider cannot be built.
+    """
+    try:
+        settings = get_settings()
+        llm_service = LLMConfigService(
+            encryption=get_encryption_service(settings.LLM_ENCRYPTION_KEY),
+            cache=get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
+        )
+    except (ValidationError, ValueError) as exc:
+        logger.error("Failed to initialise LLM service for user %d: %s", user_id, exc)
+        return None
+
+    try:
+        llm_config, api_key = await llm_service.resolve(
+            session=session,
+            user_id=user_id,
+            config_id=config_id,
+        )
+
+        return get_provider(
+            provider_name=llm_config.provider,
+            api_key=api_key,
+            model=llm_config.model,
+            system_prompt=SYNTHESIS_SYSTEM_PROMPT,
+            temperature=temperature,
+        )
+    except (ValueError, SQLAlchemyError) as exc:
+        logger.warning(
+            "Could not resolve LLM config %s for user %d — synthesis disabled: %s",
+            config_id,
+            user_id,
+            exc,
+        )
+        return None
+
+
+async def _post_slack_message(
+    bot_token_encrypted: str,
+    channel: str,
+    text: str,
+    thread_ts: str | None,
+    workspace_id: int,
+) -> str | None:
+    """Decrypt token, post a message, return the posted ts or None on failure."""
+    try:
+        bot_token = decrypt_token(bot_token_encrypted)
+        async with SlackClient(bot_token) as slack:
+            resp = await slack.post_message(channel=channel, text=text, thread_ts=thread_ts)
+        return str(resp.get("ts", ""))
+    except (ValueError, httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logger.error(
+            "Slack delivery failed for workspace %s (%s): %s",
+            workspace_id,
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
+
 async def _dispatch_event(
     workspace_id: int,
     user_id: int,
@@ -166,52 +238,96 @@ async def _dispatch_event(
     bot_user_id: str,
     event: dict[str, Any],
 ) -> None:
-    """Background coroutine: embed question, call RAG, post reply, log result."""
-    config = SlackBotConfig()
+    """Background coroutine: validate plugin, embed question, call RAG, post reply, log result."""
+    question = extract_question(event.get("text", ""), bot_user_id)
+    channel = event.get("channel", "")
+    slack_user = event.get("user", "")
+    thread_ts: str | None = event.get("thread_ts") or event.get("ts")
+
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
         try:
             plugin_map = await PluginService().get_user_plugin_map(session, user_id)
-            user_plugin = plugin_map.get("slack")
-            if user_plugin and user_plugin.config:
-                config = SlackBotConfig(**user_plugin.config)
-        except (SQLAlchemyError, ValidationError) as exc:
-            logger.warning(
-                "Could not load SlackBotConfig for user %s, using defaults: %s",
-                user_id,
-                exc,
-            )
+        except SQLAlchemyError as exc:
+            logger.error("Failed to load plugin map for user %d: %s", user_id, exc)
+            return
 
-        question = extract_question(event.get("text", ""), bot_user_id)
-        channel = event.get("channel", "")
-        slack_user = event.get("user", "")
-        thread_ts: str | None = event.get("thread_ts") or event.get("ts")
+        user_plugin = plugin_map.get("slack")
+        if not user_plugin:
+            logger.info("Slack plugin not configured for user %d", user_id)
+            await _post_slack_message(
+                bot_token_encrypted,
+                channel,
+                "The TA Bot hasn't been set up by your instructor yet. Please check back later.",
+                thread_ts,
+                workspace_id,
+            )
+            return
+
+        if not user_plugin.enabled:
+            logger.info("Slack plugin disabled for user %d", user_id)
+            await _post_slack_message(
+                bot_token_encrypted,
+                channel,
+                "The TA Bot is currently disabled by your instructor.",
+                thread_ts,
+                workspace_id,
+            )
+            return
+
+        if not user_plugin.config:
+            logger.warning("Slack plugin config empty for user %d", user_id)
+            await _post_slack_message(
+                bot_token_encrypted,
+                channel,
+                "The TA Bot configuration is incomplete. Please contact your instructor.",
+                thread_ts,
+                workspace_id,
+            )
+            return
+
+        try:
+            config = SlackConfig(**user_plugin.config)
+        except ValidationError as exc:
+            logger.warning("Invalid SlackConfig for user %d: %s", user_id, exc)
+            await _post_slack_message(
+                bot_token_encrypted,
+                channel,
+                "The TA Bot configuration is invalid. Please contact your instructor.",
+                thread_ts,
+                workspace_id,
+            )
+            return
+
+        answer: str
+        rag_matched: bool
 
         if is_greeting(question):
             answer = config.greeting_message
             rag_matched = False
         else:
+            llm_provider: BaseChatProvider | None = None
+            if config.llm_config_id is not None:
+                llm_provider = await _build_llm_provider(session, user_id, config.llm_config_id, config.llm_temperature)
+
             try:
-                answer, rag_matched = await answer_question(session, user_id, question, config)
+                answer, rag_matched = await answer_question(
+                    session=session,
+                    user_id=user_id,
+                    question=question,
+                    config=config,
+                    llm_provider=llm_provider,
+                )
             except (SQLAlchemyError, LangChainException, OSError) as exc:
                 logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
                 answer = config.fallback_message
                 rag_matched = False
                 await session.rollback()
 
-        try:
-            bot_token = decrypt_token(bot_token_encrypted)
-            async with SlackClient(bot_token) as slack:
-                resp = await slack.post_message(channel=channel, text=answer, thread_ts=thread_ts)
-            posted_ts: str = resp.get("ts", "")
-        except (ValueError, httpx.HTTPStatusError, httpx.RequestError) as exc:
-            logger.error(
-                "Slack delivery failed for workspace %s (%s): %s",
-                workspace_id,
-                type(exc).__name__,
-                exc,
-            )
+        posted_ts = await _post_slack_message(bot_token_encrypted, channel, answer, thread_ts, workspace_id)
+        if posted_ts is None:
             return
 
+        # Audit log
         try:
             session.add(
                 BotResponseLog(

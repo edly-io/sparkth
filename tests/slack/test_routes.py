@@ -2,13 +2,15 @@
 
 import time
 from typing import Any, cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
 from httpx import AsyncClient
 
+from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.models import BotResponseLog, SlackWorkspace
+from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 
 
 class TestGetAuthorizationUrl:
@@ -288,3 +290,307 @@ class TestGetLogs:
         assert item["question"] == "what is a loop?"
         assert item["rag_matched"] is True
         assert item["answer"] == "A loop repeats code."
+
+
+def _make_session_mock() -> tuple[AsyncMock, MagicMock]:
+    """Return (mock_async_session_cls, mock_session) wired as a context manager."""
+    mock_session = AsyncMock()
+    mock_cls = MagicMock()
+    mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+    return mock_cls, mock_session
+
+
+def _make_plugin_svc(user_plugin: MagicMock | None) -> AsyncMock:
+    """Return a PluginService mock whose get_user_plugin_map returns the given plugin (or {})."""
+    instance = AsyncMock()
+    instance.get_user_plugin_map.return_value = {"slack": user_plugin} if user_plugin else {}
+    return instance
+
+
+def _make_slack_client_mock() -> AsyncMock:
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
+    return client
+
+
+class TestDispatchEvent:
+    """Unit tests for _dispatch_event — each test patches the full dependency chain."""
+
+    @staticmethod
+    def _base_patches(user_plugin: MagicMock | None, slack_client: AsyncMock) -> tuple[MagicMock, AsyncMock]:
+        """Return (mock_session_cls, mock_plugin_svc) wired for standard dispatch calls."""
+        mock_session_cls, _ = _make_session_mock()
+        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        return mock_session_cls, mock_plugin_svc
+
+    @pytest.mark.asyncio
+    async def test_posts_not_configured_message_when_plugin_missing(self) -> None:
+        """No UserPlugin row → post informative Slack message, do not process."""
+        event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, mock_plugin_svc = self._base_patches(None, slack_client)
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_awaited_once()
+        _, kwargs = slack_client.post_message.call_args
+        assert "hasn't been set up" in kwargs["text"]
+
+    @pytest.mark.asyncio
+    async def test_posts_disabled_message_when_plugin_disabled(self) -> None:
+        """Plugin exists but enabled=False → post informative Slack message, do not process."""
+        event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
+        user_plugin = MagicMock()
+        user_plugin.enabled = False
+        user_plugin.config = {"bot_name": "TA Bot"}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_awaited_once()
+        _, kwargs = slack_client.post_message.call_args
+        assert "disabled" in kwargs["text"]
+
+    @pytest.mark.asyncio
+    async def test_posts_incomplete_config_message_when_config_empty(self) -> None:
+        """Plugin enabled but config is empty → post informative message, do not process."""
+        event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
+        user_plugin = MagicMock()
+        user_plugin.enabled = True
+        user_plugin.config = {}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_awaited_once()
+        _, kwargs = slack_client.post_message.call_args
+        assert "incomplete" in kwargs["text"]
+
+    @pytest.mark.asyncio
+    async def test_returns_early_on_db_error_loading_plugin(self) -> None:
+        """SQLAlchemyError on get_user_plugin_map → return early silently, no Slack message."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, _ = _make_session_mock()
+        mock_plugin_svc = AsyncMock()
+        mock_plugin_svc.get_user_plugin_map.side_effect = SQLAlchemyError("db down")
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_greeting_posts_greeting_message(self) -> None:
+        """is_greeting=True → posts greeting_message from config, rag_matched=False."""
+        event = {"type": "app_mention", "text": "<@BOT> hello", "channel": "C1", "user": "U1", "ts": "1.0"}
+        user_plugin = MagicMock()
+        user_plugin.enabled = True
+        user_plugin.config = {"greeting_message": "Hey there, student!"}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_awaited_once()
+        _, kwargs = slack_client.post_message.call_args
+        assert kwargs["text"] == "Hey there, student!"
+
+    @pytest.mark.asyncio
+    async def test_question_posts_rag_answer(self) -> None:
+        """Non-greeting question → calls answer_question, posts its result."""
+        event = {
+            "type": "app_mention",
+            "text": "<@BOT> what is a loop?",
+            "channel": "C1",
+            "user": "U1",
+            "ts": "1.0",
+        }
+        user_plugin = MagicMock()
+        user_plugin.enabled = True
+        user_plugin.config = {"fallback_message": "No answer found."}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, _ = _make_session_mock()
+        mock_plugin_svc = _make_plugin_svc(user_plugin)
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch(
+                "app.core_plugins.slack.routes.answer_question",
+                new_callable=AsyncMock,
+                return_value=("A loop repeats code.", True),
+            ),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_awaited_once()
+        _, kwargs = slack_client.post_message.call_args
+        assert kwargs["text"] == "A loop repeats code."
+
+    @pytest.mark.asyncio
+    async def test_rag_failure_posts_fallback(self) -> None:
+        """answer_question raises SQLAlchemyError → posts config.fallback_message."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        event = {
+            "type": "app_mention",
+            "text": "<@BOT> what is a loop?",
+            "channel": "C1",
+            "user": "U1",
+            "ts": "1.0",
+        }
+        user_plugin = MagicMock()
+        user_plugin.enabled = True
+        user_plugin.config = {"fallback_message": "Sorry, try again later."}
+        slack_client = _make_slack_client_mock()
+        mock_session_cls, _ = _make_session_mock()
+        mock_plugin_svc = _make_plugin_svc(user_plugin)
+
+        with (
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
+            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch(
+                "app.core_plugins.slack.routes.answer_question",
+                new_callable=AsyncMock,
+                side_effect=SQLAlchemyError("vector store failed"),
+            ),
+        ):
+            from app.core_plugins.slack.routes import _dispatch_event
+
+            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
+
+        slack_client.post_message.assert_awaited_once()
+        _, kwargs = slack_client.post_message.call_args
+        assert kwargs["text"] == "Sorry, try again later."
+
+
+@pytest.mark.asyncio
+async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
+    """When llm_config_id is set and resolves successfully, llm_provider is passed."""
+    config = SlackConfig(llm_config_id=7)
+    event = {
+        "type": "app_mention",
+        "text": "<@BOT> what is recursion?",
+        "channel": "C123",
+        "user": "U456",
+        "ts": "1234.5678",
+    }
+
+    mock_llm_config = MagicMock()
+    mock_llm_config.provider = "anthropic"
+    mock_llm_config.model = "claude-haiku-4-5"
+
+    mock_slack_client = AsyncMock()
+    mock_slack_client.__aenter__ = AsyncMock(return_value=mock_slack_client)
+    mock_slack_client.__aexit__ = AsyncMock(return_value=False)
+    mock_slack_client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
+
+    with (
+        patch("app.core_plugins.slack.routes.PluginService") as mock_plugin_svc,
+        patch("app.core_plugins.slack.routes.answer_question", new_callable=AsyncMock) as mock_aq,
+        patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+        patch("app.core_plugins.slack.routes.SlackClient", return_value=mock_slack_client),
+        patch("app.core_plugins.slack.routes.LLMConfigService") as mock_llm_svc_cls,
+        patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
+        patch("app.core_plugins.slack.routes.get_encryption_service"),
+        patch("app.core_plugins.slack.routes.get_cache_service"),
+        patch("app.core_plugins.slack.routes.get_settings"),
+        patch("app.core_plugins.slack.routes.AsyncSession") as mock_async_session_cls,
+    ):
+        mock_aq.return_value = ("Synthesized answer", True)
+
+        # Simulate plugin config returning LLM-enabled config
+        mock_plugin_instance = AsyncMock()
+        mock_user_plugin = MagicMock()
+        mock_user_plugin.enabled = True
+        mock_user_plugin.config = config.model_dump()
+        mock_plugin_instance.get_user_plugin_map.return_value = {"slack": mock_user_plugin}
+        mock_plugin_svc.return_value = mock_plugin_instance
+
+        # Simulate LLMConfigService.resolve returning config + decrypted key
+        mock_llm_svc = AsyncMock()
+        mock_llm_svc.resolve.return_value = (mock_llm_config, "sk-decrypted-key")
+        mock_llm_svc_cls.return_value = mock_llm_svc
+
+        mock_provider_instance = MagicMock()
+        mock_get_provider.return_value = mock_provider_instance
+
+        # Wire up the async session context manager
+        mock_session = AsyncMock()
+        mock_async_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_async_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        from app.core_plugins.slack.routes import _dispatch_event
+
+        await _dispatch_event(
+            workspace_id=1,
+            user_id=1,
+            bot_token_encrypted="encrypted-token",
+            bot_user_id="BOT",
+            event=event,
+        )
+
+        # Verify answer_question received an llm_provider
+        mock_aq.assert_awaited_once()
+        call_kwargs = mock_aq.call_args.kwargs
+        assert call_kwargs.get("llm_provider") is mock_provider_instance
+
+        # Verify get_provider was called with the resolved config values
+        mock_get_provider.assert_called_once()
+        gp_kwargs = mock_get_provider.call_args.kwargs
+        assert gp_kwargs["provider_name"] == "anthropic"
+        assert gp_kwargs["api_key"] == "sk-decrypted-key"
+        assert gp_kwargs["model"] == "claude-haiku-4-5"
+        assert gp_kwargs["system_prompt"] == SYNTHESIS_SYSTEM_PROMPT

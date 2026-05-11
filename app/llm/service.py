@@ -176,6 +176,9 @@ class LLMConfigService:
         session.add(config)
         await session.flush()
         await session.refresh(config)
+        if not is_active:
+            cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
+            await self.cache.delete(cache_key)
         logger.info("Set LLMConfig id=%s is_active=%s for user_id=%s", config_id, is_active, user_id)
         return config
 
