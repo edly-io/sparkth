@@ -5,6 +5,7 @@ preserving heading hierarchy, lists, and tables for downstream chunking.
 """
 
 import io
+import random
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -101,25 +102,36 @@ class ExtractionResult:
         return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
 
 
-def _is_scanned_pdf(doc: Any, min_chars_per_page: int, sample_pages: int = 5) -> bool:
-    """Detect scanned/image-only PDFs by sampling text density across pages.
+def _is_scanned_pdf(doc: Any, min_chars_per_page: int, sample_ratio: float = 0.1) -> bool:
+    """Detect scanned/image-only PDFs by sampling text density on a random subset of pages.
 
     A born-digital PDF averages thousands of chars per page. A scanned PDF
     averages near zero because the page content lives in embedded images.
+    Sampling ~10% of pages at random spreads coverage so a few atypical
+    pages (covers, blank inserts, watermarks) cannot dominate the decision.
     """
     page_count = len(doc)
     if page_count == 0:
         return False
 
-    step = max(1, page_count // sample_pages)
-    sampled = list(range(0, page_count, step))[:sample_pages]
+    sample_size = max(1, round(page_count * sample_ratio))
+    sample_size = min(sample_size, page_count)
+    sampled = random.sample(range(page_count), sample_size)
 
     total_chars = 0
     for page_idx in sampled:
         text = doc[page_idx].get_text("text").strip()
         total_chars += len(text)
 
-    return (total_chars / len(sampled)) < min_chars_per_page
+    avg_chars = total_chars / len(sampled)
+    logger.debug(
+        "Scanned-PDF check: sampled %d/%d pages, avg %.1f chars/page (threshold %d)",
+        len(sampled),
+        page_count,
+        avg_chars,
+        min_chars_per_page,
+    )
+    return avg_chars < min_chars_per_page
 
 
 def _extract_pdf(data: bytes, source_name: str, *, batch_size: int = 10) -> ExtractionResult:
@@ -127,17 +139,18 @@ def _extract_pdf(data: bytes, source_name: str, *, batch_size: int = 10) -> Extr
     with fitz.open(stream=data, filetype="pdf") as doc:
         if _is_scanned_pdf(doc, min_chars_per_page=settings.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE):
             raise ScannedPDFError(source_name)
-
         page_count = len(doc)
         parts: list[str] = []
-        for start in range(0, page_count, batch_size):
-            pages = list(range(start, min(start + batch_size, page_count)))
-            batch_md = pymupdf4llm.to_markdown(doc=doc, pages=pages, page_chunks=False)
-            parts.append(batch_md)
-            # Release MuPDF's C-level font/image store between batches so peak
-            # RSS stays bounded regardless of total page count.
+        try:
+            for start in range(0, page_count, batch_size):
+                pages = list(range(start, min(start + batch_size, page_count)))
+                batch_md = pymupdf4llm.to_markdown(doc=doc, pages=pages, page_chunks=False)
+                parts.append(batch_md)
+                # Release MuPDF's C-level font/image store between batches so peak
+                # RSS stays bounded regardless of total page count.
+                fitz.TOOLS.store_shrink(100)
+        finally:
             fitz.TOOLS.store_shrink(100)
-
     md = "\n\n".join(parts).replace("\n-----\n", "\n\n")
     return ExtractionResult(
         markdown=md,
