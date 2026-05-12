@@ -19,17 +19,17 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
     """
 
     @staticmethod
-    async def _fetch_llm_config(
+    async def _fetch_llm_config_any(
         session: AsyncSession,
         user_id: int,
         config_id: int,
     ) -> LLMConfig | None:
+        """Fetch a config regardless of is_active state (for preprocess validation)."""
         result = await session.exec(
             select(LLMConfig).where(
                 LLMConfig.id == config_id,
                 LLMConfig.user_id == user_id,
                 col(LLMConfig.is_deleted) == False,  # noqa: E712
-                col(LLMConfig.is_active) == True,  # noqa: E712
             )
         )
         return result.first()
@@ -54,8 +54,11 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
             return incoming_config
 
         config_id = self._parse_config_id(raw_id)
-        if await self._fetch_llm_config(session, user_id, config_id) is None:
+        llm = await self._fetch_llm_config_any(session, user_id, config_id)
+        if llm is None:
             raise ValueError(f"llm_config_id {config_id} not found or does not belong to this user.")
+        if not llm.is_active:
+            raise ValueError("This record is deactivated. Reactivate it in AI Keys or select a different config.")
         return {**incoming_config, "llm_config_id": config_id}
 
     async def postprocess_config(
@@ -73,7 +76,7 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
                 config_id = int(raw_id)
             except (ValueError, TypeError):
                 config_id = None
-        llm = await self._fetch_llm_config(session, user_id, config_id) if config_id is not None else None
+        llm = await self._fetch_llm_config_any(session, user_id, config_id) if config_id is not None else None
         if llm is None:
             config.update(_EMPTY_LLM_FIELDS)
         else:
