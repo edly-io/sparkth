@@ -53,7 +53,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             )}
           >
             {placeholder && (
-              <option value="" disabled>
+              <option value="" hidden>
                 {placeholder}
               </option>
             )}

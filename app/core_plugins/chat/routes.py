@@ -313,7 +313,7 @@ async def chat_completion(
         )
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = "No AI Key found for the current user."
+        detail = "No AI Key found for the current user. Please configure an AI key in your chat plugin settings.."
         await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
     except LLMConfigModelNotSetError as exc:
