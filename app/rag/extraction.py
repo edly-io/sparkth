@@ -101,6 +101,19 @@ class ExtractionResult:
         return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
 
 
+def _summarize_per_page(counts: list[int], head: int = 10, tail: int = 5) -> str:
+    """Format a per-page char-count list for DEBUG logs without flooding them.
+
+    For short lists (<= head + tail), returns the full list. For longer lists,
+    returns the first `head` and last `tail` entries with an ellipsis between,
+    so a reviewer can still see the shape (e.g. "starts dense, tails off") on
+    a 500-page document without scrolling through 500 integers.
+    """
+    if len(counts) <= head + tail:
+        return repr(counts)
+    return f"{counts[:head]!r} ... {counts[-tail:]!r}"
+
+
 def _is_scanned_pdf(doc: Any, min_chars_per_page: int) -> bool:
     """Detect scanned/image-only PDFs by walking pages with an early-exit guarantee.
 
@@ -134,7 +147,7 @@ def _is_scanned_pdf(doc: Any, min_chars_per_page: int) -> bool:
                 page_count,
                 cumulative,
                 required_total,
-                per_page_counts,
+                _summarize_per_page(per_page_counts),
             )
             return False
 
@@ -143,7 +156,7 @@ def _is_scanned_pdf(doc: Any, min_chars_per_page: int) -> bool:
         page_count,
         cumulative / page_count,
         min_chars_per_page,
-        per_page_counts,
+        _summarize_per_page(per_page_counts),
     )
     return True
 

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.rag.exceptions import ScannedPDFError
-from app.rag.extraction import _extract_pdf, _is_scanned_pdf
+from app.rag.extraction import _extract_pdf, _is_scanned_pdf, _summarize_per_page
 
 
 def _make_doc(pages_text: list[str]) -> MagicMock:
@@ -172,3 +172,33 @@ class TestExtractPDFRejectsScanned:
             mock_settings.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 10
             # Should NOT raise — 50 > 10
             _extract_pdf(b"%PDF-fake", "borderline.pdf")
+
+
+class TestSummarizePerPage:
+    def test_short_list_returned_in_full(self) -> None:
+        counts = [10, 20, 30]
+        assert _summarize_per_page(counts) == repr(counts)
+
+    def test_list_at_boundary_returned_in_full(self) -> None:
+        """A list whose length equals head + tail must still be shown in full."""
+        counts = list(range(15))  # default head=10 + tail=5
+        assert _summarize_per_page(counts) == repr(counts)
+
+    def test_long_list_truncated_with_ellipsis(self) -> None:
+        counts = list(range(500))
+        summary = _summarize_per_page(counts)
+        assert summary.startswith(repr(counts[:10]))
+        assert summary.endswith(repr(counts[-5:]))
+        assert "..." in summary
+
+    def test_truncated_summary_is_bounded_in_size(self) -> None:
+        """A 5000-page summary should still be much smaller than the full list repr."""
+        counts = list(range(5000))
+        summary = _summarize_per_page(counts)
+        assert len(summary) < len(repr(counts)) // 10  # at least 10x smaller
+
+    def test_custom_head_and_tail(self) -> None:
+        counts = list(range(100))
+        summary = _summarize_per_page(counts, head=3, tail=2)
+        assert summary.startswith(repr([0, 1, 2]))
+        assert summary.endswith(repr([98, 99]))
