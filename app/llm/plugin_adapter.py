@@ -5,6 +5,7 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.llm.exceptions import LLMConfigInactiveError
 from app.models.llm import LLMConfig
 from app.services.plugin_adapters.base import PluginConfigAdapter
 
@@ -42,6 +43,22 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
         except (ValueError, TypeError) as exc:
             raise ValueError(f"llm_config_id must be an integer, got {raw!r}") from exc
 
+    @staticmethod
+    async def _fetch_inactive_llm_config(
+        session: AsyncSession,
+        user_id: int,
+        config_id: int,
+    ) -> LLMConfig | None:
+        result = await session.exec(
+            select(LLMConfig).where(
+                LLMConfig.id == config_id,
+                LLMConfig.user_id == user_id,
+                col(LLMConfig.is_deleted) == False,  # noqa: E712
+                col(LLMConfig.is_active) == False,  # noqa: E712
+            )
+        )
+        return result.first()
+
     async def preprocess_config(
         self,
         *,
@@ -55,6 +72,8 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
 
         config_id = self._parse_config_id(raw_id)
         if await self._fetch_llm_config(session, user_id, config_id) is None:
+            if await self._fetch_inactive_llm_config(session, user_id, config_id) is not None:
+                raise LLMConfigInactiveError()
             raise ValueError(f"llm_config_id {config_id} not found or does not belong to this user.")
         return {**incoming_config, "llm_config_id": config_id}
 

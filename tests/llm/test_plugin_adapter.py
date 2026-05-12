@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.llm.exceptions import LLMConfigInactiveError
 from app.llm.plugin_adapter import LLMConfigPluginAdapter
 from app.models import LLMConfig
 
@@ -52,6 +53,36 @@ async def test_preprocess_unknown_llm_config_id_raises() -> None:
             session=session,
             user_id=1,
             incoming_config={"llm_config_id": 999},
+        )
+
+
+@pytest.mark.asyncio
+async def test_preprocess_inactive_llm_config_raises_inactive_error() -> None:
+    adapter = ConcreteAdapter()
+    inactive_config = LLMConfig(
+        id=5,
+        user_id=1,
+        name="K",
+        provider="openai",
+        model="gpt-4o",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+        is_active=False,
+    )
+    # First exec (active lookup) → None; second exec (inactive lookup) → the deactivated config.
+    not_found = MagicMock()
+    not_found.first.return_value = None
+    found_inactive = MagicMock()
+    found_inactive.first.return_value = inactive_config
+
+    session = AsyncMock()
+    session.exec.side_effect = [not_found, found_inactive]
+
+    with pytest.raises(LLMConfigInactiveError):
+        await adapter.preprocess_config(
+            session=session,
+            user_id=1,
+            incoming_config={"llm_config_id": 5},
         )
 
 

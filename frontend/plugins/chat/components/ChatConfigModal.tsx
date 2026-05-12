@@ -105,7 +105,8 @@ export default function ChatConfigModal({
     ...providerModels.map((m) => ({ value: m, label: m })),
   ];
 
-  const canSave = !isSaving && llmConfigId !== undefined;
+  const selectedIsInactive = selectedConfig !== undefined && !selectedConfig.is_active;
+  const canSave = !isSaving && llmConfigId !== undefined && !selectedIsInactive;
 
   const handleSave = async () => {
     try {
