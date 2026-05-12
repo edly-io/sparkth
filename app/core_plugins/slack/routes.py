@@ -51,6 +51,8 @@ from app.services.plugin import PluginService
 router: APIRouter = APIRouter()
 logger = get_logger(__name__)
 
+SLACK_FRONTEND_PATH = "/dashboard/slack"
+
 
 def require_user_id(current_user: User = Depends(get_current_user)) -> int:
     if current_user.id is None:
@@ -133,7 +135,7 @@ async def oauth_callback(
             detail="Unexpected response from Slack. Please try again.",
         ) from exc
 
-    return RedirectResponse(url="/dashboard/slack?connected=true")
+    return RedirectResponse(url=f"{SLACK_FRONTEND_PATH}?connected=true")
 
 
 @router.delete("/oauth/disconnect")
@@ -433,10 +435,15 @@ def get_response_logs(
     base_stmt = select(BotResponseLog).where(col(BotResponseLog.workspace_id) == workspace.id)
 
     if since_id is not None:
-        stmt = base_stmt.where(col(BotResponseLog.id) > since_id).order_by(col(BotResponseLog.id).asc()).limit(limit)
+        stmt = (
+            base_stmt.where(col(BotResponseLog.id) > since_id).order_by(col(BotResponseLog.id).asc()).limit(limit + 1)
+        )
         rows = session.exec(stmt).all()
+        has_more = len(rows) > limit
+        if has_more:
+            rows = rows[:limit]
         items = [_to_log_item(r) for r in rows]
-        return LogsResponse(items=items, total=len(items), next_cursor=None, has_more=False)
+        return LogsResponse(items=items, total=len(items), next_cursor=rows[-1].id if rows else None, has_more=has_more)
 
     if cursor is not None:
         stmt = base_stmt.where(col(BotResponseLog.id) < cursor)

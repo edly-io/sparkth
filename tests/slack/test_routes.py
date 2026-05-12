@@ -362,8 +362,24 @@ class TestGetLogs:
         data = response.json()
         returned_ids = [item["id"] for item in data["items"]]
         assert returned_ids == [ids[3], ids[4]]
-        assert data["next_cursor"] is None
+        assert data["next_cursor"] == ids[4]
         assert data["has_more"] is False
+
+    @pytest.mark.asyncio
+    async def test_since_id_has_more_when_results_exceed_limit(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
+
+        response = await slack_client.get("/api/v1/slack/logs?since_id=0&limit=3")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["items"]) == 3
+        assert data["has_more"] is True
+        assert data["next_cursor"] == ids[2]
 
     @pytest.mark.asyncio
     async def test_cursor_and_since_id_together_returns_400(
