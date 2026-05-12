@@ -73,6 +73,10 @@ migrations: ## Run Alembic migrations in Docker
 rag-cleanup: ## Run RAG cleanup task in Docker
 	docker compose -f docker-compose.yml run --rm rag-cleanup 2>&1 | tail -1
 
+app-restart: ## Restart the API container for fast iteration
+	docker compose down api
+	docker compose up api -d
+
 # --------------------------------------------------
 # User Management (Runs inside Docker)
 # --------------------------------------------------

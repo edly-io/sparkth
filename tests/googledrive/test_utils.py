@@ -20,6 +20,7 @@ from app.core_plugins.googledrive.utils import (
     process_folder_rag,
 )
 from app.models.drive import DriveFile, DriveFolder
+from app.rag.exceptions import ScannedPDFError
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, ChunkMetadata, RagStatus
 
@@ -759,6 +760,34 @@ class TestProcessSingleFile:
         )
 
         assert drive_file.rag_status == RagStatus.FAILED
+
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
+    @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
+    async def test_scanned_pdf_marks_failed_with_user_message(
+        self,
+        mock_extract: MagicMock,
+        mock_find_dup: AsyncMock,
+        mock_download: AsyncMock,
+    ) -> None:
+        """ScannedPDFError must transition the file to FAILED with the generic user message."""
+        session = _make_async_session()
+        provider = AsyncMock()
+        store = AsyncMock()
+        mock_download.return_value = b"%PDF-fake"
+        mock_extract.side_effect = ScannedPDFError("internal/path/secret.pdf")
+
+        drive_file = _make_drive_file(name="english 4.pdf")
+
+        await _process_single_file(
+            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
+        )
+
+        assert drive_file.rag_status == RagStatus.FAILED
+        assert drive_file.rag_error == ScannedPDFError.USER_MESSAGE
+        # The source_name passed into ScannedPDFError must NOT appear in the user-facing error
+        assert "internal/path" not in (drive_file.rag_error or "")
+        assert "secret.pdf" not in (drive_file.rag_error or "")
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_google_doc_filename_resolved(self, mock_download: AsyncMock) -> None:
