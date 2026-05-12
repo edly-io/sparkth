@@ -60,30 +60,51 @@ class TestIsScannedPDF:
         doc = _make_doc(["short"])
         assert _is_scanned_pdf(doc, min_chars_per_page=100) is True
 
-    def test_sample_size_is_ten_percent(self) -> None:
-        """For a 100-page doc with sample_ratio=0.1 we should read exactly 10 pages."""
-        doc = _make_doc(["text " * 500] * 100)
-        _is_scanned_pdf(doc, min_chars_per_page=100, sample_ratio=0.1)
-        assert doc.__getitem__.call_count == 10
+    def test_decision_is_deterministic(self) -> None:
+        """Repeated calls on the same doc return the same answer and read the same pages."""
+        pages_text = ["lorem ipsum " * 50] * 20
+        results = []
+        call_counts = []
+        for _ in range(5):
+            doc = _make_doc(pages_text)
+            results.append(_is_scanned_pdf(doc, min_chars_per_page=100))
+            call_counts.append(doc.__getitem__.call_count)
+        assert len(set(results)) == 1  # same answer every time
+        assert len(set(call_counts)) == 1  # same pages read every time
 
-    def test_sample_size_rounds_up_to_at_least_one(self) -> None:
-        """For tiny docs, sample size must be at least 1 even though 10% rounds to 0."""
-        doc = _make_doc(["text"] * 3)
-        _is_scanned_pdf(doc, min_chars_per_page=100, sample_ratio=0.1)
-        assert doc.__getitem__.call_count >= 1
+    def test_born_digital_doc_exits_early(self) -> None:
+        """A doc whose first page already crosses the threshold should not read every page."""
+        page_count = 50
+        # Page 0 has way more than 50 * 100 chars; later pages should never be touched.
+        pages_text = ["x" * (100 * page_count + 1)] + ["x" * 100] * (page_count - 1)
+        doc = _make_doc(pages_text)
+        result = _is_scanned_pdf(doc, min_chars_per_page=100)
+        assert result is False
+        assert doc.__getitem__.call_count == 1
 
-    def test_sample_size_capped_at_page_count(self) -> None:
-        """sample_ratio > 1 should not try to sample more pages than exist."""
-        doc = _make_doc(["text " * 500] * 4)
-        _is_scanned_pdf(doc, min_chars_per_page=100, sample_ratio=2.0)
-        assert doc.__getitem__.call_count == 4
+    def test_scanned_doc_walks_every_page(self) -> None:
+        """An image-only doc has to look at every page to be sure (no early-exit applies)."""
+        page_count = 20
+        doc = _make_doc([""] * page_count)
+        result = _is_scanned_pdf(doc, min_chars_per_page=100)
+        assert result is True
+        assert doc.__getitem__.call_count == page_count
 
-    def test_random_sampling_uses_random_module(self) -> None:
-        """Verify the function uses random.sample (not a fixed stride)."""
-        doc = _make_doc(["text " * 500] * 100)
-        with patch("app.rag.extraction.random.sample", wraps=lambda r, k: list(r)[:k]) as mock_sample:
-            _is_scanned_pdf(doc, min_chars_per_page=100, sample_ratio=0.1)
-        mock_sample.assert_called_once()
+    def test_mixed_content_near_threshold_is_deterministic(self) -> None:
+        """A small doc with one rich page and one sparse page: same answer every run."""
+        # 2-page doc, threshold 100. Page 0: 150 chars, page 1: 50 chars.
+        # Total = 200; required = 100 * 2 = 200. Cumulative reaches required on page 1,
+        # not page 0, so order matters but the answer is fixed.
+        pages_text = ["x" * 150, "y" * 50]
+        results = [_is_scanned_pdf(_make_doc(pages_text), min_chars_per_page=100) for _ in range(10)]
+        assert all(r == results[0] for r in results)
+
+    def test_walks_pages_in_order(self) -> None:
+        """First page read is index 0, second is index 1, etc. (no random ordering)."""
+        doc = _make_doc([""] * 5)
+        _is_scanned_pdf(doc, min_chars_per_page=100)
+        indices_read = [call.args[0] for call in doc.__getitem__.call_args_list]
+        assert indices_read == [0, 1, 2, 3, 4]
 
 
 class TestExtractPDFRejectsScanned:

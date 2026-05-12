@@ -5,7 +5,6 @@ preserving heading hierarchy, lists, and tables for downstream chunking.
 """
 
 import io
-import random
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -102,36 +101,51 @@ class ExtractionResult:
         return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
 
 
-def _is_scanned_pdf(doc: Any, min_chars_per_page: int, sample_ratio: float = 0.1) -> bool:
-    """Detect scanned/image-only PDFs by sampling text density on a random subset of pages.
+def _is_scanned_pdf(doc: Any, min_chars_per_page: int) -> bool:
+    """Detect scanned/image-only PDFs by walking pages with an early-exit guarantee.
 
-    A born-digital PDF averages thousands of chars per page. A scanned PDF
-    averages near zero because the page content lives in embedded images.
-    Sampling ~10% of pages at random spreads coverage so a few atypical
-    pages (covers, blank inserts, watermarks) cannot dominate the decision.
+    The decision is deterministic: a PDF is treated as scanned iff its
+    average plain-text chars-per-page is strictly below
+    `min_chars_per_page`. To avoid reading every page on born-digital
+    documents, we walk in order and exit as soon as the running total
+    crosses the threshold required for the whole document — at that
+    point the remaining pages cannot pull the average below it even if
+    they contribute zero characters.
+
+    Cost is bounded: born-digital PDFs exit after 1–3 pages; scanned
+    PDFs walk every page, but fitz's `get_text` on an image-only page
+    is microseconds (no rendering — it reports an empty text layer).
     """
     page_count = len(doc)
     if page_count == 0:
         return False
 
-    sample_size = max(1, round(page_count * sample_ratio))
-    sample_size = min(sample_size, page_count)
-    sampled = random.sample(range(page_count), sample_size)
+    required_total = min_chars_per_page * page_count
+    per_page_counts: list[int] = []
+    cumulative = 0
+    for i in range(page_count):
+        chars = len(doc[i].get_text("text").strip())
+        per_page_counts.append(chars)
+        cumulative += chars
+        if cumulative >= required_total:
+            logger.debug(
+                "Scanned-PDF check: passed early at page %d/%d (cumulative=%d, required=%d, per-page so far=%s)",
+                i + 1,
+                page_count,
+                cumulative,
+                required_total,
+                per_page_counts,
+            )
+            return False
 
-    total_chars = 0
-    for page_idx in sampled:
-        text = doc[page_idx].get_text("text").strip()
-        total_chars += len(text)
-
-    avg_chars = total_chars / len(sampled)
     logger.debug(
-        "Scanned-PDF check: sampled %d/%d pages, avg %.1f chars/page (threshold %d)",
-        len(sampled),
+        "Scanned-PDF check: rejected after %d pages, avg %.1f chars/page (threshold %d, per-page=%s)",
         page_count,
-        avg_chars,
+        cumulative / page_count,
         min_chars_per_page,
+        per_page_counts,
     )
-    return avg_chars < min_chars_per_page
+    return True
 
 
 def _extract_pdf(data: bytes, source_name: str, *, batch_size: Optional[int] = None) -> ExtractionResult:
