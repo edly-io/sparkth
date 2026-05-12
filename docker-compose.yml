@@ -74,6 +74,8 @@ services:
     image: sparkth:local
     pull_policy: never
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
       TOKENIZERS_PARALLELISM: "false"
