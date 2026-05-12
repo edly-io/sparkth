@@ -6,11 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.models import BotResponseLog, SlackWorkspace
 from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
+from app.main import app
+from app.models.user import User
 
 
 class TestGetAuthorizationUrl:
@@ -291,6 +293,111 @@ class TestGetLogs:
         assert item["rag_matched"] is True
         assert item["answer"] == "A loop repeats code."
 
+    def _insert_logs(self, sync_session: Any, workspace_id: int, count: int) -> list[int]:
+        """Insert `count` BotResponseLog rows; return their ids in insertion order."""
+        ids: list[int] = []
+        for i in range(count):
+            log = BotResponseLog(
+                workspace_id=workspace_id,
+                slack_channel="C1",
+                slack_user="U1",
+                slack_ts=f"100{i}.0000",
+                question=f"q{i}",
+                answer=f"a{i}",
+                rag_matched=(i % 2 == 0),
+            )
+            sync_session.add(log)
+            sync_session.commit()
+            sync_session.refresh(log)
+            ids.append(log.id)  # type: ignore[arg-type]
+        return ids
+
+    @pytest.mark.asyncio
+    async def test_default_page_returns_most_recent_desc(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
+
+        response = await slack_client.get("/api/v1/slack/logs?limit=3")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        returned_ids = [item["id"] for item in data["items"]]
+        assert returned_ids == list(reversed(ids))[:3]
+        assert data["next_cursor"] == returned_ids[-1]
+        assert data["has_more"] is True
+
+    @pytest.mark.asyncio
+    async def test_cursor_returns_older_entries(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
+        cursor = ids[3]
+
+        response = await slack_client.get(f"/api/v1/slack/logs?cursor={cursor}&limit=10")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        returned_ids = [item["id"] for item in data["items"]]
+        assert returned_ids == [ids[2], ids[1], ids[0]]
+        assert data["has_more"] is False
+        assert data["next_cursor"] == ids[0]
+
+    @pytest.mark.asyncio
+    async def test_since_id_returns_newer_entries_asc(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
+        since = ids[2]
+
+        response = await slack_client.get(f"/api/v1/slack/logs?since_id={since}&limit=10")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        returned_ids = [item["id"] for item in data["items"]]
+        assert returned_ids == [ids[3], ids[4]]
+        assert data["next_cursor"] is None
+        assert data["has_more"] is False
+
+    @pytest.mark.asyncio
+    async def test_cursor_and_since_id_together_returns_400(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+    ) -> None:
+        response = await slack_client.get("/api/v1/slack/logs?cursor=5&since_id=3")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_limit_bounds_enforced(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+    ) -> None:
+        response = await slack_client.get("/api/v1/slack/logs?limit=0")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        response = await slack_client.get("/api/v1/slack/logs?limit=201")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @pytest.mark.asyncio
+    async def test_empty_result_has_no_cursor(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+    ) -> None:
+        response = await slack_client.get("/api/v1/slack/logs")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["items"] == []
+        assert data["next_cursor"] is None
+        assert data["has_more"] is False
+
 
 def _make_session_mock() -> tuple[AsyncMock, MagicMock]:
     """Return (mock_async_session_cls, mock_session) wired as a context manager."""
@@ -516,6 +623,58 @@ class TestDispatchEvent:
         assert kwargs["text"] == "Sorry, try again later."
 
 
+class TestRagSources:
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_user_has_no_sources(
+        self,
+        slack_client: AsyncClient,
+        test_user: User,
+    ) -> None:
+        with patch(
+            "app.core_plugins.slack.routes.VectorStoreService",
+        ) as mock_store_cls:
+            mock_store = AsyncMock()
+            mock_store.get_sources = AsyncMock(return_value=[])
+            mock_store_cls.return_value = mock_store
+
+            response = await slack_client.get("/api/v1/slack/rag/sources")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data == {"sources": []}
+
+    @pytest.mark.asyncio
+    async def test_returns_distinct_sources_for_user(
+        self,
+        slack_client: AsyncClient,
+        test_user: User,
+    ) -> None:
+        with patch(
+            "app.core_plugins.slack.routes.VectorStoreService",
+        ) as mock_store_cls:
+            mock_store = AsyncMock()
+            mock_store.get_sources = AsyncMock(return_value=["doc_a", "doc_b"])
+            mock_store_cls.return_value = mock_store
+
+            response = await slack_client.get("/api/v1/slack/rag/sources")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert sorted(data["sources"]) == ["doc_a", "doc_b"]
+
+    @pytest.mark.asyncio
+    async def test_requires_authentication(self) -> None:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as ac:
+            response = await ac.get("/api/v1/slack/rag/sources")
+            assert response.status_code in (
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            )
+
+
 @pytest.mark.asyncio
 async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
     """When llm_config_id is set and resolves successfully, llm_provider is passed."""
@@ -594,3 +753,70 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         assert gp_kwargs["api_key"] == "sk-decrypted-key"
         assert gp_kwargs["model"] == "claude-haiku-4-5"
         assert gp_kwargs["system_prompt"] == SYNTHESIS_SYSTEM_PROMPT
+
+
+@pytest.mark.asyncio
+async def test_dispatch_event_uses_model_override_when_configured() -> None:
+    """When llm_model_override is set, get_provider is called with the override model."""
+    config = SlackConfig(llm_config_id=7, llm_model_override="claude-haiku-4-5")
+    event = {
+        "type": "app_mention",
+        "text": "<@BOT> what is recursion?",
+        "channel": "C123",
+        "user": "U456",
+        "ts": "1234.5678",
+    }
+
+    mock_llm_config = MagicMock()
+    mock_llm_config.provider = "anthropic"
+    mock_llm_config.model = "claude-sonnet-4-6"  # the config's model — should be overridden
+
+    mock_slack_client = AsyncMock()
+    mock_slack_client.__aenter__ = AsyncMock(return_value=mock_slack_client)
+    mock_slack_client.__aexit__ = AsyncMock(return_value=False)
+    mock_slack_client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
+
+    with (
+        patch("app.core_plugins.slack.routes.PluginService") as mock_plugin_svc,
+        patch("app.core_plugins.slack.routes.answer_question", new_callable=AsyncMock) as mock_aq,
+        patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
+        patch("app.core_plugins.slack.routes.SlackClient", return_value=mock_slack_client),
+        patch("app.core_plugins.slack.routes.LLMConfigService") as mock_llm_svc_cls,
+        patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
+        patch("app.core_plugins.slack.routes.get_encryption_service"),
+        patch("app.core_plugins.slack.routes.get_cache_service"),
+        patch("app.core_plugins.slack.routes.get_settings"),
+        patch("app.core_plugins.slack.routes.AsyncSession") as mock_async_session_cls,
+    ):
+        mock_aq.return_value = ("Synthesized answer", True)
+
+        mock_plugin_instance = AsyncMock()
+        mock_user_plugin = MagicMock()
+        mock_user_plugin.enabled = True
+        mock_user_plugin.config = config.model_dump()
+        mock_plugin_instance.get_user_plugin_map.return_value = {"slack": mock_user_plugin}
+        mock_plugin_svc.return_value = mock_plugin_instance
+
+        mock_llm_svc = AsyncMock()
+        mock_llm_svc.resolve.return_value = (mock_llm_config, "sk-decrypted-key")
+        mock_llm_svc_cls.return_value = mock_llm_svc
+
+        mock_get_provider.return_value = MagicMock()
+
+        mock_session = AsyncMock()
+        mock_async_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_async_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        from app.core_plugins.slack.routes import _dispatch_event
+
+        await _dispatch_event(
+            workspace_id=1,
+            user_id=1,
+            bot_token_encrypted="encrypted-token",
+            bot_user_id="BOT",
+            event=event,
+        )
+
+        mock_get_provider.assert_called_once()
+        gp_kwargs = mock_get_provider.call_args.kwargs
+        assert gp_kwargs["model"] == "claude-haiku-4-5", "Expected llm_model_override to override the LLMConfig's model"

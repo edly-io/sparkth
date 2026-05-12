@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.config import get_settings
-from app.core.db import async_engine, get_session
+from app.core.db import async_engine, get_async_session, get_session
 from app.core.encryption import get_encryption_service
 from app.core.logger import get_logger
 from app.core_plugins.slack.client import SlackClient
@@ -40,10 +40,12 @@ from app.core_plugins.slack.types import (
     BotResponseLogItem,
     ConnectionStatusResponse,
     LogsResponse,
+    RagSourcesResponse,
 )
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
 from app.models.user import User
+from app.rag.store import VectorStoreService
 from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
@@ -141,6 +143,7 @@ def disconnect_workspace(
 ) -> dict[str, str]:
     """Disconnect the Slack workspace for the current user."""
     if not get_workspace(session, user_id):
+        logger.warning("Disconnect requested but no workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
     delete_workspace(session, user_id)
     return {"detail": "Slack workspace disconnected successfully"}
@@ -169,10 +172,12 @@ async def _build_llm_provider(
     user_id: int,
     config_id: int,
     temperature: float,
+    model_override: str | None = None,
 ) -> BaseChatProvider | None:
     """Resolve the user's LLMConfig and build a chat provider for synthesis.
 
     Returns None if the config cannot be resolved or the provider cannot be built.
+    `model_override`, if provided, takes precedence over the LLMConfig's model.
     """
     try:
         settings = get_settings()
@@ -194,7 +199,7 @@ async def _build_llm_provider(
         return get_provider(
             provider_name=llm_config.provider,
             api_key=api_key,
-            model=llm_config.model,
+            model=model_override or llm_config.model,
             system_prompt=SYNTHESIS_SYSTEM_PROMPT,
             temperature=temperature,
         )
@@ -307,7 +312,13 @@ async def _dispatch_event(
         else:
             llm_provider: BaseChatProvider | None = None
             if config.llm_config_id is not None:
-                llm_provider = await _build_llm_provider(session, user_id, config.llm_config_id, config.llm_temperature)
+                llm_provider = await _build_llm_provider(
+                    session,
+                    user_id,
+                    config.llm_config_id,
+                    config.llm_temperature,
+                    model_override=config.llm_model_override,
+                )
 
             try:
                 answer, rag_matched = await answer_question(
@@ -377,6 +388,7 @@ async def slack_events(
     if payload.get("type") == "url_verification":
         challenge = payload.get("challenge")
         if challenge is None:
+            logger.warning("Slack url_verification payload missing 'challenge' field")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing challenge field")
         return {"challenge": challenge}
 
@@ -402,29 +414,72 @@ def get_response_logs(
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
     limit: int = Query(default=50, ge=1, le=200),
+    cursor: int | None = Query(default=None, ge=1),
+    since_id: int | None = Query(default=None, ge=0),
 ) -> LogsResponse:
-    """Return recent TA Bot response logs for the authenticated user."""
+    """Return TA Bot response logs with cursor + since pagination."""
+    if cursor is not None and since_id is not None:
+        logger.warning("GET /logs called with both cursor and since_id for user %d — mutually exclusive", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid pagination parameters: only one pagination strategy may be used at a time.",
+        )
+
     workspace = get_workspace(session, user_id)
     if not workspace:
+        logger.warning("GET /logs: no Slack workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
 
-    rows = session.exec(
-        select(BotResponseLog)
-        .where(col(BotResponseLog.workspace_id) == workspace.id)
-        .order_by(col(BotResponseLog.created_at).desc())
-        .limit(limit)
-    ).all()
+    base_stmt = select(BotResponseLog).where(col(BotResponseLog.workspace_id) == workspace.id)
 
-    items = [
-        BotResponseLogItem(
-            id=row.id,  # type: ignore[arg-type]
-            slack_channel=row.slack_channel,
-            slack_user=row.slack_user,
-            question=row.question,
-            answer=row.answer,
-            rag_matched=row.rag_matched,
-            created_at=row.created_at,
-        )
-        for row in rows
-    ]
-    return LogsResponse(items=items, total=len(items))
+    if since_id is not None:
+        stmt = base_stmt.where(col(BotResponseLog.id) > since_id).order_by(col(BotResponseLog.id).asc()).limit(limit)
+        rows = session.exec(stmt).all()
+        items = [_to_log_item(r) for r in rows]
+        return LogsResponse(items=items, total=len(items), next_cursor=None, has_more=False)
+
+    if cursor is not None:
+        stmt = base_stmt.where(col(BotResponseLog.id) < cursor)
+    else:
+        stmt = base_stmt
+
+    stmt = stmt.order_by(col(BotResponseLog.id).desc()).limit(limit + 1)
+    rows = session.exec(stmt).all()
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    items = [_to_log_item(r) for r in rows]
+    next_cursor = rows[-1].id if rows else None
+    return LogsResponse(items=items, total=len(items), next_cursor=next_cursor, has_more=has_more)
+
+
+def _to_log_item(row: BotResponseLog) -> BotResponseLogItem:
+    return BotResponseLogItem(
+        id=row.id,  # type: ignore[arg-type]
+        slack_channel=row.slack_channel,
+        slack_user=row.slack_user,
+        question=row.question,
+        answer=row.answer,
+        rag_matched=row.rag_matched,
+        created_at=row.created_at,
+    )
+
+
+@router.get("/rag/sources", response_model=RagSourcesResponse)
+async def list_rag_sources(
+    user_id: int = Depends(require_user_id),
+    session: AsyncSession = Depends(get_async_session),
+) -> RagSourcesResponse:
+    """Return the distinct RAG source names available to the current user."""
+    store = VectorStoreService()
+    try:
+        sources = await store.get_sources(session=session, user_id=user_id)
+    except SQLAlchemyError as exc:
+        logger.error("Failed to fetch RAG sources for user %d: %s", user_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve RAG sources.",
+        ) from exc
+    return RagSourcesResponse(sources=sources)
