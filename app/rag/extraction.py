@@ -138,11 +138,11 @@ def _extract_pdf(data: bytes, source_name: str, *, batch_size: Optional[int] = N
     settings = get_settings()
     effective_batch_size = batch_size if batch_size is not None else settings.RAG_PDF_EXTRACTION_BATCH_SIZE
     with fitz.open(stream=data, filetype="pdf") as doc:
-        if _is_scanned_pdf(doc, min_chars_per_page=settings.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE):
-            raise ScannedPDFError(source_name)
-        page_count = len(doc)
-        parts: list[str] = []
         try:
+            if _is_scanned_pdf(doc, min_chars_per_page=settings.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE):
+                raise ScannedPDFError(source_name)
+            page_count = len(doc)
+            parts: list[str] = []
             for start in range(0, page_count, effective_batch_size):
                 pages = list(range(start, min(start + effective_batch_size, page_count)))
                 batch_md = pymupdf4llm.to_markdown(doc=doc, pages=pages, page_chunks=False)
