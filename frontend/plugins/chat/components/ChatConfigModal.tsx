@@ -1,28 +1,24 @@
 "use client";
 
-import { useReducer, useEffect, useCallback, useRef } from "react";
-import { ChevronDown, Save } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useState, useEffect, useRef } from "react";
+import { Save } from "lucide-react";
 import { UserPluginState } from "@/lib/plugins";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
-import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { LLMConfigSelect } from "@/components/LLMConfigSelect";
+import { useAuth } from "@/lib/auth-context";
+import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm-api";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/Dialog";
-import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ProviderInfo {
-  id: string;
-  label: string;
-  models: string[];
-}
 
 interface ChatConfigModalProps {
   plugin: UserPluginState;
@@ -30,129 +26,6 @@ interface ChatConfigModalProps {
   onOpenChange: (open: boolean) => void;
   onSave: (config: Record<string, string>) => Promise<void>;
   onRefresh: () => void;
-}
-
-interface ConfigState {
-  providers: ProviderInfo[];
-  loadingProviders: boolean;
-  fetchError: string | null;
-  provider: string;
-  model: string;
-  apiKey: string;
-  apiKeyChanged: boolean;
-  isSaving: boolean;
-  submitError: string | null;
-}
-
-type ConfigAction =
-  | { type: "RESET_FOR_OPEN"; provider: string; model: string; apiKey: string }
-  | { type: "FETCH_START" }
-  | { type: "FETCH_SUCCESS"; providers: ProviderInfo[] }
-  | { type: "FETCH_ERROR"; error: string }
-  | { type: "FETCH_END" }
-  | { type: "PROVIDERS_LOADED"; provider: string; model: string }
-  | { type: "SET_PROVIDER"; provider: string; model: string }
-  | { type: "SET_MODEL"; model: string }
-  | { type: "SET_API_KEY"; apiKey: string }
-  | { type: "SAVE_START" }
-  | { type: "SAVE_ERROR"; error: string }
-  | { type: "SAVE_END" };
-
-function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
-  switch (action.type) {
-    case "RESET_FOR_OPEN":
-      return {
-        ...state,
-        provider: action.provider,
-        model: action.model,
-        apiKey: action.apiKey,
-        apiKeyChanged: false,
-        submitError: null,
-      };
-    case "FETCH_START":
-      return { ...state, loadingProviders: true, fetchError: null };
-    case "FETCH_SUCCESS":
-      return { ...state, providers: action.providers };
-    case "FETCH_ERROR":
-      return { ...state, fetchError: action.error };
-    case "FETCH_END":
-      return { ...state, loadingProviders: false };
-    case "PROVIDERS_LOADED":
-      return { ...state, provider: action.provider, model: action.model };
-    case "SET_PROVIDER":
-      return { ...state, provider: action.provider, model: action.model };
-    case "SET_MODEL":
-      return { ...state, model: action.model };
-    case "SET_API_KEY":
-      return { ...state, apiKey: action.apiKey, apiKeyChanged: true };
-    case "SAVE_START":
-      return { ...state, isSaving: true, submitError: null };
-    case "SAVE_ERROR":
-      return { ...state, submitError: action.error };
-    case "SAVE_END":
-      return { ...state, isSaving: false };
-  }
-}
-
-// ─── Select component (styled to match Input) ────────────────────────────────
-
-interface SelectFieldProps {
-  id: string;
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  placeholder?: string;
-}
-
-function SelectField({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-  disabled = false,
-  placeholder,
-}: SelectFieldProps) {
-  return (
-    <div className="w-full">
-      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-1.5">
-        {label}
-      </label>
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          className={cn(
-            "appearance-none block w-full px-4 py-3 pr-10 rounded-lg",
-            "text-foreground bg-input",
-            "border-2 border-border",
-            "focus:outline-none focus:border-primary-500",
-            "transition-colors",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-          )}
-        >
-          {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
-          )}
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          size={16}
-        />
-      </div>
-    </div>
-  );
 }
 
 // ─── Main modal ──────────────────────────────────────────────────────────────
@@ -166,109 +39,83 @@ export default function ChatConfigModal({
 }: ChatConfigModalProps) {
   const { token } = useAuth();
 
-  const [state, dispatch] = useReducer(configReducer, {
-    providers: [],
-    loadingProviders: false,
-    fetchError: null,
-    provider: (plugin.config?.provider as string) ?? "",
-    model: (plugin.config?.model as string) ?? "",
-    apiKey: (plugin.config?.api_key as string) ?? "",
-    apiKeyChanged: false,
-    isSaving: false,
-    submitError: null,
+  const [llmConfigId, setLlmConfigId] = useState<number | undefined>(() => {
+    const raw = plugin.config?.llm_config_id;
+    const num = Number(raw);
+    return raw != null && raw !== "" && !Number.isNaN(num) ? num : undefined;
   });
-
-  const {
-    providers,
-    loadingProviders,
-    fetchError,
-    provider,
-    model,
-    apiKey,
-    apiKeyChanged,
-    isSaving,
-    submitError,
-  } = state;
-
-  const abortRef = useRef<AbortController | null>(null);
-
-  const fetchProviders = useCallback(
-    async (signal: AbortSignal) => {
-      if (!token) return null;
-      dispatch({ type: "FETCH_START" });
-      try {
-        const res = await fetch("/api/v1/chat/providers", {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        });
-        if (!res.ok) throw new Error(`Failed to load providers (${res.status})`);
-        const data: { providers: ProviderInfo[]; default_provider: string; default_model: string } =
-          await res.json();
-        dispatch({ type: "FETCH_SUCCESS", providers: data.providers });
-        return data;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return null;
-        dispatch({
-          type: "FETCH_ERROR",
-          error: err instanceof Error ? err.message : "Could not load providers.",
-        });
-        return null;
-      } finally {
-        dispatch({ type: "FETCH_END" });
-      }
-    },
-    [token],
-  );
+  const [modelOverride, setModelOverride] = useState<string>("");
+  const [selectedConfig, setSelectedConfig] = useState<LLMConfig | undefined>(undefined);
+  const [catalogProviders, setCatalogProviders] = useState<ProviderInfo[]>([]);
+  const [providerModels, setProviderModels] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const prevOpenRef = useRef(open);
 
+  // Reset form state when the modal opens.
   useEffect(() => {
     const justOpened = open && !prevOpenRef.current;
     prevOpenRef.current = open;
-
     if (!justOpened) return;
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const configProvider = (plugin.config?.provider as string) ?? "";
-    const configModel = (plugin.config?.model as string) ?? "";
-    dispatch({
-      type: "RESET_FOR_OPEN",
-      provider: configProvider,
-      model: configModel,
-      apiKey: (plugin.config?.api_key as string) ?? "",
-    });
-    fetchProviders(controller.signal).then((data) => {
-      if (!data) return;
-      if (!configProvider || !configModel) {
-        dispatch({
-          type: "PROVIDERS_LOADED",
-          provider: configProvider || data.default_provider,
-          model: configModel || data.default_model,
-        });
-      }
-    });
+    const raw = plugin.config?.llm_config_id;
+    const num = Number(raw);
+    setLlmConfigId(raw != null && raw !== "" && !Number.isNaN(num) ? num : undefined);
+    setModelOverride(
+      typeof plugin.config?.llm_model_override === "string" ? plugin.config.llm_model_override : "",
+    );
+    setSubmitError(null);
+  }, [open, plugin.config]);
 
-    return () => controller.abort();
-  }, [open, fetchProviders, plugin.config]);
+  // Fetch the full provider catalog once per token — independent of selected config.
+  useEffect(() => {
+    if (!token) return;
+    let ignore = false;
+    fetchProviderCatalog(token)
+      .then((catalog) => {
+        if (!ignore) setCatalogProviders(catalog.providers);
+      })
+      .catch(() => {
+        if (!ignore) setCatalogProviders([]);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [token]);
 
-  const handleProviderChange = (newProvider: string) => {
-    const providerInfo = providers.find((p) => p.id === newProvider);
-    dispatch({ type: "SET_PROVIDER", provider: newProvider, model: providerInfo?.models[0] ?? "" });
+  // Derive available models from the already-fetched catalog whenever the provider changes.
+  useEffect(() => {
+    if (!selectedConfig) {
+      setProviderModels([]);
+      return;
+    }
+    const info = catalogProviders.find((p) => p.id === selectedConfig.provider);
+    setProviderModels(info?.models ?? []);
+  }, [selectedConfig?.provider, catalogProviders]);
+
+  const handleConfigSelect = (config: LLMConfig | undefined) => {
+    setSelectedConfig(config);
+    // Reset the override when the user actively picks a different config.
+    if (config?.id !== llmConfigId) setModelOverride("");
   };
 
-  const availableModels = providers.find((p) => p.id === provider)?.models ?? [];
+  const modelOptions = [
+    { value: "", label: "Use config default" },
+    ...providerModels.map((m) => ({ value: m, label: m })),
+  ];
 
-  const hasKey = apiKeyChanged || apiKey !== "";
-  const canSave = !isSaving && !loadingProviders && provider !== "" && model !== "" && hasKey;
+  const canSave = !isSaving && llmConfigId !== undefined;
 
   const handleSave = async () => {
     try {
-      dispatch({ type: "SAVE_START" });
-      const payload: Record<string, string> = { provider, model };
-      if (apiKeyChanged) {
-        payload.api_key = apiKey;
+      setIsSaving(true);
+      setSubmitError(null);
+      const payload: Record<string, string> = {
+        llm_config_id: String(llmConfigId),
+      };
+      if (modelOverride !== "") {
+        payload.llm_model_override = modelOverride;
       }
       await onSave(payload);
       onRefresh();
@@ -276,55 +123,46 @@ export default function ChatConfigModal({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to save configuration. Please try again.";
-      dispatch({ type: "SAVE_ERROR", error: message });
+      setSubmitError(message);
     } finally {
-      dispatch({ type: "SAVE_END" });
+      setIsSaving(false);
     }
   };
-
-  const providerOptions = providers.map((p) => ({ value: p.id, label: p.label }));
-  const modelOptions = availableModels.map((m) => ({ value: m, label: m }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Configure {plugin.plugin_name}</DialogTitle>
+          <DialogDescription>
+            Select an LLM configuration to use for this chat plugin.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
           {submitError && <Alert severity="error">{submitError}</Alert>}
-          {fetchError && <Alert severity="error">{fetchError}</Alert>}
-
-          <SelectField
-            id="chat-provider"
-            label="Provider"
-            value={provider}
-            options={providerOptions}
-            onChange={handleProviderChange}
-            disabled={loadingProviders}
-            placeholder={loadingProviders ? "Loading providers…" : "Select a provider"}
+          <LLMConfigSelect
+            value={llmConfigId}
+            onChange={setLlmConfigId}
+            onConfigSelect={handleConfigSelect}
+            required
+            label="LLM Config"
           />
-
-          <SelectField
-            id="chat-model"
-            label="Model"
-            value={model}
+          <Select
+            id="chat-model-override"
+            name="llm_model_override"
+            label="Model Override"
+            value={modelOverride}
             options={modelOptions}
-            onChange={(m) => dispatch({ type: "SET_MODEL", model: m })}
-            disabled={loadingProviders || provider === ""}
-            placeholder="Select a model"
-          />
-
-          <Input
-            id="chat-api-key"
-            name="api_key"
-            label="API Key"
-            type="password"
-            placeholder="Enter your API key"
-            value={apiKey}
-            onChange={(e) => dispatch({ type: "SET_API_KEY", apiKey: e.target.value })}
-            autoComplete="off"
+            onChange={(e) => setModelOverride(e.target.value)}
+            disabled={!llmConfigId || providerModels.length === 0}
+            helperText={
+              !llmConfigId
+                ? "Select an LLM config first."
+                : providerModels.length === 0
+                  ? "Loading available models…"
+                  : undefined
+            }
           />
         </div>
 

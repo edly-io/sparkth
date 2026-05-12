@@ -36,8 +36,6 @@ from app.core_plugins.chat.schemas import (
     ConversationListResponse,
     ConversationResponse,
     MessageResponse,
-    ProviderCatalogResponse,
-    ProviderInfo,
     ToolListResponse,
     ToolSchema,
 )
@@ -47,11 +45,8 @@ from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import (
-    DEFAULT_MODEL,
-    DEFAULT_PROVIDER,
     BaseChatProvider,
     get_provider,
-    get_provider_catalog,
 )
 from app.llm.service import LLMConfigService, get_llm_service
 from app.models.drive import DriveFile as DriveFileModel
@@ -113,18 +108,6 @@ def get_rag_context_service() -> RAGContextService:
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content."""
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
-
-
-@chat_router.get("/providers", response_model=ProviderCatalogResponse)
-async def list_providers(
-    current_user: User = Depends(get_current_user),
-) -> ProviderCatalogResponse:
-    """Return the catalog of supported providers and their available models."""
-    return ProviderCatalogResponse(
-        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()],
-        default_provider=DEFAULT_PROVIDER,
-        default_model=DEFAULT_MODEL,
-    )
 
 
 def _strip_md(text: str) -> str:
@@ -279,6 +262,38 @@ def _extract_all_drive_file_ids_from_messages(messages: list[ChatMessage]) -> li
     return result
 
 
+async def _persist_pre_stream_error(
+    session: AsyncSession,
+    service: ChatService,
+    request: ChatCompletionRequest,
+    user_id: int,
+    message: str,
+) -> None:
+    """Persist an error message to an existing conversation before raising an HTTP error.
+
+    Only called when request.conversation_id is set — new conversations are never
+    created here because the failure happened before any conversation was established.
+    """
+    if not request.conversation_id:
+        return
+    try:
+        conversation = await service.get_conversation_by_uuid(
+            session=session,
+            uuid=request.conversation_id,
+            user_id=user_id,
+        )
+        if conversation and conversation.id is not None:
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,
+                role="assistant",
+                content=message,
+                is_error=True,
+            )
+    except SQLAlchemyError:
+        logger.exception("Failed to persist pre-stream error message for conversation %s", request.conversation_id)
+
+
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
@@ -298,13 +313,19 @@ async def chat_completion(
         )
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        detail = "No AI Key found for the current user."
+        await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
     except LLMConfigModelNotSetError as exc:
         logger.warning("LLMConfig %s has no model set: %s", request.llm_config_id, exc)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+        detail = "The selected AI key has no model configured. Go to AI Keys to set a model before chatting."
+        await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail) from exc
     except LLMConfigInactiveError as exc:
         logger.warning("LLMConfig %s is inactive for user %s: %s", request.llm_config_id, current_user.id, exc)
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        detail = "The selected AI key is deactivated. Go to AI Keys to reactivate it, or choose a different one in chat settings."
+        await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
 
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
@@ -741,6 +762,7 @@ async def stream_chat_response(
         user_message = _streaming_error_message(e)
         logger.error("Streaming failed: %s", e)
         try:
+            logger.info("Persisting provider streaming error for conversation_id=%s", conversation_id)
             await service.add_message(
                 session=session,
                 conversation_id=conversation_id,
@@ -748,14 +770,16 @@ async def stream_chat_response(
                 content=user_message,
                 is_error=True,
             )
+            logger.info("Provider streaming error persisted for conversation_id=%s", conversation_id)
         except SQLAlchemyError:
-            logger.exception("Failed to persist streaming error message")
+            logger.exception("Failed to persist streaming error message for conversation_id=%s", conversation_id)
         error_data = json.dumps({"error": user_message, "done": True})
         yield f"data: {error_data}\n\n"
     except (OSError, LangChainException, SQLAlchemyError) as e:
         logger.exception("Unexpected streaming error: %s", e)
         user_message = "An error occurred while generating a response. Please try again."
         try:
+            logger.info("Persisting unexpected streaming error for conversation_id=%s", conversation_id)
             await service.add_message(
                 session=session,
                 conversation_id=conversation_id,
@@ -763,8 +787,9 @@ async def stream_chat_response(
                 content=user_message,
                 is_error=True,
             )
+            logger.info("Unexpected streaming error persisted for conversation_id=%s", conversation_id)
         except SQLAlchemyError:
-            logger.exception("Failed to persist streaming error message")
+            logger.exception("Failed to persist streaming error message for conversation_id=%s", conversation_id)
         error_data = json.dumps({"error": user_message, "done": True})
         yield f"data: {error_data}\n\n"
 
@@ -773,7 +798,7 @@ def _streaming_error_message(exc: Exception) -> str:
     """Map provider API exceptions to concise, user-facing error messages."""
     # Anthropic errors
     if isinstance(exc, anthropic.AuthenticationError):
-        return "Invalid API key. Please check your Anthropic API key in Settings."
+        return "Invalid API key. Please check your Anthropic API key in AI Keys."
     if isinstance(exc, anthropic.PermissionDeniedError):
         return "Your Anthropic API key does not have permission to use this model."
     if isinstance(exc, anthropic.RateLimitError):
@@ -787,7 +812,7 @@ def _streaming_error_message(exc: Exception) -> str:
 
     # OpenAI errors
     if isinstance(exc, openai.AuthenticationError):
-        return "Invalid API key. Please check your OpenAI API key in Settings."
+        return "Invalid API key. Please check your OpenAI API key in AI Keys."
     if isinstance(exc, openai.PermissionDeniedError):
         return "Your OpenAI API key does not have permission to use this model."
     if isinstance(exc, openai.RateLimitError):
@@ -801,7 +826,7 @@ def _streaming_error_message(exc: Exception) -> str:
 
     # Google errors
     if isinstance(exc, google_exceptions.Unauthenticated):
-        return "Invalid API key. Please check your Google API key in Settings."
+        return "Invalid API key. Please check your Google API key in AI Keys."
     if isinstance(exc, google_exceptions.PermissionDenied):
         return "Your Google API key does not have permission to use this model."
     if isinstance(exc, google_exceptions.ResourceExhausted):
@@ -920,6 +945,7 @@ async def get_conversation(
         conversation_id=conversation.id,  # type: ignore
         limit=limit,
         offset=offset,
+        exclude_errors=False,
     )
 
     message_count = len(messages)
@@ -969,6 +995,7 @@ async def get_conversation(
                 attachment_name=msg.attachment_name,
                 attachment_size=msg.attachment_size,
                 rag_sections=_parse_rag_sections(msg.model_metadata),
+                is_error=msg.is_error,
             )
             for msg in messages
         ],

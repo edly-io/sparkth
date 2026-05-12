@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, Index, Text, UniqueConstraint
+from sqlalchemy import Column, Index, Text, text
 from sqlmodel import DateTime, Field, SQLModel
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -11,7 +11,14 @@ from app.models.base import SoftDeleteModel, TimestampedModel
 class LLMConfig(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
     __tablename__ = "llm_configs"
     __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_user_llm_config_name"),
+        Index(
+            "uq_user_llm_config_name_active",
+            "user_id",
+            "name",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+            sqlite_where=text("is_deleted = 0"),
+        ),
         Index("idx_llm_config_user", "user_id"),
     )
 

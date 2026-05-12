@@ -34,6 +34,14 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
         )
         return result.first()
 
+    @staticmethod
+    def _parse_config_id(raw: Any) -> int:
+        """Convert a raw config_id value (int or str) to int, raising ValueError on bad input."""
+        try:
+            return int(raw)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"llm_config_id must be an integer, got {raw!r}") from exc
+
     async def preprocess_config(
         self,
         *,
@@ -41,13 +49,14 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
         user_id: int,
         incoming_config: dict[str, Any],
     ) -> dict[str, Any]:
-        config_id = incoming_config.get("llm_config_id")
-        if config_id is None:
+        raw_id = incoming_config.get("llm_config_id")
+        if raw_id is None:
             return incoming_config
 
+        config_id = self._parse_config_id(raw_id)
         if await self._fetch_llm_config(session, user_id, config_id) is None:
             raise ValueError(f"llm_config_id {config_id} not found or does not belong to this user.")
-        return incoming_config
+        return {**incoming_config, "llm_config_id": config_id}
 
     async def postprocess_config(
         self,
@@ -57,7 +66,13 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
         stored_config: dict[str, Any],
     ) -> dict[str, Any]:
         config = dict(stored_config)
-        config_id = config.get("llm_config_id")
+        raw_id = config.get("llm_config_id")
+        config_id: int | None = None
+        if raw_id is not None:
+            try:
+                config_id = int(raw_id)
+            except (ValueError, TypeError):
+                config_id = None
         llm = await self._fetch_llm_config(session, user_id, config_id) if config_id is not None else None
         if llm is None:
             config.update(_EMPTY_LLM_FIELDS)

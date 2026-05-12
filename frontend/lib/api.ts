@@ -45,7 +45,7 @@ export interface FormattedError {
   fieldErrors: Record<string, string>;
 }
 
-function formatApiError(error: ApiError): FormattedError {
+export function formatApiError(error: ApiError): FormattedError {
   if (typeof error.detail === "string") {
     return { message: error.detail, fieldErrors: {} };
   }

@@ -9,11 +9,31 @@ interface SendPayload {
 
 interface UseChatStreamOptions {
   token: string | null;
-  provider: string | undefined;
-  model: string | undefined;
+  llmConfigId: number | undefined;
+  modelOverride?: string | null;
   conversationId: string | null;
   setMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   onNewConversation: (id: string) => void;
+}
+
+interface ValidationErrorItem {
+  type: string;
+  loc: (string | number)[];
+  msg: string;
+}
+
+const FIELD_MESSAGES: Record<string, string> = {
+  llm_config_id: "No AI Key selected. Go to chat settings to configure one.",
+};
+
+function extractValidationError(detail: ValidationErrorItem[]): string {
+  for (const item of detail) {
+    const field = item.loc.find((part) => typeof part === "string" && part !== "body");
+    if (field && typeof field === "string" && FIELD_MESSAGES[field]) {
+      return FIELD_MESSAGES[field];
+    }
+  }
+  return "Something went wrong. Try again.";
 }
 
 function buildUserMessages(message: string, attachments: TextAttachment[]) {
@@ -199,8 +219,8 @@ async function readStream(
 
 export function useChatStream({
   token,
-  provider,
-  model,
+  llmConfigId,
+  modelOverride,
   conversationId,
   setMessages,
   onNewConversation,
@@ -259,8 +279,8 @@ export function useChatStream({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            provider,
-            model,
+            llm_config_id: llmConfigId,
+            ...(modelOverride && { model_override: modelOverride }),
             messages: newUserMessages,
             stream: true,
             tools: "*",
@@ -272,7 +292,18 @@ export function useChatStream({
         });
 
         if (!res.ok) {
-          failAssistantMessage(assistantId, "Something went wrong. Try again.");
+          let errorMsg = "Something went wrong. Try again.";
+          try {
+            const errData = await res.json();
+            if (errData?.detail && typeof errData.detail === "string") {
+              errorMsg = errData.detail;
+            } else if (Array.isArray(errData?.detail)) {
+              errorMsg = extractValidationError(errData.detail);
+            }
+          } catch {
+            // ignore parse errors, fall back to generic message
+          }
+          failAssistantMessage(assistantId, errorMsg);
           return;
         }
         if (!res.body) {
@@ -316,7 +347,15 @@ export function useChatStream({
         failAssistantMessage(assistantId, errorMsg);
       }
     },
-    [token, provider, model, conversationId, setMessages, failAssistantMessage, onNewConversation],
+    [
+      token,
+      llmConfigId,
+      modelOverride,
+      conversationId,
+      setMessages,
+      failAssistantMessage,
+      onNewConversation,
+    ],
   );
 
   const handleOptionClick = useCallback(

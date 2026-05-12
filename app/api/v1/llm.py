@@ -1,6 +1,6 @@
 """REST endpoints for LLMConfig management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -8,6 +8,7 @@ from app.api.v1.auth import get_current_user
 from app.core.db import get_async_session
 from app.core.logger import get_logger
 from app.llm.exceptions import LLMConfigDuplicateNameError, LLMConfigNotFoundError, LLMConfigValidationError
+from app.llm.providers import DEFAULT_MODEL, DEFAULT_PROVIDER, get_provider_catalog
 from app.llm.schemas import (
     LLMConfigCreate,
     LLMConfigListResponse,
@@ -15,6 +16,8 @@ from app.llm.schemas import (
     LLMConfigRotateKey,
     LLMConfigSetActive,
     LLMConfigUpdate,
+    ProviderCatalogResponse,
+    ProviderInfo,
 )
 from app.llm.service import LLMConfigService, get_llm_service
 from app.models.llm import LLMConfig
@@ -22,6 +25,18 @@ from app.models.user import User
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+@router.get("/providers", response_model=ProviderCatalogResponse)
+async def list_providers(
+    current_user: User = Depends(get_current_user),
+) -> ProviderCatalogResponse:
+    """Return the catalog of supported LLM providers and their available models."""
+    return ProviderCatalogResponse(
+        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()],
+        default_provider=DEFAULT_PROVIDER,
+        default_model=DEFAULT_MODEL,
+    )
 
 
 def _to_response(config: LLMConfig) -> LLMConfigResponse:
@@ -58,11 +73,12 @@ async def create_llm_config(
 
 @router.get("/configs", response_model=LLMConfigListResponse)
 async def list_llm_configs(
+    include_inactive: bool = Query(default=False),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigListResponse:
-    configs = await service.list(session=session, user_id=current_user.id)  # type: ignore[arg-type]
+    configs = await service.list(session=session, user_id=current_user.id, include_inactive=include_inactive)  # type: ignore[arg-type]
     return LLMConfigListResponse(
         configs=[_to_response(c) for c in configs],
         total=len(configs),

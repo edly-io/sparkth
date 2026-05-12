@@ -12,7 +12,7 @@ export function useCatalogDefaults(token: string | null): CatalogDefaults | null
     async (signal: AbortSignal) => {
       if (!token) return;
       try {
-        const r = await fetch("/api/v1/chat/providers", {
+        const r = await fetch("/api/v1/llm/providers", {
           headers: { Authorization: `Bearer ${token}` },
           signal,
         });

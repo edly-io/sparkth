@@ -56,6 +56,60 @@ async def test_preprocess_unknown_llm_config_id_raises() -> None:
 
 
 @pytest.mark.asyncio
+async def test_preprocess_string_llm_config_id_is_coerced() -> None:
+    adapter = ConcreteAdapter()
+    config = LLMConfig(
+        id=5, user_id=1, name="K", provider="openai", model="gpt-4o", encrypted_key="enc", masked_key="sk-...abcd"
+    )
+    session = _session_with(config)
+
+    result = await adapter.preprocess_config(
+        session=session,
+        user_id=1,
+        incoming_config={"llm_config_id": "5"},
+    )
+
+    assert result["llm_config_id"] == 5
+
+
+@pytest.mark.asyncio
+async def test_preprocess_non_numeric_llm_config_id_raises() -> None:
+    adapter = ConcreteAdapter()
+    session = AsyncMock()
+
+    with pytest.raises(ValueError, match="llm_config_id"):
+        await adapter.preprocess_config(
+            session=session,
+            user_id=1,
+            incoming_config={"llm_config_id": "not-a-number"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_postprocess_string_config_id_resolves() -> None:
+    adapter = ConcreteAdapter()
+    config = LLMConfig(
+        id=5,
+        user_id=1,
+        name="My Claude",
+        provider="anthropic",
+        model="claude-sonnet-4-20250514",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+    )
+    session = _session_with(config)
+
+    result = await adapter.postprocess_config(
+        session=session,
+        user_id=1,
+        stored_config={"llm_config_id": "5"},
+    )
+
+    assert result["llm_config_name"] == "My Claude"
+    assert result["llm_provider"] == "anthropic"
+
+
+@pytest.mark.asyncio
 async def test_preprocess_none_llm_config_id_passes_through() -> None:
     adapter = ConcreteAdapter()
     session = AsyncMock()
