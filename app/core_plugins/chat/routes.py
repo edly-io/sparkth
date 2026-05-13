@@ -25,6 +25,7 @@ from app.core_plugins.chat.conversation_title import (
     generate_conversation_title,
     get_first_user_text,
 )
+from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.schemas import (
@@ -32,6 +33,8 @@ from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
+    ConversationAttachmentCreate,
+    ConversationAttachmentResponse,
     ConversationDetailResponse,
     ConversationListResponse,
     ConversationResponse,
@@ -396,12 +399,8 @@ async def chat_completion(
             attachment_size=msg.attachment.size if msg.attachment else None,
         )
 
-    has_drive_files = any(
-        isinstance(b, dict) and b.get("type") == "drive_file"
-        for msg in request.messages
-        if isinstance(msg.content, list)
-        for b in msg.content
-    )
+    # Extract query text early for scope checking and router routing
+    query_text = _extract_query_text(request.messages)
 
     db_messages = await service.get_conversation_messages(
         session=session,
@@ -409,9 +408,16 @@ async def chat_completion(
     )
 
     try:
-        # --- Tiered scope check (plain-text only; drive-file/RAG paths skip entirely) ---
+        # --- Tiered scope check (applies to plain-text messages without attachments) ---
+        # If there are attached files, the router will make the retrieval decision; scope check only for text-only queries
+        has_drive_files = any(
+            isinstance(b, dict) and b.get("type") == "drive_file"
+            for msg in request.messages
+            if isinstance(msg.content, list)
+            for b in msg.content
+        )
+
         if not has_drive_files:
-            query_text = _extract_query_text(request.messages)
             _in_scope = True
             if query_text:
                 # Tier 1: fast keyword pre-filter — catches obvious out-of-scope at zero LLM cost
@@ -454,6 +460,25 @@ async def chat_completion(
             max_tool_executions=config.max_tool_executions,
         )
 
+        # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
+        attached_files = await service.list_conversation_attachments(
+            session=session,
+            conversation_id=conversation.id,  # type: ignore
+        )
+
+        should_run_rag = False
+        rag_routing_reason: str | None = None
+        if attached_files:
+            router = RAGIntentRouter(llm=provider._create_llm())
+            decision = await router.decide(
+                query=query_text,
+                attached_files=attached_files,
+                session=session,
+                user_id=current_user.id,  # type: ignore[arg-type]
+            )
+            should_run_rag = decision.should_retrieve
+            rag_routing_reason = decision.reason
+
         # Use DB messages for history, but replace current batch with original
         # request content to preserve content blocks (e.g. base64 file attachments)
         num_current = len(request.messages)
@@ -463,18 +488,36 @@ async def chat_completion(
             else []
         )
 
-        if request.stream and has_drive_files:
-            # For streaming with drive files, RAG resolution happens in the generator
+        # Synthesize messages based on router decision
+        if should_run_rag and attached_files:
+            # When RAG is needed, create synthetic messages with drive_file blocks from attachments
+            synthetic_messages = [
+                ChatMessage(
+                    role="user",
+                    content=[{"type": "drive_file", "file_id": f.id} for f in attached_files],
+                )
+            ]
+            unresolved_messages = synthetic_messages
+        else:
+            unresolved_messages = None
+
+        if request.stream and should_run_rag:
+            # For streaming with RAG, resolution happens in the generator
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         else:
-            # For non-streaming, or streaming without drive files, resolve synchronously
-            resolved_messages = await _resolve_drive_file_blocks(
-                messages=request.messages,
-                session=session,
-                user_id=current_user.id,  # type: ignore[arg-type]
-                rag_service=rag_service,
-                llm=provider._create_llm(),
-            )
+            # For non-streaming or when RAG is skipped, resolve synchronously
+            if should_run_rag and unresolved_messages:
+                # If router says retrieve and we have attachments, use the synthetic messages
+                resolved_messages = await _resolve_drive_file_blocks(
+                    messages=unresolved_messages,
+                    session=session,
+                    user_id=current_user.id,  # type: ignore[arg-type]
+                    rag_service=rag_service,
+                    llm=provider._create_llm(),
+                )
+            else:
+                # Otherwise use request messages as-is (no RAG)
+                resolved_messages = request.messages
             current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
 
         messages = history + current
@@ -510,13 +553,20 @@ async def chat_completion(
 
         if request.stream:
             stream_kwargs: dict[str, Any] = {}
-            if has_drive_files:
+            if should_run_rag and unresolved_messages:
                 stream_kwargs = {
-                    "unresolved_messages": request.messages,
+                    "unresolved_messages": unresolved_messages,
                     "rag_service": rag_service,
                     "user_id": current_user.id,
                     "similarity_threshold": request.similarity_threshold,
                     "llm": provider._create_llm(),
+                    "should_run_rag": True,
+                }
+            elif attached_files:
+                # Attachments exist but router said skip RAG
+                stream_kwargs = {
+                    "should_run_rag": False,
+                    "rag_routing_reason": rag_routing_reason,
                 }
             return StreamingResponse(
                 stream_chat_response(
@@ -563,6 +613,12 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
+    except RAGIntentRouterError as e:
+        logger.error("RAG intent router failed for user %s conversation %s: %s", current_user.id, conversation.id, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to determine retrieval intent. Please try again.",
+        )
     except _PROVIDER_API_ERRORS as e:
         logger.error(f"Provider API error: {e}")
         raise HTTPException(
@@ -589,9 +645,27 @@ async def stream_chat_response(
     user_id: int | None = None,
     similarity_threshold: float = 0.45,
     llm: Any | None = None,
+    should_run_rag: bool = False,
+    rag_routing_reason: str | None = None,
 ) -> Any:
     # --- Phase 1: In-stream RAG resolution (emits status events) ---
     confirmed_rag_sections: list[dict[str, str | None]] = []
+
+    # Emit scanning_attachments event if RAG is enabled and there are files to scan
+    if should_run_rag and unresolved_messages and rag_service and user_id is not None:
+        file_count = sum(
+            1
+            for msg in unresolved_messages
+            if isinstance(msg.content, list)
+            for b in msg.content
+            if isinstance(b, dict) and b.get("type") == "drive_file"
+        )
+        yield f"data: {json.dumps({'status': 'scanning_attachments', 'file_count': file_count, 'done': False})}\n\n"
+
+    # Emit skipping_rag event if router said to skip but attachments existed
+    if not should_run_rag and rag_routing_reason is not None:
+        yield f"data: {json.dumps({'status': 'skipping_rag', 'reason': rag_routing_reason, 'done': False})}\n\n"
+
     if unresolved_messages and rag_service and user_id is not None:
         query_text = _extract_query_text(unresolved_messages)
         files_with_no_results: list[str] = []
@@ -1026,6 +1100,82 @@ async def clear_active_drive_file(
         user_id=current_user.id,  # type: ignore
         drive_file_id=None,
         drive_file_ids=[],
+    )
+
+
+@chat_router.post(
+    "/conversations/{conversation_id}/attachments",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ConversationAttachmentResponse,
+)
+async def attach_file_to_conversation(
+    conversation_id: UUID,
+    body: ConversationAttachmentCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> ConversationAttachmentResponse:
+    """Attach a drive file to a conversation."""
+    conversation = await service.get_conversation_by_uuid(
+        session=session,
+        uuid=conversation_id,
+        user_id=current_user.id,  # type: ignore
+    )
+    if not conversation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    # Verify drive file ownership
+    df_result = await session.exec(
+        select(DriveFileModel).where(
+            DriveFileModel.id == body.drive_file_id,
+            DriveFileModel.user_id == current_user.id,
+            DriveFileModel.is_deleted == False,  # noqa: E712
+        )
+    )
+    drive_file = df_result.first()
+    if not drive_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Drive file not found or not accessible",
+        )
+
+    attachment = await service.attach_drive_file(
+        session,
+        conversation_id=conversation.id,  # type: ignore
+        drive_file_id=drive_file.id,  # type: ignore
+    )
+    return ConversationAttachmentResponse(
+        id=attachment.id,  # type: ignore
+        conversation_id=attachment.conversation_id,
+        drive_file_id=attachment.drive_file_id,
+        attached_at=attachment.attached_at,
+    )
+
+
+@chat_router.delete(
+    "/conversations/{conversation_id}/attachments/{drive_file_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def detach_file_from_conversation(
+    conversation_id: UUID,
+    drive_file_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+) -> None:
+    """Detach a drive file from a conversation."""
+    conversation = await service.get_conversation_by_uuid(
+        session=session,
+        uuid=conversation_id,
+        user_id=current_user.id,  # type: ignore
+    )
+    if not conversation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    await service.detach_drive_file(
+        session,
+        conversation_id=conversation.id,  # type: ignore
+        drive_file_id=drive_file_id,
     )
 
 

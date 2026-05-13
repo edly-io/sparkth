@@ -1,12 +1,15 @@
 import json
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
-from app.core_plugins.chat.models import Conversation, Message, MessageType
+from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
+from app.models.drive import DriveFile
+from app.rag.types import RagStatus
 
 logger = get_logger(__name__)
 
@@ -38,6 +41,15 @@ class ChatService:
         session.add(conversation)
         await session.commit()
         await session.refresh(conversation)
+
+        # Write-through to new attachment table
+        if active_drive_file_ids:
+            for fid in active_drive_file_ids:
+                await self.attach_drive_file(
+                    session,
+                    conversation_id=cast(int, conversation.id),
+                    drive_file_id=fid,
+                )
 
         logger.info(f"Created conversation {conversation.id} for user {user_id}")
         return conversation
@@ -191,3 +203,83 @@ class ChatService:
             await session.commit()
         else:
             logger.warning(f"Conversation {conversation_id} not found for title update")
+
+    async def attach_drive_file(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        drive_file_id: int,
+    ) -> ConversationAttachment:
+        """Attach a drive file to a conversation (upsert-safe)."""
+        # Check if already exists
+        stmt = select(ConversationAttachment).where(
+            ConversationAttachment.conversation_id == conversation_id,
+            ConversationAttachment.drive_file_id == drive_file_id,
+        )
+        result = await session.exec(stmt)
+        existing = result.first()
+        if existing is not None:
+            return existing
+
+        # Try to insert new
+        attachment = ConversationAttachment(
+            conversation_id=conversation_id,
+            drive_file_id=drive_file_id,
+        )
+        session.add(attachment)
+        try:
+            await session.flush()
+            await session.commit()
+            await session.refresh(attachment)
+            return attachment
+        except IntegrityError:
+            # Race condition — another process inserted between our check and insert
+            await session.rollback()
+            # Query again to get the existing row
+            result = await session.exec(stmt)
+            existing = result.first()
+            if existing is None:
+                logger.error(
+                    f"IntegrityError but row not found after rollback for "
+                    f"conversation_id={conversation_id}, drive_file_id={drive_file_id}"
+                )
+                raise
+            return existing
+
+    async def detach_drive_file(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        drive_file_id: int,
+    ) -> None:
+        """Detach a drive file from a conversation."""
+        stmt = select(ConversationAttachment).where(
+            ConversationAttachment.conversation_id == conversation_id,
+            ConversationAttachment.drive_file_id == drive_file_id,
+        )
+        result = await session.exec(stmt)
+        attachment = result.first()
+        if attachment:
+            await session.delete(attachment)
+            await session.commit()
+
+    async def list_conversation_attachments(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+    ) -> list[DriveFile]:
+        """List ready drive files attached to a conversation."""
+        stmt = (
+            select(DriveFile)
+            .join(
+                ConversationAttachment,
+                ConversationAttachment.drive_file_id == DriveFile.id,  # type: ignore
+            )
+            .where(
+                ConversationAttachment.conversation_id == conversation_id,
+                DriveFile.rag_status == RagStatus.READY,
+                DriveFile.is_deleted == False,  # noqa: E712
+            )
+        )
+        result = await session.exec(stmt)
+        return list(result.all())
