@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.llm.plugin_adapter import LLMConfigPluginAdapter
+from app.llm.adapter import LLMConfigAdapter
 from app.models import LLMConfig
 
 
-class ConcreteAdapter(LLMConfigPluginAdapter):
+class ConcreteAdapter(LLMConfigAdapter):
     pass
 
 
@@ -189,3 +189,66 @@ async def test_postprocess_none_id_returns_null_fields() -> None:
     assert result["llm_provider"] is None
     assert result["llm_model"] is None
     session.exec.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_preprocess_model_override_without_config_id_raises() -> None:
+    adapter = ConcreteAdapter()
+    session = AsyncMock()
+
+    with pytest.raises(ValueError, match="llm_model_override requires llm_config_id"):
+        await adapter.preprocess_config(
+            session=session,
+            user_id=1,
+            incoming_config={"llm_config_id": None, "llm_model_override": "gpt-4o"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_preprocess_valid_model_override_passes_through() -> None:
+    adapter = ConcreteAdapter()
+    config = LLMConfig(
+        id=5, user_id=1, name="K", provider="openai", model="gpt-4o", encrypted_key="enc", masked_key="sk-...abcd"
+    )
+    session = _session_with(config)
+
+    result = await adapter.preprocess_config(
+        session=session,
+        user_id=1,
+        incoming_config={"llm_config_id": 5, "llm_model_override": "gpt-4o-mini"},
+    )
+
+    assert result["llm_model_override"] == "gpt-4o-mini"
+
+
+@pytest.mark.asyncio
+async def test_preprocess_invalid_model_override_raises() -> None:
+    adapter = ConcreteAdapter()
+    config = LLMConfig(
+        id=5, user_id=1, name="K", provider="openai", model="gpt-4o", encrypted_key="enc", masked_key="sk-...abcd"
+    )
+    session = _session_with(config)
+
+    with pytest.raises(ValueError, match="not available for provider"):
+        await adapter.preprocess_config(
+            session=session,
+            user_id=1,
+            incoming_config={"llm_config_id": 5, "llm_model_override": "claude-sonnet-4-5"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_preprocess_none_model_override_with_valid_config_id_passes_through() -> None:
+    adapter = ConcreteAdapter()
+    config = LLMConfig(
+        id=5, user_id=1, name="K", provider="openai", model="gpt-4o", encrypted_key="enc", masked_key="sk-...abcd"
+    )
+    session = _session_with(config)
+
+    result = await adapter.preprocess_config(
+        session=session,
+        user_id=1,
+        incoming_config={"llm_config_id": 5, "llm_model_override": None},
+    )
+
+    assert result["llm_model_override"] is None

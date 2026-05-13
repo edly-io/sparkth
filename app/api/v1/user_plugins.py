@@ -224,8 +224,7 @@ async def update_user_plugin_config(
     validate_plugin(plugin)
 
     try:
-        preprocessed = await PluginService.apply_preprocess(plugin_name, session, current_user.id, request.config)
-        user_plugin = await plugin_service.update_user_plugin_config(session, current_user.id, plugin, preprocessed)
+        user_plugin = await plugin_service.update_user_plugin_config(session, current_user.id, plugin, request.config)
     except PluginDisabledError as err:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
     except (ConfigValidationError, ValueError) as err:

@@ -8,8 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.plugin import Plugin, UserPlugin
 from app.plugins import PLUGIN_CONFIG_CLASSES
+from app.plugins.adapters import PLUGIN_ADAPTERS
 from app.plugins.config_base import PluginConfig
-from app.services.plugin_adapters.registry import PLUGIN_ADAPTERS
 
 
 class ConfigValidationError(Exception):
@@ -286,6 +286,10 @@ class PluginService:
         if config_class:
             known_fields = set(config_class.model_fields.keys())
             merged_config = {k: v for k, v in merged_config.items() if k in known_fields}
+
+        # Run adapter preprocessing on the full merged config so cross-field
+        # validators see the complete final state, not just the partial incoming dict.
+        merged_config = await PluginService.apply_preprocess(plugin.name, session, user_id, merged_config)
 
         validated_config = self.validate_user_config(plugin, merged_config)
 

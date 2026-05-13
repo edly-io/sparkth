@@ -5,13 +5,14 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.llm.exceptions import LLMConfigValidationError
+from app.llm.providers import get_models_for_provider
 from app.models.llm import LLMConfig
-from app.services.plugin_adapters.base import PluginConfigAdapter
 
 _EMPTY_LLM_FIELDS: dict[str, None] = {"llm_config_name": None, "llm_provider": None, "llm_model": None}
 
 
-class LLMConfigPluginAdapter(PluginConfigAdapter):
+class LLMConfigAdapter:
     """Base adapter for plugins that hold an optional llm_config_id reference.
 
     preprocess_config: validates the referenced LLMConfig is owned by the user.
@@ -50,7 +51,14 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
         incoming_config: dict[str, Any],
     ) -> dict[str, Any]:
         raw_id = incoming_config.get("llm_config_id")
+        model_override = incoming_config.get("llm_model_override")
+
         if raw_id is None:
+            if model_override is not None:
+                raise ValueError(
+                    "llm_model_override requires llm_config_id to be set "
+                    "(the provider cannot be determined without a linked LLM config)."
+                )
             return incoming_config
 
         config_id = self._parse_config_id(raw_id)
@@ -59,6 +67,15 @@ class LLMConfigPluginAdapter(PluginConfigAdapter):
             raise ValueError(f"llm_config_id {config_id} not found or does not belong to this user.")
         if not llm.is_active:
             raise ValueError("This record is deactivated. Reactivate it in AI Keys or select a different config.")
+
+        if model_override is not None:
+            allowed = get_models_for_provider(llm.provider)
+            if model_override not in allowed:
+                raise LLMConfigValidationError(
+                    f"Model '{model_override}' not available for provider '{llm.provider}'. "
+                    f"Allowed: {', '.join(allowed)}"
+                )
+
         return {**incoming_config, "llm_config_id": config_id}
 
     async def postprocess_config(
