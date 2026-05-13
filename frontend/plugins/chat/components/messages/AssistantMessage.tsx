@@ -24,6 +24,10 @@ interface AssistantMessageProps {
   onOptionClick: (text: string) => void;
 }
 
+function formatToolName(name: string): string {
+  return name.replace(/_/g, " ");
+}
+
 export function AssistantMessage({
   message,
   setPreviewOpen,
@@ -31,7 +35,11 @@ export function AssistantMessage({
   onOptionClick,
 }: AssistantMessageProps) {
   const displayText = message.streamedContent ?? message.content;
-  const isThinking = message.isTyping && !displayText;
+  const toolCalls = message.toolCalls ?? [];
+  const hasRunningTools = toolCalls.some((t) => t.status === "running");
+  const isThinking = message.isTyping && !displayText && !hasRunningTools;
+  // While tools are running and no response text yet, suppress the card entirely
+  const showCard = !hasRunningTools || !!displayText || message.isError || !message.isTyping;
 
   const openPreview = (attachment: TextAttachment) => {
     setPreviewAttachment(attachment);
@@ -114,54 +122,101 @@ export function AssistantMessage({
           </div>
         )}
 
-        {message.isError ? (
-          <Card variant="outlined" className="p-4 border-error bg-error-50">
-            <div className="flex items-start gap-2 text-error-500">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p className="text-sm">{displayText || "Something went wrong. Please try again."}</p>
-            </div>
-          </Card>
-        ) : (
-          <Card variant="outlined" className="p-4">
-            {isThinking ? (
-              message.statusText ? (
-                <div className="flex items-center gap-2 py-1">
-                  <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
-                  <p className="text-sm text-muted-foreground">{message.statusText}</p>
-                </div>
-              ) : (
-                <ThinkingDots />
-              )
-            ) : (
-              <div className="prose prose-neutral dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
-              </div>
-            )}
-
-            {!message.isTyping && (
-              <Pill
-                attachments={message.pillAttachment ? [message.pillAttachment] : []}
-                onPreview={openPreview}
-              />
-            )}
-
-            {!message.isTyping && message.options && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {message.options.map((opt) => (
-                  <Button
-                    key={opt}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onOptionClick(opt)}
-                    className="bg-surface-variant"
+        {/* Tool call progress — outside bubble, above response */}
+        {toolCalls.length > 0 && (
+          <div className="px-1 space-y-0.5">
+            {message.isTyping ? (
+              // Live progress: show last 8 entries so users see recent activity
+              <ul className="space-y-0.5">
+                {toolCalls.slice(-8).map((tool, i) => (
+                  <li
+                    key={`${tool.name}-${i}`}
+                    className="text-xs text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5"
                   >
-                    {opt}
-                  </Button>
+                    {tool.status === "running" ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse" />
+                    ) : (
+                      <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
+                    )}
+                    <span>{formatToolName(tool.name)}</span>
+                  </li>
                 ))}
+              </ul>
+            ) : (
+              // After response: compact summary with hover tooltip
+              <div className="relative group w-fit">
+                <p className="text-xs text-neutral-400 dark:text-neutral-500 cursor-default underline decoration-dotted decoration-neutral-300 dark:decoration-neutral-600">
+                  {toolCalls.length} operation{toolCalls.length !== 1 ? "s" : ""} completed
+                </p>
+                <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
+                  <ul className="space-y-1">
+                    {toolCalls.map((tool, i) => (
+                      <li
+                        key={`${tool.name}-${i}`}
+                        className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"
+                      >
+                        <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
+                        <span>{formatToolName(tool.name)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
-          </Card>
+          </div>
         )}
+
+        {showCard &&
+          (message.isError ? (
+            <Card variant="outlined" className="p-4 border-error bg-error-50">
+              <div className="flex items-start gap-2 text-error-500">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <p className="text-sm">
+                  {displayText || "Something went wrong. Please try again."}
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <Card variant="outlined" className="p-4">
+              {isThinking ? (
+                message.statusText ? (
+                  <div className="flex items-center gap-2 py-1">
+                    <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
+                    <p className="text-sm text-muted-foreground">{message.statusText}</p>
+                  </div>
+                ) : (
+                  <ThinkingDots />
+                )
+              ) : (
+                <div className="prose prose-neutral dark:prose-invert max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
+                </div>
+              )}
+
+              {!message.isTyping && (
+                <Pill
+                  attachments={message.pillAttachment ? [message.pillAttachment] : []}
+                  onPreview={openPreview}
+                />
+              )}
+
+              {!message.isTyping && message.options && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {message.options.map((opt) => (
+                    <Button
+                      key={opt}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onOptionClick(opt)}
+                      className="bg-surface-variant"
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ))}
       </div>
     </div>
   );
