@@ -353,18 +353,31 @@ class TestAttachmentEndpoints:
         assert response.status_code == 204
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_attachment_returns_204(
+    async def test_delete_nonexistent_file_returns_404(
         self,
         client: AsyncClient,
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        """DELETE non-existent attachment is idempotent (returns 204)."""
-        # Setup
+        """DELETE with a file_id that doesn't exist (or isn't owned) returns 404."""
         conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
 
-        # Act - delete something that was never attached
         response = await client.delete(f"/api/v1/chat/conversations/{conv_uuid}/attachments/999")
 
-        # Assert
-        assert response.status_code == 204
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_attachment_wrong_owner_returns_404(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """DELETE with a file owned by a different user returns 404."""
+        conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
+        folder, folder_id = await _seed_drive_folder(session, user_id=999)
+        file, file_id = await _seed_drive_file(session, folder_id, user_id=999)
+
+        response = await client.delete(f"/api/v1/chat/conversations/{conv_uuid}/attachments/{file_id}")
+
+        assert response.status_code == 404

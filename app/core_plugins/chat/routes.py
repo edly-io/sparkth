@@ -468,7 +468,7 @@ async def chat_completion(
 
         should_run_rag = False
         rag_routing_reason: str | None = None
-        if attached_files:
+        if attached_files and query_text:
             router = RAGIntentRouter(llm=provider.create_llm())
             decision = await router.decide(
                 query=query_text,
@@ -1171,6 +1171,19 @@ async def detach_file_from_conversation(
     )
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    df_result = await session.exec(
+        select(DriveFileModel).where(
+            DriveFileModel.id == drive_file_id,
+            DriveFileModel.user_id == current_user.id,
+            DriveFileModel.is_deleted == False,  # noqa: E712
+        )
+    )
+    if not df_result.first():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Drive file not found or not accessible",
+        )
 
     await service.detach_drive_file(
         session,

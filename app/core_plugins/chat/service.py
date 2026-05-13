@@ -51,7 +51,7 @@ class ChatService:
                     drive_file_id=fid,
                 )
 
-        logger.info(f"Created conversation {conversation.id} for user {user_id}")
+        logger.info("Created conversation %s for user %s", conversation.id, user_id)
         return conversation
 
     async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
