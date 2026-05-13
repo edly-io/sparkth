@@ -21,7 +21,7 @@ export default function SparkthHeader({ isAuthenticated, logout }: HeaderProps) 
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/">
-              <SparkthLogo size={80} />
+              <SparkthLogo size={56} />
             </Link>
           </div>
 
