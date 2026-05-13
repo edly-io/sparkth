@@ -469,7 +469,7 @@ async def chat_completion(
         should_run_rag = False
         rag_routing_reason: str | None = None
         if attached_files:
-            router = RAGIntentRouter(llm=provider._create_llm())
+            router = RAGIntentRouter(llm=provider.create_llm())
             decision = await router.decide(
                 query=query_text,
                 attached_files=attached_files,
@@ -513,7 +513,7 @@ async def chat_completion(
                     session=session,
                     user_id=current_user.id,  # type: ignore[arg-type]
                     rag_service=rag_service,
-                    llm=provider._create_llm(),
+                    llm=provider.create_llm(),
                 )
             else:
                 # Otherwise use request messages as-is (no RAG)
@@ -559,7 +559,7 @@ async def chat_completion(
                     "rag_service": rag_service,
                     "user_id": current_user.id,
                     "similarity_threshold": request.similarity_threshold,
-                    "llm": provider._create_llm(),
+                    "llm": provider.create_llm(),
                     "should_run_rag": True,
                 }
             elif attached_files:
