@@ -19,8 +19,8 @@ export default function HomeClient() {
 
       <main className="max-w-7xl mx-auto py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <div className="flex justify-center mb-8">
-            <SparkthLogo size={120} />
+          <div className="flex justify-center mb-4">
+            <SparkthLogo size={72} />
           </div>
 
           <h1 className="text-3xl font-extrabold text-foreground sm:text-4xl md:text-5xl lg:text-6xl">

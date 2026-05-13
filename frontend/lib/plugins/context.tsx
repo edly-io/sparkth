@@ -82,8 +82,15 @@ async function updatePluginConfigApi(
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to update config: ${text}`);
+    let message = "Failed to save configuration. Please try again.";
+    try {
+      const json = await response.json();
+      if (typeof json.detail === "string") message = json.detail;
+    } catch {
+      const text = await response.text();
+      if (text) message = text;
+    }
+    throw new Error(message);
   }
 
   return response.json();

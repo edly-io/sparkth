@@ -151,6 +151,29 @@ async def test_postprocess_resolves_config_name_and_provider() -> None:
 
 
 @pytest.mark.asyncio
+async def test_preprocess_deactivated_llm_config_id_raises() -> None:
+    adapter = ConcreteAdapter()
+    config = LLMConfig(
+        id=5,
+        user_id=1,
+        name="K",
+        provider="openai",
+        model="gpt-4o",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+        is_active=False,
+    )
+    session = _session_with(config)
+
+    with pytest.raises(ValueError, match="deactivated"):
+        await adapter.preprocess_config(
+            session=session,
+            user_id=1,
+            incoming_config={"llm_config_id": 5},
+        )
+
+
+@pytest.mark.asyncio
 async def test_postprocess_none_id_returns_null_fields() -> None:
     adapter = ConcreteAdapter()
     session = AsyncMock()

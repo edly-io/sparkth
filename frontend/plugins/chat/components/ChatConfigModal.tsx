@@ -105,7 +105,8 @@ export default function ChatConfigModal({
     ...providerModels.map((m) => ({ value: m, label: m })),
   ];
 
-  const canSave = !isSaving && llmConfigId !== undefined;
+  const selectedIsInactive = selectedConfig !== undefined && !selectedConfig.is_active;
+  const canSave = !isSaving && llmConfigId !== undefined && !selectedIsInactive;
 
   const handleSave = async () => {
     try {
@@ -155,13 +156,15 @@ export default function ChatConfigModal({
             value={modelOverride}
             options={modelOptions}
             onChange={(e) => setModelOverride(e.target.value)}
-            disabled={!llmConfigId || providerModels.length === 0}
+            disabled={!llmConfigId || selectedIsInactive || providerModels.length === 0}
             helperText={
               !llmConfigId
                 ? "Select an LLM config first."
-                : providerModels.length === 0
-                  ? "Loading available models…"
-                  : undefined
+                : selectedIsInactive
+                  ? "Reactivate this config in AI Keys to change the model."
+                  : providerModels.length === 0
+                    ? "Loading available models…"
+                    : undefined
             }
           />
         </div>

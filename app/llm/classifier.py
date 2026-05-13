@@ -28,6 +28,7 @@ IN SCOPE — respond in_scope: true:
 - Reviewing, editing, or improving educational content
 - Analyzing a target audience for a course
 - Short answers, clarifications, or confirmations that are replies to the assistant's own course-creation questions
+- Publishing, managing, or retrieving courses on LMS platforms (Canvas, Open edX) — including creating, reading, listing, updating, or deleting courses, modules, pages, quizzes, and other course components via available tools
 
 OUT OF SCOPE — respond in_scope: false:
 - General knowledge questions (history facts, geography, science trivia, current events)
