@@ -81,6 +81,9 @@ def upgrade() -> None:
             continue
 
         for fid in ids:
+            # Use a savepoint so a failed insert (e.g. FK violation) only rolls
+            # back this one row, not the entire migration transaction.
+            savepoint = bind.begin_nested()
             try:
                 if dialect == "sqlite":
                     bind.execute(
@@ -101,7 +104,9 @@ def upgrade() -> None:
                         ),
                         {"cid": conv_id, "fid": fid},
                     )
+                savepoint.commit()
             except sa.exc.SQLAlchemyError as exc:
+                savepoint.rollback()
                 logger.warning("Skipping back-fill for conversation %s, file %s: %s", conv_id, fid, exc)
 
 
