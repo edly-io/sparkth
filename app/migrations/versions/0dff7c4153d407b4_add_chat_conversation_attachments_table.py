@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("conversation_id", sa.Integer(), nullable=False),
         sa.Column("drive_file_id", sa.Integer(), nullable=False),
-        sa.Column("attached_at", sa.DateTime(), nullable=False),
+        sa.Column("attached_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["conversation_id"],
             ["chat_conversations.id"],
