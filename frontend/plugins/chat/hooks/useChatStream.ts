@@ -141,6 +141,31 @@ function applyStatusEvent(
         msg.id === assistantId ? { ...msg, statusText: "Scanning document sections..." } : msg,
       ),
     );
+  } else if (parsed.status === "tool_call" && parsed.tool_name) {
+    const toolName = parsed.tool_name as string;
+    const toolStatus = parsed.tool_status as "running" | "done";
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id !== assistantId) return msg;
+        const existing = msg.toolCalls ?? [];
+        if (toolStatus === "running") {
+          return {
+            ...msg,
+            toolCalls: [...existing, { name: toolName, status: "running" as const }],
+          };
+        }
+        // Mark the first running entry for this tool name as done
+        let marked = false;
+        const updated = existing.map((t) => {
+          if (!marked && t.name === toolName && t.status === "running") {
+            marked = true;
+            return { ...t, status: "done" as const };
+          }
+          return t;
+        });
+        return { ...msg, toolCalls: updated };
+      }),
+    );
   }
 }
 

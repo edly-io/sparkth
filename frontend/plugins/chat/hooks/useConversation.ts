@@ -46,6 +46,7 @@ interface ApiMessage {
   attachment_size: number | null;
   created_at: string;
   rag_sections: { type: string; name: string; source?: string }[] | null;
+  tool_calls: { name: string }[] | null;
   is_error: boolean;
 }
 
@@ -139,6 +140,9 @@ export function useConversation(
                 : undefined,
             ragSections: m.rag_sections
               ? m.rag_sections.map((s) => ({ ...s, state: "confirmed" as const }))
+              : undefined,
+            toolCalls: m.tool_calls
+              ? m.tool_calls.map((t) => ({ ...t, status: "done" as const }))
               : undefined,
             isError: m.is_error ?? false,
           })),
