@@ -618,7 +618,7 @@ async def chat_completion(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to determine retrieval intent. Please try again.",
-        )
+        ) from e
     except _PROVIDER_API_ERRORS as e:
         logger.error(f"Provider API error: {e}")
         raise HTTPException(

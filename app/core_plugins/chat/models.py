@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
 
@@ -118,4 +118,4 @@ class ConversationAttachment(TimestampedModel, SQLModel, table=True):
             nullable=False,
         )
     )
-    attached_at: datetime = Field(default_factory=datetime.utcnow)
+    attached_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -7,10 +7,13 @@ Create Date: 2026-05-12 15:52:00.000000
 """
 
 import json
+import logging
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+
+logger = logging.getLogger(__name__)
 
 # revision identifiers, used by Alembic.
 revision: str = "0dff7c4153d407b4"
@@ -69,11 +72,17 @@ def upgrade() -> None:
         sa.text("SELECT id, active_drive_file_ids FROM chat_conversations WHERE active_drive_file_ids IS NOT NULL")
     ).fetchall()
 
+    dialect = bind.dialect.name
     for conv_id, raw_ids in rows:
         try:
             ids = json.loads(raw_ids)
-            for fid in ids:
-                try:
+        except (ValueError, TypeError) as exc:
+            logger.warning("Skipping back-fill for conversation %s — malformed JSON: %s", conv_id, exc)
+            continue
+
+        for fid in ids:
+            try:
+                if dialect == "sqlite":
                     bind.execute(
                         sa.text(
                             "INSERT OR IGNORE INTO chat_conversation_attachments "
@@ -82,12 +91,18 @@ def upgrade() -> None:
                         ),
                         {"cid": conv_id, "fid": fid},
                     )
-                except Exception:
-                    # Skip individual file IDs that fail to insert
-                    pass
-        except (ValueError, TypeError):
-            # Skip conversations with malformed JSON
-            pass
+                else:
+                    bind.execute(
+                        sa.text(
+                            "INSERT INTO chat_conversation_attachments "
+                            "(conversation_id, drive_file_id, attached_at, created_at, updated_at) "
+                            "VALUES (:cid, :fid, NOW(), NOW(), NOW()) "
+                            "ON CONFLICT (conversation_id, drive_file_id) DO NOTHING"
+                        ),
+                        {"cid": conv_id, "fid": fid},
+                    )
+            except sa.exc.SQLAlchemyError as exc:
+                logger.warning("Skipping back-fill for conversation %s, file %s: %s", conv_id, fid, exc)
 
 
 def downgrade() -> None:
