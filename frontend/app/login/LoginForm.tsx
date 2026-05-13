@@ -73,8 +73,8 @@ export default function LoginPage() {
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
           <ThemeToggle />
         </div>
-        <div className="flex justify-center mb-1">
-          <SparkthLogo size={72} />
+        <div className="flex justify-center mb-6">
+          <SparkthLogo size={56} />
         </div>
 
         <h2 className="text-center text-2xl sm:text-3xl font-bold text-foreground mb-2">Log in</h2>
