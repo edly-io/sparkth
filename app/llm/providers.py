@@ -303,16 +303,20 @@ class BaseChatProvider(ABC):
 
     async def stream_message(
         self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
-    ) -> AsyncIterator[str]:
-        """Stream a message response, with optional tool usage."""
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream a message response, with optional tool usage.
+
+        Yields typed event dicts:
+          {"type": "token",     "content": str}   — text to display
+          {"type": "tool_start","name": str}       — tool execution beginning
+          {"type": "tool_end",  "name": str}       — tool execution finished
+        """
         if tools:
-            # Use streaming with tools
-            async for token in self._stream_message_with_tools(messages, tools):
-                yield token
+            async for event in self._stream_message_with_tools(messages, tools):
+                yield event
         else:
-            # Use simple streaming for non-tool conversations
             async for token in self._stream_message_simple(messages):
-                yield token
+                yield {"type": "token", "content": token}
 
     async def _stream_message_simple(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
         """Stream a message without tools."""
@@ -333,12 +337,14 @@ class BaseChatProvider(ABC):
             task.cancel()
             raise
 
-    async def _stream_message_with_tools(self, messages: list[dict[str, Any]], tools: list[Any]) -> AsyncIterator[str]:
-        """Stream a message with tool support."""
-        llm = self._create_llm(streaming=True)
+    async def _stream_message_with_tools(
+        self, messages: list[dict[str, Any]], tools: list[Any]
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Tool-loop streaming: silences intermediate LLM chatter, emits tool events,
+        and yields only the final response as token events."""
+        llm = self._create_llm(streaming=False)
         llm_with_tools = llm.bind_tools(tools)
 
-        # Build initial message list with system prompt
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
         langchain_messages.extend(self._convert_messages(messages))
 
@@ -346,42 +352,11 @@ class BaseChatProvider(ABC):
         total_executions = 0
 
         while True:
-            full_response = None
+            response = await llm_with_tools.ainvoke(langchain_messages)
 
-            async for chunk in llm_with_tools.astream(langchain_messages):
-                # Handle content that might be a list or string
-                content = getattr(chunk, "content", None)
-
-                if content:
-                    if isinstance(content, str):
-                        yield content
-                    elif isinstance(content, list):
-                        # Handle content blocks (common with Anthropic)
-                        for block in content:
-                            if isinstance(block, dict):
-                                if block.get("type") == "text":
-                                    text = block.get("text", "")
-                                    if text:
-                                        yield text
-                                elif block.get("type") == "text_delta":
-                                    text = block.get("text", "")
-                                    if text:
-                                        yield text
-                            elif isinstance(block, str):
-                                yield block
-                # Accumulate the response for tool call detection
-                if full_response is None:
-                    full_response = chunk
-                else:
-                    try:
-                        full_response = full_response + chunk
-                    except TypeError:
-                        # If chunks can't be added, just keep the latest
-                        full_response = chunk
-            # Check if there are tool calls to execute
-            if full_response and hasattr(full_response, "tool_calls") and full_response.tool_calls:
-                langchain_messages.append(full_response)
-                for tool_call in full_response.tool_calls:
+            if hasattr(response, "tool_calls") and response.tool_calls:
+                langchain_messages.append(response)
+                for tool_call in response.tool_calls:
                     if total_executions >= max_tool_executions:
                         logger.warning(f"Tool execution limit ({max_tool_executions}) reached, stopping.")
                         return
@@ -390,15 +365,29 @@ class BaseChatProvider(ABC):
                     tool_args = tool_call.get("args", {})
                     tool_id = tool_call.get("id", "")
 
+                    yield {"type": "tool_start", "name": tool_name}
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
                     tool_result = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
+                    yield {"type": "tool_end", "name": tool_name}
 
                     langchain_messages.append(
                         ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
                     )
                     total_executions += 1
             else:
+                # Final response — extract text and emit as a single token
+                content = response.content
+                if isinstance(content, list):
+                    text_parts = []
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif isinstance(block, str):
+                            text_parts.append(block)
+                    content = "".join(text_parts)
+                if content:
+                    yield {"type": "token", "content": content}
                 break
 
 

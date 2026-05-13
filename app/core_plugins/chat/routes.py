@@ -126,6 +126,17 @@ def _parse_rag_sections(model_metadata: str | None) -> list[dict[str, Any]] | No
         return None
 
 
+def _parse_tool_calls(model_metadata: str | None) -> list[dict[str, Any]] | None:
+    if not model_metadata:
+        return None
+    try:
+        meta = json.loads(model_metadata)
+        calls = meta.get("tool_calls")
+        return calls if isinstance(calls, list) else None
+    except (json.JSONDecodeError, AttributeError):
+        return None
+
+
 def _extract_query_text(messages: list[ChatMessage]) -> str:
     """Extract the user's plain text from the last user message for RAG query embedding."""
     for msg in reversed(messages):
@@ -725,19 +736,32 @@ async def stream_chat_response(
     # --- Phase 2: LLM streaming ---
     full_response = ""
     conversation_id: int = conversation.id  # type: ignore[assignment]
+    completed_tool_calls: list[dict[str, str]] = []
 
     try:
-        async for token in provider.stream_message(messages, tools=tools):
-            full_response += token
-            data = json.dumps({"token": token, "done": False})
-            yield f"data: {data}\n\n"
+        async for event in provider.stream_message(messages, tools=tools):
+            if event["type"] == "token":
+                token = event["content"]
+                full_response += token
+                yield f"data: {json.dumps({'token': token, 'done': False})}\n\n"
+            elif event["type"] == "tool_start":
+                yield f"data: {json.dumps({'status': 'tool_call', 'tool_name': event['name'], 'tool_status': 'running', 'done': False})}\n\n"
+            elif event["type"] == "tool_end":
+                completed_tool_calls.append({"name": event["name"]})
+                yield f"data: {json.dumps({'status': 'tool_call', 'tool_name': event['name'], 'tool_status': 'done', 'done': False})}\n\n"
+
+        metadata: dict[str, Any] = {}
+        if confirmed_rag_sections:
+            metadata["rag_sections"] = confirmed_rag_sections
+        if completed_tool_calls:
+            metadata["tool_calls"] = completed_tool_calls
 
         assistant_message = await service.add_message(
             session=session,
             conversation_id=conversation_id,
             role="assistant",
             content=full_response,
-            metadata={"rag_sections": confirmed_rag_sections} if confirmed_rag_sections else None,
+            metadata=metadata if metadata else None,
         )
 
         data = json.dumps(
@@ -753,6 +777,7 @@ async def stream_chat_response(
                     "attachment_name": None,
                     "attachment_size": None,
                     "rag_sections": confirmed_rag_sections or None,
+                    "tool_calls": completed_tool_calls or None,
                 },
             }
         )
@@ -995,6 +1020,7 @@ async def get_conversation(
                 attachment_name=msg.attachment_name,
                 attachment_size=msg.attachment_size,
                 rag_sections=_parse_rag_sections(msg.model_metadata),
+                tool_calls=_parse_tool_calls(msg.model_metadata),
                 is_error=msg.is_error,
             )
             for msg in messages
