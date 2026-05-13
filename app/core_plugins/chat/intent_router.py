@@ -1,12 +1,12 @@
 """RAG Intent Router — decides per-turn whether to run document retrieval."""
 
+import asyncio
 from pathlib import Path
 from typing import Any, cast
 
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import get_logger
@@ -64,32 +64,26 @@ class RAGIntentRouter:
             # Lazy import to avoid initializing DB at module level
             from app.rag_mcp.tools import get_document_structure
 
+            results = await asyncio.gather(
+                *[get_document_structure(user_id=user_id, file_id=cast(int, f.id)) for f in attached_files],
+                return_exceptions=True,
+            )
+
             attachment_summary = "The user has attached the following files:\n"
-            for file in attached_files:
+            for file, sections_or_exc in zip(attached_files, results):
                 attachment_summary += f"\n- {file.name}:\n"
-                try:
-                    sections = await get_document_structure(user_id=user_id, file_id=cast(int, file.id))
-                    if sections:
-                        for section in sections:
-                            # Format section path
-                            path_parts = [
-                                section.chapter,
-                                section.section,
-                                section.subsection,
-                            ]
-                            path = " / ".join(p for p in path_parts if p is not None)
-                            if path:
-                                attachment_summary += f"  - {path}\n"
-                    else:
-                        # No sections found, just list the file
-                        pass
-                except SQLAlchemyError as e:
+                if isinstance(sections_or_exc, BaseException):
                     logger.warning(
                         "Failed to get document structure for file %d: %s",
                         file.id,
-                        e,
+                        sections_or_exc,
                     )
-                    # Continue without section detail
+                    continue
+                for section in sections_or_exc:
+                    path_parts = [section.chapter, section.section, section.subsection]
+                    path = " / ".join(p for p in path_parts if p is not None)
+                    if path:
+                        attachment_summary += f"  - {path}\n"
 
         # Build messages for the router chain
         human_text = f"{query}"
