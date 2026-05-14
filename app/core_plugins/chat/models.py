@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import field_validator
-from sqlalchemy import ForeignKey, Index, Integer, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, UniqueConstraint
 from sqlmodel import Column, Field, Relationship, SQLModel, Text
 from uuid6 import uuid7
 
@@ -118,4 +118,7 @@ class ConversationAttachment(TimestampedModel, SQLModel, table=True):
             nullable=False,
         )
     )
-    attached_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    attached_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

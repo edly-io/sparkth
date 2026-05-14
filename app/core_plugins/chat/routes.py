@@ -356,6 +356,13 @@ async def chat_completion(
                 drive_file_id=active_drive_file_id,
                 drive_file_ids=active_drive_file_ids,
             )
+            # Sync inline drive_file blocks into the join table so the router can find them.
+            for fid in active_drive_file_ids:
+                await service.attach_drive_file(
+                    session,
+                    conversation_id=conversation.id,  # type: ignore
+                    drive_file_id=fid,
+                )
     else:
         conversation = await service.create_conversation(
             session=session,
@@ -802,6 +809,12 @@ async def stream_chat_response(
             return
 
         yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
+
+    # Safety strip: remove any drive_file blocks that were not resolved above.
+    # These are internal-only content types that must never reach the LLM API.
+    for m in messages:
+        if isinstance(m.get("content"), list):
+            m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
 
     # --- Phase 2: LLM streaming ---
     full_response = ""
