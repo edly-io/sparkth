@@ -70,3 +70,47 @@ async def test_update_user_plugin_config_valid_config_succeeds() -> None:
     )
 
     assert result.config.get("llm_config_id") == 5
+
+
+@pytest.mark.asyncio
+async def test_update_config_revalidates_stored_model_override_against_new_provider() -> None:
+    """Partial PUT changing llm_config_id must re-validate the stored llm_model_override."""
+    from unittest.mock import MagicMock
+
+    from app.models.llm import LLMConfig
+
+    stored = {"llm_config_id": 1, "llm_model_override": "gpt-4o"}
+    old_user_plugin = UserPlugin(user_id=1, plugin_id=1, enabled=True, config=stored)
+
+    anthropic_llm = LLMConfig(
+        id=2,
+        user_id=1,
+        name="Claude",
+        provider="anthropic",
+        model="claude-sonnet-4-5",
+        encrypted_key="enc",
+        masked_key="sk-ant-...abcd",
+    )
+
+    up_result = MagicMock()
+    up_result.one_or_none.return_value = old_user_plugin
+
+    llm_result = MagicMock()
+    llm_result.first.return_value = anthropic_llm
+
+    session = AsyncMock()
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    session.add = MagicMock()
+    session.exec.side_effect = [up_result, llm_result]
+
+    plugin = _make_plugin(name="slack")
+    service = PluginService()
+
+    with pytest.raises(ValueError, match="not available for provider"):
+        await service.update_user_plugin_config(
+            session=session,
+            user_id=1,
+            plugin=plugin,
+            user_config={"llm_config_id": 2},
+        )
