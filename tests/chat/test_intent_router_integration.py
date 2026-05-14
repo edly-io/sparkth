@@ -126,7 +126,7 @@ class TestIntentRouterIntegration:
             # Provider returns a simple response
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
-            mock_provider._create_llm.return_value = MagicMock()
+            mock_provider.create_llm.return_value = MagicMock()
             mock_provider.send_message = AsyncMock(
                 return_value={
                     "content": "Here is the summary.",
@@ -205,7 +205,7 @@ class TestIntentRouterIntegration:
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
-            mock_provider._create_llm.return_value = MagicMock()
+            mock_provider.create_llm.return_value = MagicMock()
             mock_get_provider.return_value = mock_provider
             mock_add_msg.return_value = mock_msg
 
@@ -288,7 +288,7 @@ class TestIntentRouterIntegration:
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
-            mock_provider._create_llm.return_value = MagicMock()
+            mock_provider.create_llm.return_value = MagicMock()
             mock_get_provider.return_value = mock_provider
             mock_add_msg.return_value = mock_msg
 
@@ -355,7 +355,7 @@ class TestIntentRouterIntegration:
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
-            mock_provider._create_llm.return_value = MagicMock()
+            mock_provider.create_llm.return_value = MagicMock()
 
             async def _stream(*args: Any, **kwargs: Any) -> Any:
                 yield "Hi!"
@@ -424,7 +424,7 @@ class TestIntentRouterIntegration:
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
-            mock_provider._create_llm.return_value = MagicMock()
+            mock_provider.create_llm.return_value = MagicMock()
             mock_get_provider.return_value = mock_provider
 
             response = await client.post(
