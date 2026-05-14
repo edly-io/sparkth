@@ -86,7 +86,7 @@ class RAGIntentRouter:
                         attachment_summary += f"  - {path}\n"
 
         # Build messages for the router chain
-        human_text = f"{query}"
+        human_text = query
         if attachment_summary:
             human_text = f"{query}\n\n{attachment_summary}"
 

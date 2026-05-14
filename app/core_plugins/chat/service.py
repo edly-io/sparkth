@@ -202,7 +202,7 @@ class ChatService:
             session.add(conversation)
             await session.commit()
         else:
-            logger.warning(f"Conversation {conversation_id} not found for title update")
+            logger.warning("Conversation %s not found for title update", conversation_id)
 
     async def attach_drive_file(
         self,
@@ -240,8 +240,9 @@ class ChatService:
             existing = result.first()
             if existing is None:
                 logger.error(
-                    f"IntegrityError but row not found after rollback for "
-                    f"conversation_id={conversation_id}, drive_file_id={drive_file_id}"
+                    "IntegrityError but row not found after rollback for conversation_id=%s, drive_file_id=%s",
+                    conversation_id,
+                    drive_file_id,
                 )
                 raise
             return existing
