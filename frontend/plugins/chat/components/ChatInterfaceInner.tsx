@@ -39,8 +39,20 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     (id: string) => {
       skipNextLoadRef.current = true;
       router.replace(`/dashboard/chat?id=${id}`);
+      // Sync any drive files that were selected before the conversation existed
+      for (const att of inputAttachments) {
+        if (att.driveFileDbId !== undefined) {
+          fetch(`/api/v1/chat/conversations/${id}/attachments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ drive_file_id: att.driveFileDbId }),
+          }).catch((err) =>
+            console.warn("Failed to persist drive file attachment on new conversation:", err),
+          );
+        }
+      }
     },
-    [skipNextLoadRef, router],
+    [skipNextLoadRef, router, inputAttachments, token],
   );
 
   const { handleSend, handleOptionClick } = useChatStream({
@@ -55,17 +67,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   const handleSetAttachments = useCallback(
     (attachments: TextAttachment[]) => {
       setInputAttachments(attachments);
-      if (attachments.length === 0 && conversationId) {
-        const hasDriveFiles = inputAttachments.some((a) => a.driveFileDbId);
-        if (hasDriveFiles) {
-          fetch(`/api/v1/chat/conversations/${conversationId}/active-file`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          }).catch((err) => console.warn("Failed to clear active drive file on backend:", err));
-        }
-      }
     },
-    [setInputAttachments, conversationId, inputAttachments, token],
+    [setInputAttachments],
   );
 
   return (
@@ -96,9 +99,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       <ChatInput
         attachments={inputAttachments}
         setAttachments={handleSetAttachments}
-        setPreviewOpen={setPreviewOpen}
-        setPreviewAttachment={setPreviewAttachment}
         onSend={handleSend}
+        conversationId={conversationId}
       />
 
       {previewOpen && previewAttachment && (

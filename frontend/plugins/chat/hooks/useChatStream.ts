@@ -4,6 +4,7 @@ import { ChatMessage, TextAttachment } from "../types";
 interface SendPayload {
   message: string;
   attachments: TextAttachment[];
+  driveFileIds?: number[];
   similarityThreshold?: number;
 }
 
@@ -46,15 +47,7 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
   for (let i = 0; i < attachments.length; i++) {
     const attachment = attachments[i];
     const isLast = i === attachments.length - 1;
-    if (attachment.driveFileDbId !== undefined) {
-      const contentBlocks: object[] = [{ type: "drive_file", file_id: attachment.driveFileDbId }];
-      if (isLast && message.trim()) contentBlocks.push({ type: "text", text: message });
-      out.push({
-        role: "user",
-        content: contentBlocks,
-        attachment: { name: attachment.name, size: attachment.size },
-      });
-    } else if (attachment.base64Data) {
+    if (attachment.base64Data) {
       const contentBlocks: object[] = [
         {
           type: "document",
@@ -251,7 +244,7 @@ export function useChatStream({
   );
 
   const handleSend = useCallback(
-    async ({ message, attachments, similarityThreshold = 0.45 }: SendPayload) => {
+    async ({ message, attachments, driveFileIds, similarityThreshold = 0.45 }: SendPayload) => {
       lastSentRef.current = { message, attachments };
       lastSentThresholdRef.current = similarityThreshold;
 
@@ -288,6 +281,7 @@ export function useChatStream({
             include_system_tools_message: true,
             similarity_threshold: similarityThreshold,
             ...(conversationId && { conversation_id: conversationId }),
+            ...(driveFileIds && driveFileIds.length > 0 && { drive_file_ids: driveFileIds }),
           }),
         });
 

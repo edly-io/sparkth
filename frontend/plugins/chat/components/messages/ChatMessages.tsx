@@ -7,7 +7,11 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onSend: (payload: { message: string; attachments: TextAttachment[] }) => void;
+  onSend: (payload: {
+    message: string;
+    attachments: TextAttachment[];
+    driveFileIds?: number[];
+  }) => void;
   onOptionClick?: (text: string) => void;
 }
 

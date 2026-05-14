@@ -49,17 +49,9 @@ interface ApiMessage {
   is_error: boolean;
 }
 
-interface ActiveDriveFile {
-  id: number;
-  name: string;
-}
-
 interface ApiConversation {
   id: string;
   messages: ApiMessage[];
-  active_drive_file_id: number | null;
-  active_drive_file_name: string | null;
-  active_drive_files: ActiveDriveFile[];
 }
 
 interface UseConversationResult {
@@ -148,19 +140,21 @@ export function useConversation(
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
 
-        // Restore persistent drive file attachments (or clear if this conversation has none).
-        // Prefer active_drive_files (multi-file); fall back to single legacy fields for old conversations.
-        const driveFiles: ActiveDriveFile[] =
-          data.active_drive_files?.length > 0
-            ? data.active_drive_files
-            : data.active_drive_file_id && data.active_drive_file_name
-              ? [{ id: data.active_drive_file_id, name: data.active_drive_file_name }]
-              : [];
+        // Load persisted drive file attachments from the join table.
+        const attachmentsRes = await fetch(
+          `/api/v1/chat/conversations/${conversationId}/attachments`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          },
+        );
+        const persistedFiles: { id: number; name: string; size: number | null }[] =
+          attachmentsRes.ok ? await attachmentsRes.json() : [];
 
         setInputAttachments(
-          driveFiles.map((f) => ({
+          persistedFiles.map((f) => ({
             name: f.name,
-            size: 0,
+            size: f.size ?? 0,
             text: `[File: ${f.name}]`,
             driveFileDbId: f.id,
           })),
