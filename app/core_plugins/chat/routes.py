@@ -490,11 +490,15 @@ async def chat_completion(
 
         # Synthesize messages based on router decision
         if should_run_rag and attached_files:
-            # When RAG is needed, create synthetic messages with drive_file blocks from attachments
+            # Synthetic message: drive_file blocks (for RAG resolution) + user's query text
+            # so that _extract_query_text finds the question and the user's question is
+            # preserved in current after resolution.
+            file_blocks: list[dict[str, Any]] = [{"type": "drive_file", "file_id": f.id} for f in attached_files]
+            text_block: list[dict[str, Any]] = [{"type": "text", "text": query_text}] if query_text else []
             synthetic_messages = [
                 ChatMessage(
                     role="user",
-                    content=[{"type": "drive_file", "file_id": f.id} for f in attached_files],
+                    content=file_blocks + text_block,
                 )
             ]
             unresolved_messages = synthetic_messages
@@ -502,12 +506,15 @@ async def chat_completion(
             unresolved_messages = None
 
         if request.stream and should_run_rag:
-            # For streaming with RAG, resolution happens in the generator
-            current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+            # Pass synthetic messages as current so the in-stream assembly pass finds the
+            # drive_file blocks to replace. The query text block travels with them so the
+            # LLM sees both the RAG context and the user's question after replacement.
+            current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]  # type: ignore[union-attr]
         else:
             # For non-streaming or when RAG is skipped, resolve synchronously
             if should_run_rag and unresolved_messages:
-                # If router says retrieve and we have attachments, use the synthetic messages
+                # _resolve_drive_file_blocks replaces drive_file blocks with RAG context;
+                # the query text block is preserved alongside it.
                 resolved_messages = await _resolve_drive_file_blocks(
                     messages=unresolved_messages,
                     session=session,
