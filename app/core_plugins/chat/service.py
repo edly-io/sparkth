@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -24,8 +24,6 @@ class ChatService:
         model: str,
         title: str | None = None,
         system_prompt: str | None = None,
-        active_drive_file_id: int | None = None,
-        active_drive_file_ids: list[int] | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
@@ -34,22 +32,11 @@ class ChatService:
             model=model,
             title=title,
             system_prompt=system_prompt,
-            active_drive_file_id=active_drive_file_id,
-            active_drive_file_ids=json.dumps(active_drive_file_ids) if active_drive_file_ids else None,
         )
 
         session.add(conversation)
         await session.commit()
         await session.refresh(conversation)
-
-        # Write-through to new attachment table
-        if active_drive_file_ids:
-            for fid in active_drive_file_ids:
-                await self.attach_drive_file(
-                    session,
-                    conversation_id=cast(int, conversation.id),
-                    drive_file_id=fid,
-                )
 
         logger.info("Created conversation %s for user %s", conversation.id, user_id)
         return conversation
@@ -83,31 +70,6 @@ class ChatService:
         conversations = list(result.all())
 
         return conversations, total
-
-    async def set_active_drive_file(
-        self,
-        session: AsyncSession,
-        conversation_id: int,
-        user_id: int,
-        drive_file_id: int | None,
-        drive_file_ids: list[int] | None = None,
-    ) -> None:
-        """Set or clear the active drive file(s) for a conversation."""
-        stmt = select(Conversation).where(
-            Conversation.id == conversation_id,
-            Conversation.user_id == user_id,
-        )
-        result = await session.exec(stmt)
-        conversation = result.first()
-        if conversation:
-            if drive_file_ids is not None:
-                conversation.active_drive_file_id = drive_file_ids[0] if drive_file_ids else None
-                conversation.active_drive_file_ids = json.dumps(drive_file_ids) if drive_file_ids else None
-            else:
-                conversation.active_drive_file_id = drive_file_id
-                conversation.active_drive_file_ids = json.dumps([drive_file_id]) if drive_file_id else None
-            session.add(conversation)
-            await session.commit()
 
     async def add_message(
         self,
@@ -219,6 +181,11 @@ class ChatService:
         result = await session.exec(stmt)
         existing = result.first()
         if existing is not None:
+            logger.info(
+                "Drive file %s already attached to conversation %s",
+                drive_file_id,
+                conversation_id,
+            )
             return existing
 
         # Try to insert new
@@ -231,6 +198,11 @@ class ChatService:
             await session.flush()
             await session.commit()
             await session.refresh(attachment)
+            logger.info(
+                "Drive file %s attached to conversation %s",
+                drive_file_id,
+                conversation_id,
+            )
             return attachment
         except IntegrityError:
             # Race condition — another process inserted between our check and insert
@@ -263,6 +235,11 @@ class ChatService:
         if attachment:
             await session.delete(attachment)
             await session.commit()
+            logger.info(
+                "Drive file %s detached from conversation %s",
+                drive_file_id,
+                conversation_id,
+            )
 
     async def list_conversation_attachments(
         self,

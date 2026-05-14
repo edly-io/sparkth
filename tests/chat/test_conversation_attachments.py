@@ -381,3 +381,69 @@ class TestAttachmentEndpoints:
         response = await client.delete(f"/api/v1/chat/conversations/{conv_uuid}/attachments/{file_id}")
 
         assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_attachments_returns_attached_files(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """GET /conversations/{uuid}/attachments returns list of attached READY files."""
+        conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
+        folder, folder_id = await _seed_drive_folder(session, user_id=cast(int, current_user.id))
+        file, file_id = await _seed_drive_file(session, folder_id, user_id=cast(int, current_user.id), name="doc.pdf")
+        service = ChatService()
+        await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=file_id)
+
+        response = await client.get(f"/api/v1/chat/conversations/{conv_uuid}/attachments")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == file_id
+        assert data[0]["name"] == "doc.pdf"
+
+    @pytest.mark.asyncio
+    async def test_get_attachments_excludes_non_ready(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """GET only returns READY files, not pending/failed ones."""
+        from app.rag.types import RagStatus
+
+        conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
+        folder, folder_id = await _seed_drive_folder(session, user_id=cast(int, current_user.id))
+        ready_file, ready_id = await _seed_drive_file(
+            session, folder_id, user_id=cast(int, current_user.id), name="ready.pdf", rag_status=RagStatus.READY
+        )
+        failed_file, failed_id = await _seed_drive_file(
+            session, folder_id, user_id=cast(int, current_user.id), name="failed.pdf", rag_status=RagStatus.FAILED
+        )
+        service = ChatService()
+        await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=ready_id)
+        await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=failed_id)
+
+        response = await client.get(f"/api/v1/chat/conversations/{conv_uuid}/attachments")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["id"] == ready_id
+
+    @pytest.mark.asyncio
+    async def test_get_attachments_missing_conversation_returns_404(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """GET with non-existent conversation UUID returns 404."""
+        from uuid import uuid4
+
+        response = await client.get(f"/api/v1/chat/conversations/{uuid4()}/attachments")
+
+        assert response.status_code == 404

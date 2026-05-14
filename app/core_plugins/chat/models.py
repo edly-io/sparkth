@@ -37,16 +37,6 @@ class Conversation(TimestampedModel, SQLModel, table=True):
     system_prompt: str | None = Field(default=None, sa_column=Column(Text))
     total_tokens_used: int = Field(default=0)
     total_cost: float = Field(default=0.0)
-    active_drive_file_id: int | None = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("drive_files.id", ondelete="SET NULL"),
-            index=True,
-            nullable=True,
-        ),
-    )
-    active_drive_file_ids: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
 
     messages: list["Message"] = Relationship(
         back_populates="conversation",

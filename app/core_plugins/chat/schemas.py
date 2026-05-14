@@ -91,6 +91,10 @@ class ChatCompletionRequest(BaseModel):
         le=1.0,
         description="Cosine similarity threshold for RAG chunk retrieval (0 = very loose, 1 = exact match)",
     )
+    drive_file_ids: list[int] | None = Field(
+        default=None,
+        description="Drive file IDs to attach to the conversation before processing (used when attaching files on a new conversation).",
+    )
 
 
 class ChatCompletionResponse(BaseModel):
@@ -125,11 +129,6 @@ class MessageResponse(BaseModel):
     is_error: bool = False
 
 
-class ActiveDriveFile(BaseModel):
-    id: int
-    name: str
-
-
 class ConversationResponse(BaseModel):
     id: UUID
     provider: str
@@ -140,9 +139,6 @@ class ConversationResponse(BaseModel):
     message_count: int
     created_at: datetime
     updated_at: datetime
-    active_drive_file_id: int | None = None
-    active_drive_file_name: str | None = None
-    active_drive_files: list[ActiveDriveFile] = []
 
 
 class ConversationDetailResponse(ConversationResponse):
@@ -169,6 +165,14 @@ class ConversationAttachmentResponse(BaseModel):
     conversation_id: int
     drive_file_id: int
     attached_at: datetime
+
+
+class AttachedDriveFileResponse(BaseModel):
+    """Drive file info returned by the list-attachments endpoint."""
+
+    id: int
+    name: str
+    size: int | None
 
 
 class ConversationListResponse(BaseModel):
