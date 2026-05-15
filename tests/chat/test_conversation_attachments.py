@@ -169,7 +169,7 @@ class TestChatServiceAttach:
 
         # Act - attach, then detach
         await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=file_id)
-        await service.detach_drive_file(session, conversation_id=conv_id, drive_file_id=file_id)
+        await service.detach_drive_file(session, conversation_id=conv_id, drive_file_id=file_id, user_id=1)
 
         # Assert - attachment is gone
         attachments = await service.list_conversation_attachments(session, conversation_id=conv_id, user_id=1)
@@ -184,7 +184,7 @@ class TestChatServiceAttach:
 
         # Act - detach something that was never attached
         # Should not raise
-        await service.detach_drive_file(session, conversation_id=conv_id, drive_file_id=999)
+        await service.detach_drive_file(session, conversation_id=conv_id, drive_file_id=999, user_id=1)
 
     @pytest.mark.asyncio
     async def test_list_conversation_attachments_returns_only_ready_files(self, session: AsyncSession) -> None:

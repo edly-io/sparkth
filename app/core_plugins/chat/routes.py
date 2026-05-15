@@ -1214,6 +1214,7 @@ async def detach_file_from_conversation(
         session,
         conversation_id=conversation.id,  # type: ignore
         drive_file_id=drive_file_id,
+        user_id=current_user.id,  # type: ignore
     )
 
 

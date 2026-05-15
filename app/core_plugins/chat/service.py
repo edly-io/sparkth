@@ -260,11 +260,17 @@ class ChatService:
         session: AsyncSession,
         conversation_id: int,
         drive_file_id: int,
+        user_id: int,
     ) -> None:
-        """Detach a drive file from a conversation."""
-        stmt = select(ConversationAttachment).where(
-            ConversationAttachment.conversation_id == conversation_id,
-            ConversationAttachment.drive_file_id == drive_file_id,
+        """Detach a drive file from a conversation owned by user_id."""
+        stmt = (
+            select(ConversationAttachment)
+            .join(Conversation, Conversation.id == ConversationAttachment.conversation_id)  # type: ignore
+            .where(
+                ConversationAttachment.conversation_id == conversation_id,
+                ConversationAttachment.drive_file_id == drive_file_id,
+                Conversation.user_id == user_id,
+            )
         )
         result = await session.exec(stmt)
         attachment = result.first()
