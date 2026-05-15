@@ -1,6 +1,8 @@
 """Tests for SSE status events during RAG retrieval."""
 
+import asyncio
 import json
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,6 +10,7 @@ import pytest
 from app.core_plugins.chat.routes import stream_chat_response
 from app.core_plugins.chat.schemas import ChatMessage
 from app.rag.context_service import RAGContext, RAGContextService
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 
 def _make_rag_service(context: RAGContext) -> RAGContextService:
@@ -344,3 +347,129 @@ class TestMessageResponseRagSections:
             attachment_size=None,
         )
         assert response.rag_sections is None
+
+
+# ---------------------------------------------------------------------------
+# RAG exception → user-friendly SSE error (non-empty string)
+# ---------------------------------------------------------------------------
+
+
+def _make_failing_rag_service(exc: Exception) -> RAGContextService:
+    mock_service = MagicMock(spec=RAGContextService)
+    mock_service.get_context_via_agent = AsyncMock(side_effect=exc)
+    return mock_service
+
+
+def _unresolved_with_file(file_id: int = 1) -> list[ChatMessage]:
+    return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": file_id}])]
+
+
+async def _collect_events(gen: AsyncGenerator[str, None]) -> list[dict]:  # type: ignore[type-arg]
+    events = []
+    async for chunk in gen:
+        if chunk.startswith("data:"):
+            events.append(json.loads(chunk.replace("data: ", "").strip()))
+    return events
+
+
+@pytest.mark.asyncio
+async def test_drive_file_not_found_emits_friendly_error() -> None:
+    events = await _collect_events(
+        stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            session=AsyncMock(),
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            rag_service=_make_failing_rag_service(DriveFileNotFoundError()),
+            user_id=1,
+            llm=MagicMock(),
+        )
+    )
+
+    error_events = [e for e in events if "error" in e]
+    assert len(error_events) == 1
+    assert error_events[0]["error"] != ""
+    assert "found" in error_events[0]["error"].lower() or "accessible" in error_events[0]["error"].lower()
+    assert error_events[0]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_rag_not_ready_emits_friendly_error() -> None:
+    events = await _collect_events(
+        stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            session=AsyncMock(),
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            rag_service=_make_failing_rag_service(RAGNotReadyError(file_db_id=1, rag_status="PENDING")),
+            user_id=1,
+            llm=MagicMock(),
+        )
+    )
+
+    error_events = [e for e in events if "error" in e]
+    assert len(error_events) == 1
+    assert error_events[0]["error"] != ""
+    assert "processed" in error_events[0]["error"].lower() or "wait" in error_events[0]["error"].lower()
+    assert error_events[0]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_rag_retrieval_error_emits_friendly_error() -> None:
+    events = await _collect_events(
+        stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            session=AsyncMock(),
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            rag_service=_make_failing_rag_service(RAGRetrievalError()),
+            user_id=1,
+            llm=MagicMock(),
+        )
+    )
+
+    error_events = [e for e in events if "error" in e]
+    assert len(error_events) == 1
+    assert error_events[0]["error"] != ""
+    assert "search" in error_events[0]["error"].lower() or "failed" in error_events[0]["error"].lower()
+    assert error_events[0]["done"] is True
+
+
+# ---------------------------------------------------------------------------
+# Background task: add_message is called even when consumer stops early
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_add_message_called_after_early_consumer_exit() -> None:
+    """DB write must happen even if the SSE consumer stops reading before done."""
+    service = _make_service()
+
+    gen = stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": "Hello"}],
+        conversation=_make_conversation(),
+        service=service,
+        session=AsyncMock(),
+        tools=None,
+    )
+
+    # Consume only the first event then abandon the generator
+    async for _ in gen:
+        break
+
+    # Give the background task time to finish
+    await asyncio.sleep(0.1)
+
+    add_message_calls = service.add_message.call_args_list
+    assistant_call = next((c for c in add_message_calls if c.kwargs.get("role") == "assistant"), None)
+    assert assistant_call is not None, "add_message must be called even when the consumer exits early"
