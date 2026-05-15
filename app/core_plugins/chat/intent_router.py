@@ -7,7 +7,6 @@ from typing import Any, cast
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import get_logger
 from app.core_plugins.chat.schemas import RAGRoutingDecision
@@ -39,7 +38,6 @@ class RAGIntentRouter:
         *,
         query: str,
         attached_files: list[DriveFile],
-        session: AsyncSession,
         user_id: int,
     ) -> RAGRoutingDecision:
         """Decide whether to run RAG retrieval for this turn.
@@ -47,8 +45,7 @@ class RAGIntentRouter:
         Args:
             query: The user's query text.
             attached_files: List of DriveFile objects attached to the conversation.
-            session: Database session for accessing file metadata.
-            user_id: The user ID for context.
+            user_id: The user ID passed to get_document_structure.
 
         Returns:
             RAGRoutingDecision with should_retrieve and reason.

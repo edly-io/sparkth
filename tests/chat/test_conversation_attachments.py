@@ -281,8 +281,8 @@ class TestAttachmentEndpoints:
             json={"drive_file_id": file_id},
         )
 
-        # Assert - either 200 or 201 is OK (idempotent)
-        assert response2.status_code in (200, 201)
+        # Assert - idempotent attach always returns 201
+        assert response2.status_code == 201
 
     @pytest.mark.asyncio
     async def test_post_attachment_wrong_owner_returns_403_or_404(
@@ -304,8 +304,8 @@ class TestAttachmentEndpoints:
             json={"drive_file_id": file_id},
         )
 
-        # Assert
-        assert response.status_code in (403, 404)
+        # Assert - file not found for this user returns 404
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_post_attachment_missing_conversation_returns_404(

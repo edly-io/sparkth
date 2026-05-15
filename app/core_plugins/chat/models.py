@@ -83,7 +83,7 @@ class Message(TimestampedModel, SQLModel, table=True):
         return v
 
 
-class ConversationAttachment(TimestampedModel, SQLModel, table=True):
+class ConversationAttachment(SQLModel, table=True):
     """Join table linking conversations to attached Drive files."""
 
     __tablename__ = "chat_conversation_attachments"

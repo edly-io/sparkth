@@ -47,12 +47,16 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ drive_file_id: att.driveFileDbId }),
-          }).catch((err) => {
-            console.warn("Failed to persist drive file attachment on new conversation:", err);
-            setError(
-              `Failed to attach "${att.name}". It may not be available for this conversation.`,
-            );
-          });
+          })
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            })
+            .catch((err) => {
+              console.warn("Failed to persist drive file attachment on new conversation:", err);
+              setError(
+                `Failed to attach "${att.name}". It may not be available for this conversation.`,
+              );
+            });
         }
       }
     },

@@ -1,5 +1,4 @@
 import json
-import re
 from functools import lru_cache
 from typing import Any, AsyncGenerator, Literal, cast
 from uuid import UUID
@@ -111,11 +110,6 @@ def get_rag_context_service() -> RAGContextService:
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content."""
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
-
-
-def _strip_md(text: str) -> str:
-    """Remove markdown emphasis markers (* and **) from a string."""
-    return re.sub(r"\*+", "", text).strip()
 
 
 def _parse_rag_sections(model_metadata: str | None) -> list[dict[str, Any]] | None:
@@ -285,7 +279,7 @@ async def chat_completion(
         )
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = "No AI Key found for the current user. Please configure an AI key in your chat plugin settings.."
+        detail = "No AI Key found for the current user. Please configure an AI key in your chat plugin settings."
         await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
     except LLMConfigModelNotSetError as exc:
@@ -338,20 +332,21 @@ async def chat_completion(
     # Attach any drive files included with the request (covers new-conversation flow
     # where files are selected before the conversation exists in the DB).
     if request.drive_file_ids:
-        for file_id in request.drive_file_ids:
-            df_result = await session.exec(
-                select(DriveFileModel).where(
-                    DriveFileModel.id == file_id,
-                    DriveFileModel.user_id == current_user.id,
-                    DriveFileModel.is_deleted == False,  # noqa: E712
-                )
+        owned_result = await session.exec(
+            select(DriveFileModel.id).where(
+                col(DriveFileModel.id).in_(request.drive_file_ids),
+                DriveFileModel.user_id == current_user.id,
+                DriveFileModel.is_deleted == False,  # noqa: E712
             )
-            if df_result.first():
-                await service.attach_drive_file(
-                    session,
-                    conversation_id=conversation.id,  # type: ignore
-                    drive_file_id=file_id,
-                )
+        )
+        for file_id in owned_result.all():
+            if file_id is None:
+                continue
+            await service.attach_drive_file(
+                session,
+                conversation_id=conversation.id,  # type: ignore
+                drive_file_id=file_id,
+            )
 
     for msg in request.messages:
         # Store a text summary for messages with content blocks (e.g. file attachments)
@@ -446,7 +441,6 @@ async def chat_completion(
             decision = await router.decide(
                 query=query_text,
                 attached_files=attached_files,
-                session=session,
                 user_id=current_user.id,  # type: ignore[arg-type]
             )
             should_run_rag = decision.should_retrieve
@@ -610,7 +604,7 @@ async def chat_completion(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Chat completion failed",
-        )
+        ) from e
 
 
 async def stream_chat_response(

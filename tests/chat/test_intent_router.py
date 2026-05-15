@@ -42,7 +42,6 @@ class TestRAGIntentRouterDecide:
             result = await router.decide(
                 query="tell me about chapter 2",
                 attached_files=[_make_drive_file(id=1, name="textbook.pdf")],
-                session=MagicMock(),
                 user_id=1,
             )
 
@@ -62,7 +61,6 @@ class TestRAGIntentRouterDecide:
             result = await router.decide(
                 query="make that title punchier",
                 attached_files=[_make_drive_file()],
-                session=MagicMock(),
                 user_id=1,
             )
 
@@ -86,7 +84,6 @@ class TestRAGIntentRouterDecide:
                 await router.decide(
                     query="test",
                     attached_files=[_make_drive_file()],
-                    session=MagicMock(),
                     user_id=1,
                 )
 
@@ -119,7 +116,6 @@ class TestRAGIntentRouterDecide:
                 await router.decide(
                     query="test",
                     attached_files=[_make_drive_file()],
-                    session=MagicMock(),
                     user_id=1,
                 )
 
@@ -137,7 +133,6 @@ class TestRAGIntentRouterDecide:
             await router.decide(
                 query=query_text,
                 attached_files=[_make_drive_file()],
-                session=MagicMock(),
                 user_id=1,
             )
 
@@ -166,7 +161,6 @@ class TestRAGIntentRouterDecide:
             await router.decide(
                 query="tell me about this",
                 attached_files=[_make_drive_file(id=1, name=file_name)],
-                session=MagicMock(),
                 user_id=1,
             )
 
@@ -189,7 +183,6 @@ class TestRAGIntentRouterDecide:
         result = await router.decide(
             query="test",
             attached_files=[],
-            session=MagicMock(),
             user_id=1,
         )
 

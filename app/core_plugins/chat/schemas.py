@@ -1,4 +1,5 @@
 import base64
+import binascii
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -42,7 +43,7 @@ class ChatMessage(BaseModel):
                     data = source.get("data", "")
                     try:
                         size = len(base64.b64decode(data))
-                    except Exception:
+                    except binascii.Error:
                         raise ValueError("Invalid base64 data in content block")
                     if size > MAX_FILE_SIZE:
                         raise ValueError("File size exceeds 30MB limit")

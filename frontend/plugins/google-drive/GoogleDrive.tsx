@@ -688,7 +688,10 @@ export default function GoogleDrive() {
   useEffect(() => {
     if (!token || folderIdsWithNonTerminal.length === 0) return;
 
+    const BASE_DELAY = 5_000;
+    const MAX_DELAY = 30_000;
     let cancelled = false;
+    let retryDelay = BASE_DELAY;
     let timerId: ReturnType<typeof setTimeout> | undefined;
 
     const poll = async () => {
@@ -706,18 +709,18 @@ export default function GoogleDrive() {
         }
         dispatch({ type: "UPDATE_RAG_STATUSES", payload: statusMap });
 
+        retryDelay = BASE_DELAY;
+        if (!cancelled) timerId = setTimeout(poll, BASE_DELAY);
+      } catch (err) {
+        console.warn("RAG status poll failed, retrying in", retryDelay, "ms:", err);
         if (!cancelled) {
-          timerId = setTimeout(poll, 5000);
-        }
-      } catch {
-        // Silently retry — polling errors are non-fatal
-        if (!cancelled) {
-          timerId = setTimeout(poll, 5000);
+          timerId = setTimeout(poll, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, MAX_DELAY);
         }
       }
     };
 
-    timerId = setTimeout(poll, 5000);
+    timerId = setTimeout(poll, BASE_DELAY);
     return () => {
       cancelled = true;
       if (timerId) clearTimeout(timerId);

@@ -45,8 +45,8 @@ export function useChatInput({
 
       const data: UploadResponse = await uploadFile(formData, token ?? undefined);
 
-      setAttachments([
-        ...attachments,
+      setAttachments((prev) => [
+        ...prev,
         {
           name: file.name,
           size: file.size,
@@ -83,11 +83,15 @@ export function useChatInput({
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ drive_file_id: file.id }),
-        }).catch((err) => {
-          console.warn("Failed to persist drive file attachment:", err);
-          setUploadError(`Failed to attach "${file.name}". Please try again.`);
-          setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== file.id));
-        });
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          })
+          .catch((err) => {
+            console.warn("Failed to persist drive file attachment:", err);
+            setUploadError(`Failed to attach "${file.name}". Please try again.`);
+            setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== file.id));
+          });
       }
 
       const newIds = new Set(driveFiles.map((f) => f.id));
@@ -98,11 +102,15 @@ export function useChatInput({
         fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
-        }).catch((err) => {
-          console.warn("Failed to detach drive file:", err);
-          setUploadError(`Failed to detach "${att.name}". Please try again.`);
-          setAttachments((prev) => [...prev, att]);
-        });
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          })
+          .catch((err) => {
+            console.warn("Failed to detach drive file:", err);
+            setUploadError(`Failed to detach "${att.name}". Please try again.`);
+            setAttachments((prev) => [...prev, att]);
+          });
       }
     }
   };
@@ -115,13 +123,32 @@ export function useChatInput({
         fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${driveFileDbId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
-        }).catch((err) => {
-          console.warn("Failed to detach drive file:", err);
-          setUploadError(`Failed to detach "${removed.name}". Please try again.`);
-          setAttachments((prev) => [...prev, removed]);
-        });
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          })
+          .catch((err) => {
+            console.warn("Failed to detach drive file:", err);
+            setUploadError(`Failed to detach "${removed.name}". Please try again.`);
+            setAttachments((prev) => [...prev, removed]);
+          });
       }
     } else {
+      // Clear all attachments — issue DELETE for any persisted drive files
+      if (conversationId) {
+        for (const att of attachments.filter((a) => a.driveFileDbId !== undefined)) {
+          fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            })
+            .catch((err) => {
+              console.warn("Failed to detach drive file:", err);
+            });
+        }
+      }
       setAttachments([]);
     }
   };
