@@ -93,6 +93,7 @@ class ChatCompletionRequest(BaseModel):
     )
     drive_file_ids: list[int] | None = Field(
         default=None,
+        max_length=20,
         description="Drive file IDs to attach to the conversation before processing (used when attaching files on a new conversation).",
     )
 

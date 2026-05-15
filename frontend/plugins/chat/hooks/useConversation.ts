@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { ChatMessage, TextAttachment } from "../types";
 
 function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
@@ -58,8 +58,9 @@ interface UseConversationResult {
   loading: boolean;
   messages: ChatMessage[];
   error: string | null;
+  setError: Dispatch<SetStateAction<string | null>>;
   inputAttachments: TextAttachment[];
-  setInputAttachments: (attachments: TextAttachment[]) => void;
+  setInputAttachments: Dispatch<SetStateAction<TextAttachment[]>>;
   setMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   clearError: () => void;
   skipNextLoadRef: React.RefObject<boolean>;
@@ -179,6 +180,7 @@ export function useConversation(
     loading: historyState.loading,
     messages: historyState.messages,
     error,
+    setError,
     inputAttachments,
     setInputAttachments,
     setMessages,

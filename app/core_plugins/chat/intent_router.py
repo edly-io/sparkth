@@ -22,8 +22,6 @@ _SYSTEM_PROMPT = (Path(__file__).parent / "assets" / "rag_intent_router_system_p
 class RAGIntentRouterError(Exception):
     """Raised when the router's LLM call fails."""
 
-    pass
-
 
 class RAGIntentRouter:
     """Routes per-turn chat messages to decide whether to run RAG retrieval."""

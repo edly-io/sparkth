@@ -1,5 +1,6 @@
 "use client";
 
+import { Dispatch, SetStateAction } from "react";
 import { Paperclip, ArrowUp, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
@@ -12,7 +13,7 @@ import { useChatInput } from "../../hooks/useChatInput";
 
 interface ChatInputProps {
   attachments: TextAttachment[];
-  setAttachments: (attachments: TextAttachment[]) => void;
+  setAttachments: Dispatch<SetStateAction<TextAttachment[]>>;
   onSend: (payload: {
     message: string;
     attachments: TextAttachment[];

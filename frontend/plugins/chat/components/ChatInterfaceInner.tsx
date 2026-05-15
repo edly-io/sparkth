@@ -28,6 +28,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     loading: loadingHistory,
     messages,
     error,
+    setError,
     inputAttachments,
     setInputAttachments,
     setMessages,
@@ -46,13 +47,16 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ drive_file_id: att.driveFileDbId }),
-          }).catch((err) =>
-            console.warn("Failed to persist drive file attachment on new conversation:", err),
-          );
+          }).catch((err) => {
+            console.warn("Failed to persist drive file attachment on new conversation:", err);
+            setError(
+              `Failed to attach "${att.name}". It may not be available for this conversation.`,
+            );
+          });
         }
       }
     },
-    [skipNextLoadRef, router, inputAttachments, token],
+    [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
   const { handleSend, handleOptionClick } = useChatStream({
@@ -63,13 +67,6 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     setMessages,
     onNewConversation,
   });
-
-  const handleSetAttachments = useCallback(
-    (attachments: TextAttachment[]) => {
-      setInputAttachments(attachments);
-    },
-    [setInputAttachments],
-  );
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
@@ -98,7 +95,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
 
       <ChatInput
         attachments={inputAttachments}
-        setAttachments={handleSetAttachments}
+        setAttachments={setInputAttachments}
         onSend={handleSend}
         conversationId={conversationId}
       />
