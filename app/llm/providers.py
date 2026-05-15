@@ -110,6 +110,10 @@ class BaseChatProvider(ABC):
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
         pass
 
+    def create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
+        """Public interface for creating a configured LangChain LLM instance."""
+        return self._create_llm(streaming=streaming, callbacks=callbacks)
+
     def _convert_messages(self, messages: list[dict[str, Any]]) -> list[BaseMessage]:
         """Convert dict messages to LangChain message objects."""
         langchain_messages: list[BaseMessage] = []

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
 import {
   FileText,
   Image as ImageIcon,
@@ -31,6 +31,7 @@ import {
   downloadFile,
   deleteFile,
   refreshFolder,
+  getFolderRagStatus,
   DriveFolder,
   ConnectionStatus as ConnectionStatusType,
   formatDate,
@@ -140,18 +141,20 @@ function PipelineStatusChip({
     return <StatusChip tone="muted" icon={Clock} label="Pending" />;
   }
   if (ragStatus === RagStatus.Queued) {
-    return <StatusChip tone="warning" icon={Clock} label="Queued" />;
+    return <StatusChip tone="muted" icon={Clock} label="Queued" />;
   }
   if (ragStatus === RagStatus.Processing) {
     return <StatusChip tone="warning" icon={Clock} label="Indexing" />;
   }
   if (ragStatus === RagStatus.Failed) {
-    const chip = <StatusChip tone="error" icon={AlertCircle} label="Index Failed" />;
-    if (!ragError) return chip;
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{chip}</TooltipTrigger>
-        <TooltipContent>{ragError}</TooltipContent>
+        <TooltipTrigger asChild>
+          <span className="cursor-default">
+            <StatusChip tone="error" icon={AlertCircle} label="Failed" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{ragError ?? "Indexing failed. Try re-syncing the folder."}</TooltipContent>
       </Tooltip>
     );
   }
@@ -232,6 +235,10 @@ type DriveAction =
   | { type: "SET_DOWNLOADING_ID"; payload: number | null }
   | { type: "SET_RESYNCING"; payload: boolean }
   | { type: "SET_CURRENT_PAGE"; payload: number }
+  | {
+      type: "UPDATE_RAG_STATUSES";
+      payload: Record<number, { status: RagStatus | null; error: string | null }>;
+    }
   | { type: "RELOAD" };
 
 const initialDriveState: DriveState = {
@@ -278,6 +285,15 @@ function driveReducer(state: DriveState, action: DriveAction): DriveState {
       return { ...state, resyncing: action.payload };
     case "SET_CURRENT_PAGE":
       return { ...state, currentPage: action.payload };
+    case "UPDATE_RAG_STATUSES":
+      return {
+        ...state,
+        resources: state.resources.map((r) =>
+          r.id in action.payload
+            ? { ...r, ragStatus: action.payload[r.id].status, ragError: action.payload[r.id].error }
+            : r,
+        ),
+      };
     case "RELOAD":
       return {
         ...state,
@@ -656,6 +672,60 @@ export default function GoogleDrive() {
       loadPage(currentPage);
     }
   }, [currentPage, totalResources, loadPage]);
+
+  // Poll RAG statuses for files that are still queued or processing
+  const folderIdsWithNonTerminal = useMemo(() => {
+    const nonTerminalStatuses = new Set<string>(["queued", "processing"]);
+    const ids = new Set<number>();
+    for (const r of resources) {
+      if (r.ragStatus && nonTerminalStatuses.has(r.ragStatus)) {
+        ids.add(r.folderId);
+      }
+    }
+    return Array.from(ids);
+  }, [resources]);
+
+  useEffect(() => {
+    if (!token || folderIdsWithNonTerminal.length === 0) return;
+
+    const BASE_DELAY = 5_000;
+    const MAX_DELAY = 30_000;
+    let cancelled = false;
+    let retryDelay = BASE_DELAY;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      try {
+        const results = await Promise.all(
+          folderIdsWithNonTerminal.map((folderId) => getFolderRagStatus(folderId, token)),
+        );
+        if (cancelled) return;
+
+        const statusMap: Record<number, { status: RagStatus | null; error: string | null }> = {};
+        for (const folder of results) {
+          for (const f of folder.files) {
+            statusMap[f.file_id] = { status: f.rag_status, error: f.rag_error };
+          }
+        }
+        dispatch({ type: "UPDATE_RAG_STATUSES", payload: statusMap });
+
+        retryDelay = BASE_DELAY;
+        if (!cancelled) timerId = setTimeout(poll, BASE_DELAY);
+      } catch (err) {
+        console.warn("RAG status poll failed, retrying in", retryDelay, "ms:", err);
+        if (!cancelled) {
+          timerId = setTimeout(poll, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, MAX_DELAY);
+        }
+      }
+    };
+
+    timerId = setTimeout(poll, BASE_DELAY);
+    return () => {
+      cancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [token, folderIdsWithNonTerminal]);
 
   const handleDownload = async (resource: ResourceRow) => {
     if (!token) return;

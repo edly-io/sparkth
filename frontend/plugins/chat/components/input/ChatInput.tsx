@@ -1,9 +1,10 @@
 "use client";
 
+import { Dispatch, SetStateAction } from "react";
 import { Paperclip, ArrowUp, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
-import { Pill } from "../attachment/Pill";
+import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
@@ -12,19 +13,16 @@ import { useChatInput } from "../../hooks/useChatInput";
 
 interface ChatInputProps {
   attachments: TextAttachment[];
-  setAttachments: (attachments: TextAttachment[]) => void;
-  setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  setPreviewOpen: (open: boolean) => void;
-  onSend: (payload: { message: string; attachments: TextAttachment[] }) => void;
+  setAttachments: Dispatch<SetStateAction<TextAttachment[]>>;
+  onSend: (payload: {
+    message: string;
+    attachments: TextAttachment[];
+    driveFileIds?: number[];
+  }) => void;
+  conversationId: string | null;
 }
 
-export function ChatInput({
-  attachments,
-  setAttachments,
-  setPreviewAttachment,
-  setPreviewOpen,
-  onSend,
-}: ChatInputProps) {
+export function ChatInput({ attachments, setAttachments, onSend, conversationId }: ChatInputProps) {
   const { token } = useAuth();
 
   const {
@@ -40,7 +38,7 @@ export function ChatInput({
     handleDriveFileSelected,
     handleRemoveAttachment,
     handleSend,
-  } = useChatInput({ token, attachments, setAttachments, onSend });
+  } = useChatInput({ token, conversationId, attachments, setAttachments, onSend });
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 
@@ -57,17 +55,8 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Attachment pill */}
-        {attachments.length > 0 && (
-          <Pill
-            attachments={attachments}
-            onPreview={(attachment) => {
-              setPreviewAttachment(attachment);
-              setPreviewOpen(true);
-            }}
-            onRemove={handleRemoveAttachment}
-          />
-        )}
+        {/* Persisted Drive-file info line */}
+        <PersistedFilesInfo attachments={attachments} onDetachFile={handleRemoveAttachment} />
 
         {/* Input box */}
         <div className="relative bg-input border border-border rounded-2xl p-3">
@@ -116,7 +105,9 @@ export function ChatInput({
                 variant="primary"
                 size="icon"
                 onClick={handleSend}
-                disabled={!message.trim() && attachments.length === 0}
+                disabled={
+                  !message.trim() && attachments.every((a) => a.driveFileDbId !== undefined)
+                }
                 className="rounded-full bg-foreground text-background"
               >
                 <ArrowUp className="w-5 h-5" />

@@ -7,7 +7,11 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onSend: (payload: { message: string; attachments: TextAttachment[] }) => void;
+  onSend: (payload: {
+    message: string;
+    attachments: TextAttachment[];
+    driveFileIds?: number[];
+  }) => void;
   onOptionClick?: (text: string) => void;
 }
 
@@ -20,9 +24,10 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const lastContent = messages[messages.length - 1]?.content;
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, lastContent]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">

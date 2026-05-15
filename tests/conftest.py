@@ -1,5 +1,19 @@
+import os
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
+
+# Set test environment variables BEFORE importing app modules.
+# This must happen before app/core/config.py calls get_settings(), which caches
+# the settings. We also need DATABASE_URL set before app/core/db.py creates
+# the async_engine at import time, and before rag_mcp/db.py initializes.
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
+os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
+os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
+os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
+os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
+os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
 
 import pytest
 from fastapi import FastAPI

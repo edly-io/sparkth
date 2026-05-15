@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import StreamableHttpConnection
+from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.core.config import get_settings
@@ -23,6 +24,12 @@ __all__ = ["run_agentic_rag_search"]
 logger = get_logger(__name__)
 
 _CONTEXT_KEYS = frozenset({"user_id", "file_id"})
+
+# Cap graph recursion so a runaway agent doesn't loop forever.
+# Each round of LLM + tool call costs ~2 steps; the ToolStrategy final-answer
+# call costs 2 more. 25 (LangGraph's own default) gives legitimate queries
+# up to ~12 tool calls while still terminating true infinite loops.
+_MAX_AGENT_RECURSION = 25
 
 _JSON_TYPE_MAP: dict[str, type] = {
     "integer": int,
@@ -99,11 +106,11 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
         client = MultiServerMCPClient(
             {"rag-meta": StreamableHttpConnection(url=rag_mcp_url, transport="streamable_http")}
         )
-        tools = await client.get_tools()
-        tools = _bind_user_context(tools, user_id, file_id)
+        agent_tools = await client.get_tools()
+        agent_tools = _bind_user_context(agent_tools, user_id, file_id)
 
         agent: Any = create_agent(
-            model=llm, tools=tools, response_format=RAGSearchAgentResponse, name="rag_search_agent"
+            model=llm, tools=agent_tools, response_format=RAGSearchAgentResponse, name="rag_search_agent"
         )
 
         prompt_template = get_asset("rag_search_agent_system_prompt", "txt")
@@ -112,7 +119,10 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
         system_message = SystemMessage(content=prompt_template)
         human_message = HumanMessage(content=user_query)
 
-        result = await agent.ainvoke({"messages": [system_message, human_message]})
+        result = await agent.ainvoke(
+            {"messages": [system_message, human_message]},
+            config={"recursion_limit": _MAX_AGENT_RECURSION},
+        )
         decision: RAGSearchAgentResponse | None = result.get("structured_response")
         if decision is None:
             logger.warning("Agent produced no structured_response for user %d, file %d", user_id, file_id)
@@ -125,6 +135,14 @@ async def run_agentic_rag_search(llm: Any, user_id: int, file_id: int, user_quer
     except (ConnectError, HTTPStatusError) as exc:
         logger.exception("MCP client connection error for user %s, file %s", user_id, file_id)
         raise RAGRetrievalError(f"Failed to connect to RAG metadata server: {exc}") from exc
+    except GraphRecursionError as exc:
+        logger.error(
+            "RAG agent exceeded recursion limit (%d steps) for user %d, file %d",
+            _MAX_AGENT_RECURSION,
+            user_id,
+            file_id,
+        )
+        raise RAGRetrievalError("RAG agent exceeded maximum steps; query may be too complex.") from exc
     except LangChainException as exc:
         logger.exception("Agent invocation error for user %s, file %s", user_id, file_id)
         raise RAGRetrievalError(f"Agent failed to process query: {exc}") from exc
