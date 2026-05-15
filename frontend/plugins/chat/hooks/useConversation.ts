@@ -1,5 +1,10 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { ChatMessage, TextAttachment } from "../types";
+import {
+  clearStreamProgress,
+  getRestoredStreamData,
+  RECOVERY_PLACEHOLDER_IDS,
+} from "./useChatStream";
 
 function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
@@ -136,6 +141,45 @@ export function useConversation(
             isError: m.is_error ?? false,
           })),
         );
+        // If the last persisted message is from the user (no assistant response yet),
+        // the previous stream was interrupted mid-flight. Restore whatever content
+        // was buffered in sessionStorage so the partial response stays visible,
+        // or show a typing indicator if we have no cached content. In either case
+        // the polling effect below will replace the placeholder once the backend
+        // finishes and the DB message becomes available.
+        const lastMsg = loaded[loaded.length - 1];
+        if (conversationId && lastMsg?.role === "user") {
+          const saved = getRestoredStreamData(conversationId);
+          let placeholderContent: string;
+          let placeholderId: string;
+
+          if (saved?.content) {
+            // Partial tokens arrived before the refresh — show what we have.
+            placeholderId = "restored-stream";
+            placeholderContent = saved.content;
+          } else if (
+            saved?.phase === "scanning_attachments" ||
+            saved?.phase === "searching_document"
+          ) {
+            // Refresh happened during RAG phase — no tokens yet but we know why.
+            placeholderId = "pending-response";
+            placeholderContent =
+              "Still scanning your attached files — this may take a moment. The response will appear here automatically.";
+          } else {
+            // No cached data at all (very fast refresh or new-tab load).
+            placeholderId = "pending-response";
+            placeholderContent =
+              "Your response is still being generated. It will appear here automatically once ready.";
+          }
+
+          loaded.push({
+            id: placeholderId,
+            role: "assistant",
+            content: placeholderContent,
+            isTyping: false,
+          });
+        }
+
         setHistoryState({
           loading: false,
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
@@ -175,6 +219,59 @@ export function useConversation(
     loadConversation(controller.signal);
     return () => controller.abort();
   }, [loadConversation]);
+
+  // Poll for the assistant response when we detected a pending response on load
+  // (last DB message was user — backend was still generating when the page refreshed).
+  // Replaces the recovery placeholder once the message is committed to DB.
+  const hasPendingPlaceholder = historyState.messages.some((m) =>
+    RECOVERY_PLACEHOLDER_IDS.has(m.id),
+  );
+  useEffect(() => {
+    if (!hasPendingPlaceholder || !conversationId || !token) return;
+
+    const POLL_INTERVAL_MS = 3_000;
+    const POLL_TIMEOUT_MS = 5 * 60 * 1000; // stop after 5 min regardless
+    const startedAt = Date.now();
+
+    const intervalId = setInterval(async () => {
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+        clearInterval(intervalId);
+        return;
+      }
+      try {
+        const r = await fetch(`/api/v1/chat/conversations/${conversationId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return;
+        const data: ApiConversation = await r.json();
+        const lastApiMsg = data.messages[data.messages.length - 1];
+        if (!lastApiMsg || lastApiMsg.role !== "assistant") return;
+
+        // Response landed in DB — replace placeholder with the real message.
+        clearStreamProgress(conversationId);
+        setMessages((prev) => {
+          const withoutPlaceholder = prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id));
+          return [
+            ...withoutPlaceholder,
+            {
+              id: String(lastApiMsg.id),
+              role: "assistant" as const,
+              content: lastApiMsg.content,
+              ragSections: lastApiMsg.rag_sections
+                ? lastApiMsg.rag_sections.map((s) => ({ ...s, state: "confirmed" as const }))
+                : undefined,
+              isError: lastApiMsg.is_error ?? false,
+            },
+          ];
+        });
+        clearInterval(intervalId);
+      } catch {
+        // network error — will retry on next tick
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [hasPendingPlaceholder, conversationId, token, setMessages]);
 
   return {
     loading: historyState.loading,
