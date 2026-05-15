@@ -1,12 +1,15 @@
 import json
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
-from app.core_plugins.chat.models import Conversation, Message, MessageType
+from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
+from app.models.drive import DriveFile
+from app.rag.types import RagStatus
 
 logger = get_logger(__name__)
 
@@ -39,7 +42,15 @@ class ChatService:
         await session.commit()
         await session.refresh(conversation)
 
-        logger.info(f"Created conversation {conversation.id} for user {user_id}")
+        # Write-through to new attachment table
+        if active_drive_file_ids:
+            await self.sync_drive_file_attachments(
+                session,
+                conversation_id=cast(int, conversation.id),
+                drive_file_ids=active_drive_file_ids,
+            )
+
+        logger.info("Created conversation %s for user %s", conversation.id, user_id)
         return conversation
 
     async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
@@ -190,4 +201,106 @@ class ChatService:
             session.add(conversation)
             await session.commit()
         else:
-            logger.warning(f"Conversation {conversation_id} not found for title update")
+            logger.warning("Conversation %s not found for title update", conversation_id)
+
+    async def sync_drive_file_attachments(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        drive_file_ids: list[int],
+    ) -> None:
+        """Upsert all drive_file_ids into the conversation attachment join table."""
+        for fid in drive_file_ids:
+            await self.attach_drive_file(session, conversation_id=conversation_id, drive_file_id=fid)
+
+    async def attach_drive_file(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        drive_file_id: int,
+    ) -> ConversationAttachment:
+        """Attach a drive file to a conversation (upsert-safe)."""
+        # Check if already exists
+        stmt = select(ConversationAttachment).where(
+            ConversationAttachment.conversation_id == conversation_id,
+            ConversationAttachment.drive_file_id == drive_file_id,
+        )
+        result = await session.exec(stmt)
+        existing = result.first()
+        if existing is not None:
+            return existing
+
+        # Try to insert new using a savepoint so a race-condition rollback
+        # only affects this insert, not the caller's outer transaction.
+        attachment = ConversationAttachment(
+            conversation_id=conversation_id,
+            drive_file_id=drive_file_id,
+        )
+        try:
+            async with session.begin_nested():
+                session.add(attachment)
+            await session.commit()
+            await session.refresh(attachment)
+            return attachment
+        except IntegrityError:
+            # Race condition — another process inserted between our check and insert
+            result = await session.exec(stmt)
+            existing = result.first()
+            if existing is None:
+                logger.error(
+                    "IntegrityError but row not found after rollback for conversation_id=%s, drive_file_id=%s",
+                    conversation_id,
+                    drive_file_id,
+                )
+                raise
+            return existing
+
+    async def detach_drive_file(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        drive_file_id: int,
+        user_id: int,
+    ) -> None:
+        """Detach a drive file from a conversation owned by user_id."""
+        stmt = (
+            select(ConversationAttachment)
+            .join(Conversation, Conversation.id == ConversationAttachment.conversation_id)  # type: ignore
+            .where(
+                ConversationAttachment.conversation_id == conversation_id,
+                ConversationAttachment.drive_file_id == drive_file_id,
+                Conversation.user_id == user_id,
+            )
+        )
+        result = await session.exec(stmt)
+        attachment = result.first()
+        if attachment:
+            await session.delete(attachment)
+            await session.commit()
+
+    async def list_conversation_attachments(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        user_id: int,
+    ) -> list[DriveFile]:
+        """List ready drive files attached to a conversation owned by user_id."""
+        stmt = (
+            select(DriveFile)
+            .join(
+                ConversationAttachment,
+                ConversationAttachment.drive_file_id == DriveFile.id,  # type: ignore
+            )
+            .join(
+                Conversation,
+                Conversation.id == ConversationAttachment.conversation_id,  # type: ignore
+            )
+            .where(
+                ConversationAttachment.conversation_id == conversation_id,
+                Conversation.user_id == user_id,
+                DriveFile.rag_status == RagStatus.READY,
+                DriveFile.is_deleted == False,  # noqa: E712
+            )
+        )
+        result = await session.exec(stmt)
+        return list(result.all())
