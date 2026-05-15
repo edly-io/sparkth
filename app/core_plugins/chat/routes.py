@@ -1,3 +1,4 @@
+import asyncio
 import json
 from functools import lru_cache
 from typing import Any, AsyncGenerator, Literal, cast
@@ -16,7 +17,7 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import get_async_session
+from app.core.db import async_engine, get_async_session
 from app.core.logger import get_logger
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.conversation_title import (
@@ -629,237 +630,257 @@ async def stream_chat_response(
     should_run_rag: bool = False,
     rag_routing_reason: str | None = None,
 ) -> Any:
-    # --- Phase 1: In-stream RAG resolution (emits status events) ---
-    confirmed_rag_sections: list[dict[str, str | None]] = []
-
-    # Emit scanning_attachments event if RAG is enabled and there are files to scan
-    if should_run_rag and unresolved_messages and rag_service and user_id is not None:
-        file_count = sum(
-            1
-            for msg in unresolved_messages
-            if isinstance(msg.content, list)
-            for b in msg.content
-            if isinstance(b, dict) and b.get("type") == "drive_file"
-        )
-        yield f"data: {json.dumps({'status': 'scanning_attachments', 'file_count': file_count, 'done': False})}\n\n"
-
-    # Emit skipping_rag event if router said to skip but attachments existed
-    if not should_run_rag and rag_routing_reason is not None:
-        yield f"data: {json.dumps({'status': 'skipping_rag', 'reason': rag_routing_reason, 'done': False})}\n\n"
-
-    if unresolved_messages and rag_service and user_id is not None:
-        query_text = _extract_query_text(unresolved_messages)
-        files_with_no_results: list[str] = []
-        any_results_found = False
-
-        # Collect RAG context per file_id first; assemble messages in one pass after the loop
-        # to avoid each iteration overwriting context injected by the previous one.
-        rag_context_map: dict[int, RAGContext] = {}
-
-        for msg in unresolved_messages:
-            if not isinstance(msg.content, list):
-                continue
-            for block in msg.content:
-                if not isinstance(block, dict) or block.get("type") != "drive_file":
-                    continue
-
-                raw_id = block.get("file_id")
-                if raw_id is None:
-                    logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
-                    continue
-                file_id: int = int(raw_id)
-
-                yield f"data: {json.dumps({'status': 'searching_document', 'file_id': file_id, 'done': False})}\n\n"
-
-                # --- Agentic RAG: agent selects relevant sections, then similarity search ---
-                logger.info("Agentic RAG search for file_id=%d query_len=%d", file_id, len(query_text))
-                try:
-                    context = await rag_service.get_context_via_agent(
-                        session=session,
-                        user_id=user_id,
-                        file_db_id=file_id,
-                        query=query_text,
-                        llm=llm,
-                    )
-                except (DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
-                    logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
-                    yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
-                    return
-
-                source_name = context.source_name
-                results = context.chunks
-
-                if not results:
-                    files_with_no_results.append(source_name)
-                    continue
-
-                any_results_found = True
-                rag_context_map[file_id] = context
-
-                # Build confirmed_rag_sections from retrieved chunks for message metadata
-                seen_section_keys: set[str] = set()
-                for r in results:
-                    chunk = r.chunk
-                    label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
-                    parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-                    name = " / ".join(parts) if parts else "General"
-                    key = f"{label}:{name}"
-                    if key not in seen_section_keys:
-                        seen_section_keys.add(key)
-                        confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
-
-        # Single assembly pass: replace all drive_file blocks at once so that context
-        # injected for file₁ is not dropped when file₂ is processed.
-        for m in messages:
-            if not isinstance(m.get("content"), list):
-                continue
-            rag_blocks: list[dict[str, Any]] = []
-            user_text_blocks: list[dict[str, Any]] = []
-            other_blocks: list[dict[str, Any]] = []
-            has_drive_file = False
-            for b in m["content"]:
-                if isinstance(b, dict) and b.get("type") == "drive_file":
-                    has_drive_file = True
-                    fid = b.get("file_id")
-                    if fid is not None and int(fid) in rag_context_map:
-                        rag_blocks.append({"type": "text", "text": rag_context_map[int(fid)].formatted_text})
-                elif isinstance(b, dict) and b.get("type") == "text":
-                    user_text_blocks.append(b)
-                else:
-                    other_blocks.append(b)
-            if not has_drive_file:
-                continue
-            if rag_blocks:
-                m["content"] = (
-                    [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
-                )
-            else:
-                m["content"] = other_blocks + user_text_blocks
-
-        # If every searched file returned no results, surface the no-match message.
-        if files_with_no_results and not any_results_found:
-            if similarity_threshold <= 0.15:
-                no_chunks_msg = (
-                    "I searched your documents with progressively less strict matching "
-                    "but still couldn't find relevant content for your query.\n\n"
-                    "Please try rephrasing your question, or check that your documents contain "
-                    "information about this topic."
-                )
-                done_payload: dict[str, object] = {
-                    "done": True,
-                    "content": no_chunks_msg,
-                    "conversation_id": str(conversation.uuid),
-                }
-            else:
-                source_label = (
-                    f"**{files_with_no_results[0]}**" if len(files_with_no_results) == 1 else "your documents"
-                )
-                no_chunks_msg = (
-                    f"I searched {source_label} but couldn't find content closely "
-                    f"matching your query.\n\n"
-                    f"Please try rephrasing your question, or check that your documents "
-                    f"contain information about this topic."
-                )
-                done_payload = {
-                    "done": True,
-                    "content": no_chunks_msg,
-                    "conversation_id": str(conversation.uuid),
-                }
-            await service.add_message(
-                session=session,
-                conversation_id=conversation.id,  # type: ignore[arg-type]
-                role="assistant",
-                content=no_chunks_msg,
-                message_type="text",
-            )
-            yield f"data: {json.dumps(done_payload)}\n\n"
-            return
-
-        # Emit section events before LLM starts — frontend renders them above the
-        # message bubble so the user sees what was retrieved before reading the reply.
-        for section in confirmed_rag_sections:
-            yield f"data: {json.dumps({'status': 'section_scanning', 'section': section, 'done': False})}\n\n"
-        for section in confirmed_rag_sections:
-            yield f"data: {json.dumps({'status': 'section_confirmed', 'section': section, 'done': False})}\n\n"
-
-        yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
-
-    # Safety strip: remove any drive_file blocks that were not resolved above.
-    # These are internal-only content types that must never reach the LLM API.
-    for m in messages:
-        if isinstance(m.get("content"), list):
-            m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
-
-    # --- Phase 2: LLM streaming ---
-    full_response = ""
+    # Both Phase 1 (RAG resolution) and Phase 2 (LLM streaming + DB write) run
+    # inside an independent asyncio task so that a client disconnect (browser
+    # refresh) does not cancel the work. The generator only drains a queue.
     conversation_id: int = conversation.id  # type: ignore[assignment]
+    conversation_uuid: str = str(conversation.uuid)
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
 
-    try:
-        async for token in provider.stream_message(messages, tools=tools):
-            full_response += token
-            data = json.dumps({"token": token, "done": False})
-            yield f"data: {data}\n\n"
+    async def _process_and_stream() -> None:
+        async with AsyncSession(async_engine, expire_on_commit=False) as bg_session:
+            try:
+                await _run(bg_session)
+            except Exception:
+                logger.exception("Unhandled error in stream task for conversation %s", conversation_id)
+                await queue.put(json.dumps({"error": "An unexpected error occurred. Please try again.", "done": True}))
+            finally:
+                await queue.put(None)
 
-        assistant_message = await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=full_response,
-            metadata={"rag_sections": confirmed_rag_sections} if confirmed_rag_sections else None,
-        )
+    async def _run(bg_session: AsyncSession) -> None:
+        confirmed_rag_sections: list[dict[str, str | None]] = []
 
-        data = json.dumps(
-            {
-                "token": "",
-                "done": True,
-                "conversation_id": str(conversation.uuid),
-                "message": {
-                    "id": assistant_message.id,
-                    "role": "assistant",
-                    "content": full_response,
-                    "message_type": "text",
-                    "attachment_name": None,
-                    "attachment_size": None,
-                    "rag_sections": confirmed_rag_sections or None,
-                },
-            }
-        )
-        yield f"data: {data}\n\n"
+        # --- Phase 1: RAG resolution ---
+        if should_run_rag and unresolved_messages and rag_service and user_id is not None:
+            file_count = sum(
+                1
+                for msg in unresolved_messages
+                if isinstance(msg.content, list)
+                for b in msg.content
+                if isinstance(b, dict) and b.get("type") == "drive_file"
+            )
+            await queue.put(json.dumps({"status": "scanning_attachments", "file_count": file_count, "done": False}))
 
-    except _PROVIDER_API_ERRORS as e:
-        user_message = _streaming_error_message(e)
-        logger.error("Streaming failed: %s", e)
+        if not should_run_rag and rag_routing_reason is not None:
+            await queue.put(json.dumps({"status": "skipping_rag", "reason": rag_routing_reason, "done": False}))
+
+        if unresolved_messages and rag_service and user_id is not None:
+            query_text = _extract_query_text(unresolved_messages)
+            files_with_no_results: list[str] = []
+            any_results_found = False
+            rag_context_map: dict[int, RAGContext] = {}
+
+            for msg in unresolved_messages:
+                if not isinstance(msg.content, list):
+                    continue
+                for block in msg.content:
+                    if not isinstance(block, dict) or block.get("type") != "drive_file":
+                        continue
+                    raw_id = block.get("file_id")
+                    if raw_id is None:
+                        logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                        continue
+                    file_id: int = int(raw_id)
+
+                    await queue.put(json.dumps({"status": "searching_document", "file_id": file_id, "done": False}))
+
+                    logger.info("Agentic RAG search for file_id=%d query_len=%d", file_id, len(query_text))
+                    try:
+                        context = await rag_service.get_context_via_agent(
+                            session=bg_session,
+                            user_id=user_id,
+                            file_db_id=file_id,
+                            query=query_text,
+                            llm=llm,
+                        )
+                    except DriveFileNotFoundError as exc:
+                        logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
+                        await queue.put(
+                            json.dumps(
+                                {
+                                    "error": "The attached file could not be found or is no longer accessible.",
+                                    "done": True,
+                                }
+                            )
+                        )
+                        return
+                    except RAGNotReadyError as exc:
+                        logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
+                        await queue.put(
+                            json.dumps(
+                                {
+                                    "error": "The attached file is still being processed. Please wait a moment and try again.",
+                                    "done": True,
+                                }
+                            )
+                        )
+                        return
+                    except RAGRetrievalError as exc:
+                        logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
+                        await queue.put(
+                            json.dumps({"error": "Failed to search the attached file. Please try again.", "done": True})
+                        )
+                        return
+
+                    source_name = context.source_name
+                    results = context.chunks
+
+                    if not results:
+                        files_with_no_results.append(source_name)
+                        continue
+
+                    any_results_found = True
+                    rag_context_map[file_id] = context
+
+                    seen_section_keys: set[str] = set()
+                    for r in results:
+                        chunk = r.chunk
+                        label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
+                        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+                        name = " / ".join(parts) if parts else "General"
+                        key = f"{label}:{name}"
+                        if key not in seen_section_keys:
+                            seen_section_keys.add(key)
+                            confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
+
+            # Single assembly pass: replace all drive_file blocks with resolved RAG context.
+            for m in messages:
+                if not isinstance(m.get("content"), list):
+                    continue
+                rag_blocks: list[dict[str, Any]] = []
+                user_text_blocks: list[dict[str, Any]] = []
+                other_blocks: list[dict[str, Any]] = []
+                has_drive_file = False
+                for b in m["content"]:
+                    if isinstance(b, dict) and b.get("type") == "drive_file":
+                        has_drive_file = True
+                        fid = b.get("file_id")
+                        if fid is not None and int(fid) in rag_context_map:
+                            rag_blocks.append({"type": "text", "text": rag_context_map[int(fid)].formatted_text})
+                    elif isinstance(b, dict) and b.get("type") == "text":
+                        user_text_blocks.append(b)
+                    else:
+                        other_blocks.append(b)
+                if not has_drive_file:
+                    continue
+                if rag_blocks:
+                    m["content"] = (
+                        [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
+                    )
+                else:
+                    m["content"] = other_blocks + user_text_blocks
+
+            if files_with_no_results and not any_results_found:
+                if similarity_threshold <= 0.15:
+                    no_chunks_msg = (
+                        "I searched your documents with progressively less strict matching "
+                        "but still couldn't find relevant content for your query.\n\n"
+                        "Please try rephrasing your question, or check that your documents contain "
+                        "information about this topic."
+                    )
+                else:
+                    source_label = (
+                        f"**{files_with_no_results[0]}**" if len(files_with_no_results) == 1 else "your documents"
+                    )
+                    no_chunks_msg = (
+                        f"I searched {source_label} but couldn't find content closely "
+                        f"matching your query.\n\n"
+                        f"Please try rephrasing your question, or check that your documents "
+                        f"contain information about this topic."
+                    )
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=no_chunks_msg,
+                    message_type="text",
+                )
+                await queue.put(
+                    json.dumps({"done": True, "content": no_chunks_msg, "conversation_id": conversation_uuid})
+                )
+                return
+
+            for section in confirmed_rag_sections:
+                await queue.put(json.dumps({"status": "section_scanning", "section": section, "done": False}))
+            for section in confirmed_rag_sections:
+                await queue.put(json.dumps({"status": "section_confirmed", "section": section, "done": False}))
+            await queue.put(json.dumps({"status": "generating", "done": False}))
+
+        # Safety strip: remove unresolved drive_file blocks before hitting the LLM.
+        for m in messages:
+            if isinstance(m.get("content"), list):
+                m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
+
+        # --- Phase 2: LLM streaming ---
+        full_response = ""
         try:
-            logger.info("Persisting provider streaming error for conversation_id=%s", conversation_id)
-            await service.add_message(
-                session=session,
+            async for token in provider.stream_message(messages, tools=tools):
+                full_response += token
+                await queue.put(json.dumps({"token": token, "done": False}))
+
+            assistant_message = await service.add_message(
+                session=bg_session,
                 conversation_id=conversation_id,
                 role="assistant",
-                content=user_message,
-                is_error=True,
+                content=full_response,
+                metadata={"rag_sections": confirmed_rag_sections} if confirmed_rag_sections else None,
             )
-            logger.info("Provider streaming error persisted for conversation_id=%s", conversation_id)
-        except SQLAlchemyError:
-            logger.exception("Failed to persist streaming error message for conversation_id=%s", conversation_id)
-        error_data = json.dumps({"error": user_message, "done": True})
-        yield f"data: {error_data}\n\n"
-    except (OSError, LangChainException, SQLAlchemyError) as e:
-        logger.exception("Unexpected streaming error: %s", e)
-        user_message = "An error occurred while generating a response. Please try again."
-        try:
-            logger.info("Persisting unexpected streaming error for conversation_id=%s", conversation_id)
-            await service.add_message(
-                session=session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=user_message,
-                is_error=True,
+            await queue.put(
+                json.dumps(
+                    {
+                        "token": "",
+                        "done": True,
+                        "conversation_id": conversation_uuid,
+                        "message": {
+                            "id": assistant_message.id,
+                            "role": "assistant",
+                            "content": full_response,
+                            "message_type": "text",
+                            "attachment_name": None,
+                            "attachment_size": None,
+                            "rag_sections": confirmed_rag_sections or None,
+                        },
+                    }
+                )
             )
-            logger.info("Unexpected streaming error persisted for conversation_id=%s", conversation_id)
-        except SQLAlchemyError:
-            logger.exception("Failed to persist streaming error message for conversation_id=%s", conversation_id)
-        error_data = json.dumps({"error": user_message, "done": True})
-        yield f"data: {error_data}\n\n"
+
+        except _PROVIDER_API_ERRORS as e:
+            user_message = _streaming_error_message(e)
+            logger.error("Streaming failed: %s", e)
+            try:
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=user_message,
+                    is_error=True,
+                )
+            except SQLAlchemyError:
+                logger.exception("Failed to persist streaming error for conversation %s", conversation_id)
+            await queue.put(json.dumps({"error": user_message, "done": True}))
+
+        except (OSError, LangChainException, SQLAlchemyError) as e:
+            logger.exception("Unexpected streaming error: %s", e)
+            user_message = "An error occurred while generating a response. Please try again."
+            try:
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=user_message,
+                    is_error=True,
+                )
+            except SQLAlchemyError:
+                logger.exception("Failed to persist unexpected error for conversation %s", conversation_id)
+            await queue.put(json.dumps({"error": user_message, "done": True}))
+
+    asyncio.ensure_future(_process_and_stream())
+
+    while True:
+        payload = await queue.get()
+        if payload is None:
+            break
+        yield f"data: {payload}\n\n"
 
 
 def _streaming_error_message(exc: Exception) -> str:

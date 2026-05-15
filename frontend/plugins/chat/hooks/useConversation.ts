@@ -115,12 +115,23 @@ export function useConversation(
 
       setHistoryState({ loading: true, messages: [] });
       try {
-        const r = await fetch(`/api/v1/chat/conversations/${conversationId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        });
+        // Fetch messages and attachments in parallel — we need both before
+        // picking the right placeholder text for a pending response.
+        const [r, attachmentsRes] = await Promise.all([
+          fetch(`/api/v1/chat/conversations/${conversationId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          }),
+          fetch(`/api/v1/chat/conversations/${conversationId}/attachments`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          }),
+        ]);
         if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
         const data: ApiConversation = await r.json();
+        const persistedFiles: { id: number; name: string; size: number | null }[] =
+          attachmentsRes.ok ? await attachmentsRes.json() : [];
+
         const loaded: ChatMessage[] = mergeConsecutiveAttachmentMessages(
           data.messages.map((m) => ({
             id: String(m.id),
@@ -141,32 +152,33 @@ export function useConversation(
             isError: m.is_error ?? false,
           })),
         );
+
         // If the last persisted message is from the user (no assistant response yet),
         // the previous stream was interrupted mid-flight. Restore whatever content
         // was buffered in sessionStorage so the partial response stays visible,
-        // or show a typing indicator if we have no cached content. In either case
-        // the polling effect below will replace the placeholder once the backend
-        // finishes and the DB message becomes available.
+        // or show a context-aware placeholder while polling for the real message.
         const lastMsg = loaded[loaded.length - 1];
         if (conversationId && lastMsg?.role === "user") {
           const saved = getRestoredStreamData(conversationId);
+          const hasAttachments = persistedFiles.length > 0;
           let placeholderContent: string;
           let placeholderId: string;
 
           if (saved?.content) {
-            // Partial tokens arrived before the refresh — show what we have.
+            // Partial tokens arrived before the disconnect — show what we have.
             placeholderId = "restored-stream";
             placeholderContent = saved.content;
           } else if (
+            hasAttachments ||
             saved?.phase === "scanning_attachments" ||
             saved?.phase === "searching_document"
           ) {
-            // Refresh happened during RAG phase — no tokens yet but we know why.
+            // Attachments are present (RAG was likely running) or the phase was
+            // explicitly saved — either way, scanning is the right framing.
             placeholderId = "pending-response";
             placeholderContent =
               "Still scanning your attached files — this may take a moment. The response will appear here automatically.";
           } else {
-            // No cached data at all (very fast refresh or new-tab load).
             placeholderId = "pending-response";
             placeholderContent =
               "Your response is still being generated. It will appear here automatically once ready.";
@@ -184,17 +196,6 @@ export function useConversation(
           loading: false,
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
-
-        // Load persisted drive file attachments from the join table.
-        const attachmentsRes = await fetch(
-          `/api/v1/chat/conversations/${conversationId}/attachments`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-          },
-        );
-        const persistedFiles: { id: number; name: string; size: number | null }[] =
-          attachmentsRes.ok ? await attachmentsRes.json() : [];
 
         setInputAttachments(
           persistedFiles.map((f) => ({

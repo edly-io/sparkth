@@ -225,8 +225,8 @@ async function readStream(
       try {
         const parsed = JSON.parse(payload);
 
-        if (parsed.error) {
-          onFail(parsed.error ?? "An error occurred.");
+        if (parsed.error !== undefined) {
+          onFail(parsed.error || "An error occurred.");
           hasError = true;
           break outer;
         }
