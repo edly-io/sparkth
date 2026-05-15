@@ -339,9 +339,16 @@ async def chat_completion(
                 DriveFileModel.is_deleted == False,  # noqa: E712
             )
         )
-        for file_id in owned_result.all():
-            if file_id is None:
-                continue
+        owned_ids = {file_id for file_id in owned_result.all() if file_id is not None}
+        skipped = set(request.drive_file_ids) - owned_ids
+        if skipped:
+            logger.warning(
+                "Skipped %d unowned/deleted drive file IDs for user %s: %s",
+                len(skipped),
+                current_user.id,
+                skipped,
+            )
+        for file_id in owned_ids:
             await service.attach_drive_file(
                 session,
                 conversation_id=conversation.id,  # type: ignore

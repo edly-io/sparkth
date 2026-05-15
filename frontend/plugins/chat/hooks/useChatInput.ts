@@ -64,14 +64,16 @@ export function useChatInput({
   const handleDriveFileSelected = (driveFiles: SelectedDriveFile[]) => {
     setShowDriveFilePicker(false);
     setUploadError(null);
-    const nonDriveAttachments = attachments.filter((a) => a.driveFileDbId === undefined);
     const newDriveAttachments = driveFiles.map((file) => ({
       name: file.name,
       size: file.size ?? 0,
       text: `[File: ${file.name}]`,
       driveFileDbId: file.id,
     }));
-    setAttachments([...nonDriveAttachments, ...newDriveAttachments]);
+    setAttachments((prev) => {
+      const nonDrive = prev.filter((a) => a.driveFileDbId === undefined);
+      return [...nonDrive, ...newDriveAttachments];
+    });
 
     if (conversationId) {
       const existingIds = new Set(
