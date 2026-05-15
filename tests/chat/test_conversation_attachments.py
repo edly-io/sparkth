@@ -172,7 +172,7 @@ class TestChatServiceAttach:
         await service.detach_drive_file(session, conversation_id=conv_id, drive_file_id=file_id)
 
         # Assert - attachment is gone
-        attachments = await service.list_conversation_attachments(session, conversation_id=conv_id)
+        attachments = await service.list_conversation_attachments(session, conversation_id=conv_id, user_id=1)
         assert len(attachments) == 0
 
     @pytest.mark.asyncio
@@ -205,7 +205,7 @@ class TestChatServiceAttach:
         await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=failed_file_id)
 
         # Act - list
-        attachments = await service.list_conversation_attachments(session, conversation_id=conv_id)
+        attachments = await service.list_conversation_attachments(session, conversation_id=conv_id, user_id=1)
 
         # Assert - only READY file returned
         assert len(attachments) == 1
@@ -219,7 +219,7 @@ class TestChatServiceAttach:
         service = ChatService()
 
         # Act
-        attachments = await service.list_conversation_attachments(session, conversation_id=conv_id)
+        attachments = await service.list_conversation_attachments(session, conversation_id=conv_id, user_id=1)
 
         # Assert
         assert attachments == []

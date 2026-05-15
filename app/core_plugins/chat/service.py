@@ -44,12 +44,11 @@ class ChatService:
 
         # Write-through to new attachment table
         if active_drive_file_ids:
-            for fid in active_drive_file_ids:
-                await self.attach_drive_file(
-                    session,
-                    conversation_id=cast(int, conversation.id),
-                    drive_file_id=fid,
-                )
+            await self.sync_drive_file_attachments(
+                session,
+                conversation_id=cast(int, conversation.id),
+                drive_file_ids=active_drive_file_ids,
+            )
 
         logger.info("Created conversation %s for user %s", conversation.id, user_id)
         return conversation
@@ -204,6 +203,16 @@ class ChatService:
         else:
             logger.warning("Conversation %s not found for title update", conversation_id)
 
+    async def sync_drive_file_attachments(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        drive_file_ids: list[int],
+    ) -> None:
+        """Upsert all drive_file_ids into the conversation attachment join table."""
+        for fid in drive_file_ids:
+            await self.attach_drive_file(session, conversation_id=conversation_id, drive_file_id=fid)
+
     async def attach_drive_file(
         self,
         session: AsyncSession,
@@ -221,21 +230,20 @@ class ChatService:
         if existing is not None:
             return existing
 
-        # Try to insert new
+        # Try to insert new using a savepoint so a race-condition rollback
+        # only affects this insert, not the caller's outer transaction.
         attachment = ConversationAttachment(
             conversation_id=conversation_id,
             drive_file_id=drive_file_id,
         )
-        session.add(attachment)
         try:
-            await session.flush()
+            async with session.begin_nested():
+                session.add(attachment)
             await session.commit()
             await session.refresh(attachment)
             return attachment
         except IntegrityError:
             # Race condition — another process inserted between our check and insert
-            await session.rollback()
-            # Query again to get the existing row
             result = await session.exec(stmt)
             existing = result.first()
             if existing is None:
@@ -268,16 +276,22 @@ class ChatService:
         self,
         session: AsyncSession,
         conversation_id: int,
+        user_id: int,
     ) -> list[DriveFile]:
-        """List ready drive files attached to a conversation."""
+        """List ready drive files attached to a conversation owned by user_id."""
         stmt = (
             select(DriveFile)
             .join(
                 ConversationAttachment,
                 ConversationAttachment.drive_file_id == DriveFile.id,  # type: ignore
             )
+            .join(
+                Conversation,
+                Conversation.id == ConversationAttachment.conversation_id,  # type: ignore
+            )
             .where(
                 ConversationAttachment.conversation_id == conversation_id,
+                Conversation.user_id == user_id,
                 DriveFile.rag_status == RagStatus.READY,
                 DriveFile.is_deleted == False,  # noqa: E712
             )

@@ -74,7 +74,7 @@ class RAGIntentRouter:
                 attachment_summary += f"\n- {file.name}:\n"
                 if isinstance(sections_or_exc, BaseException):
                     logger.warning(
-                        "Failed to get document structure for file %d: %s",
+                        "Failed to get document structure for file %s: %s",
                         file.id,
                         sections_or_exc,
                     )

@@ -247,6 +247,13 @@ def _extract_drive_file_id_from_messages(messages: list[ChatMessage]) -> int | N
     return None
 
 
+def _strip_drive_file_blocks(messages: list[dict[str, Any]]) -> None:
+    """Remove drive_file content blocks in-place; they must never reach the LLM API."""
+    for m in messages:
+        if isinstance(m.get("content"), list):
+            m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
+
+
 def _extract_all_drive_file_ids_from_messages(messages: list[ChatMessage]) -> list[int]:
     """Extract all unique drive_file file_ids from message content blocks, preserving order."""
     seen: set[int] = set()
@@ -357,12 +364,11 @@ async def chat_completion(
                 drive_file_ids=active_drive_file_ids,
             )
             # Sync inline drive_file blocks into the join table so the router can find them.
-            for fid in active_drive_file_ids:
-                await service.attach_drive_file(
-                    session,
-                    conversation_id=conversation.id,  # type: ignore
-                    drive_file_id=fid,
-                )
+            await service.sync_drive_file_attachments(
+                session,
+                conversation_id=conversation.id,  # type: ignore
+                drive_file_ids=active_drive_file_ids,
+            )
     else:
         conversation = await service.create_conversation(
             session=session,
@@ -471,6 +477,7 @@ async def chat_completion(
         attached_files = await service.list_conversation_attachments(
             session=session,
             conversation_id=conversation.id,  # type: ignore
+            user_id=current_user.id,  # type: ignore
         )
 
         should_run_rag = False
@@ -533,6 +540,7 @@ async def chat_completion(
                 # Otherwise use request messages as-is (no RAG)
                 resolved_messages = request.messages
             current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
+            _strip_drive_file_blocks(current)
 
         messages = history + current
 
@@ -812,9 +820,7 @@ async def stream_chat_response(
 
     # Safety strip: remove any drive_file blocks that were not resolved above.
     # These are internal-only content types that must never reach the LLM API.
-    for m in messages:
-        if isinstance(m.get("content"), list):
-            m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
+    _strip_drive_file_blocks(messages)
 
     # --- Phase 2: LLM streaming ---
     full_response = ""
@@ -1196,7 +1202,6 @@ async def detach_file_from_conversation(
         select(DriveFileModel).where(
             DriveFileModel.id == drive_file_id,
             DriveFileModel.user_id == current_user.id,
-            DriveFileModel.is_deleted == False,  # noqa: E712
         )
     )
     if not df_result.first():
