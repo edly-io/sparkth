@@ -1,5 +1,10 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { ChatMessage, TextAttachment } from "../types";
+import {
+  clearStreamProgress,
+  getRestoredStreamData,
+  RECOVERY_PLACEHOLDER_IDS,
+} from "./useChatStream";
 
 function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
@@ -110,12 +115,23 @@ export function useConversation(
 
       setHistoryState({ loading: true, messages: [] });
       try {
-        const r = await fetch(`/api/v1/chat/conversations/${conversationId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        });
+        // Fetch messages and attachments in parallel — we need both before
+        // picking the right placeholder text for a pending response.
+        const [r, attachmentsRes] = await Promise.all([
+          fetch(`/api/v1/chat/conversations/${conversationId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          }),
+          fetch(`/api/v1/chat/conversations/${conversationId}/attachments`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+          }),
+        ]);
         if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
         const data: ApiConversation = await r.json();
+        const persistedFiles: { id: number; name: string; size: number | null }[] =
+          attachmentsRes.ok ? await attachmentsRes.json() : [];
+
         const loaded: ChatMessage[] = mergeConsecutiveAttachmentMessages(
           data.messages.map((m) => ({
             id: String(m.id),
@@ -136,21 +152,50 @@ export function useConversation(
             isError: m.is_error ?? false,
           })),
         );
+
+        // If the last persisted message is from the user (no assistant response yet),
+        // the previous stream was interrupted mid-flight. Restore whatever content
+        // was buffered in sessionStorage so the partial response stays visible,
+        // or show a context-aware placeholder while polling for the real message.
+        const lastMsg = loaded[loaded.length - 1];
+        if (conversationId && lastMsg?.role === "user") {
+          const saved = getRestoredStreamData(conversationId);
+          const hasAttachments = persistedFiles.length > 0;
+          let placeholderContent: string;
+          let placeholderId: string;
+
+          if (saved?.content) {
+            // Partial tokens arrived before the disconnect — show what we have.
+            placeholderId = "restored-stream";
+            placeholderContent = saved.content;
+          } else if (
+            hasAttachments ||
+            saved?.phase === "scanning_attachments" ||
+            saved?.phase === "searching_document"
+          ) {
+            // Attachments are present (RAG was likely running) or the phase was
+            // explicitly saved — either way, scanning is the right framing.
+            placeholderId = "pending-response";
+            placeholderContent =
+              "Still scanning your attached files — this may take a moment. The response will appear here automatically.";
+          } else {
+            placeholderId = "pending-response";
+            placeholderContent =
+              "Your response is still being generated. It will appear here automatically once ready.";
+          }
+
+          loaded.push({
+            id: placeholderId,
+            role: "assistant",
+            content: placeholderContent,
+            isTyping: false,
+          });
+        }
+
         setHistoryState({
           loading: false,
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
-
-        // Load persisted drive file attachments from the join table.
-        const attachmentsRes = await fetch(
-          `/api/v1/chat/conversations/${conversationId}/attachments`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-          },
-        );
-        const persistedFiles: { id: number; name: string; size: number | null }[] =
-          attachmentsRes.ok ? await attachmentsRes.json() : [];
 
         setInputAttachments(
           persistedFiles.map((f) => ({
@@ -175,6 +220,59 @@ export function useConversation(
     loadConversation(controller.signal);
     return () => controller.abort();
   }, [loadConversation]);
+
+  // Poll for the assistant response when we detected a pending response on load
+  // (last DB message was user — backend was still generating when the page refreshed).
+  // Replaces the recovery placeholder once the message is committed to DB.
+  const hasPendingPlaceholder = historyState.messages.some((m) =>
+    RECOVERY_PLACEHOLDER_IDS.has(m.id),
+  );
+  useEffect(() => {
+    if (!hasPendingPlaceholder || !conversationId || !token) return;
+
+    const POLL_INTERVAL_MS = 3_000;
+    const POLL_TIMEOUT_MS = 5 * 60 * 1000; // stop after 5 min regardless
+    const startedAt = Date.now();
+
+    const intervalId = setInterval(async () => {
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+        clearInterval(intervalId);
+        return;
+      }
+      try {
+        const r = await fetch(`/api/v1/chat/conversations/${conversationId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return;
+        const data: ApiConversation = await r.json();
+        const lastApiMsg = data.messages[data.messages.length - 1];
+        if (!lastApiMsg || lastApiMsg.role !== "assistant") return;
+
+        // Response landed in DB — replace placeholder with the real message.
+        clearStreamProgress(conversationId);
+        setMessages((prev) => {
+          const withoutPlaceholder = prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id));
+          return [
+            ...withoutPlaceholder,
+            {
+              id: String(lastApiMsg.id),
+              role: "assistant" as const,
+              content: lastApiMsg.content,
+              ragSections: lastApiMsg.rag_sections
+                ? lastApiMsg.rag_sections.map((s) => ({ ...s, state: "confirmed" as const }))
+                : undefined,
+              isError: lastApiMsg.is_error ?? false,
+            },
+          ];
+        });
+        clearInterval(intervalId);
+      } catch {
+        // network error — will retry on next tick
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [hasPendingPlaceholder, conversationId, token, setMessages]);
 
   return {
     loading: historyState.loading,

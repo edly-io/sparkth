@@ -90,7 +90,11 @@ function applyStatusEvent(
   setMessages: UseChatStreamOptions["setMessages"],
 ) {
   if (parsed.status === "section_scanning" && parsed.section) {
-    const section = parsed.section as { type: string; name: string; source?: string };
+    const section = parsed.section as {
+      type: string;
+      name: string;
+      source?: string;
+    };
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === assistantId
@@ -137,9 +141,61 @@ function applyStatusEvent(
   }
 }
 
+const STREAM_STORAGE_KEY = (conversationId: string) => `chat_stream:${conversationId}`;
+const STREAM_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function saveStreamProgress(conversationId: string | null, content: string, phase?: string): void {
+  if (!conversationId) return;
+  try {
+    sessionStorage.setItem(
+      STREAM_STORAGE_KEY(conversationId),
+      JSON.stringify({ content, phase, timestamp: Date.now() }),
+    );
+  } catch {
+    // sessionStorage unavailable (private browsing, quota exceeded) — silently ignore
+  }
+}
+
+export function clearStreamProgress(conversationId: string | null): void {
+  if (!conversationId) return;
+  try {
+    sessionStorage.removeItem(STREAM_STORAGE_KEY(conversationId));
+  } catch {
+    // ignore
+  }
+}
+
+// Synthetic message IDs injected by useConversation when a response is pending after refresh.
+// handleSend strips these before starting a new stream so polling and streaming don't conflict.
+export const RECOVERY_PLACEHOLDER_IDS = new Set(["restored-stream", "pending-response"]);
+
+export interface StreamProgressData {
+  content: string;
+  phase?: string;
+}
+
+export function getRestoredStreamData(conversationId: string): StreamProgressData | null {
+  try {
+    const raw = sessionStorage.getItem(STREAM_STORAGE_KEY(conversationId));
+    if (!raw) return null;
+    const { content, phase, timestamp } = JSON.parse(raw) as {
+      content: string;
+      phase?: string;
+      timestamp: number;
+    };
+    if (Date.now() - timestamp > STREAM_STORAGE_TTL_MS) return null;
+    // Return even if content is empty — phase alone (e.g. "scanning") is useful for UX.
+    if (!content && !phase) return null;
+    return { content, phase };
+  } catch {
+    return null;
+  }
+}
+
 async function readStream(
   body: ReadableStream<Uint8Array>,
   assistantId: string,
+  conversationId: string | null,
   setMessages: UseChatStreamOptions["setMessages"],
   onFail: (text: string) => void,
 ) {
@@ -169,23 +225,33 @@ async function readStream(
       try {
         const parsed = JSON.parse(payload);
 
-        if (parsed.error) {
-          onFail(parsed.error ?? "An error occurred.");
+        if (parsed.error !== undefined) {
+          onFail(parsed.error || "An error occurred.");
           hasError = true;
           break outer;
         }
 
         if (parsed.status) {
+          // Persist the current RAG phase so a mid-stream refresh can show a
+          // meaningful message ("Scanning documents…") rather than a generic one.
+          if (parsed.status === "scanning_attachments" || parsed.status === "searching_document") {
+            saveStreamProgress(conversationId, assistantText, parsed.status as string);
+          }
           applyStatusEvent(parsed, assistantId, setMessages);
           continue;
         }
 
         if (parsed.token) {
           assistantText += parsed.token;
+          saveStreamProgress(conversationId, assistantText);
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantId
-                ? { ...msg, streamedContent: assistantText, statusText: undefined }
+                ? {
+                    ...msg,
+                    streamedContent: assistantText,
+                    statusText: undefined,
+                  }
                 : msg,
             ),
           );
@@ -197,7 +263,11 @@ async function readStream(
           if (parsed.options) doneOptions = parsed.options as string[];
           const sections = (parsed.message as Record<string, unknown> | undefined)?.rag_sections;
           if (Array.isArray(sections) && sections.length > 0) {
-            doneRagSections = sections as { type: string; name: string; source?: string }[];
+            doneRagSections = sections as {
+              type: string;
+              name: string;
+              source?: string;
+            }[];
           }
           break outer;
         }
@@ -207,7 +277,17 @@ async function readStream(
     }
   }
 
-  return { assistantText, newConversationId, hasError, doneOptions, doneRagSections };
+  // Always clear on exit — success and error alike. If the stream errored, we don't
+  // want a stale partial response to reappear the next time the conversation loads.
+  clearStreamProgress(conversationId);
+
+  return {
+    assistantText,
+    newConversationId,
+    hasError,
+    doneOptions,
+    doneRagSections,
+  };
 }
 
 export function useChatStream({
@@ -218,7 +298,10 @@ export function useChatStream({
   setMessages,
   onNewConversation,
 }: UseChatStreamOptions) {
-  const lastSentRef = useRef<{ message: string; attachments: TextAttachment[] }>({
+  const lastSentRef = useRef<{
+    message: string;
+    attachments: TextAttachment[];
+  }>({
     message: "",
     attachments: [],
   });
@@ -248,6 +331,10 @@ export function useChatStream({
       lastSentRef.current = { message, attachments };
       lastSentThresholdRef.current = similarityThreshold;
 
+      // Strip recovery placeholders before starting a fresh stream — prevents the
+      // post-refresh polling from conflicting with a new, live stream.
+      setMessages((prev) => prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id)));
+
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -261,7 +348,13 @@ export function useChatStream({
 
       setMessages((prev) => [
         ...prev,
-        { id: assistantId, role: "assistant", content: "", streamedContent: "", isTyping: true },
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          streamedContent: "",
+          isTyping: true,
+        },
       ]);
 
       try {
@@ -306,7 +399,7 @@ export function useChatStream({
         }
 
         const { assistantText, newConversationId, hasError, doneOptions, doneRagSections } =
-          await readStream(res.body, assistantId, setMessages, (text) =>
+          await readStream(res.body, assistantId, conversationId, setMessages, (text) =>
             failAssistantMessage(assistantId, text),
           );
 
@@ -337,6 +430,7 @@ export function useChatStream({
           }
         }
       } catch (err) {
+        clearStreamProgress(conversationId);
         const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
         failAssistantMessage(assistantId, errorMsg);
       }
@@ -358,7 +452,11 @@ export function useChatStream({
         const { message, attachments } = lastSentRef.current;
         const last = lastSentThresholdRef.current;
         const nextThreshold = last > 0.3 ? 0.3 : 0.15;
-        handleSend({ message, attachments, similarityThreshold: nextThreshold });
+        handleSend({
+          message,
+          attachments,
+          similarityThreshold: nextThreshold,
+        });
       } else {
         handleSend({ message: text, attachments: [] });
       }
