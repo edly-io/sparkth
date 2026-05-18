@@ -642,17 +642,17 @@ async def chat_completion(
             detail="Failed to determine retrieval intent. Please try again.",
         ) from e
     except _PROVIDER_API_ERRORS as e:
-        logger.error(f"Provider API error: {e}")
+        logger.error("Provider API error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=_streaming_error_message(e),
-        )
+        ) from e
     except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
         logger.error("Chat completion failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Chat completion failed",
-        )
+        ) from e
 
 
 async def stream_chat_response(
