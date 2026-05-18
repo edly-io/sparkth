@@ -16,6 +16,7 @@ class TestResponseType:
             ResponseType.greeting,
             ResponseType.config_incomplete,
             ResponseType.plugin_disabled,
+            ResponseType.legacy,
         }
 
     def test_is_str_enum(self) -> None:

@@ -1,6 +1,7 @@
 """Integration tests for Slack OAuth routes."""
 
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -340,7 +341,7 @@ class TestGetLogs:
         test_workspace: SlackWorkspace,
         sync_session: Any,
     ) -> None:
-        import time
+        base = datetime.now(timezone.utc)
 
         msg_log = BotResponseLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -351,16 +352,16 @@ class TestGetLogs:
             answer="a1",
             rag_matched=False,
             response_type=ResponseType.fallback,
+            created_at=base - timedelta(seconds=1),
         )
         sync_session.add(msg_log)
         sync_session.commit()
-
-        time.sleep(0.01)
 
         conn_log = SlackConnectionLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
             event_type=ConnectionEventType.connected,
             team_name="Test Workspace",
+            created_at=base,
         )
         sync_session.add(conn_log)
         sync_session.commit()
@@ -378,7 +379,7 @@ class TestGetLogs:
         test_workspace: SlackWorkspace,
         sync_session: Any,
     ) -> None:
-        import time
+        base = datetime.now(timezone.utc)
 
         for i in range(3):
             sync_session.add(
@@ -391,20 +392,20 @@ class TestGetLogs:
                     answer=f"a{i}",
                     rag_matched=False,
                     response_type=ResponseType.fallback,
+                    created_at=base - timedelta(seconds=2 - i),
                 )
             )
             sync_session.commit()
-            time.sleep(0.01)
 
         response = await slack_client.get("/api/v1/slack/logs?limit=2")
         data = response.json()
         assert data["has_more"] is True
         cursor = data["next_cursor"]
         assert isinstance(cursor, str)
-        from datetime import datetime
-
-        datetime.fromisoformat(cursor)
-        assert cursor == data["items"][-1]["created_at"]
+        ts_part, id_part, type_part = cursor.split("|")
+        datetime.fromisoformat(ts_part)
+        assert int(id_part) == data["items"][-1]["id"]
+        assert type_part == data["items"][-1]["type"]
 
     @pytest.mark.asyncio
     async def test_timestamp_cursor_returns_older_entries(
@@ -413,7 +414,7 @@ class TestGetLogs:
         test_workspace: SlackWorkspace,
         sync_session: Any,
     ) -> None:
-        import time
+        base = datetime.now(timezone.utc)
 
         ids = []
         for i in range(3):
@@ -426,12 +427,12 @@ class TestGetLogs:
                 answer=f"a{i}",
                 rag_matched=False,
                 response_type=ResponseType.fallback,
+                created_at=base - timedelta(seconds=2 - i),
             )
             sync_session.add(log)
             sync_session.commit()
             sync_session.refresh(log)
             ids.append(log.id)
-            time.sleep(0.01)
 
         first = await slack_client.get("/api/v1/slack/logs?limit=2")
         first_data = first.json()
@@ -452,7 +453,7 @@ class TestGetLogs:
         test_workspace: SlackWorkspace,
         sync_session: Any,
     ) -> None:
-        import time
+        base = datetime.now(timezone.utc)
 
         old_log = BotResponseLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -463,22 +464,22 @@ class TestGetLogs:
             answer="old answer",
             rag_matched=False,
             response_type=ResponseType.fallback,
+            created_at=base - timedelta(seconds=2),
         )
         sync_session.add(old_log)
         sync_session.commit()
         sync_session.refresh(old_log)
         since = old_log.id
-        time.sleep(0.01)
 
         sync_session.add(
             SlackConnectionLog(
                 workspace_id=test_workspace.id,  # type: ignore[arg-type]
                 event_type=ConnectionEventType.connected,
                 team_name="Test Workspace",
+                created_at=base - timedelta(seconds=1),
             )
         )
         sync_session.commit()
-        time.sleep(0.01)
 
         new_log = BotResponseLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -489,6 +490,7 @@ class TestGetLogs:
             answer="new answer",
             rag_matched=True,
             response_type=ResponseType.rag_match,
+            created_at=base,
         )
         sync_session.add(new_log)
         sync_session.commit()

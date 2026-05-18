@@ -71,9 +71,10 @@ export default function SlackConfigModal({
     setFallbackMessage(cfg.fallback_message ?? DEFAULTS.fallback_message);
     setGreetingMessage(cfg.greeting_message ?? DEFAULTS.greeting_message);
 
-    // allowed_sources may be stored as JSON string
+    // allowed_sources may be a JSONB array or a JSON-encoded string
     try {
-      const parsed = cfg.allowed_sources ? JSON.parse(cfg.allowed_sources) : [];
+      const raw = cfg.allowed_sources;
+      const parsed = Array.isArray(raw) ? raw : raw ? JSON.parse(raw) : [];
       setAllowedSources(
         Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [],
       );

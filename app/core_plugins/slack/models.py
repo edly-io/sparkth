@@ -15,6 +15,7 @@ class ResponseType(str, Enum):
     greeting = "greeting"
     config_incomplete = "config_incomplete"
     plugin_disabled = "plugin_disabled"
+    legacy = "legacy"
 
 
 class ConnectionEventType(str, Enum):
@@ -53,7 +54,7 @@ class BotResponseLog(TimestampedModel, SQLModel, table=True):
         sa_column=Column(
             SQLAlchemyEnum(ResponseType, name="responsetype"),
             nullable=False,
-            server_default="rag_match",
+            server_default="legacy",
         )
     )
     slack_user_name: str | None = Field(default=None, max_length=255, nullable=True)

@@ -65,14 +65,16 @@ function reducer(state: LogStreamState, action: LogStreamAction): LogStreamState
       return { ...state, initialLoading: false, error: action.error };
     case "POLL_START":
       return { ...state, polling: true };
-    case "POLL_SUCCESS":
+    case "POLL_SUCCESS": {
+      const newestFirst = [...action.newItems].reverse();
       return {
         ...state,
         polling: false,
-        entries: [...[...action.newItems].reverse(), ...state.entries],
+        entries: [...newestFirst, ...state.entries],
         consecutivePollErrors: 0,
         error: null,
       };
+    }
     case "POLL_FAILURE": {
       const next = state.consecutivePollErrors + 1;
       return {
@@ -104,20 +106,34 @@ function formatTimestamp(iso: string): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { timeZoneName: "short" });
 }
 
-function responseTypeLabel(responseType: string): { label: string; className: string } {
+function responseTypePill(responseType: string): {
+  label: string;
+  textClass: string;
+  bgClass: string;
+} {
   switch (responseType) {
     case "rag_match":
-      return { label: "matched", className: "text-success-400" };
+      return { label: "matched", textClass: "text-green-400", bgClass: "bg-green-400/15" };
     case "fallback":
-      return { label: "no match — fallback", className: "text-zinc-500" };
+      return {
+        label: "no match — fallback",
+        textClass: "text-zinc-400",
+        bgClass: "bg-zinc-700/50",
+      };
     case "greeting":
-      return { label: "greeting", className: "text-zinc-500" };
+      return { label: "greeting", textClass: "text-zinc-400", bgClass: "bg-zinc-700/50" };
     case "config_incomplete":
-      return { label: "config incomplete", className: "text-amber-400" };
+      return {
+        label: "config incomplete",
+        textClass: "text-amber-400",
+        bgClass: "bg-amber-400/15",
+      };
     case "plugin_disabled":
-      return { label: "plugin disabled", className: "text-amber-400" };
+      return { label: "plugin disabled", textClass: "text-amber-400", bgClass: "bg-amber-400/15" };
+    case "legacy":
+      return { label: "pre-migration", textClass: "text-zinc-500", bgClass: "bg-zinc-800" };
     default:
-      return { label: responseType, className: "text-zinc-500" };
+      return { label: responseType, textClass: "text-zinc-500", bgClass: "bg-zinc-800" };
   }
 }
 
@@ -126,7 +142,7 @@ function MessageRow({ entry }: { entry: BotResponseLogItem }) {
   const channelDisplay = entry.slack_channel_name
     ? `#${entry.slack_channel_name}`
     : `#${entry.slack_channel}`;
-  const { label, className } = responseTypeLabel(entry.response_type);
+  const { label, textClass, bgClass } = responseTypePill(entry.response_type);
 
   return (
     <article className="px-4 py-2 border-t border-zinc-800 first:border-t-0">
@@ -141,7 +157,11 @@ function MessageRow({ entry }: { entry: BotResponseLogItem }) {
         {entry.answer ?? <span className="italic text-zinc-500">&lt;no answer&gt;</span>}
       </div>
       <div className="mt-1">
-        <span className={className}>{label}</span>
+        <span
+          className={`${bgClass} ${textClass} inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium`}
+        >
+          {label}
+        </span>
       </div>
     </article>
   );
@@ -200,12 +220,8 @@ export default function LogStream() {
     const { initialLoading, polling, loadingOlder, entries } = stateRef.current;
     if (initialLoading || polling || loadingOlder) return;
 
-    const sinceId = entries
-      .filter((e): e is BotResponseLogItem => e.type === "message")
-      .reduce<number | undefined>(
-        (max, e) => (max === undefined || e.id > max ? e.id : max),
-        undefined,
-      );
+    const msgEntries = entries.filter((e): e is BotResponseLogItem => e.type === "message");
+    const sinceId = msgEntries.length > 0 ? msgEntries[0].id : undefined;
 
     if (sinceId === undefined) {
       await loadInitial();

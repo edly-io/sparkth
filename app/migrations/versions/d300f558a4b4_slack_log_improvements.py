@@ -33,9 +33,9 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_slack_connection_logs_workspace_id'), 'slack_connection_logs', ['workspace_id'], unique=False)
-    responsetype = sa.Enum('rag_match', 'fallback', 'greeting', 'config_incomplete', 'plugin_disabled', name='responsetype')
+    responsetype = sa.Enum('rag_match', 'fallback', 'greeting', 'config_incomplete', 'plugin_disabled', 'legacy', name='responsetype')
     responsetype.create(op.get_bind(), checkfirst=True)
-    op.add_column('slack_bot_response_logs', sa.Column('response_type', sa.Enum('rag_match', 'fallback', 'greeting', 'config_incomplete', 'plugin_disabled', name='responsetype'), server_default='rag_match', nullable=False))
+    op.add_column('slack_bot_response_logs', sa.Column('response_type', sa.Enum('rag_match', 'fallback', 'greeting', 'config_incomplete', 'plugin_disabled', 'legacy', name='responsetype'), server_default='legacy', nullable=False))
     op.add_column('slack_bot_response_logs', sa.Column('slack_user_name', sqlmodel.sql.sqltypes.AutoString(length=255), nullable=True))
     op.add_column('slack_bot_response_logs', sa.Column('slack_channel_name', sqlmodel.sql.sqltypes.AutoString(length=255), nullable=True))
     # ### end Alembic commands ###
