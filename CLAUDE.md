@@ -78,14 +78,13 @@ Copy `.env.example` → `.env`. Required variables:
 | `DATABASE_URL` | PostgreSQL connection string |
 | `SECRET_KEY` | JWT signing key |
 | `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
-| `REDIS_URL` | Redis for session caching, used in chat plugin |
+| `REDIS_URL` | Redis for chat session caching and the email-verification resend rate-limit bucket |
 | `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP (Amazon SES, Mailgun, MailHog, …) |
 | `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | From-header for verification + other transactional emails |
 | `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |
 | `FRONTEND_BASE_URL` | Base URL used in verification email links |
-| `REDIS_URL` | Redis used for the resend rate-limit bucket |
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
 

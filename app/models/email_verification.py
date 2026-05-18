@@ -18,7 +18,7 @@ class EmailVerificationToken(TimestampedModel, table=True):
             index=True,
         )
     )
-    token_hash: str = Field(max_length=64, unique=True, index=True)
+    token_hash: str = Field(max_length=64, unique=True)
     expires_at: datetime = Field(
         sa_type=DateTime(timezone=True),  # type: ignore
         nullable=False,
