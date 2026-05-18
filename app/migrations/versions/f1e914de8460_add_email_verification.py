@@ -49,12 +49,6 @@ def upgrade() -> None:
         ["user_id"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_email_verification_token_token_hash"),
-        "email_verification_token",
-        ["token_hash"],
-        unique=False,
-    )
 
     # Backfill: mark all existing users as verified.
     # Existing accounts pre-date this feature and should not be locked out.
@@ -73,10 +67,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(
-        op.f("ix_email_verification_token_token_hash"),
-        table_name="email_verification_token",
-    )
     op.drop_index(
         op.f("ix_email_verification_token_user_id"),
         table_name="email_verification_token",
