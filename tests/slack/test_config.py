@@ -21,3 +21,13 @@ def test_llm_config_id_accepts_value() -> None:
 def test_llm_temperature_rejects_out_of_range() -> None:
     with pytest.raises(ValidationError):
         SlackConfig(llm_temperature=-0.1)
+
+
+def test_llm_model_override_defaults_to_none() -> None:
+    config = SlackConfig()
+    assert config.llm_model_override is None
+
+
+def test_llm_model_override_accepts_string() -> None:
+    config = SlackConfig(llm_model_override="claude-haiku-4-5")
+    assert config.llm_model_override == "claude-haiku-4-5"

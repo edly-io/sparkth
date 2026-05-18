@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core_plugins.chat.plugin_adapter import ChatPluginConfigAdapter
+from app.core_plugins.chat.adapter import ChatConfigAdapter
 from app.models import LLMConfig
 
 
 @pytest.fixture
-def adapter() -> ChatPluginConfigAdapter:
-    return ChatPluginConfigAdapter()
+def adapter() -> ChatConfigAdapter:
+    return ChatConfigAdapter()
 
 
 def _session_with(config: LLMConfig | None) -> AsyncMock:
@@ -22,7 +22,7 @@ def _session_with(config: LLMConfig | None) -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_preprocess_valid_llm_config_id_passes_through(adapter: ChatPluginConfigAdapter) -> None:
+async def test_preprocess_valid_llm_config_id_passes_through(adapter: ChatConfigAdapter) -> None:
     config = LLMConfig(
         id=3,
         user_id=1,
@@ -44,7 +44,7 @@ async def test_preprocess_valid_llm_config_id_passes_through(adapter: ChatPlugin
 
 
 @pytest.mark.asyncio
-async def test_preprocess_unknown_llm_config_id_raises(adapter: ChatPluginConfigAdapter) -> None:
+async def test_preprocess_unknown_llm_config_id_raises(adapter: ChatConfigAdapter) -> None:
     session = _session_with(None)
 
     with pytest.raises(ValueError, match="llm_config_id"):
@@ -56,7 +56,7 @@ async def test_preprocess_unknown_llm_config_id_raises(adapter: ChatPluginConfig
 
 
 @pytest.mark.asyncio
-async def test_postprocess_resolves_llm_fields(adapter: ChatPluginConfigAdapter) -> None:
+async def test_postprocess_resolves_llm_fields(adapter: ChatConfigAdapter) -> None:
     config = LLMConfig(
         id=3,
         user_id=1,

@@ -30,3 +30,9 @@ class BotResponseLogItem(BaseModel):
 class LogsResponse(BaseModel):
     items: list[BotResponseLogItem]
     total: int
+    next_cursor: int | None = None
+    has_more: bool = False
+
+
+class RagSourcesResponse(BaseModel):
+    sources: list[str]

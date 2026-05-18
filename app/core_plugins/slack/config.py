@@ -36,3 +36,7 @@ class SlackConfig(PluginConfig):
         le=2.0,
         description="Temperature for LLM synthesis. Low values for factual Q&A.",
     )
+    llm_model_override: str | None = Field(
+        default=None,
+        description="Override the model from the selected LLMConfig. None uses the config's model.",
+    )
