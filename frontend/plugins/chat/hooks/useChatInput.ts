@@ -136,9 +136,10 @@ export function useChatInput({
           });
       }
     } else {
-      // Clear all attachments — issue DELETE for any persisted drive files
+      const driveAtts = attachments.filter((a) => a.driveFileDbId !== undefined);
+      setAttachments([]);
       if (conversationId) {
-        for (const att of attachments.filter((a) => a.driveFileDbId !== undefined)) {
+        for (const att of driveAtts) {
           fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
@@ -149,10 +150,10 @@ export function useChatInput({
             .catch((err) => {
               console.warn("Failed to detach drive file:", err);
               setUploadError("Some files could not be detached. Please try again.");
+              setAttachments((prev) => [...prev, att]);
             });
         }
       }
-      setAttachments([]);
     }
   };
 
