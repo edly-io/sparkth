@@ -3,15 +3,18 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 
+import aiosmtplib
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.email import send_email
+from app.core.logger import get_logger
 from app.models.email_verification import EmailVerificationToken
 from app.models.user import User
 
 settings = get_settings()
+logger = get_logger(__name__)
 
 
 class TokenInvalidError(Exception):
@@ -128,10 +131,16 @@ def _render_email(name: str, raw_token: str) -> tuple[str, str]:
 
 
 async def send_verification_email(*, to: str, name: str, raw_token: str) -> None:
+    # Runs as a FastAPI background task after a 201; the user has already been
+    # told to check their inbox. Re-raising would be invisible and noisy in
+    # logs, so absorb known failure modes and surface them with context instead.
     text_body, html_body = _render_email(name, raw_token)
-    await send_email(
-        to=to,
-        subject="Confirm your Sparkth account",
-        html_body=html_body,
-        text_body=text_body,
-    )
+    try:
+        await send_email(
+            to=to,
+            subject="Confirm your Sparkth account",
+            html_body=html_body,
+            text_body=text_body,
+        )
+    except (RuntimeError, aiosmtplib.SMTPException):
+        logger.exception("Failed to send verification email to %s", to)

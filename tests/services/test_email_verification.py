@@ -194,3 +194,43 @@ class TestSendVerificationEmail:
         assert '<a href="http://evil">' not in html_body
         # The escaped form should be present
         assert "&lt;script&gt;" in html_body
+
+    async def test_swallows_and_logs_runtime_error_when_smtp_unconfigured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Background task must not propagate RuntimeError from send_email."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services import email_verification as svc
+
+        send_mock = AsyncMock(side_effect=RuntimeError("SMTP not configured: set SMTP_HOST"))
+        monkeypatch.setattr(svc, "send_email", send_mock)
+        log_mock = MagicMock()
+        monkeypatch.setattr(svc, "logger", log_mock)
+
+        # Must not raise.
+        await svc.send_verification_email(to="x@example.com", name="X", raw_token="t")
+
+        log_mock.exception.assert_called_once()
+        args = log_mock.exception.call_args.args
+        assert "x@example.com" in args
+
+    async def test_swallows_and_logs_smtp_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Background task must not propagate aiosmtplib.SMTPException either."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import aiosmtplib
+
+        from app.services import email_verification as svc
+
+        send_mock = AsyncMock(side_effect=aiosmtplib.SMTPException("connection refused"))
+        monkeypatch.setattr(svc, "send_email", send_mock)
+        log_mock = MagicMock()
+        monkeypatch.setattr(svc, "logger", log_mock)
+
+        # Must not raise.
+        await svc.send_verification_email(to="y@example.com", name="Y", raw_token="t")
+
+        log_mock.exception.assert_called_once()
+        args = log_mock.exception.call_args.args
+        assert "y@example.com" in args
