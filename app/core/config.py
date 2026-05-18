@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Email verification (uses the shared REDIS_URL below for resend rate limiting)
     EMAIL_VERIFICATION_TOKEN_TTL_HOURS: int = 24
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
-    FRONTEND_BASE_URL: str = "http://localhost:3000"
+    FRONTEND_BASE_URL: str = "http://localhost:7727"
 
     RAG_CONCURRENCY: int = 1  # max number of files to process in parallel for RAG
     RAG_MAX_FILE_SIZE_MB: int = 50  # skip files larger than this during RAG ingestion
