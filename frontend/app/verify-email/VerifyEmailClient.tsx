@@ -39,8 +39,8 @@ export default function VerifyEmailClient() {
 
 function VerifyEmailContent() {
   const { push, replace } = useRouter();
-  const { get } = useSearchParams();
-  const token = get("token");
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
 
   const [status, setStatus] = useState<Status>("loading");
   const [resendEmail, setResendEmail] = useState("");

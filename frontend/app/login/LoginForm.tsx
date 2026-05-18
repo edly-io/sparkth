@@ -52,8 +52,8 @@ function LoginContent() {
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
 
-  const { get: getSearchParam } = useSearchParams();
-  const oauthError = getSearchParam("error");
+  const searchParams = useSearchParams();
+  const oauthError = searchParams.get("error");
 
   const form = useForm({
     defaultValues: { username: "", password: "" },
