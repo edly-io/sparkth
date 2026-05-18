@@ -115,7 +115,8 @@ async def register_user(
     session.add(db_user)
     await session.flush()
 
-    assert db_user.id is not None
+    if db_user.id is None:
+        raise RuntimeError("user.id unexpectedly None after flush")
     raw_token = await EmailVerificationService.create_token(session, user_id=db_user.id)
     await session.commit()
     await session.refresh(db_user)
