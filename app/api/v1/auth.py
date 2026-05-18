@@ -311,7 +311,7 @@ async def resend_verification_email(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
-    email_lower = body.email.lower()
+    email_lower = body.email.strip().lower()
     key = f"email_verify_resend:{hashlib.sha256(email_lower.encode()).hexdigest()}"
     async with _get_resend_redis() as redis:
         accepted = await redis.set(
