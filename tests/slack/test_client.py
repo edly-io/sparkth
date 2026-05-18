@@ -3,8 +3,10 @@
 import hashlib
 import hmac
 import time
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from app.core_plugins.slack.client import SlackClient
@@ -118,3 +120,141 @@ class TestAuthTest:
                 result = await client.auth_test()
 
         assert result["team_id"] == "T123"
+
+
+class TestGetUserDisplayName:
+    def _make_client_mock(self, response_json: dict[str, Any]) -> tuple[AsyncMock, MagicMock]:
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json = MagicMock(return_value=response_json)
+
+        mock_http = AsyncMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.get = AsyncMock(return_value=mock_response)
+        return mock_http, mock_response
+
+    @pytest.mark.asyncio
+    async def test_returns_display_name_when_set(self) -> None:
+        mock_http, _ = self._make_client_mock(
+            {"ok": True, "user": {"profile": {"display_name": "alice", "real_name": "Alice Smith"}}}
+        )
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_user_display_name("U123")
+        assert name == "alice"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_real_name_when_display_name_empty(self) -> None:
+        mock_http, _ = self._make_client_mock(
+            {"ok": True, "user": {"profile": {"display_name": "", "real_name": "Alice Smith"}}}
+        )
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_user_display_name("U123")
+        assert name == "Alice Smith"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_api_error(self) -> None:
+        mock_http, _ = self._make_client_mock({"ok": False, "error": "user_not_found"})
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_user_display_name("U_BAD")
+        assert name is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_error(self) -> None:
+        mock_http = AsyncMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_user_display_name("U123")
+        assert name is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_status_error(self) -> None:
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError("403", request=MagicMock(), response=MagicMock())
+        )
+        mock_response.json = MagicMock(return_value={})
+
+        mock_http = AsyncMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.get = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_user_display_name("U123")
+        assert name is None
+
+
+class TestGetChannelName:
+    def _make_client_mock(self, response_json: dict[str, Any]) -> tuple[AsyncMock, MagicMock]:
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json = MagicMock(return_value=response_json)
+
+        mock_http = AsyncMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.get = AsyncMock(return_value=mock_response)
+        return mock_http, mock_response
+
+    @pytest.mark.asyncio
+    async def test_returns_channel_name(self) -> None:
+        mock_http, _ = self._make_client_mock({"ok": True, "channel": {"name": "general"}})
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_channel_name("C123")
+        assert name == "general"
+
+    @pytest.mark.asyncio
+    async def test_returns_dm_for_direct_message_channel(self) -> None:
+        mock_http, _ = self._make_client_mock({"ok": True, "channel": {"user": "U999"}})
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_channel_name("D123")
+        assert name == "DM"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_api_error(self) -> None:
+        mock_http, _ = self._make_client_mock({"ok": False, "error": "channel_not_found"})
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_channel_name("C_BAD")
+        assert name is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_error(self) -> None:
+        mock_http = AsyncMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
+
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_channel_name("C123")
+        assert name is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_status_error(self) -> None:
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError("403", request=MagicMock(), response=MagicMock())
+        )
+        mock_response.json = MagicMock(return_value={})
+
+        mock_http = AsyncMock()
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+        mock_http.get = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient", return_value=mock_http):
+            async with SlackClient("xoxb-token") as client:
+                name = await client.get_channel_name("C123")
+        assert name is None

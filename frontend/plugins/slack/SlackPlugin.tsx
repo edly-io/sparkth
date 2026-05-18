@@ -7,6 +7,7 @@ import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { getConnectionStatus, type ConnectionStatus } from "@/lib/slack-api";
 import SlackConnectionCard from "./components/SlackConnectionCard";
+import LogStream from "./components/LogStream";
 import { SLACK_PLUGIN_PATH } from "./index";
 
 export default function SlackPlugin() {
@@ -79,6 +80,8 @@ export default function SlackPlugin() {
         )}
 
         <SlackConnectionCard status={status} onStatusChange={loadStatus} onError={setError} />
+
+        {status?.connected && <LogStream />}
       </div>
     </div>
   );
