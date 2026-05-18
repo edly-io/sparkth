@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, type SubmitEvent } from "react";
+import { Suspense, useEffect, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
@@ -17,6 +17,19 @@ import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
+
+type ResendStatus = "idle" | "sending" | "sent" | "rate_limited" | "error";
+
+const RESEND_LABELS: Record<ResendStatus, string> = {
+  idle: "Resend confirmation email",
+  sending: "Sending…",
+  sent: "Email sent — check your inbox",
+  rate_limited: "Please wait before resending",
+  error: "Try again",
+};
+
+// Slightly longer than the server cooldown so the user can retry without a refresh.
+const RESEND_AUTO_RESET_MS = 90_000;
 
 export default function LoginPage() {
   // Suspense boundary co-located with useSearchParams: required by Next.js
@@ -37,9 +50,7 @@ function LoginContent() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [googleLoading, setGoogleLoading] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
-  const [resendStatus, setResendStatus] = useState<
-    "idle" | "sending" | "sent" | "rate_limited" | "error"
-  >("idle");
+  const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
 
   const { get: getSearchParam } = useSearchParams();
   const oauthError = getSearchParam("error");
@@ -86,20 +97,15 @@ function LoginContent() {
     }
   };
 
-  const resendButtonLabel = (() => {
-    switch (resendStatus) {
-      case "sending":
-        return "Sending…";
-      case "sent":
-        return "Email sent — check your inbox";
-      case "rate_limited":
-        return "Please wait before resending";
-      case "error":
-        return "Try again";
-      default:
-        return "Resend confirmation email";
-    }
-  })();
+  // Re-enable the button after the server cooldown elapses so the user can
+  // retry from the same page if the email didn't arrive.
+  useEffect(() => {
+    if (resendStatus !== "sent" && resendStatus !== "rate_limited") return;
+    const timer = setTimeout(() => setResendStatus("idle"), RESEND_AUTO_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [resendStatus]);
+
+  const resendButtonLabel = RESEND_LABELS[resendStatus];
 
   const handleFormSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();

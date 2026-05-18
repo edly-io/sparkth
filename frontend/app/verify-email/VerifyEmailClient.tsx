@@ -13,6 +13,18 @@ import { Input } from "@/components/ui/Input";
 import { ApiRequestError, resendVerificationEmail, verifyEmail } from "@/lib/api";
 
 type Status = "loading" | "success" | "expired" | "invalid";
+type ResendStatus = "idle" | "sending" | "sent" | "rate_limited" | "error";
+
+const RESEND_LABELS: Record<ResendStatus, string> = {
+  idle: "Send new link",
+  sending: "Sending…",
+  sent: "Email sent — check your inbox",
+  rate_limited: "Please wait before resending",
+  error: "Try again",
+};
+
+// Slightly longer than the server cooldown so the user can retry without a refresh.
+const RESEND_AUTO_RESET_MS = 90_000;
 
 export default function VerifyEmailClient() {
   // Suspense boundary co-located with useSearchParams: required by Next.js
@@ -32,9 +44,7 @@ function VerifyEmailContent() {
 
   const [status, setStatus] = useState<Status>("loading");
   const [resendEmail, setResendEmail] = useState("");
-  const [resendStatus, setResendStatus] = useState<
-    "idle" | "sending" | "sent" | "rate_limited" | "error"
-  >("idle");
+  const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
 
   useEffect(() => {
     if (!token) {
@@ -73,20 +83,15 @@ function VerifyEmailContent() {
     }
   };
 
-  const resendButtonLabel = (() => {
-    switch (resendStatus) {
-      case "sending":
-        return "Sending…";
-      case "sent":
-        return "Email sent — check your inbox";
-      case "rate_limited":
-        return "Please wait before resending";
-      case "error":
-        return "Try again";
-      default:
-        return "Send new link";
-    }
-  })();
+  // Re-enable the button after the server cooldown elapses so the user can
+  // retry from the same page if the email didn't arrive.
+  useEffect(() => {
+    if (resendStatus !== "sent" && resendStatus !== "rate_limited") return;
+    const timer = setTimeout(() => setResendStatus("idle"), RESEND_AUTO_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [resendStatus]);
+
+  const resendButtonLabel = RESEND_LABELS[resendStatus];
 
   return (
     <div className="min-h-dvh flex items-center justify-center bg-background py-6 px-4 sm:py-12 sm:px-6 lg:px-8 transition-colors">
