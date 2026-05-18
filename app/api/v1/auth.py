@@ -268,20 +268,20 @@ async def google_callback(
         return RedirectResponse(url=f"/login?error={quote(str(e))}", status_code=302)
 
 
-@router.post("/verify-email", response_model=UserSchema)
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
 async def verify_email(
     body: VerifyEmailRequest,
     session: AsyncSession = Depends(get_async_session),
-) -> User:
+) -> None:
+    # Unauthenticated endpoint: deliberately returns no body so we don't leak
+    # account state (verified flag, id, name) to anyone holding a token.
     try:
-        user = await EmailVerificationService.verify_token(session, raw_token=body.token)
+        await EmailVerificationService.verify_token(session, raw_token=body.token)
     except TokenExpiredError:
         raise HTTPException(status_code=400, detail="expired_token")
     except TokenInvalidError:
         raise HTTPException(status_code=400, detail="invalid_token")
     await session.commit()
-    await session.refresh(user)
-    return user
 
 
 @asynccontextmanager

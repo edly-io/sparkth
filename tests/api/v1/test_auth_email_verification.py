@@ -153,8 +153,10 @@ class TestVerifyEmailEndpoint:
         await session.commit()
 
         response = await client.post("/api/v1/auth/verify-email", json={"token": raw})
-        assert response.status_code == 200
-        assert response.json()["email_verified"] is True
+        assert response.status_code == 204
+        assert response.content == b""
+        await session.refresh(user)
+        assert user.email_verified is True
 
     async def test_invalid_token_returns_400(self, client: AsyncClient) -> None:
         response = await client.post("/api/v1/auth/verify-email", json={"token": "bogus"})
@@ -208,7 +210,7 @@ class TestVerifyEmailEndpoint:
         await session.commit()
 
         ok = await client.post("/api/v1/auth/verify-email", json={"token": raw})
-        assert ok.status_code == 200
+        assert ok.status_code == 204
 
         again = await client.post("/api/v1/auth/verify-email", json={"token": raw})
         assert again.status_code == 400

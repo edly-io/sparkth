@@ -326,7 +326,7 @@ export async function removeWhitelistEntry(token: string, id: number): Promise<v
   }
 }
 
-export async function verifyEmail(token: string): Promise<RegisterResponse> {
+export async function verifyEmail(token: string): Promise<void> {
   let response: Response;
 
   try {
@@ -355,8 +355,6 @@ export async function verifyEmail(token: string): Promise<RegisterResponse> {
       );
     }
   }
-
-  return response.json();
 }
 
 export async function resendVerificationEmail(email: string): Promise<void> {
