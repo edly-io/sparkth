@@ -1,6 +1,7 @@
 from app.rag.models import DocumentChunk  # noqa: E402
 
 from .drive import DriveFile, DriveFolder, DriveOAuthToken
+from .email_verification import EmailVerificationToken
 from .llm import LLMConfig
 from .plugin import Plugin, UserPlugin
 from .user import User
@@ -16,4 +17,5 @@ __all__ = [
     "DocumentChunk",
     "LLMConfig",
     "WhitelistedEmail",
+    "EmailVerificationToken",
 ]
