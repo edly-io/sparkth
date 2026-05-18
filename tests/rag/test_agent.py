@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ConnectError, HTTPStatusError, Request, Response
 from langchain_core.exceptions import LangChainException
+from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, ValidationError
 
 from app.rag.agent import _bind_user_context, run_agentic_rag_search
@@ -199,6 +200,15 @@ class TestRunAgenticRagSearch:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
+                await run_agentic_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+
+    @pytest.mark.asyncio
+    async def test_graph_recursion_error_raises_retrieval_error(self) -> None:
+        agent = MagicMock()
+        agent.ainvoke = AsyncMock(side_effect=GraphRecursionError())
+
+        with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
+            with pytest.raises(RAGRetrievalError, match="maximum steps"):
                 await run_agentic_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio

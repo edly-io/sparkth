@@ -64,6 +64,11 @@ export function useChatInput({
   const handleDriveFileSelected = (driveFiles: SelectedDriveFile[]) => {
     setShowDriveFilePicker(false);
     setUploadError(null);
+
+    // Snapshot the previous drive attachments before enqueueing the state
+    // update so both diff computations read a consistent pre-update view.
+    const prevDriveAttachments = attachments.filter((a) => a.driveFileDbId !== undefined);
+
     const newDriveAttachments = driveFiles.map((file) => ({
       name: file.name,
       size: file.size ?? 0,
@@ -76,14 +81,15 @@ export function useChatInput({
     });
 
     if (conversationId) {
-      const existingIds = new Set(
-        attachments.filter((a) => a.driveFileDbId).map((a) => a.driveFileDbId),
-      );
+      const existingIds = new Set(prevDriveAttachments.map((a) => a.driveFileDbId));
       const addedFiles = driveFiles.filter((f) => !existingIds.has(f.id));
       for (const file of addedFiles) {
         fetch(`/api/v1/chat/conversations/${conversationId}/attachments`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ drive_file_id: file.id }),
         })
           .then((res) => {
@@ -97,9 +103,7 @@ export function useChatInput({
       }
 
       const newIds = new Set(driveFiles.map((f) => f.id));
-      const removedAttachments = attachments.filter(
-        (a) => a.driveFileDbId !== undefined && !newIds.has(a.driveFileDbId!),
-      );
+      const removedAttachments = prevDriveAttachments.filter((a) => !newIds.has(a.driveFileDbId!));
       for (const att of removedAttachments) {
         fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
           method: "DELETE",

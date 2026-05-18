@@ -114,7 +114,10 @@ export default function DriveFilePicker({
   const { token } = useAuth();
   const [state, dispatch] = useReducer(pickerReducer, initialSelectedFiles, buildInitialState);
   const { folders, files, selectedFolder, loading, selectedFileIds, selectedFilesMap } = state;
-  const { ragStatuses } = useRagStatusPolling(selectedFolder?.id ?? null, token);
+  const { ragStatuses } = useRagStatusPolling(
+    selectedFolder?.id != null ? [selectedFolder.id] : [],
+    token,
+  );
 
   const loadFolders = useCallback(async () => {
     if (!token) return;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
+import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import {
   FileText,
   Image as ImageIcon,
@@ -31,7 +32,6 @@ import {
   downloadFile,
   deleteFile,
   refreshFolder,
-  getFolderRagStatus,
   DriveFolder,
   ConnectionStatus as ConnectionStatusType,
   formatDate,
@@ -685,47 +685,13 @@ export default function GoogleDrive() {
     return Array.from(ids);
   }, [resources]);
 
+  const { ragStatuses: polledRagStatuses } = useRagStatusPolling(folderIdsWithNonTerminal, token);
+
   useEffect(() => {
-    if (!token || folderIdsWithNonTerminal.length === 0) return;
-
-    const BASE_DELAY = 5_000;
-    const MAX_DELAY = 30_000;
-    let cancelled = false;
-    let retryDelay = BASE_DELAY;
-    let timerId: ReturnType<typeof setTimeout> | undefined;
-
-    const poll = async () => {
-      try {
-        const results = await Promise.all(
-          folderIdsWithNonTerminal.map((folderId) => getFolderRagStatus(folderId, token)),
-        );
-        if (cancelled) return;
-
-        const statusMap: Record<number, { status: RagStatus | null; error: string | null }> = {};
-        for (const folder of results) {
-          for (const f of folder.files) {
-            statusMap[f.file_id] = { status: f.rag_status, error: f.rag_error };
-          }
-        }
-        dispatch({ type: "UPDATE_RAG_STATUSES", payload: statusMap });
-
-        retryDelay = BASE_DELAY;
-        if (!cancelled) timerId = setTimeout(poll, BASE_DELAY);
-      } catch (err) {
-        console.warn("RAG status poll failed, retrying in", retryDelay, "ms:", err);
-        if (!cancelled) {
-          timerId = setTimeout(poll, retryDelay);
-          retryDelay = Math.min(retryDelay * 2, MAX_DELAY);
-        }
-      }
-    };
-
-    timerId = setTimeout(poll, BASE_DELAY);
-    return () => {
-      cancelled = true;
-      if (timerId) clearTimeout(timerId);
-    };
-  }, [token, folderIdsWithNonTerminal]);
+    if (Object.keys(polledRagStatuses).length > 0) {
+      dispatch({ type: "UPDATE_RAG_STATUSES", payload: polledRagStatuses });
+    }
+  }, [polledRagStatuses]);
 
   const handleDownload = async (resource: ResourceRow) => {
     if (!token) return;

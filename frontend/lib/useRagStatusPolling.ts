@@ -8,8 +8,11 @@ export interface RagStatusPollingResult {
   restart: () => void;
 }
 
+const BASE_DELAY = 5000;
+const MAX_DELAY = 30000;
+
 export function useRagStatusPolling(
-  folderId: number | null,
+  folderIds: number[],
   token: string | null,
 ): RagStatusPollingResult {
   const [ragStatuses, setRagStatuses] = useState<RagStatusMap>({});
@@ -19,42 +22,56 @@ export function useRagStatusPolling(
     setPollKey((k) => k + 1);
   }, []);
 
+  const folderIdsKey = folderIds
+    .slice()
+    .sort((a, b) => a - b)
+    .join(",");
+
   useEffect(() => {
-    if (!folderId || !token) return;
+    if (!folderIdsKey || !token) return;
 
     setRagStatuses({});
 
     let cancelled = false;
     let allTerminal = false;
     let timerId: ReturnType<typeof setTimeout> | undefined;
+    let delay = BASE_DELAY;
 
-    const fetchStatuses = async () => {
+    const fetchStatuses = async (): Promise<boolean> => {
+      const ids = folderIdsKey.split(",").map(Number);
       try {
-        const data = await getFolderRagStatus(folderId, token);
+        const results = await Promise.all(ids.map((id) => getFolderRagStatus(id, token!)));
         if (!cancelled) {
           const map: RagStatusMap = {};
-          for (const f of data.files) {
-            map[f.file_id] = { status: f.rag_status, error: f.rag_error };
+          for (const data of results) {
+            for (const f of data.files) {
+              map[f.file_id] = { status: f.rag_status, error: f.rag_error };
+            }
           }
           setRagStatuses(map);
-          allTerminal =
-            data.files.length === 0 ||
-            data.files.every(
-              (f) =>
-                f.rag_status === RagStatus.Ready ||
-                f.rag_status === RagStatus.Failed ||
-                f.rag_status === null,
-            );
+
+          const allFiles = results.flatMap((r) => r.files);
+          allTerminal = allFiles.every(
+            (f) =>
+              f.rag_status === RagStatus.Ready ||
+              f.rag_status === RagStatus.Failed ||
+              f.rag_status === null,
+          );
+          delay = BASE_DELAY;
         }
+        return true;
       } catch {
-        // silently ignore polling errors
+        if (!cancelled) {
+          delay = Math.min(delay * 2, MAX_DELAY);
+        }
+        return false;
       }
     };
 
     const poll = async () => {
       await fetchStatuses();
       if (!cancelled && !allTerminal) {
-        timerId = setTimeout(poll, 5000);
+        timerId = setTimeout(poll, delay);
       }
     };
 
@@ -64,7 +81,8 @@ export function useRagStatusPolling(
       cancelled = true;
       if (timerId) clearTimeout(timerId);
     };
-  }, [folderId, token, pollKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderIdsKey, token, pollKey]);
 
   return { ragStatuses, restart };
 }

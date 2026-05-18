@@ -19,14 +19,6 @@ describe("PersistedFilesInfo", () => {
     driveFileDbId: id,
   });
 
-  it("renders null when no Drive-file attachments", () => {
-    const { container } = render(
-      <PersistedFilesInfo attachments={[]} onDetachFile={mockOnDetachFile} />,
-    );
-
-    expect(container.firstChild).toBeNull();
-  });
-
   it("renders null when attachments array is empty", () => {
     const { container } = render(
       <PersistedFilesInfo attachments={[]} onDetachFile={mockOnDetachFile} />,
