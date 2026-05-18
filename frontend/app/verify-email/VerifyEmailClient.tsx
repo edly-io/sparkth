@@ -88,7 +88,7 @@ export default function VerifyEmailClient() {
           <ThemeToggle />
         </div>
         <div className="flex justify-center mb-1">
-          <SparkthLogo size={72} />
+          <SparkthLogo size={56} />
         </div>
 
         {status === "loading" && (
