@@ -149,6 +149,28 @@ class ConversationDetailResponse(ConversationResponse):
     messages: list[MessageResponse]
 
 
+class RAGRoutingDecision(BaseModel):
+    """Decision from RAG intent router on whether to run retrieval for this turn."""
+
+    should_retrieve: bool
+    reason: str
+
+
+class ConversationAttachmentCreate(BaseModel):
+    """Request body for attaching a drive file to a conversation."""
+
+    drive_file_id: int
+
+
+class ConversationAttachmentResponse(BaseModel):
+    """Response for a conversation attachment."""
+
+    id: int
+    conversation_id: int
+    drive_file_id: int
+    attached_at: datetime
+
+
 class ConversationListResponse(BaseModel):
     conversations: list[ConversationResponse]
     total: int
