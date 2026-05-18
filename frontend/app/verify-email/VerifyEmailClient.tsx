@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -27,26 +27,14 @@ const RESEND_LABELS: Record<ResendStatus, string> = {
 const RESEND_AUTO_RESET_MS = 90_000;
 
 export default function VerifyEmailClient() {
-  // Suspense boundary co-located with useSearchParams: required by Next.js
-  // App Router so only this subtree (not the whole page) bails out to client
-  // rendering. The parent page.tsx wraps this too — nesting is harmless.
-  return (
-    <Suspense fallback={null}>
-      <VerifyEmailContent />
-    </Suspense>
-  );
-}
-
-function VerifyEmailContent() {
   const { push, replace } = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
 
   const [status, setStatus] = useState<Status>("loading");
   const [resendEmail, setResendEmail] = useState("");
   const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
 
   useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("token");
     if (!token) {
       replace("/login");
       return;
@@ -66,7 +54,7 @@ function VerifyEmailContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, replace]);
+  }, [replace]);
 
   const handleResend = async () => {
     if (!resendEmail) return;
