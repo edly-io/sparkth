@@ -18,6 +18,13 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: "7727"
       TOKENIZERS_PARALLELISM: "false"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "false"
+      SMTP_FROM_EMAIL: no-reply@sparkth.local
+      SMTP_FROM_NAME: Sparkth
     volumes:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
@@ -26,6 +33,23 @@ services:
       - db
       - redis
       - rag-mcp
+      - mailpit
+
+  # ----------------------------------------
+  # Mailpit (local SMTP for development)
+  # ----------------------------------------
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    environment:
+      MP_MAX_MESSAGES: "5000"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    volumes:
+      - mailpit_data:/data
 
   # ----------------------------------------
   # Postgres
@@ -109,3 +133,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  mailpit_data:
