@@ -1,13 +1,16 @@
 import hashlib
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
+import aiosmtplib
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.email_verification import EmailVerificationToken
 from app.models.user import User
+from app.services import email_verification as svc
 from app.services.email_verification import (
     EmailVerificationService,
     TokenExpiredError,
@@ -131,10 +134,6 @@ class TestRequestResend:
 
 class TestSendVerificationEmail:
     async def test_calls_send_email_with_link_and_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from unittest.mock import AsyncMock
-
-        from app.services import email_verification as svc
-
         monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test")
         monkeypatch.setattr(svc.settings, "EMAIL_VERIFICATION_TOKEN_TTL_HOURS", 24)
         mock = AsyncMock()
@@ -156,10 +155,6 @@ class TestSendVerificationEmail:
         assert "24" in kwargs["text_body"]
 
     async def test_strips_trailing_slash_in_frontend_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from unittest.mock import AsyncMock
-
-        from app.services import email_verification as svc
-
         monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test/")
         mock = AsyncMock()
         monkeypatch.setattr(svc, "send_email", mock)
@@ -173,10 +168,6 @@ class TestSendVerificationEmail:
 
     async def test_escapes_name_in_html_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """User-controlled name must not be able to inject HTML into the email."""
-        from unittest.mock import AsyncMock
-
-        from app.services import email_verification as svc
-
         monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test")
         mock = AsyncMock()
         monkeypatch.setattr(svc, "send_email", mock)
@@ -199,10 +190,6 @@ class TestSendVerificationEmail:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Background task must not propagate RuntimeError from send_email."""
-        from unittest.mock import AsyncMock, MagicMock
-
-        from app.services import email_verification as svc
-
         send_mock = AsyncMock(side_effect=RuntimeError("SMTP not configured: set SMTP_HOST"))
         monkeypatch.setattr(svc, "send_email", send_mock)
         log_mock = MagicMock()
@@ -217,12 +204,6 @@ class TestSendVerificationEmail:
 
     async def test_swallows_and_logs_smtp_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Background task must not propagate aiosmtplib.SMTPException either."""
-        from unittest.mock import AsyncMock, MagicMock
-
-        import aiosmtplib
-
-        from app.services import email_verification as svc
-
         send_mock = AsyncMock(side_effect=aiosmtplib.SMTPException("connection refused"))
         monkeypatch.setattr(svc, "send_email", send_mock)
         log_mock = MagicMock()
