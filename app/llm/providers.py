@@ -380,18 +380,16 @@ class BaseChatProvider(ABC):
                     )
                     total_executions += 1
             else:
-                # Final response — extract text and emit as a single token
-                content = response.content
-                if isinstance(content, list):
-                    text_parts = []
+                # Final response is already in `response` — yield its content directly.
+                content = getattr(response, "content", "")
+                if isinstance(content, str) and content:
+                    yield {"type": "token", "content": content}
+                elif isinstance(content, list):
                     for block in content:
                         if isinstance(block, dict) and block.get("type") == "text":
-                            text_parts.append(block.get("text", ""))
-                        elif isinstance(block, str):
-                            text_parts.append(block)
-                    content = "".join(text_parts)
-                if content:
-                    yield {"type": "token", "content": content}
+                            text = block.get("text", "")
+                            if text:
+                                yield {"type": "token", "content": text}
                 break
 
 

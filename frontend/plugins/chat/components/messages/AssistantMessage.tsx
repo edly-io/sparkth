@@ -40,6 +40,9 @@ export function AssistantMessage({
   const isThinking = message.isTyping && !displayText && !hasRunningTools;
   // While tools are running and no response text yet, suppress the card entirely
   const showCard = !hasRunningTools || !!displayText || message.isError || !message.isTyping;
+  // TODO: visibility logic depends on toolCalls, hasRunningTools, isThinking, showCard, and
+  // the inline tool-call JSX below. Any new state (e.g. tool error, tools-only response)
+  // must be reasoned against all of these — consider a state machine if this grows further.
 
   const openPreview = (attachment: TextAttachment) => {
     setPreviewAttachment(attachment);

@@ -112,25 +112,15 @@ async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
 
 
-def _parse_rag_sections(model_metadata: str | None) -> list[dict[str, Any]] | None:
+def _parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:
     if not model_metadata:
         return None
     try:
         meta = json.loads(model_metadata)
-        sections = meta.get("rag_sections")
-        return sections if isinstance(sections, list) else None
-    except (json.JSONDecodeError, AttributeError):
-        return None
-
-
-def _parse_tool_calls(model_metadata: str | None) -> list[dict[str, Any]] | None:
-    if not model_metadata:
-        return None
-    try:
-        meta = json.loads(model_metadata)
-        calls = meta.get("tool_calls")
-        return calls if isinstance(calls, list) else None
-    except (json.JSONDecodeError, AttributeError):
+        value = meta.get(key)
+        return value if isinstance(value, list) else None
+    except (json.JSONDecodeError, AttributeError) as exc:
+        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
         return None
 
 
@@ -804,7 +794,7 @@ async def stream_chat_response(
     # --- Phase 2: LLM streaming ---
     full_response = ""
     conversation_id: int = conversation.id  # type: ignore[assignment]
-    completed_tool_calls: list[dict[str, str]] = []
+    completed_tool_calls: list[dict[str, Any]] = []
 
     try:
         async for event in provider.stream_message(messages, tools=tools):
@@ -1037,8 +1027,8 @@ async def get_conversation(
                 message_type=msg.message_type,
                 attachment_name=msg.attachment_name,
                 attachment_size=msg.attachment_size,
-                rag_sections=_parse_rag_sections(msg.model_metadata),
-                tool_calls=_parse_tool_calls(msg.model_metadata),
+                rag_sections=_parse_metadata_list(msg.model_metadata, "rag_sections"),
+                tool_calls=_parse_metadata_list(msg.model_metadata, "tool_calls"),
                 is_error=msg.is_error,
             )
             for msg in messages

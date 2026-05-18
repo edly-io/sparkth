@@ -346,47 +346,58 @@ class TestMessageResponseRagSections:
         assert response.rag_sections is None
 
 
-class TestParseToolCalls:
+class TestParseMetadataList:
     def test_returns_none_for_no_metadata(self) -> None:
-        from app.core_plugins.chat.routes import _parse_tool_calls
+        from app.core_plugins.chat.routes import _parse_metadata_list
 
-        assert _parse_tool_calls(None) is None
+        assert _parse_metadata_list(None, "tool_calls") is None
 
     def test_returns_none_for_empty_metadata(self) -> None:
-        from app.core_plugins.chat.routes import _parse_tool_calls
+        from app.core_plugins.chat.routes import _parse_metadata_list
 
-        assert _parse_tool_calls("{}") is None
+        assert _parse_metadata_list("{}", "tool_calls") is None
 
     def test_returns_none_for_invalid_json(self) -> None:
-        from app.core_plugins.chat.routes import _parse_tool_calls
+        from app.core_plugins.chat.routes import _parse_metadata_list
 
-        assert _parse_tool_calls("not-json") is None
+        assert _parse_metadata_list("not-json", "tool_calls") is None
 
-    def test_returns_none_when_tool_calls_not_list(self) -> None:
+    def test_returns_none_when_value_not_list(self) -> None:
         import json
 
-        from app.core_plugins.chat.routes import _parse_tool_calls
+        from app.core_plugins.chat.routes import _parse_metadata_list
 
-        assert _parse_tool_calls(json.dumps({"tool_calls": "bad"})) is None
+        assert _parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
 
-    def test_returns_tool_calls_list(self) -> None:
+    def test_returns_list_for_tool_calls_key(self) -> None:
         import json
 
-        from app.core_plugins.chat.routes import _parse_tool_calls
+        from app.core_plugins.chat.routes import _parse_metadata_list
 
         meta = json.dumps({"tool_calls": [{"name": "search_web"}, {"name": "search_web"}]})
-        result = _parse_tool_calls(meta)
+        result = _parse_metadata_list(meta, "tool_calls")
         assert result is not None
         assert len(result) == 2
         assert result[0]["name"] == "search_web"
 
-    def test_ignores_rag_sections_key(self) -> None:
+    def test_returns_list_for_rag_sections_key(self) -> None:
         import json
 
-        from app.core_plugins.chat.routes import _parse_tool_calls
+        from app.core_plugins.chat.routes import _parse_metadata_list
 
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
-        assert _parse_tool_calls(meta) is None
+        result = _parse_metadata_list(meta, "rag_sections")
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["name"] == "Intro"
+
+    def test_ignores_other_keys(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
+        assert _parse_metadata_list(meta, "tool_calls") is None
 
 
 @pytest.mark.asyncio

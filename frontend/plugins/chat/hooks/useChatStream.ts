@@ -147,7 +147,9 @@ function applyStatusEvent(
             toolCalls: [...existing, { name: toolName, status: "running" as const }],
           };
         }
-        // Mark the first running entry for this tool name as done
+        // TODO: tool_end events are matched by name alone; if the same tool is
+        // called in parallel, the first running entry wins regardless of which
+        // invocation actually finished. Fix by tracking a unique call ID instead.
         let marked = false;
         const updated = existing.map((t) => {
           if (!marked && t.name === toolName && t.status === "running") {
@@ -176,6 +178,7 @@ async function readStream(
   let hasError = false;
   let doneOptions: string[] = [];
   let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
+  let doneToolCalls: { name: string }[] | null = null;
 
   outer: while (true) {
     const { value, done } = await reader.read();
@@ -224,6 +227,11 @@ async function readStream(
           if (Array.isArray(sections) && sections.length > 0) {
             doneRagSections = sections as { type: string; name: string; source?: string }[];
           }
+          const toolCallsFromDone = (parsed.message as Record<string, unknown> | undefined)
+            ?.tool_calls;
+          if (Array.isArray(toolCallsFromDone) && toolCallsFromDone.length > 0) {
+            doneToolCalls = toolCallsFromDone as { name: string }[];
+          }
           break outer;
         }
       } catch {
@@ -232,7 +240,14 @@ async function readStream(
     }
   }
 
-  return { assistantText, newConversationId, hasError, doneOptions, doneRagSections };
+  return {
+    assistantText,
+    newConversationId,
+    hasError,
+    doneOptions,
+    doneRagSections,
+    doneToolCalls,
+  };
 }
 
 export function useChatStream({
@@ -330,10 +345,16 @@ export function useChatStream({
           return;
         }
 
-        const { assistantText, newConversationId, hasError, doneOptions, doneRagSections } =
-          await readStream(res.body, assistantId, setMessages, (text) =>
-            failAssistantMessage(assistantId, text),
-          );
+        const {
+          assistantText,
+          newConversationId,
+          hasError,
+          doneOptions,
+          doneRagSections,
+          doneToolCalls,
+        } = await readStream(res.body, assistantId, setMessages, (text) =>
+          failAssistantMessage(assistantId, text),
+        );
 
         if (!hasError) {
           setMessages((prev) =>
@@ -351,6 +372,9 @@ export function useChatStream({
                         ...s,
                         state: "confirmed" as const,
                       })),
+                    }),
+                    ...(doneToolCalls && {
+                      toolCalls: doneToolCalls.map((t) => ({ ...t, status: "done" as const })),
                     }),
                   }
                 : msg,
