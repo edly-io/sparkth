@@ -148,6 +148,7 @@ export function useChatInput({
             })
             .catch((err) => {
               console.warn("Failed to detach drive file:", err);
+              setUploadError("Some files could not be detached. Please try again.");
             });
         }
       }

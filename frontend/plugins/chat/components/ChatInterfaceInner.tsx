@@ -28,7 +28,6 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     loading: loadingHistory,
     messages,
     error,
-    setError,
     inputAttachments,
     setInputAttachments,
     setMessages,
@@ -40,27 +39,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     (id: string) => {
       skipNextLoadRef.current = true;
       router.replace(`/dashboard/chat?id=${id}`);
-      // Sync any drive files that were selected before the conversation existed
-      for (const att of inputAttachments) {
-        if (att.driveFileDbId !== undefined) {
-          fetch(`/api/v1/chat/conversations/${id}/attachments`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ drive_file_id: att.driveFileDbId }),
-          })
-            .then((res) => {
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            })
-            .catch((err) => {
-              console.warn("Failed to persist drive file attachment on new conversation:", err);
-              setError(
-                `Failed to attach "${att.name}". It may not be available for this conversation.`,
-              );
-            });
-        }
-      }
     },
-    [skipNextLoadRef, router, inputAttachments, token, setError],
+    [skipNextLoadRef, router],
   );
 
   const { handleSend, handleOptionClick } = useChatStream({
