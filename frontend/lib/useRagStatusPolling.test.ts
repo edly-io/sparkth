@@ -27,7 +27,7 @@ describe("useRagStatusPolling", () => {
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null }],
     });
 
-    const { result } = renderHook(() => useRagStatusPolling(1, "token"));
+    const { result } = renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(result.current.ragStatuses[10]).toEqual({ status: "ready", error: null });
@@ -44,7 +44,7 @@ describe("useRagStatusPolling", () => {
       ],
     });
 
-    const { result } = renderHook(() => useRagStatusPolling(1, "token"));
+    const { result } = renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(result.current.ragStatuses[10]).toEqual({ status: "ready", error: null });
@@ -59,19 +59,19 @@ describe("useRagStatusPolling", () => {
   it("returns empty ragStatuses initially", () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({ folder_id: 1, files: [] });
 
-    const { result } = renderHook(() => useRagStatusPolling(1, "token"));
+    const { result } = renderHook(() => useRagStatusPolling([1], "token"));
 
     expect(result.current.ragStatuses).toEqual({});
   });
 
-  it("does not fetch when folderId is null", () => {
-    renderHook(() => useRagStatusPolling(null, "token"));
+  it("does not fetch when folderIds is empty", () => {
+    renderHook(() => useRagStatusPolling([], "token"));
 
     expect(getFolderRagStatus).not.toHaveBeenCalled();
   });
 
   it("does not fetch when token is null", () => {
-    renderHook(() => useRagStatusPolling(1, null));
+    renderHook(() => useRagStatusPolling([1], null));
 
     expect(getFolderRagStatus).not.toHaveBeenCalled();
   });
@@ -81,7 +81,7 @@ describe("useRagStatusPolling", () => {
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 
-    renderHook(() => useRagStatusPolling(1, "token"));
+    renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(getFolderRagStatus).toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe("useRagStatusPolling", () => {
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 
-    renderHook(() => useRagStatusPolling(1, "token"));
+    renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(getFolderRagStatus).toHaveBeenCalled();
@@ -120,7 +120,7 @@ describe("useRagStatusPolling", () => {
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 
-    renderHook(() => useRagStatusPolling(1, "token"));
+    renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(getFolderRagStatus).toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe("useRagStatusPolling", () => {
 
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 
-    renderHook(() => useRagStatusPolling(1, "token"));
+    renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       const pollTimeout = setTimeoutSpy.mock.calls.find((call) => call[1] === 5000);
@@ -155,7 +155,7 @@ describe("useRagStatusPolling", () => {
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
 
-    const { unmount } = renderHook(() => useRagStatusPolling(1, "token"));
+    const { unmount } = renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(setTimeoutSpy.mock.calls.find((c) => c[1] === 5000)).toBeDefined();
@@ -171,7 +171,7 @@ describe("useRagStatusPolling", () => {
       files: [{ file_id: 10, name: "a.pdf", rag_status: "ready", rag_error: null }],
     });
 
-    const { result } = renderHook(() => useRagStatusPolling(1, "token"));
+    const { result } = renderHook(() => useRagStatusPolling([1], "token"));
 
     await waitFor(() => {
       expect(result.current.ragStatuses[10]).toEqual({ status: "ready", error: null });
@@ -186,15 +186,15 @@ describe("useRagStatusPolling", () => {
     });
   });
 
-  it("resets statuses on new folderId", async () => {
+  it("resets statuses when folderIds changes", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "a.pdf", rag_status: "ready", rag_error: null }],
     });
 
     const { result, rerender } = renderHook(
-      ({ folderId }: { folderId: number | null }) => useRagStatusPolling(folderId, "token"),
-      { initialProps: { folderId: 1 } },
+      ({ folderIds }: { folderIds: number[] }) => useRagStatusPolling(folderIds, "token"),
+      { initialProps: { folderIds: [1] } },
     );
 
     await waitFor(() => {
@@ -203,10 +203,90 @@ describe("useRagStatusPolling", () => {
 
     vi.mocked(getFolderRagStatus).mockResolvedValue({ folder_id: 2, files: [] });
 
-    rerender({ folderId: 2 });
+    rerender({ folderIds: [2] });
 
     await waitFor(() => {
       expect(result.current.ragStatuses[10]).toBeUndefined();
     });
+  });
+
+  it("merges statuses from multiple folders", async () => {
+    vi.mocked(getFolderRagStatus).mockImplementation(async (folderId) => ({
+      folder_id: folderId,
+      files:
+        folderId === 1
+          ? [{ file_id: 10, name: "a.pdf", rag_status: "ready" as const, rag_error: null }]
+          : [{ file_id: 20, name: "b.pdf", rag_status: "processing" as const, rag_error: null }],
+    }));
+
+    const { result } = renderHook(() => useRagStatusPolling([1, 2], "token"));
+
+    await waitFor(() => {
+      expect(result.current.ragStatuses[10]).toEqual({ status: "ready", error: null });
+      expect(result.current.ragStatuses[20]).toEqual({ status: "processing", error: null });
+    });
+  });
+
+  it("fetches all folders in parallel (one call per folder)", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({ folder_id: 1, files: [] });
+
+    renderHook(() => useRagStatusPolling([1, 2, 3], "token"));
+
+    await waitFor(() => {
+      expect(vi.mocked(getFolderRagStatus).mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
+    const calledIds = vi.mocked(getFolderRagStatus).mock.calls.map((c) => c[0]);
+    expect(calledIds).toContain(1);
+    expect(calledIds).toContain(2);
+    expect(calledIds).toContain(3);
+  });
+
+  it("applies exponential backoff on fetch error", async () => {
+    vi.mocked(getFolderRagStatus).mockRejectedValue(new Error("network error"));
+
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    renderHook(() => useRagStatusPolling([1], "token"));
+
+    await waitFor(() => {
+      const timeouts = setTimeoutSpy.mock.calls.map((c) => c[1] as number);
+      // First retry should be at BASE_DELAY (5000); if it errors again, next is 10000
+      expect(timeouts.some((t) => t >= 5000)).toBe(true);
+    });
+  });
+
+  it("resets backoff delay to base after a successful fetch", async () => {
+    vi.useFakeTimers();
+
+    let callCount = 0;
+    vi.mocked(getFolderRagStatus).mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) throw new Error("transient error");
+      return {
+        folder_id: 1,
+        files: [{ file_id: 10, name: "a.pdf", rag_status: "processing" as const, rag_error: null }],
+      };
+    });
+
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    renderHook(() => useRagStatusPolling([1], "token"));
+
+    // Flush the initial async poll (fires immediately, not via timer)
+    await vi.advanceTimersByTimeAsync(0);
+
+    // First poll errored → delay doubled to 10000; advance past it to trigger second poll
+    await vi.advanceTimersByTimeAsync(10001);
+
+    // Second call should have fired and succeeded
+    expect(callCount).toBeGreaterThanOrEqual(2);
+
+    // After the successful fetch, the next scheduled timeout should be BASE_DELAY (5000), not 10000
+    const timeouts = setTimeoutSpy.mock.calls.map((c) => c[1] as number);
+    const lastTimeout = timeouts[timeouts.length - 1];
+    expect(lastTimeout).toBe(5000);
+
+    vi.useRealTimers();
   });
 });

@@ -1,5 +1,4 @@
 import json
-import re
 from functools import lru_cache
 from typing import Any, AsyncGenerator, Literal, cast
 from uuid import UUID
@@ -29,7 +28,7 @@ from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouter
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.schemas import (
-    ActiveDriveFile,
+    AttachedDriveFileResponse,
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
@@ -111,11 +110,6 @@ def get_rag_context_service() -> RAGContextService:
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content."""
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
-
-
-def _strip_md(text: str) -> str:
-    """Remove markdown emphasis markers (* and **) from a string."""
-    return re.sub(r"\*+", "", text).strip()
 
 
 def _parse_rag_sections(model_metadata: str | None) -> list[dict[str, Any]] | None:
@@ -234,44 +228,6 @@ async def _resolve_drive_file_blocks(
     return resolved
 
 
-def _extract_drive_file_id_from_messages(messages: list[ChatMessage]) -> int | None:
-    """Extract the first drive_file file_id from message content blocks."""
-    for msg in messages:
-        if not isinstance(msg.content, list):
-            continue
-        for block in msg.content:
-            if isinstance(block, dict) and block.get("type") == "drive_file":
-                raw_id = block.get("file_id")
-                if raw_id is not None:
-                    return int(raw_id)
-    return None
-
-
-def _strip_drive_file_blocks(messages: list[dict[str, Any]]) -> None:
-    """Remove drive_file content blocks in-place; they must never reach the LLM API."""
-    for m in messages:
-        if isinstance(m.get("content"), list):
-            m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
-
-
-def _extract_all_drive_file_ids_from_messages(messages: list[ChatMessage]) -> list[int]:
-    """Extract all unique drive_file file_ids from message content blocks, preserving order."""
-    seen: set[int] = set()
-    result: list[int] = []
-    for msg in messages:
-        if not isinstance(msg.content, list):
-            continue
-        for block in msg.content:
-            if isinstance(block, dict) and block.get("type") == "drive_file":
-                raw_id = block.get("file_id")
-                if raw_id is not None:
-                    file_id = int(raw_id)
-                    if file_id not in seen:
-                        seen.add(file_id)
-                        result.append(file_id)
-    return result
-
-
 async def _persist_pre_stream_error(
     session: AsyncSession,
     service: ChatService,
@@ -323,7 +279,7 @@ async def chat_completion(
         )
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = "No AI Key found for the current user. Please configure an AI key in your chat plugin settings.."
+        detail = "No AI Key found for the current user. Please configure an AI key in your chat plugin settings."
         await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
     except LLMConfigModelNotSetError as exc:
@@ -341,8 +297,6 @@ async def chat_completion(
     model = request.model_override or llm_config.model
 
     conversation_uuid = request.conversation_id
-    active_drive_file_ids = _extract_all_drive_file_ids_from_messages(request.messages)
-    active_drive_file_id = active_drive_file_ids[0] if active_drive_file_ids else None
 
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(
@@ -355,20 +309,6 @@ async def chat_completion(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Conversation {conversation_uuid} not found",
             )
-        if active_drive_file_ids:
-            await service.set_active_drive_file(
-                session=session,
-                conversation_id=conversation.id,  # type: ignore
-                user_id=current_user.id,  # type: ignore
-                drive_file_id=active_drive_file_id,
-                drive_file_ids=active_drive_file_ids,
-            )
-            # Sync inline drive_file blocks into the join table so the router can find them.
-            await service.sync_drive_file_attachments(
-                session,
-                conversation_id=conversation.id,  # type: ignore
-                drive_file_ids=active_drive_file_ids,
-            )
     else:
         conversation = await service.create_conversation(
             session=session,
@@ -377,8 +317,6 @@ async def chat_completion(
             provider=provider_name,
             model=model,
             title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
-            active_drive_file_id=active_drive_file_id,
-            active_drive_file_ids=active_drive_file_ids or None,
         )
 
         first_user_text = get_first_user_text(request.messages)
@@ -389,6 +327,32 @@ async def chat_completion(
                 user_id=current_user.id,  # type: ignore
                 first_user_message=first_user_text,
                 service=service,
+            )
+
+    # Attach any drive files included with the request (covers new-conversation flow
+    # where files are selected before the conversation exists in the DB).
+    if request.drive_file_ids:
+        owned_result = await session.exec(
+            select(DriveFileModel.id).where(
+                col(DriveFileModel.id).in_(request.drive_file_ids),
+                DriveFileModel.user_id == current_user.id,
+                DriveFileModel.is_deleted == False,  # noqa: E712
+            )
+        )
+        owned_ids = {file_id for file_id in owned_result.all() if file_id is not None}
+        skipped = set(request.drive_file_ids) - owned_ids
+        if skipped:
+            logger.warning(
+                "Skipped %d unowned/deleted drive file IDs for user %s: %s",
+                len(skipped),
+                current_user.id,
+                skipped,
+            )
+        for file_id in owned_ids:
+            await service.attach_drive_file(
+                session,
+                conversation_id=conversation.id,  # type: ignore
+                drive_file_id=file_id,
             )
 
     for msg in request.messages:
@@ -421,49 +385,51 @@ async def chat_completion(
     )
 
     try:
-        # --- Tiered scope check (applies to plain-text messages without attachments) ---
-        # If there are attached files, the router will make the retrieval decision; scope check only for text-only queries
-        has_drive_files = any(
-            isinstance(b, dict) and b.get("type") == "drive_file"
-            for msg in request.messages
-            if isinstance(msg.content, list)
-            for b in msg.content
+        # Fetch conversation attachments early — needed by both the scope classifier
+        # (to know files are in play) and the RAG intent router.
+        attached_files = await service.list_conversation_attachments(
+            session=session,
+            conversation_id=conversation.id,  # type: ignore
         )
+        attached_file_names = [f.name for f in attached_files]
 
-        if not has_drive_files:
-            _in_scope = True
-            if query_text:
-                # Tier 1: fast keyword pre-filter — catches obvious out-of-scope at zero LLM cost
-                if not is_query_in_scope(query_text):
-                    _in_scope = False
-                else:
-                    # Tier 2: LLM classifier for nuanced cases keywords can't handle
-                    classifier = ScopeClassifier(provider_name=llm_config.provider, api_key=api_key)
-                    prior_history: list[HistoryTurn] = [
-                        {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
-                        for m in db_messages
-                        if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
-                    ]
-                    _in_scope = await classifier.classify(query_text, history=prior_history)
-            if not _in_scope:
-                await service.add_message(
-                    session=session,
-                    conversation_id=conversation.id,  # type: ignore
-                    role="assistant",
-                    content=REFUSAL_MESSAGE,
-                    message_type="text",
+        # --- Tiered scope check ---
+        # Tier 1: fast keyword pre-filter. Tier 2: LLM classifier for nuanced cases.
+        _in_scope = True
+        if query_text:
+            if not is_query_in_scope(query_text):
+                _in_scope = False
+            else:
+                classifier = ScopeClassifier(provider_name=llm_config.provider, api_key=api_key)
+                prior_history: list[HistoryTurn] = [
+                    {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
+                    for m in db_messages
+                    if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
+                ]
+                _in_scope = await classifier.classify(
+                    query_text,
+                    history=prior_history,
+                    attached_file_names=attached_file_names or None,
                 )
-                if request.stream:
-                    return StreamingResponse(
-                        _stream_out_of_scope_refusal(),
-                        media_type="text/event-stream",
-                    )
-                return ChatCompletionResponse(
-                    message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
-                    conversation_id=conversation.uuid,
-                    model=llm_config.model,
-                    provider=llm_config.provider,
+        if not _in_scope:
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,  # type: ignore
+                role="assistant",
+                content=REFUSAL_MESSAGE,
+                message_type="text",
+            )
+            if request.stream:
+                return StreamingResponse(
+                    _stream_out_of_scope_refusal(),
+                    media_type="text/event-stream",
                 )
+            return ChatCompletionResponse(
+                message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
+                conversation_id=conversation.uuid,
+                model=llm_config.model,
+                provider=llm_config.provider,
+            )
 
         provider = get_provider(
             provider_name=provider_name,
@@ -474,12 +440,7 @@ async def chat_completion(
         )
 
         # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
-        attached_files = await service.list_conversation_attachments(
-            session=session,
-            conversation_id=conversation.id,  # type: ignore
-            user_id=current_user.id,  # type: ignore
-        )
-
+        # attached_files already fetched above for the scope check
         should_run_rag = False
         rag_routing_reason: str | None = None
         if attached_files and query_text:
@@ -487,7 +448,6 @@ async def chat_completion(
             decision = await router.decide(
                 query=query_text,
                 attached_files=attached_files,
-                session=session,
                 user_id=current_user.id,  # type: ignore[arg-type]
             )
             should_run_rag = decision.should_retrieve
@@ -540,7 +500,6 @@ async def chat_completion(
                 # Otherwise use request messages as-is (no RAG)
                 resolved_messages = request.messages
             current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
-            _strip_drive_file_blocks(current)
 
         messages = history + current
 
@@ -816,11 +775,20 @@ async def stream_chat_response(
             yield f"data: {json.dumps(done_payload)}\n\n"
             return
 
+        # Emit section events before LLM starts — frontend renders them above the
+        # message bubble so the user sees what was retrieved before reading the reply.
+        for section in confirmed_rag_sections:
+            yield f"data: {json.dumps({'status': 'section_scanning', 'section': section, 'done': False})}\n\n"
+        for section in confirmed_rag_sections:
+            yield f"data: {json.dumps({'status': 'section_confirmed', 'section': section, 'done': False})}\n\n"
+
         yield f"data: {json.dumps({'status': 'generating', 'done': False})}\n\n"
 
     # Safety strip: remove any drive_file blocks that were not resolved above.
     # These are internal-only content types that must never reach the LLM API.
-    _strip_drive_file_blocks(messages)
+    for m in messages:
+        if isinstance(m.get("content"), list):
+            m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
 
     # --- Phase 2: LLM streaming ---
     full_response = ""
@@ -971,28 +939,6 @@ async def list_conversations(
     count_result = await session.exec(count_stmt)
     message_counts = {row[0]: row[1] for row in count_result.all()}
 
-    all_file_ids: set[int] = set()
-    for conv in conversations:
-        if conv.active_drive_file_ids:
-            all_file_ids.update(json.loads(conv.active_drive_file_ids))
-        elif conv.active_drive_file_id:
-            all_file_ids.add(conv.active_drive_file_id)
-
-    drive_file_names: dict[int, str] = {}
-    if all_file_ids:
-        df_stmt = select(DriveFileModel).where(col(DriveFileModel.id).in_(list(all_file_ids)))
-        df_result = await session.execute(df_stmt)
-        for df in df_result.scalars().all():
-            drive_file_names[df.id] = df.name
-
-    def _build_active_files(conv: Conversation) -> list[ActiveDriveFile]:
-        if conv.active_drive_file_ids:
-            ids: list[int] = json.loads(conv.active_drive_file_ids)
-            return [ActiveDriveFile(id=fid, name=drive_file_names[fid]) for fid in ids if fid in drive_file_names]
-        if conv.active_drive_file_id and conv.active_drive_file_id in drive_file_names:
-            return [ActiveDriveFile(id=conv.active_drive_file_id, name=drive_file_names[conv.active_drive_file_id])]
-        return []
-
     conversation_responses = [
         ConversationResponse(
             id=conv.uuid,
@@ -1004,11 +950,6 @@ async def list_conversations(
             message_count=message_counts.get(conv.id, 0),  # type: ignore
             created_at=conv.created_at,
             updated_at=conv.updated_at,
-            active_drive_file_id=conv.active_drive_file_id,
-            active_drive_file_name=drive_file_names.get(conv.active_drive_file_id)
-            if conv.active_drive_file_id
-            else None,
-            active_drive_files=_build_active_files(conv),
         )
         for conv in conversations
     ]
@@ -1050,26 +991,6 @@ async def get_conversation(
 
     message_count = len(messages)
 
-    active_drive_file_name = None
-    active_drive_files_list: list[ActiveDriveFile] = []
-
-    if conversation.active_drive_file_ids:
-        ids: list[int] = json.loads(conversation.active_drive_file_ids)
-        if ids:
-            df_result = await session.execute(select(DriveFileModel).where(col(DriveFileModel.id).in_(ids)))
-            df_map = {df.id: df.name for df in df_result.scalars().all()}
-            active_drive_files_list = [ActiveDriveFile(id=fid, name=df_map[fid]) for fid in ids if fid in df_map]
-            if active_drive_files_list:
-                active_drive_file_name = active_drive_files_list[0].name
-    elif conversation.active_drive_file_id:
-        df_result = await session.execute(
-            select(DriveFileModel).where(DriveFileModel.id == conversation.active_drive_file_id)
-        )
-        df = df_result.scalars().first()
-        if df:
-            active_drive_file_name = df.name
-            active_drive_files_list = [ActiveDriveFile(id=conversation.active_drive_file_id, name=df.name)]
-
     return ConversationDetailResponse(
         id=conversation.uuid,
         provider=conversation.provider,
@@ -1080,9 +1001,6 @@ async def get_conversation(
         message_count=message_count,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        active_drive_file_id=conversation.active_drive_file_id,
-        active_drive_file_name=active_drive_file_name,
-        active_drive_files=active_drive_files_list,
         messages=[
             MessageResponse(
                 id=msg.id,  # type: ignore
@@ -1102,31 +1020,33 @@ async def get_conversation(
     )
 
 
-@chat_router.delete("/conversations/{conversation_id}/active-file", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_active_drive_file(
+@chat_router.get(
+    "/conversations/{conversation_id}/attachments",
+    response_model=list[AttachedDriveFileResponse],
+)
+async def list_conversation_attachments(
     conversation_id: UUID,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
-) -> None:
-    """Clear the active drive file attachment for a conversation."""
+) -> list[AttachedDriveFileResponse]:
+    """List READY drive files attached to a conversation."""
     conversation = await service.get_conversation_by_uuid(
         session=session,
         uuid=conversation_id,
         user_id=current_user.id,  # type: ignore
     )
     if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
-        )
-    await service.set_active_drive_file(
-        session=session,
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    drive_files = await service.list_conversation_attachments(
+        session,
         conversation_id=conversation.id,  # type: ignore
-        user_id=current_user.id,  # type: ignore
-        drive_file_id=None,
-        drive_file_ids=[],
     )
+    return [
+        AttachedDriveFileResponse(id=f.id, name=f.name, size=f.size)  # type: ignore
+        for f in drive_files
+    ]
 
 
 @chat_router.post(
@@ -1202,6 +1122,7 @@ async def detach_file_from_conversation(
         select(DriveFileModel).where(
             DriveFileModel.id == drive_file_id,
             DriveFileModel.user_id == current_user.id,
+            DriveFileModel.is_deleted == False,  # noqa: E712
         )
     )
     if not df_result.first():
@@ -1214,7 +1135,6 @@ async def detach_file_from_conversation(
         session,
         conversation_id=conversation.id,  # type: ignore
         drive_file_id=drive_file_id,
-        user_id=current_user.id,  # type: ignore
     )
 
 

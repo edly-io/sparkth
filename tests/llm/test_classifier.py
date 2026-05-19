@@ -209,6 +209,36 @@ class TestScopeClassifierClassify:
         assert human_contents.count("machine learning") == 1
 
     @pytest.mark.asyncio
+    async def test_attached_file_names_prepended_to_user_message(self) -> None:
+        """attached_file_names are injected as a prefix in the HumanMessage sent to the chain."""
+        from langchain_core.messages import HumanMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        await classifier.classify("summarise chapter 1", attached_file_names=["lecture.pdf", "notes.pdf"])
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        last_msg = msgs[-1]
+        assert isinstance(last_msg, HumanMessage)
+        assert (
+            '[The user has attached the following files to this conversation: "lecture.pdf", "notes.pdf"]'
+            in last_msg.content
+        )
+        assert "summarise chapter 1" in last_msg.content
+
+    @pytest.mark.asyncio
+    async def test_attached_file_names_none_leaves_query_unchanged(self) -> None:
+        """When attached_file_names is None the HumanMessage is the bare query string."""
+        from langchain_core.messages import HumanMessage
+
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+        await classifier.classify("design a quiz", attached_file_names=None)
+        (msgs,), _ = mock_chain.ainvoke.call_args
+        last_msg = msgs[-1]
+        assert isinstance(last_msg, HumanMessage)
+        assert last_msg.content == "design a quiz"
+
+    @pytest.mark.asyncio
     async def test_query_duplicated_when_caller_includes_it_in_history(self) -> None:
         """Documents the double-send bug: if the caller passes the current query as the
         last history entry, it will appear twice in the message list. Callers are

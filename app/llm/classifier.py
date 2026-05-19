@@ -29,6 +29,8 @@ IN SCOPE — respond in_scope: true:
 - Analyzing a target audience for a course
 - Short answers, clarifications, or confirmations that are replies to the assistant's own course-creation questions
 - Publishing, managing, or retrieving courses on LMS platforms (Canvas, Open edX) — including creating, reading, listing, updating, or deleting courses, modules, pages, quizzes, and other course components via available tools
+- Loading, reading, summarising, or referencing attached documents or files — users attach documents to inform course design, so any message referencing "these documents", "this file", "the attached material", "load into context", etc. is IN SCOPE
+- Any message where the user has attached files to the conversation and is asking about their content, structure, or how to use them for course creation
 
 OUT OF SCOPE — respond in_scope: false:
 - General knowledge questions (history facts, geography, science trivia, current events)
@@ -84,11 +86,17 @@ class ScopeClassifier:
 
         self._chain: Any = llm.with_structured_output(_ScopeResult)
 
-    async def classify(self, query: str, history: list[HistoryTurn] | None = None) -> bool:
+    async def classify(
+        self,
+        query: str,
+        history: list[HistoryTurn] | None = None,
+        attached_file_names: list[str] | None = None,
+    ) -> bool:
         """Return True if the query is within learning design scope.
 
-        Accepts optional conversation history (list of {"role": ..., "content": ...} dicts)
-        so the classifier can determine if the current message is a reply to an assistant question.
+        Accepts optional conversation history and the names of any drive files
+        currently attached to the conversation so the classifier can factor in
+        document-related queries correctly.
 
         Fails open on any error — the main LLM's system prompt handles
         out-of-scope requests as a fallback.
@@ -107,7 +115,13 @@ class ScopeClassifier:
                 messages.append(AIMessage(content=content))
             elif role == "user":
                 messages.append(HumanMessage(content=content))
-        messages.append(HumanMessage(content=query))
+
+        # Prepend attachment context so the classifier knows files are in play
+        user_message = query
+        if attached_file_names:
+            file_list = ", ".join(f'"{n}"' for n in attached_file_names)
+            user_message = f"[The user has attached the following files to this conversation: {file_list}]\n\n{query}"
+        messages.append(HumanMessage(content=user_message))
 
         try:
             result: _ScopeResult = await self._chain.ainvoke(messages)

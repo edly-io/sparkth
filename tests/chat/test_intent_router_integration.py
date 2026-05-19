@@ -1,7 +1,7 @@
 """Integration tests for RAG Intent Router wired into the chat completion flow."""
 
 import json
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,8 +13,10 @@ from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.intent_router import RAGIntentRouterError
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import RAGRoutingDecision
+from app.models.drive import DriveFile, DriveFolder
 from app.models.llm import LLMConfig
 from app.models.user import User
+from app.rag.types import RagStatus
 
 
 def _parse_sse_events(content: bytes) -> list[dict[str, Any]]:
@@ -439,3 +441,245 @@ class TestIntentRouterIntegration:
             )
 
         assert response.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# Helpers for drive file seeding
+# ---------------------------------------------------------------------------
+
+
+async def _seed_folder(session: AsyncSession, user_id: int) -> int:
+    folder = DriveFolder(
+        user_id=user_id,
+        drive_folder_id="test_folder",
+        drive_folder_name="Test Folder",
+    )
+    session.add(folder)
+    await session.flush()
+    folder_id = cast(int, folder.id)
+    await session.commit()
+    return folder_id
+
+
+async def _seed_file(session: AsyncSession, folder_id: int, user_id: int, name: str = "test.pdf") -> int:
+    file = DriveFile(
+        folder_id=folder_id,
+        user_id=user_id,
+        drive_file_id=f"df_{name}",
+        name=name,
+        rag_status=RagStatus.READY,
+    )
+    session.add(file)
+    await session.flush()
+    file_id = cast(int, file.id)
+    await session.commit()
+    return file_id
+
+
+def _base_patches() -> tuple[Any, ...]:
+    """Return the common patch stack shared by ownership-check tests."""
+    return (
+        patch("app.core_plugins.chat.routes.get_rag_provider"),
+        patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
+        patch("app.core_plugins.chat.routes.ScopeClassifier"),
+        patch("app.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
+        patch("app.core_plugins.chat.service.ChatService.attach_drive_file", new_callable=AsyncMock),
+        patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
+        patch("app.core_plugins.chat.service.ChatService.get_conversation_messages", new_callable=AsyncMock),
+        patch("app.core_plugins.chat.routes.get_provider"),
+    )
+
+
+def _configure_base_mocks(
+    mock_cls_cls: MagicMock,
+    mock_list: AsyncMock,
+    mock_add_msg: AsyncMock,
+    mock_get_msgs: AsyncMock,
+    mock_get_provider: MagicMock,
+) -> None:
+    mock_scope = MagicMock()
+    mock_scope.classify = AsyncMock(return_value=True)
+    mock_cls_cls.return_value = mock_scope
+    mock_list.return_value = []
+    mock_get_msgs.return_value = []
+    mock_msg = MagicMock()
+    mock_msg.id = 99
+    mock_add_msg.return_value = mock_msg
+
+    mock_provider = MagicMock()
+    mock_provider.system_prompt = ""
+    mock_provider.create_llm.return_value = MagicMock()
+    mock_provider.send_message = AsyncMock(
+        return_value={
+            "content": "OK.",
+            "role": "assistant",
+            "tool_calls": None,
+            "metadata": {"usage_metadata": {"total_tokens": 10}},
+        }
+    )
+    mock_get_provider.return_value = mock_provider
+
+
+class TestDriveFileIdsOwnershipCheck:
+    """Tests for the drive_file_ids ownership-filter in chat_completion (routes.py:334-356).
+
+    Verifies: all-owned IDs are each attached, mixed owned/unowned only attaches
+    owned and logs a warning, all-unowned attaches nothing and logs a warning
+    without raising a 4xx.
+    """
+
+    @pytest.mark.asyncio
+    async def test_all_owned_ids_are_attached(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """drive_file_ids all owned by the current user → attach_drive_file called for each."""
+        seed = await _seed(session, current_user.id or 1)
+        folder_id = await _seed_folder(session, current_user.id or 1)
+        file1_id = await _seed_file(session, folder_id, current_user.id or 1, "doc1.pdf")
+        file2_id = await _seed_file(session, folder_id, current_user.id or 1, "doc2.pdf")
+
+        with (
+            patch("app.core_plugins.chat.routes.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch(
+                "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list,
+            patch(
+                "app.core_plugins.chat.service.ChatService.attach_drive_file",
+                new_callable=AsyncMock,
+            ) as mock_attach,
+            patch(
+                "app.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "app.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+        ):
+            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                    "drive_file_ids": [file1_id, file2_id],
+                },
+            )
+
+        assert response.status_code == 200
+        attached_ids = {call.kwargs["drive_file_id"] for call in mock_attach.call_args_list}
+        assert attached_ids == {file1_id, file2_id}
+
+    @pytest.mark.asyncio
+    async def test_mixed_owned_unowned_attaches_only_owned(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """Owned ID is attached; non-existent ID is skipped — no 4xx, no attach for bad ID."""
+        seed = await _seed(session, current_user.id or 1)
+        folder_id = await _seed_folder(session, current_user.id or 1)
+        owned_id = await _seed_file(session, folder_id, current_user.id or 1, "owned.pdf")
+        unowned_id = 9999  # does not exist in the DB
+
+        with (
+            patch("app.core_plugins.chat.routes.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch(
+                "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list,
+            patch(
+                "app.core_plugins.chat.service.ChatService.attach_drive_file",
+                new_callable=AsyncMock,
+            ) as mock_attach,
+            patch(
+                "app.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "app.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+        ):
+            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                    "drive_file_ids": [owned_id, unowned_id],
+                },
+            )
+
+        assert response.status_code == 200
+        attached_ids = {call.kwargs["drive_file_id"] for call in mock_attach.call_args_list}
+        assert attached_ids == {owned_id}
+        assert unowned_id not in attached_ids
+
+    @pytest.mark.asyncio
+    async def test_all_unowned_ids_no_attach_no_error(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """All non-existent drive_file_ids: no attach calls, 200 returned (not 4xx)."""
+        seed = await _seed(session, current_user.id or 1)
+
+        with (
+            patch("app.core_plugins.chat.routes.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch(
+                "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list,
+            patch(
+                "app.core_plugins.chat.service.ChatService.attach_drive_file",
+                new_callable=AsyncMock,
+            ) as mock_attach,
+            patch(
+                "app.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "app.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+        ):
+            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                    "drive_file_ids": [9997, 9998],
+                },
+            )
+
+        assert response.status_code == 200
+        mock_attach.assert_not_called()

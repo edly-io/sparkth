@@ -18,6 +18,9 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: "7727"
       TOKENIZERS_PARALLELISM: "false"
+      # Disable HuggingFace XET chunked download protocol — it can hang indefinitely
+      # on unauthenticated requests. Standard HTTP download is reliable.
+      HF_HUB_DISABLE_XET: "1"
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""
@@ -29,6 +32,7 @@ services:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
       - .ignored/logs:/app/logs
+      - hf_cache:/home/nonroot/.cache/huggingface
     depends_on:
       - db
       - redis
@@ -84,8 +88,10 @@ services:
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
       TOKENIZERS_PARALLELISM: "false"
+      HF_HUB_DISABLE_XET: "1"
     volumes:
       - ./app:/app/app
+      - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag.cleanup
     depends_on:
       - db
@@ -103,8 +109,10 @@ services:
     environment:
       DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
       TOKENIZERS_PARALLELISM: "false"
+      HF_HUB_DISABLE_XET: "1"
     volumes:
       - ./app:/app/app
+      - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag_mcp.main
     depends_on:
       - db
@@ -133,4 +141,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+<<<<<<< HEAD
+  hf_cache:
+=======
   mailpit_data:
+>>>>>>> 5a84382c2837105588700656e1e1edeacdbca315

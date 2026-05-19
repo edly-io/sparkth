@@ -85,7 +85,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
   const { token } = useAuth();
   const [state, dispatch] = useReducer(folderDetailReducer, initialState);
   const { files, loading, uploading, actionFileId, editingFileId, editName } = state;
-  const { ragStatuses, restart: restartRagPolling } = useRagStatusPolling(folder.id, token);
+  const { ragStatuses, restart: restartRagPolling } = useRagStatusPolling([folder.id], token);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(async () => {

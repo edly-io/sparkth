@@ -52,22 +52,6 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     onNewConversation,
   });
 
-  const handleSetAttachments = useCallback(
-    (attachments: TextAttachment[]) => {
-      setInputAttachments(attachments);
-      if (attachments.length === 0 && conversationId) {
-        const hasDriveFiles = inputAttachments.some((a) => a.driveFileDbId);
-        if (hasDriveFiles) {
-          fetch(`/api/v1/chat/conversations/${conversationId}/active-file`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          }).catch((err) => console.warn("Failed to clear active drive file on backend:", err));
-        }
-      }
-    },
-    [setInputAttachments, conversationId, inputAttachments, token],
-  );
-
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
       <ChatHeader />
@@ -95,10 +79,9 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
 
       <ChatInput
         attachments={inputAttachments}
-        setAttachments={handleSetAttachments}
-        setPreviewOpen={setPreviewOpen}
-        setPreviewAttachment={setPreviewAttachment}
+        setAttachments={setInputAttachments}
         onSend={handleSend}
+        conversationId={conversationId}
       />
 
       {previewOpen && previewAttachment && (
