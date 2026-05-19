@@ -141,8 +141,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
-<<<<<<< HEAD
   hf_cache:
-=======
   mailpit_data:
->>>>>>> 5a84382c2837105588700656e1e1edeacdbca315
