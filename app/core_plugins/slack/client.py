@@ -58,6 +58,42 @@ class SlackClient:
         response.raise_for_status()
         return cast(dict[str, Any], response.json())
 
+    async def get_user_display_name(self, user_id: str) -> str | None:
+        """Return the user's display_name (or real_name fallback). Returns None on any failure."""
+        try:
+            response = await self._client.get("/users.info", params={"user": user_id})
+            response.raise_for_status()
+            data = cast(dict[str, Any], response.json())
+            if not data.get("ok"):
+                return None
+            profile = data.get("user", {}).get("profile", {})
+            name = profile.get("display_name") or profile.get("real_name")
+            if name is None:
+                logger.warning("No display name or real_name found for user %s", user_id)
+            return cast(str | None, name)
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logger.warning("Could not resolve display name for user %s: %s", user_id, exc)
+            return None
+
+    async def get_channel_name(self, channel_id: str) -> str | None:
+        """Return the channel name without '#'. Returns 'DM' for DM channels, None on failure."""
+        try:
+            response = await self._client.get("/conversations.info", params={"channel": channel_id})
+            response.raise_for_status()
+            data = cast(dict[str, Any], response.json())
+            if not data.get("ok"):
+                return None
+            channel = data.get("channel", {})
+            if "name" in channel:
+                return cast(str, channel["name"])
+            if "user" in channel:
+                return "DM"
+            logger.warning("Unexpected channel shape for channel %s: %s", channel_id, list(channel.keys()))
+            return None
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logger.warning("Could not resolve channel name for channel %s: %s", channel_id, exc)
+            return None
+
     @staticmethod
     def verify_signature(
         signing_secret: str,

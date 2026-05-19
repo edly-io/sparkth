@@ -1,6 +1,8 @@
 """FastAPI routes for the Slack TA Bot plugin."""
 
+import asyncio
 import json as _json
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -8,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from fastapi.responses import RedirectResponse
 from langchain_core.exceptions import LangChainException
 from pydantic import ValidationError
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -22,7 +25,7 @@ from app.core_plugins.slack.client import SlackClient
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.events import extract_question, is_greeting, should_handle_event
 from app.core_plugins.slack.exceptions import SlackSignatureError
-from app.core_plugins.slack.models import BotResponseLog
+from app.core_plugins.slack.models import BotResponseLog, ConnectionEventType, ResponseType, SlackConnectionLog
 from app.core_plugins.slack.oauth import (
     decode_state,
     decrypt_token,
@@ -38,7 +41,9 @@ from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.core_plugins.slack.types import (
     AuthorizationUrlResponse,
     BotResponseLogItem,
+    ConnectionLogItem,
     ConnectionStatusResponse,
+    LogItem,
     LogsResponse,
     RagSourcesResponse,
 )
@@ -120,7 +125,7 @@ async def oauth_callback(
         ) from exc
 
     try:
-        save_workspace(
+        workspace = save_workspace(
             session,
             user_id=user_id,
             team_id=token_data["team"]["id"],
@@ -135,6 +140,20 @@ async def oauth_callback(
             detail="Unexpected response from Slack. Please try again.",
         ) from exc
 
+    # Log the connection event
+    try:
+        session.add(
+            SlackConnectionLog(
+                workspace_id=workspace.id,  # type: ignore[arg-type]
+                event_type=ConnectionEventType.connected,
+                team_name=token_data["team"]["name"],
+            )
+        )
+        session.commit()
+    except SQLAlchemyError as exc:
+        session.rollback()
+        logger.error("Failed to log Slack connect event for user %s: %s", user_id, exc)
+
     return RedirectResponse(url=f"{SLACK_FRONTEND_PATH}?connected=true")
 
 
@@ -144,9 +163,24 @@ def disconnect_workspace(
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
     """Disconnect the Slack workspace for the current user."""
-    if not get_workspace(session, user_id):
+    workspace = get_workspace(session, user_id)
+    if not workspace:
         logger.warning("Disconnect requested but no workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
+
+    try:
+        session.add(
+            SlackConnectionLog(
+                workspace_id=workspace.id,  # type: ignore[arg-type]
+                event_type=ConnectionEventType.disconnected,
+                team_name=workspace.team_name,
+            )
+        )
+        session.commit()
+    except SQLAlchemyError as exc:
+        session.rollback()
+        logger.error("Failed to log Slack disconnect event for user %d: %s", user_id, exc)
+
     delete_workspace(session, user_id)
     return {"detail": "Slack workspace disconnected successfully"}
 
@@ -238,6 +272,90 @@ async def _post_slack_message(
         return None
 
 
+async def _resolve_names(
+    bot_token_encrypted: str,
+    slack_user: str,
+    channel: str,
+) -> tuple[str | None, str | None]:
+    """Resolve Slack user and channel display names. Returns (None, None) on any failure."""
+    try:
+        bot_token = decrypt_token(bot_token_encrypted)
+        async with SlackClient(bot_token) as slack:
+            user_name, channel_name = await asyncio.gather(
+                slack.get_user_display_name(slack_user),
+                slack.get_channel_name(channel),
+            )
+        return user_name, channel_name
+    except (ValueError, httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logger.warning("Name resolution failed for user %s channel %s: %s", slack_user, channel, exc)
+        return None, None
+
+
+async def _log_response(
+    session: AsyncSession,
+    *,
+    workspace_id: int,
+    channel: str,
+    slack_user: str,
+    posted_ts: str,
+    question: str,
+    answer: str,
+    rag_matched: bool,
+    response_type: ResponseType,
+    slack_user_name: str | None,
+    slack_channel_name: str | None,
+) -> None:
+    try:
+        session.add(
+            BotResponseLog(
+                workspace_id=workspace_id,
+                slack_channel=channel,
+                slack_user=slack_user,
+                slack_ts=posted_ts,
+                question=question,
+                answer=answer,
+                rag_matched=rag_matched,
+                response_type=response_type,
+                slack_user_name=slack_user_name,
+                slack_channel_name=slack_channel_name,
+            )
+        )
+        await session.commit()
+    except SQLAlchemyError as exc:
+        logger.error("Failed to log bot response for workspace %s: %s", workspace_id, exc)
+
+
+async def _reply_and_log(
+    session: AsyncSession,
+    *,
+    reply: str,
+    response_type: ResponseType,
+    workspace_id: int,
+    channel: str,
+    slack_user: str,
+    thread_ts: str | None,
+    bot_token_encrypted: str,
+    question: str,
+    slack_user_name: str | None,
+    slack_channel_name: str | None,
+) -> None:
+    posted_ts = await _post_slack_message(bot_token_encrypted, channel, reply, thread_ts, workspace_id)
+    if posted_ts is not None:
+        await _log_response(
+            session,
+            workspace_id=workspace_id,
+            channel=channel,
+            slack_user=slack_user,
+            posted_ts=posted_ts,
+            question=question,
+            answer=reply,
+            rag_matched=False,
+            response_type=response_type,
+            slack_user_name=slack_user_name,
+            slack_channel_name=slack_channel_name,
+        )
+
+
 async def _dispatch_event(
     workspace_id: int,
     user_id: int,
@@ -251,6 +369,19 @@ async def _dispatch_event(
     slack_user = event.get("user", "")
     thread_ts: str | None = event.get("thread_ts") or event.get("ts")
 
+    slack_user_name, slack_channel_name = await _resolve_names(bot_token_encrypted, slack_user, channel)
+
+    common = dict(
+        workspace_id=workspace_id,
+        channel=channel,
+        slack_user=slack_user,
+        thread_ts=thread_ts,
+        bot_token_encrypted=bot_token_encrypted,
+        question=question,
+        slack_user_name=slack_user_name,
+        slack_channel_name=slack_channel_name,
+    )
+
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
         try:
             plugin_map = await PluginService().get_user_plugin_map(session, user_id)
@@ -261,34 +392,31 @@ async def _dispatch_event(
         user_plugin = plugin_map.get("slack")
         if not user_plugin:
             logger.info("Slack plugin not configured for user %d", user_id)
-            await _post_slack_message(
-                bot_token_encrypted,
-                channel,
-                "The TA Bot hasn't been set up by your instructor yet. Please check back later.",
-                thread_ts,
-                workspace_id,
+            await _reply_and_log(
+                session,
+                reply="The TA Bot hasn't been set up by your instructor yet. Please check back later.",
+                response_type=ResponseType.plugin_disabled,
+                **common,
             )
             return
 
         if not user_plugin.enabled:
             logger.info("Slack plugin disabled for user %d", user_id)
-            await _post_slack_message(
-                bot_token_encrypted,
-                channel,
-                "The TA Bot is currently disabled by your instructor.",
-                thread_ts,
-                workspace_id,
+            await _reply_and_log(
+                session,
+                reply="The TA Bot is currently disabled by your instructor.",
+                response_type=ResponseType.plugin_disabled,
+                **common,
             )
             return
 
         if not user_plugin.config:
             logger.warning("Slack plugin config empty for user %d", user_id)
-            await _post_slack_message(
-                bot_token_encrypted,
-                channel,
-                "The TA Bot configuration is incomplete. Please contact your instructor.",
-                thread_ts,
-                workspace_id,
+            await _reply_and_log(
+                session,
+                reply="The TA Bot configuration is incomplete. Please contact your instructor.",
+                response_type=ResponseType.config_incomplete,
+                **common,
             )
             return
 
@@ -296,21 +424,22 @@ async def _dispatch_event(
             config = SlackConfig(**user_plugin.config)
         except ValidationError as exc:
             logger.warning("Invalid SlackConfig for user %d: %s", user_id, exc)
-            await _post_slack_message(
-                bot_token_encrypted,
-                channel,
-                "The TA Bot configuration is invalid. Please contact your instructor.",
-                thread_ts,
-                workspace_id,
+            await _reply_and_log(
+                session,
+                reply="The TA Bot configuration is invalid. Please contact your instructor.",
+                response_type=ResponseType.config_incomplete,
+                **common,
             )
             return
 
         answer: str
         rag_matched: bool
+        response_type: ResponseType
 
         if is_greeting(question):
             answer = config.greeting_message
             rag_matched = False
+            response_type = ResponseType.greeting
         else:
             llm_provider: BaseChatProvider | None = None
             if config.llm_config_id is not None:
@@ -330,32 +459,31 @@ async def _dispatch_event(
                     config=config,
                     llm_provider=llm_provider,
                 )
+                response_type = ResponseType.rag_match if rag_matched else ResponseType.fallback
             except (SQLAlchemyError, LangChainException, OSError) as exc:
                 logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
                 answer = config.fallback_message
                 rag_matched = False
+                response_type = ResponseType.fallback
                 await session.rollback()
 
         posted_ts = await _post_slack_message(bot_token_encrypted, channel, answer, thread_ts, workspace_id)
         if posted_ts is None:
             return
 
-        # Audit log
-        try:
-            session.add(
-                BotResponseLog(
-                    workspace_id=workspace_id,
-                    slack_channel=channel,
-                    slack_user=slack_user,
-                    slack_ts=posted_ts,
-                    question=question,
-                    answer=answer,
-                    rag_matched=rag_matched,
-                )
-            )
-            await session.commit()
-        except SQLAlchemyError as exc:
-            logger.error("Failed to log bot response for workspace %s: %s", workspace_id, exc)
+        await _log_response(
+            session,
+            workspace_id=workspace_id,
+            channel=channel,
+            slack_user=slack_user,
+            posted_ts=posted_ts,
+            question=question,
+            answer=answer,
+            rag_matched=rag_matched,
+            response_type=response_type,
+            slack_user_name=slack_user_name,
+            slack_channel_name=slack_channel_name,
+        )
 
 
 @router.post("/events")
@@ -416,12 +544,12 @@ def get_response_logs(
     user_id: int = Depends(require_user_id),
     session: Session = Depends(get_session),
     limit: int = Query(default=50, ge=1, le=200),
-    cursor: int | None = Query(default=None, ge=1),
+    cursor: str | None = Query(default=None),
     since_id: int | None = Query(default=None, ge=0),
 ) -> LogsResponse:
-    """Return TA Bot response logs with cursor + since pagination."""
+    """Return TA Bot response logs (messages + connection events) with cursor + since pagination."""
     if cursor is not None and since_id is not None:
-        logger.warning("GET /logs called with both cursor and since_id for user %d — mutually exclusive", user_id)
+        logger.warning("GET /logs called with both cursor and since_id for user %d", user_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid pagination parameters: only one pagination strategy may be used at a time.",
@@ -432,44 +560,124 @@ def get_response_logs(
         logger.warning("GET /logs: no Slack workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
 
-    base_stmt = select(BotResponseLog).where(col(BotResponseLog.workspace_id) == workspace.id)
-
+    # since_id path: message logs only, used for polling
     if since_id is not None:
         stmt = (
-            base_stmt.where(col(BotResponseLog.id) > since_id).order_by(col(BotResponseLog.id).asc()).limit(limit + 1)
+            select(BotResponseLog)
+            .where(col(BotResponseLog.workspace_id) == workspace.id)
+            .where(col(BotResponseLog.id) > since_id)
+            .order_by(col(BotResponseLog.id).asc())
+            .limit(limit + 1)
         )
         rows = session.exec(stmt).all()
         has_more = len(rows) > limit
         if has_more:
             rows = rows[:limit]
-        items = [_to_log_item(r) for r in rows]
-        return LogsResponse(items=items, total=len(items), next_cursor=rows[-1].id if rows else None, has_more=has_more)
+        items: list[LogItem] = [_to_message_item(r) for r in rows]
+        next_cursor_val = None
+        return LogsResponse(items=items, total=len(items), next_cursor=next_cursor_val, has_more=has_more)
 
+    # Merged stream: messages + connection events, composite cursor "{ts}|{id}|{type}"
+    # Messages sort before connections at equal timestamps (stable tiebreak).
+    cursor_dt: datetime | None = None
+    cursor_id: int | None = None
+    cursor_type: str | None = None
     if cursor is not None:
-        stmt = base_stmt.where(col(BotResponseLog.id) < cursor)
-    else:
-        stmt = base_stmt
+        try:
+            parts = cursor.split("|")
+            if len(parts) != 3:
+                raise ValueError("expected 3 pipe-separated parts")
+            cursor_ts_str, cursor_id_str, cursor_type = parts
+            cursor_dt = datetime.fromisoformat(cursor_ts_str)
+            if cursor_dt.tzinfo is None:
+                cursor_dt = cursor_dt.replace(tzinfo=timezone.utc)
+            cursor_id = int(cursor_id_str)
+            if cursor_type not in ("message", "connection"):
+                raise ValueError(f"unknown type {cursor_type!r}")
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid cursor format.",
+            ) from exc
 
-    stmt = stmt.order_by(col(BotResponseLog.id).desc()).limit(limit + 1)
-    rows = session.exec(stmt).all()
+    msg_stmt = (
+        select(BotResponseLog)
+        .where(col(BotResponseLog.workspace_id) == workspace.id)
+        .order_by(col(BotResponseLog.created_at).desc(), col(BotResponseLog.id).desc())
+        .limit(limit + 1)
+    )
+    if cursor_dt is not None and cursor_id is not None and cursor_type is not None:
+        if cursor_type == "message":
+            msg_stmt = msg_stmt.where(
+                or_(
+                    col(BotResponseLog.created_at) < cursor_dt,
+                    and_(col(BotResponseLog.created_at) == cursor_dt, col(BotResponseLog.id) < cursor_id),
+                )
+            )
+        else:
+            # cursor is a connection; messages at cursor_dt precede it, so exclude them too
+            msg_stmt = msg_stmt.where(col(BotResponseLog.created_at) < cursor_dt)
 
-    has_more = len(rows) > limit
+    conn_stmt = (
+        select(SlackConnectionLog)
+        .where(col(SlackConnectionLog.workspace_id) == workspace.id)
+        .order_by(col(SlackConnectionLog.created_at).desc(), col(SlackConnectionLog.id).desc())
+        .limit(limit + 1)
+    )
+    if cursor_dt is not None and cursor_id is not None and cursor_type is not None:
+        if cursor_type == "connection":
+            conn_stmt = conn_stmt.where(
+                or_(
+                    col(SlackConnectionLog.created_at) < cursor_dt,
+                    and_(col(SlackConnectionLog.created_at) == cursor_dt, col(SlackConnectionLog.id) < cursor_id),
+                )
+            )
+        else:
+            # cursor is a message; connections at cursor_dt sort after it, so include them
+            conn_stmt = conn_stmt.where(col(SlackConnectionLog.created_at) <= cursor_dt)
+
+    msg_rows = session.exec(msg_stmt).all()
+    conn_rows = session.exec(conn_stmt).all()
+
+    all_items: list[LogItem] = [_to_message_item(r) for r in msg_rows] + [_to_connection_item(r) for r in conn_rows]
+    # Newest first; messages precede connections at equal timestamps (stable tiebreak).
+    all_items.sort(
+        key=lambda x: (x.created_at, x.id, 0 if x.type == "connection" else 1),
+        reverse=True,
+    )
+
+    has_more = len(all_items) > limit
     if has_more:
-        rows = rows[:limit]
+        all_items = all_items[:limit]
 
-    items = [_to_log_item(r) for r in rows]
-    next_cursor = rows[-1].id if rows else None
-    return LogsResponse(items=items, total=len(items), next_cursor=next_cursor, has_more=has_more)
+    if all_items:
+        last = all_items[-1]
+        next_cursor_val = f"{last.created_at.isoformat()}|{last.id}|{last.type}"
+    else:
+        next_cursor_val = None
+    return LogsResponse(items=all_items, total=len(all_items), next_cursor=next_cursor_val, has_more=has_more)
 
 
-def _to_log_item(row: BotResponseLog) -> BotResponseLogItem:
+def _to_message_item(row: BotResponseLog) -> BotResponseLogItem:
     return BotResponseLogItem(
         id=row.id,  # type: ignore[arg-type]
         slack_channel=row.slack_channel,
         slack_user=row.slack_user,
+        slack_user_name=row.slack_user_name,
+        slack_channel_name=row.slack_channel_name,
         question=row.question,
         answer=row.answer,
         rag_matched=row.rag_matched,
+        response_type=row.response_type,
+        created_at=row.created_at,
+    )
+
+
+def _to_connection_item(row: SlackConnectionLog) -> ConnectionLogItem:
+    return ConnectionLogItem(
+        id=row.id,  # type: ignore[arg-type]
+        event_type=row.event_type,
+        team_name=row.team_name,
         created_at=row.created_at,
     )
 

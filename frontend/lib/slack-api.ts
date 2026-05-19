@@ -27,19 +27,33 @@ export interface ConnectionStatus {
 }
 
 export interface BotResponseLogItem {
+  type: "message";
   id: number;
   slack_channel: string;
   slack_user: string;
+  slack_user_name: string | null;
+  slack_channel_name: string | null;
   question: string;
   answer: string | null;
   rag_matched: boolean;
+  response_type: string;
   created_at: string;
 }
 
+export interface ConnectionLogItem {
+  type: "connection";
+  id: number;
+  event_type: string;
+  team_name: string | null;
+  created_at: string;
+}
+
+export type LogItem = BotResponseLogItem | ConnectionLogItem;
+
 export interface LogsResponse {
-  items: BotResponseLogItem[];
+  items: LogItem[];
   total: number;
-  next_cursor: number | null;
+  next_cursor: string | null;
   has_more: boolean;
 }
 
@@ -49,7 +63,7 @@ export interface RagSourcesResponse {
 
 export interface FetchLogsOptions {
   limit?: number;
-  cursor?: number;
+  cursor?: string;
   sinceId?: number;
 }
 
@@ -83,7 +97,7 @@ export async function disconnectSlack(token: string): Promise<void> {
 export async function fetchLogs(token: string, opts: FetchLogsOptions): Promise<LogsResponse> {
   const params = new URLSearchParams();
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
-  if (opts.cursor !== undefined) params.set("cursor", String(opts.cursor));
+  if (opts.cursor !== undefined) params.set("cursor", opts.cursor);
   if (opts.sinceId !== undefined) params.set("since_id", String(opts.sinceId));
 
   const qs = params.toString();

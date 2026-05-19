@@ -1,15 +1,24 @@
 """Integration tests for Slack OAuth routes."""
 
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
+from sqlmodel import select
 
 from app.core_plugins.slack.config import SlackConfig
-from app.core_plugins.slack.models import BotResponseLog, SlackWorkspace
+from app.core_plugins.slack.models import (
+    BotResponseLog,
+    ConnectionEventType,
+    ResponseType,
+    SlackConnectionLog,
+    SlackWorkspace,
+)
+from app.core_plugins.slack.routes import _dispatch_event
 from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.main import app
 from app.models.user import User
@@ -264,9 +273,10 @@ class TestGetLogs:
         data = response.json()
         assert data["items"] == []
         assert data["total"] == 0
+        assert data["next_cursor"] is None
 
     @pytest.mark.asyncio
-    async def test_returns_existing_log_entry(
+    async def test_message_item_has_correct_shape(
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
@@ -280,6 +290,9 @@ class TestGetLogs:
             question="what is a loop?",
             answer="A loop repeats code.",
             rag_matched=True,
+            response_type=ResponseType.rag_match,
+            slack_user_name="alice",
+            slack_channel_name="general",
         )
         sync_session.add(log)
         sync_session.commit()
@@ -289,97 +302,213 @@ class TestGetLogs:
         data = response.json()
         assert data["total"] == 1
         item = data["items"][0]
+        assert item["type"] == "message"
         assert item["question"] == "what is a loop?"
         assert item["rag_matched"] is True
-        assert item["answer"] == "A loop repeats code."
+        assert item["response_type"] == "rag_match"
+        assert item["slack_user_name"] == "alice"
+        assert item["slack_channel_name"] == "general"
 
-    def _insert_logs(self, sync_session: Any, workspace_id: int, count: int) -> list[int]:
-        """Insert `count` BotResponseLog rows; return their ids in insertion order."""
-        ids: list[int] = []
-        for i in range(count):
+    @pytest.mark.asyncio
+    async def test_connection_item_appears_in_stream(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        sync_session.add(
+            SlackConnectionLog(
+                workspace_id=test_workspace.id,  # type: ignore[arg-type]
+                event_type=ConnectionEventType.connected,
+                team_name="Test Workspace",
+            )
+        )
+        sync_session.commit()
+
+        response = await slack_client.get("/api/v1/slack/logs")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total"] == 1
+        item = data["items"][0]
+        assert item["type"] == "connection"
+        assert item["event_type"] == "connected"
+        assert item["team_name"] == "Test Workspace"
+
+    @pytest.mark.asyncio
+    async def test_merged_stream_sorted_newest_first(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        base = datetime.now(timezone.utc)
+
+        msg_log = BotResponseLog(
+            workspace_id=test_workspace.id,  # type: ignore[arg-type]
+            slack_channel="C1",
+            slack_user="U1",
+            slack_ts="100.0",
+            question="q1",
+            answer="a1",
+            rag_matched=False,
+            response_type=ResponseType.fallback,
+            created_at=base - timedelta(seconds=1),
+        )
+        sync_session.add(msg_log)
+        sync_session.commit()
+
+        conn_log = SlackConnectionLog(
+            workspace_id=test_workspace.id,  # type: ignore[arg-type]
+            event_type=ConnectionEventType.connected,
+            team_name="Test Workspace",
+            created_at=base,
+        )
+        sync_session.add(conn_log)
+        sync_session.commit()
+
+        response = await slack_client.get("/api/v1/slack/logs")
+        data = response.json()
+        assert data["total"] == 2
+        assert data["items"][0]["type"] == "connection"
+        assert data["items"][1]["type"] == "message"
+
+    @pytest.mark.asyncio
+    async def test_next_cursor_is_iso_timestamp(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        base = datetime.now(timezone.utc)
+
+        for i in range(3):
+            sync_session.add(
+                BotResponseLog(
+                    workspace_id=test_workspace.id,  # type: ignore[arg-type]
+                    slack_channel="C1",
+                    slack_user="U1",
+                    slack_ts=f"100{i}.0",
+                    question=f"q{i}",
+                    answer=f"a{i}",
+                    rag_matched=False,
+                    response_type=ResponseType.fallback,
+                    created_at=base - timedelta(seconds=2 - i),
+                )
+            )
+            sync_session.commit()
+
+        response = await slack_client.get("/api/v1/slack/logs?limit=2")
+        data = response.json()
+        assert data["has_more"] is True
+        cursor = data["next_cursor"]
+        assert isinstance(cursor, str)
+        ts_part, id_part, type_part = cursor.split("|")
+        datetime.fromisoformat(ts_part)
+        assert int(id_part) == data["items"][-1]["id"]
+        assert type_part == data["items"][-1]["type"]
+
+    @pytest.mark.asyncio
+    async def test_timestamp_cursor_returns_older_entries(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        base = datetime.now(timezone.utc)
+
+        ids = []
+        for i in range(3):
             log = BotResponseLog(
-                workspace_id=workspace_id,
+                workspace_id=test_workspace.id,  # type: ignore[arg-type]
                 slack_channel="C1",
                 slack_user="U1",
-                slack_ts=f"100{i}.0000",
+                slack_ts=f"100{i}.0",
                 question=f"q{i}",
                 answer=f"a{i}",
-                rag_matched=(i % 2 == 0),
+                rag_matched=False,
+                response_type=ResponseType.fallback,
+                created_at=base - timedelta(seconds=2 - i),
             )
             sync_session.add(log)
             sync_session.commit()
             sync_session.refresh(log)
-            ids.append(log.id)  # type: ignore[arg-type]
-        return ids
+            ids.append(log.id)
+
+        first = await slack_client.get("/api/v1/slack/logs?limit=2")
+        first_data = first.json()
+        assert len(first_data["items"]) == 2
+        assert first_data["has_more"] is True
+        cursor = first_data["next_cursor"]
+
+        second = await slack_client.get(f"/api/v1/slack/logs?cursor={cursor}&limit=10")
+        second_data = second.json()
+        assert len(second_data["items"]) == 1
+        assert second_data["items"][0]["id"] == ids[0]
+        assert second_data["has_more"] is False
 
     @pytest.mark.asyncio
-    async def test_default_page_returns_most_recent_desc(
+    async def test_since_id_returns_only_message_items(
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
         sync_session: Any,
     ) -> None:
-        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
+        base = datetime.now(timezone.utc)
 
-        response = await slack_client.get("/api/v1/slack/logs?limit=3")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        returned_ids = [item["id"] for item in data["items"]]
-        assert returned_ids == list(reversed(ids))[:3]
-        assert data["next_cursor"] == returned_ids[-1]
-        assert data["has_more"] is True
+        old_log = BotResponseLog(
+            workspace_id=test_workspace.id,  # type: ignore[arg-type]
+            slack_channel="C1",
+            slack_user="U1",
+            slack_ts="100.0",
+            question="old question",
+            answer="old answer",
+            rag_matched=False,
+            response_type=ResponseType.fallback,
+            created_at=base - timedelta(seconds=2),
+        )
+        sync_session.add(old_log)
+        sync_session.commit()
+        sync_session.refresh(old_log)
+        since = old_log.id
 
-    @pytest.mark.asyncio
-    async def test_cursor_returns_older_entries(
-        self,
-        slack_client: AsyncClient,
-        test_workspace: SlackWorkspace,
-        sync_session: Any,
-    ) -> None:
-        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
-        cursor = ids[3]
+        sync_session.add(
+            SlackConnectionLog(
+                workspace_id=test_workspace.id,  # type: ignore[arg-type]
+                event_type=ConnectionEventType.connected,
+                team_name="Test Workspace",
+                created_at=base - timedelta(seconds=1),
+            )
+        )
+        sync_session.commit()
 
-        response = await slack_client.get(f"/api/v1/slack/logs?cursor={cursor}&limit=10")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        returned_ids = [item["id"] for item in data["items"]]
-        assert returned_ids == [ids[2], ids[1], ids[0]]
-        assert data["has_more"] is False
-        assert data["next_cursor"] == ids[0]
-
-    @pytest.mark.asyncio
-    async def test_since_id_returns_newer_entries_asc(
-        self,
-        slack_client: AsyncClient,
-        test_workspace: SlackWorkspace,
-        sync_session: Any,
-    ) -> None:
-        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
-        since = ids[2]
+        new_log = BotResponseLog(
+            workspace_id=test_workspace.id,  # type: ignore[arg-type]
+            slack_channel="C1",
+            slack_user="U1",
+            slack_ts="200.0",
+            question="new question",
+            answer="new answer",
+            rag_matched=True,
+            response_type=ResponseType.rag_match,
+            created_at=base,
+        )
+        sync_session.add(new_log)
+        sync_session.commit()
 
         response = await slack_client.get(f"/api/v1/slack/logs?since_id={since}&limit=10")
-        assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        returned_ids = [item["id"] for item in data["items"]]
-        assert returned_ids == [ids[3], ids[4]]
-        assert data["next_cursor"] == ids[4]
-        assert data["has_more"] is False
+        assert all(item["type"] == "message" for item in data["items"])
+        questions = [item["question"] for item in data["items"]]
+        assert questions == ["new question"]
 
     @pytest.mark.asyncio
-    async def test_since_id_has_more_when_results_exceed_limit(
+    async def test_malformed_cursor_returns_400(
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
     ) -> None:
-        ids = self._insert_logs(sync_session, test_workspace.id, 5)  # type: ignore[arg-type]
-
-        response = await slack_client.get("/api/v1/slack/logs?since_id=0&limit=3")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert len(data["items"]) == 3
-        assert data["has_more"] is True
-        assert data["next_cursor"] == ids[2]
+        response = await slack_client.get("/api/v1/slack/logs?cursor=not-a-timestamp")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     @pytest.mark.asyncio
     async def test_cursor_and_since_id_together_returns_400(
@@ -387,7 +516,7 @@ class TestGetLogs:
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
     ) -> None:
-        response = await slack_client.get("/api/v1/slack/logs?cursor=5&since_id=3")
+        response = await slack_client.get("/api/v1/slack/logs?cursor=2026-01-01T00:00:00&since_id=3")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     @pytest.mark.asyncio
@@ -398,21 +527,6 @@ class TestGetLogs:
     ) -> None:
         response = await slack_client.get("/api/v1/slack/logs?limit=0")
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        response = await slack_client.get("/api/v1/slack/logs?limit=201")
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-    @pytest.mark.asyncio
-    async def test_empty_result_has_no_cursor(
-        self,
-        slack_client: AsyncClient,
-        test_workspace: SlackWorkspace,
-    ) -> None:
-        response = await slack_client.get("/api/v1/slack/logs")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["items"] == []
-        assert data["next_cursor"] is None
-        assert data["has_more"] is False
 
 
 def _make_session_mock() -> tuple[AsyncMock, MagicMock]:
@@ -836,3 +950,260 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         mock_get_provider.assert_called_once()
         gp_kwargs = mock_get_provider.call_args.kwargs
         assert gp_kwargs["model"] == "claude-haiku-4-5", "Expected llm_model_override to override the LLMConfig's model"
+
+
+class TestDispatchEventLogging:
+    """Test that _dispatch_event creates BotResponseLog for every bot reply path."""
+
+    @staticmethod
+    def _make_fake_session(added: list[Any]) -> Any:
+        class _FakeSession:
+            async def __aenter__(self) -> "_FakeSession":
+                return self
+
+            async def __aexit__(self, *a: Any) -> None:
+                pass
+
+            def add(self, obj: Any) -> None:
+                added.append(obj)
+
+            async def commit(self) -> None:
+                pass
+
+            async def rollback(self) -> None:
+                pass
+
+        return _FakeSession()
+
+    @pytest.mark.asyncio
+    async def test_plugin_not_configured_logs_plugin_disabled(self) -> None:
+        added: list[Any] = []
+
+        with (
+            patch(
+                "app.core_plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={})),
+            ),
+            patch(
+                "app.core_plugins.slack.routes._post_slack_message",
+                new_callable=AsyncMock,
+                return_value="111.0",
+            ),
+            patch(
+                "app.core_plugins.slack.routes._resolve_names",
+                new_callable=AsyncMock,
+                return_value=(None, None),
+            ),
+            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+        ):
+            await _dispatch_event(
+                workspace_id=1,
+                user_id=1,
+                bot_token_encrypted="enc",
+                bot_user_id="U_BOT",
+                event={"text": "<@U_BOT> hi", "user": "U1", "channel": "C1", "ts": "1.0"},
+            )
+
+        assert len(added) == 1
+        log = added[0]
+        assert isinstance(log, BotResponseLog)
+        assert log.response_type == ResponseType.plugin_disabled
+
+    @pytest.mark.asyncio
+    async def test_plugin_disabled_logs_plugin_disabled(self) -> None:
+        added: list[Any] = []
+
+        plugin = MagicMock()
+        plugin.enabled = False
+        plugin.config = {"fallback_message": "Bot is disabled"}
+
+        with (
+            patch(
+                "app.core_plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
+            ),
+            patch(
+                "app.core_plugins.slack.routes._post_slack_message",
+                new_callable=AsyncMock,
+                return_value="111.0",
+            ),
+            patch(
+                "app.core_plugins.slack.routes._resolve_names",
+                new_callable=AsyncMock,
+                return_value=(None, None),
+            ),
+            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+        ):
+            await _dispatch_event(
+                workspace_id=1,
+                user_id=1,
+                bot_token_encrypted="enc",
+                bot_user_id="U_BOT",
+                event={"text": "<@U_BOT> hello", "user": "U1", "channel": "C1", "ts": "1.0"},
+            )
+
+        assert len(added) == 1
+        assert added[0].response_type == ResponseType.plugin_disabled
+
+    @pytest.mark.asyncio
+    async def test_config_incomplete_logs_config_incomplete(self) -> None:
+        added: list[Any] = []
+
+        plugin = MagicMock()
+        plugin.enabled = True
+        plugin.config = None
+
+        with (
+            patch(
+                "app.core_plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
+            ),
+            patch(
+                "app.core_plugins.slack.routes._post_slack_message",
+                new_callable=AsyncMock,
+                return_value="111.0",
+            ),
+            patch(
+                "app.core_plugins.slack.routes._resolve_names",
+                new_callable=AsyncMock,
+                return_value=(None, None),
+            ),
+            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+        ):
+            await _dispatch_event(
+                workspace_id=1,
+                user_id=1,
+                bot_token_encrypted="enc",
+                bot_user_id="U_BOT",
+                event={"text": "<@U_BOT> hello", "user": "U1", "channel": "C1", "ts": "1.0"},
+            )
+
+        assert len(added) == 1
+        assert added[0].response_type == ResponseType.config_incomplete
+
+    @pytest.mark.asyncio
+    async def test_greeting_logs_with_resolved_names(self) -> None:
+        added: list[Any] = []
+
+        plugin = MagicMock()
+        plugin.enabled = True
+        plugin.config = {
+            "fallback_message": "I don't know",
+            "greeting_message": "Hello! I am the TA Bot.",
+        }
+
+        with (
+            patch(
+                "app.core_plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
+            ),
+            patch(
+                "app.core_plugins.slack.routes._post_slack_message",
+                new_callable=AsyncMock,
+                return_value="111.0",
+            ),
+            patch(
+                "app.core_plugins.slack.routes._resolve_names",
+                new_callable=AsyncMock,
+                return_value=("alice", "general"),
+            ),
+            patch("app.core_plugins.slack.routes.is_greeting", return_value=True),
+            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+        ):
+            await _dispatch_event(
+                workspace_id=1,
+                user_id=1,
+                bot_token_encrypted="enc",
+                bot_user_id="U_BOT",
+                event={"text": "<@U_BOT> hi there", "user": "U1", "channel": "C1", "ts": "1.0"},
+            )
+
+        assert len(added) == 1
+        log = added[0]
+        assert log.response_type == ResponseType.greeting
+        assert log.slack_user_name == "alice"
+        assert log.slack_channel_name == "general"
+
+    @pytest.mark.asyncio
+    async def test_post_failure_means_no_log_created(self) -> None:
+        added: list[Any] = []
+
+        with (
+            patch(
+                "app.core_plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={})),
+            ),
+            patch(
+                "app.core_plugins.slack.routes._post_slack_message",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.core_plugins.slack.routes._resolve_names",
+                new_callable=AsyncMock,
+                return_value=(None, None),
+            ),
+            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+        ):
+            await _dispatch_event(
+                workspace_id=1,
+                user_id=1,
+                bot_token_encrypted="enc",
+                bot_user_id="U_BOT",
+                event={"text": "<@U_BOT> hi", "user": "U1", "channel": "C1", "ts": "1.0"},
+            )
+
+        assert len(added) == 0
+
+
+class TestConnectionEventLogging:
+    @pytest.mark.asyncio
+    async def test_oauth_callback_inserts_connected_log(
+        self,
+        slack_client: AsyncClient,
+        test_user: object,
+        sync_session: Any,
+    ) -> None:
+        from typing import cast as tcast
+
+        from app.core_plugins.slack.oauth import generate_state
+
+        fake_token_data = {
+            "ok": True,
+            "access_token": "xoxb-conn-token",
+            "bot_user_id": "U_BOT_CONN",
+            "team": {"id": "T_CONN", "name": "Conn Team"},
+        }
+        state = generate_state(user_id=tcast(int, getattr(test_user, "id")))
+
+        with patch(
+            "app.core_plugins.slack.routes.exchange_code_for_tokens",
+            new_callable=AsyncMock,
+            return_value=fake_token_data,
+        ):
+            await slack_client.get(
+                "/api/v1/slack/oauth/callback",
+                params={"code": "valid_code", "state": state},
+                follow_redirects=False,
+            )
+
+        logs = sync_session.exec(select(SlackConnectionLog)).all()
+        assert len(logs) == 1
+        assert logs[0].event_type == ConnectionEventType.connected
+        assert logs[0].team_name == "Conn Team"
+        assert logs[0].workspace_id is not None
+
+    @pytest.mark.asyncio
+    async def test_disconnect_inserts_disconnected_log(
+        self,
+        slack_client: AsyncClient,
+        test_workspace: SlackWorkspace,
+        sync_session: Any,
+    ) -> None:
+        response = await slack_client.delete("/api/v1/slack/oauth/disconnect")
+        assert response.status_code == status.HTTP_200_OK
+
+        logs = sync_session.exec(select(SlackConnectionLog)).all()
+        assert len(logs) == 1
+        assert logs[0].event_type == ConnectionEventType.disconnected
+        assert logs[0].workspace_id == test_workspace.id

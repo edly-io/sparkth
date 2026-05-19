@@ -1,16 +1,30 @@
 """Database models for the Slack TA Bot plugin."""
 
-from sqlalchemy import Text
-from sqlmodel import Column, Field, SQLModel
+from enum import Enum
+
+from sqlalchemy import Column, Text
+from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlmodel import Field, SQLModel
 
 from app.models.base import SoftDeleteModel, TimestampedModel
 
 
-class SlackWorkspace(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
-    """Persisted Slack workspace connection per course author.
+class ResponseType(str, Enum):
+    rag_match = "rag_match"
+    fallback = "fallback"
+    greeting = "greeting"
+    config_incomplete = "config_incomplete"
+    plugin_disabled = "plugin_disabled"
+    legacy = "legacy"
 
-    One active row per user. Reconnecting overwrites the existing row.
-    """
+
+class ConnectionEventType(str, Enum):
+    connected = "connected"
+    disconnected = "disconnected"
+
+
+class SlackWorkspace(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
+    """Persisted Slack workspace connection per course author."""
 
     __tablename__ = "slack_workspaces"
 
@@ -36,3 +50,28 @@ class BotResponseLog(TimestampedModel, SQLModel, table=True):
     question: str = Field(sa_column=Column(Text, nullable=False))
     answer: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     rag_matched: bool = Field(default=False, nullable=False)
+    response_type: ResponseType = Field(
+        sa_column=Column(
+            SQLAlchemyEnum(ResponseType, name="responsetype"),
+            nullable=False,
+            server_default="legacy",
+        )
+    )
+    slack_user_name: str | None = Field(default=None, max_length=255, nullable=True)
+    slack_channel_name: str | None = Field(default=None, max_length=255, nullable=True)
+
+
+class SlackConnectionLog(TimestampedModel, SQLModel, table=True):
+    """Audit log for Slack workspace connect and disconnect events."""
+
+    __tablename__ = "slack_connection_logs"
+
+    id: int | None = Field(default=None, primary_key=True)
+    workspace_id: int = Field(foreign_key="slack_workspaces.id", index=True, nullable=False)
+    event_type: ConnectionEventType = Field(
+        sa_column=Column(
+            SQLAlchemyEnum(ConnectionEventType, name="connectioneventtype"),
+            nullable=False,
+        )
+    )
+    team_name: str | None = Field(default=None, max_length=255, nullable=True)
