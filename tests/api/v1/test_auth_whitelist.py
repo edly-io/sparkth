@@ -22,7 +22,7 @@ async def test_register_allowed_email(client: AsyncClient, session: AsyncSession
                 "name": "Test User",
                 "username": _uniq("testuser"),
                 "email": email,
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 200
@@ -42,7 +42,7 @@ async def test_register_allowed_by_domain(client: AsyncClient, session: AsyncSes
                 "name": "Test User",
                 "username": _uniq("testuser"),
                 "email": f"{local}@{domain_suffix}",
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 200
@@ -56,7 +56,7 @@ async def test_register_blocked_email(client: AsyncClient) -> None:
                 "name": "Blocked User",
                 "username": _uniq("blocked"),
                 "email": f"{_uniq('blocked')}@nowhere.com",
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 403
@@ -71,7 +71,7 @@ async def test_register_blocked_when_whitelist_empty(client: AsyncClient) -> Non
                 "name": "New User",
                 "username": _uniq("newuser"),
                 "email": f"{_uniq('new')}@example.com",
-                "password": "testpassword",
+                "password": "Sup3rSecret!",
             },
         )
     assert response.status_code == 403
