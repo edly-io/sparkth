@@ -146,6 +146,21 @@ class ChatService:
         result = await session.exec(statement)
         return list(result.all())
 
+    async def get_last_conversation_message(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+    ) -> Message | None:
+        """Return the most recently created message for a conversation, or None."""
+        statement = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(col(Message.created_at).desc())
+            .limit(1)
+        )
+        result = await session.exec(statement)
+        return result.first()
+
     async def update_conversation_title(
         self,
         session: AsyncSession,

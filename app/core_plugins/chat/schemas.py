@@ -101,7 +101,7 @@ class ChatCompletionRequest(BaseModel):
 
 class ChatCompletionResponse(BaseModel):
     message: ChatMessage
-    conversation_id: UUID
+    conversation_id: UUID | None = None
     model: str
     provider: str
     tokens_used: int | None = None

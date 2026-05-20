@@ -17,6 +17,7 @@ export interface ChatMessage {
   streamedContent?: string;
   isTyping?: boolean;
   isError?: boolean;
+  isPending?: boolean;
   options?: string[];
   pillAttachment?: TextAttachment | null;
   statusText?: string;

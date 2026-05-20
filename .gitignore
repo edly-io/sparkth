@@ -234,3 +234,5 @@ ignored/
 logs/
 pr-comments/
 *.DS_Store
+.superpowers
+docs/superpowers/
