@@ -31,18 +31,17 @@ const RESEND_LABELS: Record<ResendStatus, string> = {
 // Slightly longer than the server cooldown so the user can retry without a refresh.
 const RESEND_AUTO_RESET_MS = 90_000;
 
-export default function LoginPage() {
-  // Suspense boundary co-located with useSearchParams: required by Next.js
-  // App Router so only this subtree (not the whole page) bails out to client
-  // rendering. The parent page.tsx wraps this too — nesting is harmless.
+function OAuthErrorAlert() {
+  const searchParams = useSearchParams();
+  if (searchParams.get("error") !== "email_not_whitelisted") return null;
   return (
-    <Suspense fallback={null}>
-      <LoginContent />
-    </Suspense>
+    <Alert severity="error">
+      Your email is not authorized to register. Contact an administrator.
+    </Alert>
   );
 }
 
-function LoginContent() {
+export default function LoginPage() {
   const { push } = useRouter();
   const { login } = useAuth();
 
@@ -51,9 +50,6 @@ function LoginContent() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
-
-  const { get: getSearchParam } = useSearchParams();
-  const oauthError = getSearchParam("error");
 
   const form = useForm({
     defaultValues: { username: "", password: "" },
@@ -145,11 +141,9 @@ function LoginContent() {
         </p>
 
         <form className="space-y-4 sm:space-y-6" onSubmit={handleFormSubmit}>
-          {oauthError === "email_not_whitelisted" && (
-            <Alert severity="error">
-              Your email is not authorized to register. Contact an administrator.
-            </Alert>
-          )}
+          <Suspense fallback={null}>
+            <OAuthErrorAlert />
+          </Suspense>
           {unverifiedEmail && (
             <Alert severity="warning">
               <p>
