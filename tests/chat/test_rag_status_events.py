@@ -1,6 +1,8 @@
 """Tests for SSE status events during RAG retrieval."""
 
+import asyncio
 import json
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,6 +10,7 @@ import pytest
 from app.core_plugins.chat.routes import stream_chat_response
 from app.core_plugins.chat.schemas import ChatMessage
 from app.rag.context_service import RAGContext, RAGContextService
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 
 def _make_rag_service(context: RAGContext) -> RAGContextService:
@@ -71,7 +74,6 @@ async def test_status_events_emitted_before_tokens() -> None:
         messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 42}]}],
         conversation=_make_conversation(),
         service=_make_service(),
-        session=AsyncMock(),
         tools=None,
         unresolved_messages=unresolved,
         rag_service=_make_rag_service(rag_context),
@@ -127,7 +129,6 @@ async def test_agent_context_injected_into_messages() -> None:
         messages=original_messages,
         conversation=_make_conversation(),
         service=_make_service(),
-        session=AsyncMock(),
         tools=None,
         unresolved_messages=unresolved,
         rag_service=_make_rag_service(rag_context),
@@ -182,7 +183,6 @@ async def test_multi_file_rag_context_preserved() -> None:
         messages=original_messages,
         conversation=_make_conversation(),
         service=_make_service(),
-        session=AsyncMock(),
         tools=None,
         unresolved_messages=unresolved,
         rag_service=rag_service,
@@ -209,7 +209,6 @@ async def test_no_status_events_without_drive_file_blocks() -> None:
         messages=[{"role": "user", "content": "Hello"}],
         conversation=_make_conversation(),
         service=_make_service(),
-        session=AsyncMock(),
         tools=None,
     ):
         events.append(chunk)
@@ -253,7 +252,6 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
         messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
         conversation=_make_conversation(),
         service=service,
-        session=AsyncMock(),
         tools=None,
         unresolved_messages=unresolved,
         rag_service=_make_rag_service(rag_context),
@@ -289,7 +287,6 @@ async def test_no_rag_sections_metadata_without_drive_files() -> None:
         messages=[{"role": "user", "content": "Hello"}],
         conversation=_make_conversation(),
         service=service,
-        session=AsyncMock(),
         tools=None,
     ):
         pass
@@ -346,6 +343,248 @@ class TestMessageResponseRagSections:
         assert response.rag_sections is None
 
 
+# ---------------------------------------------------------------------------
+# RAG exception → user-friendly SSE error (non-empty string)
+# ---------------------------------------------------------------------------
+
+
+def _make_failing_rag_service(exc: Exception) -> RAGContextService:
+    mock_service = MagicMock(spec=RAGContextService)
+    mock_service.get_context_via_agent = AsyncMock(side_effect=exc)
+    return mock_service
+
+
+def _unresolved_with_file(file_id: int = 1) -> list[ChatMessage]:
+    return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": file_id}])]
+
+
+async def _collect_events(gen: AsyncGenerator[str, None]) -> list[dict]:  # type: ignore[type-arg]
+    events = []
+    async for chunk in gen:
+        if chunk.startswith("data:"):
+            events.append(json.loads(chunk.replace("data: ", "").strip()))
+    return events
+
+
+@pytest.mark.asyncio
+async def test_drive_file_not_found_emits_friendly_error() -> None:
+    events = await _collect_events(
+        stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            rag_service=_make_failing_rag_service(DriveFileNotFoundError()),
+            user_id=1,
+            llm=MagicMock(),
+        )
+    )
+
+    error_events = [e for e in events if "error" in e]
+    assert len(error_events) == 1
+    assert error_events[0]["error"] != ""
+    assert "found" in error_events[0]["error"].lower() or "accessible" in error_events[0]["error"].lower()
+    assert error_events[0]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_rag_not_ready_emits_friendly_error() -> None:
+    events = await _collect_events(
+        stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            rag_service=_make_failing_rag_service(RAGNotReadyError(file_db_id=1, rag_status="PENDING")),
+            user_id=1,
+            llm=MagicMock(),
+        )
+    )
+
+    error_events = [e for e in events if "error" in e]
+    assert len(error_events) == 1
+    assert error_events[0]["error"] != ""
+    assert "processed" in error_events[0]["error"].lower() or "wait" in error_events[0]["error"].lower()
+    assert error_events[0]["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_rag_retrieval_error_emits_friendly_error() -> None:
+    events = await _collect_events(
+        stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            rag_service=_make_failing_rag_service(RAGRetrievalError()),
+            user_id=1,
+            llm=MagicMock(),
+        )
+    )
+
+    error_events = [e for e in events if "error" in e]
+    assert len(error_events) == 1
+    assert error_events[0]["error"] != ""
+    assert "search" in error_events[0]["error"].lower() or "failed" in error_events[0]["error"].lower()
+    assert error_events[0]["done"] is True
+
+
+# ---------------------------------------------------------------------------
+# Background task: add_message is called even when consumer stops early
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_add_message_called_after_early_consumer_exit() -> None:
+    """DB write must happen even if the SSE consumer stops reading before done."""
+    service = _make_service()
+
+    task_holder: list[asyncio.Task[None]] = []
+    gen = stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": "Hello"}],
+        conversation=_make_conversation(),
+        service=service,
+        tools=None,
+        _task_holder=task_holder,
+    )
+
+    # Consume only the first event then abandon the generator
+    async for _ in gen:
+        break
+
+    await task_holder[0]
+
+    add_message_calls = service.add_message.call_args_list
+    assistant_call = next((c for c in add_message_calls if c.kwargs.get("role") == "assistant"), None)
+    assert assistant_call is not None, "add_message must be called even when the consumer exits early"
+
+
+# ---------------------------------------------------------------------------
+# RAG exception → error message persisted to DB (is_error=True)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_drive_file_not_found_persists_error_to_db() -> None:
+    """DriveFileNotFoundError must write an is_error=True message to DB."""
+    service = _make_service()
+    task_holder: list[asyncio.Task[None]] = []
+    gen = stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+        conversation=_make_conversation(),
+        service=service,
+        tools=None,
+        unresolved_messages=_unresolved_with_file(),
+        rag_service=_make_failing_rag_service(DriveFileNotFoundError()),
+        user_id=1,
+        llm=MagicMock(),
+        _task_holder=task_holder,
+    )
+    async for _ in gen:
+        pass
+    await task_holder[0]
+    error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
+    assert len(error_calls) == 1
+    assert (
+        "found" in error_calls[0].kwargs["content"].lower() or "accessible" in error_calls[0].kwargs["content"].lower()
+    )
+
+
+@pytest.mark.asyncio
+async def test_rag_not_ready_persists_error_to_db() -> None:
+    """RAGNotReadyError must write an is_error=True message to DB."""
+    service = _make_service()
+    task_holder: list[asyncio.Task[None]] = []
+    gen = stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+        conversation=_make_conversation(),
+        service=service,
+        tools=None,
+        unresolved_messages=_unresolved_with_file(),
+        rag_service=_make_failing_rag_service(RAGNotReadyError(file_db_id=1, rag_status="PENDING")),
+        user_id=1,
+        llm=MagicMock(),
+        _task_holder=task_holder,
+    )
+    async for _ in gen:
+        pass
+    await task_holder[0]
+    error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
+    assert len(error_calls) == 1
+    assert "processed" in error_calls[0].kwargs["content"].lower() or "wait" in error_calls[0].kwargs["content"].lower()
+
+
+@pytest.mark.asyncio
+async def test_rag_retrieval_error_persists_error_to_db() -> None:
+    """RAGRetrievalError must write an is_error=True message to DB."""
+    service = _make_service()
+    task_holder: list[asyncio.Task[None]] = []
+    gen = stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+        conversation=_make_conversation(),
+        service=service,
+        tools=None,
+        unresolved_messages=_unresolved_with_file(),
+        rag_service=_make_failing_rag_service(RAGRetrievalError()),
+        user_id=1,
+        llm=MagicMock(),
+        _task_holder=task_holder,
+    )
+    async for _ in gen:
+        pass
+    await task_holder[0]
+    error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
+    assert len(error_calls) == 1
+    assert "search" in error_calls[0].kwargs["content"].lower() or "failed" in error_calls[0].kwargs["content"].lower()
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_persists_error_to_db() -> None:
+    """An unhandled exception escaping _run must write an is_error=True message to DB."""
+    service = _make_service()
+
+    provider = MagicMock()
+
+    async def _failing_stream(*_args: object, **_kwargs: object) -> AsyncGenerator[str, None]:
+        if False:
+            yield ""  # makes this an async generator
+        raise RuntimeError("simulated unexpected failure")
+
+    provider.stream_message = _failing_stream
+
+    task_holder: list[asyncio.Task[None]] = []
+    gen = stream_chat_response(
+        provider=provider,
+        messages=[{"role": "user", "content": "Hello"}],
+        conversation=_make_conversation(),
+        service=service,
+        tools=None,
+        _task_holder=task_holder,
+    )
+    async for _ in gen:
+        pass
+    await task_holder[0]
+
+    error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
+    assert len(error_calls) == 1
+    assert "unexpected" in error_calls[0].kwargs["content"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Metadata parsing helper
+# ---------------------------------------------------------------------------
+
+
 class TestParseMetadataList:
     def test_returns_none_for_no_metadata(self) -> None:
         from app.core_plugins.chat.routes import _parse_metadata_list
@@ -400,6 +639,11 @@ class TestParseMetadataList:
         assert _parse_metadata_list(meta, "tool_calls") is None
 
 
+# ---------------------------------------------------------------------------
+# Tool-call streaming → metadata persistence + done payload
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
 async def test_tool_calls_saved_in_metadata() -> None:
     """Tool call names are persisted in message metadata when tools are invoked."""
@@ -414,15 +658,17 @@ async def test_tool_calls_saved_in_metadata() -> None:
 
     provider.stream_message = stream_gen
 
+    task_holder: list[asyncio.Task[None]] = []
     async for _ in stream_chat_response(
         provider=provider,
         messages=[{"role": "user", "content": "search for something"}],
         conversation=_make_conversation(),
         service=service,
-        session=AsyncMock(),
         tools=None,
+        _task_holder=task_holder,
     ):
         pass
+    await task_holder[0]
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next(
@@ -449,16 +695,18 @@ async def test_tool_calls_in_done_payload() -> None:
     provider.stream_message = stream_gen
 
     events = []
+    task_holder: list[asyncio.Task[None]] = []
     async for chunk in stream_chat_response(
         provider=provider,
         messages=[{"role": "user", "content": "run a tool"}],
         conversation=_make_conversation(),
         service=_make_service(),
-        session=AsyncMock(),
         tools=None,
+        _task_holder=task_holder,
     ):
         if chunk.startswith("data:"):
             events.append(json.loads(chunk[5:].strip()))
+    await task_holder[0]
 
     done_event = next((e for e in events if e.get("done")), None)
     assert done_event is not None
@@ -471,15 +719,17 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
     """When no tools are invoked, tool_calls is absent from the message metadata."""
     service = _make_service()
 
+    task_holder: list[asyncio.Task[None]] = []
     async for _ in stream_chat_response(
         provider=_make_provider(),
         messages=[{"role": "user", "content": "Hello"}],
         conversation=_make_conversation(),
         service=service,
-        session=AsyncMock(),
         tools=None,
+        _task_holder=task_holder,
     ):
         pass
+    await task_holder[0]
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next(

@@ -4,6 +4,8 @@ import json
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anthropic
+import httpx
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -683,3 +685,141 @@ class TestDriveFileIdsOwnershipCheck:
 
         assert response.status_code == 200
         mock_attach.assert_not_called()
+
+
+class TestProviderApiErrorPersistence:
+    """Provider API errors at the route handler level must be saved to DB."""
+
+    @pytest.mark.asyncio
+    async def test_provider_api_error_during_rag_routing_persists_error_to_db(
+        self,
+        client: AsyncClient,
+        current_user: Any,
+        session: AsyncSession,
+    ) -> None:
+        """A 529 (overloaded) from the provider during RAG routing must write
+        an is_error=True message to DB so reloading shows the error card."""
+        seed = await _seed(session, current_user.id or 1)
+        mock_msg = MagicMock()
+        mock_msg.id = 99
+
+        mock_request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+        overloaded_exc = anthropic.APIStatusError(
+            "Overloaded",
+            response=httpx.Response(529, request=mock_request),
+            body={"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}},
+        )
+
+        with (
+            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "app.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "app.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(side_effect=overloaded_exc)
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_get_msgs.return_value = []
+            mock_add_msg.return_value = mock_msg
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize the document"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 502
+        error_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("is_error") is True]
+        assert len(error_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_rag_intent_router_error_persists_error_to_db(
+        self,
+        client: AsyncClient,
+        current_user: Any,
+        session: AsyncSession,
+    ) -> None:
+        """A RAGIntentRouterError must write an is_error=True message to DB."""
+        seed = await _seed(session, current_user.id or 1)
+        mock_msg = MagicMock()
+        mock_msg.id = 99
+
+        with (
+            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "app.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "app.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("router failed"))
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_get_msgs.return_value = []
+            mock_add_msg.return_value = mock_msg
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize the document"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 502
+        error_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("is_error") is True]
+        assert len(error_calls) == 1
