@@ -196,6 +196,26 @@ def mock_rag_provider() -> Generator[Any, None, None]:
 
 
 @pytest.fixture(autouse=True)
+def reset_cache_service() -> Generator[None, None, None]:
+    """Clear the get_cache_service lru_cache after each test.
+
+    CacheService holds a Redis connection bound to the event loop that was
+    current when connect() first ran.  With per-test (function-scoped) event
+    loops each test gets a new loop, but the cached CacheService still holds a
+    connection from the previous (now-closed) loop.  When that stale connection
+    tries to disconnect it calls self._writer.close() → loop.call_soon() on the
+    closed loop → RuntimeError that is not caught by `except RedisError`.
+
+    Clearing the lru_cache forces a fresh CacheService (self._redis = None) for
+    every test so the connection is always made in the current loop.
+    """
+    yield
+    from app.core.cache import get_cache_service
+
+    get_cache_service.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def stub_send_verification_email() -> Generator[Any, None, None]:
     """Stub the verification email sender so tests don't hit SMTP.
 

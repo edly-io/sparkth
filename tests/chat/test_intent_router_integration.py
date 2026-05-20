@@ -360,7 +360,7 @@ class TestIntentRouterIntegration:
             mock_provider.create_llm.return_value = MagicMock()
 
             async def _stream(*args: Any, **kwargs: Any) -> Any:
-                yield "Hi!"
+                yield {"type": "token", "content": "Hi!"}
 
             mock_provider.stream_message = _stream
             mock_get_provider.return_value = mock_provider

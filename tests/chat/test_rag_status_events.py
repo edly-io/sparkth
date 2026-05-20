@@ -21,8 +21,8 @@ def _make_provider() -> MagicMock:
     provider = MagicMock()
 
     async def stream_gen(*args: object, **kwargs: object) -> object:
-        yield "Hello"
-        yield " world"
+        yield {"type": "token", "content": "Hello"}
+        yield {"type": "token", "content": " world"}
 
     provider.stream_message = stream_gen
     return provider
@@ -344,3 +344,189 @@ class TestMessageResponseRagSections:
             attachment_size=None,
         )
         assert response.rag_sections is None
+
+
+class TestParseMetadataList:
+    def test_returns_none_for_no_metadata(self) -> None:
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        assert _parse_metadata_list(None, "tool_calls") is None
+
+    def test_returns_none_for_empty_metadata(self) -> None:
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        assert _parse_metadata_list("{}", "tool_calls") is None
+
+    def test_returns_none_for_invalid_json(self) -> None:
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        assert _parse_metadata_list("not-json", "tool_calls") is None
+
+    def test_returns_none_when_value_not_list(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        assert _parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
+
+    def test_returns_list_for_tool_calls_key(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        meta = json.dumps({"tool_calls": [{"name": "search_web"}, {"name": "search_web"}]})
+        result = _parse_metadata_list(meta, "tool_calls")
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["name"] == "search_web"
+
+    def test_returns_list_for_rag_sections_key(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
+        result = _parse_metadata_list(meta, "rag_sections")
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["name"] == "Intro"
+
+    def test_ignores_other_keys(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes import _parse_metadata_list
+
+        meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
+        assert _parse_metadata_list(meta, "tool_calls") is None
+
+
+@pytest.mark.asyncio
+async def test_tool_calls_saved_in_metadata() -> None:
+    """Tool call names are persisted in message metadata when tools are invoked."""
+    service = _make_service()
+
+    provider = MagicMock()
+
+    async def stream_gen(*args: object, **kwargs: object) -> object:
+        yield {"type": "tool_start", "name": "search_web"}
+        yield {"type": "tool_end", "name": "search_web"}
+        yield {"type": "token", "content": "Result"}
+
+    provider.stream_message = stream_gen
+
+    async for _ in stream_chat_response(
+        provider=provider,
+        messages=[{"role": "user", "content": "search for something"}],
+        conversation=_make_conversation(),
+        service=service,
+        session=AsyncMock(),
+        tools=None,
+    ):
+        pass
+
+    add_message_calls = service.add_message.call_args_list
+    assistant_call = next(
+        (c for c in add_message_calls if c.kwargs.get("role") == "assistant"),
+        None,
+    )
+    assert assistant_call is not None
+    metadata = assistant_call.kwargs.get("metadata")
+    assert metadata is not None
+    assert "tool_calls" in metadata
+    assert metadata["tool_calls"] == [{"name": "search_web"}]
+
+
+@pytest.mark.asyncio
+async def test_tool_calls_in_done_payload() -> None:
+    """The done SSE payload includes tool_calls so the frontend can confirm them."""
+    provider = MagicMock()
+
+    async def stream_gen(*args: object, **kwargs: object) -> object:
+        yield {"type": "tool_start", "name": "get_data"}
+        yield {"type": "tool_end", "name": "get_data"}
+        yield {"type": "token", "content": "Done"}
+
+    provider.stream_message = stream_gen
+
+    events = []
+    async for chunk in stream_chat_response(
+        provider=provider,
+        messages=[{"role": "user", "content": "run a tool"}],
+        conversation=_make_conversation(),
+        service=_make_service(),
+        session=AsyncMock(),
+        tools=None,
+    ):
+        if chunk.startswith("data:"):
+            events.append(json.loads(chunk[5:].strip()))
+
+    done_event = next((e for e in events if e.get("done")), None)
+    assert done_event is not None
+    msg = done_event.get("message", {})
+    assert msg.get("tool_calls") == [{"name": "get_data"}]
+
+
+@pytest.mark.asyncio
+async def test_no_tool_calls_metadata_without_tools() -> None:
+    """When no tools are invoked, tool_calls is absent from the message metadata."""
+    service = _make_service()
+
+    async for _ in stream_chat_response(
+        provider=_make_provider(),
+        messages=[{"role": "user", "content": "Hello"}],
+        conversation=_make_conversation(),
+        service=service,
+        session=AsyncMock(),
+        tools=None,
+    ):
+        pass
+
+    add_message_calls = service.add_message.call_args_list
+    assistant_call = next(
+        (c for c in add_message_calls if c.kwargs.get("role") == "assistant"),
+        None,
+    )
+    assert assistant_call is not None
+    metadata = assistant_call.kwargs.get("metadata")
+    assert metadata is None or metadata.get("tool_calls") is None
+
+
+class TestMessageResponseToolCalls:
+    def test_message_response_accepts_tool_calls(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
+        response = MessageResponse(
+            id=1,
+            role="assistant",
+            content="Here is your answer.",
+            tokens_used=None,
+            cost=None,
+            created_at=datetime(2024, 1, 1),
+            message_type="text",
+            attachment_name=None,
+            attachment_size=None,
+            tool_calls=[{"name": "search_web"}, {"name": "search_web"}],
+        )
+        assert response.tool_calls is not None
+        assert len(response.tool_calls) == 2
+        assert response.tool_calls[0]["name"] == "search_web"
+
+    def test_message_response_tool_calls_defaults_to_none(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
+        response = MessageResponse(
+            id=1,
+            role="assistant",
+            content="Hello.",
+            tokens_used=None,
+            cost=None,
+            created_at=datetime(2024, 1, 1),
+            message_type="text",
+            attachment_name=None,
+            attachment_size=None,
+        )
+        assert response.tool_calls is None
