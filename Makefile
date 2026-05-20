@@ -164,7 +164,6 @@ test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1
 	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
 
 test.help: ## Show usage for all test commands
-
 	@echo "Usage: make \033[36m<test-target>\033[0m [path] [with-coverage=1]\n"
 	@echo "\033[1mTargets:\033[0m"
 	@echo "  \033[36mtest\033[0m              Run all tests (frontend + backend)"
