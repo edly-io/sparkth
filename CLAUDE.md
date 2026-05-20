@@ -51,8 +51,10 @@ make clean           # Stop + wipe database volume
 make dev             # Install dev dependencies
 make api             # FastAPI on http://0.0.0.0:7727
 make mcp             # MCP server (HTTP mode)
-make test            # Run pytest
-make cov             # Tests with coverage
+make test            # Run all tests (frontend + backend)
+make test.backend    # Run backend tests only
+make test.frontend   # Run frontend tests only
+make test.help       # Show usage for all test commands
 make lint            # Ruff lint
 make fix             # Ruff autofix + format
 make mypy            # mypy --strict
