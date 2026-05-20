@@ -90,7 +90,11 @@ function applyStatusEvent(
   setMessages: UseChatStreamOptions["setMessages"],
 ) {
   if (parsed.status === "section_scanning" && parsed.section) {
-    const section = parsed.section as { type: string; name: string; source?: string };
+    const section = parsed.section as {
+      type: string;
+      name: string;
+      source?: string;
+    };
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === assistantId
@@ -164,9 +168,64 @@ function applyStatusEvent(
   }
 }
 
+const STREAM_STORAGE_KEY = (conversationId: string) => `chat_stream:${conversationId}`;
+const STREAM_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// Stay safely under the typical 5 MB sessionStorage limit. Writes are skipped
+// once the payload exceeds this — recovery degrades gracefully for very long
+// responses rather than throwing QuotaExceededError silently.
+const STREAM_STORAGE_MAX_BYTES = 4 * 1024 * 1024;
+
+function saveStreamProgress(conversationId: string | null, content: string, phase?: string): void {
+  if (!conversationId) return;
+  try {
+    const payload = JSON.stringify({ content, phase, timestamp: Date.now() });
+    if (payload.length > STREAM_STORAGE_MAX_BYTES) return;
+    sessionStorage.setItem(STREAM_STORAGE_KEY(conversationId), payload);
+  } catch {
+    // sessionStorage unavailable (private browsing) — silently ignore
+  }
+}
+
+export function clearStreamProgress(conversationId: string | null): void {
+  if (!conversationId) return;
+  try {
+    sessionStorage.removeItem(STREAM_STORAGE_KEY(conversationId));
+  } catch {
+    // ignore
+  }
+}
+
+// Synthetic message IDs injected by useConversation when a response is pending after refresh.
+// handleSend strips these before starting a new stream so polling and streaming don't conflict.
+export const RECOVERY_PLACEHOLDER_IDS = new Set(["restored-stream", "pending-response"]);
+
+export interface StreamProgressData {
+  content: string;
+  phase?: string;
+}
+
+export function getRestoredStreamData(conversationId: string): StreamProgressData | null {
+  try {
+    const raw = sessionStorage.getItem(STREAM_STORAGE_KEY(conversationId));
+    if (!raw) return null;
+    const { content, phase, timestamp } = JSON.parse(raw) as {
+      content: string;
+      phase?: string;
+      timestamp: number;
+    };
+    if (Date.now() - timestamp > STREAM_STORAGE_TTL_MS) return null;
+    // Return even if content is empty — phase alone (e.g. "scanning") is useful for UX.
+    if (!content && !phase) return null;
+    return { content, phase };
+  } catch {
+    return null;
+  }
+}
+
 async function readStream(
   body: ReadableStream<Uint8Array>,
   assistantId: string,
+  conversationId: string | null,
   setMessages: UseChatStreamOptions["setMessages"],
   onFail: (text: string) => void,
 ) {
@@ -179,6 +238,8 @@ async function readStream(
   let doneOptions: string[] = [];
   let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
   let doneToolCalls: { name: string }[] | null = null;
+  let lastSaveTime = 0;
+  const SAVE_INTERVAL_MS = 500;
 
   outer: while (true) {
     const { value, done } = await reader.read();
@@ -197,23 +258,37 @@ async function readStream(
       try {
         const parsed = JSON.parse(payload);
 
-        if (parsed.error) {
-          onFail(parsed.error ?? "An error occurred.");
+        if (parsed.error !== undefined) {
+          onFail(parsed.error || "An error occurred.");
           hasError = true;
           break outer;
         }
 
         if (parsed.status) {
+          // Persist the current RAG phase so a mid-stream refresh can show a
+          // meaningful message ("Scanning documents…") rather than a generic one.
+          if (parsed.status === "scanning_attachments" || parsed.status === "searching_document") {
+            saveStreamProgress(conversationId, assistantText, parsed.status as string);
+          }
           applyStatusEvent(parsed, assistantId, setMessages);
           continue;
         }
 
         if (parsed.token) {
           assistantText += parsed.token;
+          const now = Date.now();
+          if (now - lastSaveTime >= SAVE_INTERVAL_MS) {
+            saveStreamProgress(conversationId, assistantText);
+            lastSaveTime = now;
+          }
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantId
-                ? { ...msg, streamedContent: assistantText, statusText: undefined }
+                ? {
+                    ...msg,
+                    streamedContent: assistantText,
+                    statusText: undefined,
+                  }
                 : msg,
             ),
           );
@@ -225,7 +300,11 @@ async function readStream(
           if (parsed.options) doneOptions = parsed.options as string[];
           const sections = (parsed.message as Record<string, unknown> | undefined)?.rag_sections;
           if (Array.isArray(sections) && sections.length > 0) {
-            doneRagSections = sections as { type: string; name: string; source?: string }[];
+            doneRagSections = sections as {
+              type: string;
+              name: string;
+              source?: string;
+            }[];
           }
           const toolCallsFromDone = (parsed.message as Record<string, unknown> | undefined)
             ?.tool_calls;
@@ -239,6 +318,11 @@ async function readStream(
       }
     }
   }
+
+  // Final flush: write all accumulated tokens before returning so a refresh in
+  // the narrow gap between stream-end and DB commit still recovers the full text.
+  // useConversation's polling clears the key once the DB message lands.
+  saveStreamProgress(conversationId, assistantText);
 
   return {
     assistantText,
@@ -258,7 +342,10 @@ export function useChatStream({
   setMessages,
   onNewConversation,
 }: UseChatStreamOptions) {
-  const lastSentRef = useRef<{ message: string; attachments: TextAttachment[] }>({
+  const lastSentRef = useRef<{
+    message: string;
+    attachments: TextAttachment[];
+  }>({
     message: "",
     attachments: [],
   });
@@ -275,6 +362,7 @@ export function useChatStream({
                 streamedContent: undefined,
                 isTyping: false,
                 isError: true,
+                isPending: false,
               }
             : msg,
         ),
@@ -287,6 +375,10 @@ export function useChatStream({
     async ({ message, attachments, driveFileIds, similarityThreshold = 0.45 }: SendPayload) => {
       lastSentRef.current = { message, attachments };
       lastSentThresholdRef.current = similarityThreshold;
+
+      // Strip recovery placeholders before starting a fresh stream — prevents the
+      // post-refresh polling from conflicting with a new, live stream.
+      setMessages((prev) => prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id)));
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -301,7 +393,13 @@ export function useChatStream({
 
       setMessages((prev) => [
         ...prev,
-        { id: assistantId, role: "assistant", content: "", streamedContent: "", isTyping: true },
+        {
+          id: assistantId,
+          role: "assistant",
+          content: "",
+          streamedContent: "",
+          isTyping: true,
+        },
       ]);
 
       try {
@@ -352,7 +450,7 @@ export function useChatStream({
           doneOptions,
           doneRagSections,
           doneToolCalls,
-        } = await readStream(res.body, assistantId, setMessages, (text) =>
+        } = await readStream(res.body, assistantId, conversationId, setMessages, (text) =>
           failAssistantMessage(assistantId, text),
         );
 
@@ -386,6 +484,7 @@ export function useChatStream({
           }
         }
       } catch (err) {
+        clearStreamProgress(conversationId);
         const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
         failAssistantMessage(assistantId, errorMsg);
       }
@@ -407,7 +506,11 @@ export function useChatStream({
         const { message, attachments } = lastSentRef.current;
         const last = lastSentThresholdRef.current;
         const nextThreshold = last > 0.3 ? 0.3 : 0.15;
-        handleSend({ message, attachments, similarityThreshold: nextThreshold });
+        handleSend({
+          message,
+          attachments,
+          similarityThreshold: nextThreshold,
+        });
       } else {
         handleSend({ message: text, attachments: [] });
       }

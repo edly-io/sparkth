@@ -190,6 +190,16 @@ export function AssistantMessage({
                 ) : (
                   <ThinkingDots />
                 )
+              ) : message.isPending ? (
+                <div className="flex items-start gap-2">
+                  <span
+                    data-testid="pending-indicator"
+                    className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
+                  />
+                  <div className="prose prose-neutral dark:prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
+                  </div>
+                </div>
               ) : (
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
