@@ -121,10 +121,9 @@ class TestExtractTitleFromMessages:
 
 class TestGenerateConversationTitle:
     """
-    The function:
-      1. Reads platform credentials from ChatSystemConfig — raises EnvironmentError if any are missing
-      2. Calls provider.send_message with a title prompt
-      3. Strips the response and persists via service.update_conversation_title
+    generate_conversation_title:
+      1. Calls provider.send_message with a title prompt
+      2. Strips the response and persists via service.update_conversation_title
     """
 
     def _make_mocks(self, llm_response: str = "Debugging Async Session") -> tuple[MagicMock, MagicMock, AsyncMock]:
@@ -140,19 +139,6 @@ class TestGenerateConversationTitle:
 
         return mock_provider, mock_service, mock_session
 
-    def _make_sys_cfg(
-        self,
-        *,
-        title_generation_provider: str = "anthropic",
-        title_generation_api_key: str = "sk-ant-platform-key",
-        title_generation_model: str = "claude-haiku-4-5",
-    ) -> MagicMock:
-        cfg = MagicMock()
-        cfg.title_generation_provider = title_generation_provider
-        cfg.title_generation_api_key = title_generation_api_key
-        cfg.title_generation_model = title_generation_model
-        return cfg
-
     async def _call(
         self,
         mock_provider: MagicMock,
@@ -162,23 +148,14 @@ class TestGenerateConversationTitle:
         conversation_id: int = 1,
         user_id: int = 42,
         first_user_message: str = "some message",
-        sys_cfg: MagicMock | None = None,
     ) -> None:
-        if sys_cfg is None:
-            sys_cfg = self._make_sys_cfg()
-        with (
-            patch("app.core_plugins.chat.conversation_title.get_provider", return_value=mock_provider),
-            patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session),
-            patch(
-                "app.core_plugins.chat.config.ChatSystemConfig",
-                return_value=sys_cfg,
-            ),
-        ):
+        with patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session):
             await generate_conversation_title(
                 conversation_id=conversation_id,
                 user_id=user_id,
                 first_user_message=first_user_message,
                 service=mock_service,
+                provider=mock_provider,
             )
 
     async def test_calls_update_with_llm_title(self) -> None:
@@ -220,20 +197,17 @@ class TestGenerateConversationTitle:
         mock_provider = MagicMock()
         mock_provider.send_message = AsyncMock(side_effect=RuntimeError("API error"))
         mock_service = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
 
-        with (
-            patch("app.core_plugins.chat.conversation_title.get_provider", return_value=mock_provider),
-            patch(
-                "app.core_plugins.chat.config.ChatSystemConfig",
-                return_value=self._make_sys_cfg(),
-            ),
-        ):
-            await generate_conversation_title(
-                conversation_id=5,
-                user_id=42,
-                first_user_message="message",
-                service=mock_service,
-            )
+        await generate_conversation_title(
+            conversation_id=5,
+            user_id=42,
+            first_user_message="message",
+            service=mock_service,
+            provider=mock_provider,
+        )
 
     async def test_prompt_contains_first_user_message(self) -> None:
         mock_provider, mock_service, mock_session = self._make_mocks("Some Title")
@@ -252,59 +226,19 @@ class TestGenerateConversationTitle:
         assert "x" * 501 not in prompt_content
         assert "x" * 500 in prompt_content
 
-    async def test_uses_platform_credentials(self) -> None:
-        """Platform provider/key/model from config are forwarded to get_provider."""
-        mock_provider, mock_service, mock_session = self._make_mocks("Platform Title")
+    async def test_passed_provider_send_message_is_called(self) -> None:
+        """The provider passed in is the one whose send_message is called."""
+        mock_provider, mock_service, mock_session = self._make_mocks("Passed Provider Title")
 
-        with (
-            patch(
-                "app.core_plugins.chat.conversation_title.get_provider",
-                return_value=mock_provider,
-            ) as mock_get_provider,
-            patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session),
-            patch(
-                "app.core_plugins.chat.config.ChatSystemConfig",
-                return_value=self._make_sys_cfg(
-                    title_generation_provider="anthropic",
-                    title_generation_api_key="sk-ant-platform-key",
-                    title_generation_model="claude-haiku-4-5",
-                ),
-            ),
-        ):
+        with patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session):
             await generate_conversation_title(
                 conversation_id=8,
                 user_id=42,
                 first_user_message="some message",
                 service=mock_service,
+                provider=mock_provider,
             )
 
-        mock_get_provider.assert_called_once()
-        call_kwargs = mock_get_provider.call_args.kwargs
-        assert call_kwargs["provider_name"] == "anthropic"
-        assert call_kwargs["api_key"] == "sk-ant-platform-key"
-        assert call_kwargs["model"] == "claude-haiku-4-5"
-
-    async def test_skips_quietly_when_platform_credentials_missing(self) -> None:
-        """No exception is raised when config values are absent — background task fails silently."""
-        mock_service = AsyncMock()
-
-        with (
-            patch("app.core_plugins.chat.conversation_title.get_provider") as mock_get_provider,
-            patch(
-                "app.core_plugins.chat.config.ChatSystemConfig",
-                return_value=self._make_sys_cfg(
-                    title_generation_provider="",
-                    title_generation_api_key="",
-                    title_generation_model="",
-                ),
-            ),
-        ):
-            await generate_conversation_title(
-                conversation_id=9,
-                user_id=42,
-                first_user_message="some message",
-                service=mock_service,
-            )
-
-        mock_get_provider.assert_not_called()
-        mock_service.update_conversation_title.assert_not_awaited()
+        mock_provider.send_message.assert_awaited_once()
+        sent_messages = mock_provider.send_message.call_args.kwargs["messages"]
+        assert any("some message" in m["content"] for m in sent_messages)

@@ -351,12 +351,18 @@ async def chat_completion(
 
         first_user_text = get_first_user_text(request.messages)
         if first_user_text:
+            title_provider = get_provider(
+                provider_name=provider_name,
+                api_key=api_key,
+                model=model,
+            )
             background_tasks.add_task(
                 generate_conversation_title,
                 conversation_id=conversation.id,  # type: ignore
                 user_id=current_user.id,  # type: ignore
                 first_user_message=first_user_text,
                 service=service,
+                provider=title_provider,
             )
 
     # Attach any drive files included with the request (covers new-conversation flow

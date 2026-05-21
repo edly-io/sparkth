@@ -1,6 +1,9 @@
 import re
 
 SLACK_AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize"
+
+NO_AI_KEY_MESSAGE = "I'm not configured with an AI key yet. Please ask your instructor to add one in the bot settings."
+AI_KEY_UNAVAILABLE_MESSAGE = "I couldn't connect to the AI service right now. Please try again in a moment."
 SLACK_TOKEN_URL = "https://slack.com/api/oauth.v2.access"
 
 BOT_SCOPES = [
