@@ -117,7 +117,7 @@ frontend: ## Run frontend dev server (hot reload)
 # --------------------------------------------------
 # Backend
 # --------------------------------------------------
-backend.build:	## Build Python package (sdist + wheel)
+backend.build: ## Build Python package (sdist + wheel)
 	uv build
 
 backend.install: ## Install exact backend dependencies from lockfile
