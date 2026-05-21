@@ -10,9 +10,10 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 # PHONY TARGETS
 # --------------------------------------------------
-.PHONY: help uv dev lock install test test.backend test.frontend test.help build mypy \
+.PHONY: help uv dev lock test test.backend test.frontend test.help mypy \
         up dev.up down clean restart logs shell db-shell migrations base \
-        frontend frontend.build \
+        frontend frontend.build frontend.install \
+        backend.build backend.install \
         lint lint.fix lint.format lint.frontend lint.backend \
         lint.fix.frontend lint.fix.backend lint.format.frontend lint.format.backend lint.help \
         create-user reset-password \
@@ -26,11 +27,13 @@ help: ## Show this help
 	@echo "\033[1mDocker Targets:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mFrontend Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build|frontend\.install)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\n\033[1mBackend Targets:\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(backend\.build|backend\.install)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mRun Services Locally:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|build|mypy)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|mypy)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLinting Targets:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(lint|lint\.fix|lint\.format|lint\.frontend|lint\.backend|lint\.fix\.frontend|lint\.fix\.backend|lint\.format\.frontend|lint\.format\.backend|lint\.help)$$/) printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mTesting Targets:\033[0m"
@@ -40,7 +43,13 @@ help: ## Show this help
 	@echo
 
 # --------------------------------------------------
-# Docker Operations
+# Project Setup
+# --------------------------------------------------
+uv: ## Install uv if missing
+	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# --------------------------------------------------
+# Docker Setup/Operations
 # --------------------------------------------------
 base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
 	docker build -f Dockerfile.base -t sparkth-base:local .
@@ -96,17 +105,23 @@ reset-password: ## Reset password (make reset-password -- username)
 # --------------------------------------------------
 # Frontend
 # --------------------------------------------------
-frontend: ## Run frontend dev server (hot reload)
-	cd frontend && bun install && bun run dev
-
 frontend.build: ## Build frontend (static export to frontend/out)
 	cd frontend && bun install --frozen-lockfile && bun run build
 
+frontend.install: ## Install exact frontend dependencies from lockfile
+	cd frontend && bun install --frozen-lockfile
+
+frontend: ## Run frontend dev server (hot reload)
+	cd frontend && bun install && bun run dev
+
 # --------------------------------------------------
-# Local Development (using uv)
+# Backend
 # --------------------------------------------------
-uv: ## Install uv if missing
-	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+backend.build: ## Build Python package (sdist + wheel)
+	uv build
+
+backend.install: ## Install exact backend dependencies from lockfile
+	uv sync --frozen
 
 dev: uv ## Install dev dependencies locally
 	uv sync --all-extras --dev
@@ -114,9 +129,6 @@ dev: uv ## Install dev dependencies locally
 
 lock: uv ## Update lockfile
 	uv lock
-
-install: uv ## Install exact versions from lockfile
-	uv sync --frozen
 
 api: ## Run FastAPI server locally
 	uv run fastapi dev app/main.py --host 0.0.0.0 --port 7727
@@ -129,9 +141,6 @@ cli: ## Run CLI tool (make cli -- users --help)
 
 mypy: ## Run mypy type checking
 	uv run mypy --strict app/ tests/
-
-build: ## Build Python package (sdist + wheel)
-	uv build
 
 # --------------------------------------------------
 # Testing
@@ -224,39 +233,6 @@ lint.help: ## Show usage for all lint commands
 	@echo "  make lint.format check=1"
 	@echo "  make lint.frontend"
 	@echo "  make lint.format.backend check=1"
-	@echo
-
-# --------------------------------------------------
-# Testing
-# --------------------------------------------------
-test: ## Run tests (with-coverage=1 to include coverage)
-	$(MAKE) test.frontend $(if $(with-coverage),with-coverage=1)
-	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
-
-test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
-	uv run pytest $(if $(ARGS),$(ARGS),tests/) $(if $(with-coverage),--cov-report=term-missing)
-
-test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
-	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
-
-test.help: ## Show usage for all test commands
-	@echo "Usage: make \033[36m<test-target>\033[0m [path] [with-coverage=1]\n"
-	@echo "\033[1mTargets:\033[0m"
-	@echo "  \033[36mtest\033[0m              Run all tests (frontend + backend)"
-	@echo "  \033[36mtest.backend\033[0m      Run backend tests"
-	@echo "  \033[36mtest.frontend\033[0m     Run frontend tests"
-	@echo "\n\033[1mOptions:\033[0m"
-	@echo "  \033[33m[path]\033[0m            File or directory to test (default: all tests)"
-	@echo "  \033[33mwith-coverage=1\033[0m   Enable coverage reporting"
-	@echo "\n\033[1mExamples:\033[0m"
-	@echo "  make test"
-	@echo "  make test with-coverage=1"
-	@echo "  make test.backend tests/rag/"
-	@echo "  make test.backend tests/rag/test_store.py"
-	@echo "  make test.backend tests/rag/ with-coverage=1"
-	@echo "  make test.frontend"
-	@echo "  make test.frontend components/Button.test.tsx"
-	@echo "  make test.frontend with-coverage=1"
 	@echo
 
 # --------------------------------------------------
