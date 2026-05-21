@@ -16,14 +16,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
+from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
+from app.rag.db_models import DocumentChunk, DriveFileChunkLink
 from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.exceptions import ScannedPDFError
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
-from app.rag.memory_profiler import profile_memory
-from app.rag.models import DocumentChunk, DriveFileChunkLink
-from app.rag.provider import get_provider
+from app.rag.provider import embedding_provider
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
@@ -374,7 +374,7 @@ async def process_folder_rag(
     if not files:
         return
 
-    provider = get_provider()
+    provider = embedding_provider.get()
     store = VectorStoreService()
     semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 

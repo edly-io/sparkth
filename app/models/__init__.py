@@ -1,4 +1,4 @@
-from app.rag.models import DocumentChunk  # noqa: E402
+from app.rag.db_models import DocumentChunk  # noqa: E402
 
 from .drive import DriveFile, DriveFolder, DriveOAuthToken
 from .email_verification import EmailVerificationToken

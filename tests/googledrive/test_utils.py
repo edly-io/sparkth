@@ -465,7 +465,7 @@ class TestEmbedAndStoreChunks:
         from sqlmodel.ext.asyncio.session import AsyncSession
 
         from app.models.drive import DriveFolder
-        from app.rag.models import DocumentChunk, DriveFileChunkLink
+        from app.rag.db_models import DocumentChunk, DriveFileChunkLink
 
         async_session: AsyncSession = session
 
@@ -899,7 +899,7 @@ class TestProcessSingleFile:
 
 class TestProcessFolderRag:
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
-    @patch("app.core_plugins.googledrive.utils.get_provider")
+    @patch("app.rag.provider.EmbeddingProviderRegistry.get")
     async def test_skips_when_no_files(self, mock_provider: MagicMock, mock_session_cls: MagicMock) -> None:
         """Empty folder should return early."""
         folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
@@ -919,7 +919,7 @@ class TestProcessFolderRag:
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
-    @patch("app.core_plugins.googledrive.utils.get_provider")
+    @patch("app.rag.provider.EmbeddingProviderRegistry.get")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_skips_ready_files(
         self,
@@ -965,7 +965,7 @@ class TestProcessFolderRag:
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
-    @patch("app.core_plugins.googledrive.utils.get_provider")
+    @patch("app.rag.provider.EmbeddingProviderRegistry.get")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_base_exception_from_gather_is_logged(
         self,
