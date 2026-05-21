@@ -1,6 +1,6 @@
 """PDF extractor using PyMuPDF, with scanned-PDF detection and page batching."""
 
-from typing import Any, Optional
+from typing import Any
 
 import fitz  # type: ignore[import-untyped]  # PyMuPDF
 import pymupdf4llm  # type: ignore[import-untyped]
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 class PDFExtractor(BaseExtractor):
     """Extracts text from PDF files using PyMuPDF, with scanned-PDF detection."""
 
-    def extract(self, data: bytes, source_name: str, *, batch_size: Optional[int] = None) -> ExtractionResult:
+    def extract(self, data: bytes, source_name: str, *, batch_size: int | None = None) -> ExtractionResult:
         settings = get_settings()
         effective_batch_size = batch_size if batch_size is not None else settings.RAG_PDF_EXTRACTION_BATCH_SIZE
         with fitz.open(stream=data, filetype="pdf") as doc:

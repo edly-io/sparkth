@@ -19,6 +19,9 @@ class DocxExtractor(BaseExtractor):
     """Extracts text from DOCX files, converting headings, lists, and tables to Markdown."""
 
     def extract(self, data: bytes, source_name: str) -> ExtractionResult:
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+
         doc = DocxDocument(io.BytesIO(data))
         lines: list[str] = []
         warnings: list[str] = []
@@ -30,8 +33,6 @@ class DocxExtractor(BaseExtractor):
             tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
             if tag == "p":  # paragraph
-                from docx.text.paragraph import Paragraph
-
                 para = Paragraph(child, doc)
                 md = self._paragraph_to_md(para, ordered_counters)
                 if md:
@@ -39,8 +40,6 @@ class DocxExtractor(BaseExtractor):
                     lines.append("")
 
             elif tag == "tbl":  # table
-                from docx.table import Table
-
                 tbl = Table(child, doc)
                 md = self._table_to_md(tbl)
                 if md:

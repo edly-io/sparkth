@@ -659,10 +659,10 @@ class TestSupportedExtensions:
 
         assert isinstance(SUPPORTED_EXTENSIONS, frozenset)
 
-    def test_matches_registry_keys(self) -> None:
-        from app.rag.extraction import _REGISTRY, SUPPORTED_EXTENSIONS
+    def test_contains_expected_extensions(self) -> None:
+        from app.rag.extraction import SUPPORTED_EXTENSIONS
 
-        assert SUPPORTED_EXTENSIONS == frozenset(_REGISTRY)
+        assert SUPPORTED_EXTENSIONS == frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
 
     def test_utils_uses_extraction_constant(self) -> None:
         from app.core_plugins.googledrive.utils import _is_supported_for_rag

@@ -73,6 +73,5 @@ __all__ = [
     "PDFExtractor",
     "SUPPORTED_EXTENSIONS",
     "TXTExtractor",
-    "_REGISTRY",
     "extract_to_markdown",
 ]
