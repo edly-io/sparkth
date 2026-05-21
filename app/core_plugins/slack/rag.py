@@ -11,14 +11,10 @@ from app.core_plugins.slack.synthesis import synthesize_answer
 from app.llm.providers import BaseChatProvider
 from app.rag.context_service import RAGContextService, format_chunks_as_context
 from app.rag.embeddings import BaseEmbeddingProvider
-from app.rag.provider import get_provider
+from app.rag.provider import embedding_provider
 from app.rag.store import SimilarityResult
 
 logger = get_logger(__name__)
-
-# Module-level singleton — embedding model and vector store loaded once per process
-_rag_service: RAGContextService = RAGContextService()
-
 
 _SIMILARITY_THRESHOLD = 0.5
 
@@ -49,15 +45,16 @@ async def answer_question(
     provider defaults to the RAGContextService embedding provider; pass a mock for testing.
     llm_provider, when set, sends the question + chunks to an LLM for synthesis.
     """
-    embedding_provider = provider or get_provider()
-    query_embedding = await embedding_provider.embed_query(question)
+    active_provider = provider or embedding_provider.get()
+    rag_service = RAGContextService(embedding_provider=active_provider)
+    query_embedding = await active_provider.embed_query(question)
 
     all_results: list[SimilarityResult] = []
     source_names = config.allowed_sources
 
     if source_names:
         for source_name in source_names:
-            ranked_sections = await _rag_service.rank_sections(
+            ranked_sections = await rag_service.rank_sections(
                 session=session,
                 user_id=user_id,
                 source_name=source_name,
@@ -65,7 +62,7 @@ async def answer_question(
             )
             section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
 
-            results = await _rag_service.search_with_embedding(
+            results = await rag_service.search_with_embedding(
                 session=session,
                 user_id=user_id,
                 source_name=source_name,
@@ -81,7 +78,7 @@ async def answer_question(
         all_results = all_results[:limit]
     else:
         # No source filter: broad search across all user content
-        all_results = await _rag_service.search_all_sources(
+        all_results = await rag_service.search_all_sources(
             session=session,
             user_id=user_id,
             query_embedding=query_embedding,

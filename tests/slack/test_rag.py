@@ -38,7 +38,8 @@ async def test_returns_rag_answer_when_chunks_found() -> None:
     result = _make_result("Recursion is a function that calls itself.")
     result.chunk.source_name = "docs.pdf"
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=[result])
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="what is recursion?", config=config, provider=provider
@@ -54,7 +55,8 @@ async def test_returns_fallback_when_no_chunks_found() -> None:
     mock_session = AsyncMock()
     provider = _make_provider()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=[])
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="who are you?", config=config, provider=provider
@@ -74,7 +76,8 @@ async def test_joins_multiple_chunks_with_newlines() -> None:
     r2 = _make_result("Second chunk.")
     r2.chunk.source_name = "docs.pdf"
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=[r1, r2])
         answer, rag_matched = await answer_question(
             mock_session, user_id=1, question="explain loops", config=config, provider=provider
@@ -91,8 +94,8 @@ async def test_allowed_sources_passed_to_similarity_search() -> None:
     mock_session = AsyncMock()
     provider = _make_provider()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc._embedding_provider = provider
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.rank_sections = AsyncMock(return_value=[])
         mock_svc.search_with_embedding = AsyncMock(return_value=[])
         await answer_question(mock_session, user_id=1, question="test", config=config, provider=provider)
@@ -109,7 +112,8 @@ async def test_empty_allowed_sources_uses_search_all_sources() -> None:
     mock_session = AsyncMock()
     provider = _make_provider()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=[])
         await answer_question(mock_session, user_id=1, question="test", config=config, provider=provider)
 
@@ -123,7 +127,8 @@ async def test_search_all_sources_receives_correct_params() -> None:
     embedding = [0.5] * 384
     provider = _make_provider(embedding)
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=[])
         await answer_question(
             mock_session,
@@ -158,9 +163,10 @@ async def test_returns_synthesized_answer_when_llm_provider_given() -> None:
     llm_provider = MagicMock()
 
     with (
-        patch("app.core_plugins.slack.rag._rag_service") as mock_svc,
+        patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls,
         patch("app.core_plugins.slack.rag.synthesize_answer", new_callable=AsyncMock) as mock_synthesize,
     ):
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=results)
         mock_synthesize.return_value = "Synthesized: recursion is self-referential."
 
@@ -193,7 +199,8 @@ async def test_returns_raw_chunks_when_no_llm_provider() -> None:
     chunk.source_name = "python.pdf"
     results = [SimilarityResult(chunk=chunk, similarity=0.9)]
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=results)
         answer, rag_matched = await answer_question(
             mock_session,
@@ -216,7 +223,8 @@ async def test_synthesis_not_called_when_no_chunks() -> None:
 
     llm_provider = AsyncMock()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=[])
         answer, rag_matched = await answer_question(
             mock_session,
@@ -246,7 +254,8 @@ async def test_falls_back_to_raw_chunks_on_synthesis_error() -> None:
     llm_provider = AsyncMock()
     llm_provider.send_message = AsyncMock(side_effect=LangChainException("API rate limit"))
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.search_all_sources = AsyncMock(return_value=results)
         answer, rag_matched = await answer_question(
             mock_session,
