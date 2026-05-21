@@ -55,14 +55,24 @@ make test            # Run all tests (frontend + backend)
 make test.backend    # Run backend tests only
 make test.frontend   # Run frontend tests only
 make test.help       # Show usage for all test commands
-make lint            # Ruff lint
-make fix             # Ruff autofix + format
 make mypy            # mypy --strict
+
+# Linting
+make lint                    # Check lint errors (frontend + backend)
+make lint.fix                # Auto-fix lint errors (frontend + backend)
+make lint.format             # Format code (frontend + backend)
+make lint.format check=1     # Dry-run format check (no rewrites)
+make lint.frontend           # Check frontend lint errors (oxlint)
+make lint.backend            # Check backend lint errors (ruff)
+make lint.fix.frontend       # Auto-fix frontend lint errors (oxlint)
+make lint.fix.backend        # Auto-fix backend lint errors (ruff)
+make lint.format.frontend    # Format frontend code (oxfmt)
+make lint.format.backend     # Format backend code (ruff)
+make lint.help               # Show usage for all lint commands
 
 # Local frontend
 make frontend        # Next.js dev server on :3000
 make frontend.build  # Static export → frontend/out/
-make frontend.lint   # ESLint
 
 # Database
 make migrations      # Run pending Alembic migrations

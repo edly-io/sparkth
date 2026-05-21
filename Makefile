@@ -12,7 +12,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 .PHONY: help uv dev lock install test test.backend test.frontend test.help build mypy \
         up dev.up down clean restart logs shell db-shell migrations base \
-        frontend frontend.build frontend.format.check \
+        frontend frontend.build \
         lint lint.fix lint.format lint.frontend lint.backend \
         lint.fix.frontend lint.fix.backend lint.format.frontend lint.format.backend lint.help \
         create-user reset-password \
@@ -101,9 +101,6 @@ frontend: ## Run frontend dev server (hot reload)
 
 frontend.build: ## Build frontend (static export to frontend/out)
 	cd frontend && bun install --frozen-lockfile && bun run build
-
-frontend.format.check: ## Check frontend formatting (oxfmt)
-	cd frontend && bun run format:check
 
 # --------------------------------------------------
 # Local Development (using uv)
@@ -197,7 +194,6 @@ lint.fix.frontend: ## Auto-fix frontend lint errors (oxlint)
 lint.fix.backend: ## Auto-fix backend lint errors (ruff)
 	uv run ruff check --select I --fix
 	uv run ruff check --fix
-	uv run ruff format
 
 lint.format.frontend: ## Format frontend code (oxfmt, check=1 to check only)
 	cd frontend && bun run $(if $(check),format:check,format)
