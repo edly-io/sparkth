@@ -227,6 +227,39 @@ lint.help: ## Show usage for all lint commands
 	@echo
 
 # --------------------------------------------------
+# Testing
+# --------------------------------------------------
+test: ## Run tests (with-coverage=1 to include coverage)
+	$(MAKE) test.frontend $(if $(with-coverage),with-coverage=1)
+	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
+
+test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
+	uv run pytest $(if $(ARGS),$(ARGS),tests/) $(if $(with-coverage),--cov-report=term-missing)
+
+test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
+	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
+
+test.help: ## Show usage for all test commands
+	@echo "Usage: make \033[36m<test-target>\033[0m [path] [with-coverage=1]\n"
+	@echo "\033[1mTargets:\033[0m"
+	@echo "  \033[36mtest\033[0m              Run all tests (frontend + backend)"
+	@echo "  \033[36mtest.backend\033[0m      Run backend tests"
+	@echo "  \033[36mtest.frontend\033[0m     Run frontend tests"
+	@echo "\n\033[1mOptions:\033[0m"
+	@echo "  \033[33m[path]\033[0m            File or directory to test (default: all tests)"
+	@echo "  \033[33mwith-coverage=1\033[0m   Enable coverage reporting"
+	@echo "\n\033[1mExamples:\033[0m"
+	@echo "  make test"
+	@echo "  make test with-coverage=1"
+	@echo "  make test.backend tests/rag/"
+	@echo "  make test.backend tests/rag/test_store.py"
+	@echo "  make test.backend tests/rag/ with-coverage=1"
+	@echo "  make test.frontend"
+	@echo "  make test.frontend components/Button.test.tsx"
+	@echo "  make test.frontend with-coverage=1"
+	@echo
+
+# --------------------------------------------------
 # Catch-all for argument forwarding
 # --------------------------------------------------
 %:
