@@ -2,7 +2,14 @@
 
 from unittest.mock import MagicMock, patch
 
-from app.rag.extraction import _extract_pdf
+from app.rag.extraction import PDFExtractor
+from app.rag.types import ExtractionResult
+
+_pdf = PDFExtractor()
+
+
+def _extract_pdf(data: bytes, source_name: str, **kwargs: object) -> ExtractionResult:
+    return _pdf.extract(data, source_name, **kwargs)  # type: ignore[arg-type]
 
 
 def _make_doc(page_count: int) -> MagicMock:
@@ -26,9 +33,9 @@ class TestBatchingLoop:
     def test_single_batch_when_pages_fit(self) -> None:
         """A 3-page doc with batch_size=10 makes one call covering pages [0, 1, 2]."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(3)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(3)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
         ):
             _extract_pdf(b"%PDF-fake", "small.pdf", batch_size=10)
 
@@ -37,9 +44,9 @@ class TestBatchingLoop:
     def test_evenly_divisible_doc(self) -> None:
         """A 20-page doc with batch_size=10 produces exactly two equal batches."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(20)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(20)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
         ):
             _extract_pdf(b"%PDF-fake", "doc.pdf", batch_size=10)
 
@@ -49,9 +56,9 @@ class TestBatchingLoop:
     def test_last_partial_batch(self) -> None:
         """A 25-page doc with batch_size=10 makes 3 batches with the last one half-sized."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(25)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(25)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
         ):
             _extract_pdf(b"%PDF-fake", "doc.pdf", batch_size=10)
 
@@ -61,9 +68,9 @@ class TestBatchingLoop:
     def test_batch_size_kwarg_overrides_setting(self) -> None:
         """An explicit batch_size kwarg wins over RAG_PDF_EXTRACTION_BATCH_SIZE."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(6)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(6)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
         ):
             _extract_pdf(b"%PDF-fake", "doc.pdf", batch_size=2)
 
@@ -73,10 +80,10 @@ class TestBatchingLoop:
     def test_batch_size_from_env_when_kwarg_omitted(self) -> None:
         """When batch_size is None, _extract_pdf reads RAG_PDF_EXTRACTION_BATCH_SIZE."""
         with (
-            patch("app.rag.extraction.get_settings") as mock_settings,
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(6)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
+            patch("app.rag.extraction.pdf.get_settings") as mock_settings,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(6)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
         ):
             mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
             mock_settings.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 0  # never scanned
@@ -88,10 +95,10 @@ class TestBatchingLoop:
     def test_batches_concatenated_in_order(self) -> None:
         """Markdown from each batch is joined into the final result in batch order."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(6)),
-            patch("app.rag.extraction.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(6)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
             patch(
-                "app.rag.extraction.pymupdf4llm.to_markdown",
+                "app.rag.extraction.pdf.pymupdf4llm.to_markdown",
                 side_effect=["FIRST", "SECOND", "THIRD"],
             ),
         ):
@@ -104,9 +111,9 @@ class TestBatchingLoop:
 
     def test_page_count_reflects_total_pages_not_batches(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_doc(25)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_doc(25)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             result = _extract_pdf(b"%PDF-fake", "doc.pdf", batch_size=10)
 

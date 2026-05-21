@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.rag.memory_profiler import log_memory_snapshot, profile_memory
+from app.memory_profiler import log_memory_snapshot, profile_memory
 
 
 def _make_settings(enabled: bool) -> object:
@@ -27,10 +27,10 @@ def _enable_propagation() -> None:
 def mock_log_file_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect LOG_FILE_PATH to a temp file to avoid disk side effects."""
     temp_log = tmp_path / "ram-logs.txt"
-    monkeypatch.setattr("app.rag.memory_profiler.LOG_FILE_PATH", temp_log)
-    monkeypatch.setattr("app.rag.memory_profiler.LOG_DIR", tmp_path)
-    monkeypatch.setattr("app.rag.memory_profiler._memprof_handler", None)
-    monkeypatch.setattr("app.rag.memory_profiler._memprof_logger", None)
+    monkeypatch.setattr("app.memory_profiler.LOG_FILE_PATH", temp_log)
+    monkeypatch.setattr("app.memory_profiler.LOG_DIR", tmp_path)
+    monkeypatch.setattr("app.memory_profiler._memprof_handler", None)
+    monkeypatch.setattr("app.memory_profiler._memprof_logger", None)
     return temp_log
 
 
@@ -41,7 +41,7 @@ class TestProfileMemoryDisabled:
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(False),
         )
         with caplog.at_level(logging.INFO):
@@ -52,7 +52,7 @@ class TestProfileMemoryDisabled:
 
     async def test_block_still_executes_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(False),
         )
         executed = False
@@ -67,7 +67,7 @@ class TestProfileMemoryEnabled:
 
     async def test_emits_memprof_line(self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):
@@ -91,7 +91,7 @@ class TestProfileMemoryEnabled:
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):
@@ -108,7 +108,7 @@ class TestProfileMemoryExceptionHandling:
 
     async def test_log_on_exception(self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):
@@ -128,7 +128,7 @@ class TestNestedProfileMemory:
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):
@@ -147,7 +147,7 @@ class TestNestedProfileMemory:
     ) -> None:
         """Inner reset_peak must not make outer py_peak_delta_kb negative or zero."""
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):
@@ -178,7 +178,7 @@ class TestNestedProfileMemory:
         import tracemalloc
 
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):
@@ -194,7 +194,7 @@ class TestLogMemorySnapshot:
 
     def test_no_log_when_disabled(self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(False),
         )
         with caplog.at_level(logging.INFO):
@@ -206,7 +206,7 @@ class TestLogMemorySnapshot:
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "app.rag.memory_profiler.get_settings",
+            "app.memory_profiler.get_settings",
             lambda: _make_settings(True),
         )
         with caplog.at_level(logging.INFO):

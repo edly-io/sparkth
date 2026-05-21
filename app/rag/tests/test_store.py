@@ -9,11 +9,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.rag.db_models import DocumentChunk
 from app.rag.embeddings import BaseEmbeddingProvider
-from app.rag.models import DocumentChunk
 from app.rag.store import ChunkInput, SimilarityResult, VectorStoreService
 
-from .conftest import make_deterministic_embedding
+EMBEDDING_DIMS = 384
+
+
+def make_deterministic_embedding(seed: float = 0.1) -> list[float]:
+    return [seed] * EMBEDDING_DIMS
 
 
 class TestChunkInput:

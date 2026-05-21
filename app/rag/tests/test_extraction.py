@@ -1,5 +1,5 @@
 """
-tests/rag/test_extraction.py
+app/rag/tests/test_extraction.py
 
 Unit tests for app/rag/extraction.py
 Covers: PDF, DOCX, HTML, TXT extraction + public API routing + error handling.
@@ -13,12 +13,10 @@ import pytest
 from bs4 import Tag
 
 from app.rag.extraction import (
+    DocxExtractor,
     ExtractionResult,
-    _bs_table_to_md,
-    _docx_table_to_md,
-    _extract_docx,
-    _extract_html,
-    _extract_txt,
+    HTMLExtractor,
+    TXTExtractor,
     extract_to_markdown,
 )
 from app.rag.types import DocType
@@ -64,7 +62,7 @@ class TestExtractionResult:
 
 
 def _make_mock_pdf_doc(page_count: int, text_per_page: str = "lorem ipsum " * 50) -> MagicMock:
-    """Build a MagicMock that emulates the parts of a fitz.Document used by _extract_pdf.
+    """Build a MagicMock that emulates the parts of a fitz.Document used by PDFExtractor.
 
     Supports `with fitz.open(...) as doc`, `len(doc)`, and `doc[i].get_text("text")`.
     Pages return the same text by default — enough to avoid being flagged as scanned.
@@ -82,9 +80,9 @@ def _make_mock_pdf_doc(page_count: int, text_per_page: str = "lorem ipsum " * 50
 class TestExtractPDF:
     def test_calls_pymupdf4llm_and_returns_result(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(3)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="# Chapter 1") as mock_to_md,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="# Chapter 1") as mock_to_md,
         ):
             result = extract_to_markdown(b"%PDF-fake", "notes.pdf")
 
@@ -95,9 +93,9 @@ class TestExtractPDF:
     def test_fitz_open_called_with_stream_and_filetype(self) -> None:
         raw = b"%PDF-fake"
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(1)) as mock_fitz,
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(1)) as mock_fitz,
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             extract_to_markdown(raw, "notes.pdf")
 
@@ -106,9 +104,9 @@ class TestExtractPDF:
     def test_separators_stripped_from_markdown(self) -> None:
         fake_md = "page1\n-----\npage2\n-----\npage3"
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(3)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value=fake_md),
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value=fake_md),
         ):
             result = extract_to_markdown(b"%PDF-fake", "book.pdf")
 
@@ -119,9 +117,9 @@ class TestExtractPDF:
 
     def test_page_count_comes_from_doc_length(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(7)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(7)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             result = extract_to_markdown(b"%PDF-fake", "book.pdf")
 
@@ -129,9 +127,9 @@ class TestExtractPDF:
 
     def test_single_page_doc(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(1)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="one page"),
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(1)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="one page"),
         ):
             result = extract_to_markdown(b"%PDF-fake", "one.pdf")
 
@@ -140,48 +138,48 @@ class TestExtractPDF:
 
 class TestExtractHTML:
     def test_h1_rendered_as_h1(self) -> None:
-        result = _extract_html(SIMPLE_HTML, "doc.html")
+        result = HTMLExtractor().extract(SIMPLE_HTML, "doc.html")
         assert "# Course Introduction" in result.markdown
 
     def test_h2_rendered_as_h2(self) -> None:
-        result = _extract_html(SIMPLE_HTML, "doc.html")
+        result = HTMLExtractor().extract(SIMPLE_HTML, "doc.html")
         assert "## What you will learn" in result.markdown
 
     def test_paragraph_included(self) -> None:
-        result = _extract_html(SIMPLE_HTML, "doc.html")
+        result = HTMLExtractor().extract(SIMPLE_HTML, "doc.html")
         assert "This course covers machine learning fundamentals." in result.markdown
 
     def test_list_items_rendered_with_dash(self) -> None:
-        result = _extract_html(SIMPLE_HTML, "doc.html")
+        result = HTMLExtractor().extract(SIMPLE_HTML, "doc.html")
         assert "- Supervised learning" in result.markdown
         assert "- Unsupervised learning" in result.markdown
 
     def test_ordered_list_items_rendered_with_numbers(self) -> None:
         html = b"<html><body><ol><li>First</li><li>Second</li></ol></body></html>"
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "1. First" in result.markdown
         assert "2. Second" in result.markdown
 
     def test_table_rendered_as_gfm(self) -> None:
-        result = _extract_html(SIMPLE_HTML, "doc.html")
+        result = HTMLExtractor().extract(SIMPLE_HTML, "doc.html")
         assert "| Topic |" in result.markdown
         assert "| ---" in result.markdown
         assert "| Linear Regression |" in result.markdown
 
     def test_table_warning_emitted(self) -> None:
-        result = _extract_html(SIMPLE_HTML, "doc.html")
+        result = HTMLExtractor().extract(SIMPLE_HTML, "doc.html")
         assert any("Table detected" in w for w in result.warnings)
 
     def test_no_warnings_for_table_free_html(self) -> None:
-        result = _extract_html(MINIMAL_HTML, "simple.html")
+        result = HTMLExtractor().extract(MINIMAL_HTML, "simple.html")
         assert result.warnings == []
 
     def test_doc_type_is_html(self) -> None:
-        result = _extract_html(MINIMAL_HTML, "simple.html")
+        result = HTMLExtractor().extract(MINIMAL_HTML, "simple.html")
         assert result.doc_type == DocType.HTML
 
     def test_empty_body_returns_empty_markdown(self) -> None:
-        result = _extract_html(b"<html><body></body></html>", "empty.html")
+        result = HTMLExtractor().extract(b"<html><body></body></html>", "empty.html")
         assert result.markdown.strip() == ""
 
     def test_content_inside_div_not_dropped(self) -> None:
@@ -193,7 +191,7 @@ class TestExtractHTML:
           </div>
         </body></html>
         """
-        result = _extract_html(html, "nested.html")
+        result = HTMLExtractor().extract(html, "nested.html")
         assert "## Nested Heading" in result.markdown
         assert "Nested paragraph." in result.markdown
 
@@ -206,13 +204,13 @@ class TestExtractHTML:
           </article></section></div>
         </body></html>
         """
-        result = _extract_html(html, "deep.html")
+        result = HTMLExtractor().extract(html, "deep.html")
         assert "### Deep Heading" in result.markdown
         assert "Deep content." in result.markdown
 
     def test_whitespace_only_body_returns_empty(self) -> None:
         html = b"<html><body>  \n  <p>Clean</p>\n  </body></html>"
-        result = _extract_html(html, "ws.html")
+        result = HTMLExtractor().extract(html, "ws.html")
         assert result.markdown.count("Clean") == 1
 
     def test_nested_ul_indented(self) -> None:
@@ -225,7 +223,7 @@ class TestExtractHTML:
           </ul>
         </body></html>
         """
-        result = _extract_html(html, "nested.html")
+        result = HTMLExtractor().extract(html, "nested.html")
         assert "- Parent" in result.markdown
         assert "  - Child" in result.markdown
 
@@ -239,7 +237,7 @@ class TestExtractHTML:
           </ol>
         </body></html>
         """
-        result = _extract_html(html, "nested_ol.html")
+        result = HTMLExtractor().extract(html, "nested_ol.html")
         assert "1. First" in result.markdown
         assert "  1. Sub-first" in result.markdown
 
@@ -253,18 +251,18 @@ class TestExtractHTML:
           </ul>
         </body></html>
         """
-        result = _extract_html(html, "dup.html")
+        result = HTMLExtractor().extract(html, "dup.html")
         assert result.markdown.count("Parent") == 1
         assert result.markdown.count("Child") == 1
 
     def test_span_direct_child_of_div_not_dropped(self) -> None:
         html = b"<html><body><div><span>Important span text</span></div></body></html>"
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "Important span text" in result.markdown
 
     def test_anchor_direct_child_of_div_not_dropped(self) -> None:
         html = b'<html><body><div><a href="#">Link text</a></div></body></html>'
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "Link text" in result.markdown
 
     def test_multiple_sibling_spans_all_captured(self) -> None:
@@ -273,13 +271,13 @@ class TestExtractHTML:
           <div><span>Alpha</span><span>Beta</span></div>
         </body></html>
         """
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "Alpha" in result.markdown
         assert "Beta" in result.markdown
 
     def test_span_inside_paragraph_captured_via_get_text(self) -> None:
         html = b"<html><body><p>Hello <span>world</span></p></body></html>"
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "Hello world" in result.markdown
 
     def test_void_elements_do_not_produce_blank_lines(self) -> None:
@@ -288,7 +286,7 @@ class TestExtractHTML:
           <div><br><hr><img src="x.png"><p>After voids</p></div>
         </body></html>
         """
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "After voids" in result.markdown
         for token in ("br", "hr", "img"):
             assert token not in result.markdown
@@ -300,17 +298,17 @@ class TestExtractHTML:
           <div class="c1"><span class="c2">Subtitle line</span></div>
         </body></html>
         """
-        result = _extract_html(html, "gdoc.html")
+        result = HTMLExtractor().extract(html, "gdoc.html")
         assert "Lecture title" in result.markdown
         assert "Subtitle line" in result.markdown
 
     def test_blockquote_content_included(self) -> None:
         html = b"<html><body><blockquote>Quoted text</blockquote></body></html>"
-        assert "Quoted text" in _extract_html(html, "doc.html").markdown
+        assert "Quoted text" in HTMLExtractor().extract(html, "doc.html").markdown
 
     def test_pre_content_included(self) -> None:
         html = b"<html><body><pre>code block</pre></body></html>"
-        assert "code block" in _extract_html(html, "doc.html").markdown
+        assert "code block" in HTMLExtractor().extract(html, "doc.html").markdown
 
     def test_figcaption_content_included(self) -> None:
         html = b"""
@@ -318,7 +316,7 @@ class TestExtractHTML:
           <figure><img src="chart.png"><figcaption>Figure 1: Results</figcaption></figure>
         </body></html>
         """
-        assert "Figure 1: Results" in _extract_html(html, "doc.html").markdown
+        assert "Figure 1: Results" in HTMLExtractor().extract(html, "doc.html").markdown
 
     def test_text_block_inline_children_captured(self) -> None:
         html = b"""
@@ -326,23 +324,23 @@ class TestExtractHTML:
           <blockquote>Outer <span>inner span</span> text</blockquote>
         </body></html>
         """
-        result = _extract_html(html, "doc.html")
+        result = HTMLExtractor().extract(html, "doc.html")
         assert "Outer" in result.markdown
         assert "inner span" in result.markdown
 
 
 class TestExtractTXT:
     def test_content_passed_through_unchanged(self) -> None:
-        result = _extract_txt(TXT_CONTENT, "notes.txt")
+        result = TXTExtractor().extract(TXT_CONTENT, "notes.txt")
         assert result.markdown == TXT_CONTENT.decode("utf-8")
 
     def test_doc_type_is_txt(self) -> None:
-        result = _extract_txt(TXT_CONTENT, "notes.txt")
+        result = TXTExtractor().extract(TXT_CONTENT, "notes.txt")
         assert result.doc_type == DocType.TXT
 
     def test_invalid_utf8_replaced_not_raised(self) -> None:
         bad_bytes = b"Hello \xff\xfe world"
-        result = _extract_txt(bad_bytes, "bad.txt")
+        result = TXTExtractor().extract(bad_bytes, "bad.txt")
         assert "Hello" in result.markdown
         assert "world" in result.markdown
 
@@ -396,63 +394,61 @@ class TestExtractDOCX:
         return buf.getvalue()
 
     def test_h1_rendered(self, simple_docx_bytes: bytes) -> None:
-        assert "# Introduction" in _extract_docx(simple_docx_bytes, "doc.docx").markdown
+        assert "# Introduction" in DocxExtractor().extract(simple_docx_bytes, "doc.docx").markdown
 
     def test_h2_rendered(self, simple_docx_bytes: bytes) -> None:
-        assert "## Background" in _extract_docx(simple_docx_bytes, "doc.docx").markdown
+        assert "## Background" in DocxExtractor().extract(simple_docx_bytes, "doc.docx").markdown
 
     def test_paragraph_included(self, simple_docx_bytes: bytes) -> None:
-        assert "This is a paragraph." in _extract_docx(simple_docx_bytes, "doc.docx").markdown
+        assert "This is a paragraph." in DocxExtractor().extract(simple_docx_bytes, "doc.docx").markdown
 
     def test_doc_type_is_docx(self, simple_docx_bytes: bytes) -> None:
-        assert _extract_docx(simple_docx_bytes, "doc.docx").doc_type == DocType.DOCX
+        assert DocxExtractor().extract(simple_docx_bytes, "doc.docx").doc_type == DocType.DOCX
 
     def test_table_rendered_as_gfm(self, table_docx_bytes: bytes) -> None:
-        result = _extract_docx(table_docx_bytes, "table.docx")
+        result = DocxExtractor().extract(table_docx_bytes, "table.docx")
         assert "| Header A |" in result.markdown
         assert "| ---" in result.markdown
         assert "| Value 1 |" in result.markdown
 
     def test_table_warning_emitted(self, table_docx_bytes: bytes) -> None:
-        result = _extract_docx(table_docx_bytes, "table.docx")
+        result = DocxExtractor().extract(table_docx_bytes, "table.docx")
         assert any("Table detected" in w for w in result.warnings)
 
     def test_ordered_list_rendered_with_numbers(self, ordered_list_docx_bytes: bytes) -> None:
-        result = _extract_docx(ordered_list_docx_bytes, "doc.docx")
+        result = DocxExtractor().extract(ordered_list_docx_bytes, "doc.docx")
         assert "1. First" in result.markdown
         assert "2. Second" in result.markdown
         assert "3. Third" in result.markdown
 
     def test_ordered_list_numbering_resets_between_documents(self, ordered_list_docx_bytes: bytes) -> None:
-        result1 = _extract_docx(ordered_list_docx_bytes, "doc1.docx")
-        result2 = _extract_docx(ordered_list_docx_bytes, "doc2.docx")
+        result1 = DocxExtractor().extract(ordered_list_docx_bytes, "doc1.docx")
+        result2 = DocxExtractor().extract(ordered_list_docx_bytes, "doc2.docx")
         assert "1. First" in result1.markdown
         assert "1. First" in result2.markdown  # must restart, not continue from 4
 
     def test_list_prefix_attribute_error_falls_back_to_bullet(self, ordered_list_docx_bytes: bytes) -> None:
-        with patch("app.rag.extraction._docx_list_prefix", return_value="-"):
-            result = _extract_docx(ordered_list_docx_bytes, "doc.docx")
+        with patch.object(DocxExtractor, "_list_prefix", return_value="-"):
+            result = DocxExtractor().extract(ordered_list_docx_bytes, "doc.docx")
 
         assert "First" in result.markdown
         assert "- First" in result.markdown
 
 
 class TestDocxListPrefix:
-    """Unit tests for _docx_list_prefix, called directly to exercise its internals."""
+    """Unit tests for DocxExtractor._list_prefix, called directly to exercise its internals."""
 
     def test_attribute_error_returns_dash(self) -> None:
-        from app.rag.extraction import _docx_list_prefix
-
+        extractor = DocxExtractor()
         bad_num_pr = MagicMock()
         bad_num_pr.find.side_effect = AttributeError("injected")
-        assert _docx_list_prefix(MagicMock(), bad_num_pr, {}) == "-"
+        assert extractor._list_prefix(MagicMock(), bad_num_pr, {}) == "-"
 
     def test_missing_num_id_returns_dash(self) -> None:
-        from app.rag.extraction import _docx_list_prefix
-
+        extractor = DocxExtractor()
         num_pr = MagicMock()
         num_pr.find.return_value = None  # num_id_el is None
-        assert _docx_list_prefix(MagicMock(), num_pr, {}) == "-"
+        assert extractor._list_prefix(MagicMock(), num_pr, {}) == "-"
 
 
 class TestDocxTableToMd:
@@ -473,7 +469,7 @@ class TestDocxTableToMd:
 
     def test_header_and_separator(self) -> None:
         tbl = self._make_table([[self._cell("Col A"), self._cell("Col B")], [self._cell("r1c1"), self._cell("r1c2")]])
-        md = _docx_table_to_md(tbl)
+        md = DocxExtractor()._table_to_md(tbl)
         assert "| Col A | Col B |" in md
         assert "| --- | --- |" in md
 
@@ -485,14 +481,14 @@ class TestDocxTableToMd:
                 [self._cell("v3"), self._cell("v4")],
             ]
         )
-        md = _docx_table_to_md(tbl)
+        md = DocxExtractor()._table_to_md(tbl)
         assert "| v1 | v2 |" in md
         assert "| v3 | v4 |" in md
 
     def test_empty_table_returns_empty_string(self) -> None:
         mock_table = MagicMock()
         mock_table.rows = []
-        assert _docx_table_to_md(mock_table) == ""
+        assert DocxExtractor()._table_to_md(mock_table) == ""
 
     def test_horizontally_merged_cell_appears_once(self) -> None:
         merged = self._cell("Merged Header")
@@ -502,12 +498,12 @@ class TestDocxTableToMd:
                 [self._cell("r1c1"), self._cell("r1c2"), self._cell("r1c3")],
             ]
         )
-        assert _docx_table_to_md(tbl).count("Merged Header") == 1
+        assert DocxExtractor()._table_to_md(tbl).count("Merged Header") == 1
 
     def test_two_distinct_cells_with_same_text_both_appear(self) -> None:
         a, b = self._cell("Same"), self._cell("Same")
         tbl = self._make_table([[a, b], [self._cell("v1"), self._cell("v2")]])
-        header_line = _docx_table_to_md(tbl).splitlines()[0]
+        header_line = DocxExtractor()._table_to_md(tbl).splitlines()[0]
         assert header_line.count("Same") == 2
 
     def test_vertically_merged_cell_not_duplicated(self) -> None:
@@ -519,7 +515,7 @@ class TestDocxTableToMd:
                 [self._cell("R3C1"), self._cell("R3C2")],
             ]
         )
-        assert _docx_table_to_md(tbl).count("Tall Cell") == 1
+        assert DocxExtractor()._table_to_md(tbl).count("Tall Cell") == 1
 
     def test_fully_merged_row_dropped_not_emitted_blank(self) -> None:
         shared_a, shared_b = self._cell("A"), self._cell("B")
@@ -529,7 +525,7 @@ class TestDocxTableToMd:
                 [shared_a, shared_b],
             ]
         )
-        lines = [line for line in _docx_table_to_md(tbl).splitlines() if line.strip()]
+        lines = [line for line in DocxExtractor()._table_to_md(tbl).splitlines() if line.strip()]
         assert len(lines) == 2, f"Unexpected lines: {lines}"
 
     def test_both_axes_merged(self) -> None:
@@ -540,7 +536,7 @@ class TestDocxTableToMd:
                 [corner, corner, self._cell("Bot Right")],
             ]
         )
-        md = _docx_table_to_md(tbl)
+        md = DocxExtractor()._table_to_md(tbl)
         assert md.count("Corner") == 1
         assert "Top Right" in md
         assert "Bot Right" in md
@@ -557,15 +553,15 @@ class TestBsTableToMd:
 
     def test_header_row(self) -> None:
         tbl = self._make_table("<table><tr><th>A</th><th>B</th></tr></table>")
-        assert "| A | B |" in _bs_table_to_md(tbl)
+        assert "| A | B |" in HTMLExtractor()._table_to_md(tbl)
 
     def test_separator_row(self) -> None:
         tbl = self._make_table("<table><tr><th>A</th><th>B</th></tr></table>")
-        assert "| --- | --- |" in _bs_table_to_md(tbl)
+        assert "| --- | --- |" in HTMLExtractor()._table_to_md(tbl)
 
     def test_body_row(self) -> None:
         tbl = self._make_table("<table><tr><th>A</th></tr><tr><td>val</td></tr></table>")
-        assert "| val |" in _bs_table_to_md(tbl)
+        assert "| val |" in HTMLExtractor()._table_to_md(tbl)
 
     def test_empty_table_returns_empty_string(self) -> None:
         from bs4 import BeautifulSoup, Tag
@@ -573,7 +569,7 @@ class TestBsTableToMd:
         soup = BeautifulSoup("<table></table>", "html.parser")
         tag = soup.find("table")
         assert isinstance(tag, Tag)
-        assert _bs_table_to_md(tag) == ""
+        assert HTMLExtractor()._table_to_md(tag) == ""
 
 
 class TestExtractToMarkdown:
@@ -599,9 +595,9 @@ class TestExtractToMarkdown:
 
     def test_pdf_routing_calls_pymupdf(self) -> None:
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_pdf_doc(3)),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="# MD") as m,
+            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="# MD") as m,
         ):
             extract_to_markdown(b"%PDF", "deck.pdf")
         m.assert_called_once()
@@ -663,10 +659,10 @@ class TestSupportedExtensions:
 
         assert isinstance(SUPPORTED_EXTENSIONS, frozenset)
 
-    def test_matches_dispatch_keys(self) -> None:
-        from app.rag.extraction import _DISPATCH, SUPPORTED_EXTENSIONS
+    def test_matches_registry_keys(self) -> None:
+        from app.rag.extraction import _REGISTRY, SUPPORTED_EXTENSIONS
 
-        assert SUPPORTED_EXTENSIONS == frozenset(_DISPATCH)
+        assert SUPPORTED_EXTENSIONS == frozenset(_REGISTRY)
 
     def test_utils_uses_extraction_constant(self) -> None:
         from app.core_plugins.googledrive.utils import _is_supported_for_rag
