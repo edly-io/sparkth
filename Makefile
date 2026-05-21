@@ -10,7 +10,7 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 # --------------------------------------------------
 # PHONY TARGETS
 # --------------------------------------------------
-.PHONY: help uv dev lock install test cov lint fix build mypy \
+.PHONY: help uv dev lock install test test.backend test.frontend test.help lint fix build mypy \
         up dev.up down clean restart logs shell db-shell migrations base \
         frontend frontend.build frontend.lint frontend.fix frontend.format frontend.format.check \
         create-user reset-password \
@@ -28,7 +28,9 @@ help: ## Show this help
 	@echo "\n\033[1mRun Services Locally:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mLocal Dev Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|test|cov|lint|fix|build|mypy)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|install|lint|fix|build|mypy)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "\n\033[1mTesting Targets:\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(test|test\.backend|test\.frontend|test\.help)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo "\n\033[1mUser Management (In Docker):\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(create-user|reset-password)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo
@@ -133,12 +135,6 @@ mcp: ## Run MCP server locally (HTTP mode)
 cli: ## Run CLI tool (make cli -- users --help)
 	uv run python -m app.cli.main $(ARGS)
 
-test: ## Run tests
-	uv run pytest tests/
-
-cov: ## Run tests with coverage
-	uv run pytest tests/ --cov-report=term-missing
-
 lint: ## Lint with ruff locally
 	uv run ruff check --select I
 	uv run ruff check
@@ -153,6 +149,39 @@ mypy: ## Run mypy type checking
 
 build: ## Build Python package (sdist + wheel)
 	uv build
+
+# --------------------------------------------------
+# Testing
+# --------------------------------------------------
+test: ## Run tests (with-coverage=1 to include coverage)
+	$(MAKE) test.frontend $(if $(with-coverage),with-coverage=1)
+	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
+
+test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
+	uv run pytest $(if $(ARGS),$(ARGS),tests/) $(if $(with-coverage),--cov-report=term-missing)
+
+test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
+	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
+
+test.help: ## Show usage for all test commands
+	@echo "Usage: make \033[36m<test-target>\033[0m [path] [with-coverage=1]\n"
+	@echo "\033[1mTargets:\033[0m"
+	@echo "  \033[36mtest\033[0m              Run all tests (frontend + backend)"
+	@echo "  \033[36mtest.backend\033[0m      Run backend tests"
+	@echo "  \033[36mtest.frontend\033[0m     Run frontend tests"
+	@echo "\n\033[1mOptions:\033[0m"
+	@echo "  \033[33m[path]\033[0m            File or directory to test (default: all tests)"
+	@echo "  \033[33mwith-coverage=1\033[0m   Enable coverage reporting"
+	@echo "\n\033[1mExamples:\033[0m"
+	@echo "  make test"
+	@echo "  make test with-coverage=1"
+	@echo "  make test.backend tests/rag/"
+	@echo "  make test.backend tests/rag/test_store.py"
+	@echo "  make test.backend tests/rag/ with-coverage=1"
+	@echo "  make test.frontend"
+	@echo "  make test.frontend components/Button.test.tsx"
+	@echo "  make test.frontend with-coverage=1"
+	@echo
 
 # --------------------------------------------------
 # Catch-all for argument forwarding
