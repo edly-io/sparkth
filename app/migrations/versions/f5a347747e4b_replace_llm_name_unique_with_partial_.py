@@ -5,14 +5,14 @@ Revises: 74afa7d018c0
 Create Date: 2026-05-11 17:36:53.081359
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
-revision: str = 'f5a347747e4b'
-down_revision: Union[str, Sequence[str], None] = '74afa7d018c0'
+revision: str = "f5a347747e4b"
+down_revision: Union[str, Sequence[str], None] = "74afa7d018c0"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -22,8 +22,7 @@ def upgrade() -> None:
     if op.get_bind().dialect.name == "postgresql":
         op.drop_constraint("uq_user_llm_config_name", "llm_configs", type_="unique")
         op.execute(
-            "CREATE UNIQUE INDEX uq_user_llm_config_name_active "
-            "ON llm_configs (user_id, name) WHERE is_deleted = false"
+            "CREATE UNIQUE INDEX uq_user_llm_config_name_active ON llm_configs (user_id, name) WHERE is_deleted = false"
         )
     # ### end Alembic commands ###
 

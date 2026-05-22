@@ -5,27 +5,26 @@ Revises: 2e6fc18da38c
 Create Date: 2026-02-21 22:07:51.468033
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-import sqlmodel
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '12ec22bbfa0d'
-down_revision: Union[str, Sequence[str], None] = '2e6fc18da38c'
+revision: str = "12ec22bbfa0d"
+down_revision: Union[str, Sequence[str], None] = "2e6fc18da38c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('chat_messages', sa.Column('is_error', sa.Boolean(), nullable=False, server_default=sa.false()))
+    op.add_column("chat_messages", sa.Column("is_error", sa.Boolean(), nullable=False, server_default=sa.false()))
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_column('chat_messages', 'is_error')
+    op.drop_column("chat_messages", "is_error")
     # ### end Alembic commands ###
