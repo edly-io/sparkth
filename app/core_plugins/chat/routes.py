@@ -355,6 +355,8 @@ async def chat_completion(
                 provider_name=provider_name,
                 api_key=api_key,
                 model=model,
+                temperature=0.3,
+                max_tool_executions=0,
             )
             background_tasks.add_task(
                 generate_conversation_title,

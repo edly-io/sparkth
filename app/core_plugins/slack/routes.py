@@ -23,7 +23,11 @@ from app.core.encryption import get_encryption_service
 from app.core.logger import get_logger
 from app.core_plugins.slack.client import SlackClient
 from app.core_plugins.slack.config import SlackConfig
-from app.core_plugins.slack.constants import AI_KEY_UNAVAILABLE_MESSAGE, NO_AI_KEY_MESSAGE
+from app.core_plugins.slack.constants import (
+    AI_KEY_UNAVAILABLE_MESSAGE,
+    NO_AI_KEY_MESSAGE,
+    RETRIEVAL_ERROR_MESSAGE,
+)
 from app.core_plugins.slack.events import extract_question, is_greeting, should_handle_event
 from app.core_plugins.slack.exceptions import SlackSignatureError
 from app.core_plugins.slack.models import BotResponseLog, ConnectionEventType, ResponseType, SlackConnectionLog
@@ -37,7 +41,7 @@ from app.core_plugins.slack.oauth import (
     get_workspace_by_team,
     save_workspace,
 )
-from app.core_plugins.slack.rag import _RETRIEVAL_ERROR_MESSAGE, answer_question
+from app.core_plugins.slack.rag import answer_question
 from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.core_plugins.slack.types import (
     AuthorizationUrlResponse,
@@ -441,35 +445,44 @@ async def _dispatch_event(
             answer = config.greeting_message
             rag_matched = False
             response_type = ResponseType.greeting
+        elif config.llm_config_id is None:
+            logger.warning(
+                "Slack agentic RAG disabled for workspace %s: no AI key configured",
+                workspace_id,
+            )
+            answer = NO_AI_KEY_MESSAGE
+            rag_matched = False
+            response_type = ResponseType.config_incomplete
         else:
-            if config.llm_config_id is None:
+            llm_provider = await _build_llm_provider(
+                session,
+                user_id,
+                config.llm_config_id,
+                config.llm_temperature,
+                model_override=config.llm_model_override,
+            )
+
+            if llm_provider is None:
                 logger.warning(
-                    "Slack agentic RAG disabled for workspace %s: no AI key configured",
+                    "Slack agentic RAG disabled for workspace %s: AI key could not be resolved",
                     workspace_id,
                 )
-                answer = NO_AI_KEY_MESSAGE
+                answer = AI_KEY_UNAVAILABLE_MESSAGE
                 rag_matched = False
                 response_type = ResponseType.config_incomplete
             else:
-                llm_provider = await _build_llm_provider(
-                    session,
-                    user_id,
-                    config.llm_config_id,
-                    config.llm_temperature,
-                    model_override=config.llm_model_override,
-                )
-
-                if llm_provider is None:
+                try:
+                    agent_llm = llm_provider.create_llm()
+                except (ValidationError, ValueError) as exc:
                     logger.warning(
-                        "Slack agentic RAG disabled for workspace %s: AI key could not be resolved",
+                        "Slack LLM provider config invalid for workspace %s: %s",
                         workspace_id,
+                        exc,
                     )
                     answer = AI_KEY_UNAVAILABLE_MESSAGE
                     rag_matched = False
                     response_type = ResponseType.config_incomplete
                 else:
-                    agent_llm = llm_provider.create_llm()
-
                     try:
                         answer, response_type = await answer_question(
                             session=session,
@@ -482,7 +495,7 @@ async def _dispatch_event(
                         rag_matched = response_type == ResponseType.rag_match
                     except (SQLAlchemyError, LangChainException, OSError) as exc:
                         logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
-                        answer = _RETRIEVAL_ERROR_MESSAGE
+                        answer = RETRIEVAL_ERROR_MESSAGE
                         rag_matched = False
                         response_type = ResponseType.retrieval_error
                         await session.rollback()

@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 
 from app.core_plugins.slack.config import SlackConfig
-from app.core_plugins.slack.constants import AI_KEY_UNAVAILABLE_MESSAGE, NO_AI_KEY_MESSAGE
+from app.core_plugins.slack.constants import AI_KEY_UNAVAILABLE_MESSAGE, NO_AI_KEY_MESSAGE, RETRIEVAL_ERROR_MESSAGE
 from app.core_plugins.slack.models import (
     BotResponseLog,
     ConnectionEventType,
@@ -19,7 +19,6 @@ from app.core_plugins.slack.models import (
     SlackConnectionLog,
     SlackWorkspace,
 )
-from app.core_plugins.slack.rag import _RETRIEVAL_ERROR_MESSAGE
 from app.core_plugins.slack.routes import _dispatch_event
 from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.main import app
@@ -725,7 +724,7 @@ class TestDispatchEvent:
 
     @pytest.mark.asyncio
     async def test_rag_failure_posts_retrieval_error_message(self) -> None:
-        """answer_question raises SQLAlchemyError → posts _RETRIEVAL_ERROR_MESSAGE."""
+        """answer_question raises SQLAlchemyError → posts RETRIEVAL_ERROR_MESSAGE."""
         from sqlalchemy.exc import SQLAlchemyError
 
         event = {
@@ -766,7 +765,7 @@ class TestDispatchEvent:
 
         slack_client.post_message.assert_awaited_once()
         _, kwargs = slack_client.post_message.call_args
-        assert kwargs["text"] == _RETRIEVAL_ERROR_MESSAGE
+        assert kwargs["text"] == RETRIEVAL_ERROR_MESSAGE
 
     @pytest.mark.asyncio
     async def test_question_returns_no_ai_key_message_when_no_llm_config_id(self) -> None:

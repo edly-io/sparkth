@@ -1,16 +1,25 @@
 """RAG dispatch for the Slack TA Bot plugin — agentic retrieval."""
 
 import asyncio
-from typing import Any
+from collections import Counter
 
 import httpx
 from langchain_core.exceptions import LangChainException
+from langchain_core.language_models import BaseChatModel
 from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.db import async_engine
 from app.core.logger import get_logger
 from app.core_plugins.slack.config import SlackConfig
+from app.core_plugins.slack.constants import (
+    DRIVE_FILE_NOT_FOUND_MESSAGE,
+    NO_FILES_RESOLVED_MESSAGE,
+    RAG_NOT_READY_MESSAGE,
+    RETRIEVAL_ERROR_MESSAGE,
+    SLACK_MAX_AGENT_FILES,
+)
 from app.core_plugins.slack.models import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
 from app.llm.providers import BaseChatProvider
@@ -27,22 +36,32 @@ from app.rag.utils import resolve_source_name
 
 logger = get_logger(__name__)
 
-# Module-level singleton — vector store and embedding provider loaded once per process.
-# Reused only for its agentic entry point (get_context_via_agent); no semantic search runs.
-_rag_service: RAGContextService = RAGContextService()
-
-# Cap on files when allowed_sources is empty (broad fan-out across owner files).
-_MAX_AGENT_FILES = 5
-
-_NO_FILES_RESOLVED_MESSAGE = (
-    "I don't have any documents available to answer that. "
-    "Please ask your instructor to add documents to my reference list."
+# Most-informative-first priority when all files fail and we must pick one error to raise.
+_ERROR_PRIORITY: tuple[type[BaseException], ...] = (
+    DriveFileNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
 )
-_RAG_NOT_READY_MESSAGE = "I'm still indexing the course documents. Please try again in a few minutes."
-_DRIVE_FILE_NOT_FOUND_MESSAGE = (
-    "I couldn't access one of my reference documents. Please ask your instructor to check the bot's configured sources."
-)
-_RETRIEVAL_ERROR_MESSAGE = "Something went wrong while looking that up. Please try again in a moment."
+
+
+def _pick_representative_error(errors: list[BaseException]) -> BaseException:
+    for exc_type in _ERROR_PRIORITY:
+        for e in errors:
+            if isinstance(e, exc_type):
+                return e
+    return errors[0]
+
+
+# Lazily initialized on first use — avoids loading the HuggingFace embedding model
+# at import time since only get_context_via_agent (no embedding) is used here.
+_rag_service: RAGContextService | None = None
+
+
+def _get_rag_service() -> RAGContextService:
+    global _rag_service
+    if _rag_service is None:
+        _rag_service = RAGContextService()
+    return _rag_service
 
 
 async def _resolve_files_for_sources(
@@ -54,7 +73,7 @@ async def _resolve_files_for_sources(
 
     Returns matching DriveFile IDs filtered to rag_status=READY and is_deleted=False.
     When *allowed_sources* is empty, returns all ready owner files ordered by
-    DriveFile.id ASC, capped at _MAX_AGENT_FILES.
+    DriveFile.id ASC, capped at SLACK_MAX_AGENT_FILES.
     """
     stmt = (
         select(DriveFile)
@@ -65,38 +84,83 @@ async def _resolve_files_for_sources(
         )
         .order_by(col(DriveFile.id).asc())
     )
+
+    if allowed_sources:
+        # resolve_source_name appends .pdf for Google-native MIME types whose
+        # DriveFile.name has no .pdf suffix. Build a candidate set covering both
+        # the resolved name (regular files) and the stripped name (Google-native
+        # docs) so the SQL scan stays bounded even for large file libraries.
+        candidate_names: set[str] = set()
+        for s in allowed_sources:
+            candidate_names.add(s)
+            if s.lower().endswith(".pdf"):
+                candidate_names.add(s[:-4])
+        stmt = stmt.where(col(DriveFile.name).in_(candidate_names))
+
     result = await session.execute(stmt)
     files: list[DriveFile] = list(result.scalars().all())
 
     if allowed_sources:
         allowed_set = set(allowed_sources)
-        return [f.id for f in files if f.id is not None and resolve_source_name(f) in allowed_set]
+        matched = [f.id for f in files if f.id is not None and resolve_source_name(f) in allowed_set]
+        if len(matched) > SLACK_MAX_AGENT_FILES:
+            logger.warning(
+                "Slack agentic RAG: %d sources resolved for user=%d, capping at SLACK_MAX_AGENT_FILES=%d",
+                len(matched),
+                user_id,
+                SLACK_MAX_AGENT_FILES,
+            )
+            matched = matched[:SLACK_MAX_AGENT_FILES]
+        return matched
 
-    return [f.id for f in files[:_MAX_AGENT_FILES] if f.id is not None]
+    return [f.id for f in files[:SLACK_MAX_AGENT_FILES] if f.id is not None]
 
 
 async def _run_agent_fan_out(
-    session: AsyncSession,
     user_id: int,
     file_ids: list[int],
     question: str,
-    agent_llm: Any,
+    agent_llm: BaseChatModel,
 ) -> list[RAGContext]:
-    """Run agentic RAG per file concurrently. Any per-file failure propagates."""
+    """Run agentic RAG per file concurrently with partial-failure tolerance.
+
+    Uses return_exceptions=True so a single failing file does not discard results
+    from files that succeeded. Each coroutine gets its own AsyncSession — sharing
+    a single session across concurrent coroutines is unsafe (SQLAlchemy AsyncSession
+    is not reentrant).
+
+    If at least one file returns a RAGContext, the failures are logged and dropped.
+    Only when ALL files fail is the a representative exception re-raised to the caller.
+    """
     if not file_ids:
         return []
 
-    coros = [
-        _rag_service.get_context_via_agent(
-            session=session,
-            user_id=user_id,
-            file_db_id=file_id,
-            query=question,
-            llm=agent_llm,
+    async def _run_single(file_id: int) -> RAGContext:
+        async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
+            return await _get_rag_service().get_context_via_agent(
+                session=file_session,
+                user_id=user_id,
+                file_db_id=file_id,
+                query=question,
+                llm=agent_llm,
+            )
+
+    raw: list[RAGContext | BaseException] = await asyncio.gather(
+        *[_run_single(fid) for fid in file_ids], return_exceptions=True
+    )
+    contexts = [r for r in raw if isinstance(r, RAGContext)]
+    errors = [r for r in raw if isinstance(r, BaseException)]
+    if errors:
+        logger.warning(
+            "Slack agentic RAG: %d/%d files failed for user=%d: %s",
+            len(errors),
+            len(file_ids),
+            user_id,
+            dict(Counter(type(e).__name__ for e in errors)),
         )
-        for file_id in file_ids
-    ]
-    return await asyncio.gather(*coros)
+    if errors and not contexts:
+        raise _pick_representative_error(errors)
+    return contexts
 
 
 async def answer_question(
@@ -104,7 +168,7 @@ async def answer_question(
     user_id: int,
     question: str,
     config: SlackConfig,
-    agent_llm: Any,
+    agent_llm: BaseChatModel,
     llm_provider: BaseChatProvider | None = None,
 ) -> tuple[str, ResponseType]:
     """Run agentic RAG for the bot's allowed_sources and return (answer, response_type).
@@ -128,10 +192,10 @@ async def answer_question(
         question: Cleaned student question (mention stripped).
         config: Per-bot SlackConfig (allowed_sources, fallback_message, ...).
         agent_llm: LangChain LLM used by the per-file agentic search. Required.
-            Built from SYSTEM_LLM_* env vars by the caller; deployer pays.
+            Built from the instructor's llm_config_id by the caller.
         llm_provider: Optional BaseChatProvider for synthesis. When None, the bot
-            returns formatted raw chunks. Built from the bot's llm_config_id by
-            the caller; instructor pays.
+            returns formatted raw chunks. Built from the instructor's llm_config_id
+            by the caller.
     """
     file_ids = await _resolve_files_for_sources(
         session=session, user_id=user_id, allowed_sources=config.allowed_sources
@@ -150,11 +214,10 @@ async def answer_question(
             user_id,
             config.allowed_sources or "all",
         )
-        return _NO_FILES_RESOLVED_MESSAGE, ResponseType.no_files_resolved
+        return NO_FILES_RESOLVED_MESSAGE, ResponseType.no_files_resolved
 
     try:
         contexts = await _run_agent_fan_out(
-            session=session,
             user_id=user_id,
             file_ids=file_ids,
             question=question,
@@ -162,13 +225,13 @@ async def answer_question(
         )
     except DriveFileNotFoundError as exc:
         logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
-        return _DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.drive_file_not_found
+        return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.drive_file_not_found
     except RAGNotReadyError as exc:
         logger.warning("Slack agentic RAG: file not ready user=%d files=%s: %s", user_id, file_ids, exc)
-        return _RAG_NOT_READY_MESSAGE, ResponseType.rag_not_ready
+        return RAG_NOT_READY_MESSAGE, ResponseType.rag_not_ready
     except RAGRetrievalError as exc:
         logger.error("Slack agentic RAG: retrieval error user=%d files=%s: %s", user_id, file_ids, exc)
-        return _RETRIEVAL_ERROR_MESSAGE, ResponseType.retrieval_error
+        return RETRIEVAL_ERROR_MESSAGE, ResponseType.retrieval_error
 
     non_empty = [c for c in contexts if c.chunks]
     total_chunks = sum(len(c.chunks) for c in non_empty)

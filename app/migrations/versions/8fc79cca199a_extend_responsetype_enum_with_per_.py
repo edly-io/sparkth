@@ -1,8 +1,8 @@
 """extend responsetype enum with per-failure values
 
-Revision ID: 2b8cd7530d90
-Revises: 6bdd5691de9d
-Create Date: 2026-05-20 16:06:15.303981
+Revision ID: 8fc79cca199a
+Revises: 164908f2fa97
+Create Date: 2026-05-22 18:12:13.593282
 
 """
 
@@ -11,8 +11,8 @@ from typing import Sequence, Union
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "2b8cd7530d90"
-down_revision: Union[str, Sequence[str], None] = "6bdd5691de9d"
+revision: str = "8fc79cca199a"
+down_revision: Union[str, Sequence[str], None] = "164908f2fa97"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -24,9 +24,11 @@ def upgrade() -> None:
         op.execute("ALTER TYPE responsetype ADD VALUE IF NOT EXISTS 'rag_not_ready'")
         op.execute("ALTER TYPE responsetype ADD VALUE IF NOT EXISTS 'drive_file_not_found'")
         op.execute("ALTER TYPE responsetype ADD VALUE IF NOT EXISTS 'retrieval_error'")
+    pass
+    # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # PostgreSQL does not support removing enum values
     pass
+    # ### end Alembic commands ###

@@ -6,13 +6,15 @@ import pytest
 from langchain_core.exceptions import LangChainException
 
 from app.core_plugins.slack.config import SlackConfig
+from app.core_plugins.slack.constants import (
+    DRIVE_FILE_NOT_FOUND_MESSAGE,
+    NO_FILES_RESOLVED_MESSAGE,
+    RAG_NOT_READY_MESSAGE,
+    RETRIEVAL_ERROR_MESSAGE,
+    SLACK_MAX_AGENT_FILES,
+)
 from app.core_plugins.slack.models import ResponseType
 from app.core_plugins.slack.rag import (
-    _DRIVE_FILE_NOT_FOUND_MESSAGE,
-    _MAX_AGENT_FILES,
-    _NO_FILES_RESOLVED_MESSAGE,
-    _RAG_NOT_READY_MESSAGE,
-    _RETRIEVAL_ERROR_MESSAGE,
     _resolve_files_for_sources,
     _run_agent_fan_out,
     answer_question,
@@ -25,8 +27,6 @@ from app.rag.types import RAGContext
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """Returns only DriveFile IDs whose source_name is in allowed_sources."""
-    from unittest.mock import AsyncMock
-
     mock_session = AsyncMock()
     # Note: MagicMock's `name` kwarg is reserved (sets the mock's repr name, not the .name attribute).
     # We assign .name explicitly after construction so resolve_source_name() reads the intended value.
@@ -47,9 +47,7 @@ async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch:
 
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> None:
-    """When allowed_sources is empty, returns up to _MAX_AGENT_FILES owner files ordered by id ASC."""
-    from unittest.mock import AsyncMock
-
+    """When allowed_sources is empty, returns up to SLACK_MAX_AGENT_FILES owner files ordered by id ASC."""
     mock_session = AsyncMock()
     mock_files = [MagicMock(id=i, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)]
     exec_result = MagicMock()
@@ -58,13 +56,11 @@ async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> N
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=[])
     assert result == [1, 2, 3, 4, 5]
-    assert len(result) == _MAX_AGENT_FILES
+    assert len(result) == SLACK_MAX_AGENT_FILES
 
 
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_returns_empty_when_no_files() -> None:
-    from unittest.mock import AsyncMock
-
     mock_session = AsyncMock()
     exec_result = MagicMock()
     exec_result.scalars.return_value.all.return_value = []
@@ -86,15 +82,11 @@ def _make_rag_context(source: str = "docs.pdf", chunks: list[SimilarityResult] |
 @pytest.mark.asyncio
 async def test_fan_out_calls_agent_per_file_concurrently() -> None:
     """Each file_id triggers one get_context_via_agent call; gather is used."""
-    from unittest.mock import AsyncMock
-
-    mock_session = AsyncMock()
     agent_llm = MagicMock()
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
         mock_svc.get_context_via_agent = AsyncMock(side_effect=[_make_rag_context("a.pdf"), _make_rag_context("b.pdf")])
         results = await _run_agent_fan_out(
-            session=mock_session,
             user_id=42,
             file_ids=[10, 11],
             question="what is X?",
@@ -109,16 +101,12 @@ async def test_fan_out_calls_agent_per_file_concurrently() -> None:
 @pytest.mark.asyncio
 async def test_fan_out_propagates_rag_retrieval_error() -> None:
     """A per-file RAGRetrievalError is re-raised so the caller can translate it."""
-    from unittest.mock import AsyncMock
-
-    mock_session = AsyncMock()
     agent_llm = MagicMock()
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
         mock_svc.get_context_via_agent = AsyncMock(side_effect=RAGRetrievalError("MCP down"))
         with pytest.raises(RAGRetrievalError):
             await _run_agent_fan_out(
-                session=mock_session,
                 user_id=42,
                 file_ids=[10],
                 question="test",
@@ -127,16 +115,31 @@ async def test_fan_out_propagates_rag_retrieval_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fan_out_empty_file_ids_returns_empty() -> None:
-    from unittest.mock import AsyncMock
+async def test_fan_out_returns_partial_results_when_some_files_fail() -> None:
+    """When some files succeed and others fail, successful results are returned."""
+    agent_llm = MagicMock()
+    good_ctx = _make_rag_context("good.pdf")
 
-    mock_session = AsyncMock()
+    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+        mock_svc.get_context_via_agent = AsyncMock(side_effect=[good_ctx, RAGRetrievalError("bad file")])
+        results = await _run_agent_fan_out(
+            user_id=42,
+            file_ids=[10, 11],
+            question="test",
+            agent_llm=agent_llm,
+        )
+
+    assert len(results) == 1
+    assert results[0].source_name == "good.pdf"
+
+
+@pytest.mark.asyncio
+async def test_fan_out_empty_file_ids_returns_empty() -> None:
     agent_llm = MagicMock()
 
     with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
         mock_svc.get_context_via_agent = AsyncMock()
         results = await _run_agent_fan_out(
-            session=mock_session,
             user_id=42,
             file_ids=[],
             question="test",
@@ -180,7 +183,7 @@ async def test_answer_question_returns_no_files_response_when_no_files_resolved(
         )
 
     assert response_type == ResponseType.no_files_resolved
-    assert answer == _NO_FILES_RESOLVED_MESSAGE
+    assert answer == NO_FILES_RESOLVED_MESSAGE
 
 
 @pytest.mark.asyncio
@@ -304,7 +307,7 @@ async def test_answer_question_returns_retrieval_error_on_rag_retrieval_error() 
         )
 
     assert response_type == ResponseType.retrieval_error
-    assert answer == _RETRIEVAL_ERROR_MESSAGE
+    assert answer == RETRIEVAL_ERROR_MESSAGE
 
 
 @pytest.mark.asyncio
@@ -323,7 +326,7 @@ async def test_answer_question_returns_not_ready_on_rag_not_ready_error() -> Non
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert answer == _RAG_NOT_READY_MESSAGE
+    assert answer == RAG_NOT_READY_MESSAGE
     assert response_type == ResponseType.rag_not_ready
 
 
@@ -343,7 +346,7 @@ async def test_answer_question_returns_file_not_found_on_drive_file_not_found_er
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert answer == _DRIVE_FILE_NOT_FOUND_MESSAGE
+    assert answer == DRIVE_FILE_NOT_FOUND_MESSAGE
     assert response_type == ResponseType.drive_file_not_found
 
 
