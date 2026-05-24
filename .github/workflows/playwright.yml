@@ -70,8 +70,9 @@ jobs:
           MP_SMTP_AUTH_ALLOW_INSECURE: "1"
 
     env:
-      DATABASE_URL: postgresql+asyncpg://sparkth:sparkth_password@localhost:5432/sparkth
-      ALEMBIC_DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth
+      # Sync form — app/core/db.py builds the sync engine from this URL and
+      # derives the async URL automatically. Alembic also reads this var.
+      DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth
       REDIS_URL: redis://localhost:6379
       SECRET_KEY: secret-key-for-ci
       LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
@@ -85,7 +86,10 @@ jobs:
       SMTP_USE_TLS: "false"
       SMTP_FROM_EMAIL: no-reply@sparkth.local
       SMTP_FROM_NAME: Sparkth
-      FRONTEND_BASE_URL: http://localhost:3000
+      # The API serves the built frontend statically on the same origin in
+      # production (see app/main.py), so the suite runs against :7727 — no
+      # /api proxy gap to bridge.
+      FRONTEND_BASE_URL: http://localhost:7727
       FIRST_SUPERUSER: admin
       FIRST_SUPERUSER_PASSWORD: "Sparkth-admin-1!"
       FIRST_SUPERUSER_EMAIL: admin@sparkth.local
@@ -103,6 +107,18 @@ jobs:
       - name: Install Python deps
         run: uv sync --locked --dev
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend deps
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Build frontend (static export)
+        run: bun run build
+        working-directory: frontend
+
       - name: Run database migrations
         run: uv run alembic upgrade head
 
@@ -115,37 +131,16 @@ jobs:
             --superuser \
             --email-verified
 
-      - name: Start API
-        run: |
-          uv run uvicorn app.main:app --host 0.0.0.0 --port 7727 > api.log 2>&1 &
-          for i in {1..30}; do
-            curl -fsS http://localhost:7727/docs > /dev/null && break
-            echo "waiting for API ($i)..."
-            sleep 1
-          done
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install frontend deps
-        run: bun install --frozen-lockfile
-        working-directory: frontend
-
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
         working-directory: frontend
 
-      - name: Start frontend
-        working-directory: frontend
-        env:
-          # Proxy /api requests to the locally running backend.
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:7727
+      - name: Start API (serves frontend + API on :7727)
         run: |
-          bun run dev > ../frontend.log 2>&1 &
+          uv run uvicorn app.main:app --host 0.0.0.0 --port 7727 > api.log 2>&1 &
           for i in {1..60}; do
-            curl -fsS http://localhost:3000 > /dev/null && break
-            echo "waiting for frontend ($i)..."
+            curl -fsS http://localhost:7727/docs > /dev/null && break
+            echo "waiting for API ($i)..."
             sleep 1
           done
 
@@ -153,7 +148,7 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_NO_WEBSERVER: "1"
-          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          PLAYWRIGHT_BASE_URL: http://localhost:7727
           PLAYWRIGHT_API_URL: http://localhost:7727
           MAILPIT_URL: http://localhost:8025
         run: bunx playwright test --reporter=blob
@@ -166,12 +161,10 @@ jobs:
           path: frontend/blob-report
           retention-days: 7
 
-      - name: Upload server logs on failure
+      - name: Upload API logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: server-logs
-          path: |
-            api.log
-            frontend.log
+          path: api.log
           retention-days: 3
