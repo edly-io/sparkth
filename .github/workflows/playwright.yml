@@ -1,0 +1,177 @@
+name: Playwright Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - app/**
+              - frontend/**
+              - tests/**
+              - alembic.ini
+              - pyproject.toml
+              - uv.lock
+              - .github/workflows/playwright.yml
+
+  playwright:
+    needs: changes
+    if: ${{ needs.changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: sparkth
+          POSTGRES_PASSWORD: sparkth_password
+          POSTGRES_DB: sparkth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sparkth -d sparkth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
+        env:
+          MP_SMTP_AUTH_ACCEPT_ANY: "1"
+          MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://sparkth:sparkth_password@localhost:5432/sparkth
+      ALEMBIC_DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth
+      REDIS_URL: redis://localhost:6379
+      SECRET_KEY: secret-key-for-ci
+      LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
+      SLACK_CLIENT_ID: fake-client-id
+      SLACK_CLIENT_SECRET: fake-client-secret
+      SLACK_SIGNING_SECRET: fake-signing-secret
+      SLACK_REDIRECT_URI: http://localhost/callback
+      RAG_MCP_URL: http://localhost:7728/mcp
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_USE_TLS: "false"
+      SMTP_FROM_EMAIL: no-reply@sparkth.local
+      SMTP_FROM_NAME: Sparkth
+      FRONTEND_BASE_URL: http://localhost:3000
+      FIRST_SUPERUSER: admin
+      FIRST_SUPERUSER_PASSWORD: "Sparkth-admin-1!"
+      FIRST_SUPERUSER_EMAIL: admin@sparkth.local
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --locked --dev
+
+      - name: Run database migrations
+        run: uv run alembic upgrade head
+
+      - name: Seed E2E superuser
+        run: |
+          uv run python -m app.cli.main users create-user \
+            --username "$FIRST_SUPERUSER" \
+            --email "$FIRST_SUPERUSER_EMAIL" \
+            --password "$FIRST_SUPERUSER_PASSWORD" \
+            --superuser \
+            --email-verified
+
+      - name: Start API
+        run: |
+          uv run uvicorn app.main:app --host 0.0.0.0 --port 7727 > api.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://localhost:7727/docs > /dev/null && break
+            echo "waiting for API ($i)..."
+            sleep 1
+          done
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend deps
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Start frontend
+        working-directory: frontend
+        env:
+          # Proxy /api requests to the locally running backend.
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:7727
+        run: |
+          bun run dev > ../frontend.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS http://localhost:3000 > /dev/null && break
+            echo "waiting for frontend ($i)..."
+            sleep 1
+          done
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_NO_WEBSERVER: "1"
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          PLAYWRIGHT_API_URL: http://localhost:7727
+          MAILPIT_URL: http://localhost:8025
+        run: bunx playwright test --reporter=blob
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-blob-report
+          path: frontend/blob-report
+          retention-days: 7
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: |
+            api.log
+            frontend.log
+          retention-days: 3

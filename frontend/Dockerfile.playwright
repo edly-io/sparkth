@@ -1,0 +1,21 @@
+# Dockerfile.playwright — Playwright E2E test runner.
+#
+# Used by `.github/workflows/playwright.yml` (and locally via `make test.e2e.docker`)
+# to run the Playwright suite against an already-running Sparkth stack.
+
+FROM mcr.microsoft.com/playwright:v1.60.0-jammy
+
+WORKDIR /frontend
+
+# Install Bun for parity with local development.
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+COPY . .
+
+ENV PLAYWRIGHT_NO_WEBSERVER=1
+
+CMD ["bunx", "playwright", "test"]

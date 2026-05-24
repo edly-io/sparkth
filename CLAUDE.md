@@ -54,6 +54,9 @@ make mcp             # MCP server (HTTP mode)
 make test            # Run all tests (frontend + backend)
 make test.backend    # Run backend tests only
 make test.frontend   # Run frontend tests only
+make test.e2e        # Run Playwright E2E tests (see frontend/tests/README.md)
+make test.e2e.ui    # Run Playwright E2E tests in interactive UI mode
+make test.e2e.install # Install Playwright browsers (one-time)
 make test.help       # Show usage for all test commands
 make mypy            # mypy --strict
 

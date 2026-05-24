@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 
 from app.core.db import get_engine
 from app.core.security import get_password_hash
+from app.models.base import utc_now
 from app.models.user import User
 
 app = typer.Typer(help="User management commands")
@@ -15,6 +16,7 @@ def create_user(
     password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True),
     name: str | None = typer.Option(None, "--name", "-n"),
     superuser: bool = typer.Option(False, "--superuser", "--admin", is_flag=True),
+    email_verified: bool = typer.Option(False, "--email-verified", is_flag=True),
 ) -> None:
     engine = get_engine()
     with Session(engine) as session:
@@ -34,6 +36,8 @@ def create_user(
             hashed_password=hashed_password,
             name=name or username,
             is_superuser=superuser,
+            email_verified=email_verified,
+            email_verified_at=utc_now() if email_verified else None,
         )
         session.add(user)
         session.commit()
