@@ -10,7 +10,6 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
-from app.core_plugins.chat.routes import chat_router
 from app.lib.log import configure_logging, get_logger
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
@@ -115,4 +114,3 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
-app.include_router(chat_router, prefix="/api/v1")

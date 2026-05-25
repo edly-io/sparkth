@@ -60,12 +60,6 @@ class ToolCall(BaseModel):
     arguments: dict[str, Any]
 
 
-class ToolResult(BaseModel):
-    tool_call_id: str
-    name: str
-    content: str
-
-
 class ChatCompletionRequest(BaseModel):
     llm_config_id: int = Field(..., description="ID of the LLMConfig to use for this completion")
     model_override: str | None = Field(
