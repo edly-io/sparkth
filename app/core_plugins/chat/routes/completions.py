@@ -15,7 +15,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.config import ChatSystemConfig
-from app.core_plugins.chat.constants import DEFAULT_SIMILARITY_THRESHOLD, TITLE_LLM_TEMPERATURE
 from app.core_plugins.chat.conversation_title import ConversationTitleGenerator
 from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import LMSCredentialsBuilder
@@ -306,7 +305,7 @@ async def chat_completion(
                 provider_name=provider_name,
                 api_key=api_key,
                 model=model,
-                temperature=TITLE_LLM_TEMPERATURE,
+                temperature=config.title_llm_temperature,
                 max_tool_executions=0,
             )
             background_tasks.add_task(
@@ -316,6 +315,7 @@ async def chat_completion(
                 first_user_message=first_user_text,
                 service=service,
                 provider=title_provider,
+                config=config,
             )
 
     # Attach any drive files included with the request (covers new-conversation flow

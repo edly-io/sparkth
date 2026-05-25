@@ -1,4 +1,4 @@
-from app.core_plugins.chat.constants import TITLE_DB_MAX_LENGTH, TITLE_LLM_MAX_TOKENS, TITLE_PROMPT_MAX_CHARS
+from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.lib.db import session_scope
@@ -46,17 +46,19 @@ class ConversationTitleGenerator:
         first_user_message: str,
         service: ChatService,
         provider: BaseChatProvider,
+        config: ChatSystemConfig | None = None,
     ) -> None:
         """Background task: ask the LLM for a short title and persist it."""
+        cfg = config or ChatSystemConfig()
         try:
             prompt = (
                 "Generate a concise 3-6 word title for a conversation that starts with "
                 "the following message. Reply with only the title, no quotes or punctuation:\n\n"
-                f"{first_user_message[:TITLE_PROMPT_MAX_CHARS]}"
+                f"{first_user_message[: cfg.title_prompt_max_chars]}"
             )
             response = await provider.send_message(
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=TITLE_LLM_MAX_TOKENS,
+                max_tokens=cfg.title_llm_max_tokens,
             )
             title = response["content"].strip().strip("\"'").strip()
             if title:
@@ -65,7 +67,7 @@ class ConversationTitleGenerator:
                         session=session,
                         conversation_id=conversation_id,
                         user_id=user_id,
-                        title=title[:TITLE_DB_MAX_LENGTH],
+                        title=title[: cfg.title_db_max_length],
                     )
                 logger.info("Generated title for conversation %d: %r", conversation_id, title)
         except (KeyError, ValueError, RuntimeError, OSError) as e:

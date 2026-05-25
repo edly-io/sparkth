@@ -130,7 +130,6 @@ make create-user     # Create user (pass args after --)
 | `CHAT_TITLE_LLM_MAX_TOKENS` | Max tokens the title-generation LLM may produce (default 20) |
 | `CHAT_TITLE_DB_MAX_LENGTH` | Max characters stored in the conversation title column (default 255) |
 | `CHAT_TITLE_LLM_TEMPERATURE` | Temperature for title-generation LLM calls (default 0.3) |
-| `CHAT_DEFAULT_SIMILARITY_THRESHOLD` | Cosine similarity threshold for RAG chunk retrieval (default 0.45) |
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
 

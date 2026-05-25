@@ -14,6 +14,10 @@ class ChatSystemConfig(BaseSettings):
 
     max_tool_executions: int = 50
     title_max_length: int = 60
+    title_prompt_max_chars: int = 500
+    title_llm_max_tokens: int = 20
+    title_db_max_length: int = 255
+    title_llm_temperature: float = 0.3
 
 
 class ChatUserConfig(PluginConfig):
