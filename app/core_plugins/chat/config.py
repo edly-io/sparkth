@@ -12,12 +12,7 @@ class ChatSystemConfig(BaseSettings):
         extra="ignore",
     )
 
-    rate_limit_requests_per_minute: int = 60
-    rate_limit_chat_per_minute: int = 10
-    rate_limit_concurrent_streams: int = 5
-
     max_tool_executions: int = 50
-
     title_max_length: int = 60
 
 
