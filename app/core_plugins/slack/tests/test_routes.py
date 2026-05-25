@@ -11,7 +11,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 
 from app.core_plugins.slack.config import SlackConfig
-from app.core_plugins.slack.constants import AI_KEY_UNAVAILABLE_MESSAGE, NO_AI_KEY_MESSAGE
+from app.core_plugins.slack.constants import (
+    AI_KEY_UNAVAILABLE_MESSAGE,
+    NO_AI_KEY_MESSAGE,
+    RETRIEVAL_ERROR_MESSAGE,
+    SYNTHESIS_SYSTEM_PROMPT,
+)
 from app.core_plugins.slack.models import (
     BotResponseLog,
     ConnectionEventType,
@@ -20,7 +25,6 @@ from app.core_plugins.slack.models import (
     SlackWorkspace,
 )
 from app.core_plugins.slack.routes import _dispatch_event
-from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.main import app
 from app.models.user import User
 

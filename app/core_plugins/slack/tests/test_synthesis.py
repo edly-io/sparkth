@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.core_plugins.slack.synthesis import _MAX_QUESTION_LEN, SYNTHESIS_SYSTEM_PROMPT, synthesize_answer
+from app.core_plugins.slack.constants import MAX_QUESTION_LEN, SYNTHESIS_SYSTEM_PROMPT
+from app.core_plugins.slack.synthesis import synthesize_answer
 
 
 @pytest.mark.asyncio
@@ -74,7 +75,7 @@ async def test_question_wrapped_in_xml_delimiters() -> None:
 async def test_question_truncated_to_max_length() -> None:
     provider = AsyncMock()
     provider.send_message = AsyncMock(return_value={"content": "Answer."})
-    long_question = "x" * (_MAX_QUESTION_LEN + 500)
+    long_question = "x" * (MAX_QUESTION_LEN + 500)
 
     await synthesize_answer(
         question=long_question,
@@ -83,8 +84,8 @@ async def test_question_truncated_to_max_length() -> None:
     )
 
     user_content = provider.send_message.call_args.kwargs["messages"][0]["content"]
-    assert "x" * (_MAX_QUESTION_LEN + 500) not in user_content
-    assert "x" * _MAX_QUESTION_LEN in user_content
+    assert "x" * (MAX_QUESTION_LEN + 500) not in user_content
+    assert "x" * MAX_QUESTION_LEN in user_content
 
 
 def test_system_prompt_contains_injection_guardrail() -> None:

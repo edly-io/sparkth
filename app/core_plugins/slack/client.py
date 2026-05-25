@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import httpx
 
-from app.core_plugins.slack.config import MAX_TIMESTAMP_DELTA
+from app.core_plugins.slack.constants import MAX_TIMESTAMP_DELTA
 from app.core_plugins.slack.exceptions import SlackSignatureError
 from app.lib.log import get_logger
 

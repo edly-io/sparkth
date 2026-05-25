@@ -24,10 +24,13 @@ from app.core_plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,
     NO_AI_KEY_MESSAGE,
     RETRIEVAL_ERROR_MESSAGE,
+    SLACK_FRONTEND_PATH,
+    SYNTHESIS_SYSTEM_PROMPT,
 )
+from app.core_plugins.slack.enums import ConnectionEventType, ResponseType
 from app.core_plugins.slack.events import extract_question, is_greeting, should_handle_event
 from app.core_plugins.slack.exceptions import SlackSignatureError
-from app.core_plugins.slack.models import BotResponseLog, ConnectionEventType, ResponseType, SlackConnectionLog
+from app.core_plugins.slack.models import BotResponseLog, SlackConnectionLog
 from app.core_plugins.slack.oauth import (
     decode_state,
     decrypt_token,
@@ -39,7 +42,6 @@ from app.core_plugins.slack.oauth import (
     save_workspace,
 )
 from app.core_plugins.slack.rag import answer_question
-from app.core_plugins.slack.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from app.core_plugins.slack.types import (
     AuthorizationUrlResponse,
     BotResponseLogItem,
@@ -59,8 +61,6 @@ from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
 logger = get_logger(__name__)
-
-SLACK_FRONTEND_PATH = "/dashboard/slack"
 
 
 def require_user_id(current_user: User = Depends(get_current_user)) -> int:
