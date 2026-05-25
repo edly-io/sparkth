@@ -17,13 +17,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.config import ChatSystemConfig
-from app.core_plugins.chat.conversation_title import (
-    extract_title_from_messages,
-    generate_conversation_title,
-    get_first_user_text,
-)
+from app.core_plugins.chat.constants import DEFAULT_SIMILARITY_THRESHOLD, TITLE_LLM_TEMPERATURE
+from app.core_plugins.chat.conversation_title import ConversationTitleGenerator
 from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
-from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
+from app.core_plugins.chat.lms_credentials import LMSCredentialsBuilder
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.schemas import (
     AttachedDriveFileResponse,
@@ -344,20 +341,22 @@ async def chat_completion(
             llm_config_id=request.llm_config_id,
             provider=provider_name,
             model=model,
-            title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
+            title=ConversationTitleGenerator.extract_title_from_messages(
+                request.messages, max_length=config.title_max_length
+            ),
         )
 
-        first_user_text = get_first_user_text(request.messages)
+        first_user_text = ConversationTitleGenerator.get_first_user_text(request.messages)
         if first_user_text:
             title_provider = get_provider(
                 provider_name=provider_name,
                 api_key=api_key,
                 model=model,
-                temperature=0.3,
+                temperature=TITLE_LLM_TEMPERATURE,
                 max_tool_executions=0,
             )
             background_tasks.add_task(
-                generate_conversation_title,
+                ConversationTitleGenerator.generate,
                 conversation_id=conversation.id,  # type: ignore
                 user_id=current_user.id,  # type: ignore
                 first_user_message=first_user_text,
@@ -557,7 +556,7 @@ async def chat_completion(
 
         # Mutate system_prompt before the stream branch so both the streaming
         # and non-streaming paths receive the credentials hint.
-        lms_credentials_message = await build_lms_credentials_message(
+        lms_credentials_message = await LMSCredentialsBuilder.build_message(
             session=session,
             user_id=current_user.id,  # type: ignore[arg-type]
             tools=tools,
