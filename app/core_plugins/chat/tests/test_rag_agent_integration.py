@@ -38,7 +38,7 @@ class TestResolveBlocksUsesAgent:
         )
         mock_rag_service.get_context_via_agent = AsyncMock(return_value=mock_context)
 
-        with patch("app.core_plugins.chat.routes.RAGContextService", return_value=mock_rag_service):
+        with patch("app.core_plugins.chat.routes.completions.RAGContextService", return_value=mock_rag_service):
             await _resolve_drive_file_blocks(
                 messages=messages,
                 session=mock_session,

@@ -168,8 +168,9 @@ class TestOutOfScopeConversationCreation:
         mock_msg.id = 1
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider"),
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=False),
+            patch("app.core_plugins.chat.routes.completions.get_provider"),
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.add_message",
                 new_callable=AsyncMock,
@@ -216,8 +217,9 @@ class TestOutOfScopeConversationCreation:
         await session.commit()
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider"),
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=False),
+            patch("app.core_plugins.chat.routes.completions.get_provider"),
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",
                 new_callable=AsyncMock,

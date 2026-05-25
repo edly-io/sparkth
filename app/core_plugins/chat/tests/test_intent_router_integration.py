@@ -94,15 +94,16 @@ class TestIntentRouterIntegration:
         mock_msg.id = 1
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
             ) as mock_list_attachments,
             patch(
-                "app.core_plugins.chat.routes._resolve_drive_file_blocks",
+                "app.core_plugins.chat.routes.completions._resolve_drive_file_blocks",
                 new_callable=AsyncMock,
             ) as mock_resolve,
             patch(
@@ -173,10 +174,11 @@ class TestIntentRouterIntegration:
         mock_msg.id = 1
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -192,7 +194,7 @@ class TestIntentRouterIntegration:
             # Patch the whole stream so we control the SSE output directly.
             # This test's goal is to verify the router is called with retrieve=False
             # and the route passes rag_routing_reason to the stream correctly.
-            patch("app.core_plugins.chat.routes.stream_chat_response") as mock_stream_fn,
+            patch("app.core_plugins.chat.routes.completions.stream_chat_response") as mock_stream_fn,
         ):
             mock_scope = AsyncMock()
             mock_scope.classify = AsyncMock(return_value=True)
@@ -262,15 +264,16 @@ class TestIntentRouterIntegration:
         mock_msg.id = 1
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
             ) as mock_list_attachments,
             patch(
-                "app.core_plugins.chat.routes.stream_chat_response",
+                "app.core_plugins.chat.routes.completions.stream_chat_response",
             ) as mock_stream,
             patch(
                 "app.core_plugins.chat.service.ChatService.add_message",
@@ -334,9 +337,10 @@ class TestIntentRouterIntegration:
         mock_msg.id = 1
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -394,9 +398,10 @@ class TestIntentRouterIntegration:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -476,13 +481,14 @@ async def _seed_file(session: AsyncSession, folder_id: int, user_id: int, name: 
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-        patch("app.core_plugins.chat.routes.ScopeClassifier"),
+        patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+        patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+        patch("app.core_plugins.chat.routes.completions.ScopeClassifier"),
         patch("app.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.attach_drive_file", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.get_conversation_messages", new_callable=AsyncMock),
-        patch("app.core_plugins.chat.routes.get_provider"),
+        patch("app.core_plugins.chat.routes.completions.get_provider"),
     )
 
 
@@ -538,8 +544,9 @@ class TestDriveFileIdsOwnershipCheck:
         file2_id = await _seed_file(session, folder_id, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -556,7 +563,7 @@ class TestDriveFileIdsOwnershipCheck:
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
         ):
             _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
@@ -590,8 +597,9 @@ class TestDriveFileIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -608,7 +616,7 @@ class TestDriveFileIdsOwnershipCheck:
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
         ):
             _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
@@ -640,8 +648,9 @@ class TestDriveFileIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -658,7 +667,7 @@ class TestDriveFileIdsOwnershipCheck:
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
         ):
             _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
@@ -702,10 +711,11 @@ class TestProviderApiErrorPersistence:
         )
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -764,10 +774,11 @@ class TestProviderApiErrorPersistence:
         mock_msg.id = 99
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.completions.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,

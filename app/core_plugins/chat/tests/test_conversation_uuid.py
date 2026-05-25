@@ -266,11 +266,11 @@ class TestConversationUUIDRoutes:
         mock_message = Message(id=1, conversation_id=1, role="assistant", content="Hello!")
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.get_rag_provider") as mock_get_rag_provider,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider") as mock_get_rag_provider,
             patch("app.core_plugins.chat.conversation_title.ConversationTitleGenerator.generate"),
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
@@ -320,9 +320,10 @@ class TestConversationUUIDRoutes:
         mock_message = Message(id=1, conversation_id=conv.id, role="assistant", content="Hello again!")  # type: ignore[arg-type]
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider") as mock_get_rag_provider,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
-            patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
+            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)

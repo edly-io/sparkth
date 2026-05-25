@@ -1,18 +1,16 @@
 import asyncio
 import json
-from functools import lru_cache
 from typing import Any, AsyncGenerator, Literal, cast
-from uuid import UUID
 
 import anthropic
 import httpx
 import openai
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from google.api_core import exceptions as google_exceptions
 from langchain_core.exceptions import LangChainException
-from pydantic import BaseModel, ValidationError
-from sqlmodel import col, func, select
+from pydantic import ValidationError
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
@@ -21,21 +19,9 @@ from app.core_plugins.chat.constants import DEFAULT_SIMILARITY_THRESHOLD, TITLE_
 from app.core_plugins.chat.conversation_title import ConversationTitleGenerator
 from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import LMSCredentialsBuilder
-from app.core_plugins.chat.models import Conversation, Message
-from app.core_plugins.chat.schemas import (
-    AttachedDriveFileResponse,
-    ChatCompletionRequest,
-    ChatCompletionResponse,
-    ChatMessage,
-    ConversationAttachmentCreate,
-    ConversationAttachmentResponse,
-    ConversationDetailResponse,
-    ConversationListResponse,
-    ConversationResponse,
-    MessageResponse,
-    ToolListResponse,
-    ToolSchema,
-)
+from app.core_plugins.chat.models import Conversation
+from app.core_plugins.chat.routes.dependencies import get_chat_service, get_chat_system_config, get_rag_context_service
+from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.lib.db import get_async_session, session_scope
@@ -43,10 +29,7 @@ from app.lib.log import get_logger
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
-from app.llm.providers import (
-    BaseChatProvider,
-    get_provider,
-)
+from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService, get_llm_service
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
@@ -61,8 +44,7 @@ _RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt", "txt")
 if not isinstance(_RAG_CONTEXT_PROMPT, str):
     raise TypeError("rag_context_replacement_prompt asset must be a string")
 
-chat_router = APIRouter(prefix="/chat", tags=["Chat"])
-
+router = APIRouter()
 
 _PROVIDER_API_ERRORS = (
     anthropic.AuthenticationError,
@@ -87,37 +69,9 @@ _PROVIDER_API_ERRORS = (
 )
 
 
-@lru_cache
-def get_chat_system_config() -> ChatSystemConfig:
-    """Dependency to get chat system configuration from environment variables."""
-    return ChatSystemConfig()
-
-
-def get_chat_service() -> ChatService:
-    """Dependency to get chat service."""
-    return ChatService()
-
-
-def get_rag_context_service() -> RAGContextService:
-    """FastAPI dependency: returns a stateless RAGContextService."""
-    return RAGContextService()
-
-
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content."""
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
-
-
-def _parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:
-    if not model_metadata:
-        return None
-    try:
-        meta = json.loads(model_metadata)
-        value = meta.get(key)
-        return value if isinstance(value, list) else None
-    except (json.JSONDecodeError, AttributeError) as exc:
-        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
-        return None
 
 
 def _extract_query_text(messages: list[ChatMessage]) -> str:
@@ -254,7 +208,7 @@ async def _persist_pre_stream_error(
         )
 
 
-@chat_router.post("/completions", response_model=ChatCompletionResponse)
+@router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
     background_tasks: BackgroundTasks,
@@ -476,8 +430,8 @@ async def chat_completion(
         should_run_rag = False
         rag_routing_reason: str | None = None
         if attached_files and query_text:
-            router = RAGIntentRouter(llm=provider.create_llm())
-            decision = await router.decide(
+            rag_router = RAGIntentRouter(llm=provider.create_llm())
+            decision = await rag_router.decide(
                 query=query_text,
                 attached_files=attached_files,
                 user_id=current_user.id,  # type: ignore[arg-type]
@@ -1031,300 +985,3 @@ def _streaming_error_message(exc: Exception) -> str:
 
     # Generic fallback
     return "An error occurred while generating a response. Please try again."
-
-
-@chat_router.get("/conversations", response_model=ConversationListResponse)
-async def list_conversations(
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> ConversationListResponse:
-    conversations, total = await service.list_conversations(
-        session=session,
-        user_id=current_user.id,  # type: ignore
-        limit=limit,
-        offset=offset,
-    )
-
-    conv_ids = [conv.id for conv in conversations]
-
-    count_stmt = (
-        select(Message.conversation_id, func.count(col(Message.id)).label("message_count"))
-        .where(col(Message.conversation_id).in_(conv_ids))
-        .group_by(col(Message.conversation_id))
-    )
-    count_result = await session.exec(count_stmt)
-    message_counts = {row[0]: row[1] for row in count_result.all()}
-
-    conversation_responses = [
-        ConversationResponse(
-            id=conv.uuid,
-            provider=conv.provider,
-            model=conv.model,
-            title=conv.title,
-            total_tokens_used=conv.total_tokens_used,
-            total_cost=conv.total_cost,
-            message_count=message_counts.get(conv.id, 0),  # type: ignore
-            created_at=conv.created_at,
-            updated_at=conv.updated_at,
-        )
-        for conv in conversations
-    ]
-
-    return ConversationListResponse(
-        conversations=conversation_responses,
-        total=total,
-    )
-
-
-@chat_router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
-async def get_conversation(
-    conversation_id: UUID,
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> ConversationDetailResponse:
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
-    )
-
-    if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
-        )
-
-    messages = await service.get_conversation_messages(
-        session=session,
-        conversation_id=conversation.id,  # type: ignore
-        limit=limit,
-        offset=offset,
-        exclude_errors=False,
-    )
-
-    message_count = len(messages)
-
-    return ConversationDetailResponse(
-        id=conversation.uuid,
-        provider=conversation.provider,
-        model=conversation.model,
-        title=conversation.title,
-        total_tokens_used=conversation.total_tokens_used,
-        total_cost=conversation.total_cost,
-        message_count=message_count,
-        created_at=conversation.created_at,
-        updated_at=conversation.updated_at,
-        messages=[
-            MessageResponse(
-                id=msg.id,  # type: ignore
-                role=msg.role,
-                content=msg.content,
-                tokens_used=msg.tokens_used,
-                cost=msg.cost,
-                created_at=msg.created_at,
-                message_type=msg.message_type,
-                attachment_name=msg.attachment_name,
-                attachment_size=msg.attachment_size,
-                rag_sections=_parse_metadata_list(msg.model_metadata, "rag_sections"),
-                tool_calls=_parse_metadata_list(msg.model_metadata, "tool_calls"),
-                is_error=msg.is_error,
-            )
-            for msg in messages
-        ],
-    )
-
-
-@chat_router.get(
-    "/conversations/{conversation_id}/last-message",
-    response_model=MessageResponse | None,
-)
-async def get_last_conversation_message(
-    conversation_id: UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> MessageResponse | None:
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
-    )
-    if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-
-    msg = await service.get_last_conversation_message(
-        session=session,
-        conversation_id=conversation.id,  # type: ignore
-    )
-    if msg is None:
-        return None
-
-    return MessageResponse(
-        id=msg.id,  # type: ignore
-        role=msg.role,
-        content=msg.content,
-        tokens_used=msg.tokens_used,
-        cost=msg.cost,
-        created_at=msg.created_at,
-        message_type=msg.message_type,
-        attachment_name=msg.attachment_name,
-        attachment_size=msg.attachment_size,
-        rag_sections=_parse_metadata_list(msg.model_metadata, "rag_sections"),
-        tool_calls=_parse_metadata_list(msg.model_metadata, "tool_calls"),
-        is_error=msg.is_error,
-    )
-
-
-@chat_router.get(
-    "/conversations/{conversation_id}/attachments",
-    response_model=list[AttachedDriveFileResponse],
-)
-async def list_conversation_attachments(
-    conversation_id: UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> list[AttachedDriveFileResponse]:
-    """List READY drive files attached to a conversation."""
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
-    )
-    if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-
-    drive_files = await service.list_conversation_attachments(
-        session,
-        conversation_id=conversation.id,  # type: ignore
-    )
-    return [
-        AttachedDriveFileResponse(id=f.id, name=f.name, size=f.size)  # type: ignore
-        for f in drive_files
-    ]
-
-
-@chat_router.post(
-    "/conversations/{conversation_id}/attachments",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ConversationAttachmentResponse,
-)
-async def attach_file_to_conversation(
-    conversation_id: UUID,
-    body: ConversationAttachmentCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> ConversationAttachmentResponse:
-    """Attach a drive file to a conversation."""
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
-    )
-    if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-
-    # Verify drive file ownership
-    df_result = await session.exec(
-        select(DriveFileModel).where(
-            DriveFileModel.id == body.drive_file_id,
-            DriveFileModel.user_id == current_user.id,
-            DriveFileModel.is_deleted == False,  # noqa: E712
-        )
-    )
-    drive_file = df_result.first()
-    if not drive_file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Drive file not found or not accessible",
-        )
-
-    attachment = await service.attach_drive_file(
-        session,
-        conversation_id=conversation.id,  # type: ignore
-        drive_file_id=drive_file.id,  # type: ignore
-    )
-    return ConversationAttachmentResponse(
-        id=attachment.id,  # type: ignore
-        conversation_id=attachment.conversation_id,
-        drive_file_id=attachment.drive_file_id,
-        attached_at=attachment.attached_at,
-    )
-
-
-@chat_router.delete(
-    "/conversations/{conversation_id}/attachments/{drive_file_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def detach_file_from_conversation(
-    conversation_id: UUID,
-    drive_file_id: int,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-) -> None:
-    """Detach a drive file from a conversation."""
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
-    )
-    if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-
-    df_result = await session.exec(
-        select(DriveFileModel).where(
-            DriveFileModel.id == drive_file_id,
-            DriveFileModel.user_id == current_user.id,
-            DriveFileModel.is_deleted == False,  # noqa: E712
-        )
-    )
-    if not df_result.first():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Drive file not found or not accessible",
-        )
-
-    await service.detach_drive_file(
-        session,
-        conversation_id=conversation.id,  # type: ignore
-        drive_file_id=drive_file_id,
-    )
-
-
-def get_parameters_schema(args_schema: type[BaseModel] | dict[str, Any] | None) -> dict[str, Any]:
-    if args_schema is None:
-        return {}
-    if isinstance(args_schema, dict):
-        return args_schema
-    return args_schema.model_json_schema()
-
-
-@chat_router.get("/tools", response_model=ToolListResponse)
-async def list_tools(
-    _current_user: User = Depends(get_current_user),
-) -> ToolListResponse:
-    """List all available tools from loaded plugins."""
-    tool_registry = get_tool_registry()
-    tools = await tool_registry.get_all_tools()
-
-    tool_schemas = [
-        ToolSchema(
-            name=tool.name,
-            description=tool.description or "",
-            parameters=get_parameters_schema(tool.args_schema),
-        )
-        for tool in tools
-    ]
-
-    return ToolListResponse(
-        tools=tool_schemas,
-        total=len(tool_schemas),
-    )
