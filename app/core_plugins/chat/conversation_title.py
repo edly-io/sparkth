@@ -4,7 +4,7 @@ from app.core.db import async_engine
 from app.core.logger import get_logger
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
-from app.llm.providers import get_provider
+from app.llm.providers import BaseChatProvider
 
 logger = get_logger(__name__)
 
@@ -42,37 +42,10 @@ async def generate_conversation_title(
     user_id: int,
     first_user_message: str,
     service: ChatService,
+    provider: BaseChatProvider,
 ) -> None:
-    """
-    Background task: ask the LLM for a short title and persist it.
-
-    Silently skips (with a debug log) when CHAT_TITLE_GENERATION_* env vars are not
-    set — this is expected in deployments that have not configured platform credentials.
-    """
-    from app.core_plugins.chat.config import ChatSystemConfig  # lazy — avoids circular dep
-
-    sys_cfg = ChatSystemConfig()
-    missing = [
-        name
-        for name, value in (
-            ("CHAT_TITLE_GENERATION_PROVIDER", sys_cfg.title_generation_provider),
-            ("CHAT_TITLE_GENERATION_API_KEY", sys_cfg.title_generation_api_key),
-            ("CHAT_TITLE_GENERATION_MODEL", sys_cfg.title_generation_model),
-        )
-        if not value
-    ]
-    if missing:
-        logger.debug("Title generation skipped: %s not set", ", ".join(missing))
-        return
-
+    """Background task: ask the user's configured LLM for a short title and persist it."""
     try:
-        provider = get_provider(
-            provider_name=sys_cfg.title_generation_provider,
-            api_key=sys_cfg.title_generation_api_key,
-            model=sys_cfg.title_generation_model,
-            temperature=0.3,
-            max_tool_executions=0,
-        )
         prompt = (
             "Generate a concise 3-6 word title for a conversation that starts with "
             "the following message. Reply with only the title, no quotes or punctuation:\n\n"
