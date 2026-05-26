@@ -12,7 +12,7 @@ from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile
 from app.rag import constants
 from app.rag.agent import RAGSearchAgent
-from app.rag.embeddings import BaseEmbeddingProvider, HuggingFaceEmbeddingProvider
+from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.store import SimilarityResult, VectorStoreService
 from app.rag.types import RAGContext, RagStatus
@@ -29,11 +29,11 @@ class RAGContextService:
 
     def __init__(
         self,
+        embedding_provider: BaseEmbeddingProvider,
         vector_store: VectorStoreService | None = None,
-        embedding_provider: BaseEmbeddingProvider | None = None,
     ) -> None:
         self._store = vector_store or VectorStoreService()
-        self._embedding_provider = embedding_provider or HuggingFaceEmbeddingProvider()
+        self._embedding_provider = embedding_provider
 
     async def get_context_for_drive_file(
         self,
@@ -305,21 +305,22 @@ class RAGContextService:
             parts: list[str] = [cast(str, sec[k]) for k in ("chapter", "section", "subsection") if sec[k]]
             section_titles.append(" / ".join(parts) if parts else "General")
 
+        if not section_titles:
+            return []
+
         title_embeddings = await self._embedding_provider.embed_documents(section_titles)
 
-        scored: list[tuple[float, dict[str, str | None]]] = []
-        for i, title_emb in enumerate(title_embeddings):
-            sim = self._cosine_similarity(query_embedding, title_emb)
-            scored.append((sim, all_sections[i]))
+        q = np.array(query_embedding)
+        T = np.array(title_embeddings)
+        q_norm = np.linalg.norm(q)
+        t_norms = np.linalg.norm(T, axis=1)
+        denom = t_norms * q_norm
+        similarities = np.zeros(len(title_embeddings))
+        mask = denom != 0
+        np.divide(T @ q, denom, out=similarities, where=mask)
 
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [s[1] for s in scored[:top_n]]
-
-    @staticmethod
-    def _cosine_similarity(a: list[float], b: list[float]) -> float:
-        va, vb = np.array(a), np.array(b)
-        norm = np.linalg.norm(va) * np.linalg.norm(vb)
-        return 0.0 if norm == 0 else float(np.dot(va, vb) / norm)
+        order = np.argsort(similarities)[::-1][:top_n]
+        return [all_sections[i] for i in order]
 
     @staticmethod
     def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:

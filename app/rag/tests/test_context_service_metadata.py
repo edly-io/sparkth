@@ -31,19 +31,37 @@ def _make_drive_file(
     return df
 
 
-class TestCosineSimilarity:
-    def test_identical_vectors(self) -> None:
-        assert RAGContextService._cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
+class TestRankSectionsSimilarity:
+    """Covers vectorised cosine similarity behaviour via rank_sections."""
 
-    def test_orthogonal_vectors(self) -> None:
-        assert RAGContextService._cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+    async def _rank(self, query: list[float], title_vecs: list[list[float]]) -> list[dict[str, str | None]]:
+        sections = [{"chapter": None, "section": f"s{i}", "subsection": None} for i in range(len(title_vecs))]
+        mock_store = AsyncMock()
+        mock_store.get_distinct_sections = AsyncMock(return_value=sections)
+        mock_embed = AsyncMock()
+        mock_embed.embed_documents = AsyncMock(return_value=title_vecs)
+        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embed)
+        return await service.rank_sections(session=AsyncMock(), user_id=1, source_name="doc.pdf", query_embedding=query)
 
-    def test_zero_vector_returns_zero(self) -> None:
-        assert RAGContextService._cosine_similarity([0.0, 0.0], [1.0, 0.0]) == 0.0
+    @pytest.mark.asyncio
+    async def test_identical_vector_ranks_first(self) -> None:
+        result = await self._rank([1.0, 0.0], [[0.0, 1.0], [1.0, 0.0]])
+        assert result[0]["section"] == "s1"
 
-    def test_similar_vectors(self) -> None:
-        sim = RAGContextService._cosine_similarity([1.0, 1.0], [1.0, 0.0])
-        assert 0.5 < sim < 1.0
+    @pytest.mark.asyncio
+    async def test_orthogonal_vectors_score_zero(self) -> None:
+        result = await self._rank([1.0, 0.0], [[0.0, 1.0]])
+        assert result[0]["section"] == "s0"
+
+    @pytest.mark.asyncio
+    async def test_zero_title_vector_does_not_raise(self) -> None:
+        result = await self._rank([1.0, 0.0], [[0.0, 0.0], [1.0, 0.0]])
+        assert result[0]["section"] == "s1"
+
+    @pytest.mark.asyncio
+    async def test_partial_similarity_ordered_correctly(self) -> None:
+        result = await self._rank([1.0, 1.0], [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+        assert result[0]["section"] == "s2"
 
 
 class TestSectionRanking:
