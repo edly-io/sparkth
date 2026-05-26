@@ -17,13 +17,16 @@ from app.rag.types import ExtractionResult
 
 logger = get_logger(__name__)
 
+_html = HTMLExtractor()
+_txt = TXTExtractor()
+
 _REGISTRY: dict[str, BaseExtractor] = {
     "pdf": PDFExtractor(),
     "docx": DocxExtractor(),
-    "html": HTMLExtractor(),
-    "htm": HTMLExtractor(),
-    "txt": TXTExtractor(),
-    "md": TXTExtractor(),
+    "html": _html,
+    "htm": _html,
+    "txt": _txt,
+    "md": _txt,
 }
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(_REGISTRY)
