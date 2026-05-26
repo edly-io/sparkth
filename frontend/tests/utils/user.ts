@@ -51,7 +51,8 @@ export async function logInViaUi(page: Page, username: string, password: string)
   await page.goto("/login");
   await page.locator('input[name="username"]').fill(username);
   await page.locator('input[name="password"]').fill(password);
-  await page.getByRole("button", { name: /sign in/i }).click();
+  // Anchor the regex so the "Sign in with Google" OAuth button isn't matched.
+  await page.getByRole("button", { name: /^sign in$/i }).click();
 }
 
 /**

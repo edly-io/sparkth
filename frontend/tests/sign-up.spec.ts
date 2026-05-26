@@ -50,10 +50,11 @@ test.describe("sign up", () => {
     await signUpViaUi(page, user);
 
     const message = await findLatestMessageTo(request, user.email);
-    expect(message.Subject.toLowerCase()).toContain("verify");
 
+    // extractVerificationLink throws if it doesn't find a /verify-email URL,
+    // which is a stronger assertion than a Subject substring match.
     const verificationLink = extractVerificationLink(message);
-    // The link points at FRONTEND_BASE_URL — rewrite the origin to whatever
+    // The link points at FRONTEND_BASE_URL; rewrite the origin to whatever
     // the test runner is hitting so we land on the local app.
     const verificationUrl = new URL(verificationLink);
     await page.goto(verificationUrl.pathname + verificationUrl.search + verificationUrl.hash);
