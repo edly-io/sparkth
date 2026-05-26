@@ -268,7 +268,7 @@ class TestConversationUUIDRoutes:
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("app.core_plugins.chat.routes.dependencies.get_rag_provider") as mock_get_rag_provider,
-            patch("app.core_plugins.chat.conversation_title.ConversationTitleGenerator.generate"),
+            patch("app.core_plugins.chat.routes.completions.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_classifier_cls,
         ):

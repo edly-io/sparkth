@@ -16,7 +16,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_calls_get_context_via_agent(self) -> None:
         """Test that _resolve_drive_file_blocks calls get_context_via_agent."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.completions import _resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -56,7 +56,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_drive_file_not_found_returns_422(self) -> None:
         """Test that DriveFileNotFoundError returns 422."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.completions import _resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -86,7 +86,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_rag_not_ready_returns_422(self) -> None:
         """Test that RAGNotReadyError returns 422."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.completions import _resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -116,7 +116,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_retrieval_error_returns_500(self) -> None:
         """Test that RAGRetrievalError returns 500."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.completions import _resolve_drive_file_blocks
 
         messages = [
             ChatMessage(

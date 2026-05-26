@@ -78,7 +78,7 @@ class TestStreamOutOfScopeRefusal:
     @pytest.mark.asyncio
     async def test_emits_single_done_event_with_refusal_content(self) -> None:
         """_stream_out_of_scope_refusal yields exactly one SSE done event."""
-        from app.core_plugins.chat.routes import _stream_out_of_scope_refusal
+        from app.core_plugins.chat.routes.completions import _stream_out_of_scope_refusal
 
         events = []
         async for chunk in _stream_out_of_scope_refusal():

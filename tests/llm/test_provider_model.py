@@ -14,7 +14,7 @@ import openai
 import pytest
 from google.api_core import exceptions as google_exceptions
 
-from app.core_plugins.chat.routes import _streaming_error_message
+from app.core_plugins.chat.routes.completions import _streaming_error_message
 from app.llm.providers import (
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
