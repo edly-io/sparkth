@@ -74,17 +74,9 @@ export async function findLatestMessageTo(
  */
 export function extractFirstLink(message: MailpitMessageDetail): string {
   const haystack = message.Text || message.HTML;
-  const match = haystack.match(/https?:\/\/[^\s"<>]+/);
+  const match = haystack.match(/https?:\/\/[^\s"<>]*[^\s"<>.,:;!?)]/);
   if (!match) {
     throw new Error(`No link found in message ${message.ID} (subject: ${message.Subject})`);
   }
   return match[0];
-}
-
-/**
- * Delete every message in Mailpit. Useful in `beforeEach` to keep tests
- * independent when they all watch the same mailbox.
- */
-export async function clearMailpit(request: APIRequestContext): Promise<void> {
-  await request.delete(`${mailpitBaseUrl}/api/v1/messages`);
 }

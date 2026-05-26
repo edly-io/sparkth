@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { firstSuperuser, firstSuperuserPassword } from "./config";
+import { apiBaseUrl, firstSuperuser, firstSuperuserPassword } from "./config";
 import { logInViaUi, randomUser } from "./utils/user";
 
 // These specs exercise the login form directly, so they must NOT reuse the
@@ -25,7 +25,7 @@ test.describe("login", () => {
     // returns 403 with code=email_not_verified, and the form surfaces the
     // "resend confirmation email" CTA.
     const user = randomUser("login-unverified");
-    const response = await request.post("/api/v1/auth/register", {
+    const response = await request.post(`${apiBaseUrl}/api/v1/auth/register`, {
       data: {
         name: user.name,
         username: user.username,

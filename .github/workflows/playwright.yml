@@ -143,6 +143,7 @@ jobs:
             echo "waiting for API ($i)..."
             sleep 1
           done
+          curl -fsS http://localhost:7727/docs > /dev/null || { echo "::error::API failed to start within 60s"; exit 1; }
 
       - name: Run Playwright tests
         working-directory: frontend

@@ -60,6 +60,7 @@ Override via env vars (also read from `frontend/.env`): `PLAYWRIGHT_BASE_URL`,
 ## CI
 
 `.github/workflows/playwright.yml` brings up Postgres, Redis, and Mailpit as
-service containers, starts the API and Next.js dev server, seeds the superuser
+service containers, builds the frontend statically and serves it through the
+API on `:7727` (matching the production deployment model), seeds the superuser
 via the CLI, then runs the suite. Blob reports are uploaded as artifacts and
 server logs are attached on failure.

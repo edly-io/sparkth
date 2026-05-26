@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiBaseUrl } from "./config";
 import { extractFirstLink, findLatestMessageTo } from "./utils/mailpit";
 import { logInViaUi, randomUser, signUpViaUi } from "./utils/user";
 
@@ -31,7 +32,7 @@ test.describe("sign up", () => {
     const user = randomUser("signup-dup");
     // Seed the first user via the API so the form only needs to assert the
     // server-side duplicate rejection.
-    const initial = await request.post("/api/v1/auth/register", {
+    const initial = await request.post(`${apiBaseUrl}/api/v1/auth/register`, {
       data: {
         name: user.name,
         username: user.username,
