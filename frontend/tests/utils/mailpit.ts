@@ -73,15 +73,19 @@ export async function findLatestMessageTo(
  *
  * Anchored on `/verify-email` (the actual route in `app/services/email_verification.py`)
  * so that future template changes — branded logos, footer social links, etc. —
- * don't cause us to capture the wrong URL.
+ * don't cause us to capture the wrong URL. The trailing character class only
+ * excludes whitespace/quotes/angle-brackets so `?`, `&`, `=` in the query
+ * string are preserved.
  */
 export function extractVerificationLink(message: MailpitMessageDetail): string {
   const haystack = message.Text || message.HTML;
-  const match = haystack.match(/https?:\/\/[^\s"<>]*\/verify-email[^\s"<>.,:;!?)]*/);
+  const match = haystack.match(/https?:\/\/[^\s"<>]*\/verify-email[^\s"<>]*/);
   if (!match) {
     throw new Error(
       `No verify-email link found in message ${message.ID} (subject: ${message.Subject})`,
     );
   }
-  return match[0];
+  // Trim a single trailing prose-punctuation char that the email body may have
+  // (e.g., a period at the end of a sentence in the HTML preview).
+  return match[0].replace(/[.,;:!)]$/, "");
 }
