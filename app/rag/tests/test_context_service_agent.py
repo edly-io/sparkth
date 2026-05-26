@@ -44,7 +44,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[mock_result])
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 result = await service.get_context_via_agent(
@@ -81,7 +81,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 result = await service.get_context_via_agent(
@@ -105,7 +105,7 @@ class TestGetContextViaAgent:
         with patch("app.rag.context_service.RAGContextService._lookup_drive_file") as mock_lookup:
             mock_lookup.side_effect = DriveFileNotFoundError("Not found")
 
-            service = RAGContextService()
+            service = RAGContextService(embedding_provider=MagicMock())
 
             with pytest.raises(DriveFileNotFoundError):
                 await service.get_context_via_agent(
@@ -124,7 +124,7 @@ class TestGetContextViaAgent:
         with patch("app.rag.context_service.RAGContextService._lookup_drive_file") as mock_lookup:
             mock_lookup.side_effect = RAGNotReadyError(1, "processing")
 
-            service = RAGContextService()
+            service = RAGContextService(embedding_provider=MagicMock())
 
             with pytest.raises(RAGNotReadyError):
                 await service.get_context_via_agent(
@@ -149,7 +149,7 @@ class TestGetContextViaAgent:
                 mock_lookup.return_value = mock_file
                 mock_agent.side_effect = RAGRetrievalError("Agent failed")
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
 
                 with pytest.raises(RAGRetrievalError):
                     await service.get_context_via_agent(
@@ -179,7 +179,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(side_effect=SQLAlchemyError("DB error"))
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 with pytest.raises(RAGRetrievalError):
@@ -210,7 +210,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 await service.get_context_via_agent(
