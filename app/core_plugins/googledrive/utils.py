@@ -108,7 +108,7 @@ async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int,
     await _create_missing_links(session, drive_file_id, wanted_ids)
 
 
-async def _embed_and_store_chunks(
+async def _store_and_link_chunks(
     session: AsyncSession,
     user_id: int,
     drive_file_id: int,
@@ -122,7 +122,7 @@ async def _embed_and_store_chunks(
     chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
 
     # Batch-lookup which chunk hashes already exist, excluding chunks that are
-    # only linked to soft-deleted files (they must be re-embedded for the new file).
+    # only linked to soft-deleted files (they must be re-stored for the new file).
     active_file_subq = (
         select(DriveFileChunkLink.chunk_id)
         .join(DriveFile, col(DriveFile.id) == col(DriveFileChunkLink.drive_file_id))
@@ -289,7 +289,7 @@ async def _process_single_file(
 
             # Store → Link
             async with profile_memory("embed_and_store", file=filename, chunks=len(chunks)):
-                new_count, reused_count = await _embed_and_store_chunks(
+                new_count, reused_count = await _store_and_link_chunks(
                     session,
                     user_id,
                     file_id,

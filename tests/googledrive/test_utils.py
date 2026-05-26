@@ -10,13 +10,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core_plugins.googledrive.client import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
-    _embed_and_store_chunks,
     _find_duplicate_file,
     _is_supported_for_rag,
     _link_chunks_from_duplicate,
     _process_single_file,
     _resolve_filename,
     _set_rag_status,
+    _store_and_link_chunks,
     process_folder_rag,
 )
 from app.models.drive import DriveFile, DriveFolder
@@ -290,7 +290,7 @@ class TestLinkChunksFromDuplicate:
 
 
 # ---------------------------------------------------------------------------
-# _embed_and_store_chunks
+# _store_and_link_chunks
 # ---------------------------------------------------------------------------
 
 
@@ -319,7 +319,7 @@ class TestEmbedAndStoreChunks:
         row2 = MagicMock(id=101)
         store.store_chunks = AsyncMock(return_value=[row1, row2])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
@@ -359,7 +359,7 @@ class TestEmbedAndStoreChunks:
         session.execute = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
@@ -395,7 +395,7 @@ class TestEmbedAndStoreChunks:
 
         store.store_chunks = AsyncMock(return_value=[51])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
@@ -433,7 +433,7 @@ class TestEmbedAndStoreChunks:
         session.execute = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=5,
@@ -529,7 +529,7 @@ class TestEmbedAndStoreChunks:
 
         assert user.id is not None
         assert new_drive_file.id is not None
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             async_session,
             user_id=user.id,
             drive_file_id=new_drive_file.id,
@@ -647,7 +647,7 @@ class TestProcessSingleFile:
     @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
     @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
     @patch("app.core_plugins.googledrive.utils.chunk_document")
-    @patch("app.core_plugins.googledrive.utils._embed_and_store_chunks")
+    @patch("app.core_plugins.googledrive.utils._store_and_link_chunks")
     async def test_new_file_full_pipeline(
         self,
         mock_embed: AsyncMock,
