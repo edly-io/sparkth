@@ -1,8 +1,8 @@
 """drop embedding columns from document_chunks
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 8caaf9fdbce0
 Revises: 8fc79cca199a
-Create Date: 2026-05-26 00:00:00.000000
+Create Date: 2026-05-27 03:28:26.253067
 
 """
 
@@ -12,13 +12,14 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "a1b2c3d4e5f6"
+revision: str = "8caaf9fdbce0"
 down_revision: Union[str, Sequence[str], None] = "8fc79cca199a"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    """Upgrade schema."""
     # Drop HNSW index on embedding column first
     op.drop_index("idx_rag_chunks_embedding_hnsw", table_name="rag_document_chunks", if_exists=True)
     # Drop embedding columns
@@ -28,6 +29,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Downgrade schema."""
     from pgvector.sqlalchemy import Vector  # type: ignore[import-untyped]
 
     op.add_column(
