@@ -58,10 +58,6 @@ ml = [
 
 [tool.ruff]
 line-length = 120
-exclude = [
-    "migrations",
-    "*/migrations/*"
-]
 
 [dependency-groups]
 dev = [

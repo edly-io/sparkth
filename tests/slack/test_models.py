@@ -17,6 +17,10 @@ class TestResponseType:
             ResponseType.config_incomplete,
             ResponseType.plugin_disabled,
             ResponseType.legacy,
+            ResponseType.no_files_resolved,
+            ResponseType.rag_not_ready,
+            ResponseType.drive_file_not_found,
+            ResponseType.retrieval_error,
         }
 
     def test_is_str_enum(self) -> None:
