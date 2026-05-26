@@ -288,7 +288,7 @@ async def _process_single_file(
                 return
 
             # Store → Link
-            async with profile_memory("embed_and_store", file=filename, chunks=len(chunks)):
+            async with profile_memory("store_and_link", file=filename, chunks=len(chunks)):
                 new_count, reused_count = await _store_and_link_chunks(
                     session,
                     user_id,
@@ -301,7 +301,7 @@ async def _process_single_file(
 
             await _set_rag_status(session, drive_file, RagStatus.READY)
             logger.info(
-                "RAG processing complete for '%s': %d new chunks embedded, %d reused.",
+                "RAG processing complete for '%s': %d new chunks stored, %d reused.",
                 filename,
                 new_count,
                 reused_count,
