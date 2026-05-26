@@ -56,7 +56,6 @@ from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
 from app.rag.context_service import RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.provider import embedding_provider as rag_embedding_provider
 from app.rag.types import RAGContext
 from app.rag.utils import get_asset
 
@@ -105,7 +104,7 @@ def get_chat_service() -> ChatService:
 
 def get_rag_context_service() -> RAGContextService:
     """FastAPI dependency: returns a stateless RAGContextService."""
-    return RAGContextService(embedding_provider=rag_embedding_provider.get())
+    return RAGContextService()
 
 
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
@@ -574,7 +573,6 @@ async def chat_completion(
                     "unresolved_messages": unresolved_messages,
                     "rag_service": rag_service,
                     "user_id": current_user.id,
-                    "similarity_threshold": request.similarity_threshold,
                     "llm": provider.create_llm(),
                     "should_run_rag": True,
                 }
@@ -681,7 +679,6 @@ async def stream_chat_response(
     unresolved_messages: list[ChatMessage] | None = None,
     rag_service: RAGContextService | None = None,
     user_id: int | None = None,
-    similarity_threshold: float = 0.45,
     llm: Any | None = None,
     should_run_rag: bool = False,
     rag_routing_reason: str | None = None,
@@ -878,23 +875,15 @@ async def stream_chat_response(
                     m["content"] = other_blocks + user_text_blocks
 
             if files_with_no_results and not any_results_found:
-                if similarity_threshold <= 0.15:
-                    no_chunks_msg = (
-                        "I searched your documents with progressively less strict matching "
-                        "but still couldn't find relevant content for your query.\n\n"
-                        "Please try rephrasing your question, or check that your documents contain "
-                        "information about this topic."
-                    )
-                else:
-                    source_label = (
-                        f"**{files_with_no_results[0]}**" if len(files_with_no_results) == 1 else "your documents"
-                    )
-                    no_chunks_msg = (
-                        f"I searched {source_label} but couldn't find content closely "
-                        f"matching your query.\n\n"
-                        f"Please try rephrasing your question, or check that your documents "
-                        f"contain information about this topic."
-                    )
+                source_label = (
+                    f"**{files_with_no_results[0]}**" if len(files_with_no_results) == 1 else "your documents"
+                )
+                no_chunks_msg = (
+                    f"I searched {source_label} but couldn't find content closely "
+                    f"matching your query.\n\n"
+                    f"Please try rephrasing your question, or check that your documents "
+                    f"contain information about this topic."
+                )
                 await service.add_message(
                     session=bg_session,
                     conversation_id=conversation_id,

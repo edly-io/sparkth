@@ -169,7 +169,6 @@ class TestOutOfScopeConversationCreation:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider"),
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.add_message",
@@ -218,7 +217,6 @@ class TestOutOfScopeConversationCreation:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider"),
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",

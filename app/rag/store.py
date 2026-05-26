@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import and_, delete, literal, or_
+from sqlalchemy import and_, delete, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -10,7 +10,6 @@ from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.memory_profiler import profile_memory
 from app.rag.db_models import DocumentChunk
-from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.types import ChunkInput, SimilarityResult
 
 # Re-export for backwards-compatibility with modules that import from store
@@ -20,16 +19,15 @@ logger = get_logger(__name__)
 
 
 class VectorStoreService:
-    """Service for storing and retrieving document chunks with vector embeddings."""
+    """Service for storing and retrieving document chunks."""
 
     async def store_chunks(
         self,
         session: AsyncSession,
         user_id: int,
         chunks: list[ChunkInput],
-        provider: BaseEmbeddingProvider,
     ) -> list[int]:
-        """Embed and persist chunks in configurable sub-batches.
+        """Persist chunks in configurable sub-batches (no embedding).
 
         Processes RAG_STORE_BATCH_SIZE chunks per iteration, expunging batch
         objects from session identity map after each flush to prevent
@@ -47,13 +45,9 @@ class VectorStoreService:
 
         for batch_start in range(0, len(chunks), batch_size):
             batch = chunks[batch_start : batch_start + batch_size]
-            texts = [c.content for c in batch]
-
-            async with profile_memory("embedding", source=source, n_chunks=len(batch)):
-                embeddings = await provider.embed_documents(texts)
 
             batch_rows: list[DocumentChunk] = []
-            for chunk, embedding in zip(batch, embeddings, strict=True):
+            for chunk in batch:
                 row = DocumentChunk(
                     user_id=user_id,
                     source_name=chunk.source_name,
@@ -62,9 +56,6 @@ class VectorStoreService:
                     chapter=chunk.chapter,
                     section=chunk.section,
                     subsection=chunk.subsection,
-                    embedding=embedding,
-                    embedding_model=provider.model_name,
-                    embedding_provider=provider.provider_name,
                     token_count=chunk.token_count,
                 )
                 session.add(row)
@@ -85,72 +76,6 @@ class VectorStoreService:
             source,
         )
         return all_ids
-
-    async def similarity_search(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        query_embedding: list[float],
-        limit: int = 5,
-        source_names: list[str] | None = None,
-        similarity_threshold: float = 0.7,
-        chapters: list[str] | None = None,
-        sections: list[str] | None = None,
-        subsections: list[str] | None = None,
-    ) -> list[SimilarityResult]:
-        """Find the most similar chunks using cosine similarity.
-
-        Uses pgvector's ``cosine_distance`` via SQLAlchemy ORM.
-        Cosine similarity = 1 - cosine distance.
-
-        ``source_names`` restricts the search to a specific set of sources.
-        Pass ``None`` (default) to search all sources for the user.
-        """
-        distance = DocumentChunk.embedding.cosine_distance(query_embedding)
-        similarity = (literal(1) - distance).label("similarity")
-
-        stmt = (
-            select(DocumentChunk, similarity)
-            .where(col(DocumentChunk.user_id) == user_id)
-            .where(similarity >= similarity_threshold)
-        )
-
-        if source_names:
-            stmt = stmt.where(col(DocumentChunk.source_name).in_(source_names))
-
-        if chapters is not None:
-            stmt = stmt.where(col(DocumentChunk.chapter).in_(chapters))
-        if sections is not None:
-            stmt = stmt.where(col(DocumentChunk.section).in_(sections))
-        if subsections is not None:
-            stmt = stmt.where(col(DocumentChunk.subsection).in_(subsections))
-
-        stmt = stmt.order_by(distance).limit(limit)
-
-        result = await session.execute(stmt)
-        rows = result.all()
-
-        return [SimilarityResult(chunk=row[0], similarity=row[1]) for row in rows]
-
-    async def get_distinct_sections(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        source_name: str,
-    ) -> list[dict[str, str | None]]:
-        """Return distinct (chapter, section, subsection) tuples for a source."""
-        stmt = (
-            select(
-                DocumentChunk.chapter,
-                DocumentChunk.section,
-                DocumentChunk.subsection,
-            )
-            .where(col(DocumentChunk.user_id) == user_id)
-            .where(col(DocumentChunk.source_name) == source_name)
-            .distinct()
-        )
-        result = await session.execute(stmt)
-        return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in result.all()]
 
     async def fetch_chunks_by_sections(
         self,

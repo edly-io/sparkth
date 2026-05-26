@@ -20,10 +20,8 @@ from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
 from app.rag.db_models import DocumentChunk, DriveFileChunkLink
-from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.exceptions import ScannedPDFError
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
-from app.rag.provider import embedding_provider
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
@@ -115,10 +113,9 @@ async def _embed_and_store_chunks(
     user_id: int,
     drive_file_id: int,
     chunks: list[Chunk],
-    provider: BaseEmbeddingProvider,
     store: VectorStoreService,
 ) -> tuple[int, int]:
-    """Embed new chunks, reuse existing ones, and create bridge-table links.
+    """Store new chunks, reuse existing ones, and create bridge-table links.
 
     Returns (new_count, reused_count).
     """
@@ -164,12 +161,11 @@ async def _embed_and_store_chunks(
                 )
             )
 
-    # Embed and store only new chunks
+    # Store only new chunks
     new_ids = await store.store_chunks(
         session,
         user_id,
         new_chunk_inputs,
-        provider,
     )
 
     # Create bridge-table links, skipping any that already exist
@@ -184,7 +180,6 @@ async def _process_single_file(
     user_id: int,
     access_token: str,
     session: AsyncSession,
-    provider: BaseEmbeddingProvider,
     store: VectorStoreService,
 ) -> None:
     """Run the full RAG pipeline for a single Drive file."""
@@ -292,14 +287,13 @@ async def _process_single_file(
                 await _set_rag_status(session, drive_file, RagStatus.READY)
                 return
 
-            # Embed → Store → Link
+            # Store → Link
             async with profile_memory("embed_and_store", file=filename, chunks=len(chunks)):
                 new_count, reused_count = await _embed_and_store_chunks(
                     session,
                     user_id,
                     file_id,
                     chunks,
-                    provider,
                     store,
                 )
 
@@ -374,14 +368,13 @@ async def process_folder_rag(
     if not files:
         return
 
-    provider = embedding_provider.get()
     store = VectorStoreService()
     semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:
         async with semaphore:
             async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
-                await _process_single_file(drive_file, user_id, access_token, file_session, provider, store)
+                await _process_single_file(drive_file, user_id, access_token, file_session, store)
             # Session is now fully closed: connection returned to pool, identity map
             # cleared. Run GC + malloc_trim here so freed connection buffers and
             # ORM object memory are reclaimed before the next file starts.

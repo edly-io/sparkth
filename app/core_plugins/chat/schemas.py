@@ -86,12 +86,6 @@ class ChatCompletionRequest(BaseModel):
     include_system_tools_message: bool = Field(
         default=True, description="Automatically prepend a system message listing available tools"
     )
-    similarity_threshold: float = Field(
-        default=0.45,
-        ge=0.0,
-        le=1.0,
-        description="Cosine similarity threshold for RAG chunk retrieval (0 = very loose, 1 = exact match)",
-    )
     drive_file_ids: list[int] | None = Field(
         default=None,
         max_length=20,

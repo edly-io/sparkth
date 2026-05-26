@@ -19,7 +19,7 @@ os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/
 # triggers app.rag.db_models, breaking the cycle.
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -27,7 +27,6 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.models  # noqa: F401
-from app.rag.embeddings import BaseEmbeddingProvider
 
 EMBEDDING_DIMS = 384
 
@@ -52,20 +51,6 @@ def _allow_all_extensions() -> Generator[None, None, None]:
 def make_deterministic_embedding(seed: float = 0.1) -> list[float]:
     """Return a deterministic embedding vector for testing."""
     return [seed] * EMBEDDING_DIMS
-
-
-@pytest.fixture
-def mock_embedding_provider() -> BaseEmbeddingProvider:
-    """A mock embedding provider that returns deterministic vectors."""
-    provider = AsyncMock(spec=BaseEmbeddingProvider)
-    provider.dimensions = EMBEDDING_DIMS
-    provider.provider_name = "mock"
-    provider.model_name = "mock-model"
-    provider.embed_documents = AsyncMock(
-        side_effect=lambda texts: [make_deterministic_embedding(0.1 + i * 0.01) for i in range(len(texts))]
-    )
-    provider.embed_query = AsyncMock(return_value=make_deterministic_embedding(0.5))
-    return provider
 
 
 @pytest.fixture(scope="session")

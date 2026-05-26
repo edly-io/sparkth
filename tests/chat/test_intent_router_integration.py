@@ -95,7 +95,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -175,7 +174,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
@@ -265,7 +263,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -338,7 +335,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -399,7 +395,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -481,7 +476,6 @@ async def _seed_file(session: AsyncSession, folder_id: int, user_id: int, name: 
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("app.rag.provider.EmbeddingProviderRegistry.get"),
         patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
         patch("app.core_plugins.chat.routes.ScopeClassifier"),
         patch("app.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
@@ -544,7 +538,6 @@ class TestDriveFileIdsOwnershipCheck:
         file2_id = await _seed_file(session, folder_id, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch(
@@ -597,7 +590,6 @@ class TestDriveFileIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch(
@@ -648,7 +640,6 @@ class TestDriveFileIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch(
@@ -712,7 +703,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,
@@ -775,7 +765,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get"),
             patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.RAGIntentRouter") as mock_router_cls,

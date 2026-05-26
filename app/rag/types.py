@@ -108,4 +108,3 @@ class RAGContext:
     source_name: str
     chunks: list[SimilarityResult]
     formatted_text: str
-    ranked_sections: list[dict[str, str | None]] | None = None

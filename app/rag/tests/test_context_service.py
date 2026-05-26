@@ -1,16 +1,11 @@
 """Tests for RAGContextService."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-from sqlalchemy.exc import SQLAlchemyError
+from unittest.mock import MagicMock
 
 from app.rag.context_service import (
-    RAGContext,
     RAGContextService,
 )
 from app.rag.db_models import DocumentChunk
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.store import SimilarityResult
 from app.rag.types import RagStatus
 from app.rag.utils import resolve_source_name as _resolve_source_name
@@ -83,6 +78,20 @@ class TestFormatChunksAsContext:
         assert "General" in result
 
 
+class TestRAGContextServiceInit:
+    def test_can_construct_without_embedding_provider(self) -> None:
+        """RAGContextService must be constructable with no arguments."""
+        service = RAGContextService()
+        assert service is not None
+
+    def test_can_construct_with_vector_store_kwarg(self) -> None:
+        """vector_store kwarg still accepted."""
+        from unittest.mock import MagicMock
+
+        service = RAGContextService(vector_store=MagicMock())
+        assert service is not None
+
+
 class TestResolveSourceName:
     def test_regular_pdf_unchanged(self) -> None:
         df = _make_drive_file(name="course.pdf", mime_type="application/pdf")
@@ -111,335 +120,72 @@ class TestResolveSourceName:
         assert _resolve_source_name(df) == "diagram.pdf"
 
 
-class TestRAGContextService:
-    @pytest.mark.asyncio
-    async def test_file_not_found_raises_error(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = None
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        service = RAGContextService(vector_store=MagicMock(), embedding_provider=MagicMock())
-
-        with pytest.raises(DriveFileNotFoundError):
-            await service.get_context_for_drive_file(
-                session=mock_session, user_id=1, file_db_id=999, query="photosynthesis"
-            )
-
-    @pytest.mark.asyncio
-    async def test_rag_processing_raises_not_ready(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(rag_status=RagStatus.PROCESSING)
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        service = RAGContextService(vector_store=MagicMock(), embedding_provider=MagicMock())
-
-        with pytest.raises(RAGNotReadyError) as exc_info:
-            await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
-        assert exc_info.value.rag_status == str(RagStatus.PROCESSING)
-
-    @pytest.mark.asyncio
-    async def test_rag_failed_raises_not_ready(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(rag_status=RagStatus.FAILED)
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        service = RAGContextService(vector_store=MagicMock(), embedding_provider=MagicMock())
-
-        with pytest.raises(RAGNotReadyError):
-            await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
-
-    @pytest.mark.asyncio
-    async def test_embed_failure_raises_retrieval_error(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file()
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(side_effect=RuntimeError("model load failed"))
-
-        service = RAGContextService(vector_store=AsyncMock(), embedding_provider=mock_embedding)
-
-        with pytest.raises(RAGRetrievalError, match="Failed to embed query"):
-            await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
-
-    @pytest.mark.asyncio
-    async def test_similarity_search_failure_raises_retrieval_error(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file()
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        mock_store = AsyncMock()
-        mock_store.similarity_search = AsyncMock(side_effect=SQLAlchemyError("connection lost"))
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-
-        with pytest.raises(RAGRetrievalError, match="Similarity search failed"):
-            await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
-
-    @pytest.mark.asyncio
-    async def test_successful_retrieval_returns_rag_context(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="biology.pdf")
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        similarity_results = [_make_sr("Chlorophyll content")]
-        mock_store = AsyncMock()
-        mock_store.similarity_search = AsyncMock(return_value=similarity_results)
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        result = await service.get_context_for_drive_file(
-            session=mock_session, user_id=1, file_db_id=1, query="photosynthesis"
-        )
-
-        assert isinstance(result, RAGContext)
-        assert result.file_db_id == 1
-        assert result.source_name == "biology.pdf"
-        assert result.chunks == similarity_results
-        assert "biology.pdf" in result.formatted_text
-        assert "Chlorophyll content" in result.formatted_text
-
-    @pytest.mark.asyncio
-    async def test_limit_and_threshold_forwarded_to_store(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file()
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_store = AsyncMock()
-        mock_store.similarity_search = AsyncMock(return_value=[])
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.get_context_for_drive_file(
-            session=mock_session,
-            user_id=1,
-            file_db_id=1,
-            query="test",
-            limit=5,
-            similarity_threshold=0.8,
-        )
-
-        mock_store.similarity_search.assert_awaited_once_with(
-            session=mock_session,
-            user_id=1,
-            query_embedding=[0.1] * 384,
-            limit=5,
-            source_names=["doc.pdf"],
-            similarity_threshold=0.8,
-            sections=None,
-        )
-
-    @pytest.mark.asyncio
-    async def test_zero_results_returns_no_excerpts_formatted_text(self) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(name="doc.pdf")
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_store = AsyncMock()
-        mock_store.similarity_search = AsyncMock(return_value=[])
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        result = await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="test")
-        assert "No relevant excerpts found" in result.formatted_text
-
-
-class TestEmptyQueryFallback:
-    """When no user text accompanies a drive file, embed_query should use the file name."""
-
-    @pytest.mark.asyncio
-    async def test_empty_query_uses_source_name_for_embedding(self) -> None:
-        """embed_query must receive the file name, not an empty string."""
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="data_privacy.pdf")
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_store = AsyncMock()
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-        mock_store.similarity_search = AsyncMock(return_value=[])
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="")
-
-        mock_embedding.embed_query.assert_awaited_once_with("data_privacy.pdf")
-
-    @pytest.mark.asyncio
-    async def test_whitespace_query_uses_source_name_for_embedding(self) -> None:
-        """A whitespace-only query is treated the same as empty."""
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="lecture_notes.pdf")
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_store = AsyncMock()
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-        mock_store.similarity_search = AsyncMock(return_value=[])
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.get_context_for_drive_file(session=mock_session, user_id=1, file_db_id=1, query="   ")
-
-        mock_embedding.embed_query.assert_awaited_once_with("lecture_notes.pdf")
-
-    @pytest.mark.asyncio
-    async def test_non_empty_query_is_unchanged(self) -> None:
-        """A non-empty query must pass through as-is."""
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="data_privacy.pdf")
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        mock_store = AsyncMock()
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-        mock_store.similarity_search = AsyncMock(return_value=[])
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.get_context_for_drive_file(
-            session=mock_session, user_id=1, file_db_id=1, query="explain data privacy"
-        )
-
-        mock_embedding.embed_query.assert_awaited_once_with("explain data privacy")
-
-
-class TestRankSectionsForQueryEmptyFallback:
-    """rank_sections_for_query must apply the same empty-query fallback as get_context_for_drive_file."""
-
-    def _make_session(self, file_name: str) -> AsyncMock:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name=file_name)
-        mock_session.execute = AsyncMock(return_value=mock_result)
-        return mock_session
-
-    @pytest.mark.asyncio
-    async def test_empty_query_uses_source_name(self) -> None:
-        """embed_query must receive the file name, not an empty string."""
-        mock_session = self._make_session("course_outline.pdf")
-        mock_store = AsyncMock()
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.rank_sections_for_query(session=mock_session, user_id=1, file_db_id=1, query="")
-
-        mock_embedding.embed_query.assert_awaited_once_with("course_outline.pdf")
-
-    @pytest.mark.asyncio
-    async def test_whitespace_query_uses_source_name(self) -> None:
-        """A whitespace-only query is treated the same as empty."""
-        mock_session = self._make_session("syllabus.pdf")
-        mock_store = AsyncMock()
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.rank_sections_for_query(session=mock_session, user_id=1, file_db_id=1, query="   ")
-
-        mock_embedding.embed_query.assert_awaited_once_with("syllabus.pdf")
-
-    @pytest.mark.asyncio
-    async def test_non_empty_query_passes_through(self) -> None:
-        """A non-empty query must pass through as-is."""
-        mock_session = self._make_session("course_outline.pdf")
-        mock_store = AsyncMock()
-        mock_store.get_distinct_sections = AsyncMock(return_value=[])
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-        await service.rank_sections_for_query(
-            session=mock_session, user_id=1, file_db_id=1, query="create a quiz on module 3"
-        )
-
-        mock_embedding.embed_query.assert_awaited_once_with("create a quiz on module 3")
-
-
-class TestChunkIDLogging:
-    @pytest.mark.asyncio
-    async def test_chunk_ids_logged_on_successful_retrieval(self) -> None:
-        """Verify that chunk IDs are logged after successful retrieval."""
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = _make_drive_file(id=1, name="biology.pdf")
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        chunk1 = _make_chunk("Content 1")
-        chunk1.id = 13
-        chunk2 = _make_chunk("Content 2")
-        chunk2.id = 85
-        similarity_results = [
-            SimilarityResult(chunk=chunk1, similarity=0.9),
-            SimilarityResult(chunk=chunk2, similarity=0.8),
-        ]
-        mock_store = AsyncMock()
-        mock_store.similarity_search = AsyncMock(return_value=similarity_results)
-
-        mock_embedding = AsyncMock()
-        mock_embedding.embed_query = AsyncMock(return_value=[0.1] * 384)
-
-        service = RAGContextService(vector_store=mock_store, embedding_provider=mock_embedding)
-
-        with patch("app.rag.context_service.logger") as mock_logger:
-            await service.get_context_for_drive_file(
-                session=mock_session, user_id=1, file_db_id=1, query="photosynthesis"
-            )
-            # Verify chunk IDs are logged
-            log_calls = [str(call) for call in mock_logger.info.call_args_list]
-            assert any("[13, 85]" in call for call in log_calls)
-
-    @pytest.mark.asyncio
-    async def test_search_all_sources_delegates_to_store(self) -> None:
-        """search_all_sources is a thin public wrapper around _store.similarity_search."""
-        embedding = [0.5] * 384
-        mock_session = AsyncMock()
-        mock_store = AsyncMock()
-        chunk = _make_chunk("All-source result.")
-        mock_store.similarity_search = AsyncMock(return_value=[SimilarityResult(chunk=chunk, similarity=0.8)])
-        service = RAGContextService(vector_store=mock_store, embedding_provider=MagicMock())
-
-        results = await service.search_all_sources(
-            session=mock_session,
-            user_id=7,
-            query_embedding=embedding,
-            limit=3,
-            similarity_threshold=0.6,
-        )
-
-        mock_store.similarity_search.assert_awaited_once_with(
-            session=mock_session,
-            user_id=7,
-            query_embedding=embedding,
-            limit=3,
-            similarity_threshold=0.6,
-        )
-        assert len(results) == 1
-        assert results[0].chunk.content == "All-source result."
+class TestDeadConstantsRemoved:
+    def test_default_similarity_threshold_not_exported(self) -> None:
+        import app.rag.constants as c
+
+        assert not hasattr(c, "DEFAULT_SIMILARITY_THRESHOLD")
+
+    def test_default_top_sections_not_exported(self) -> None:
+        import app.rag.constants as c
+
+        assert not hasattr(c, "DEFAULT_TOP_SECTIONS")
+
+
+class TestRAGContextType:
+    def test_rag_context_has_no_ranked_sections_field(self) -> None:
+        """ranked_sections field must have been removed."""
+        import dataclasses
+
+        from app.rag.types import RAGContext
+
+        field_names = {f.name for f in dataclasses.fields(RAGContext)}
+        assert "ranked_sections" not in field_names
+
+    def test_rag_context_constructs_without_ranked_sections(self) -> None:
+        """RAGContext can be constructed with just the required fields."""
+        from app.rag.types import RAGContext
+
+        ctx = RAGContext(file_db_id=1, source_name="doc.pdf", chunks=[], formatted_text="")
+        assert ctx.file_db_id == 1
+
+
+class TestEmbeddingProviderInfrastructureRemoved:
+    def test_embedding_provider_module_not_importable(self) -> None:
+        """app.rag.provider must not exist after cleanup."""
+        import importlib
+        import sys
+
+        # Remove cached module if present
+        sys.modules.pop("app.rag.provider", None)
+        try:
+            importlib.import_module("app.rag.provider")
+            raise AssertionError("app.rag.provider should not exist")
+        except ModuleNotFoundError:
+            pass  # expected
+
+    def test_embeddings_module_not_importable(self) -> None:
+        """app.rag.embeddings must not exist after cleanup."""
+        import importlib
+        import sys
+
+        sys.modules.pop("app.rag.embeddings", None)
+        try:
+            importlib.import_module("app.rag.embeddings")
+            raise AssertionError("app.rag.embeddings should not exist")
+        except ModuleNotFoundError:
+            pass  # expected
+
+
+class TestHuggingFaceDepsRemoved:
+    def test_langchain_huggingface_not_imported_in_any_live_module(self) -> None:
+        """No live module should import langchain_huggingface after cleanup."""
+        import pathlib
+
+        live_paths = list(pathlib.Path("app").rglob("*.py"))
+        for p in live_paths:
+            if "__pycache__" in str(p) or "test_" in p.name:
+                continue
+            content = p.read_text()
+            if "langchain_huggingface" in content or "langchain-huggingface" in content:
+                raise AssertionError(f"langchain_huggingface still imported in {p}")

@@ -57,7 +57,6 @@ class TestProcessFileMemory:
                 user_id=1,
                 access_token="fake",
                 session=mock_session,
-                provider=MagicMock(),
                 store=MagicMock(),
             )
 
@@ -83,7 +82,6 @@ class TestProcessFileMemory:
                 user_id=1,
                 access_token="fake",
                 session=mock_session,
-                provider=MagicMock(),
                 store=MagicMock(),
             )
 

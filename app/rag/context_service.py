@@ -1,18 +1,15 @@
 """RAG context retrieval for chat course generation."""
 
-from typing import Any, cast
+from typing import Any
 
-import numpy as np
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
-from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile
 from app.rag import constants
 from app.rag.agent import RAGSearchAgent
-from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.store import SimilarityResult, VectorStoreService
 from app.rag.types import RAGContext, RagStatus
@@ -29,186 +26,9 @@ class RAGContextService:
 
     def __init__(
         self,
-        embedding_provider: BaseEmbeddingProvider,
         vector_store: VectorStoreService | None = None,
     ) -> None:
         self._store = vector_store or VectorStoreService()
-        self._embedding_provider = embedding_provider
-
-    async def get_context_for_drive_file(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        file_db_id: int,
-        query: str,
-        limit: int = constants.DEFAULT_RAG_CHUNKS,
-        similarity_threshold: float = constants.DEFAULT_SIMILARITY_THRESHOLD,
-    ) -> RAGContext:
-        """Retrieve RAG context for a query against a specific Drive file.
-
-        Raises:
-            DriveFileNotFoundError: File not found or not owned by user.
-            RAGNotReadyError: File exists but rag_status is not READY.
-            RAGRetrievalError: Embedding or similarity search failed.
-        """
-        drive_file = await self._lookup_drive_file(session, user_id, file_db_id)
-        source_name = resolve_source_name(drive_file)
-
-        # When the user sends only a file with no accompanying text, fall back to
-        # the file name so the embedding is semantically meaningful.
-        if not query.strip():
-            query = source_name
-
-        logger.info(
-            "RAG retrieval: user=%d file_db_id=%d source_name=%s query_len=%d",
-            user_id,
-            file_db_id,
-            source_name,
-            len(query),
-        )
-
-        async with profile_memory(
-            "rag_retrieval_total", file_db_id=file_db_id, source=source_name, query_len=len(query)
-        ):
-            try:
-                async with profile_memory("embed_query", source=source_name):
-                    query_embedding = await self._embedding_provider.embed_query(query)
-            except (RuntimeError, ValueError, OSError) as exc:
-                logger.error("Failed to embed query for file_db_id=%d: %s", file_db_id, exc)
-                raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
-
-            async with profile_memory("section_ranking", source=source_name):
-                ranked_sections = await self.rank_sections(
-                    session=session,
-                    user_id=user_id,
-                    source_name=source_name,
-                    query_embedding=query_embedding,
-                )
-
-            section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
-            logger.info(
-                "RAG section ranking for file_db_id=%d: %d sections selected",
-                file_db_id,
-                len(ranked_sections),
-            )
-            try:
-                async with profile_memory("similarity_search", source=source_name):
-                    results = await self._store.similarity_search(
-                        session=session,
-                        user_id=user_id,
-                        query_embedding=query_embedding,
-                        limit=limit,
-                        source_names=[source_name],
-                        similarity_threshold=similarity_threshold,
-                        sections=section_filter,
-                    )
-            except SQLAlchemyError as exc:
-                logger.error("Similarity search failed for file_db_id=%d: %s", file_db_id, exc)
-                raise RAGRetrievalError(f"Similarity search failed: {exc}") from exc
-
-            logger.info("RAG: found %d chunks for file_db_id=%d", len(results), file_db_id)
-            logger.info(
-                "RAG chunk IDs in context for file_db_id=%d: %s",
-                file_db_id,
-                [r.chunk.id for r in results],
-            )
-
-            return RAGContext(
-                file_db_id=file_db_id,
-                source_name=source_name,
-                chunks=results,
-                formatted_text=self.format_chunks_as_context(source_name, results),
-                ranked_sections=ranked_sections,
-            )
-
-    async def rank_sections_for_query(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        file_db_id: int,
-        query: str,
-    ) -> tuple[str, list[float], list[dict[str, str | None]]]:
-        """Phase 1: embed query and rank sections by title similarity.
-
-        Returns (source_name, query_embedding, ranked_sections).
-
-        Raises:
-            DriveFileNotFoundError: File not found or not owned by user.
-            RAGNotReadyError: File exists but rag_status is not READY.
-            RAGRetrievalError: Embedding failed.
-        """
-        drive_file = await self._lookup_drive_file(session, user_id, file_db_id)
-        source_name = resolve_source_name(drive_file)
-
-        if not query.strip():
-            query = source_name
-
-        try:
-            async with profile_memory("embed_query", source=source_name):
-                query_embedding = await self._embedding_provider.embed_query(query)
-        except (RuntimeError, ValueError, OSError) as exc:
-            logger.error("Failed to embed query for file_db_id=%d: %s", file_db_id, exc)
-            raise RAGRetrievalError(f"Failed to embed query: {exc}") from exc
-
-        async with profile_memory("section_ranking", source=source_name):
-            ranked_sections = await self.rank_sections(
-                session=session,
-                user_id=user_id,
-                source_name=source_name,
-                query_embedding=query_embedding,
-            )
-        return source_name, query_embedding, ranked_sections
-
-    async def search_with_embedding(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        source_name: str,
-        query_embedding: list[float],
-        limit: int = constants.DEFAULT_RAG_CHUNKS,
-        similarity_threshold: float = constants.DEFAULT_SIMILARITY_THRESHOLD,
-        sections: list[str] | None = None,
-    ) -> list[SimilarityResult]:
-        """Phase 2: similarity search with pre-computed query embedding.
-
-        Raises:
-            RAGRetrievalError: Database query failed.
-        """
-        try:
-            async with profile_memory("similarity_search", source=source_name):
-                results = await self._store.similarity_search(
-                    session=session,
-                    user_id=user_id,
-                    query_embedding=query_embedding,
-                    limit=limit,
-                    source_names=[source_name],
-                    similarity_threshold=similarity_threshold,
-                    sections=sections,
-                )
-        except SQLAlchemyError as exc:
-            logger.error("Similarity search failed for source_name=%s: %s", source_name, exc)
-            raise RAGRetrievalError(f"Similarity search failed: {exc}") from exc
-
-        logger.info("RAG: found %d chunks for source_name=%s", len(results), source_name)
-        logger.info("RAG chunk IDs in context: %s", [r.chunk.id for r in results])
-        return results
-
-    async def search_all_sources(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        query_embedding: list[float],
-        limit: int = constants.DEFAULT_RAG_CHUNKS,
-        similarity_threshold: float = constants.DEFAULT_SIMILARITY_THRESHOLD,
-    ) -> list[SimilarityResult]:
-        """Broad similarity search across all sources for a user."""
-        return await self._store.similarity_search(
-            session=session,
-            user_id=user_id,
-            query_embedding=query_embedding,
-            limit=limit,
-            similarity_threshold=similarity_threshold,
-        )
 
     async def get_context_via_agent(
         self,
@@ -286,41 +106,6 @@ class RAGContextService:
             chunks=results,
             formatted_text=self.format_chunks_as_context(source_name, results),
         )
-
-    async def rank_sections(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        source_name: str,
-        query_embedding: list[float],
-        top_n: int = constants.DEFAULT_TOP_SECTIONS,
-    ) -> list[dict[str, str | None]]:
-        """Rank document sections by title similarity to the query embedding."""
-        all_sections = await self._store.get_distinct_sections(session, user_id, source_name)
-        if not all_sections:
-            return []
-
-        section_titles = []
-        for sec in all_sections:
-            parts: list[str] = [cast(str, sec[k]) for k in ("chapter", "section", "subsection") if sec[k]]
-            section_titles.append(" / ".join(parts) if parts else "General")
-
-        if not section_titles:
-            return []
-
-        title_embeddings = await self._embedding_provider.embed_documents(section_titles)
-
-        q = np.array(query_embedding)
-        T = np.array(title_embeddings)
-        q_norm = np.linalg.norm(q)
-        t_norms = np.linalg.norm(T, axis=1)
-        denom = t_norms * q_norm
-        similarities = np.zeros(len(title_embeddings))
-        mask = denom != 0
-        np.divide(T @ q, denom, out=similarities, where=mask)
-
-        order = np.argsort(similarities)[::-1][:top_n]
-        return [all_sections[i] for i in order]
 
     @staticmethod
     def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
