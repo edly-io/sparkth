@@ -19,7 +19,7 @@ class RAGNotReadyError(RAGError):
 
 
 class RAGRetrievalError(RAGError):
-    """Raised when embedding or similarity search fails."""
+    """Raised when agent retrieval or section-chunk fetch fails."""
 
 
 class ScannedPDFError(RAGError):

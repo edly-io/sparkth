@@ -81,8 +81,8 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
 async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
     """In-memory SQLite engine for RAG tests.
 
-    We exclude the DocumentChunk model (pgvector Vector column won't work
-    in SQLite) and test at the service level with mocks instead.
+    Only the user table is created; chunk persistence is exercised at the
+    service level with mocks, so the full schema is unnecessary here.
     """
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -90,7 +90,7 @@ async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
         poolclass=StaticPool,
     )
 
-    # Create only non-pgvector tables for integration tests
+    # Only the user table is needed for FK references in service-level tests
     from app.models.base import TimestampedModel  # noqa: F401
     from app.models.user import User  # noqa: F401
 

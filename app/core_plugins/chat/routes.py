@@ -125,7 +125,7 @@ def _parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str,
 
 
 def _extract_query_text(messages: list[ChatMessage]) -> str:
-    """Extract the user's plain text from the last user message for RAG query embedding."""
+    """Extract the user's plain text from the last user message for RAG retrieval."""
     for msg in reversed(messages):
         if msg.role != "user":
             continue
@@ -154,7 +154,7 @@ async def _resolve_drive_file_blocks(
 
     Raises:
         HTTPException(422): file not found, not owned, or RAG not ready.
-        HTTPException(500): embedding or similarity search failure.
+        HTTPException(500): agent retrieval or section-chunk fetch failure.
     """
     query_text = _extract_query_text(messages)
     resolved: list[ChatMessage] = []

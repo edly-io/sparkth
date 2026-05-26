@@ -1,4 +1,4 @@
-"""Database models for RAG vector storage."""
+"""Database models for RAG document chunk storage."""
 
 from sqlalchemy import Column, Index, Text
 from sqlmodel import Field, SQLModel

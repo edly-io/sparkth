@@ -141,7 +141,7 @@ async def _store_and_link_chunks(
     )
     existing_hash_to_id: dict[str, int] = {row.chunk_content_hash: row.id for row in existing_rows.all()}
 
-    # Split into new (need embedding) vs reused (just link)
+    # Split into new (need storing) vs reused (just link)
     new_chunk_inputs: list[ChunkInput] = []
     reused_chunk_ids: list[int] = []
 

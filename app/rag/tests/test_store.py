@@ -1,7 +1,6 @@
-"""Tests for the vector store service.
+"""Tests for the document chunk store service.
 
-Since pgvector (Vector column, <=> operator, HNSW index) is not available in
-SQLite, these tests mock the database layer and verify service logic:
+These tests mock the database layer and verify service logic in isolation:
 batching, metadata mapping, and method contracts.
 """
 
