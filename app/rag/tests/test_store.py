@@ -12,12 +12,6 @@ import pytest
 
 from app.rag.store import ChunkInput, VectorStoreService
 
-EMBEDDING_DIMS = 384
-
-
-def make_deterministic_embedding(seed: float = 0.1) -> list[float]:
-    return [seed] * EMBEDDING_DIMS
-
 
 class TestChunkInput:
     def test_minimal_chunk_input(self) -> None:

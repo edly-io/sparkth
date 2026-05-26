@@ -28,8 +28,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.models  # noqa: F401
 
-EMBEDDING_DIMS = 384
-
 
 @pytest.fixture(autouse=True)
 def _allow_all_extensions() -> Generator[None, None, None]:
@@ -46,11 +44,6 @@ def _allow_all_extensions() -> Generator[None, None, None]:
         mock.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 100
         mock.return_value.RAG_PDF_EXTRACTION_BATCH_SIZE = 10
         yield
-
-
-def make_deterministic_embedding(seed: float = 0.1) -> list[float]:
-    """Return a deterministic embedding vector for testing."""
-    return [seed] * EMBEDDING_DIMS
 
 
 @pytest.fixture(scope="session")
