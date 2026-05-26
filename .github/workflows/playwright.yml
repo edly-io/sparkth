@@ -105,7 +105,10 @@ jobs:
           enable-cache: true
 
       - name: Install Python deps
-        run: uv sync --locked --dev
+        # The `ml` extra (langchain-huggingface, sentence-transformers) is
+        # required because the app's lifespan loads the embedding provider on
+        # startup; without it, uvicorn exits before binding to :7727.
+        run: uv sync --locked --dev --extra ml
 
       - uses: oven-sh/setup-bun@v2
         with:
