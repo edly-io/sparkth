@@ -4,11 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.embeddings import (
+from app.rag.constants import (
     DEFAULT_EMBEDDING_DIMENSIONS,
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_EMBEDDING_PROVIDER,
     EMBEDDING_BATCH_SIZE,
+)
+from app.rag.embeddings import (
     EMBEDDING_PROVIDER_REGISTRY,
     HuggingFaceEmbeddingProvider,
     OpenAIEmbeddingProvider,

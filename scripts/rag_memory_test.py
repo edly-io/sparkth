@@ -41,7 +41,7 @@ async def _process_file(filepath: str, provider: HuggingFaceEmbeddingProvider) -
         file_bytes = f.read()
 
     # Import here so profiling is active during the context manager
-    from app.rag.memory_profiler import profile_memory
+    from app.memory_profiler import profile_memory
 
     # extraction
     async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):

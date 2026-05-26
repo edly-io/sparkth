@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import async_engine
 from app.models.drive import DriveFile  # noqa: TCH001
-from app.rag.models import DocumentChunk, DriveFileChunkLink
+from app.rag.db_models import DocumentChunk, DriveFileChunkLink
 
 logger = logging.getLogger(__name__)
 

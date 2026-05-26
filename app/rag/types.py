@@ -1,27 +1,57 @@
-from dataclasses import dataclass
-from enum import StrEnum
+"""Shared data types for the RAG pipeline."""
 
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
-from app.rag.models import DocumentChunk
+from app.rag.db_models import DocumentChunk
+from app.rag.enums import DocType, RagStatus
+from app.rag.pydantic_models import RAGSearchAgentResponse, SectionRef
+
+__all__ = [
+    # Re-exported from submodules for convenience
+    "DocType",
+    "RagStatus",
+    "RAGSearchAgentResponse",
+    "SectionRef",
+    # Extraction
+    "ExtractionResult",
+    # Chunking
+    "Chunk",
+    "ChunkInput",
+    "ChunkMetadata",
+    # Retrieval
+    "RAGContext",
+    "SimilarityResult",
+]
 
 
-class DocType(StrEnum):
-    PDF = "pdf"
-    DOCX = "docx"
-    HTML = "html"
-    TXT = "txt"
+# ---------------------------------------------------------------------------
+# Extraction
+# ---------------------------------------------------------------------------
 
 
-class RagStatus(StrEnum):
-    QUEUED = "queued"
-    PROCESSING = "processing"
-    READY = "ready"
-    FAILED = "failed"
+@dataclass(repr=False)
+class ExtractionResult:
+    """Raw output of a file extractor — structured Markdown plus metadata."""
+
+    markdown: str
+    doc_type: DocType
+    source_name: str
+    page_count: int | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
+
+
+# ---------------------------------------------------------------------------
+# Chunking
+# ---------------------------------------------------------------------------
 
 
 @dataclass
 class ChunkMetadata:
+    """Heading hierarchy for a single chunk, used for SQL filtering and display."""
+
     source_name: str
     chapter: str | None = None
     section: str | None = None
@@ -38,13 +68,33 @@ class ChunkMetadata:
 
 @dataclass
 class Chunk:
+    """A single text chunk paired with its heading metadata."""
+
     content: str
     metadata: ChunkMetadata
 
 
 @dataclass
+class ChunkInput:
+    """Flattened chunk data passed to the vector store for embedding and persistence."""
+
+    content: str
+    source_name: str
+    chapter: str | None = None
+    section: str | None = None
+    subsection: str | None = None
+    token_count: int | None = None
+    chunk_content_hash: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Retrieval
+# ---------------------------------------------------------------------------
+
+
+@dataclass
 class SimilarityResult:
-    """A chunk together with its cosine similarity score."""
+    """A document chunk paired with its cosine similarity score."""
 
     chunk: DocumentChunk
     similarity: float
@@ -59,37 +109,3 @@ class RAGContext:
     chunks: list[SimilarityResult]
     formatted_text: str
     ranked_sections: list[dict[str, str | None]] | None = None
-
-
-@dataclass
-class ChunkInput:
-    """Input data for a single chunk to be embedded and stored.
-
-    This is a standalone type so the store module compiles without
-    the chunking PR (#202). Once that PR merges, callers can map
-    ``Chunk`` / ``ChunkMetadata`` to ``ChunkInput`` trivially.
-    """
-
-    content: str
-    source_name: str
-    chapter: str | None = None
-    section: str | None = None
-    subsection: str | None = None
-    token_count: int | None = None
-    chunk_content_hash: str | None = None
-
-
-class SectionRef(BaseModel):
-    # We use Optional and default=None to handle the "use null for missing fields" requirement
-    chapter: str | None = Field(default=None, description="The chapter title")
-    section: str | None = Field(default=None, description="The section title")
-    subsection: str | None = Field(default=None, description="The subsection title")
-
-
-class RAGSearchAgentResponse(BaseModel):
-    """Agent's decision about which sections to fetch directly."""
-
-    source_name: str = Field(description="The document's source_name from get_document_structure")
-    selected_sections: list[SectionRef] = Field(
-        description="Sections to retrieve, matching values from get_document_structure exactly"
-    )

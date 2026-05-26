@@ -5,7 +5,7 @@ from sqlmodel import col, func, select
 
 from app.core.logger import get_logger
 from app.models.drive import DriveFile
-from app.rag.models import DocumentChunk
+from app.rag.db_models import DocumentChunk
 from app.rag.types import RagStatus
 from app.rag.utils import resolve_source_name
 from app.rag_mcp.db import get_async_session

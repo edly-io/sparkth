@@ -181,16 +181,11 @@ def mock_rag_provider() -> Generator[Any, None, None]:
     """Mock the RAG embedding provider singleton for tests."""
     from unittest.mock import MagicMock, patch
 
-    with (
-        patch("app.rag.provider.get_provider") as mock_get_provider,
-        patch("app.core_plugins.chat.routes.get_rag_provider") as mock_get_rag_provider,
-        patch("app.core_plugins.googledrive.utils.get_provider") as mock_get_utils_provider,
-    ):
-        mock_provider = MagicMock()
-        mock_get_provider.return_value = mock_provider
-        mock_get_rag_provider.return_value = mock_provider
-        mock_get_utils_provider.return_value = mock_provider
-        yield mock_get_provider
+    from app.rag.provider import EmbeddingProviderRegistry
+
+    mock_provider = MagicMock()
+    with patch.object(EmbeddingProviderRegistry, "get", return_value=mock_provider) as mock_get:
+        yield mock_get
 
 
 @pytest.fixture(autouse=True)

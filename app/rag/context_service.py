@@ -2,17 +2,18 @@
 
 from typing import Any, cast
 
+import numpy as np
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logger import get_logger
+from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile
 from app.rag import constants
-from app.rag.agent import run_agentic_rag_search
-from app.rag.embeddings import BaseEmbeddingProvider, HuggingFaceEmbeddingProvider
+from app.rag.agent import RAGSearchAgent
+from app.rag.embeddings import BaseEmbeddingProvider
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.memory_profiler import profile_memory
 from app.rag.store import SimilarityResult, VectorStoreService
 from app.rag.types import RAGContext, RagStatus
 from app.rag.utils import resolve_source_name
@@ -23,26 +24,16 @@ __all__ = ["RAGContext", "RAGContextService", "format_chunks_as_context"]
 logger = get_logger(__name__)
 
 
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Compute cosine similarity between two vectors (pure Python, no numpy)."""
-    dot: float = sum(x * y for x, y in zip(a, b))
-    norm_a: float = sum(x * x for x in a) ** 0.5
-    norm_b: float = sum(x * x for x in b) ** 0.5
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
-
-
 class RAGContextService:
     """Retrieves relevant document chunks from the vector store for a given query."""
 
     def __init__(
         self,
+        embedding_provider: BaseEmbeddingProvider,
         vector_store: VectorStoreService | None = None,
-        embedding_provider: BaseEmbeddingProvider | None = None,
     ) -> None:
         self._store = vector_store or VectorStoreService()
-        self._embedding_provider = embedding_provider or HuggingFaceEmbeddingProvider()
+        self._embedding_provider = embedding_provider
 
     async def get_context_for_drive_file(
         self,
@@ -95,13 +86,11 @@ class RAGContextService:
                 )
 
             section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
-
             logger.info(
                 "RAG section ranking for file_db_id=%d: %d sections selected",
                 file_db_id,
                 len(ranked_sections),
             )
-
             try:
                 async with profile_memory("similarity_search", source=source_name):
                     results = await self._store.similarity_search(
@@ -128,7 +117,7 @@ class RAGContextService:
                 file_db_id=file_db_id,
                 source_name=source_name,
                 chunks=results,
-                formatted_text=format_chunks_as_context(source_name, results),
+                formatted_text=self.format_chunks_as_context(source_name, results),
                 ranked_sections=ranked_sections,
             )
 
@@ -258,7 +247,7 @@ class RAGContextService:
         )
 
         # Call agent to hand-pick sections based on user intent
-        decision = await run_agentic_rag_search(
+        decision = await RAGSearchAgent().search(
             llm=llm,
             user_id=user_id,
             file_id=file_db_id,
@@ -295,7 +284,7 @@ class RAGContextService:
             file_db_id=file_db_id,
             source_name=source_name,
             chunks=results,
-            formatted_text=format_chunks_as_context(source_name, results),
+            formatted_text=self.format_chunks_as_context(source_name, results),
         )
 
     async def rank_sections(
@@ -316,15 +305,43 @@ class RAGContextService:
             parts: list[str] = [cast(str, sec[k]) for k in ("chapter", "section", "subsection") if sec[k]]
             section_titles.append(" / ".join(parts) if parts else "General")
 
+        if not section_titles:
+            return []
+
         title_embeddings = await self._embedding_provider.embed_documents(section_titles)
 
-        scored: list[tuple[float, dict[str, str | None]]] = []
-        for i, title_emb in enumerate(title_embeddings):
-            sim = _cosine_similarity(query_embedding, title_emb)
-            scored.append((sim, all_sections[i]))
+        q = np.array(query_embedding)
+        T = np.array(title_embeddings)
+        q_norm = np.linalg.norm(q)
+        t_norms = np.linalg.norm(T, axis=1)
+        denom = t_norms * q_norm
+        similarities = np.zeros(len(title_embeddings))
+        mask = denom != 0
+        np.divide(T @ q, denom, out=similarities, where=mask)
 
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [s[1] for s in scored[:top_n]]
+        order = np.argsort(similarities)[::-1][:top_n]
+        return [all_sections[i] for i in order]
+
+    @staticmethod
+    def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
+        """Format retrieved chunks as a structured text block for the LLM."""
+        if not results:
+            return f"[DOCUMENT CONTEXT: {source_name}]\nNo relevant excerpts found."
+
+        lines: list[str] = [
+            f"[DOCUMENT CONTEXT: {source_name}]",
+            "The following excerpts were retrieved from the document to inform your response:",
+            "",
+        ]
+        for i, sr in enumerate(results, 1):
+            chunk = sr.chunk
+            header_parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+            section_label = " / ".join(header_parts) if header_parts else "General"
+            lines.append(f"--- Excerpt {i} (Section: {section_label}) ---")
+            lines.append(chunk.content.strip())
+            lines.append("")
+
+        return "\n".join(lines)
 
     async def _lookup_drive_file(
         self,
@@ -355,22 +372,5 @@ class RAGContextService:
         return drive_file
 
 
-def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
-    """Format retrieved chunks as a structured text block for the LLM."""
-    if not results:
-        return f"[DOCUMENT CONTEXT: {source_name}]\nNo relevant excerpts found."
-
-    lines: list[str] = [
-        f"[DOCUMENT CONTEXT: {source_name}]",
-        "The following excerpts were retrieved from the document to inform your response:",
-        "",
-    ]
-    for i, sr in enumerate(results, 1):
-        chunk = sr.chunk
-        header_parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-        section_label = " / ".join(header_parts) if header_parts else "General"
-        lines.append(f"--- Excerpt {i} (Section: {section_label}) ---")
-        lines.append(chunk.content.strip())
-        lines.append("")
-
-    return "\n".join(lines)
+# Backward-compatibility alias
+format_chunks_as_context = RAGContextService.format_chunks_as_context

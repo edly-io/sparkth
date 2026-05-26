@@ -56,7 +56,7 @@ from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
 from app.rag.context_service import RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.provider import get_provider as get_rag_provider
+from app.rag.provider import embedding_provider as rag_embedding_provider
 from app.rag.types import RAGContext
 from app.rag.utils import get_asset
 
@@ -105,7 +105,7 @@ def get_chat_service() -> ChatService:
 
 def get_rag_context_service() -> RAGContextService:
     """FastAPI dependency: returns a stateless RAGContextService."""
-    return RAGContextService(embedding_provider=get_rag_provider())
+    return RAGContextService(embedding_provider=rag_embedding_provider.get())
 
 
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:

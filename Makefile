@@ -150,7 +150,7 @@ test: ## Run tests (with-coverage=1 to include coverage)
 	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
 
 test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
-	uv run pytest $(if $(ARGS),$(ARGS),tests/) $(if $(with-coverage),--cov-report=term-missing)
+	uv run pytest $(ARGS) $(if $(with-coverage),--cov-report=term-missing)
 
 test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
 	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
@@ -167,9 +167,9 @@ test.help: ## Show usage for all test commands
 	@echo "\n\033[1mExamples:\033[0m"
 	@echo "  make test"
 	@echo "  make test with-coverage=1"
-	@echo "  make test.backend tests/rag/"
-	@echo "  make test.backend tests/rag/test_store.py"
-	@echo "  make test.backend tests/rag/ with-coverage=1"
+	@echo "  make test.backend app/rag/tests/"
+	@echo "  make test.backend app/rag/tests/test_store.py"
+	@echo "  make test.backend app/rag/tests/ with-coverage=1"
 	@echo "  make test.frontend"
 	@echo "  make test.frontend components/Button.test.tsx"
 	@echo "  make test.frontend with-coverage=1"

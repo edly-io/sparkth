@@ -7,7 +7,7 @@ from sqlalchemy import Column, Index, Text
 from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampedModel
-from app.rag.embeddings import DEFAULT_EMBEDDING_DIMENSIONS
+from app.rag.constants import DEFAULT_EMBEDDING_DIMENSIONS
 
 
 class DriveFileChunkLink(SQLModel, table=True):

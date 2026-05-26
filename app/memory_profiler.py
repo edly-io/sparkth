@@ -1,4 +1,4 @@
-"""Memory profiling utilities for the RAG pipeline.
+"""Memory profiling utilities.
 
 Provides an async context manager that measures peak Python allocations
 (tracemalloc), RSS delta (psutil), and wall-clock duration for a named stage.
@@ -70,7 +70,7 @@ def _ensure_log_dir_and_handler() -> None:
             backupCount=5,
             encoding="utf-8",
         )
-        _memprof_logger = logging.getLogger("sparkth.app.rag.memory_profiler.file")
+        _memprof_logger = logging.getLogger("sparkth.app.memory_profiler.file")
         _memprof_logger.setLevel(logging.INFO)
         _memprof_logger.addHandler(_memprof_handler)
         _memprof_logger.propagate = False  # Don't duplicate to console logger

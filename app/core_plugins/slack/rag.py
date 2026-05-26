@@ -30,6 +30,7 @@ from app.rag.exceptions import (
     RAGNotReadyError,
     RAGRetrievalError,
 )
+from app.rag.provider import embedding_provider
 from app.rag.store import SimilarityResult
 from app.rag.types import RAGContext, RagStatus
 from app.rag.utils import resolve_source_name
@@ -52,15 +53,16 @@ def _pick_representative_error(errors: list[BaseException]) -> BaseException:
     return errors[0]
 
 
-# Lazily initialized on first use — avoids loading the HuggingFace embedding model
-# at import time since only get_context_via_agent (no embedding) is used here.
+# Lazily initialized on first use — avoids creating the RAGContextService object
+# at import time. get_context_via_agent does not use embeddings, but
+# RAGContextService.__init__ requires the provider.
 _rag_service: RAGContextService | None = None
 
 
 def _get_rag_service() -> RAGContextService:
     global _rag_service
     if _rag_service is None:
-        _rag_service = RAGContextService()
+        _rag_service = RAGContextService(embedding_provider=embedding_provider.get())
     return _rag_service
 
 

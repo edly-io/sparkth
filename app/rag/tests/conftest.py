@@ -1,5 +1,22 @@
 """Shared fixtures for RAG tests."""
 
+import os
+
+# Must be set before any app module is imported so get_settings() and
+# async_engine are initialised with test values rather than prod defaults.
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
+os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
+os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
+os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
+os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
+os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
+
+# app.models.__init__ imports app.rag.db_models (for Alembic autogenerate), and
+# app.rag.db_models imports app.models.base, creating a circular dependency.
+# Importing app.models here first puts it in sys.modules before any test file
+# triggers app.rag.db_models, breaking the cycle.
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -9,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.models  # noqa: F401
 from app.rag.embeddings import BaseEmbeddingProvider
 
 EMBEDDING_DIMS = 384
@@ -48,6 +66,37 @@ def mock_embedding_provider() -> BaseEmbeddingProvider:
     )
     provider.embed_query = AsyncMock(return_value=make_deterministic_embedding(0.5))
     return provider
+
+
+@pytest.fixture(scope="session")
+async def engine() -> AsyncGenerator[AsyncEngine, None]:
+    """Full in-memory SQLite engine with all SQLModel tables."""
+    from sqlmodel import SQLModel
+
+    eng = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with eng.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    yield eng
+    async with eng.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+    await eng.dispose()
+
+
+@pytest.fixture
+async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """Async session with per-test rollback."""
+    async with engine.connect() as conn:
+        tx = await conn.begin()
+        s: Any = AsyncSession(bind=conn)
+        try:
+            yield s
+        finally:
+            await s.close()
+            await tx.rollback()
 
 
 @pytest.fixture(scope="session")

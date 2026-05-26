@@ -8,9 +8,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.memory_profiler import profile_memory
+from app.rag.db_models import DocumentChunk
 from app.rag.embeddings import BaseEmbeddingProvider
-from app.rag.memory_profiler import profile_memory
-from app.rag.models import DocumentChunk
 from app.rag.types import ChunkInput, SimilarityResult
 
 # Re-export for backwards-compatibility with modules that import from store

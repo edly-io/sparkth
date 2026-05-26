@@ -60,7 +60,7 @@ jobs:
         run: uv run mypy --strict app/ tests/
 
       - name: Run tests
-        run: uv run pytest tests/
+        run: uv run pytest
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
           SECRET_KEY: secret-key-for-ci

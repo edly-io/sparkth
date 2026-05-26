@@ -1,4 +1,4 @@
-from app.rag.models import DocumentChunk  # noqa: E402
+import app.rag.db_models  # noqa: F401 — loads RAG tables into SQLModel metadata for Alembic autogenerate
 
 from .drive import DriveFile, DriveFolder, DriveOAuthToken
 from .email_verification import EmailVerificationToken
@@ -14,7 +14,6 @@ __all__ = [
     "DriveOAuthToken",
     "DriveFolder",
     "DriveFile",
-    "DocumentChunk",
     "LLMConfig",
     "WhitelistedEmail",
     "EmailVerificationToken",

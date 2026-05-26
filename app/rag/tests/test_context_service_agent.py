@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.rag.agent import RAGSearchAgent
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.types import RAGSearchAgentResponse, RagStatus, SectionRef
@@ -26,7 +27,7 @@ class TestGetContextViaAgent:
         selected = [SectionRef(chapter=None, section="Photosynthesis", subsection=None)]
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
-            with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
+            with patch.object(RAGSearchAgent, "search", new_callable=AsyncMock) as mock_agent:
                 mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="bio.pdf",
                     selected_sections=selected,
@@ -43,7 +44,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[mock_result])
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 result = await service.get_context_via_agent(
@@ -71,7 +72,7 @@ class TestGetContextViaAgent:
         mock_file.rag_status = RagStatus.READY
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
-            with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
+            with patch.object(RAGSearchAgent, "search", new_callable=AsyncMock) as mock_agent:
                 mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="test.pdf",
                     selected_sections=[],
@@ -80,7 +81,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 result = await service.get_context_via_agent(
@@ -104,7 +105,7 @@ class TestGetContextViaAgent:
         with patch("app.rag.context_service.RAGContextService._lookup_drive_file") as mock_lookup:
             mock_lookup.side_effect = DriveFileNotFoundError("Not found")
 
-            service = RAGContextService()
+            service = RAGContextService(embedding_provider=MagicMock())
 
             with pytest.raises(DriveFileNotFoundError):
                 await service.get_context_via_agent(
@@ -123,7 +124,7 @@ class TestGetContextViaAgent:
         with patch("app.rag.context_service.RAGContextService._lookup_drive_file") as mock_lookup:
             mock_lookup.side_effect = RAGNotReadyError(1, "processing")
 
-            service = RAGContextService()
+            service = RAGContextService(embedding_provider=MagicMock())
 
             with pytest.raises(RAGNotReadyError):
                 await service.get_context_via_agent(
@@ -144,11 +145,11 @@ class TestGetContextViaAgent:
         mock_file.rag_status = RagStatus.READY
 
         with patch("app.rag.context_service.RAGContextService._lookup_drive_file") as mock_lookup:
-            with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
+            with patch.object(RAGSearchAgent, "search", new_callable=AsyncMock) as mock_agent:
                 mock_lookup.return_value = mock_file
                 mock_agent.side_effect = RAGRetrievalError("Agent failed")
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
 
                 with pytest.raises(RAGRetrievalError):
                     await service.get_context_via_agent(
@@ -169,7 +170,7 @@ class TestGetContextViaAgent:
         mock_file.rag_status = RagStatus.READY
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
-            with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
+            with patch.object(RAGSearchAgent, "search", new_callable=AsyncMock) as mock_agent:
                 mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="test.pdf",
                     selected_sections=[SectionRef(chapter=None, section="Section A", subsection=None)],
@@ -178,7 +179,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(side_effect=SQLAlchemyError("DB error"))
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 with pytest.raises(RAGRetrievalError):
@@ -200,7 +201,7 @@ class TestGetContextViaAgent:
         mock_file.rag_status = RagStatus.READY
 
         with patch.object(RAGContextService, "_lookup_drive_file", return_value=mock_file):
-            with patch("app.rag.context_service.run_agentic_rag_search") as mock_agent:
+            with patch.object(RAGSearchAgent, "search", new_callable=AsyncMock) as mock_agent:
                 mock_agent.return_value = RAGSearchAgentResponse(
                     source_name="test.pdf",
                     selected_sections=[],
@@ -209,7 +210,7 @@ class TestGetContextViaAgent:
                 mock_store = MagicMock()
                 mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
-                service = RAGContextService()
+                service = RAGContextService(embedding_provider=MagicMock())
                 service._store = mock_store
 
                 await service.get_context_via_agent(

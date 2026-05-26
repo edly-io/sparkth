@@ -34,7 +34,8 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # pytest suite mirroring app structure (api/, chat/, mcp/, rag/)
+tests/           # pytest suite for api/, chat/, mcp/, and other cross-cutting tests
+                 # RAG tests live co-located at app/rag/tests/ (both dirs in testpaths)
 .github/workflows/ # CI: lint → type-check → test on every PR
 ```
 
@@ -108,7 +109,9 @@ CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against S
 
 For every new feature, endpoint, service method, utility, or plugin tool:
 
-1. **Write the test first** — create or update the relevant file under `tests/` mirroring the module path (e.g. `app/services/foo.py` → `tests/services/test_foo.py`)
+1. **Write the test first** — create or update the relevant test file. Two conventions are in use:
+   - Cross-cutting / integration tests: `tests/<module>/test_foo.py` mirroring `app/<module>/foo.py`
+   - Co-located package tests: `app/<package>/tests/test_foo.py` (e.g. RAG tests live at `app/rag/tests/`)
 2. **Confirm the test fails** — the test must fail before any implementation exists (red phase)
 3. **Write the minimum implementation** to make the test pass (green phase)
 4. **Refactor** while keeping all tests green

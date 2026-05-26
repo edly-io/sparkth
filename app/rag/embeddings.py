@@ -11,10 +11,12 @@ from abc import ABC, abstractmethod
 from langchain_core.embeddings import Embeddings as LCEmbeddings
 
 from app.core.logger import get_logger
+from app.rag.constants import (
+    DEFAULT_EMBEDDING_PROVIDER,
+    EMBEDDING_BATCH_SIZE,
+)
 
 logger = get_logger(__name__)
-
-EMBEDDING_BATCH_SIZE = 512
 
 
 class BaseEmbeddingProvider(ABC):
@@ -129,10 +131,6 @@ EMBEDDING_PROVIDER_REGISTRY: dict[str, type[BaseEmbeddingProvider]] = {
     "huggingface": HuggingFaceEmbeddingProvider,
     "openai": OpenAIEmbeddingProvider,
 }
-
-DEFAULT_EMBEDDING_PROVIDER = "huggingface"
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-DEFAULT_EMBEDDING_DIMENSIONS = 384
 
 
 def get_embedding_provider(
