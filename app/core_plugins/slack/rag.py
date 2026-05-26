@@ -97,8 +97,8 @@ async def _resolve_files_for_sources(
                 candidate_names.add(s[:-4])
         stmt = stmt.where(col(DriveFile.name).in_(candidate_names))
 
-    result = await session.execute(stmt)
-    files: list[DriveFile] = list(result.scalars().all())
+    result = await session.exec(stmt)
+    files: list[DriveFile] = list(result.all())
 
     if allowed_sources:
         allowed_set = set(allowed_sources)

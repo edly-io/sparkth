@@ -156,12 +156,12 @@ class TestVectorStoreService:
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = [("doc1.pdf",), ("doc2.pdf",)]
-        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.exec = AsyncMock(return_value=mock_result)
 
         sources = await service.get_sources(mock_session, user_id=1)
 
         assert sources == ["doc1.pdf", "doc2.pdf"]
-        mock_session.execute.assert_awaited_once()
+        mock_session.exec.assert_awaited_once()
 
 
 class TestDocumentChunkModel:

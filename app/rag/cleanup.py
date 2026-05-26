@@ -27,10 +27,10 @@ async def cleanup_deleted_files() -> None:
     intentionally, as orphan cleanup is not scoped per user.
     """
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
-        deleted_ids_result = await session.execute(
+        deleted_ids_result = await session.exec(
             select(DriveFile.id).where(col(DriveFile.is_deleted) == True)  # noqa: E712
         )
-        deleted_file_ids = [row[0] for row in deleted_ids_result.all()]
+        deleted_file_ids = list(deleted_ids_result.all())
 
         if not deleted_file_ids:
             logger.info("No deleted files found. Nothing to clean up.")
@@ -39,18 +39,18 @@ async def cleanup_deleted_files() -> None:
         logger.info("Found %d deleted Drive files to process.", len(deleted_file_ids))
 
         # Chunks linked to deleted files
-        candidate_result = await session.execute(
+        candidate_result = await session.exec(
             select(DriveFileChunkLink.chunk_id).where(
                 DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]
             )
         )
-        candidate_chunk_ids = {row[0] for row in candidate_result.all()}
+        candidate_chunk_ids = set(candidate_result.all())
 
         orphan_chunk_ids = set()
 
         if candidate_chunk_ids:
             # Chunks still referenced by at least one live file
-            alive_result = await session.execute(
+            alive_result = await session.exec(
                 select(DriveFileChunkLink.chunk_id)
                 .join(DriveFile, DriveFileChunkLink.drive_file_id == DriveFile.id)  # type: ignore[arg-type]
                 .where(
@@ -58,7 +58,7 @@ async def cleanup_deleted_files() -> None:
                     col(DriveFile.is_deleted) == False,  # noqa: E712
                 )
             )
-            alive_chunk_ids = {row[0] for row in alive_result.all()}
+            alive_chunk_ids = set(alive_result.all())
 
             orphan_chunk_ids = candidate_chunk_ids - alive_chunk_ids
 

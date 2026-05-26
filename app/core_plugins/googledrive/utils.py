@@ -71,7 +71,7 @@ async def _find_duplicate_file(
     session: AsyncSession, user_id: int, drive_file: DriveFile, content_hash: str
 ) -> DriveFile | None:
     """Find another DriveFile with the same content hash that is already processed."""
-    result = await session.execute(
+    result = await session.exec(
         select(DriveFile).where(
             col(DriveFile.user_id) == user_id,
             col(DriveFile.content_hash) == content_hash,
@@ -80,17 +80,17 @@ async def _find_duplicate_file(
             col(DriveFile.is_deleted) == False,  # noqa: E712
         )
     )
-    return result.scalars().first()
+    return result.first()
 
 
 async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk_ids: set[int]) -> None:
     """Insert bridge-table links for chunk_ids not already linked to drive_file_id."""
-    already_linked = await session.execute(
+    already_linked = await session.exec(
         select(DriveFileChunkLink.chunk_id).where(
             DriveFileChunkLink.drive_file_id == drive_file_id,
         )
     )
-    existing_ids = {row[0] for row in already_linked.all()}
+    existing_ids = set(already_linked.all())
     new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
     if new_links:
         session.add_all(new_links)
@@ -99,12 +99,12 @@ async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk
 
 async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int, source_file_id: int) -> None:
     """Copy bridge-table links from an existing duplicate file, skipping any that already exist."""
-    source_links = await session.execute(
+    source_links = await session.exec(
         select(DriveFileChunkLink.chunk_id).where(
             DriveFileChunkLink.drive_file_id == source_file_id,
         )
     )
-    wanted_ids = {row[0] for row in source_links.all()}
+    wanted_ids = set(source_links.all())
     await _create_missing_links(session, drive_file_id, wanted_ids)
 
 
@@ -132,14 +132,16 @@ async def _store_and_link_chunks(
         )
         .exists()
     )
-    existing_rows = await session.execute(
+    existing_rows = await session.exec(
         select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
             DocumentChunk.user_id == user_id,
             DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
             active_file_subq,
         )
     )
-    existing_hash_to_id: dict[str, int] = {row.chunk_content_hash: row.id for row in existing_rows.all()}
+    existing_hash_to_id: dict[str, int] = {
+        row[1]: row[0] for row in existing_rows.all() if row[0] is not None and row[1] is not None
+    }
 
     # Split into new (need storing) vs reused (just link)
     new_chunk_inputs: list[ChunkInput] = []
@@ -351,19 +353,19 @@ async def process_folder_rag(
 ) -> None:
     """Run the RAG pipeline for all supported files in a synced folder."""
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
-        folder_result = await session.execute(select(DriveFolder).where(DriveFolder.id == folder_id))
-        folder = folder_result.scalars().first()
+        folder_result = await session.exec(select(DriveFolder).where(DriveFolder.id == folder_id))
+        folder = folder_result.first()
         if folder is None:
             logger.warning("process_folder_rag: folder %d not found.", folder_id)
             return
 
-        result = await session.execute(
+        result = await session.exec(
             select(DriveFile).where(
                 col(DriveFile.folder_id) == folder_id,
                 col(DriveFile.is_deleted) == False,  # noqa: E712
             )
         )
-        files = result.scalars().all()
+        files = result.all()
 
     if not files:
         return

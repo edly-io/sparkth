@@ -205,21 +205,21 @@ class TestFindDuplicateFile:
     async def test_returns_none_when_no_duplicate(self) -> None:
         session = _make_async_session()
         mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = None
-        session.execute = AsyncMock(return_value=mock_result)
+        mock_result.first.return_value = None
+        session.exec = AsyncMock(return_value=mock_result)
 
         drive_file = _make_drive_file()
         result = await _find_duplicate_file(session, user_id=1, drive_file=drive_file, content_hash="abc123")
 
         assert result is None
-        session.execute.assert_awaited_once()
+        session.exec.assert_awaited_once()
 
     async def test_returns_duplicate_when_found(self) -> None:
         duplicate = _make_drive_file(file_id=99, name="duplicate.pdf")
         session = _make_async_session()
         mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = duplicate
-        session.execute = AsyncMock(return_value=mock_result)
+        mock_result.first.return_value = duplicate
+        session.exec = AsyncMock(return_value=mock_result)
 
         drive_file = _make_drive_file()
         result = await _find_duplicate_file(session, user_id=1, drive_file=drive_file, content_hash="abc123")
@@ -238,13 +238,13 @@ class TestLinkChunksFromDuplicate:
 
         # Source file has chunks 1, 2, 3
         source_result = MagicMock()
-        source_result.all.return_value = [(1,), (2,), (3,)]
+        source_result.all.return_value = [1, 2, 3]
 
         # Target file already has chunk 1
         target_result = MagicMock()
-        target_result.all.return_value = [(1,)]
+        target_result.all.return_value = [1]
 
-        session.execute = AsyncMock(side_effect=[source_result, target_result])
+        session.exec = AsyncMock(side_effect=[source_result, target_result])
 
         await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
 
@@ -259,12 +259,12 @@ class TestLinkChunksFromDuplicate:
         session = _make_async_session()
 
         source_result = MagicMock()
-        source_result.all.return_value = [(1,), (2,)]
+        source_result.all.return_value = [1, 2]
 
         target_result = MagicMock()
-        target_result.all.return_value = [(1,), (2,)]
+        target_result.all.return_value = [1, 2]
 
-        session.execute = AsyncMock(side_effect=[source_result, target_result])
+        session.exec = AsyncMock(side_effect=[source_result, target_result])
 
         await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
 
@@ -275,12 +275,12 @@ class TestLinkChunksFromDuplicate:
         session = _make_async_session()
 
         source_result = MagicMock()
-        source_result.all.return_value = [(5,), (6,)]
+        source_result.all.return_value = [5, 6]
 
         target_result = MagicMock()
         target_result.all.return_value = []
 
-        session.execute = AsyncMock(side_effect=[source_result, target_result])
+        session.exec = AsyncMock(side_effect=[source_result, target_result])
 
         await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
 
@@ -313,7 +313,7 @@ class TestEmbedAndStoreChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.execute = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
 
         row1 = MagicMock(id=100)
         row2 = MagicMock(id=101)
@@ -345,18 +345,15 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["chunk A"])
         chunk_hash = hashlib.sha256("chunk A".encode()).hexdigest()
 
-        # One existing chunk with matching hash
-        existing_row = MagicMock()
-        existing_row.chunk_content_hash = chunk_hash
-        existing_row.id = 50
+        # One existing chunk with matching hash: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [existing_row]
+        existing_result.all.return_value = [(50, chunk_hash)]
 
         # No existing links
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.execute = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await _store_and_link_chunks(
@@ -382,16 +379,14 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["existing chunk", "new chunk"])
         existing_hash = hashlib.sha256("existing chunk".encode()).hexdigest()
 
-        existing_row = MagicMock()
-        existing_row.chunk_content_hash = existing_hash
-        existing_row.id = 50
+        # Existing chunk: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [existing_row]
+        existing_result.all.return_value = [(50, existing_hash)]
 
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.execute = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
 
         store.store_chunks = AsyncMock(return_value=[51])
 
@@ -420,17 +415,15 @@ class TestEmbedAndStoreChunks:
         hash_a = hashlib.sha256("chunk A".encode()).hexdigest()
         hash_b = hashlib.sha256("chunk B".encode()).hexdigest()
 
-        # Both chunks already exist in DB
-        row_a = MagicMock(chunk_content_hash=hash_a, id=10)
-        row_b = MagicMock(chunk_content_hash=hash_b, id=11)
+        # Both chunks already exist in DB: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [row_a, row_b]
+        existing_result.all.return_value = [(10, hash_a), (11, hash_b)]
 
         # chunk 10 already linked; chunk 11 is not
         links_result = MagicMock()
-        links_result.all.return_value = [(10,)]
+        links_result.all.return_value = [10]
 
-        session.execute = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await _store_and_link_chunks(
@@ -853,10 +846,10 @@ class TestProcessFolderRag:
 
         mock_session = AsyncMock()
         folder_result = MagicMock()
-        folder_result.scalars.return_value.first.return_value = folder
+        folder_result.first.return_value = folder
         files_result = MagicMock()
-        files_result.scalars.return_value.all.return_value = []
-        mock_session.execute = AsyncMock(side_effect=[folder_result, files_result])
+        files_result.all.return_value = []
+        mock_session.exec = AsyncMock(side_effect=[folder_result, files_result])
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -882,10 +875,10 @@ class TestProcessFolderRag:
         # First call: folder lookup + file listing session
         list_session = AsyncMock()
         folder_result = MagicMock()
-        folder_result.scalars.return_value.first.return_value = folder
+        folder_result.first.return_value = folder
         files_result = MagicMock()
-        files_result.scalars.return_value.all.return_value = [ready_file, processing_file, pending_file]
-        list_session.execute = AsyncMock(side_effect=[folder_result, files_result])
+        files_result.all.return_value = [ready_file, processing_file, pending_file]
+        list_session.exec = AsyncMock(side_effect=[folder_result, files_result])
 
         # Second call: per-file processing session
         file_session = AsyncMock()
@@ -922,10 +915,10 @@ class TestProcessFolderRag:
 
         list_session = AsyncMock()
         folder_result = MagicMock()
-        folder_result.scalars.return_value.first.return_value = folder
+        folder_result.first.return_value = folder
         files_result = MagicMock()
-        files_result.scalars.return_value.all.return_value = [pending_file]
-        list_session.execute = AsyncMock(side_effect=[folder_result, files_result])
+        files_result.all.return_value = [pending_file]
+        list_session.exec = AsyncMock(side_effect=[folder_result, files_result])
 
         file_session = AsyncMock()
         sessions = iter([list_session, file_session])

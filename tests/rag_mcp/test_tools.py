@@ -40,10 +40,8 @@ class TestListUserFiles:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.all.return_value = [mock_file]
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.all.return_value = [mock_file]
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await list_user_files(user_id=1)
@@ -58,10 +56,8 @@ class TestListUserFiles:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.all.return_value = []
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.all.return_value = []
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await list_user_files(user_id=1)
@@ -74,10 +70,8 @@ class TestListUserFiles:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.all.return_value = []
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.all.return_value = []
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await list_user_files(user_id=1)
@@ -89,7 +83,7 @@ class TestListUserFiles:
         """Test that SQLAlchemyError is re-raised."""
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
-            mock_session.execute = AsyncMock(side_effect=SQLAlchemyError("DB error"))
+            mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             with pytest.raises(SQLAlchemyError):
@@ -112,10 +106,8 @@ class TestGetFileMetadata:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.first.return_value = mock_file
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.first.return_value = mock_file
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await get_file_metadata(user_id=1, file_id=1)
@@ -130,10 +122,8 @@ class TestGetFileMetadata:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.first.return_value = None
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.first.return_value = None
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await get_file_metadata(user_id=1, file_id=999)
@@ -146,15 +136,13 @@ class TestGetFileMetadata:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.first.return_value = None
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.first.return_value = None
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             await get_file_metadata(user_id=5, file_id=1)
 
-            assert mock_session.execute.called
+            assert mock_session.exec.called
 
 
 class TestListFileSections:
@@ -171,16 +159,14 @@ class TestListFileSections:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
-            mock_file_scalars = MagicMock()
-            mock_file_scalars.first.return_value = mock_file
-            mock_file_result.scalars.return_value = mock_file_scalars
+            mock_file_result.first.return_value = mock_file
 
             mock_sections_result = MagicMock()
             mock_sections_result.all.return_value = [
                 ("Ch1", "Sec1", None),
             ]
 
-            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_sections_result])
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_sections_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await list_file_sections(user_id=1, file_id=1)
@@ -195,10 +181,8 @@ class TestListFileSections:
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
-            mock_scalars = MagicMock()
-            mock_scalars.first.return_value = None
-            mock_result.scalars.return_value = mock_scalars
-            mock_session.execute = AsyncMock(return_value=mock_result)
+            mock_result.first.return_value = None
+            mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await list_file_sections(user_id=1, file_id=999)
@@ -220,15 +204,13 @@ class TestGetChunkStats:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
-            mock_file_scalars = MagicMock()
-            mock_file_scalars.first.return_value = mock_file
-            mock_file_result.scalars.return_value = mock_file_scalars
+            mock_file_result.first.return_value = mock_file
 
             mock_stats_result = MagicMock()
             mock_stats_row = [42, 128.5]
             mock_stats_result.first.return_value = mock_stats_row
 
-            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_stats_result])
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_stats_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await get_chunk_stats(user_id=1, file_id=1)
@@ -252,17 +234,15 @@ class TestGetDocumentStructure:
         mock_session = AsyncMock(spec=AsyncSession)
 
         mock_file_result = MagicMock()
-        mock_file_scalars = MagicMock()
-        mock_file_scalars.first.return_value = file
-        mock_file_result.scalars.return_value = mock_file_scalars
+        mock_file_result.first.return_value = file
 
         mock_structure_result = MagicMock()
         mock_structure_result.all.return_value = rows
 
         if file is None:
-            mock_session.execute = AsyncMock(return_value=mock_file_result)
+            mock_session.exec = AsyncMock(return_value=mock_file_result)
         else:
-            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_structure_result])
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_structure_result])
 
         return mock_session
 
@@ -312,7 +292,7 @@ class TestGetDocumentStructure:
         """SQLAlchemyError must propagate to the caller."""
         with patch("app.rag_mcp.tools.get_async_session") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
-            mock_session.execute = AsyncMock(side_effect=SQLAlchemyError("DB error"))
+            mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             with pytest.raises(SQLAlchemyError):
@@ -333,16 +313,14 @@ class TestSearchSectionByKeyword:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
-            mock_file_scalars = MagicMock()
-            mock_file_scalars.first.return_value = mock_file
-            mock_file_result.scalars.return_value = mock_file_scalars
+            mock_file_result.first.return_value = mock_file
 
             mock_search_result = MagicMock()
             mock_search_result.all.return_value = [
                 ("Ch1", "Photosynthesis", None),
             ]
 
-            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_search_result])
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_search_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await search_section_by_keyword(user_id=1, file_id=1, keyword="photo")
@@ -361,14 +339,12 @@ class TestSearchSectionByKeyword:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
-            mock_file_scalars = MagicMock()
-            mock_file_scalars.first.return_value = mock_file
-            mock_file_result.scalars.return_value = mock_file_scalars
+            mock_file_result.first.return_value = mock_file
 
             mock_search_result = MagicMock()
             mock_search_result.all.return_value = []
 
-            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_search_result])
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_search_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await search_section_by_keyword(user_id=1, file_id=1, keyword="nonexistent")
@@ -395,19 +371,17 @@ class TestSearchSectionByKeyword:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
-            mock_file_scalars = MagicMock()
-            mock_file_scalars.first.return_value = mock_file
-            mock_file_result.scalars.return_value = mock_file_scalars
+            mock_file_result.first.return_value = mock_file
 
             mock_search_result = MagicMock()
             mock_search_result.all.return_value = []
 
-            mock_session.execute = AsyncMock(side_effect=[mock_file_result, mock_search_result])
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_search_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             await search_section_by_keyword(user_id=1, file_id=1, keyword=r"foo\bar")
 
-        search_stmt = mock_session.execute.call_args_list[1][0][0]
+        search_stmt = mock_session.exec.call_args_list[1][0][0]
         compiled = search_stmt.compile(
             dialect=sqlite_dialect.dialect(),
             compile_kwargs={"literal_binds": True},

@@ -1,5 +1,7 @@
 """Metadata-only tools for RAG MCP server."""
 
+from typing import cast
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, func, select
 
@@ -18,22 +20,22 @@ async def list_user_files(user_id: int) -> list[FileInfo]:
     """List all RAG-ready files owned by a user."""
     try:
         async with get_async_session() as session:
-            result = await session.execute(
+            result = await session.exec(
                 select(DriveFile).where(
                     DriveFile.user_id == user_id,
                     DriveFile.is_deleted == False,  # noqa: E712
                     DriveFile.rag_status == RagStatus.READY,
                 )
             )
-            files = result.scalars().all()
+            files = result.all()
             return [
                 FileInfo(
-                    id=f.id,
+                    id=cast(int, f.id),
                     name=f.name,
                     mime_type=f.mime_type,
                     size=f.size,
                     modified_time=f.modified_time.isoformat() if f.modified_time else None,
-                    rag_status=f.rag_status,
+                    rag_status=f.rag_status or RagStatus.READY,
                 )
                 for f in files
             ]
@@ -46,20 +48,20 @@ async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
     """Get metadata for a specific file owned by a user."""
     try:
         async with get_async_session() as session:
-            result = await session.execute(
+            result = await session.exec(
                 select(DriveFile).where(
                     DriveFile.id == file_id,
                     DriveFile.user_id == user_id,
                     DriveFile.is_deleted == False,  # noqa: E712
                 )
             )
-            file = result.scalars().first()
+            file = result.first()
             if not file:
                 return None
             return FileMetadata(
-                id=file.id,
+                id=cast(int, file.id),
                 name=file.name,
-                rag_status=file.rag_status,
+                rag_status=file.rag_status or RagStatus.READY,
                 size=file.size,
                 modified_time=file.modified_time.isoformat() if file.modified_time else None,
             )
@@ -72,19 +74,19 @@ async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
     """List all distinct sections in a file."""
     try:
         async with get_async_session() as session:
-            file_result = await session.execute(
+            file_result = await session.exec(
                 select(DriveFile).where(
                     DriveFile.id == file_id,
                     DriveFile.user_id == user_id,
                     DriveFile.is_deleted == False,  # noqa: E712
                 )
             )
-            file = file_result.scalars().first()
+            file = file_result.first()
             if not file:
                 return []
 
             source_name = resolve_source_name(file)
-            sections_result = await session.execute(
+            sections_result = await session.exec(
                 select(
                     DocumentChunk.chapter,
                     DocumentChunk.section,
@@ -106,20 +108,20 @@ async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
     """Get statistics about chunks in a file (count and average token count)."""
     try:
         async with get_async_session() as session:
-            file_result = await session.execute(
+            file_result = await session.exec(
                 select(DriveFile).where(
                     DriveFile.id == file_id,
                     DriveFile.user_id == user_id,
                     DriveFile.is_deleted == False,  # noqa: E712
                 )
             )
-            file = file_result.scalars().first()
+            file = file_result.first()
             if not file:
                 return None
 
             source_name = resolve_source_name(file)
 
-            stats_result = await session.execute(
+            stats_result = await session.exec(
                 select(
                     func.count().label("chunk_count"),
                     func.avg(DocumentChunk.token_count).label("avg_token_count"),
@@ -149,20 +151,20 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
     """
     try:
         async with get_async_session() as session:
-            file_result = await session.execute(
+            file_result = await session.exec(
                 select(DriveFile).where(
                     DriveFile.id == file_id,
                     DriveFile.user_id == user_id,
                     DriveFile.is_deleted == False,  # noqa: E712
                 )
             )
-            file = file_result.scalars().first()
+            file = file_result.first()
             if not file:
                 return []
 
             source_name = resolve_source_name(file)
 
-            structure_result = await session.execute(
+            structure_result = await session.exec(
                 select(
                     col(DocumentChunk.chapter),
                     col(DocumentChunk.section),
@@ -204,14 +206,14 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
 
     try:
         async with get_async_session() as session:
-            file_result = await session.execute(
+            file_result = await session.exec(
                 select(DriveFile).where(
                     DriveFile.id == file_id,
                     DriveFile.user_id == user_id,
                     DriveFile.is_deleted == False,  # noqa: E712
                 )
             )
-            file = file_result.scalars().first()
+            file = file_result.first()
             if not file:
                 return []
 
@@ -219,7 +221,7 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
             keyword_safe = keyword.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
             keyword_pattern = f"%{keyword_safe}%"
 
-            search_result = await session.execute(
+            search_result = await session.exec(
                 select(
                     DocumentChunk.chapter,
                     DocumentChunk.section,
