@@ -59,7 +59,7 @@ test.describe("sign up", () => {
     const verificationUrl = new URL(verificationLink);
     await page.goto(verificationUrl.pathname + verificationUrl.search + verificationUrl.hash);
 
-    await expect(page.getByText(/email verified|account is ready|sign in/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /email confirmed/i })).toBeVisible();
 
     // The user can now log in.
     await logInViaUi(page, user.username, user.password);
