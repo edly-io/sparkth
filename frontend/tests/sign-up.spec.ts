@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { apiBaseUrl } from "./config";
-import { extractFirstLink, findLatestMessageTo } from "./utils/mailpit";
+import { extractVerificationLink, findLatestMessageTo } from "./utils/mailpit";
 import { logInViaUi, randomUser, signUpViaUi } from "./utils/user";
 
 // Sign-up tests must run logged out.
@@ -52,11 +52,11 @@ test.describe("sign up", () => {
     const message = await findLatestMessageTo(request, user.email);
     expect(message.Subject.toLowerCase()).toContain("verify");
 
-    const verificationLink = extractFirstLink(message);
+    const verificationLink = extractVerificationLink(message);
     // The link points at FRONTEND_BASE_URL — rewrite the origin to whatever
     // the test runner is hitting so we land on the local app.
-    const path = new URL(verificationLink).pathname + new URL(verificationLink).search;
-    await page.goto(path);
+    const verificationUrl = new URL(verificationLink);
+    await page.goto(verificationUrl.pathname + verificationUrl.search + verificationUrl.hash);
 
     await expect(page.getByText(/email verified|account is ready|sign in/i)).toBeVisible();
 

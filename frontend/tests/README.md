@@ -64,3 +64,15 @@ service containers, builds the frontend statically and serves it through the
 API on `:7727` (matching the production deployment model), seeds the superuser
 via the CLI, then runs the suite. Blob reports are uploaded as artifacts and
 server logs are attached on failure.
+
+### Local vs CI topology
+
+Local runs hit `next dev` on `:3000` (HMR, dev router) while the API runs on
+`:7727`. CI builds the frontend statically and serves it through the API on
+`:7727` — a single origin, no CORS.
+
+Most bugs manifest in both modes, but a few classes only appear in one:
+CORS/cookie-scope issues only fire locally; static-export routing quirks
+(e.g. `trailingSlash`) and prod env-var inlining only fire in CI. When a CI
+failure won't reproduce locally — or vice versa — that divergence is usually
+the first thing to check.

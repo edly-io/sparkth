@@ -13,10 +13,14 @@ export interface RandomUser {
 /**
  * Generates a unique user payload. Username/email are randomized so tests can
  * run in parallel without colliding on the database's UNIQUE constraints.
+ *
+ * The username column is `max_length=20` (see `app/models/user.py`), so we
+ * cap the prefix and use a UUID-derived suffix — slicing a UUID gives true
+ * random bits that survive truncation, unlike a timestamp prefix.
  */
 export function randomUser(prefix = "e2e"): RandomUser {
-  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-  const username = `${prefix}-${suffix}`.slice(0, 20);
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 11);
+  const username = `${prefix.slice(0, 8)}-${suffix}`;
   return {
     name: `E2E User ${suffix}`,
     username,

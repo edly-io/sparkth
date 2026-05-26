@@ -69,14 +69,19 @@ export async function findLatestMessageTo(
 }
 
 /**
- * Extract the first URL from a message body (text or HTML). Verification and
- * password-reset emails embed a single link, so the first hit is the one we want.
+ * Extract the verification link from a message body (text or HTML).
+ *
+ * Anchored on `/verify-email` (the actual route in `app/services/email_verification.py`)
+ * so that future template changes — branded logos, footer social links, etc. —
+ * don't cause us to capture the wrong URL.
  */
-export function extractFirstLink(message: MailpitMessageDetail): string {
+export function extractVerificationLink(message: MailpitMessageDetail): string {
   const haystack = message.Text || message.HTML;
-  const match = haystack.match(/https?:\/\/[^\s"<>]*[^\s"<>.,:;!?)]/);
+  const match = haystack.match(/https?:\/\/[^\s"<>]*\/verify-email[^\s"<>.,:;!?)]*/);
   if (!match) {
-    throw new Error(`No link found in message ${message.ID} (subject: ${message.Subject})`);
+    throw new Error(
+      `No verify-email link found in message ${message.ID} (subject: ${message.Subject})`,
+    );
   }
   return match[0];
 }
