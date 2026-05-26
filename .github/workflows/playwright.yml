@@ -70,12 +70,15 @@ jobs:
           MP_SMTP_AUTH_ALLOW_INSECURE: "1"
 
     env:
-      # Sync form — app/core/db.py builds the sync engine from this URL and
+      # Sync form; app/core/db.py builds the sync engine from this URL and
       # derives the async URL automatically. Alembic also reads this var.
       DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth
       REDIS_URL: redis://localhost:6379
       SECRET_KEY: secret-key-for-ci
       LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
+      # Default is False; sign-up specs and the "prompts unverified users"
+      # login spec hit /api/v1/auth/register, which 403s when disabled.
+      REGISTRATION_ENABLED: "true"
       SLACK_CLIENT_ID: fake-client-id
       SLACK_CLIENT_SECRET: fake-client-secret
       SLACK_SIGNING_SECRET: fake-signing-secret
@@ -87,7 +90,7 @@ jobs:
       SMTP_FROM_EMAIL: no-reply@sparkth.local
       SMTP_FROM_NAME: Sparkth
       # The API serves the built frontend statically on the same origin in
-      # production (see app/main.py), so the suite runs against :7727 — no
+      # production (see app/main.py), so the suite runs against :7727 with no
       # /api proxy gap to bridge.
       FRONTEND_BASE_URL: http://localhost:7727
       FIRST_SUPERUSER: admin
