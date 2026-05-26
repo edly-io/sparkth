@@ -33,6 +33,6 @@ tests/
 frontend/node_modules
 frontend/.next
 frontend/out
-
+node_modules/
 # Repo tooling
 .claude
