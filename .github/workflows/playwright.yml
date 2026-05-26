@@ -137,6 +137,20 @@ jobs:
             --superuser \
             --email-verified
 
+      - name: Seed E2E whitelist (@example.com domain)
+        # randomUser() in frontend/tests/utils/user.ts generates @example.com
+        # addresses. Registration enforces a domain/email whitelist (see
+        # app/services/whitelist.py), so an empty table 403s every signup.
+        run: |
+          uv run python -c "
+          from sqlmodel import Session
+          from app.core.db import get_engine
+          from app.models.whitelist import WhitelistedEmail
+          with Session(get_engine()) as s:
+              s.add(WhitelistedEmail(value='@example.com', entry_type='domain'))
+              s.commit()
+          "
+
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
         working-directory: frontend
