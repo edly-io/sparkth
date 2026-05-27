@@ -195,28 +195,7 @@ Sparkth will generate a prompt that will help Claude generate this course.
 
 ## Makefile
 
-All common tasks are wrapped in a `Makefile` for convenience.
-
-Just run `make` to see the full list:
-
-```bash
-$ make
-Usage: make <target>
-
-Targets:
-  uv              Install uv if missing
-  dev             Install dev dependencies
-  lock            Update lockfile
-  install         Install exact versions from lockfile
-  test            Run tests
-  cov             Run tests with coverage
-  lint            Lint with ruff
-  fix             Auto-fix + format with ruff
-  build           Build package
-  frontend        Run frontend dev server (hot reload)
-  frontend.build  Build frontend (static export)
-
-```
+All common tasks are wrapped in a `Makefile` for convenience. Run `make` to see the full list of commands.
 
 ## User Management Commands
 ### Create User

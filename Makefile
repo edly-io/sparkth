@@ -1,15 +1,9 @@
 # Default: show help when just running `make`
 .DEFAULT_GOAL := help
 
-# --------------------------------------------------
-# VARIABLES
-# --------------------------------------------------
 # Extract arguments for the catch-all targets (create-user, etc.)
 ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
-# --------------------------------------------------
-# PHONY TARGETS
-# --------------------------------------------------
 .PHONY: help uv lock test test.backend test.frontend mypy \
         up up.dev down clean restart logs shell db-shell migrations base \
         frontend frontend.build frontend.install \
@@ -19,17 +13,11 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
         create-user reset-password \
         api mcp cli
 
-# --------------------------------------------------
-# Help
-# --------------------------------------------------
 help: ## Show this help
 	@echo "Usage: make \033[36m<target>\033[0m [options]"
 	@awk ' \
-		/^# -+$$/ { if (candidate != "") { pending = candidate; have_pending = 1; candidate = "" } in_rule = 1; next } \
-		in_rule && /^# / { candidate = substr($$0, 3); in_rule = 0; next } \
-		{ in_rule = 0; candidate = "" } \
+		/^##@ / { printf "\n\033[1m%s:\033[0m\n", substr($$0, 5) } \
 		/^[a-zA-Z._-]+:.*## / { \
-			if (have_pending) { printf "\n\033[1m%s:\033[0m\n", pending; have_pending = 0 } \
 			target = $$0; sub(/:.*/, "", target); \
 			desc = substr($$0, index($$0, "## ") + 3); \
 			printf "  \033[36m%-25s\033[0m %s\n", target, desc \
@@ -37,15 +25,11 @@ help: ## Show this help
 	' $(MAKEFILE_LIST)
 	@echo
 
-# --------------------------------------------------
-# Project Setup
-# --------------------------------------------------
+##@ Project Setup
 uv: ## Install uv if missing
 	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# --------------------------------------------------
-# Docker Setup/Operations
-# --------------------------------------------------
+##@ Docker Setup/Operations
 base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
 	docker build -f Dockerfile.base -t sparkth-base:local .
 
@@ -87,9 +71,7 @@ app-restart: ## Restart the API container for fast iteration
 	docker compose down api
 	docker compose up api -d
 
-# --------------------------------------------------
-# User Management (Runs inside Docker)
-# --------------------------------------------------
+##@ User Management (Runs inside Docker)
 # These run inside the container so they can access the DB network
 create-user: ## Create user (make create-user -- --username john)
 	docker compose exec api python -m app.cli.main users create-user $(ARGS)
@@ -97,9 +79,7 @@ create-user: ## Create user (make create-user -- --username john)
 reset-password: ## Reset password (make reset-password -- username)
 	docker compose exec api python -m app.cli.main users reset-password $(ARGS)
 
-# --------------------------------------------------
-# Frontend
-# --------------------------------------------------
+##@ Frontend
 frontend.build: ## Build frontend (static export to frontend/out)
 	cd frontend && bun run build
 
@@ -109,9 +89,7 @@ frontend.install: ## Install exact frontend dependencies from lockfile
 frontend: ## Run frontend dev server (hot reload)
 	cd frontend && bun install && bun run dev
 
-# --------------------------------------------------
-# Backend
-# --------------------------------------------------
+##@ Backend
 backend.build: ## Build Python package (sdist + wheel)
 	uv build
 
@@ -140,9 +118,7 @@ cli: ## Run CLI tool (make cli -- users --help)
 mypy: ## Run mypy type checking
 	uv run mypy --strict app/ tests/
 
-# --------------------------------------------------
-# Testing
-# --------------------------------------------------
+##@ Testing
 test: ## Run tests (with-coverage=1 to include coverage)
 	$(MAKE) test.frontend $(if $(with-coverage),with-coverage=1)
 	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
@@ -153,9 +129,7 @@ test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
 test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
 	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
 
-# --------------------------------------------------
-# Linting
-# --------------------------------------------------
+##@ Linting
 lint: ## Check lint errors (frontend + backend)
 	$(MAKE) lint.frontend
 	$(MAKE) lint.backend
@@ -188,8 +162,6 @@ lint.format.frontend: ## Format frontend code (oxfmt, check=1 to check only)
 lint.format.backend: ## Format backend code (ruff, check=1 to check only)
 	uv run ruff format $(if $(check),--check)
 
-# --------------------------------------------------
 # Catch-all for argument forwarding
-# --------------------------------------------------
 %:
 	@:
