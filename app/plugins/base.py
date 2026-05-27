@@ -178,7 +178,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self._models: list[Type[SQLModel]] = []
         self._mcp_tools: list[dict[str, Any]] = []
         self._middleware: list[Middleware] = []
-        self._dependencies: dict[str, Callable[..., Any]] = {}
 
         self._register_tools_from_metaclass()
 
@@ -368,17 +367,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             Path to migrations directory, or None if no migrations
         """
         return None
-
-    def get_migration_dependencies(self) -> list[str]:
-        """
-        Return list of migration revision IDs this plugin's migrations depend on.
-
-        Use this to ensure migrations are run in the correct order.
-
-        Returns:
-            List of Alembic revision IDs
-        """
-        return []
 
     def add_mcp_tool(
         self,
@@ -591,16 +579,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         self._middleware.append(middleware)
 
-    def add_dependency(self, name: str, dependency: Callable[..., Any]) -> None:
-        """
-        Add a FastAPI dependency to this plugin.
-
-        Args:
-            name: Dependency name
-            dependency: Callable dependency function
-        """
-        self._dependencies[name] = dependency
-
     def get_middleware(self) -> list[Middleware]:
         """
         Return FastAPI middleware to be added to the application.
@@ -612,18 +590,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             List of Middleware instances
         """
         return self._middleware.copy()
-
-    def get_dependencies(self) -> dict[str, Callable[..., Any]]:
-        """
-        Return FastAPI dependencies to be registered globally.
-
-        Override this method to provide dependencies, or use add_dependency()
-        to register dependencies dynamically.
-
-        Returns:
-            Dictionary mapping dependency names to callables
-        """
-        return self._dependencies.copy()
 
     def get_config_schema(self) -> dict[str, Any]:
         """
