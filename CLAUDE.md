@@ -2,8 +2,11 @@
 
 AI-first, open-source learning platform by Edly. Provides a unified framework for course generation with integrated AI capabilities exposed via a Model Context Protocol (MCP) server.
 
-- REST API: `/api/` | MCP server: `/ai/mcp` | Docs: `/docs`
-- Current version: `0.1.10`
+Useful URLs:
+
+- REST API: `/api/`
+- MCP server: `/ai/mcp`
+- Docs: `/docs`
 
 ## Tech Stack
 

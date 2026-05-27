@@ -7,7 +7,7 @@ Quick guide for creating Sparkth plugins with API routes and MCP tools.
 Define a config class for the plugin that must inherit from `app.plugins.config_base:PluginConfig`
 
 ```python
-# sparkth_plugins/myplugin/config.py
+# app/core_plugins/myplugin/config.py
 from pydantic import Field
 from app.plugins.config_base import PluginConfig
 
@@ -87,21 +87,22 @@ Both methods default to `None` on the base class, so non-LMS plugins require no 
 
 
 ## Register the plugin configuration class
-Each plugin must register its Pydantic configuration class so the system can validate and normalize user-provided configuration.
 
-Add your plugin’s config class to the `PLUGIN_CONFIG_CLASSES` mapping.
+Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely (the built-in `google-drive` plugin has no entry in `PLUGIN_CONFIG_CLASSES`).
+
+When you do register one, add your plugin’s config class to the `PLUGIN_CONFIG_CLASSES` mapping. **The dict key must be the plugin's _derived_ name** — see [Plugin Name Derivation](#plugin-name-derivation) below. For a class named `MyPlugin` the key is `my-plugin`.
 
 ```python
 # app/plugins/__init__.py
 
-from app.sparkth_plugins.myplugin.config import MyPluginConfig
+from app.core_plugins.myplugin.config import MyPluginConfig
 
 # ...
 
 PLUGIN_CONFIG_CLASSES = {
     "canvas": CanvasConfig, 
     "open-edx": OpenEdxConfig,
-    "myplugin": MyPluginConfig  # List your plugin config class
+    "my-plugin": MyPluginConfig  # key = derived plugin name, not an arbitrary label
 }
 
 ```
@@ -213,13 +214,29 @@ class MyPluginConfigAdapter(LLMConfigAdapter):
 ```
 
 
+## Plugin Name Derivation
+
+You do **not** choose the plugin name freely. The `PluginManager` instantiates each plugin with a name it derives from the class name (`_class_name_to_plugin_name` in `app/plugins/manager.py`): it strips a trailing `Plugin` suffix and kebab-cases the rest.
+
+| Class name | Derived name |
+|---|---|
+| `CanvasPlugin` | `canvas` |
+| `OpenEdxPlugin` | `open-edx` |
+| `MyPlugin` | `my-plugin` |
+| `Slack` (no suffix) | `slack` |
+
+This derived name is what gets passed to your `__init__` and is the key you must use in `PLUGIN_CONFIG_CLASSES` and `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
+
+
 ## Basic Plugin Structure
 
+The manager constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/manager.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
+
 ```python
-# sparkth_plugins/myplugin/plugin.py
+# app/core_plugins/myplugin/plugin.py
 from app.plugins.base import SparkthPlugin, tool
 from fastapi import APIRouter
-from app.sparkth_plugins.myplugin.config import MyPluginConfig
+from app.core_plugins.myplugin.config import MyPluginConfig
 
 # Create router outside the class
 router = APIRouter(prefix="/my-plugin", tags=["My Plugin"])
@@ -235,12 +252,12 @@ async def create_item(data: dict):
 
 # Plugin class
 class MyPlugin(SparkthPlugin):
-    def __init__(self):
+    def __init__(self, plugin_name: str) -> None:
         super().__init__(
-            name="my-plugin",
+            plugin_name,                  # name is supplied by the manager
+            MyPluginConfig,               # config_schema (positional)
             version="1.0.0",
-            description="My plugin description"
-            config_schema=MyPluginConfig    # Also register the config class with the plugin
+            description="My plugin description",
         )
         # Add the router
         self.add_route(router)
@@ -252,11 +269,17 @@ class MyPlugin(SparkthPlugin):
         return f"Processed: {input}"
 ```
 
+### Where do plugin routes get mounted?
+
+By default, plugin routes are served at **the path in the router's own `prefix`**, mounted at the application root — there is no automatic `/api/v1` prefix. The router above (`prefix="/my-plugin"`) is reachable at `http://localhost:7727/my-plugin/`.
+
+To mount your routes under a different base, override `get_route_prefix()` on the plugin class (it returns `None` by default, meaning "root"). For example, the built-in `chat` plugin returns `"/api/v1"` so its routes land under `/api/v1/chat`.
+
 ## Register in core/config.py
 ```python
 PLUGINS = [
     "app.core_plugins.canvas.plugin:CanvasPlugin",
-    "app.core_plugins.openedx.plugin:OpenEdXPlugin",
+    "app.core_plugins.openedx.plugin:OpenEdxPlugin",
     # add your plugin here
 ]
 ```
@@ -274,8 +297,8 @@ class MyModel(SQLModel, table=True):
     title: str
 
 class MyPlugin(SparkthPlugin):
-    def __init__(self):
-        super().__init__(name="my-plugin")
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name, MyPluginConfig)
         self.add_model(MyModel)  # Register model
         self.add_route(router)   # Register router
 ```
@@ -319,10 +342,10 @@ router = APIRouter(prefix="/weather", tags=["Weather"])
 async def get_weather(city: str):
     return {"city": city, "temp": 20}
 
-# Plugin
+# Plugin (class name WeatherPlugin → derived name "weather")
 class WeatherPlugin(SparkthPlugin):
-    def __init__(self):
-        super().__init__(name="weather-plugin", version="1.0.0")
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name, version="1.0.0")
         self.add_route(router)
     
     @tool(description="Get weather for a city", category="weather")
@@ -333,11 +356,11 @@ class WeatherPlugin(SparkthPlugin):
 ## Testing
 
 ```bash
-# Start server
-make start
+# Start the FastAPI server locally (http://0.0.0.0:7727)
+make api
 
-# Test API
-curl http://localhost:8000/api/v1/my-plugin/
+# Test API (routes mount at the router's own prefix by default — see below)
+curl http://localhost:7727/my-plugin/
 ```
 
 For real-world examples, see `core_plugins/canvas/` directory.
