@@ -20,26 +20,21 @@ ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
         api mcp cli
 
 # --------------------------------------------------
-# HELP
+# Help
 # --------------------------------------------------
 help: ## Show this help
-	@echo "Usage: make \033[36m<target>\033[0m [options]\n"
-	@echo "\033[1mDocker Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mFrontend Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build|frontend\.install)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mBackend Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(backend\.build|backend\.install)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mRun Services Locally:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mLocal Dev Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|mypy)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mLinting Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(lint|lint\.fix|lint\.format|lint\.frontend|lint\.backend|lint\.fix\.frontend|lint\.fix\.backend|lint\.format\.frontend|lint\.format\.backend|lint\.help)$$/) printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mTesting Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z._-]+:.*?## / {if ($$1 ~ /^(test|test\.backend|test\.frontend|test\.help)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mUser Management (In Docker):\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(create-user|reset-password)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "Usage: make \033[36m<target>\033[0m [options]"
+	@awk ' \
+		/^# -+$$/ { if (candidate != "") { pending = candidate; have_pending = 1; candidate = "" } in_rule = 1; next } \
+		in_rule && /^# / { candidate = substr($$0, 3); in_rule = 0; next } \
+		{ in_rule = 0; candidate = "" } \
+		/^[a-zA-Z._-]+:.*## / { \
+			if (have_pending) { printf "\n\033[1m%s:\033[0m\n", pending; have_pending = 0 } \
+			target = $$0; sub(/:.*/, "", target); \
+			desc = substr($$0, index($$0, "## ") + 3); \
+			printf "  \033[36m%-25s\033[0m %s\n", target, desc \
+		} \
+	' $(MAKEFILE_LIST)
 	@echo
 
 # --------------------------------------------------
