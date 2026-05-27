@@ -283,3 +283,8 @@ Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/P
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
 | Plugin development guide | [app/plugins/PLUGIN_GUIDE.md](app/plugins/PLUGIN_GUIDE.md) |
 | Frontend plugin development | [frontend/README.md](frontend/README.md) |
+| GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
+
+## GitHub Project Management
+
+When creating or editing GitHub issues, posting proposed solutions, opening pull requests, or committing LLM-generated code, follow the conventions in the [`sparkth-project-management`](.claude/skills/sparkth-project-management/SKILL.md) skill.
