@@ -35,11 +35,6 @@ class ChatPlugin(SparkthPlugin):
 
         logger.info("Chat plugin configuration validated")
 
-    def enable(self) -> None:
-        super().enable()
-
-        logger.info("Chat plugin enabled with providers: OpenAI, Anthropic, Google")
-
     def get_route_prefix(self) -> str:
         return "/api/v1"
 

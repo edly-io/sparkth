@@ -35,11 +35,3 @@ class GoogleDrivePlugin(SparkthPlugin):
     def get_route_tags(self) -> list[str]:
         """Return OpenAPI tags for Google Drive routes."""
         return ["Google Drive"]
-
-    def enable(self) -> None:
-        """Enable the Google Drive plugin."""
-        super().enable()
-
-    def disable(self) -> None:
-        """Disable the Google Drive plugin."""
-        super().disable()
