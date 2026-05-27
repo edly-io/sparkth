@@ -121,17 +121,17 @@ class SparkthPlugin(metaclass=PluginMeta):
 
         Example:
     ```python
-            router = APIRouter(prefix="/my-plugin")
+            router = APIRouter(prefix="/my-app")
 
             @router.get("/")
             def my_endpoint():
                 return {"message": "Hello from plugin!"}
 
-            class MyPlugin(SparkthPlugin):
+            class MyAppPlugin(SparkthPlugin):
                 def __init__(self, plugin_name: str) -> None:
                     super().__init__(
                         plugin_name,
-                        MyPluginConfig,
+                        MyAppPluginConfig,
                         version="1.0.0",
                         description="My awesome plugin",
                         author="Your Name",
@@ -310,7 +310,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         If provided, all plugin routes will be prefixed with this path.
 
         Returns:
-            Optional path prefix (e.g., "/plugins/my-plugin")
+            Optional path prefix (e.g., "/plugins/my-app")
         """
         return None
 

@@ -7,15 +7,14 @@ Quick guide for creating Sparkth plugins with API routes and MCP tools.
 Define a config class for the plugin that must inherit from `app.plugins.config_base:PluginConfig`
 
 ```python
-# app/core_plugins/myplugin/config.py
+# app/core_plugins/myappplugin/config.py
 from pydantic import Field
 from app.plugins.config_base import PluginConfig
 
-class MyPluginConfig(PluginConfig):
+class MyAppPluginConfig(PluginConfig):
     config_field: str = Field(..., description="...")
-    
-    # define additional fields as required
 
+    # define additional fields as required
 ```
 
 ### LLM-Aware Plugins
@@ -23,11 +22,11 @@ class MyPluginConfig(PluginConfig):
 If your plugin lets users pick an AI model to power some feature (e.g. answer synthesis, content generation), add `llm_config_id` and `llm_model_override` to the config class. These two fields work as a pair: `llm_config_id` points to one of the user's saved LLM configurations (provider + API key), and `llm_model_override` lets them swap in a different model from the same provider without creating a new configuration.
 
 ```python
-# app/core_plugins/myplugin/config.py
+# app/core_plugins/myappplugin/config.py
 from pydantic import Field
 from app.plugins.config_base import PluginConfig
 
-class MyPluginConfig(PluginConfig):
+class MyAppPluginConfig(PluginConfig):
     llm_config_id: int | None = Field(
         default=None,
         description="ID of an LLMConfig row for AI features. None disables AI.",
@@ -90,19 +89,19 @@ Both methods default to `None` on the base class, so non-LMS plugins require no 
 
 Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely (the built-in `google-drive` plugin has no entry in `PLUGIN_CONFIG_CLASSES`).
 
-When you do register one, add your plugin’s config class to the `PLUGIN_CONFIG_CLASSES` mapping. **The dict key must be the plugin's _derived_ name** — see [Plugin Name Derivation](#plugin-name-derivation) below. For a class named `MyPlugin` the key is `my-plugin`.
+When you do register one, add your plugin’s config class to the `PLUGIN_CONFIG_CLASSES` mapping. **The dict key must be the plugin's _derived_ name** — see [Plugin Name Derivation](#plugin-name-derivation) below. For a class named `FooBarPlugin` the key is `foo-bar`.
 
 ```python
 # app/plugins/__init__.py
 
-from app.core_plugins.myplugin.config import MyPluginConfig
+from app.core_plugins.myappplugin.config import MyAppPluginConfig
 
 # ...
 
 PLUGIN_CONFIG_CLASSES = {
-    "canvas": CanvasConfig, 
+    "canvas": CanvasConfig,
     "open-edx": OpenEdxConfig,
-    "my-plugin": MyPluginConfig  # key = derived plugin name, not an arbitrary label
+    "my-app": MyAppPluginConfig  # key = derived plugin name, not an arbitrary label
 }
 
 ```
@@ -129,10 +128,10 @@ If your plugin config includes `llm_config_id` and `llm_model_override`, registe
 For the default behaviour (LLM config ownership check + model override validation) a thin subclass is all you need:
 
 ```python
-# app/core_plugins/myplugin/adapter.py
+# app/core_plugins/myappplugin/adapter.py
 from app.llm.adapter import LLMConfigAdapter
 
-class MyPluginConfigAdapter(LLMConfigAdapter):
+class MyAppPluginConfigAdapter(LLMConfigAdapter):
     pass
 ```
 
@@ -140,11 +139,11 @@ class MyPluginConfigAdapter(LLMConfigAdapter):
 
 ```python
 # app/plugins/adapters.py
-from app.core_plugins.myplugin.adapter import MyPluginConfigAdapter
+from app.core_plugins.myappplugin.adapter import MyAppPluginConfigAdapter
 
 PLUGIN_ADAPTERS: dict[str, LLMConfigAdapter] = {
     ...
-    "myplugin": MyPluginConfigAdapter(),
+    "myappplugin": MyAppPluginConfigAdapter(),
 }
 ```
 
@@ -161,7 +160,7 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.llm.adapter import LLMConfigAdapter
 
-class MyPluginConfigAdapter(LLMConfigAdapter):
+class MyAppPluginConfigAdapter(LLMConfigAdapter):
     async def preprocess_config(
         self,
         *,
@@ -182,7 +181,7 @@ class MyPluginConfigAdapter(LLMConfigAdapter):
 **Custom postprocessing** — attach extra derived fields to the response:
 
 ```python
-class MyPluginConfigAdapter(LLMConfigAdapter):
+class MyAppPluginConfigAdapter(LLMConfigAdapter):
     async def postprocess_config(
         self,
         *,
@@ -202,7 +201,7 @@ class MyPluginConfigAdapter(LLMConfigAdapter):
 **Cache invalidation** — clear a Redis key when config is updated:
 
 ```python
-class MyPluginConfigAdapter(LLMConfigAdapter):
+class MyAppPluginConfigAdapter(LLMConfigAdapter):
     async def sync_cache(
         self,
         *,
@@ -210,7 +209,7 @@ class MyPluginConfigAdapter(LLMConfigAdapter):
         user_id: int,
         stored_config: dict[str, Any],
     ) -> None:
-        await cache.delete(f"myplugin:{user_id}")
+        await cache.delete(f"myappplugin:{user_id}")
 ```
 
 
@@ -222,7 +221,7 @@ You do **not** choose the plugin name freely. The `PluginManager` instantiates e
 |---|---|
 | `CanvasPlugin` | `canvas` |
 | `OpenEdxPlugin` | `open-edx` |
-| `MyPlugin` | `my-plugin` |
+| `MyAppPlugin` | `my-app` |
 | `Slack` (no suffix) | `slack` |
 
 This derived name is what gets passed to your `__init__` and is the key you must use in `PLUGIN_CONFIG_CLASSES` and `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
@@ -233,13 +232,13 @@ This derived name is what gets passed to your `__init__` and is the key you must
 The manager constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/manager.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
 ```python
-# app/core_plugins/myplugin/plugin.py
+# app/core_plugins/myappplugin/plugin.py
 from app.plugins.base import SparkthPlugin, tool
 from fastapi import APIRouter
-from app.core_plugins.myplugin.config import MyPluginConfig
+from app.core_plugins.myappplugin.config import MyAppPluginConfig
 
 # Create router outside the class
-router = APIRouter(prefix="/my-plugin", tags=["My Plugin"])
+router = APIRouter(prefix="/my-app", tags=["My Plugin"])
 
 @router.get("/")
 async def get_data():
@@ -251,17 +250,17 @@ async def create_item(data: dict):
 
 
 # Plugin class
-class MyPlugin(SparkthPlugin):
+class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(
             plugin_name,                  # name is supplied by the manager
-            MyPluginConfig,               # config_schema (positional)
+            MyAppPluginConfig,               # config_schema (positional)
             version="1.0.0",
             description="My plugin description",
         )
         # Add the router
         self.add_route(router)
-    
+
     # MCP Tools using @tool decorator
     @tool(description="Process some input", category="utilities")
     async def process_data(self, input: str) -> str:
@@ -271,7 +270,7 @@ class MyPlugin(SparkthPlugin):
 
 ### Where do plugin routes get mounted?
 
-By default, plugin routes are served at **the path in the router's own `prefix`**, mounted at the application root — there is no automatic `/api/v1` prefix. The router above (`prefix="/my-plugin"`) is reachable at `http://localhost:7727/my-plugin/`.
+By default, plugin routes are served at **the path in the router's own `prefix`**, mounted at the application root — there is no automatic `/api/v1` prefix. The router above (`prefix="/my-app"`) is reachable at `http://localhost:7727/my-app/`.
 
 To mount your routes under a different base, override `get_route_prefix()` on the plugin class (it returns `None` by default, meaning "root"). For example, the built-in `chat` plugin returns `"/api/v1"` so its routes land under `/api/v1/chat`.
 
@@ -296,9 +295,9 @@ class MyModel(SQLModel, table=True):
     id: int = Field(primary_key=True)
     title: str
 
-class MyPlugin(SparkthPlugin):
+class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name, MyPluginConfig)
+        super().__init__(plugin_name, MyAppPluginConfig)
         self.add_model(MyModel)  # Register model
         self.add_route(router)   # Register router
 ```
@@ -318,11 +317,11 @@ Tools are defined using the `@tool` decorator on class methods:
 async def my_tool(self, param1: str, param2: int = 0) -> dict:
     """
     Tool documentation.
-    
+
     Args:
         param1: First parameter
         param2: Optional parameter
-    
+
     Returns:
         Result dictionary
     """
@@ -347,7 +346,7 @@ class WeatherPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(plugin_name, version="1.0.0")
         self.add_route(router)
-    
+
     @tool(description="Get weather for a city", category="weather")
     async def get_weather(self, city: str) -> dict:
         return {"city": city, "temperature": 20, "unit": "celsius"}
@@ -360,7 +359,7 @@ class WeatherPlugin(SparkthPlugin):
 make api
 
 # Test API (routes mount at the router's own prefix by default — see below)
-curl http://localhost:7727/my-plugin/
+curl http://localhost:7727/my-app/
 ```
 
 For real-world examples, see `core_plugins/canvas/` directory.
