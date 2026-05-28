@@ -8,15 +8,11 @@ import sys
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
-os.environ.setdefault(
-    "LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ="
-)
+os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
 os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
 os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
-os.environ.setdefault(
-    "SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback"
-)
+os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
 
 # app.models.__init__ imports app.rag.db_models (for Alembic autogenerate), and
 # app.rag.db_models imports app.models.base, creating a circular dependency.
