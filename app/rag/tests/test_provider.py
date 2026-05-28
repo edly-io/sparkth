@@ -1,5 +1,6 @@
 """Tests for embedding provider initialization."""
 
+import sys
 from unittest.mock import MagicMock, patch
 
 from app.rag.provider import EmbeddingProviderRegistry
@@ -10,12 +11,13 @@ class TestInitProvider:
         """Verify init calls torch.set_num_threads(1)."""
         registry = EmbeddingProviderRegistry()
 
-        mock_torch = MagicMock()
+        mock_torch = sys.modules["torch"]
+        mock_torch.get_num_threads.return_value = 2
+        mock_torch.get_num_interop_threads.return_value = 2
         with (
             patch("app.rag.provider.get_settings") as mock_settings,
             patch.object(EmbeddingProviderRegistry, "_build_provider") as mock_build,
             patch("app.rag.provider.log_memory_snapshot"),
-            patch.dict("sys.modules", {"torch": mock_torch}),
         ):
             mock_settings.return_value.RAG_EMBEDDING_PROVIDER = "huggingface"
             mock_settings.return_value.RAG_EMBEDDING_MODEL = "test-model"

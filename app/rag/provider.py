@@ -33,12 +33,18 @@ class EmbeddingProviderRegistry:
         # and malloc_trim fully reclaims freed tensor memory after each inference.
         try:
             import torch  # type: ignore[import-not-found, unused-ignore]
-
-            torch.set_num_threads(1)
-            torch.set_num_interop_threads(1)
-            logger.info("PyTorch configured for single-threaded CPU execution (num_threads=1).")
         except ImportError:
             logger.debug("torch not available; skipping num_threads configuration.")
+        else:
+            if torch.get_num_threads() != 1:
+                torch.set_num_threads(1)
+            if torch.get_num_interop_threads() != 1:
+                # We need to check whether we have already started parallel work,
+                # otherwise this fails with the following error: RuntimeError: Error:
+                # cannot set number of interop threads after parallel work has started
+                # or set_num_interop_threads called
+                torch.set_num_interop_threads(1)
+            logger.info("PyTorch configured for single-threaded CPU execution (num_threads=1).")
 
         settings = get_settings()
         provider_name = settings.RAG_EMBEDDING_PROVIDER
