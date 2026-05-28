@@ -1,6 +1,6 @@
-# [<issue title>](<issue url>)
+## Closes: [<issue title>](<issue url>)
 <!-- Link to the issue this PR closes, e.g.:
-# [\[Sparkth\] add JWT refresh token endpoint](https://github.com/edly-io/sparkth/issues/123)
+## [\[Sparkth\] add JWT refresh token endpoint](https://github.com/edly-io/sparkth/issues/123)
 Remove this section if the PR has no associated issue. -->
 
 ## What
