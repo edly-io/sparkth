@@ -122,6 +122,18 @@ For every new feature, endpoint, service method, utility, or plugin tool:
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
 
+## Documentation Hygiene
+
+**Always update documentation alongside every code change — no exceptions.**
+
+Documentation includes:
+
+- **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit.
+- **Inline comments** — remove or update comments that describe logic that has changed. Never leave comments that contradict the code.
+- **Markdown files** — `CLAUDE.md`, `README.md`, plugin guides, and any other `.md` files must be updated when commands, architecture, configuration, or behaviour they describe changes.
+
+The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
+
 ## Database Migrations
 
 **Never edit an existing migration file. No exceptions.**
