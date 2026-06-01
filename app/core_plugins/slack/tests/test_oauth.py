@@ -55,12 +55,11 @@ class TestStateToken:
 
         from itsdangerous import SignatureExpired
 
-        from app.core_plugins.slack.oauth import _get_signer, decode_state
+        from app.core_plugins.slack.oauth import decode_state, generate_state
 
         # Sign with a timestamp 700 seconds in the past (> 600s max_age)
-        signer = _get_signer()
         with patch("itsdangerous.timed.time", return_value=time.time() - 700):
-            state = signer.dumps({"user_id": 1})
+            state = generate_state(user_id=1)
 
         with pytest.raises(SignatureExpired):
             decode_state(state)

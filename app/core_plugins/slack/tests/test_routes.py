@@ -295,7 +295,7 @@ class TestGetLogs:
             question="what is a loop?",
             answer="A loop repeats code.",
             rag_matched=True,
-            response_type=ResponseType.rag_match,
+            response_type=ResponseType.RAG_MATCH,
             slack_user_name="alice",
             slack_channel_name="general",
         )
@@ -324,7 +324,7 @@ class TestGetLogs:
         sync_session.add(
             SlackConnectionLog(
                 workspace_id=test_workspace.id,  # type: ignore[arg-type]
-                event_type=ConnectionEventType.connected,
+                event_type=ConnectionEventType.CONNECTED,
                 team_name="Test Workspace",
             )
         )
@@ -356,7 +356,7 @@ class TestGetLogs:
             question="q1",
             answer="a1",
             rag_matched=False,
-            response_type=ResponseType.fallback,
+            response_type=ResponseType.FALLBACK,
             created_at=base - timedelta(seconds=1),
         )
         sync_session.add(msg_log)
@@ -364,7 +364,7 @@ class TestGetLogs:
 
         conn_log = SlackConnectionLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
-            event_type=ConnectionEventType.connected,
+            event_type=ConnectionEventType.CONNECTED,
             team_name="Test Workspace",
             created_at=base,
         )
@@ -396,7 +396,7 @@ class TestGetLogs:
                     question=f"q{i}",
                     answer=f"a{i}",
                     rag_matched=False,
-                    response_type=ResponseType.fallback,
+                    response_type=ResponseType.FALLBACK,
                     created_at=base - timedelta(seconds=2 - i),
                 )
             )
@@ -431,7 +431,7 @@ class TestGetLogs:
                 question=f"q{i}",
                 answer=f"a{i}",
                 rag_matched=False,
-                response_type=ResponseType.fallback,
+                response_type=ResponseType.FALLBACK,
                 created_at=base - timedelta(seconds=2 - i),
             )
             sync_session.add(log)
@@ -468,7 +468,7 @@ class TestGetLogs:
             question="old question",
             answer="old answer",
             rag_matched=False,
-            response_type=ResponseType.fallback,
+            response_type=ResponseType.FALLBACK,
             created_at=base - timedelta(seconds=2),
         )
         sync_session.add(old_log)
@@ -479,7 +479,7 @@ class TestGetLogs:
         sync_session.add(
             SlackConnectionLog(
                 workspace_id=test_workspace.id,  # type: ignore[arg-type]
-                event_type=ConnectionEventType.connected,
+                event_type=ConnectionEventType.CONNECTED,
                 team_name="Test Workspace",
                 created_at=base - timedelta(seconds=1),
             )
@@ -494,7 +494,7 @@ class TestGetLogs:
             question="new question",
             answer="new answer",
             rag_matched=True,
-            response_type=ResponseType.rag_match,
+            response_type=ResponseType.RAG_MATCH,
             created_at=base,
         )
         sync_session.add(new_log)
@@ -685,7 +685,7 @@ class TestDispatchEvent:
             patch(
                 "app.core_plugins.slack.routes.answer_question",
                 new_callable=AsyncMock,
-                return_value=("A loop repeats code.", ResponseType.rag_match),
+                return_value=("A loop repeats code.", ResponseType.RAG_MATCH),
             ),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
@@ -849,7 +849,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_settings"),
         patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
-        mock_aq.return_value = ("Synthesized answer", ResponseType.rag_match)
+        mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)
 
         # Simulate plugin config returning LLM-enabled config
         mock_plugin_instance = AsyncMock()
@@ -927,7 +927,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_settings"),
         patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
-        mock_aq.return_value = ("Synthesized answer", ResponseType.rag_match)
+        mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)
 
         mock_plugin_instance = AsyncMock()
         mock_user_plugin = MagicMock()
@@ -1014,7 +1014,7 @@ class TestDispatchEventLogging:
         assert len(added) == 1
         log = added[0]
         assert isinstance(log, BotResponseLog)
-        assert log.response_type == ResponseType.plugin_disabled
+        assert log.response_type == ResponseType.PLUGIN_DISABLED
 
     @pytest.mark.asyncio
     async def test_plugin_disabled_logs_plugin_disabled(self) -> None:
@@ -1050,7 +1050,7 @@ class TestDispatchEventLogging:
             )
 
         assert len(added) == 1
-        assert added[0].response_type == ResponseType.plugin_disabled
+        assert added[0].response_type == ResponseType.PLUGIN_DISABLED
 
     @pytest.mark.asyncio
     async def test_config_incomplete_logs_config_incomplete(self) -> None:
@@ -1086,7 +1086,7 @@ class TestDispatchEventLogging:
             )
 
         assert len(added) == 1
-        assert added[0].response_type == ResponseType.config_incomplete
+        assert added[0].response_type == ResponseType.CONFIG_INCOMPLETE
 
     @pytest.mark.asyncio
     async def test_greeting_logs_with_resolved_names(self) -> None:
@@ -1127,7 +1127,7 @@ class TestDispatchEventLogging:
 
         assert len(added) == 1
         log = added[0]
-        assert log.response_type == ResponseType.greeting
+        assert log.response_type == ResponseType.GREETING
         assert log.slack_user_name == "alice"
         assert log.slack_channel_name == "general"
 
@@ -1196,7 +1196,7 @@ class TestConnectionEventLogging:
 
         logs = sync_session.exec(select(SlackConnectionLog)).all()
         assert len(logs) == 1
-        assert logs[0].event_type == ConnectionEventType.connected
+        assert logs[0].event_type == ConnectionEventType.CONNECTED
         assert logs[0].team_name == "Conn Team"
         assert logs[0].workspace_id is not None
 
@@ -1212,5 +1212,5 @@ class TestConnectionEventLogging:
 
         logs = sync_session.exec(select(SlackConnectionLog)).all()
         assert len(logs) == 1
-        assert logs[0].event_type == ConnectionEventType.disconnected
+        assert logs[0].event_type == ConnectionEventType.DISCONNECTED
         assert logs[0].workspace_id == test_workspace.id
