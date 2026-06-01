@@ -220,6 +220,7 @@ __marimo__/
 # Claude Code
 .claude/*
 !.claude/docs/
+!.claude/skills/
 
 # Lefthook
 lefthook.local.yml
