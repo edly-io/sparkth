@@ -12,7 +12,7 @@ from app.core_plugins.slack.constants import (
     RAG_NOT_READY_MESSAGE,
     RETRIEVAL_ERROR_MESSAGE,
 )
-from app.core_plugins.slack.models import ResponseType
+from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.rag import (
     _resolve_files_for_sources,
     _run_agent_fan_out,
@@ -83,7 +83,8 @@ async def test_fan_out_calls_agent_per_file_concurrently() -> None:
     """Each file_id triggers one get_context_via_agent call; gather is used."""
     agent_llm = MagicMock()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.get_context_via_agent = AsyncMock(side_effect=[_make_rag_context("a.pdf"), _make_rag_context("b.pdf")])
         results = await _run_agent_fan_out(
             user_id=42,
@@ -102,8 +103,8 @@ async def test_fan_out_propagates_rag_retrieval_error() -> None:
     """A per-file RAGRetrievalError is re-raised so the caller can translate it."""
     agent_llm = MagicMock()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc.get_context_via_agent = AsyncMock(side_effect=RAGRetrievalError("MCP down"))
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_cls.return_value.get_context_via_agent = AsyncMock(side_effect=RAGRetrievalError("MCP down"))
         with pytest.raises(RAGRetrievalError):
             await _run_agent_fan_out(
                 user_id=42,
@@ -119,8 +120,8 @@ async def test_fan_out_returns_partial_results_when_some_files_fail() -> None:
     agent_llm = MagicMock()
     good_ctx = _make_rag_context("good.pdf")
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
-        mock_svc.get_context_via_agent = AsyncMock(side_effect=[good_ctx, RAGRetrievalError("bad file")])
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_cls.return_value.get_context_via_agent = AsyncMock(side_effect=[good_ctx, RAGRetrievalError("bad file")])
         results = await _run_agent_fan_out(
             user_id=42,
             file_ids=[10, 11],
@@ -136,7 +137,8 @@ async def test_fan_out_returns_partial_results_when_some_files_fail() -> None:
 async def test_fan_out_empty_file_ids_returns_empty() -> None:
     agent_llm = MagicMock()
 
-    with patch("app.core_plugins.slack.rag._rag_service") as mock_svc:
+    with patch("app.core_plugins.slack.rag.RAGContextService") as mock_cls:
+        mock_svc = mock_cls.return_value
         mock_svc.get_context_via_agent = AsyncMock()
         results = await _run_agent_fan_out(
             user_id=42,

@@ -1,25 +1,33 @@
 """Database models for the Slack TA Bot plugin."""
 
-from sqlalchemy import Column, Text
+from sqlalchemy import Column, Index, Text, text
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlmodel import Field, SQLModel
 
 from app.core_plugins.slack.enums import ConnectionEventType, ResponseType
 from app.models.base import SoftDeleteModel, TimestampedModel
 
-__all__ = [
-    "ConnectionEventType",
-    "ResponseType",
-    "SlackWorkspace",
-    "BotResponseLog",
-    "SlackConnectionLog",
-]
-
 
 class SlackWorkspace(TimestampedModel, SoftDeleteModel, SQLModel, table=True):
     """Persisted Slack workspace connection per course author."""
 
     __tablename__ = "slack_workspaces"
+    __table_args__ = (
+        Index(
+            "uq_slack_workspaces_team_id_active",
+            "team_id",
+            unique=True,
+            postgresql_where=text("is_active = true AND is_deleted = false"),
+            sqlite_where=text("is_active = 1 AND is_deleted = 0"),
+        ),
+        Index(
+            "uq_slack_workspaces_user_id_active",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_active = true AND is_deleted = false"),
+            sqlite_where=text("is_active = 1 AND is_deleted = 0"),
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)

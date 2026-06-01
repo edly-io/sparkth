@@ -7,46 +7,34 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
-from fastapi.responses import RedirectResponse
 from langchain_core.exceptions import LangChainException
 from pydantic import ValidationError
 from sqlalchemy import and_, or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.encryption import get_encryption_service
 from app.core_plugins.slack.client import SlackClient
-from app.core_plugins.slack.config import SlackConfig
+from app.core_plugins.slack.config import SlackConfig, get_slack_system_config
 from app.core_plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,
     NO_AI_KEY_MESSAGE,
     RETRIEVAL_ERROR_MESSAGE,
-    SLACK_FRONTEND_PATH,
     SYNTHESIS_SYSTEM_PROMPT,
 )
-from app.core_plugins.slack.enums import ConnectionEventType, ResponseType
+from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.events import extract_question, is_greeting, should_handle_event
 from app.core_plugins.slack.exceptions import SlackSignatureError
 from app.core_plugins.slack.models import BotResponseLog, SlackConnectionLog
-from app.core_plugins.slack.oauth import (
-    decode_state,
-    decrypt_token,
-    delete_workspace,
-    exchange_code_for_tokens,
-    generate_authorization_url,
-    get_workspace,
-    get_workspace_by_team,
-    save_workspace,
-)
 from app.core_plugins.slack.rag import answer_question
+from app.core_plugins.slack.routes.oauth import get_workspace_service, oauth_router, require_user_id
+from app.core_plugins.slack.service import WorkspaceService, decrypt_token
 from app.core_plugins.slack.types import (
-    AuthorizationUrlResponse,
     BotResponseLogItem,
     ConnectionLogItem,
-    ConnectionStatusResponse,
     LogItem,
     LogsResponse,
     RagSourcesResponse,
@@ -55,149 +43,11 @@ from app.lib.db import get_async_session, get_session, session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
-from app.models.user import User
 from app.rag.store import ChunkStoreService
-from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
+router.include_router(oauth_router)
 logger = get_logger(__name__)
-
-
-def require_user_id(current_user: User = Depends(get_current_user)) -> int:
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-    return current_user.id
-
-
-def get_slack_credentials() -> tuple[str, str, str, str]:
-    """
-    Return (client_id, client_secret, redirect_uri, signing_secret).
-
-    Raises HTTPException 503 if any environmental credential is missing.
-    """
-    s = get_settings()
-    if not s.SLACK_CLIENT_ID or not s.SLACK_CLIENT_SECRET or not s.SLACK_SIGNING_SECRET or not s.SLACK_REDIRECT_URI:
-        logger.error(
-            "Slack credentials not configured. Set SLACK_CLIENT_ID, "
-            "SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET, SLACK_REDIRECT_URI"
-        )
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Slack credentials not configured.")
-    return s.SLACK_CLIENT_ID, s.SLACK_CLIENT_SECRET, s.SLACK_REDIRECT_URI, s.SLACK_SIGNING_SECRET
-
-
-@router.get("/oauth/authorize", response_model=AuthorizationUrlResponse)
-def get_authorization_url(user_id: int = Depends(require_user_id)) -> AuthorizationUrlResponse:
-    """Return the Slack OAuth install URL."""
-    client_id, _, redirect_uri, _ = get_slack_credentials()
-    url = generate_authorization_url(user_id, client_id, redirect_uri)
-    return AuthorizationUrlResponse(url=url)
-
-
-@router.get("/oauth/callback")
-async def oauth_callback(
-    code: str = Query(...),
-    state: str = Query(...),
-    session: Session = Depends(get_session),
-) -> RedirectResponse:
-    """Handle Slack OAuth redirect, persist workspace token."""
-    from itsdangerous import BadSignature, SignatureExpired
-
-    try:
-        state_data = decode_state(state)
-        user_id = state_data["user_id"]
-    except SignatureExpired as exc:
-        logger.warning("Slack OAuth state expired for callback request")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again."
-        ) from exc
-    except (BadSignature, KeyError, ValueError, TypeError) as exc:
-        logger.warning("Invalid Slack OAuth state received: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.") from exc
-
-    client_id, client_secret, redirect_uri, _ = get_slack_credentials()
-
-    try:
-        token_data = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
-    except (ValueError, httpx.HTTPStatusError) as exc:
-        logger.error("Slack OAuth code exchange failed for user %s: %s", user_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange Slack authorization code."
-        ) from exc
-    except httpx.RequestError as exc:
-        logger.error("Network error during Slack OAuth for user %s: %s", user_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not reach Slack. Please try again."
-        ) from exc
-
-    try:
-        workspace = save_workspace(
-            session,
-            user_id=user_id,
-            team_id=token_data["team"]["id"],
-            team_name=token_data["team"]["name"],
-            bot_token=token_data["access_token"],
-            bot_user_id=token_data["bot_user_id"],
-        )
-    except (KeyError, TypeError) as exc:
-        logger.error("Unexpected Slack token response structure for user %s: %s", user_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected response from Slack. Please try again.",
-        ) from exc
-
-    # Log the connection event
-    session.add(
-        SlackConnectionLog(
-            workspace_id=workspace.id,  # type: ignore[arg-type]
-            event_type=ConnectionEventType.connected,
-            team_name=token_data["team"]["name"],
-        )
-    )
-    session.commit()
-
-    return RedirectResponse(url=f"{SLACK_FRONTEND_PATH}?connected=true")
-
-
-@router.delete("/oauth/disconnect")
-def disconnect_workspace(
-    user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
-) -> dict[str, str]:
-    """Disconnect the Slack workspace for the current user."""
-    workspace = get_workspace(session, user_id)
-    if not workspace:
-        logger.warning("Disconnect requested but no workspace found for user %d", user_id)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
-
-    session.add(
-        SlackConnectionLog(
-            workspace_id=workspace.id,  # type: ignore[arg-type]
-            event_type=ConnectionEventType.disconnected,
-            team_name=workspace.team_name,
-        )
-    )
-    session.commit()
-
-    delete_workspace(session, user_id)
-    return {"detail": "Slack workspace disconnected successfully"}
-
-
-@router.get("/oauth/status", response_model=ConnectionStatusResponse)
-def get_connection_status(
-    user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
-) -> ConnectionStatusResponse:
-    """Return Slack connection status for the current user."""
-    workspace = get_workspace(session, user_id)
-    if not workspace:
-        return ConnectionStatusResponse(connected=False)
-    return ConnectionStatusResponse(
-        connected=True,
-        team_name=workspace.team_name,
-        team_id=workspace.team_id,
-        bot_user_id=workspace.bot_user_id,
-        connected_at=workspace.created_at,
-    )
 
 
 async def _build_llm_provider(
@@ -377,6 +227,8 @@ async def _dispatch_event(
     )
 
     async with session_scope() as session:
+        from app.services.plugin import PluginService  # deferred to avoid circular import
+
         plugin_map = await PluginService().get_user_plugin_map(session, user_id)
 
         user_plugin = plugin_map.get("slack")
@@ -385,7 +237,7 @@ async def _dispatch_event(
             await _reply_and_log(
                 session,
                 reply="The TA Bot hasn't been set up by your instructor yet. Please check back later.",
-                response_type=ResponseType.plugin_disabled,
+                response_type=ResponseType.PLUGIN_DISABLED,
                 **common,
             )
             return
@@ -395,7 +247,7 @@ async def _dispatch_event(
             await _reply_and_log(
                 session,
                 reply="The TA Bot is currently disabled by your instructor.",
-                response_type=ResponseType.plugin_disabled,
+                response_type=ResponseType.PLUGIN_DISABLED,
                 **common,
             )
             return
@@ -405,7 +257,7 @@ async def _dispatch_event(
             await _reply_and_log(
                 session,
                 reply="The TA Bot configuration is incomplete. Please contact your instructor.",
-                response_type=ResponseType.config_incomplete,
+                response_type=ResponseType.CONFIG_INCOMPLETE,
                 **common,
             )
             return
@@ -417,7 +269,7 @@ async def _dispatch_event(
             await _reply_and_log(
                 session,
                 reply="The TA Bot configuration is invalid. Please contact your instructor.",
-                response_type=ResponseType.config_incomplete,
+                response_type=ResponseType.CONFIG_INCOMPLETE,
                 **common,
             )
             return
@@ -429,7 +281,7 @@ async def _dispatch_event(
         if is_greeting(question):
             answer = config.greeting_message
             rag_matched = False
-            response_type = ResponseType.greeting
+            response_type = ResponseType.GREETING
         elif config.llm_config_id is None:
             logger.warning(
                 "Slack agentic RAG disabled for workspace %s: no AI key configured",
@@ -437,7 +289,7 @@ async def _dispatch_event(
             )
             answer = NO_AI_KEY_MESSAGE
             rag_matched = False
-            response_type = ResponseType.config_incomplete
+            response_type = ResponseType.CONFIG_INCOMPLETE
         else:
             llm_provider = await _build_llm_provider(
                 session,
@@ -454,7 +306,7 @@ async def _dispatch_event(
                 )
                 answer = AI_KEY_UNAVAILABLE_MESSAGE
                 rag_matched = False
-                response_type = ResponseType.config_incomplete
+                response_type = ResponseType.CONFIG_INCOMPLETE
             else:
                 try:
                     agent_llm = llm_provider.create_llm()
@@ -466,7 +318,7 @@ async def _dispatch_event(
                     )
                     answer = AI_KEY_UNAVAILABLE_MESSAGE
                     rag_matched = False
-                    response_type = ResponseType.config_incomplete
+                    response_type = ResponseType.CONFIG_INCOMPLETE
                 else:
                     try:
                         answer, response_type = await answer_question(
@@ -477,12 +329,12 @@ async def _dispatch_event(
                             agent_llm=agent_llm,
                             llm_provider=llm_provider,
                         )
-                        rag_matched = response_type == ResponseType.rag_match
-                    except (LangChainException, OSError) as exc:
+                        rag_matched = response_type == ResponseType.RAG_MATCH
+                    except (SQLAlchemyError, LangChainException, OSError) as exc:
                         logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
                         answer = RETRIEVAL_ERROR_MESSAGE
                         rag_matched = False
-                        response_type = ResponseType.retrieval_error
+                        response_type = ResponseType.RETRIEVAL_ERROR
                         await session.rollback()
 
         posted_ts = await _post_slack_message(bot_token_encrypted, channel, answer, thread_ts, workspace_id)
@@ -508,6 +360,7 @@ async def _dispatch_event(
 async def slack_events(
     request: Request,
     background_tasks: BackgroundTasks,
+    service: WorkspaceService = Depends(get_workspace_service),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
     """Receive Slack Events API payloads. Returns 200 immediately."""
@@ -515,10 +368,10 @@ async def slack_events(
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     slack_sig = request.headers.get("X-Slack-Signature", "")
 
-    settings = get_settings()
-    if settings.SLACK_SIGNING_SECRET:
+    system_cfg = get_slack_system_config()
+    if system_cfg.SLACK_SIGNING_SECRET:
         try:
-            SlackClient.verify_signature(settings.SLACK_SIGNING_SECRET, timestamp, raw_body, slack_sig)
+            SlackClient.verify_signature(system_cfg.SLACK_SIGNING_SECRET, timestamp, raw_body, slack_sig)
         except SlackSignatureError as exc:
             logger.warning("Slack signature verification failed: %s", exc)
             raise HTTPException(
@@ -543,7 +396,7 @@ async def slack_events(
     if payload.get("type") == "event_callback":
         team_id: str = payload.get("team_id", "")
         event: dict[str, Any] = payload.get("event", {})
-        workspace = get_workspace_by_team(session, team_id)
+        workspace = service.get_by_team(session, team_id)
         if workspace and should_handle_event(event, workspace.bot_user_id):
             background_tasks.add_task(
                 _dispatch_event,
@@ -564,6 +417,7 @@ def get_response_logs(
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = Query(default=None),
     since_id: int | None = Query(default=None, ge=0),
+    service: WorkspaceService = Depends(get_workspace_service),
 ) -> LogsResponse:
     """Return TA Bot response logs (messages + connection events) with cursor + since pagination."""
     if cursor is not None and since_id is not None:
@@ -573,7 +427,7 @@ def get_response_logs(
             detail="Invalid pagination parameters: only one pagination strategy may be used at a time.",
         )
 
-    workspace = get_workspace(session, user_id)
+    workspace = service.get(session, user_id)
     if not workspace:
         logger.warning("GET /logs: no Slack workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")

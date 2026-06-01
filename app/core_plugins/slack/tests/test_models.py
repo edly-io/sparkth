@@ -1,9 +1,8 @@
 """Unit tests for Slack plugin models."""
 
+from app.core_plugins.slack.enums import ConnectionEventType, ResponseType
 from app.core_plugins.slack.models import (
     BotResponseLog,
-    ConnectionEventType,
-    ResponseType,
     SlackConnectionLog,
 )
 
@@ -25,7 +24,7 @@ class TestResponseType:
 
     def test_is_str_enum(self) -> None:
         assert isinstance(ResponseType.RAG_MATCH, str)
-        assert ResponseType.RAG_MATCH == "RAG_MATCH"
+        assert ResponseType.RAG_MATCH.value == "rag_match"
 
 
 class TestConnectionEventType:

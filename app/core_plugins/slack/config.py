@@ -1,8 +1,50 @@
 """Configuration for the Slack TA Bot plugin."""
 
-from pydantic import Field
+from functools import lru_cache
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.plugins.config_base import PluginConfig
+
+
+class SlackSettings(BaseSettings):
+    """System-level Slack tuning read from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="SLACK_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+    # Slack TA Bot OAuth
+    SLACK_CLIENT_ID: str = ""
+    SLACK_CLIENT_SECRET: str = ""
+    SLACK_SIGNING_SECRET: str = ""
+    SLACK_REDIRECT_URI: str = ""
+
+    STATE_MAX_AGE: int = 600
+    MAX_TIMESTAMP_DELTA: int = 300
+    MAX_AGENT_FILES: int = 5
+    MAX_QUESTION_LEN: int = 500
+    FRONTEND_PATH: str = "/dashboard/slack"
+    BOT_SCOPES: list[str] = Field(
+        default=[
+            "app_mentions:read",
+            "channels:history",
+            "chat:write",
+            "im:history",
+            "im:read",
+            "im:write",
+        ]
+    )
+
+    @field_validator("BOT_SCOPES", mode="before")
+    @classmethod
+    def parse_scopes(cls, v: object) -> object:
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
 
 
 class SlackConfig(PluginConfig):
@@ -38,3 +80,8 @@ class SlackConfig(PluginConfig):
         default=None,
         description="Override the model from the selected LLMConfig. None uses the config's model.",
     )
+
+
+@lru_cache
+def get_slack_system_config() -> SlackSettings:
+    return SlackSettings()

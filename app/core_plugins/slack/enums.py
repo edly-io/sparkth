@@ -4,18 +4,18 @@ from enum import Enum
 
 
 class ResponseType(str, Enum):
-    rag_match = "rag_match"
-    fallback = "fallback"
-    greeting = "greeting"
-    config_incomplete = "config_incomplete"
-    plugin_disabled = "plugin_disabled"
-    legacy = "legacy"
-    no_files_resolved = "no_files_resolved"
-    rag_not_ready = "rag_not_ready"
-    drive_file_not_found = "drive_file_not_found"
-    retrieval_error = "retrieval_error"
+    RAG_MATCH = "rag_match"
+    FALLBACK = "fallback"
+    GREETING = "greeting"
+    CONFIG_INCOMPLETE = "config_incomplete"
+    PLUGIN_DISABLED = "plugin_disabled"
+    LEGACY = "legacy"
+    NO_FILES_RESOLVED = "no_files_resolved"
+    RAG_NOT_READY = "rag_not_ready"
+    DRIVE_FILE_NOT_FOUND = "drive_file_not_found"
+    RETRIEVAL_ERROR = "retrieval_error"
 
 
 class ConnectionEventType(str, Enum):
-    connected = "connected"
-    disconnected = "disconnected"
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
