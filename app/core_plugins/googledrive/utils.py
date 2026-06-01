@@ -28,224 +28,190 @@ from app.rag.types import Chunk, RagStatus
 logger = logging.getLogger(__name__)
 
 
-def _resolve_filename(drive_file: DriveFile) -> str:
-    """Return the effective filename, converting Google-native types to .pdf."""
-    filename = drive_file.name
-    mime_type = drive_file.mime_type or ""
-    if mime_type in GoogleDriveClient.EXPORT_MIME_MAP:
-        if not filename.lower().endswith(".pdf"):
-            filename = f"{filename}.pdf"
-    return filename
+class DriveRagPipeline:
+    """RAG ingestion pipeline for Google Drive files."""
 
+    def _resolve_filename(self, drive_file: DriveFile) -> str:
+        """Return the effective filename, converting Google-native types to .pdf."""
+        filename = drive_file.name
+        mime_type = drive_file.mime_type or ""
+        if mime_type in GoogleDriveClient.EXPORT_MIME_MAP:
+            if not filename.lower().endswith(".pdf"):
+                filename = f"{filename}.pdf"
+        return filename
 
-def _is_supported_for_rag(filename: str) -> bool:
-    """Check whether the file extension is supported by the extraction module."""
-    ext = Path(filename).suffix.lower().lstrip(".")
-    return ext in SUPPORTED_EXTENSIONS
-
-
-async def _set_rag_status(
-    session: AsyncSession,
-    drive_file: DriveFile,
-    status: RagStatus,
-    error: str | None = None,
-) -> None:
-    """Update rag_status on a DriveFile and commit."""
-    drive_file.rag_status = status
-    drive_file.rag_error = error[:1000] if error and status == RagStatus.FAILED else None
-    drive_file.update_timestamp()
-    session.add(drive_file)
-    await session.commit()
-
-
-async def _download_file(access_token: str, drive_file: DriveFile) -> bytes:
-    """Download a file's content from Google Drive."""
-    async with GoogleDriveClient(access_token) as client:
-        return await client.download_file(
-            drive_file.drive_file_id,
-            mime_type=drive_file.mime_type,
-        )
-
-
-async def _find_duplicate_file(
-    session: AsyncSession, user_id: int, drive_file: DriveFile, content_hash: str
-) -> DriveFile | None:
-    """Find another DriveFile with the same content hash that is already processed."""
-    result = await session.exec(
-        select(DriveFile).where(
-            col(DriveFile.user_id) == user_id,
-            col(DriveFile.content_hash) == content_hash,
-            col(DriveFile.rag_status) == RagStatus.READY,
-            col(DriveFile.id) != drive_file.id,
-            col(DriveFile.is_deleted) == False,  # noqa: E712
-        )
-    )
-    return result.first()
-
-
-async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk_ids: set[int]) -> None:
-    """Insert bridge-table links for chunk_ids not already linked to drive_file_id."""
-    already_linked = await session.exec(
-        select(DriveFileChunkLink.chunk_id).where(
-            DriveFileChunkLink.drive_file_id == drive_file_id,
-        )
-    )
-    existing_ids = set(already_linked.all())
-    new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
-    if new_links:
-        session.add_all(new_links)
-        await session.flush()
-
-
-async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int, source_file_id: int) -> None:
-    """Copy bridge-table links from an existing duplicate file, skipping any that already exist."""
-    source_links = await session.exec(
-        select(DriveFileChunkLink.chunk_id).where(
-            DriveFileChunkLink.drive_file_id == source_file_id,
-        )
-    )
-    wanted_ids = set(source_links.all())
-    await _create_missing_links(session, drive_file_id, wanted_ids)
-
-
-async def _store_and_link_chunks(
-    session: AsyncSession,
-    user_id: int,
-    drive_file_id: int,
-    chunks: list[Chunk],
-    store: VectorStoreService,
-) -> tuple[int, int]:
-    """Store new chunks, reuse existing ones, and create bridge-table links.
-
-    Returns (new_count, reused_count).
-    """
-    chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
-
-    # Batch-lookup which chunk hashes already exist, excluding chunks that are
-    # only linked to soft-deleted files (they must be re-stored for the new file).
-    active_file_subq = (
-        select(DriveFileChunkLink.chunk_id)
-        .join(DriveFile, col(DriveFile.id) == col(DriveFileChunkLink.drive_file_id))
-        .where(
-            col(DriveFileChunkLink.chunk_id) == col(DocumentChunk.id),
-            col(DriveFile.is_deleted) == False,  # noqa: E712
-        )
-        .exists()
-    )
-    existing_rows = await session.exec(
-        select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
-            DocumentChunk.user_id == user_id,
-            DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
-            active_file_subq,
-        )
-    )
-    existing_hash_to_id: dict[str, int] = {
-        row[1]: row[0] for row in existing_rows.all() if row[0] is not None and row[1] is not None
-    }
-
-    # Split into new (need storing) vs reused (just link)
-    new_chunk_inputs: list[ChunkInput] = []
-    reused_chunk_ids: list[int] = []
-
-    for chunk, chunk_hash in zip(chunks, chunk_hashes):
-        if chunk_hash in existing_hash_to_id:
-            reused_chunk_ids.append(existing_hash_to_id[chunk_hash])
-            logger.debug("Duplicate chunk (hash=%s) — reusing existing.", chunk_hash[:12])
-        else:
-            new_chunk_inputs.append(
-                ChunkInput(
-                    content=chunk.content,
-                    source_name=chunk.metadata.source_name,
-                    chapter=chunk.metadata.chapter,
-                    section=chunk.metadata.section,
-                    subsection=chunk.metadata.subsection,
-                    chunk_content_hash=chunk_hash,
-                )
-            )
-
-    # Store only new chunks
-    new_ids = await store.store_chunks(
-        session,
-        user_id,
-        new_chunk_inputs,
-    )
-
-    # Create bridge-table links, skipping any that already exist
-    all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
-    await _create_missing_links(session, drive_file_id, all_chunk_ids)
-
-    return len(new_chunk_inputs), len(reused_chunk_ids)
-
-
-async def _process_single_file(
-    drive_file: DriveFile,
-    user_id: int,
-    access_token: str,
-    session: AsyncSession,
-    store: VectorStoreService,
-) -> None:
-    """Run the full RAG pipeline for a single Drive file."""
-    filename = _resolve_filename(drive_file)
-    log_name = drive_file.name or filename
-    settings = get_settings()
-
-    allowed = parse_rag_allowed_extensions(settings.RAG_ALLOWED_EXTENSIONS)
-    if allowed:
+    def _is_supported_for_rag(self, filename: str) -> bool:
+        """Check whether the file extension is supported by the extraction module."""
         ext = Path(filename).suffix.lower().lstrip(".")
-        if ext not in allowed:
-            accepted = ", ".join(f".{e}" for e in allowed)
-            error_msg = f"Unsupported file extension. Allowed: {accepted}."
-            logger.warning("Blocked disallowed file type for '%s'", log_name)
-            await _set_rag_status(session, drive_file, RagStatus.FAILED, error=error_msg)
+        return ext in SUPPORTED_EXTENSIONS
+
+    async def _set_rag_status(
+        self,
+        session: AsyncSession,
+        drive_file: DriveFile,
+        status: RagStatus,
+        error: str | None = None,
+    ) -> None:
+        """Update rag_status on a DriveFile and commit."""
+        drive_file.rag_status = status
+        drive_file.rag_error = error[:1000] if error and status == RagStatus.FAILED else None
+        drive_file.update_timestamp()
+        session.add(drive_file)
+        await session.commit()
+
+    async def _download_file(self, access_token: str, drive_file: DriveFile) -> bytes:
+        """Download a file's content from Google Drive."""
+        async with GoogleDriveClient(access_token) as client:
+            return await client.download_file(
+                drive_file.drive_file_id,
+                mime_type=drive_file.mime_type,
+            )
+
+    async def _find_duplicate_file(
+        self, session: AsyncSession, user_id: int, drive_file: DriveFile, content_hash: str
+    ) -> DriveFile | None:
+        """Find another DriveFile with the same content hash that is already processed."""
+        result = await session.exec(
+            select(DriveFile).where(
+                col(DriveFile.user_id) == user_id,
+                col(DriveFile.content_hash) == content_hash,
+                col(DriveFile.rag_status) == RagStatus.READY,
+                col(DriveFile.id) != drive_file.id,
+                col(DriveFile.is_deleted) == False,  # noqa: E712
+            )
+        )
+        return result.first()
+
+    async def _create_missing_links(self, session: AsyncSession, drive_file_id: int, chunk_ids: set[int]) -> None:
+        """Insert bridge-table links for chunk_ids not already linked to drive_file_id."""
+        already_linked = await session.exec(
+            select(DriveFileChunkLink.chunk_id).where(
+                DriveFileChunkLink.drive_file_id == drive_file_id,
+            )
+        )
+        existing_ids = set(already_linked.all())
+        new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
+        if new_links:
+            session.add_all(new_links)
+            await session.flush()
+
+    async def _link_chunks_from_duplicate(self, session: AsyncSession, drive_file_id: int, source_file_id: int) -> None:
+        """Copy bridge-table links from an existing duplicate file, skipping any that already exist."""
+        source_links = await session.exec(
+            select(DriveFileChunkLink.chunk_id).where(
+                DriveFileChunkLink.drive_file_id == source_file_id,
+            )
+        )
+        wanted_ids = set(source_links.all())
+        await self._create_missing_links(session, drive_file_id, wanted_ids)
+
+    async def _store_and_link_chunks(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        drive_file_id: int,
+        chunks: list[Chunk],
+        store: VectorStoreService,
+    ) -> tuple[int, int]:
+        """Store new chunks, reuse existing ones, and create bridge-table links.
+
+        Returns (new_count, reused_count).
+        """
+        chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
+
+        active_file_subq = (
+            select(DriveFileChunkLink.chunk_id)
+            .join(DriveFile, col(DriveFile.id) == col(DriveFileChunkLink.drive_file_id))
+            .where(
+                col(DriveFileChunkLink.chunk_id) == col(DocumentChunk.id),
+                col(DriveFile.is_deleted) == False,  # noqa: E712
+            )
+            .exists()
+        )
+        existing_rows = await session.exec(
+            select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
+                DocumentChunk.user_id == user_id,
+                DocumentChunk.chunk_content_hash.in_(chunk_hashes),  # type: ignore[union-attr]
+                active_file_subq,
+            )
+        )
+        existing_hash_to_id: dict[str, int] = {
+            row[1]: row[0] for row in existing_rows.all() if row[0] is not None and row[1] is not None
+        }
+
+        new_chunk_inputs: list[ChunkInput] = []
+        reused_chunk_ids: list[int] = []
+
+        for chunk, chunk_hash in zip(chunks, chunk_hashes):
+            if chunk_hash in existing_hash_to_id:
+                reused_chunk_ids.append(existing_hash_to_id[chunk_hash])
+                logger.debug("Duplicate chunk (hash=%s) — reusing existing.", chunk_hash[:12])
+            else:
+                new_chunk_inputs.append(
+                    ChunkInput(
+                        content=chunk.content,
+                        source_name=chunk.metadata.source_name,
+                        chapter=chunk.metadata.chapter,
+                        section=chunk.metadata.section,
+                        subsection=chunk.metadata.subsection,
+                        chunk_content_hash=chunk_hash,
+                    )
+                )
+
+        new_ids = await store.store_chunks(session, user_id, new_chunk_inputs)
+        all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
+        await self._create_missing_links(session, drive_file_id, all_chunk_ids)
+
+        return len(new_chunk_inputs), len(reused_chunk_ids)
+
+    async def _process_single_file(
+        self,
+        drive_file: DriveFile,
+        user_id: int,
+        access_token: str,
+        session: AsyncSession,
+        store: VectorStoreService,
+    ) -> None:
+        """Run the full RAG pipeline for a single Drive file."""
+        filename = self._resolve_filename(drive_file)
+        log_name = drive_file.name or filename
+        settings = get_settings()
+
+        allowed = parse_rag_allowed_extensions(settings.RAG_ALLOWED_EXTENSIONS)
+        if allowed:
+            ext = Path(filename).suffix.lower().lstrip(".")
+            if ext not in allowed:
+                accepted = ", ".join(f".{e}" for e in allowed)
+                error_msg = f"Unsupported file extension. Allowed: {accepted}."
+                logger.warning("Blocked disallowed file type for '%s'", log_name)
+                await self._set_rag_status(session, drive_file, RagStatus.FAILED, error=error_msg)
+                return
+
+        if not self._is_supported_for_rag(filename):
+            logger.debug("Skipping unsupported file type for RAG: %s", filename)
+            await self._set_rag_status(session, drive_file, RagStatus.READY)
             return
 
-    if not _is_supported_for_rag(filename):
-        logger.debug("Skipping unsupported file type for RAG: %s", filename)
-        await _set_rag_status(session, drive_file, RagStatus.READY)
-        return
-
-    if drive_file.id is None:
-        logger.error("Cannot process file '%s' without a database ID.", log_name)
-        return
-
-    file_id: int = drive_file.id
-
-    try:
-        await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
-        # This brings .size and other attributes back into memory after the status update.
-        await session.refresh(drive_file)
-
-        max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
-
-        # Early size check using Drive API metadata — skip download entirely for oversized files
-        if drive_file.size is not None and drive_file.size > max_bytes:
-            logger.warning(
-                "Skipping '%s': Drive-reported size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
-                filename,
-                drive_file.size,
-                settings.RAG_MAX_FILE_SIZE_MB,
-            )
-            await _set_rag_status(
-                session,
-                drive_file,
-                RagStatus.FAILED,
-                error=f"File too large for RAG ingestion (limit: {settings.RAG_MAX_FILE_SIZE_MB} MB)",
-            )
+        if drive_file.id is None:
+            logger.error("Cannot process file '%s' without a database ID.", log_name)
             return
 
-        async with profile_memory("pipeline_total", file=filename):
-            async with profile_memory("download", file=filename):
-                file_bytes = await _download_file(access_token, drive_file)
+        file_id: int = drive_file.id
 
-            # Post-download fallback for files without Drive-reported size
-            if len(file_bytes) > max_bytes:
+        try:
+            await self._set_rag_status(session, drive_file, RagStatus.PROCESSING)
+            await session.refresh(drive_file)
+
+            max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
+
+            if drive_file.size is not None and drive_file.size > max_bytes:
                 logger.warning(
-                    "Skipping '%s': file size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+                    "Skipping '%s': Drive-reported size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
                     filename,
-                    len(file_bytes),
+                    drive_file.size,
                     settings.RAG_MAX_FILE_SIZE_MB,
                 )
-                await _set_rag_status(
+                await self._set_rag_status(
                     session,
                     drive_file,
                     RagStatus.FAILED,
@@ -253,97 +219,168 @@ async def _process_single_file(
                 )
                 return
 
-            content_hash = hashlib.sha256(file_bytes).hexdigest()
-            drive_file.content_hash = content_hash
-            session.add(drive_file)
-            await session.flush()
+            async with profile_memory("pipeline_total", file=filename):
+                async with profile_memory("download", file=filename):
+                    file_bytes = await self._download_file(access_token, drive_file)
 
-            # Duplicate document check
-            duplicate = await _find_duplicate_file(session, user_id, drive_file, content_hash)
-            if duplicate and duplicate.id is not None:
-                await _link_chunks_from_duplicate(session, file_id, duplicate.id)
-                await _set_rag_status(session, drive_file, RagStatus.READY)
+                if len(file_bytes) > max_bytes:
+                    logger.warning(
+                        "Skipping '%s': file size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+                        filename,
+                        len(file_bytes),
+                        settings.RAG_MAX_FILE_SIZE_MB,
+                    )
+                    await self._set_rag_status(
+                        session,
+                        drive_file,
+                        RagStatus.FAILED,
+                        error=f"File too large for RAG ingestion (limit: {settings.RAG_MAX_FILE_SIZE_MB} MB)",
+                    )
+                    return
+
+                content_hash = hashlib.sha256(file_bytes).hexdigest()
+                drive_file.content_hash = content_hash
+                session.add(drive_file)
+                await session.flush()
+
+                duplicate = await self._find_duplicate_file(session, user_id, drive_file, content_hash)
+                if duplicate and duplicate.id is not None:
+                    await self._link_chunks_from_duplicate(session, file_id, duplicate.id)
+                    await self._set_rag_status(session, drive_file, RagStatus.READY)
+                    logger.info(
+                        "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
+                        filename,
+                        content_hash[:12],
+                        duplicate.name,
+                    )
+                    return
+
+                async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):
+                    extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
+
+                del file_bytes
+
+                async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
+                    chunks = await asyncio.to_thread(chunk_document, extraction_result)
+
+                del extraction_result
+
+                if not chunks:
+                    await self._set_rag_status(session, drive_file, RagStatus.READY)
+                    return
+
+                async with profile_memory("store_and_link", file=filename, chunks=len(chunks)):
+                    new_count, reused_count = await self._store_and_link_chunks(
+                        session, user_id, file_id, chunks, store
+                    )
+
+                del chunks
+
+                await self._set_rag_status(session, drive_file, RagStatus.READY)
                 logger.info(
-                    "Duplicate document '%s' (hash=%s) — linked to existing chunks from '%s'.",
+                    "RAG processing complete for '%s': %d new chunks stored, %d reused.",
                     filename,
-                    content_hash[:12],
-                    duplicate.name,
-                )
-                return
-
-            # Extract → Chunk (CPU-bound, run off the event loop)
-            async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):
-                extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
-
-            # Release raw PDF bytes immediately — extractor has already copied
-            # what it needs into extraction_result.markdown. Keeping file_bytes alive
-            # through chunking wastes memory equal to the full file size.
-            del file_bytes
-
-            async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
-                chunks = await asyncio.to_thread(chunk_document, extraction_result)
-
-            del extraction_result
-
-            if not chunks:
-                await _set_rag_status(session, drive_file, RagStatus.READY)
-                return
-
-            # Store → Link
-            async with profile_memory("store_and_link", file=filename, chunks=len(chunks)):
-                new_count, reused_count = await _store_and_link_chunks(
-                    session,
-                    user_id,
-                    file_id,
-                    chunks,
-                    store,
+                    new_count,
+                    reused_count,
                 )
 
-            del chunks
-
-            await _set_rag_status(session, drive_file, RagStatus.READY)
-            logger.info(
-                "RAG processing complete for '%s': %d new chunks stored, %d reused.",
-                filename,
-                new_count,
-                reused_count,
+        except GoogleDriveAPIError as e:
+            logger.error("RAG processing failed for '%s': %s", log_name, e)
+            await self._set_rag_status(session, drive_file, RagStatus.FAILED, error="Google Drive error")
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
+            logger.error("RAG processing failed for '%s': %s", log_name, e)
+            await self._set_rag_status(session, drive_file, RagStatus.FAILED, error="Could not reach Google Drive")
+        except httpx.HTTPStatusError as e:
+            logger.error("RAG processing failed for '%s': %s", log_name, e)
+            await self._set_rag_status(
+                session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
             )
+        except ScannedPDFError:
+            logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
+            await self._set_rag_status(session, drive_file, RagStatus.FAILED, error=ScannedPDFError.USER_MESSAGE)
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.error("RAG processing failed for '%s': %s", log_name, e)
+            await self._set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
+        except IntegrityError:
+            logger.error("RAG processing failed for '%s': database integrity error", log_name)
+            await session.rollback()
+            await session.refresh(drive_file)
+            await self._set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
+        except SQLAlchemyError as e:
+            logger.error("Database error during RAG processing for '%s': %s", log_name, e)
+            try:
+                await self._set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
+            except SQLAlchemyError as status_err:
+                logger.error(
+                    "Failed to set RAG status to FAILED for '%s': %s",
+                    log_name,
+                    status_err,
+                )
+        finally:
+            session.expunge_all()
+            gc.collect()
 
-    except GoogleDriveAPIError as e:
-        logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Google Drive error")
-    except (httpx.ConnectError, httpx.TimeoutException) as e:
-        logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Could not reach Google Drive")
-    except httpx.HTTPStatusError as e:
-        logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await _set_rag_status(
-            session, drive_file, RagStatus.FAILED, error=f"Google Drive returned {e.response.status_code}"
-        )
-    except ScannedPDFError:
-        logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error=ScannedPDFError.USER_MESSAGE)
-    except (RuntimeError, ValueError, OSError) as e:
-        logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Processing failed")
-    except IntegrityError:
-        logger.error("RAG processing failed for '%s': database integrity error", log_name)
-        await session.rollback()
-        await session.refresh(drive_file)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
-    except SQLAlchemyError as e:
-        logger.error("Database error during RAG processing for '%s': %s", log_name, e)
-        try:
-            await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
-        except SQLAlchemyError as status_err:
-            logger.error(
-                "Failed to set RAG status to FAILED for '%s': %s",
-                log_name,
-                status_err,
+    async def process_folder(
+        self,
+        folder_id: int,
+        user_id: int,
+        access_token: str,
+    ) -> None:
+        """Run the RAG pipeline for all supported files in a synced folder."""
+        async with AsyncSession(async_engine, expire_on_commit=False) as session:
+            folder_result = await session.exec(select(DriveFolder).where(DriveFolder.id == folder_id))
+            folder = folder_result.first()
+            if folder is None:
+                logger.warning("process_folder_rag: folder %d not found.", folder_id)
+                return
+
+            result = await session.exec(
+                select(DriveFile).where(
+                    col(DriveFile.folder_id) == folder_id,
+                    col(DriveFile.is_deleted) == False,  # noqa: E712
+                )
             )
-    finally:
-        session.expunge_all()
-        gc.collect()
+            files = result.all()
+
+        if not files:
+            return
+
+        store = VectorStoreService()
+        semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
+
+        async def _process_with_own_session(drive_file: DriveFile) -> None:
+            async with semaphore:
+                async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
+                    await self._process_single_file(drive_file, user_id, access_token, file_session, store)
+                gc.collect()
+                if sys.platform == "linux":
+                    try:
+                        ctypes.CDLL("libc.so.6").malloc_trim(0)
+                    except (OSError, AttributeError):
+                        pass
+
+        pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
+        pending_with_names = [(df, df.name) for df in pending_files]
+        pending = [_process_with_own_session(df) for df, _ in pending_with_names]
+        if pending:
+            results = await asyncio.gather(*pending, return_exceptions=True)
+            for i, task_result in enumerate(results):
+                if isinstance(task_result, BaseException):
+                    _, file_name = pending_with_names[i]
+                    logger.error(
+                        "RAG processing failed for '%s': %s",
+                        file_name,
+                        task_result,
+                        exc_info=task_result,
+                    )
+            errors = [r for r in results if isinstance(r, BaseException)]
+            if errors:
+                logger.warning(
+                    "RAG processing for folder '%s': %d/%d files had errors.",
+                    folder.drive_folder_name,
+                    len(errors),
+                    len(pending),
+                )
 
 
 async def process_folder_rag(
@@ -352,61 +389,4 @@ async def process_folder_rag(
     access_token: str,
 ) -> None:
     """Run the RAG pipeline for all supported files in a synced folder."""
-    async with AsyncSession(async_engine, expire_on_commit=False) as session:
-        folder_result = await session.exec(select(DriveFolder).where(DriveFolder.id == folder_id))
-        folder = folder_result.first()
-        if folder is None:
-            logger.warning("process_folder_rag: folder %d not found.", folder_id)
-            return
-
-        result = await session.exec(
-            select(DriveFile).where(
-                col(DriveFile.folder_id) == folder_id,
-                col(DriveFile.is_deleted) == False,  # noqa: E712
-            )
-        )
-        files = result.all()
-
-    if not files:
-        return
-
-    store = VectorStoreService()
-    semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
-
-    async def _process_with_own_session(drive_file: DriveFile) -> None:
-        async with semaphore:
-            async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
-                await _process_single_file(drive_file, user_id, access_token, file_session, store)
-            # Session is now fully closed: connection returned to pool, identity map
-            # cleared. Run GC + malloc_trim here so freed connection buffers and
-            # ORM object memory are reclaimed before the next file starts.
-            gc.collect()
-            if sys.platform == "linux":
-                try:
-                    ctypes.CDLL("libc.so.6").malloc_trim(0)
-                except (OSError, AttributeError):
-                    pass
-
-    pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
-    # Capture file names before sessions close (avoid detached instance errors)
-    pending_with_names = [(df, df.name) for df in pending_files]
-    pending = [_process_with_own_session(df) for df, _ in pending_with_names]
-    if pending:
-        results = await asyncio.gather(*pending, return_exceptions=True)
-        for i, task_result in enumerate(results):
-            if isinstance(task_result, BaseException):
-                _, file_name = pending_with_names[i]
-                logger.error(
-                    "RAG processing failed for '%s': %s",
-                    file_name,
-                    task_result,
-                    exc_info=task_result,
-                )
-        errors = [r for r in results if isinstance(r, BaseException)]
-        if errors:
-            logger.warning(
-                "RAG processing for folder '%s': %d/%d files had errors.",
-                folder.drive_folder_name,
-                len(errors),
-                len(pending),
-            )
+    await DriveRagPipeline().process_folder(folder_id, user_id, access_token)

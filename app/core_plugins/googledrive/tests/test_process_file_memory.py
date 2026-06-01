@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.googledrive.utils import _process_single_file, process_folder_rag
+from app.core_plugins.googledrive.utils import DriveRagPipeline
+
+_pipeline = DriveRagPipeline()
+_process_single_file = _pipeline._process_single_file
 
 
 class TestProcessFileMemory:
@@ -18,9 +21,9 @@ class TestProcessFileMemory:
     async def test_process_with_own_session_calls_gc_collect(self) -> None:
         """Verify that after session close, gc.collect() is called in _process_with_own_session."""
         # Since _process_with_own_session is a nested function, we verify the behavior
-        # indirectly by checking that the module has the correct cleanup code structure.
+        # indirectly by checking that the method has the correct cleanup code structure.
         # The actual malloc_trim behavior is verified through integration testing.
-        source = inspect.getsource(process_folder_rag)
+        source = inspect.getsource(DriveRagPipeline.process_folder)
         # Verify that _process_with_own_session includes gc.collect() after session close
         assert "gc.collect()" in source
         # Verify that malloc_trim code exists in the function
@@ -42,7 +45,7 @@ class TestProcessFileMemory:
 
         patches: list[AbstractContextManager[Any]] = [
             patch("ctypes.CDLL"),
-            patch("app.core_plugins.googledrive.utils._download_file", return_value=b"%PDF-1.4\n"),
+            patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file", return_value=b"%PDF-1.4\n"),
             patch("app.core_plugins.googledrive.utils.extract_to_markdown", return_value=MagicMock(markdown="# Test")),
             patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[]),
         ]
