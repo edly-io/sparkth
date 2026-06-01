@@ -26,12 +26,13 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
 - [Backend Plugin Implementation](./app/plugins/PLUGIN_GUIDE.md)
 - [Frontend Plugin Implementation](./frontend/README.md)
 
-## Installation
+## Development
 
 ### Prerequisites
 
 - Python 3.14
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- [uv](https://docs.astral.sh/uv/)
+- [bun](https://bun.sh/)
 
 ### Setup
 
@@ -41,16 +42,30 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
    cd sparkth
    ```
 
-2. Install dependencies:
+2. Install backend and frontend dependencies:
    ```bash
-   make dev
+   make backend.install.dev
+   make frontend.install
+   ```
+
+3. Install git hooks:
+   ```bash
+   make backend.install.githooks
    ```
 
 ## Running the MCP Server (Docker)
 
-To run the MCP server in Docker:
+Create dev environment settings:
 
-    make dev.up
+    cp .env.example .env
+
+Run the MCP server in development, with hot reload:
+
+    make up.dev
+
+Or in production mode:
+
+    make up
 
 ### Transport mode: http / stdio
 
@@ -63,23 +78,6 @@ Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
 
 The default is `http` on host http://0.0.0.0:7727.
 
-## Running the API Server
-
-To develop locally, you can run the API server with hot-reloading enabled.
-
-1.  **Ensure dependencies are installed:**
-    ```bash
-    make dev
-    ```
-
-2.  **Start the server:**
-    ```bash
-    make dev.up
-    ```
-    or
-    ```bash
-    make up
-    ```
 
 ### Local MCP Endpoint
 
@@ -123,7 +121,7 @@ Build the frontend as static files (exported to `frontend/out/`):
 make frontend.build
 ```
 
-The static files are automatically served by FastAPI when you run `make up` or `make dev.up`.
+The static files are automatically served by FastAPI when you run `make up` or `make up.dev`.
 
 ### Feature Flags
 `REGISTRATION_ENABLED`
@@ -153,7 +151,7 @@ REGISTRATION_ENABLED=true
 
 Changing this flag does not affect existing users.
 
-Make sure to run `make dev.up` after changing the `.env` variable to apply the new setting.
+Make sure to run `make up.dev` after changing the `.env` variable to apply the new setting.
 
 ## Integrating with Claude Desktop
 
@@ -197,28 +195,7 @@ Sparkth will generate a prompt that will help Claude generate this course.
 
 ## Makefile
 
-All common tasks are wrapped in a `Makefile` for convenience.
-
-Just run `make` to see the full list:
-
-```bash
-$ make
-Usage: make <target>
-
-Targets:
-  uv              Install uv if missing
-  dev             Install dev dependencies
-  lock            Update lockfile
-  install         Install exact versions from lockfile
-  test            Run tests
-  cov             Run tests with coverage
-  lint            Lint with ruff
-  fix             Auto-fix + format with ruff
-  build           Build package
-  frontend        Run frontend dev server (hot reload)
-  frontend.build  Build frontend (static export)
-
-```
+All common tasks are wrapped in a `Makefile` for convenience. Run `make` to see the full list of commands.
 
 ## User Management Commands
 ### Create User

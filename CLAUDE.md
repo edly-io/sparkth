@@ -44,19 +44,18 @@ tests/           # pytest suite for api/, chat/, mcp/, and other cross-cutting t
 ```bash
 # Docker (recommended for full stack)
 make up              # Build + start (PostgreSQL + Redis + API + frontend)
-make dev.up          # Dev mode with hot reload
+make up.dev          # Dev mode with hot reload
 make down            # Stop containers
 make clean           # Stop + wipe database volume
 
 # Local backend (requires uv)
-make dev             # Install dev dependencies
-make api             # FastAPI on http://0.0.0.0:7727
-make mcp             # MCP server (HTTP mode)
-make test            # Run all tests (frontend + backend)
-make test.backend    # Run backend tests only
-make test.frontend   # Run frontend tests only
-make test.help       # Show usage for all test commands
-make mypy            # mypy --strict
+make backend.install.dev    # Install dev dependencies
+make api                    # FastAPI on http://0.0.0.0:7727
+make mcp                    # MCP server (HTTP mode)
+make test                   # Run all tests (frontend + backend)
+make test.backend           # Run backend tests only
+make test.frontend          # Run frontend tests only
+make mypy                   # mypy --strict
 
 # Linting
 make lint                    # Check lint errors (frontend + backend)
@@ -69,7 +68,6 @@ make lint.fix.frontend       # Auto-fix frontend lint errors (oxlint)
 make lint.fix.backend        # Auto-fix backend lint errors (ruff)
 make lint.format.frontend    # Format frontend code (oxfmt)
 make lint.format.backend     # Format backend code (ruff)
-make lint.help               # Show usage for all lint commands
 
 # Local frontend
 make frontend        # Next.js dev server on :3000
@@ -283,3 +281,8 @@ Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/P
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
 | Plugin development guide | [app/plugins/PLUGIN_GUIDE.md](app/plugins/PLUGIN_GUIDE.md) |
 | Frontend plugin development | [frontend/README.md](frontend/README.md) |
+| GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
+
+## GitHub Project Management
+
+When creating or editing GitHub issues, posting proposed solutions, opening pull requests, or committing LLM-generated code, follow the conventions in the [`sparkth-project-management`](.claude/skills/sparkth-project-management/SKILL.md) skill.
