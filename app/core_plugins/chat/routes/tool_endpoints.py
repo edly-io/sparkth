@@ -1,22 +1,11 @@
-from typing import Any
-
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.schemas import ToolListResponse, ToolSchema
-from app.core_plugins.chat.tools import get_tool_registry
+from app.core_plugins.chat.tools import get_parameters_schema, get_tool_registry
 from app.models.user import User
 
 router = APIRouter()
-
-
-def get_parameters_schema(args_schema: type[BaseModel] | dict[str, Any] | None) -> dict[str, Any]:
-    if args_schema is None:
-        return {}
-    if isinstance(args_schema, dict):
-        return args_schema
-    return args_schema.model_json_schema()
 
 
 @router.get("/tools", response_model=ToolListResponse)

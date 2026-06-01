@@ -169,7 +169,7 @@ class TestOutOfScopeConversationCreation:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider"),
-            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.add_message",
@@ -218,7 +218,7 @@ class TestOutOfScopeConversationCreation:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider"),
-            patch("app.core_plugins.chat.routes.dependencies.get_rag_provider"),
+            patch("app.core_plugins.chat.routes.dependencies.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.completions.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",

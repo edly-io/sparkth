@@ -28,20 +28,14 @@ from app.models.user import User
 
 _CHAT_PREFIX = "/api/v1"
 _DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-_chat_routes_registered = False
 
-
-def _ensure_chat_routes() -> None:
-    global _chat_routes_registered
-    if _chat_routes_registered:
-        return
-    existing = {getattr(r, "path", None) for r in app.routes}
-    if f"{_CHAT_PREFIX}/chat/completions" not in existing:
-        app.include_router(chat_router, prefix=_CHAT_PREFIX)
-    _chat_routes_registered = True
-
-
-_ensure_chat_routes()
+# Register chat routes for tests.
+# The plugin lifespan (which normally registers chat routes via
+# `plugin_manager.load_all_enabled`) does not run in tests, so we mount
+# the router directly. Same pattern as `tests/slack/conftest.py` and
+# `tests/googledrive/conftest.py`.
+if f"{_CHAT_PREFIX}/chat/completions" not in {getattr(r, "path", None) for r in app.routes}:
+    app.include_router(chat_router, prefix=_CHAT_PREFIX)
 
 
 @pytest.fixture(scope="session")
@@ -114,8 +108,8 @@ def mock_rag_provider() -> Generator[Any, None, None]:
     from unittest.mock import patch
 
     with (
-        patch("app.rag.provider.get_provider") as mock_get_provider,
-        patch("app.core_plugins.chat.routes.dependencies.get_rag_provider") as mock_get_rag_provider,
+        patch("app.llm.providers.get_provider") as mock_get_provider,
+        patch("app.core_plugins.chat.routes.dependencies.get_rag_context_service") as mock_get_rag_provider,
         patch("app.core_plugins.googledrive.utils.get_provider") as mock_get_utils_provider,
     ):
         mock_provider = MagicMock()

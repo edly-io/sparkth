@@ -256,6 +256,21 @@ class ChatService:
                 conversation_id,
             )
 
+    async def get_user_owned_drive_file(
+        self,
+        session: AsyncSession,
+        drive_file_id: int,
+        user_id: int,
+    ) -> DriveFile | None:
+        """Return the drive file if it belongs to user, else None."""
+        stmt = select(DriveFile).where(
+            DriveFile.id == drive_file_id,
+            DriveFile.user_id == user_id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+        result = await session.exec(stmt)
+        return result.first()
+
     async def list_conversation_attachments(
         self,
         session: AsyncSession,

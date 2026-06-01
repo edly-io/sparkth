@@ -8,73 +8,62 @@ from app.llm.providers import BaseChatProvider
 logger = get_logger(__name__)
 
 
-class ConversationTitleGenerator:
-    """Generates and persists conversation titles."""
-
-    @staticmethod
-    def get_first_user_text(messages: list[ChatMessage]) -> str | None:
-        """Return the raw text of the first user message (no truncation)."""
-        for msg in messages:
-            if msg.role != "user":
-                continue
-            if isinstance(msg.content, str):
-                text = msg.content.strip()
-            else:
-                text = " ".join(
-                    block.get("text", "")
-                    for block in msg.content
-                    if isinstance(block, dict) and block.get("type") == "text"
-                ).strip()
-            if text:
-                return text
-        return None
-
-    @staticmethod
-    def extract_title_from_messages(messages: list[ChatMessage], max_length: int = 60) -> str | None:
-        """Derive a provisional conversation title from the first user message."""
-        text = ConversationTitleGenerator.get_first_user_text(messages)
-        if not text:
-            return None
-        if len(text) <= max_length:
+def get_first_user_text(messages: list[ChatMessage]) -> str | None:
+    """Return the raw text of the first user message (no truncation)."""
+    for msg in messages:
+        if msg.role != "user":
+            continue
+        if isinstance(msg.content, str):
+            text = msg.content.strip()
+        else:
+            text = " ".join(
+                block.get("text", "")
+                for block in msg.content
+                if isinstance(block, dict) and block.get("type") == "text"
+            ).strip()
+        if text:
             return text
-        return text[:max_length].rsplit(" ", 1)[0] + "..."
-
-    @staticmethod
-    async def generate(
-        conversation_id: int,
-        user_id: int,
-        first_user_message: str,
-        service: ChatService,
-        provider: BaseChatProvider,
-        config: ChatSystemConfig | None = None,
-    ) -> None:
-        """Background task: ask the LLM for a short title and persist it."""
-        cfg = config or ChatSystemConfig()
-        try:
-            prompt = (
-                "Generate a concise 3-6 word title for a conversation that starts with "
-                "the following message. Reply with only the title, no quotes or punctuation:\n\n"
-                f"{first_user_message[: cfg.title_prompt_max_chars]}"
-            )
-            response = await provider.send_message(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=cfg.title_llm_max_tokens,
-            )
-            title = response["content"].strip().strip("\"'").strip()
-            if title:
-                async with session_scope() as session:
-                    await service.update_conversation_title(
-                        session=session,
-                        conversation_id=conversation_id,
-                        user_id=user_id,
-                        title=title[: cfg.title_db_max_length],
-                    )
-                logger.info("Generated title for conversation %d: %r", conversation_id, title)
-        except (KeyError, ValueError, RuntimeError, OSError) as e:
-            logger.warning("Title generation failed for conversation %d: %s", conversation_id, e)
+    return None
 
 
-# Backward-compatible module-level aliases
-get_first_user_text = ConversationTitleGenerator.get_first_user_text
-extract_title_from_messages = ConversationTitleGenerator.extract_title_from_messages
-generate_conversation_title = ConversationTitleGenerator.generate
+def extract_title_from_messages(messages: list[ChatMessage], max_length: int) -> str | None:
+    """Derive a provisional conversation title from the first user message."""
+    text = get_first_user_text(messages)
+    if not text:
+        return None
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rsplit(" ", 1)[0] + "..."
+
+
+async def generate_conversation_title(
+    conversation_id: int,
+    user_id: int,
+    first_user_message: str,
+    service: ChatService,
+    provider: BaseChatProvider,
+    config: ChatSystemConfig,
+) -> None:
+    """Background task: ask the LLM for a short title and persist it."""
+    try:
+        prompt = (
+            "Generate a concise 3-6 word title for a conversation that starts with "
+            "the following message. Reply with only the title, no quotes or punctuation:\n\n"
+            f"{first_user_message[: config.title_prompt_max_chars]}"
+        )
+        response = await provider.send_message(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=config.title_llm_max_tokens,
+        )
+        title = response["content"].strip().strip("\"'").strip()
+        if title:
+            async with session_scope() as session:
+                await service.update_conversation_title(
+                    session=session,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    title=title[: config.title_db_max_length],
+                )
+            logger.info("Generated title for conversation %d: %r", conversation_id, title)
+    except (KeyError, ValueError, RuntimeError, OSError) as e:
+        logger.warning("Title generation failed for conversation %d: %s", conversation_id, e)

@@ -352,6 +352,15 @@ class ToolRegistry:
         return type_map.get(json_type, str)
 
 
+def get_parameters_schema(args_schema: type[BaseModel] | dict[str, Any] | None) -> dict[str, Any]:
+    """Normalise an args_schema into a plain dict suitable for serialisation."""
+    if args_schema is None:
+        return {}
+    if isinstance(args_schema, dict):
+        return args_schema
+    return args_schema.model_json_schema()
+
+
 _tool_registry = ToolRegistry()
 
 

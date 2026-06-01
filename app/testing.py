@@ -192,8 +192,8 @@ def mock_rag_provider() -> Generator[Any, None, None]:
     from unittest.mock import MagicMock, patch
 
     with (
-        patch("app.rag.provider.get_provider") as mock_get_provider,
-        patch("app.core_plugins.chat.routes.dependencies.get_rag_provider") as mock_get_rag_provider,
+        patch("app.llm.providers.get_provider") as mock_get_provider,
+        patch("app.core_plugins.chat.routes.dependencies.get_rag_context_service") as mock_get_rag_provider,
         patch("app.core_plugins.googledrive.utils.get_provider") as mock_get_utils_provider,
     ):
         mock_provider = MagicMock()

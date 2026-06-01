@@ -1,6 +1,7 @@
 import asyncio
 import json
 from typing import Any, AsyncGenerator, Literal, cast
+from uuid import UUID
 
 import anthropic
 import httpx
@@ -15,14 +16,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.config import ChatSystemConfig
-from app.core_plugins.chat.conversation_title import ConversationTitleGenerator
+from app.core_plugins.chat.conversation_title import (
+    extract_title_from_messages,
+    generate_conversation_title,
+    get_first_user_text,
+)
 from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
-from app.core_plugins.chat.lms_credentials import LMSCredentialsBuilder
+from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.dependencies import get_chat_service, get_chat_system_config, get_rag_context_service
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService
-from app.core_plugins.chat.tools import get_tool_registry
+from app.core_plugins.chat.tools import ToolRegistry, get_tool_registry
 from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
 from app.llm.classifier import HistoryTurn, ScopeClassifier
@@ -207,6 +212,155 @@ async def _persist_pre_stream_error(
         )
 
 
+async def _get_or_create_conversation(
+    *,
+    session: AsyncSession,
+    service: ChatService,
+    conversation_uuid: UUID | None,
+    user_id: int,
+    messages: list[ChatMessage],
+    llm_config_id: int,
+    provider_name: str,
+    api_key: str,
+    model: str,
+    config: ChatSystemConfig,
+    background_tasks: BackgroundTasks,
+) -> Conversation:
+    """Resolve an existing conversation by UUID, or create a new one and schedule title generation."""
+    if conversation_uuid:
+        conversation = await service.get_conversation_by_uuid(
+            session=session,
+            uuid=conversation_uuid,
+            user_id=user_id,
+        )
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation {conversation_uuid} not found",
+            )
+        return conversation
+
+    conversation = await service.create_conversation(
+        session=session,
+        user_id=user_id,
+        llm_config_id=llm_config_id,
+        provider=provider_name,
+        model=model,
+        title=extract_title_from_messages(messages, max_length=config.title_max_length),
+    )
+    first_user_text = get_first_user_text(messages)
+    if first_user_text:
+        title_provider = get_provider(
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            temperature=config.title_llm_temperature,
+            max_tool_executions=0,
+        )
+        background_tasks.add_task(
+            generate_conversation_title,
+            conversation_id=conversation.id,  # type: ignore[arg-type]
+            user_id=user_id,
+            first_user_message=first_user_text,
+            service=service,
+            provider=title_provider,
+            config=config,
+        )
+    return conversation
+
+
+async def _attach_request_drive_files(
+    session: AsyncSession,
+    service: ChatService,
+    drive_file_ids: list[int],
+    user_id: int,
+    conversation_id: int,
+) -> None:
+    """Attach owned drive files to the conversation, silently skipping any unowned IDs."""
+    owned_result = await session.exec(
+        select(DriveFileModel.id).where(
+            col(DriveFileModel.id).in_(drive_file_ids),
+            DriveFileModel.user_id == user_id,
+            DriveFileModel.is_deleted == False,  # noqa: E712
+        )
+    )
+    owned_ids = {file_id for file_id in owned_result.all() if file_id is not None}
+    skipped = set(drive_file_ids) - owned_ids
+    if skipped:
+        logger.warning(
+            "Skipped %d unowned/deleted drive file IDs for user %s: %s",
+            len(skipped),
+            user_id,
+            skipped,
+        )
+    for file_id in owned_ids:
+        await service.attach_drive_file(session, conversation_id=conversation_id, drive_file_id=file_id)
+
+
+async def _persist_incoming_messages(
+    session: AsyncSession,
+    service: ChatService,
+    messages: list[ChatMessage],
+    conversation_id: int,
+) -> None:
+    """Persist the request's incoming messages to the conversation."""
+    for msg in messages:
+        if isinstance(msg.content, list):
+            text_parts = [
+                block.get("text", "")
+                for block in msg.content
+                if isinstance(block, dict) and block.get("type") == "text"
+            ]
+            stored_content = " ".join(text_parts) if text_parts else "[File attachment]"
+        else:
+            stored_content = msg.content
+        await service.add_message(
+            session=session,
+            conversation_id=conversation_id,
+            role=msg.role,
+            content=stored_content,
+            message_type="attachment" if msg.attachment else "text",
+            attachment_name=msg.attachment.name if msg.attachment else None,
+            attachment_size=msg.attachment.size if msg.attachment else None,
+        )
+
+
+async def _classify_in_scope(
+    query_text: str,
+    provider_name: str,
+    api_key: str,
+    history: list[HistoryTurn],
+    attached_file_names: list[str] | None,
+) -> bool:
+    """Tiered scope check: fast keyword pre-filter, then LLM classifier. Empty query is always in scope."""
+    if not query_text:
+        return True
+    if not is_query_in_scope(query_text):
+        return False
+    classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
+    return await classifier.classify(query_text, history=history, attached_file_names=attached_file_names)
+
+
+async def _resolve_tools(
+    request: ChatCompletionRequest,
+    tool_registry: ToolRegistry,
+) -> list[Any] | None:
+    """Resolve the tool list from the request's tools field."""
+    if request.tools == "none" or request.tools == []:
+        logger.info("Tools explicitly disabled")
+        return None
+    if request.tools == "*" or request.tools == "all":
+        tools = await tool_registry.get_all_tools()
+        logger.info("Auto-including all %d available tools (default)", len(tools))
+        return tools
+    if request.tools and isinstance(request.tools, list):
+        tools = await tool_registry.get_tools_by_names(request.tools)
+        if not tools:
+            logger.warning("No tools found for: %s", request.tools)
+        return tools
+    return None
+
+
 @router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
@@ -245,24 +399,13 @@ async def chat_completion(
 
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
-
     conversation_uuid = request.conversation_id
     query_text = _extract_query_text(request.messages)
 
-    # Pre-flight scope check for brand-new conversations.
     # Runs before any DB writes so an out-of-scope first message leaves no trace.
-    _scope_already_checked = False
+    _skip_main_scope_check = False
     if not conversation_uuid:
-        _in_scope_preflight = True
-        if query_text:
-            if not is_query_in_scope(query_text):
-                _in_scope_preflight = False
-            else:
-                preflight_classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
-                _in_scope_preflight = await preflight_classifier.classify(
-                    query_text, history=[], attached_file_names=None
-                )
-        if not _in_scope_preflight:
+        if not await _classify_in_scope(query_text, provider_name, api_key, [], None):
             if request.stream:
                 return StreamingResponse(
                     _stream_out_of_scope_refusal(),
@@ -274,100 +417,35 @@ async def chat_completion(
                 model=model,
                 provider=provider_name,
             )
-        _scope_already_checked = True
+        _skip_main_scope_check = True
 
-    if conversation_uuid:
-        conversation = await service.get_conversation_by_uuid(
-            session=session,
-            uuid=conversation_uuid,
-            user_id=current_user.id,  # type: ignore
-        )
-        if not conversation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Conversation {conversation_uuid} not found",
-            )
-    else:
-        conversation = await service.create_conversation(
-            session=session,
-            user_id=current_user.id,  # type: ignore
-            llm_config_id=request.llm_config_id,
-            provider=provider_name,
-            model=model,
-            title=ConversationTitleGenerator.extract_title_from_messages(
-                request.messages, max_length=config.title_max_length
-            ),
-        )
+    conversation = await _get_or_create_conversation(
+        session=session,
+        service=service,
+        conversation_uuid=conversation_uuid,
+        user_id=current_user.id,  # type: ignore[arg-type]
+        messages=request.messages,
+        llm_config_id=request.llm_config_id,
+        provider_name=provider_name,
+        api_key=api_key,
+        model=model,
+        config=config,
+        background_tasks=background_tasks,
+    )
 
-        first_user_text = ConversationTitleGenerator.get_first_user_text(request.messages)
-        if first_user_text:
-            title_provider = get_provider(
-                provider_name=provider_name,
-                api_key=api_key,
-                model=model,
-                temperature=config.title_llm_temperature,
-                max_tool_executions=0,
-            )
-            background_tasks.add_task(
-                ConversationTitleGenerator.generate,
-                conversation_id=conversation.id,  # type: ignore
-                user_id=current_user.id,  # type: ignore
-                first_user_message=first_user_text,
-                service=service,
-                provider=title_provider,
-                config=config,
-            )
-
-    # Attach any drive files included with the request (covers new-conversation flow
-    # where files are selected before the conversation exists in the DB).
     if request.drive_file_ids:
-        owned_result = await session.exec(
-            select(DriveFileModel.id).where(
-                col(DriveFileModel.id).in_(request.drive_file_ids),
-                DriveFileModel.user_id == current_user.id,
-                DriveFileModel.is_deleted == False,  # noqa: E712
-            )
+        await _attach_request_drive_files(
+            session,
+            service,
+            request.drive_file_ids,
+            current_user.id,  # type: ignore[arg-type]
+            conversation.id,  # type: ignore[arg-type]
         )
-        owned_ids = {file_id for file_id in owned_result.all() if file_id is not None}
-        skipped = set(request.drive_file_ids) - owned_ids
-        if skipped:
-            logger.warning(
-                "Skipped %d unowned/deleted drive file IDs for user %s: %s",
-                len(skipped),
-                current_user.id,
-                skipped,
-            )
-        for file_id in owned_ids:
-            await service.attach_drive_file(
-                session,
-                conversation_id=conversation.id,  # type: ignore
-                drive_file_id=file_id,
-            )
-
-    for msg in request.messages:
-        # Store a text summary for messages with content blocks (e.g. file attachments)
-        if isinstance(msg.content, list):
-            text_parts = [
-                block.get("text", "")
-                for block in msg.content
-                if isinstance(block, dict) and block.get("type") == "text"
-            ]
-            stored_content = " ".join(text_parts) if text_parts else "[File attachment]"
-        else:
-            stored_content = msg.content
-        await service.add_message(
-            session=session,
-            conversation_id=conversation.id,  # type: ignore
-            role=msg.role,
-            content=stored_content,
-            message_type="attachment" if msg.attachment else "text",
-            attachment_name=msg.attachment.name if msg.attachment else None,
-            attachment_size=msg.attachment.size if msg.attachment else None,
-        )
+    await _persist_incoming_messages(session, service, request.messages, conversation.id)  # type: ignore[arg-type]
 
     db_messages = await service.get_conversation_messages(
         session=session,
-        conversation_id=conversation.id,  # type: ignore
+        conversation_id=conversation.id,  # type: ignore[arg-type]
     )
 
     try:
@@ -375,32 +453,26 @@ async def chat_completion(
         # (to know files are in play) and the RAG intent router.
         attached_files = await service.list_conversation_attachments(
             session=session,
-            conversation_id=conversation.id,  # type: ignore
+            conversation_id=conversation.id,  # type: ignore[arg-type]
         )
         attached_file_names = [f.name for f in attached_files]
 
-        # --- Tiered scope check ---
-        # Tier 1: fast keyword pre-filter. Tier 2: LLM classifier for nuanced cases.
-        _in_scope = True
-        if query_text and not _scope_already_checked:
-            if not is_query_in_scope(query_text):
-                _in_scope = False
-            else:
-                classifier = ScopeClassifier(provider_name=llm_config.provider, api_key=api_key)
-                prior_history: list[HistoryTurn] = [
-                    {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
-                    for m in db_messages
-                    if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
-                ]
-                _in_scope = await classifier.classify(
-                    query_text,
-                    history=prior_history,
-                    attached_file_names=attached_file_names or None,
-                )
+        if not _skip_main_scope_check:
+            prior_history: list[HistoryTurn] = [
+                {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
+                for m in db_messages
+                if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
+            ]
+            _in_scope = await _classify_in_scope(
+                query_text, llm_config.provider, api_key, prior_history, attached_file_names or None
+            )
+        else:
+            _in_scope = True
+
         if not _in_scope:
             await service.add_message(
                 session=session,
-                conversation_id=conversation.id,  # type: ignore
+                conversation_id=conversation.id,  # type: ignore[arg-type]
                 role="assistant",
                 content=REFUSAL_MESSAGE,
                 message_type="text",
@@ -439,8 +511,8 @@ async def chat_completion(
             should_run_rag = decision.should_retrieve
             rag_routing_reason = decision.reason
 
-        # Use DB messages for history, but replace current batch with original
-        # request content to preserve content blocks (e.g. base64 file attachments)
+        # Use DB messages for history, but replace the current batch with original
+        # request content to preserve content blocks (e.g. base64 file attachments).
         num_current = len(request.messages)
         history: list[dict[str, Any]] = (
             [{"role": m.role, "content": m.content} for m in db_messages[:-num_current]]
@@ -448,22 +520,14 @@ async def chat_completion(
             else []
         )
 
-        # Synthesize messages based on router decision
+        unresolved_messages: list[ChatMessage] | None = None
         if should_run_rag and attached_files:
             # Synthetic message: drive_file blocks (for RAG resolution) + user's query text
             # so that _extract_query_text finds the question and the user's question is
             # preserved in current after resolution.
             file_blocks: list[dict[str, Any]] = [{"type": "drive_file", "file_id": f.id} for f in attached_files]
             text_block: list[dict[str, Any]] = [{"type": "text", "text": query_text}] if query_text else []
-            synthetic_messages = [
-                ChatMessage(
-                    role="user",
-                    content=file_blocks + text_block,
-                )
-            ]
-            unresolved_messages = synthetic_messages
-        else:
-            unresolved_messages = None
+            unresolved_messages = [ChatMessage(role="user", content=file_blocks + text_block)]
 
         if request.stream and should_run_rag:
             # Pass synthetic messages as current so the in-stream assembly pass finds the
@@ -471,10 +535,7 @@ async def chat_completion(
             # LLM sees both the RAG context and the user's question after replacement.
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]  # type: ignore[union-attr]
         else:
-            # For non-streaming or when RAG is skipped, resolve synchronously
             if should_run_rag and unresolved_messages:
-                # _resolve_drive_file_blocks replaces drive_file blocks with RAG context;
-                # the query text block is preserved alongside it.
                 resolved_messages = await _resolve_drive_file_blocks(
                     messages=unresolved_messages,
                     session=session,
@@ -483,34 +544,18 @@ async def chat_completion(
                     llm=provider.create_llm(),
                 )
             else:
-                # Otherwise use request messages as-is (no RAG)
                 resolved_messages = request.messages
             current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
 
         messages = history + current
 
-        tool_registry = get_tool_registry()
-        tools = None
-
-        if request.tools == "none" or request.tools == []:
-            logger.info("Tools explicitly disabled")
-            tools = None
-        elif request.tools == "*" or request.tools == "all":
-            tools = await tool_registry.get_all_tools()
-            logger.info("Auto-including all %d available tools (default)", len(tools))
-        elif request.tools and isinstance(request.tools, list):
-            tools = await tool_registry.get_tools_by_names(request.tools)
-            if not tools:
-                logger.warning("No tools found for: %s", request.tools)
-
+        tools = await _resolve_tools(request, get_tool_registry())
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
             messages.insert(0, {"role": "system", "content": tool_list_message})
 
-        # Mutate system_prompt before the stream branch so both the streaming
-        # and non-streaming paths receive the credentials hint.
-        lms_credentials_message = await LMSCredentialsBuilder.build_message(
+        lms_credentials_message = await build_lms_credentials_message(
             session=session,
             user_id=current_user.id,  # type: ignore[arg-type]
             tools=tools,
@@ -557,7 +602,7 @@ async def chat_completion(
 
             await service.add_message(
                 session=session,
-                conversation_id=conversation.id,  # type: ignore
+                conversation_id=conversation.id,  # type: ignore[arg-type]
                 role="assistant",
                 content=response["content"],
                 tokens_used=tokens_used,
