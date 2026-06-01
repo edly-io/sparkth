@@ -27,7 +27,7 @@ app/
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
-  rag/           # Retrieval-augmented generation (loader, vectorstore, retriever)
+  rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/    # Alembic versions
 
