@@ -1,48 +1,54 @@
+x-ml-env: &ml-env
+  TOKENIZERS_PARALLELISM: "false"
+  # Disable HuggingFace XET chunked download protocol — it can hang indefinitely
+  # on unauthenticated requests. Standard HTTP download is reliable.
+  HF_HUB_DISABLE_XET: "1"
+
 services:
-  # ----------------------------------------
-  # Sparkth API Service
-  # ----------------------------------------
-  api:
+  # Sparkth App
+  app:
+    container_name: sparkth-app
     build:
       context: .
       dockerfile: Dockerfile.local
       # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
     image: sparkth:local
+    pull_policy: never
     restart: unless-stopped
     ports:
       - "127.0.0.1:7727:7727"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+      <<: *ml-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
       REDIS_URL: redis://redis:6379
       PORT: "7727"
-      TOKENIZERS_PARALLELISM: "false"
-      # Disable HuggingFace XET chunked download protocol — it can hang indefinitely
-      # on unauthenticated requests. Standard HTTP download is reliable.
-      HF_HUB_DISABLE_XET: "1"
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""
       SMTP_PASSWORD: ""
       SMTP_USE_TLS: "false"
-      SMTP_FROM_EMAIL: no-reply@sparkth.local
-      SMTP_FROM_NAME: Sparkth
     volumes:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
       - .ignored/logs:/app/logs
       - hf_cache:/home/nonroot/.cache/huggingface
     depends_on:
-      - db
-      - redis
-      - rag-mcp
-      - mailpit
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      rag-mcp:
+        condition: service_started
+      mailpit:
+        condition: service_started
 
-  # ----------------------------------------
   # Mailpit (local SMTP for development)
-  # ----------------------------------------
   mailpit:
+    container_name: sparkth-mailpit
     image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
     ports:
@@ -55,88 +61,88 @@ services:
     volumes:
       - mailpit_data:/data
 
-  # ----------------------------------------
   # Postgres
-  # ----------------------------------------
   db:
+    container_name: sparkth-db
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
-      POSTGRES_USER: sparkth
-      POSTGRES_PASSWORD: sparkth_password
-      POSTGRES_DB: sparkth
+      POSTGRES_USER: ${POSTGRES_USER:-sparkth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sparkth_password}
+      POSTGRES_DB: ${POSTGRES_DB:-sparkth}
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sparkth}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # ----------------------------------------
   # Redis
-  # ----------------------------------------
   redis:
+    container_name: sparkth-redis
     image: docker.io/redis:7-alpine
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-  # ----------------------------------------
   # RAG Cleanup Job
-  # ----------------------------------------
   rag-cleanup:
     image: sparkth:local
+    container_name: sparkth-rag-cleanup
     pull_policy: never
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      TOKENIZERS_PARALLELISM: "false"
-      HF_HUB_DISABLE_XET: "1"
+      <<: *ml-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
     volumes:
-      - ./app:/app/app
       - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag.cleanup
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: "no"
 
-  # ----------------------------------------
   # RAG Metadata MCP Server
-  # ----------------------------------------
   rag-mcp:
+    container_name: sparkth-rag-mcp
     image: sparkth:local
     pull_policy: never
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      TOKENIZERS_PARALLELISM: "false"
-      HF_HUB_DISABLE_XET: "1"
+      <<: *ml-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
     volumes:
       - ./app:/app/app
       - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag_mcp.main
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
-  # ----------------------------------------
   # Alembic Migrations
-  # ----------------------------------------
   migrations:
     image: sparkth:local
+    container_name: sparkth-migrations
     pull_policy: never
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
     volumes:
       - ./app:/app/app
-    command: >
-      sh -c "
-      echo '⏳ Waiting for DB...' &&
-      alembic upgrade head &&
-      echo '✅ Alembic migrations complete'
-      "
+    command: alembic upgrade head
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

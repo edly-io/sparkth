@@ -1,5 +1,5 @@
 # Development overrides
 # Usage: make up.dev
 services:
-  api:
+  app:
     command: ["fastapi", "dev", "--host", "0.0.0.0", "app/main.py"]

@@ -46,7 +46,7 @@ tests/           # pytest suite for api/, chat/, mcp/, and other cross-cutting t
 
 ```bash
 # Docker (recommended for full stack)
-make up              # Build + start (PostgreSQL + Redis + API + frontend)
+make up              # Build + start all services
 make up.dev          # Dev mode with hot reload
 make down            # Stop containers
 make clean           # Stop + wipe database volume
@@ -78,7 +78,8 @@ make frontend.build  # Static export → frontend/out/
 
 # Database
 make migrations      # Run pending Alembic migrations
-make shell           # Shell inside API container
+make shell           # Shell inside a container, defaults to app (make shell [service])
+make logs            # Tail logs for all containers (make logs [service])
 make db-shell        # PostgreSQL shell
 make create-user     # Create user (pass args after --)
 ```

@@ -35,12 +35,12 @@ base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or 
 
 up: ## Build and start app (frontend + API + db)
 	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build api
+	docker compose build app
 	docker compose up -d
 
 up.dev: ## Build and start app in dev mode (hot reload)
 	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build api
+	docker compose build app
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 down: ## Stop and remove containers
@@ -52,11 +52,11 @@ clean: ## Stop and wipe database volume (fresh start)
 restart: ## Restart all containers
 	docker compose restart
 
-logs: ## Tail logs for all containers
-	docker compose logs -f
+logs: ## Tail logs (make logs [service] — omit service to tail all)
+	docker compose logs -f $(ARGS)
 
-shell: ## Open shell inside the API container
-	docker compose exec api /bin/bash
+shell: ## Open shell inside a container (make shell [service] — defaults to app)
+	docker compose exec $(or $(ARGS),app) /bin/bash
 
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U sparkth -d sparkth
@@ -67,17 +67,17 @@ migrations: ## Run Alembic migrations in Docker
 rag-cleanup: ## Run RAG cleanup task in Docker
 	docker compose run --rm rag-cleanup 2>&1 | tail -1
 
-app-restart: ## Restart the API container for fast iteration
-	docker compose down api
-	docker compose up api -d
+app-restart: ## Restart the app container for fast iteration
+	docker compose down app
+	docker compose up app -d
 
 ##@ User Management (Runs inside Docker)
 # These run inside the container so they can access the DB network
 create-user: ## Create user (make create-user -- --username john)
-	docker compose exec api python -m app.cli.main users create-user $(ARGS)
+	docker compose exec app python -m app.cli.main users create-user $(ARGS)
 
 reset-password: ## Reset password (make reset-password -- username)
-	docker compose exec api python -m app.cli.main users reset-password $(ARGS)
+	docker compose exec app python -m app.cli.main users reset-password $(ARGS)
 
 ##@ Frontend
 frontend.build: ## Build frontend (static export to frontend/out)
