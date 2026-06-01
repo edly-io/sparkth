@@ -7,14 +7,13 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.utils import _process_single_file
+from app.models.drive import DriveFile
 from app.rag.types import RagStatus
 
 
 @pytest.mark.asyncio
 async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession) -> None:
     """A file whose downloaded bytes exceed RAG_MAX_FILE_SIZE_MB is marked FAILED (post-download guard)."""
-    from app.models.drive import DriveFile
-
     drive_file = DriveFile(
         id=1,
         user_id=1,
@@ -41,8 +40,6 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
         await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=mock_store)
     # Re-fetch the drive_file from the database since expunge_all() detaches it
-    from app.models.drive import DriveFile
-
     result = await session.exec(select(DriveFile).where(DriveFile.id == drive_file_id))
     refreshed_file = result.first()
     assert refreshed_file is not None
@@ -55,8 +52,6 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
 @pytest.mark.asyncio
 async def test_pre_download_size_guard_skips_download(session: AsyncSession) -> None:
     """When DriveFile.size exceeds the limit, file is rejected without downloading."""
-    from app.models.drive import DriveFile
-
     drive_file = DriveFile(
         id=3,
         user_id=1,
@@ -92,8 +87,6 @@ async def test_pre_download_size_guard_skips_download(session: AsyncSession) -> 
 @pytest.mark.asyncio
 async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSession) -> None:
     """A file within size limit is NOT rejected by size guard."""
-    from app.models.drive import DriveFile
-
     drive_file = DriveFile(
         id=2,
         user_id=1,
