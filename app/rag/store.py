@@ -1,4 +1,4 @@
-"""Vector store service for storing and retrieving document chunks."""
+"""Document chunk storage service."""
 
 from typing import Any
 

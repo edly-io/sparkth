@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 class RAGContextService:
-    """Retrieves relevant document chunks from the vector store for a given query."""
+    """Retrieves relevant document chunks for a given query via agent-driven section selection."""
 
     def __init__(
         self,
