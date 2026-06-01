@@ -23,12 +23,14 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
         mime_type="application/pdf",
         folder_id=1,
         rag_status=RagStatus.QUEUED,
-        size=None,
+        size=None,  # No Drive-reported size — forces post-download check
     )
     session.add(drive_file)
     await session.flush()
     await session.refresh(drive_file)
+    # Store the ID before calling _process_single_file which might expunge the object
     drive_file_id = drive_file.id
+    # 51 MB of bytes — exceeds default limit of 50 MB
     big_bytes = b"x" * (51 * 1024 * 1024)
     mock_store = MagicMock()
     with (
@@ -42,6 +44,7 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
         await DriveRagPipeline()._process_single_file(
             drive_file, user_id=1, access_token="tok", session=session, store=mock_store
         )
+    # Re-fetch the drive_file from the database since expunge_all() detaches it
     from app.models.drive import DriveFile
 
     result = await session.exec(select(DriveFile).where(DriveFile.id == drive_file_id))
@@ -49,6 +52,7 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
     assert refreshed_file is not None
     assert refreshed_file.rag_status == RagStatus.FAILED
     assert "too large" in (refreshed_file.rag_error or "").lower()
+    # Extraction must NOT have been called
     mock_extract.assert_not_called()
 
 
@@ -65,7 +69,7 @@ async def test_pre_download_size_guard_skips_download(session: AsyncSession) -> 
         mime_type="application/pdf",
         folder_id=1,
         rag_status=RagStatus.QUEUED,
-        size=500 * 1024 * 1024,
+        size=500 * 1024 * 1024,  # 500 MB — far exceeds 50 MB limit
     )
     session.add(drive_file)
     await session.flush()
@@ -81,11 +85,13 @@ async def test_pre_download_size_guard_skips_download(session: AsyncSession) -> 
             drive_file, user_id=1, access_token="tok", session=session, store=mock_store
         )
 
+    # Re-fetch the drive_file from the database since expunge_all() detaches it
     result = await session.exec(select(DriveFile).where(DriveFile.id == 3))
     refreshed_file = result.first()
     assert refreshed_file is not None
     assert refreshed_file.rag_status == RagStatus.FAILED
     assert "too large" in (refreshed_file.rag_error or "").lower()
+    # _download_file must NOT have been called — file was rejected from metadata alone
     mock_download.assert_not_called()
 
 
@@ -106,10 +112,11 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
     session.add(drive_file)
     await session.flush()
 
-    small_bytes = b"x" * (1 * 1024 * 1024)
+    small_bytes = b"x" * (1 * 1024 * 1024)  # 1 MB, well within limit
 
     mock_store = MagicMock()
 
+    # We only care that extraction IS reached, not that it completes
     with (
         patch(
             "app.core_plugins.googledrive.utils.DriveRagPipeline._download_file",
@@ -120,10 +127,12 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
     ):
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
         mock_settings.return_value.RAG_CONCURRENCY = 1
+        # RuntimeError is caught by _process_single_file's except clause
         await DriveRagPipeline()._process_single_file(
             drive_file, user_id=1, access_token="tok", session=session, store=mock_store
         )
 
+    # Re-fetch the drive_file from the database since expunge_all() detaches it
     result = await session.exec(select(DriveFile).where(DriveFile.id == 2))
     refreshed_file = result.first()
     assert refreshed_file is not None

@@ -119,6 +119,8 @@ class DriveRagPipeline:
         """
         chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
 
+        # Batch-lookup which chunk hashes already exist, excluding chunks that are
+        # only linked to soft-deleted files (they must be re-stored for the new file).
         active_file_subq = (
             select(DriveFileChunkLink.chunk_id)
             .join(DriveFile, col(DriveFile.id) == col(DriveFileChunkLink.drive_file_id))
@@ -139,6 +141,7 @@ class DriveRagPipeline:
             row[1]: row[0] for row in existing_rows.all() if row[0] is not None and row[1] is not None
         }
 
+        # Split into new (need storing) vs reused (just link)
         new_chunk_inputs: list[ChunkInput] = []
         reused_chunk_ids: list[int] = []
 
@@ -158,7 +161,10 @@ class DriveRagPipeline:
                     )
                 )
 
+        # Store only new chunks
         new_ids = await store.store_chunks(session, user_id, new_chunk_inputs)
+
+        # Create bridge-table links, skipping any that already exist
         all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
         await self._create_missing_links(session, drive_file_id, all_chunk_ids)
 
@@ -200,10 +206,12 @@ class DriveRagPipeline:
 
         try:
             await self._set_rag_status(session, drive_file, RagStatus.PROCESSING)
+            # This brings .size and other attributes back into memory after the status update.
             await session.refresh(drive_file)
 
             max_bytes = settings.RAG_MAX_FILE_SIZE_MB * 1024 * 1024
 
+            # Early size check using Drive API metadata — skip download entirely for oversized files
             if drive_file.size is not None and drive_file.size > max_bytes:
                 logger.warning(
                     "Skipping '%s': Drive-reported size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
@@ -223,6 +231,7 @@ class DriveRagPipeline:
                 async with profile_memory("download", file=filename):
                     file_bytes = await self._download_file(access_token, drive_file)
 
+                # Post-download fallback for files without Drive-reported size
                 if len(file_bytes) > max_bytes:
                     logger.warning(
                         "Skipping '%s': file size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
@@ -243,6 +252,7 @@ class DriveRagPipeline:
                 session.add(drive_file)
                 await session.flush()
 
+                # Duplicate document check
                 duplicate = await self._find_duplicate_file(session, user_id, drive_file, content_hash)
                 if duplicate and duplicate.id is not None:
                     await self._link_chunks_from_duplicate(session, file_id, duplicate.id)
@@ -255,9 +265,13 @@ class DriveRagPipeline:
                     )
                     return
 
+                # Extract → Chunk (CPU-bound, run off the event loop)
                 async with profile_memory("extraction", file=filename, size_bytes=len(file_bytes)):
                     extraction_result = await asyncio.to_thread(extract_to_markdown, file_bytes, filename)
 
+                # Release raw PDF bytes immediately — extractor has already copied
+                # what it needs into extraction_result.markdown. Keeping file_bytes alive
+                # through chunking wastes memory equal to the full file size.
                 del file_bytes
 
                 async with profile_memory("chunking", file=filename, markdown_chars=len(extraction_result.markdown)):
@@ -352,6 +366,9 @@ class DriveRagPipeline:
             async with semaphore:
                 async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
                     await self._process_single_file(drive_file, user_id, access_token, file_session, store)
+                # Session is now fully closed: connection returned to pool, identity map
+                # cleared. Run GC + malloc_trim here so freed connection buffers and
+                # ORM object memory are reclaimed before the next file starts.
                 gc.collect()
                 if sys.platform == "linux":
                     try:
@@ -360,6 +377,7 @@ class DriveRagPipeline:
                         pass
 
         pending_files = [df for df in files if df.rag_status not in (RagStatus.READY, RagStatus.PROCESSING)]
+        # Capture file names before sessions close (avoid detached instance errors)
         pending_with_names = [(df, df.name) for df in pending_files]
         pending = [_process_with_own_session(df) for df, _ in pending_with_names]
         if pending:
