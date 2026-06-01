@@ -159,4 +159,4 @@ class VectorStoreService:
             .order_by(col(DocumentChunk.source_name))
         )
         result = await session.exec(stmt)
-        return [row[0] for row in result.all()]
+        return list(result.all())

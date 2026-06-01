@@ -155,7 +155,7 @@ class TestVectorStoreService:
     async def test_get_sources(self, service: VectorStoreService) -> None:
         mock_session = AsyncMock()
         mock_result = MagicMock()
-        mock_result.all.return_value = [("doc1.pdf",), ("doc2.pdf",)]
+        mock_result.all.return_value = ["doc1.pdf", "doc2.pdf"]
         mock_session.exec = AsyncMock(return_value=mock_result)
 
         sources = await service.get_sources(mock_session, user_id=1)
