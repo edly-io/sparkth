@@ -123,9 +123,11 @@ def test_file(sync_session: Session, test_user: User, test_folder: DriveFolder) 
 @pytest.fixture
 def mock_drive_credentials() -> Generator[None, None, None]:
     """Mock Google Drive OAuth credentials."""
-    with patch(
-        "app.core_plugins.googledrive.routes.deps.get_drive_credentials",
-        return_value=("fake_client_id", "fake_client_secret", "http://localhost/callback"),
+    creds = ("fake_client_id", "fake_client_secret", "http://localhost/callback")
+    with (
+        patch("app.core_plugins.googledrive.routes.oauth.get_drive_credentials", return_value=creds),
+        patch("app.core_plugins.googledrive.routes.folders.get_drive_credentials", return_value=creds),
+        patch("app.core_plugins.googledrive.routes.files.get_drive_credentials", return_value=creds),
     ):
         yield
 
@@ -133,9 +135,10 @@ def mock_drive_credentials() -> Generator[None, None, None]:
 @pytest.fixture
 def mock_valid_access_token() -> Generator[None, None, None]:
     """Mock get_valid_access_token to return a fake token."""
-    with patch(
-        "app.core_plugins.googledrive.routes.deps.get_valid_access_token",
-        return_value="fake_access_token",
+    with (
+        patch("app.core_plugins.googledrive.routes.oauth.get_valid_access_token", return_value="fake_access_token"),
+        patch("app.core_plugins.googledrive.routes.folders.get_valid_access_token", return_value="fake_access_token"),
+        patch("app.core_plugins.googledrive.routes.files.get_valid_access_token", return_value="fake_access_token"),
     ):
         yield
 
