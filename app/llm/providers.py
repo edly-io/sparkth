@@ -413,7 +413,6 @@ class AnthropicProvider(BaseChatProvider):
             model=self.model,
             temperature=self.temperature,
             streaming=streaming,
-            stream_usage=False,
             callbacks=callbacks or [],
             max_retries=self.max_retries,
         )

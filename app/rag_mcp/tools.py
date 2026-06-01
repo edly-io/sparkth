@@ -35,7 +35,7 @@ async def list_user_files(user_id: int) -> list[FileInfo]:
                     mime_type=f.mime_type,
                     size=f.size,
                     modified_time=f.modified_time.isoformat() if f.modified_time else None,
-                    rag_status=f.rag_status or RagStatus.READY,
+                    rag_status=cast(RagStatus, f.rag_status),
                 )
                 for f in files
             ]
@@ -61,7 +61,7 @@ async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
             return FileMetadata(
                 id=cast(int, file.id),
                 name=file.name,
-                rag_status=file.rag_status or RagStatus.READY,
+                rag_status=cast(RagStatus, file.rag_status),
                 size=file.size,
                 modified_time=file.modified_time.isoformat() if file.modified_time else None,
             )

@@ -1,6 +1,7 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 import hashlib
+from collections import namedtuple
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
@@ -23,6 +24,8 @@ from app.models.drive import DriveFile, DriveFolder
 from app.rag.exceptions import ScannedPDFError
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, ChunkMetadata, RagStatus
+
+_ChunkRow = namedtuple("_ChunkRow", ["id", "chunk_content_hash"])
 
 
 def _make_async_session() -> AsyncMock:
@@ -345,9 +348,8 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["chunk A"])
         chunk_hash = hashlib.sha256("chunk A".encode()).hexdigest()
 
-        # One existing chunk with matching hash: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [(50, chunk_hash)]
+        existing_result.all.return_value = [_ChunkRow(50, chunk_hash)]
 
         # No existing links
         links_result = MagicMock()
@@ -379,9 +381,8 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["existing chunk", "new chunk"])
         existing_hash = hashlib.sha256("existing chunk".encode()).hexdigest()
 
-        # Existing chunk: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [(50, existing_hash)]
+        existing_result.all.return_value = [_ChunkRow(50, existing_hash)]
 
         links_result = MagicMock()
         links_result.all.return_value = []
@@ -415,9 +416,8 @@ class TestEmbedAndStoreChunks:
         hash_a = hashlib.sha256("chunk A".encode()).hexdigest()
         hash_b = hashlib.sha256("chunk B".encode()).hexdigest()
 
-        # Both chunks already exist in DB: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [(10, hash_a), (11, hash_b)]
+        existing_result.all.return_value = [_ChunkRow(10, hash_a), _ChunkRow(11, hash_b)]
 
         # chunk 10 already linked; chunk 11 is not
         links_result = MagicMock()
