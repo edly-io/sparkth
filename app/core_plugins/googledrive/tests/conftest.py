@@ -124,7 +124,7 @@ def test_file(sync_session: Session, test_user: User, test_folder: DriveFolder) 
 def mock_drive_credentials() -> Generator[None, None, None]:
     """Mock Google Drive OAuth credentials."""
     with patch(
-        "app.core_plugins.googledrive.routes.get_drive_credentials",
+        "app.core_plugins.googledrive.routes.deps.get_drive_credentials",
         return_value=("fake_client_id", "fake_client_secret", "http://localhost/callback"),
     ):
         yield
@@ -134,7 +134,7 @@ def mock_drive_credentials() -> Generator[None, None, None]:
 def mock_valid_access_token() -> Generator[None, None, None]:
     """Mock get_valid_access_token to return a fake token."""
     with patch(
-        "app.core_plugins.googledrive.routes.get_valid_access_token",
+        "app.core_plugins.googledrive.routes.deps.get_valid_access_token",
         return_value="fake_access_token",
     ):
         yield

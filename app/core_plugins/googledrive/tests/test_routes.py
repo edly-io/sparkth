@@ -50,7 +50,7 @@ class TestConnectionStatus:
     ) -> None:
         """GET /oauth/status should return connected=true with email when token exists."""
         with patch(
-            "app.core_plugins.googledrive.routes.get_user_info",
+            "app.core_plugins.googledrive.routes.oauth.get_user_info",
             new_callable=AsyncMock,
             return_value={"email": "user@gmail.com"},
         ):
@@ -78,7 +78,7 @@ class TestDisconnect:
     ) -> None:
         """DELETE /oauth/disconnect should soft-delete token and revoke with Google."""
         with patch(
-            "app.core_plugins.googledrive.routes.revoke_token",
+            "app.core_plugins.googledrive.routes.oauth.revoke_token",
             new_callable=AsyncMock,
             return_value=True,
         ):
@@ -225,8 +225,9 @@ class TestSyncFolder:
         }
 
         with (
-            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
-            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.deps.GoogleDriveClient") as mock_deps_client_cls,
         ):
             mock_client = AsyncMock()
             mock_client.get_folder.return_value = folder_metadata
@@ -234,6 +235,8 @@ class TestSyncFolder:
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
+            mock_deps_client_cls.return_value = mock_client
+            mock_deps_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
             response = await drive_client.post(
                 "/api/v1/googledrive/folders/sync",
@@ -273,8 +276,8 @@ class TestRefreshFolder:
     ) -> None:
         """POST /folders/{id}/refresh should re-sync files from Drive."""
         with (
-            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
-            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.deps.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
             mock_client.list_files.return_value = {
@@ -290,6 +293,7 @@ class TestRefreshFolder:
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
+            mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
             response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
 
@@ -308,8 +312,8 @@ class TestRefreshFolder:
     ) -> None:
         """Subfolder entries returned by the Drive API must not be stored as DriveFiles."""
         with (
-            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
-            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.deps.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
             mock_client.list_files.return_value = {
@@ -330,6 +334,7 @@ class TestRefreshFolder:
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
+            mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
             response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
 
@@ -459,7 +464,7 @@ class TestDownloadFile:
         async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             yield b"file content"
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.stream_download = _fake_stream
             mock_client.__aenter__.return_value = mock_client
@@ -502,7 +507,7 @@ class TestDownloadFile:
         async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             yield b"%PDF-1.4"
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.stream_download = _fake_stream
             mock_client.__aenter__.return_value = mock_client
@@ -540,7 +545,7 @@ class TestDownloadFile:
             raise RuntimeError("Drive API error")
             yield  # noqa: RET503 — make this an async generator
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.stream_download = _failing_stream
             mock_client.__aenter__.return_value = mock_client
@@ -561,7 +566,7 @@ class TestRenameFile:
         mock_valid_access_token: None,
     ) -> None:
         """PATCH /files/{id} should rename file in Drive and DB."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.rename_file.return_value = {"id": "f1", "name": "renamed.pdf"}
             mock_client.__aenter__.return_value = mock_client
@@ -596,7 +601,7 @@ class TestRenameFile:
         mock_valid_access_token: None,
     ) -> None:
         """Drive API error during rename should return 502."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.rename_file.side_effect = RuntimeError("403 Forbidden")
             mock_client.__aenter__.return_value = mock_client
@@ -905,7 +910,7 @@ class TestBrowseDrive:
             ],
         }
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.browse.return_value = browse_result
             mock_client.__aenter__.return_value = mock_client
@@ -932,7 +937,7 @@ class TestBrowseDrive:
         mock_valid_access_token: None,
     ) -> None:
         """GET /browse?folder_id=X should browse a specific folder."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.browse.return_value = {"files": []}
             mock_client.__aenter__.return_value = mock_client
