@@ -38,8 +38,8 @@ async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch:
     f3.name = "biology.pdf"
     mock_files = [f1, f2, f3]
     exec_result = MagicMock()
-    exec_result.scalars.return_value.all.return_value = mock_files
-    mock_session.execute = AsyncMock(return_value=exec_result)
+    exec_result.all.return_value = mock_files
+    mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=["python.pdf", "ai.pdf"])
     assert sorted(result) == [10, 11]
@@ -51,8 +51,8 @@ async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> N
     mock_session = AsyncMock()
     mock_files = [MagicMock(id=i, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)]
     exec_result = MagicMock()
-    exec_result.scalars.return_value.all.return_value = mock_files
-    mock_session.execute = AsyncMock(return_value=exec_result)
+    exec_result.all.return_value = mock_files
+    mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=[])
     assert result == [1, 2, 3, 4, 5]
@@ -63,8 +63,8 @@ async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> N
 async def test_resolve_files_for_sources_returns_empty_when_no_files() -> None:
     mock_session = AsyncMock()
     exec_result = MagicMock()
-    exec_result.scalars.return_value.all.return_value = []
-    mock_session.execute = AsyncMock(return_value=exec_result)
+    exec_result.all.return_value = []
+    mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=["doesnt-exist.pdf"])
     assert result == []

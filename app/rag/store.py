@@ -1,4 +1,4 @@
-"""Vector store service for storing and retrieving document chunks."""
+"""Document chunk storage service."""
 
 from typing import Any
 
@@ -158,5 +158,5 @@ class VectorStoreService:
             .distinct()
             .order_by(col(DocumentChunk.source_name))
         )
-        result = await session.execute(stmt)
-        return [row[0] for row in result.all()]
+        result = await session.scalars(stmt)
+        return list(result.all())
