@@ -1,9 +1,3 @@
-x-ml-env: &ml-env
-  TOKENIZERS_PARALLELISM: "false"
-  # Disable HuggingFace XET chunked download protocol — it can hang indefinitely
-  # on unauthenticated requests. Standard HTTP download is reliable.
-  HF_HUB_DISABLE_XET: "1"
-
 services:
   # Sparkth App
   app:
@@ -20,7 +14,6 @@ services:
     env_file:
       - .env
     environment:
-      <<: *ml-env
       DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
       REDIS_URL: redis://redis:6379
       PORT: "7727"
@@ -33,7 +26,6 @@ services:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
       - .ignored/logs:/app/logs
-      - hf_cache:/home/nonroot/.cache/huggingface
     depends_on:
       db:
         condition: service_healthy
@@ -99,10 +91,7 @@ services:
     env_file:
       - .env
     environment:
-      <<: *ml-env
       DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
-    volumes:
-      - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag.cleanup
     depends_on:
       db:
@@ -118,11 +107,9 @@ services:
     env_file:
       - .env
     environment:
-      <<: *ml-env
       DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
     volumes:
       - ./app:/app/app
-      - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag_mcp.main
     depends_on:
       db:
@@ -148,5 +135,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  hf_cache:
   mailpit_data:
