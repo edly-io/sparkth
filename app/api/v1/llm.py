@@ -1,7 +1,6 @@
 """REST endpoints for LLMConfig management."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
@@ -64,11 +63,6 @@ async def create_llm_config(
     except LLMConfigDuplicateNameError as exc:
         logger.warning("LLMConfig name conflict for user %s: %s", current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except SQLAlchemyError as exc:
-        logger.error("Failed to create LLMConfig for user %s: %s", current_user.id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create config"
-        ) from exc
 
 
 @router.get("/configs", response_model=LLMConfigListResponse)
@@ -115,11 +109,6 @@ async def update_llm_config(
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except SQLAlchemyError as exc:
-        logger.error("Failed to update LLMConfig %s: %s", config_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update config"
-        ) from exc
 
 
 @router.put("/configs/{config_id}/key", response_model=LLMConfigResponse)
@@ -142,9 +131,6 @@ async def rotate_llm_config_key(
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for key rotation (user %s): %s", config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except SQLAlchemyError as exc:
-        logger.error("Failed to rotate key for LLMConfig %s: %s", config_id, exc)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to rotate key") from exc
 
 
 @router.patch("/configs/{config_id}/active", response_model=LLMConfigResponse)
@@ -167,11 +153,6 @@ async def set_llm_config_active(
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for active state update (user %s): %s", config_id, current_user.id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except SQLAlchemyError as exc:
-        logger.error("Failed to update active state for LLMConfig %s: %s", config_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update config"
-        ) from exc
 
 
 @router.delete("/configs/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -181,17 +162,11 @@ async def delete_llm_config(
     session: AsyncSession = Depends(get_async_session),
     service: LLMConfigService = Depends(get_llm_service),
 ) -> None:
-    try:
-        deleted = await service.delete(
-            session=session,
-            user_id=current_user.id,  # type: ignore[arg-type]
-            config_id=config_id,
-        )
-        if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
-        await session.commit()
-    except SQLAlchemyError as exc:
-        logger.error("Failed to delete LLMConfig %s: %s", config_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete config"
-        ) from exc
+    deleted = await service.delete(
+        session=session,
+        user_id=current_user.id,  # type: ignore[arg-type]
+        config_id=config_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
+    await session.commit()

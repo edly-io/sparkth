@@ -722,12 +722,5 @@ async def list_rag_sources(
 ) -> RagSourcesResponse:
     """Return the distinct RAG source names available to the current user."""
     store = VectorStoreService()
-    try:
-        sources = await store.get_sources(session=session, user_id=user_id)
-    except SQLAlchemyError as exc:
-        logger.error("Failed to fetch RAG sources for user %d: %s", user_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve RAG sources.",
-        ) from exc
+    sources = await store.get_sources(session=session, user_id=user_id)
     return RagSourcesResponse(sources=sources)
