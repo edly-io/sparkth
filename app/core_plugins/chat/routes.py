@@ -665,7 +665,7 @@ async def chat_completion(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=detail,
         ) from e
-    except (ValueError, RuntimeError, SQLAlchemyError, ValidationError, LangChainException) as e:
+    except (ValueError, RuntimeError, ValidationError, LangChainException) as e:
         logger.error("Chat completion failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
