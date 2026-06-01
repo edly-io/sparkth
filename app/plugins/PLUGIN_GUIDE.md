@@ -143,7 +143,7 @@ from app.core_plugins.myappplugin.adapter import MyAppPluginConfigAdapter
 
 PLUGIN_ADAPTERS: dict[str, LLMConfigAdapter] = {
     ...
-    "myappplugin": MyAppPluginConfigAdapter(),
+    "my-app": MyAppPluginConfigAdapter(),
 }
 ```
 
