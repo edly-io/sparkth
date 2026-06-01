@@ -267,12 +267,10 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get") as mock_get_rag_provider,
             patch("app.core_plugins.chat.routes.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
-            mock_get_rag_provider.return_value = MagicMock()
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
@@ -322,11 +320,9 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.get_provider") as mock_get_provider,
-            patch("app.rag.provider.EmbeddingProviderRegistry.get") as mock_get_rag_provider,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
             patch("app.core_plugins.chat.routes.ScopeClassifier") as mock_classifier_cls,
         ):
-            mock_get_rag_provider.return_value = MagicMock()
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
@@ -354,7 +350,6 @@ class TestConversationUUIDRoutes:
         client: "httpx.AsyncClient",
         current_user: MagicMock,
         session: "AsyncSession",
-        mock_rag_provider: MagicMock,
     ) -> None:
         response = await client.post(
             "/api/v1/chat/completions",
@@ -368,7 +363,7 @@ class TestConversationUUIDRoutes:
         assert response.status_code == 404
 
     async def test_completions_with_integer_conversation_id_returns_422(
-        self, client: "httpx.AsyncClient", current_user: MagicMock, mock_rag_provider: MagicMock
+        self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
         response = await client.post(
             "/api/v1/chat/completions",

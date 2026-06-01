@@ -21,12 +21,6 @@ class TestStoreMemory:
         service = VectorStoreService()
         chunks = _make_chunks(3)
 
-        fake_embedding = [0.1] * 384
-        mock_provider = MagicMock()
-        mock_provider.model_name = "test-model"
-        mock_provider.provider_name = "test"
-        mock_provider.embed_documents = AsyncMock(return_value=[fake_embedding] * 3)
-
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
         mock_session.flush = AsyncMock()
@@ -42,7 +36,7 @@ class TestStoreMemory:
                 mock_chunks.append(mock_chunk)
             mock_chunk_class.side_effect = mock_chunks
 
-            result = await service.store_chunks(mock_session, user_id=1, chunks=chunks, provider=mock_provider)
+            result = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
 
         # Verify result is list of ints
         assert isinstance(result, list)
@@ -56,19 +50,6 @@ class TestStoreMemory:
         service = VectorStoreService()
         chunks = _make_chunks(25)  # 3 batches with batch_size=10
 
-        fake_embedding = [0.1] * 384
-
-        # Create a mock provider that returns embeddings per call to match the number of chunks
-        mock_provider = MagicMock()
-        mock_provider.model_name = "test-model"
-        mock_provider.provider_name = "test"
-
-        # Track the number of chunks passed to embed_documents to return matching embeddings
-        async def side_effect_embed_documents(texts: list[str]) -> list[list[float]]:
-            return [fake_embedding] * len(texts)
-
-        mock_provider.embed_documents = AsyncMock(side_effect=side_effect_embed_documents)
-
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
         mock_session.flush = AsyncMock()
@@ -76,7 +57,7 @@ class TestStoreMemory:
 
         with patch("app.rag.store.get_settings") as mock_settings:
             mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
-            await service.store_chunks(mock_session, user_id=1, chunks=chunks, provider=mock_provider)
+            await service.store_chunks(mock_session, user_id=1, chunks=chunks)
 
         # Should call expunge_all once per batch (3 batches for 25 chunks with batch_size=10)
         assert mock_session.expunge_all.call_count == 3

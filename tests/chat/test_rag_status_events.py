@@ -16,7 +16,6 @@ from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetr
 def _make_rag_service(context: RAGContext) -> RAGContextService:
     mock_service = MagicMock(spec=RAGContextService)
     mock_service.get_context_via_agent = AsyncMock(return_value=context)
-    mock_service.get_context_for_drive_file = AsyncMock(return_value=context)
     return mock_service
 
 
@@ -780,3 +779,31 @@ class TestMessageResponseToolCalls:
             attachment_size=None,
         )
         assert response.tool_calls is None
+
+
+class TestSimilarityThresholdRemoved:
+    def test_chat_completion_request_has_no_similarity_threshold(self) -> None:
+        """similarity_threshold field must be removed from ChatCompletionRequest."""
+        from app.core_plugins.chat.schemas import ChatCompletionRequest
+
+        # The field must not be present in the model's fields
+        assert "similarity_threshold" not in ChatCompletionRequest.model_fields
+
+    def test_chat_completion_request_accepts_valid_fields(self) -> None:
+        """ChatCompletionRequest still works without similarity_threshold."""
+        from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
+
+        req = ChatCompletionRequest(
+            llm_config_id=1,
+            messages=[ChatMessage(role="user", content="hello")],
+        )
+        assert req.llm_config_id == 1
+
+    def test_stream_chat_response_has_no_similarity_threshold_param(self) -> None:
+        """stream_chat_response must not have a similarity_threshold parameter."""
+        import inspect
+
+        from app.core_plugins.chat.routes import stream_chat_response
+
+        sig = inspect.signature(stream_chat_response)
+        assert "similarity_threshold" not in sig.parameters

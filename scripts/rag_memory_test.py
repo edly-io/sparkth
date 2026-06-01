@@ -1,7 +1,7 @@
 """Standalone sizing-test script for the RAG pipeline.
 
-Runs extraction → chunking → embedding for one or more local files (PDF, DOCX,
-etc.) with memory profiling enabled, then prints a summary table.
+Runs extraction → chunking for one or more local files (PDF, DOCX, etc.)
+with memory profiling enabled, then prints a summary table.
 
 Usage:
     python scripts/rag_memory_test.py file1.pdf file2.pdf
@@ -18,7 +18,6 @@ import typer
 os.environ["MEMORY_PROFILING_ENABLED"] = "true"
 
 from app.rag.chunking import chunk_document  # noqa: E402
-from app.rag.embeddings import HuggingFaceEmbeddingProvider  # noqa: E402
 from app.rag.extraction import extract_to_markdown  # noqa: E402
 
 app = typer.Typer(help="RAG pipeline memory sizing test")
@@ -34,7 +33,7 @@ def _parse_memprof_line(line: str) -> dict[str, str] | None:
     return dict(_KV_RE.findall(m.group(1)))
 
 
-async def _process_file(filepath: str, provider: HuggingFaceEmbeddingProvider) -> None:
+async def _process_file(filepath: str) -> None:
     """Run the CPU-bound RAG stages for a single file."""
     filename = os.path.basename(filepath)
     with open(filepath, "rb") as f:
@@ -52,14 +51,8 @@ async def _process_file(filepath: str, provider: HuggingFaceEmbeddingProvider) -
         chunks = await asyncio.to_thread(chunk_document, extraction_result)
 
     if not chunks:
-        typer.echo(f"  {filename}: no chunks produced, skipping embedding.")
+        typer.echo(f"  {filename}: no chunks produced.")
         return
-
-    # embedding
-    texts = [c.content for c in chunks]
-
-    async with profile_memory("embedding", source=filename, n_chunks=len(chunks)):
-        await provider.embed_documents(texts)
 
     typer.echo(f"  {filename}: {len(chunks)} chunks, {len(file_bytes)} bytes")
 
@@ -113,10 +106,8 @@ def main(files: list[str] = typer.Argument(..., exists=True, help="PDF/DOCX file
 
     typer.echo(f"Processing {len(files)} file(s) with memory profiling enabled...\n")
 
-    provider = HuggingFaceEmbeddingProvider()
-
     for filepath in files:
-        asyncio.run(_process_file(filepath, provider))
+        asyncio.run(_process_file(filepath))
 
     _print_summary(capture.records)
 

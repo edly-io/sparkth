@@ -19,7 +19,7 @@ os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/
 # triggers app.rag.db_models, breaking the cycle.
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -27,9 +27,6 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.models  # noqa: F401
-from app.rag.embeddings import BaseEmbeddingProvider
-
-EMBEDDING_DIMS = 384
 
 
 @pytest.fixture(autouse=True)
@@ -47,25 +44,6 @@ def _allow_all_extensions() -> Generator[None, None, None]:
         mock.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 100
         mock.return_value.RAG_PDF_EXTRACTION_BATCH_SIZE = 10
         yield
-
-
-def make_deterministic_embedding(seed: float = 0.1) -> list[float]:
-    """Return a deterministic embedding vector for testing."""
-    return [seed] * EMBEDDING_DIMS
-
-
-@pytest.fixture
-def mock_embedding_provider() -> BaseEmbeddingProvider:
-    """A mock embedding provider that returns deterministic vectors."""
-    provider = AsyncMock(spec=BaseEmbeddingProvider)
-    provider.dimensions = EMBEDDING_DIMS
-    provider.provider_name = "mock"
-    provider.model_name = "mock-model"
-    provider.embed_documents = AsyncMock(
-        side_effect=lambda texts: [make_deterministic_embedding(0.1 + i * 0.01) for i in range(len(texts))]
-    )
-    provider.embed_query = AsyncMock(return_value=make_deterministic_embedding(0.5))
-    return provider
 
 
 @pytest.fixture(scope="session")
@@ -103,8 +81,8 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
 async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
     """In-memory SQLite engine for RAG tests.
 
-    We exclude the DocumentChunk model (pgvector Vector column won't work
-    in SQLite) and test at the service level with mocks instead.
+    Only the user table is created; chunk persistence is exercised at the
+    service level with mocks, so the full schema is unnecessary here.
     """
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -112,7 +90,7 @@ async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
         poolclass=StaticPool,
     )
 
-    # Create only non-pgvector tables for integration tests
+    # Only the user table is needed for FK references in service-level tests
     from app.models.base import TimestampedModel  # noqa: F401
     from app.models.user import User  # noqa: F401
 

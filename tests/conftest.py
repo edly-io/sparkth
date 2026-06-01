@@ -176,18 +176,6 @@ async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
     app_instance.dependency_overrides.pop(get_current_user, None)
 
 
-@pytest.fixture
-def mock_rag_provider() -> Generator[Any, None, None]:
-    """Mock the RAG embedding provider singleton for tests."""
-    from unittest.mock import MagicMock, patch
-
-    from app.rag.provider import EmbeddingProviderRegistry
-
-    mock_provider = MagicMock()
-    with patch.object(EmbeddingProviderRegistry, "get", return_value=mock_provider) as mock_get:
-        yield mock_get
-
-
 @pytest.fixture(autouse=True)
 def reset_cache_service() -> Generator[None, None, None]:
     """Clear the get_cache_service lru_cache after each test.

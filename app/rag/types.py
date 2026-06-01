@@ -76,7 +76,7 @@ class Chunk:
 
 @dataclass
 class ChunkInput:
-    """Flattened chunk data passed to the vector store for embedding and persistence."""
+    """Flattened chunk data passed to the vector store for persistence."""
 
     content: str
     source_name: str
@@ -94,7 +94,12 @@ class ChunkInput:
 
 @dataclass
 class SimilarityResult:
-    """A document chunk paired with its cosine similarity score."""
+    """A document chunk paired with a relevance score.
+
+    The agentic retrieval path selects chunks by section rather than vector
+    similarity, so `similarity` is always 1.0. The field is retained as the
+    common chunk container shape consumed by `format_chunks_as_context`.
+    """
 
     chunk: DocumentChunk
     similarity: float
@@ -108,4 +113,3 @@ class RAGContext:
     source_name: str
     chunks: list[SimilarityResult]
     formatted_text: str
-    ranked_sections: list[dict[str, str | None]] | None = None

@@ -368,7 +368,7 @@ async def _dispatch_event(
     bot_user_id: str,
     event: dict[str, Any],
 ) -> None:
-    """Background coroutine: validate plugin, embed question, call RAG, post reply, log result."""
+    """Background coroutine: validate plugin, extract question, call RAG, post reply, log result."""
     question = extract_question(event.get("text", ""), bot_user_id)
     channel = event.get("channel", "")
     slack_user = event.get("user", "")

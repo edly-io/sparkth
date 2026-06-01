@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.rag.store import ChunkInput, VectorStoreService
 
@@ -13,65 +12,77 @@ def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
     return [ChunkInput(content=f"chunk {i}", source_name=source, chunk_content_hash=f"hash{i}") for i in range(n)]
 
 
+def _make_mock_chunk_class(n: int) -> MagicMock:
+    """Return a mock DocumentChunk class that assigns sequential IDs."""
+    counter = [0]
+
+    def make_chunk(**kwargs: object) -> MagicMock:
+        counter[0] += 1
+        m = MagicMock()
+        m.id = counter[0]
+        return m
+
+    mock_cls = MagicMock(side_effect=make_chunk)
+    return mock_cls
+
+
 @pytest.mark.asyncio
-async def test_store_chunks_splits_into_batches(session: AsyncSession) -> None:
-    """With RAG_STORE_BATCH_SIZE=10 and 25 chunks, embed_documents is called 3 times."""
+async def test_store_chunks_splits_into_batches() -> None:
+    """With RAG_STORE_BATCH_SIZE=10 and 25 chunks, session.flush is called 3 times."""
     service = VectorStoreService()
     chunks = _make_chunks(25)
 
-    # Each embed call returns a list of [0.1, 0.2, ...] vectors (384 dims)
-    fake_embedding = [0.1] * 384
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.expunge_all = MagicMock()
 
-    async def dynamic_embedding_side_effect(texts: list[str]) -> list[list[float]]:
-        return [fake_embedding] * len(texts)
-
-    mock_provider = MagicMock()
-    mock_provider.model_name = "test-model"
-    mock_provider.provider_name = "test"
-    mock_provider.embed_documents = AsyncMock(side_effect=dynamic_embedding_side_effect)
-
-    with patch("app.rag.store.get_settings") as mock_settings:
+    with (
+        patch("app.rag.store.get_settings") as mock_settings,
+        patch("app.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(25).side_effect),
+    ):
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
-        rows = await service.store_chunks(session, user_id=1, chunks=chunks, provider=mock_provider)
+        rows = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
 
-    # 25 chunks / batch_size 10 → 3 calls: [0:10], [10:20], [20:25]
-    assert mock_provider.embed_documents.call_count == 3
-    call_args_list = mock_provider.embed_documents.call_args_list
-    assert len(call_args_list[0][0][0]) == 10  # first batch: 10 texts
-    assert len(call_args_list[1][0][0]) == 10  # second batch: 10 texts
-    assert len(call_args_list[2][0][0]) == 5  # third batch: 5 texts (remainder)
+    # 25 chunks / batch_size 10 → 3 flush calls
+    assert mock_session.flush.await_count == 3
+    assert mock_session.add.call_count == 25
     assert len(rows) == 25
     # Verify all returned values are integers (DocumentChunk IDs)
     assert all(isinstance(row_id, int) for row_id in rows)
 
 
 @pytest.mark.asyncio
-async def test_store_chunks_single_batch_when_chunks_fit(session: AsyncSession) -> None:
-    """When all chunks fit in one batch, embed_documents is called exactly once."""
+async def test_store_chunks_single_batch_when_chunks_fit() -> None:
+    """When all chunks fit in one batch, session.flush is called exactly once."""
     service = VectorStoreService()
     chunks = _make_chunks(5)
 
-    fake_embedding = [0.1] * 384
-    mock_provider = MagicMock()
-    mock_provider.model_name = "test-model"
-    mock_provider.provider_name = "test"
-    mock_provider.embed_documents = AsyncMock(return_value=[fake_embedding] * 5)
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.expunge_all = MagicMock()
 
-    with patch("app.rag.store.get_settings") as mock_settings:
+    with (
+        patch("app.rag.store.get_settings") as mock_settings,
+        patch("app.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(5).side_effect),
+    ):
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 32
-        rows = await service.store_chunks(session, user_id=1, chunks=chunks, provider=mock_provider)
+        rows = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
 
-    assert mock_provider.embed_documents.call_count == 1
+    assert mock_session.flush.await_count == 1
     assert len(rows) == 5
 
 
 @pytest.mark.asyncio
-async def test_store_chunks_empty_returns_empty(session: AsyncSession) -> None:
-    """Calling store_chunks with an empty list returns [] without calling provider."""
+async def test_store_chunks_empty_returns_empty() -> None:
+    """Calling store_chunks with an empty list returns [] without calling session."""
     service = VectorStoreService()
-    mock_provider = MagicMock()
 
-    rows = await service.store_chunks(session, user_id=1, chunks=[], provider=mock_provider)
+    mock_session = AsyncMock()
+    mock_session.flush = AsyncMock()
+
+    rows = await service.store_chunks(mock_session, user_id=1, chunks=[])
 
     assert rows == []
-    mock_provider.embed_documents.assert_not_called()
+    mock_session.flush.assert_not_awaited()

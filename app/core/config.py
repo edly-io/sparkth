@@ -44,9 +44,7 @@ class Settings(BaseSettings):
 
     RAG_CONCURRENCY: int = 1  # max number of files to process in parallel for RAG
     RAG_MAX_FILE_SIZE_MB: int = 50  # skip files larger than this during RAG ingestion
-    RAG_STORE_BATCH_SIZE: int = 32  # number of chunks to embed + write to DB per batch
-    RAG_EMBEDDING_PROVIDER: str = "huggingface"  # embedding provider: huggingface or openai
-    RAG_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"  # model name passed to provider
+    RAG_STORE_BATCH_SIZE: int = 32  # number of chunks to write to DB per batch
     RAG_DISPLAY_NAME_MAX_CHARS: int = 30  # max chars for section/filename labels in the UI
     MEMORY_PROFILING_ENABLED: bool = False
     RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported

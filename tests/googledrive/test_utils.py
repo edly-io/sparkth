@@ -10,13 +10,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core_plugins.googledrive.client import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
-    _embed_and_store_chunks,
     _find_duplicate_file,
     _is_supported_for_rag,
     _link_chunks_from_duplicate,
     _process_single_file,
     _resolve_filename,
     _set_rag_status,
+    _store_and_link_chunks,
     process_folder_rag,
 )
 from app.models.drive import DriveFile, DriveFolder
@@ -290,7 +290,7 @@ class TestLinkChunksFromDuplicate:
 
 
 # ---------------------------------------------------------------------------
-# _embed_and_store_chunks
+# _store_and_link_chunks
 # ---------------------------------------------------------------------------
 
 
@@ -301,7 +301,6 @@ class TestEmbedAndStoreChunks:
     async def test_all_new_chunks(self) -> None:
         """When no chunks exist in DB, all should be embedded."""
         session = _make_async_session()
-        provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
         chunks = self._make_chunks(["chunk A", "chunk B"])
@@ -320,12 +319,11 @@ class TestEmbedAndStoreChunks:
         row2 = MagicMock(id=101)
         store.store_chunks = AsyncMock(return_value=[row1, row2])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
             chunks=chunks,
-            provider=provider,
             store=store,
         )
 
@@ -342,7 +340,6 @@ class TestEmbedAndStoreChunks:
     async def test_all_reused_chunks(self) -> None:
         """When all chunks already exist, none should be embedded."""
         session = _make_async_session()
-        provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
         chunks = self._make_chunks(["chunk A"])
@@ -362,12 +359,11 @@ class TestEmbedAndStoreChunks:
         session.execute = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
             chunks=chunks,
-            provider=provider,
             store=store,
         )
 
@@ -381,7 +377,6 @@ class TestEmbedAndStoreChunks:
     async def test_mixed_new_and_reused(self) -> None:
         """When some chunks exist and some don't."""
         session = _make_async_session()
-        provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
         chunks = self._make_chunks(["existing chunk", "new chunk"])
@@ -400,12 +395,11 @@ class TestEmbedAndStoreChunks:
 
         store.store_chunks = AsyncMock(return_value=[51])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
             chunks=chunks,
-            provider=provider,
             store=store,
         )
 
@@ -420,7 +414,6 @@ class TestEmbedAndStoreChunks:
     async def test_skips_already_linked_chunks(self) -> None:
         """Bridge-link rows that already exist should not be re-inserted."""
         session = _make_async_session()
-        provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
 
         chunks = self._make_chunks(["chunk A", "chunk B"])
@@ -440,12 +433,11 @@ class TestEmbedAndStoreChunks:
         session.execute = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=5,
             chunks=chunks,
-            provider=provider,
             store=store,
         )
 
@@ -520,9 +512,6 @@ class TestEmbedAndStoreChunks:
             source_name="deleted.pdf",
             content=chunk_content,
             chunk_content_hash=chunk_hash,
-            embedding=[0.1] * 384,
-            embedding_model="test-model",
-            embedding_provider="test-provider",
         )
         async_session.add(existing_chunk)
         await async_session.flush()
@@ -535,18 +524,16 @@ class TestEmbedAndStoreChunks:
         await async_session.flush()
 
         # Call the function under test
-        provider = AsyncMock(spec=True)
         store = AsyncMock(spec=VectorStoreService)
         store.store_chunks = AsyncMock(return_value=[999])  # fake new chunk ID
 
         assert user.id is not None
         assert new_drive_file.id is not None
-        new_count, reused_count = await _embed_and_store_chunks(
+        new_count, reused_count = await _store_and_link_chunks(
             async_session,
             user_id=user.id,
             drive_file_id=new_drive_file.id,
             chunks=[Chunk(content=chunk_content, metadata=ChunkMetadata(source_name="new.pdf"))],
-            provider=provider,
             store=store,
         )
 
@@ -573,7 +560,6 @@ class TestProcessSingleFile:
                 user_id=1,
                 access_token="tok",
                 session=session,
-                provider=AsyncMock(),
                 store=AsyncMock(),
             )
 
@@ -593,7 +579,6 @@ class TestProcessSingleFile:
                 user_id=1,
                 access_token="tok",
                 session=session,
-                provider=AsyncMock(),
                 store=AsyncMock(),
             )
 
@@ -614,7 +599,6 @@ class TestProcessSingleFile:
                 user_id=1,
                 access_token="tok",
                 session=session,
-                provider=AsyncMock(),
                 store=AsyncMock(),
             )
 
@@ -624,13 +608,10 @@ class TestProcessSingleFile:
     async def test_skips_unsupported_file(self) -> None:
         """Unsupported files should be set to READY so polling stops."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
         drive_file = _make_drive_file(name="image.png", mime_type="image/png")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.READY
         session.commit.assert_awaited()
@@ -646,7 +627,6 @@ class TestProcessSingleFile:
     ) -> None:
         """Duplicate files should link to existing chunks and be marked ready."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
 
         file_bytes = b"duplicate content"
@@ -657,9 +637,7 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="copy.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.READY
         assert drive_file.content_hash == hashlib.sha256(file_bytes).hexdigest()
@@ -669,7 +647,7 @@ class TestProcessSingleFile:
     @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
     @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
     @patch("app.core_plugins.googledrive.utils.chunk_document")
-    @patch("app.core_plugins.googledrive.utils._embed_and_store_chunks")
+    @patch("app.core_plugins.googledrive.utils._store_and_link_chunks")
     async def test_new_file_full_pipeline(
         self,
         mock_embed: AsyncMock,
@@ -680,7 +658,6 @@ class TestProcessSingleFile:
     ) -> None:
         """New files should go through extract -> chunk -> embed -> store."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
 
         mock_download.return_value = b"file content"
@@ -694,9 +671,7 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="new_doc.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.READY
         mock_extract.assert_called_once_with(b"file content", "new_doc.pdf")
@@ -716,16 +691,13 @@ class TestProcessSingleFile:
     ) -> None:
         """Files that produce no chunks should still be marked ready."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
         mock_download.return_value = b"content"
         mock_extract.return_value = MagicMock()
 
         drive_file = _make_drive_file(name="empty.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.READY
 
@@ -733,15 +705,12 @@ class TestProcessSingleFile:
     async def test_drive_api_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """GoogleDriveAPIError should mark the file as failed."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
         mock_download.side_effect = GoogleDriveAPIError(500, "Server Error")
 
         drive_file = _make_drive_file(name="failing.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.FAILED
 
@@ -749,15 +718,12 @@ class TestProcessSingleFile:
     async def test_value_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """ValueError (e.g. unsupported file type in extraction) should mark failed."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
         mock_download.side_effect = ValueError("Unsupported file type")
 
         drive_file = _make_drive_file(name="bad.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.FAILED
 
@@ -772,16 +738,13 @@ class TestProcessSingleFile:
     ) -> None:
         """ScannedPDFError must transition the file to FAILED with the generic user message."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
         mock_download.return_value = b"%PDF-fake"
         mock_extract.side_effect = ScannedPDFError("internal/path/secret.pdf")
 
         drive_file = _make_drive_file(name="english 4.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.FAILED
         assert drive_file.rag_error == ScannedPDFError.USER_MESSAGE
@@ -793,7 +756,6 @@ class TestProcessSingleFile:
     async def test_google_doc_filename_resolved(self, mock_download: AsyncMock) -> None:
         """Google Docs should have .pdf appended for extraction."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
         mock_download.return_value = b"content"
 
@@ -808,9 +770,7 @@ class TestProcessSingleFile:
             patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[]),
         ):
             mock_extract.return_value = MagicMock()
-            await _process_single_file(
-                drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-            )
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         # extract_to_markdown should be called with .pdf filename
         mock_extract.assert_called_once_with(b"content", "My Doc.pdf")
@@ -818,15 +778,12 @@ class TestProcessSingleFile:
     async def test_none_id_returns_early(self) -> None:
         """drive_file.id is None should log error and return without touching session."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
 
         drive_file = _make_drive_file(name="doc.pdf")
         drive_file.id = None
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         session.commit.assert_not_awaited()
         assert drive_file.rag_status is None
@@ -837,16 +794,13 @@ class TestProcessSingleFile:
         from sqlalchemy.exc import IntegrityError
 
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
 
         mock_download.side_effect = IntegrityError(None, None, Exception("unique violation"))
 
         drive_file = _make_drive_file(name="dup.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         session.rollback.assert_awaited_once()
         # session.refresh.assert_awaited_once_with(drive_file)
@@ -857,16 +811,13 @@ class TestProcessSingleFile:
     async def test_sqlalchemy_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """SQLAlchemyError during processing sets FAILED status."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
 
         mock_download.side_effect = SQLAlchemyError("db connection lost")
 
         drive_file = _make_drive_file(name="err.pdf")
 
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.FAILED
 
@@ -877,7 +828,6 @@ class TestProcessSingleFile:
     ) -> None:
         """When _set_rag_status itself raises inside except SQLAlchemyError, error is swallowed."""
         session = _make_async_session()
-        provider = AsyncMock()
         store = AsyncMock()
 
         mock_download.side_effect = SQLAlchemyError("db connection lost")
@@ -887,9 +837,7 @@ class TestProcessSingleFile:
         drive_file = _make_drive_file(name="bad.pdf")
 
         # No exception re-raised, error is swallowed
-        await _process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, provider=provider, store=store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
 
 # ---------------------------------------------------------------------------
@@ -899,8 +847,7 @@ class TestProcessSingleFile:
 
 class TestProcessFolderRag:
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
-    @patch("app.rag.provider.EmbeddingProviderRegistry.get")
-    async def test_skips_when_no_files(self, mock_provider: MagicMock, mock_session_cls: MagicMock) -> None:
+    async def test_skips_when_no_files(self, mock_session_cls: MagicMock) -> None:
         """Empty folder should return early."""
         folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
 
@@ -914,17 +861,14 @@ class TestProcessFolderRag:
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
         await process_folder_rag(1, user_id=1, access_token="tok")
-
-        mock_provider.assert_not_called()
+        # Returns early without processing any files
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
-    @patch("app.rag.provider.EmbeddingProviderRegistry.get")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_skips_ready_files(
         self,
         mock_session_cls: MagicMock,
-        mock_provider: MagicMock,
         mock_store_cls: MagicMock,
         mock_process: AsyncMock,
     ) -> None:
@@ -965,12 +909,10 @@ class TestProcessFolderRag:
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
-    @patch("app.rag.provider.EmbeddingProviderRegistry.get")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_base_exception_from_gather_is_logged(
         self,
         mock_session_cls: MagicMock,
-        mock_provider: MagicMock,
         mock_store_cls: MagicMock,
         mock_process: AsyncMock,
     ) -> None:
