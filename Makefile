@@ -59,7 +59,7 @@ shell: ## Open shell inside a container (make shell [service] — defaults to ap
 	docker compose exec $(or $(ARGS),app) /bin/bash
 
 db-shell: ## Open Postgres shell inside DB container
-	docker compose exec db psql -U sparkth -d sparkth
+	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}
 
 migrations: ## Run Alembic migrations in Docker
 	docker compose up migrations

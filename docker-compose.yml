@@ -140,6 +140,7 @@ services:
     volumes:
       - ./app:/app/app
     command: alembic upgrade head
+    restart: "no"
     depends_on:
       db:
         condition: service_healthy
