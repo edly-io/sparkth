@@ -247,7 +247,7 @@ class TestLinkChunksFromDuplicate:
         target_result = MagicMock()
         target_result.all.return_value = [1]
 
-        session.exec = AsyncMock(side_effect=[source_result, target_result])
+        session.scalars = AsyncMock(side_effect=[source_result, target_result])
 
         await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
 
@@ -267,7 +267,7 @@ class TestLinkChunksFromDuplicate:
         target_result = MagicMock()
         target_result.all.return_value = [1, 2]
 
-        session.exec = AsyncMock(side_effect=[source_result, target_result])
+        session.scalars = AsyncMock(side_effect=[source_result, target_result])
 
         await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
 
@@ -283,7 +283,7 @@ class TestLinkChunksFromDuplicate:
         target_result = MagicMock()
         target_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[source_result, target_result])
+        session.scalars = AsyncMock(side_effect=[source_result, target_result])
 
         await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
 
@@ -316,7 +316,8 @@ class TestEmbedAndStoreChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result])
+        session.scalars = AsyncMock(side_effect=[links_result])
 
         row1 = MagicMock(id=100)
         row2 = MagicMock(id=101)
@@ -355,7 +356,8 @@ class TestEmbedAndStoreChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result])
+        session.scalars = AsyncMock(side_effect=[links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await _store_and_link_chunks(
@@ -387,7 +389,8 @@ class TestEmbedAndStoreChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result])
+        session.scalars = AsyncMock(side_effect=[links_result])
 
         store.store_chunks = AsyncMock(return_value=[51])
 
@@ -423,7 +426,8 @@ class TestEmbedAndStoreChunks:
         links_result = MagicMock()
         links_result.all.return_value = [10]
 
-        session.exec = AsyncMock(side_effect=[existing_result, links_result])
+        session.exec = AsyncMock(side_effect=[existing_result])
+        session.scalars = AsyncMock(side_effect=[links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await _store_and_link_chunks(
