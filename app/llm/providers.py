@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, TypedDict
@@ -282,7 +283,7 @@ class BaseChatProvider(ABC):
                     elif hasattr(tool, "invoke"):
                         result = tool.invoke(tool_args)
                     elif hasattr(tool, "func") and tool.func is not None:
-                        if asyncio.iscoroutinefunction(tool.func):
+                        if inspect.iscoroutinefunction(tool.func):
                             result = await tool.func(**tool_args)
                         else:
                             result = tool.func(**tool_args)
@@ -412,6 +413,7 @@ class AnthropicProvider(BaseChatProvider):
             model=self.model,
             temperature=self.temperature,
             streaming=streaming,
+            stream_usage=False,
             callbacks=callbacks or [],
             max_retries=self.max_retries,
         )
