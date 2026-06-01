@@ -15,6 +15,7 @@ from app.api.v1.auth import get_current_user
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.constants import DRIVE_MAX_UPLOAD_BYTES
 from app.core_plugins.googledrive.oauth import (
     decode_state,
     decrypt_token,
@@ -638,7 +639,7 @@ async def upload_file(
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     content = await file.read()
-    if len(content) > 30 * 1024 * 1024:
+    if len(content) > DRIVE_MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File size exceeds 30MB limit."
         )
