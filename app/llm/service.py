@@ -202,7 +202,8 @@ class LLMConfigService:
             raise LLMConfigNotFoundError(config_id, user_id)
         if not config.model:
             raise LLMConfigModelNotSetError(
-                f"LLMConfig {config_id} has no model set. Update it via PATCH /api/v1/llm/configs/{config_id} before use."
+                f"LLMConfig {config_id} has no model set. Update it via "
+                f"PATCH /api/v1/llm/configs/{config_id} before use."
             )
         if not config.is_active:
             raise LLMConfigInactiveError()
