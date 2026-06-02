@@ -124,8 +124,13 @@ test: ## Run tests (with-coverage=1 to include coverage)
 	$(MAKE) test.frontend $(if $(with-coverage),with-coverage=1)
 	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
 
-test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
+test.backend: lint.backend mypy test.backend.pytest test.backend.format ## Run backend tests
+
+test.backend.pytest: ## Run backend unit tests (make test.backend.pytest [path] [with-coverage=1])
 	uv run pytest $(ARGS) $(if $(with-coverage),--cov-report=term-missing)
+
+test.backend.format: ## Run backend formatting tests
+	$(MAKE) lint.format.backend check=1
 
 test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
 	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
