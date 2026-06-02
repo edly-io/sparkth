@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 
 from app.core_plugins.slack.config import SlackConfig
-from app.core_plugins.slack.constants import AI_KEY_UNAVAILABLE_MESSAGE, NO_AI_KEY_MESSAGE, RETRIEVAL_ERROR_MESSAGE
+from app.core_plugins.slack.constants import AI_KEY_UNAVAILABLE_MESSAGE, NO_AI_KEY_MESSAGE
 from app.core_plugins.slack.models import (
     BotResponseLog,
     ConnectionEventType,
@@ -577,8 +577,6 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
@@ -601,8 +599,6 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
@@ -625,35 +621,11 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
         _, kwargs = slack_client.post_message.call_args
         assert "incomplete" in kwargs["text"]
-
-    @pytest.mark.asyncio
-    async def test_returns_early_on_db_error_loading_plugin(self) -> None:
-        """SQLAlchemyError on get_user_plugin_map → return early silently, no Slack message."""
-        from sqlalchemy.exc import SQLAlchemyError
-
-        event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
-        slack_client = _make_slack_client_mock()
-        mock_session_cls, _ = _make_session_mock()
-        mock_plugin_svc = AsyncMock()
-        mock_plugin_svc.get_user_plugin_map.side_effect = SQLAlchemyError("db down")
-
-        with (
-            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
-            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
-        ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
-            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
-
-        slack_client.post_message.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_greeting_posts_greeting_message(self) -> None:
@@ -671,8 +643,6 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
@@ -714,58 +684,11 @@ class TestDispatchEvent:
                 return_value=("A loop repeats code.", ResponseType.rag_match),
             ),
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
         _, kwargs = slack_client.post_message.call_args
         assert kwargs["text"] == "A loop repeats code."
-
-    @pytest.mark.asyncio
-    async def test_rag_failure_posts_retrieval_error_message(self) -> None:
-        """answer_question raises SQLAlchemyError → posts RETRIEVAL_ERROR_MESSAGE."""
-        from sqlalchemy.exc import SQLAlchemyError
-
-        event = {
-            "type": "app_mention",
-            "text": "<@BOT> what is a loop?",
-            "channel": "C1",
-            "user": "U1",
-            "ts": "1.0",
-        }
-        user_plugin = MagicMock()
-        user_plugin.enabled = True
-        user_plugin.config = {"fallback_message": "Sorry, try again later.", "llm_config_id": 1}
-        slack_client = _make_slack_client_mock()
-        mock_session_cls, _ = _make_session_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
-        mock_llm_provider = MagicMock()
-        mock_llm_provider.create_llm = MagicMock(return_value=MagicMock())
-
-        with (
-            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
-            patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
-            patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
-            patch(
-                "app.core_plugins.slack.routes._build_llm_provider",
-                new_callable=AsyncMock,
-                return_value=mock_llm_provider,
-            ),
-            patch(
-                "app.core_plugins.slack.routes.answer_question",
-                new_callable=AsyncMock,
-                side_effect=SQLAlchemyError("vector store failed"),
-            ),
-        ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
-            await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
-
-        slack_client.post_message.assert_awaited_once()
-        _, kwargs = slack_client.post_message.call_args
-        assert kwargs["text"] == RETRIEVAL_ERROR_MESSAGE
 
     @pytest.mark.asyncio
     async def test_question_returns_no_ai_key_message_when_no_llm_config_id(self) -> None:
@@ -794,8 +717,6 @@ class TestDispatchEvent:
                 new_callable=AsyncMock,
             ) as mock_answer,
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
@@ -831,8 +752,6 @@ class TestDispatchEvent:
                 new_callable=AsyncMock,
             ) as mock_answer,
         ):
-            from app.core_plugins.slack.routes import _dispatch_event
-
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
         slack_client.post_message.assert_awaited_once()
@@ -949,8 +868,6 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         mock_async_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_async_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        from app.core_plugins.slack.routes import _dispatch_event
-
         await _dispatch_event(
             workspace_id=1,
             user_id=1,
@@ -1024,8 +941,6 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         mock_session = AsyncMock()
         mock_async_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_async_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
-        from app.core_plugins.slack.routes import _dispatch_event
 
         await _dispatch_event(
             workspace_id=1,
