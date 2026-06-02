@@ -1,6 +1,5 @@
 """Google Drive API Endpoints."""
 
-import logging
 import re
 import urllib.parse
 from collections.abc import AsyncGenerator
@@ -44,6 +43,7 @@ from app.core_plugins.googledrive.types import (
     SyncStatusResponse,
 )
 from app.core_plugins.googledrive.utils import process_folder_rag
+from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 from app.rag.types import RagStatus
@@ -51,7 +51,7 @@ from app.rag.types import RagStatus
 router: APIRouter = APIRouter()
 
 _FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def require_user_id(current_user: User = Depends(get_current_user)) -> int:

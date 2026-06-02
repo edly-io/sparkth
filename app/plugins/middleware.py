@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
 from app.core.db import get_async_session
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
 
 logger = get_logger(__name__)

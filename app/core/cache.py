@@ -7,7 +7,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 

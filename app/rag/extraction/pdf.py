@@ -6,7 +6,7 @@ import fitz  # type: ignore[import-untyped]  # PyMuPDF
 import pymupdf4llm  # type: ignore[import-untyped]
 
 from app.core.config import get_settings
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.rag.exceptions import ScannedPDFError
 from app.rag.extraction.base import BaseExtractor
 from app.rag.types import DocType, ExtractionResult

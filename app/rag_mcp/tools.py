@@ -5,7 +5,7 @@ from typing import cast
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, func, select
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.models.drive import DriveFile
 from app.rag.db_models import DocumentChunk
 from app.rag.types import RagStatus

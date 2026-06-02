@@ -20,7 +20,8 @@ Useful URLs:
 
 ```
 app/
-  core/          # Settings, DB engines, security (JWT/OAuth), logger
+  core/          # Settings, DB engines, security (JWT/OAuth)
+  lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
   api/v1/        # REST endpoints: auth, user, user-plugins, file-parser
   plugins/       # Plugin framework: base.py (SparkthPlugin, @tool), manager.py
@@ -41,6 +42,20 @@ tests/           # pytest suite for api/, chat/, mcp/, and other cross-cutting t
                  # RAG tests live co-located at app/rag/tests/ (both dirs in testpaths)
 .github/workflows/ # CI: lint → type-check → test on every PR
 ```
+
+## Public Library (`app/lib/`)
+
+`app/lib/` is the curated, stable API that application code **and plugins** import
+from, instead of reaching into `app.core.*` (or other internal packages) directly
+— every internal symbol a plugin imports becomes an implicit public API and blocks
+refactoring (see issue #379). When a core capability is needed beyond `app/core`,
+expose it through `app/lib` and import it from there.
+
+Current modules (see the source for the full API — do not duplicate it here):
+
+- [`app/lib/log.py`](app/lib/log.py) — logging. Obtain loggers via `get_logger`
+  (never `logging.getLogger`); `configure_logging` is the single logging setup,
+  called once per process entrypoint.
 
 ## Essential Commands
 
@@ -177,7 +192,7 @@ This rule applies to all layers: API endpoints, services, plugins, MCP tools, an
 
 ```python
 # ✅ Good — specific exception, logged, re-raise is a conscious choice
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 

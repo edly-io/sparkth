@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_plugin_settings
 from app.core.db import async_engine
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
     PluginAlreadyLoadedError,

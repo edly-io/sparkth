@@ -20,7 +20,6 @@ from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.db import async_engine, get_async_session, get_session
 from app.core.encryption import get_encryption_service
-from app.core.logger import get_logger
 from app.core_plugins.slack.client import SlackClient
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.constants import (
@@ -52,6 +51,7 @@ from app.core_plugins.slack.types import (
     LogsResponse,
     RagSourcesResponse,
 )
+from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
 from app.models.user import User

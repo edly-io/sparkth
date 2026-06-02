@@ -18,7 +18,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.db import async_engine, get_async_session
-from app.core.logger import get_logger
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.conversation_title import (
     extract_title_from_messages,
@@ -44,6 +43,7 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
+from app.lib.log import get_logger
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope

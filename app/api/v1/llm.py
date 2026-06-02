@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.db import get_async_session
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.llm.exceptions import LLMConfigDuplicateNameError, LLMConfigNotFoundError, LLMConfigValidationError
 from app.llm.providers import DEFAULT_MODEL, DEFAULT_PROVIDER, get_provider_catalog
 from app.llm.schemas import (

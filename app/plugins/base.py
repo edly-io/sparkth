@@ -18,7 +18,7 @@ from fastapi import APIRouter
 from sqlmodel import SQLModel
 from starlette.middleware import Middleware
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.plugins.config_base import PluginConfig
 
 logger = get_logger(__name__)

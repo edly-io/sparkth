@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider
 
 logger = get_logger(__name__)

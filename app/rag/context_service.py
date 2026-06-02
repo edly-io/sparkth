@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.models.drive import DriveFile
 from app.rag import constants
 from app.rag.agent import RAGSearchAgent

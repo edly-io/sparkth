@@ -18,7 +18,7 @@ Each chunk carries:
 import tiktoken
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.rag.constants import (
     CHUNKING_MARKDOWN_HEADERS,
     CHUNKING_SECONDARY_OVERLAP,
