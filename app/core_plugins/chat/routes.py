@@ -12,7 +12,6 @@ from fastapi.responses import StreamingResponse
 from google.api_core import exceptions as google_exceptions
 from langchain_core.exceptions import LangChainException
 from pydantic import BaseModel, ValidationError
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -243,22 +242,19 @@ async def _persist_pre_stream_error(
     """
     if not request.conversation_id:
         return
-    try:
-        conversation = await service.get_conversation_by_uuid(
+    conversation = await service.get_conversation_by_uuid(
+        session=session,
+        uuid=request.conversation_id,
+        user_id=user_id,
+    )
+    if conversation and conversation.id is not None:
+        await service.add_message(
             session=session,
-            uuid=request.conversation_id,
-            user_id=user_id,
+            conversation_id=conversation.id,
+            role="assistant",
+            content=message,
+            is_error=True,
         )
-        if conversation and conversation.id is not None:
-            await service.add_message(
-                session=session,
-                conversation_id=conversation.id,
-                role="assistant",
-                content=message,
-                is_error=True,
-            )
-    except SQLAlchemyError:
-        logger.exception("Failed to persist pre-stream error message for conversation %s", request.conversation_id)
 
 
 @chat_router.post("/completions", response_model=ChatCompletionResponse)
@@ -633,16 +629,13 @@ async def chat_completion(
         logger.error("RAG intent router failed for user %s conversation %s: %s", current_user.id, conversation.id, e)
         detail = "Failed to determine retrieval intent. Please try again."
         if conversation.id is not None:
-            try:
-                await service.add_message(
-                    session=session,
-                    conversation_id=conversation.id,
-                    role="assistant",
-                    content=detail,
-                    is_error=True,
-                )
-            except SQLAlchemyError:
-                logger.exception("Failed to persist intent router error for conversation %s", conversation.id)
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,
+                role="assistant",
+                content=detail,
+                is_error=True,
+            )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=detail,
@@ -651,16 +644,13 @@ async def chat_completion(
         logger.error("Provider API error: %s", e)
         detail = _streaming_error_message(e)
         if conversation.id is not None:
-            try:
-                await service.add_message(
-                    session=session,
-                    conversation_id=conversation.id,
-                    role="assistant",
-                    content=detail,
-                    is_error=True,
-                )
-            except SQLAlchemyError:
-                logger.exception("Failed to persist provider API error for conversation %s", conversation.id)
+            await service.add_message(
+                session=session,
+                conversation_id=conversation.id,
+                role="assistant",
+                content=detail,
+                is_error=True,
+            )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=detail,
@@ -712,16 +702,13 @@ async def stream_chat_response(
                 # preserve asyncio's cooperative cancellation contract.
                 logger.exception("Unhandled error in stream task for conversation %s", conversation_id)
                 error_text = "An unexpected error occurred. Please try again."
-                try:
-                    await service.add_message(
-                        session=bg_session,
-                        conversation_id=conversation_id,
-                        role="assistant",
-                        content=error_text,
-                        is_error=True,
-                    )
-                except SQLAlchemyError:
-                    logger.exception("Failed to persist unexpected error for conversation %s", conversation_id)
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=error_text,
+                    is_error=True,
+                )
                 await _put(json.dumps({"error": error_text, "done": True}))
                 if not isinstance(exc, Exception):
                     raise
@@ -777,55 +764,37 @@ async def stream_chat_response(
                     except DriveFileNotFoundError as exc:
                         logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
                         error_text = "The attached file could not be found or is no longer accessible."
-                        try:
-                            await service.add_message(
-                                session=bg_session,
-                                conversation_id=conversation_id,
-                                role="assistant",
-                                content=error_text,
-                                is_error=True,
-                            )
-                        except SQLAlchemyError:
-                            logger.exception(
-                                "Failed to persist file-not-found error for conversation %s",
-                                conversation_id,
-                            )
+                        await service.add_message(
+                            session=bg_session,
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=error_text,
+                            is_error=True,
+                        )
                         await _put(json.dumps({"error": error_text, "done": True}))
                         return
                     except RAGNotReadyError as exc:
                         logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
                         error_text = "The attached file is still being processed. Please wait a moment and try again."
-                        try:
-                            await service.add_message(
-                                session=bg_session,
-                                conversation_id=conversation_id,
-                                role="assistant",
-                                content=error_text,
-                                is_error=True,
-                            )
-                        except SQLAlchemyError:
-                            logger.exception(
-                                "Failed to persist not-ready error for conversation %s",
-                                conversation_id,
-                            )
+                        await service.add_message(
+                            session=bg_session,
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=error_text,
+                            is_error=True,
+                        )
                         await _put(json.dumps({"error": error_text, "done": True}))
                         return
                     except RAGRetrievalError as exc:
                         logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
                         error_text = "Failed to search the attached file. Please try again."
-                        try:
-                            await service.add_message(
-                                session=bg_session,
-                                conversation_id=conversation_id,
-                                role="assistant",
-                                content=error_text,
-                                is_error=True,
-                            )
-                        except SQLAlchemyError:
-                            logger.exception(
-                                "Failed to persist retrieval error for conversation %s",
-                                conversation_id,
-                            )
+                        await service.add_message(
+                            session=bg_session,
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=error_text,
+                            is_error=True,
+                        )
                         await _put(json.dumps({"error": error_text, "done": True}))
                         return
 
@@ -977,31 +946,25 @@ async def stream_chat_response(
         except _PROVIDER_API_ERRORS as e:
             user_message = _streaming_error_message(e)
             logger.error("Streaming failed: %s", e)
-            try:
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=user_message,
-                    is_error=True,
-                )
-            except SQLAlchemyError:
-                logger.exception("Failed to persist streaming error for conversation %s", conversation_id)
+            await service.add_message(
+                session=bg_session,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
             await _put(json.dumps({"error": user_message, "done": True}))
 
-        except (OSError, LangChainException, SQLAlchemyError) as e:
+        except (OSError, LangChainException) as e:
             logger.exception("Unexpected streaming error: %s", e)
             user_message = "An error occurred while generating a response. Please try again."
-            try:
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=user_message,
-                    is_error=True,
-                )
-            except SQLAlchemyError:
-                logger.exception("Failed to persist unexpected error for conversation %s", conversation_id)
+            await service.add_message(
+                session=bg_session,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
             await _put(json.dumps({"error": user_message, "done": True}))
 
     task = asyncio.create_task(_process_and_stream())

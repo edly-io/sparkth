@@ -88,7 +88,7 @@ async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
             )
             .distinct()
         )
-    return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in sections_result.all()]
+        return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in sections_result.all()]
 
 
 async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
@@ -105,9 +105,9 @@ async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
         if not file:
             return None
 
-    source_name = resolve_source_name(file)
+        source_name = resolve_source_name(file)
 
-    stats_result = await session.exec(
+        stats_result = await session.exec(
             select(
                 func.count().label("chunk_count"),
                 func.avg(DocumentChunk.token_count).label("avg_token_count"),
@@ -116,13 +116,13 @@ async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
                 DocumentChunk.source_name == source_name,
             )
         )
-    row = stats_result.first()
+        row = stats_result.first()
 
-    return ChunkStats(
-        source_name=source_name,
-        chunk_count=row[0] if row else 0,
-        avg_token_count=float(row[1]) if row and row[1] else None,
-    )
+        return ChunkStats(
+            source_name=source_name,
+            chunk_count=row[0] if row else 0,
+            avg_token_count=float(row[1]) if row and row[1] else None,
+        )
 
 
 async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSection]:
@@ -144,38 +144,38 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
         if not file:
             return []
 
-    source_name = resolve_source_name(file)
+        source_name = resolve_source_name(file)
 
-    structure_result = await session.exec(
-        select(
-            col(DocumentChunk.chapter),
-            col(DocumentChunk.section),
-            col(DocumentChunk.subsection),
-            func.count().label("chunk_count"),
+        structure_result = await session.exec(
+            select(
+                col(DocumentChunk.chapter),
+                col(DocumentChunk.section),
+                col(DocumentChunk.subsection),
+                func.count().label("chunk_count"),
+            )
+            .where(
+                DocumentChunk.user_id == user_id,
+                DocumentChunk.source_name == source_name,
+            )
+            .group_by(
+                col(DocumentChunk.chapter),
+                col(DocumentChunk.section),
+                col(DocumentChunk.subsection),
+            )
+            .order_by(func.min(col(DocumentChunk.id)))
         )
-        .where(
-            DocumentChunk.user_id == user_id,
-            DocumentChunk.source_name == source_name,
-        )
-        .group_by(
-            col(DocumentChunk.chapter),
-            col(DocumentChunk.section),
-            col(DocumentChunk.subsection),
-        )
-        .order_by(func.min(col(DocumentChunk.id)))
-    )
 
-    return [
-        DocumentSection(
-            source_name=source_name,
-            chapter=row[0],
-            section=row[1],
-            subsection=row[2],
-            chunk_count=row[3],
-            position_index=idx,
-        )
-        for idx, row in enumerate(structure_result.all())
-    ]
+        return [
+            DocumentSection(
+                source_name=source_name,
+                chapter=row[0],
+                section=row[1],
+                subsection=row[2],
+                chunk_count=row[3],
+                position_index=idx,
+            )
+            for idx, row in enumerate(structure_result.all())
+        ]
 
 
 async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) -> list[SectionKey]:
@@ -218,27 +218,3 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
         )
 
         return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in search_result.all()]
-
-    source_name = resolve_source_name(file)
-    keyword_safe = keyword.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-    keyword_pattern = f"%{keyword_safe}%"
-
-    search_result = await session.execute(
-        select(
-            DocumentChunk.chapter,
-            DocumentChunk.section,
-            DocumentChunk.subsection,
-        )
-        .where(
-            DocumentChunk.user_id == user_id,
-            DocumentChunk.source_name == source_name,
-            (
-                col(DocumentChunk.chapter).ilike(keyword_pattern, escape="\\")
-                | col(DocumentChunk.section).ilike(keyword_pattern, escape="\\")
-                | col(DocumentChunk.subsection).ilike(keyword_pattern, escape="\\")
-            ),
-        )
-        .distinct()
-    )
-
-    return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in search_result.all()]
