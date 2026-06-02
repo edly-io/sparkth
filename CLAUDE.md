@@ -107,6 +107,15 @@ make create-user     # Create user (pass args after --)
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
 
+### Adding a new environment variable
+
+**`.env` is always the source of truth.** It must have complete, up-to-date information about every variable the application needs.
+
+- **Non-sensitive variable** — add it to `.env` with an appropriate dev default value.
+- **Sensitive variable** (API keys, OAuth secrets, passwords) — add it to the user's `.env.local` (git-ignored), but add a reference to it in the `# !! MUST change in production !!` comment block at the top of `.env` so developers know it exists and where to set it.
+
+Never add a variable only to `.env.local` without a corresponding reference in `.env`.
+
 ## Development Workflow: Test-Driven Development (TDD)
 
 **Always follow TDD. Write tests before implementation — no exceptions.**
