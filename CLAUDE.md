@@ -90,7 +90,7 @@ make create-user     # Create user (pass args after --)
 
 ## Environment Setup
 
-Copy `.env.example` → `.env`. Required variables:
+`.env` is committed with working dev defaults — `make up` works out of the box. For sensitive credentials (Google OAuth, Slack), create a `.env.local` file (git-ignored). See the production checklist at the top of `.env` for values that must change before deploying.
 
 | Variable | Purpose |
 |---|---|
@@ -98,8 +98,8 @@ Copy `.env.example` → `.env`. Required variables:
 | `SECRET_KEY` | JWT signing key |
 | `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
 | `REDIS_URL` | Redis for chat session caching and the email-verification resend rate-limit bucket |
-| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP (Amazon SES, Mailgun, MailHog, …) |
+| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (add to `.env.local`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP — dev default is Mailpit (bundled); use Amazon SES, Mailgun, etc. in production |
 | `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | From-header for verification + other transactional emails |
 | `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |

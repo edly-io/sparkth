@@ -55,15 +55,14 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
 
 ## Running the MCP Server (Docker)
 
-Create dev environment settings:
+`.env` is committed with working dev defaults and works out of the box.
+For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there.
 
-    cp .env.example .env
-
-Run the MCP server in development, with hot reload:
+Run in development mode with hot reload:
 
     make up.dev
 
-Or in production mode:
+Or without hot reload:
 
     make up
 
@@ -151,7 +150,7 @@ REGISTRATION_ENABLED=true
 
 Changing this flag does not affect existing users.
 
-Make sure to run `make up.dev` after changing the `.env` variable to apply the new setting.
+Make sure to run `make up` or `make up.dev` after changing the `.env` variable to apply the new setting.
 
 ## Integrating with Claude Desktop
 
