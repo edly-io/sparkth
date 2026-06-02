@@ -1,7 +1,7 @@
 """
-Plugin Manager for Sparkth.
+Plugin loader for Sparkth.
 
-Manages plugin discovery, loading, and lifecycle based on configuration.
+Manages plugin discovery and instantiation.
 """
 
 import importlib
@@ -9,16 +9,11 @@ import inspect
 import re
 from typing import Iterator, Type
 
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from app.core.config import get_plugin_settings
-from app.core.db import async_engine
 from app.lib.log import get_logger
 from app.plugins.base import SparkthPlugin
 from app.plugins.exceptions import (
-    PluginAlreadyLoadedError,
     PluginLoadError,
-    PluginNotFoundError,
     PluginValidationError,
 )
 
@@ -27,13 +22,10 @@ logger = get_logger(__name__)
 
 class PluginLoader:
     """
-    Central loader for Sparkth plugins.
+    Central SparkthPlugin class loader and instantiator.
 
-    Handles:
-    - Plugin discovery from core configuration
-    - Plugin loading and instantiation
-    - Plugin lifecycle management (initialize, enable, disable)
-    - Runtime plugin state management
+    The list of plugins is parsed from the plugin settings. Then, each class is
+    instantiated and the corresponding object are stored in the loader instance.
     """
 
     INSTANCE: "PluginLoader" | None = None
@@ -48,16 +40,13 @@ class PluginLoader:
         return cls.INSTANCE
 
     def __init__(self) -> None:
-        """Initialize plugin manager."""
+        """Load all plugins on init."""
         self._loaded_plugins: dict[str, SparkthPlugin] = {}
+        self._load_all()
 
-    async def load_all(self) -> None:
+    def _load_all(self) -> None:
         """
         Load all plugins from configuration.
-        All plugins in get_plugin_settings() are enabled by default.
-
-        Returns:
-            Dictionary of successfully loaded plugins
 
         Note:
             Continues loading other plugins if one fails.
@@ -66,11 +55,13 @@ class PluginLoader:
         for plugin_name, plugin_class in self.iter_plugin_classes():
             try:
                 plugin_instance = plugin_class(plugin_name)
-                await self._load_plugin(plugin_instance)
-            except (PluginLoadError, PluginNotFoundError, PluginAlreadyLoadedError) as e:
+            except Exception as e:
+                # We catch a broad exception here because we don't want failing plugins
+                # to crash the app.
                 logger.error(f"Failed to load plugin '{plugin_name}'")
                 logger.exception(e)
                 continue
+            self._loaded_plugins[plugin_name] = plugin_instance
 
     def iter_plugin_classes(self) -> Iterator[tuple[str, Type[SparkthPlugin]]]:
         """
@@ -92,44 +83,12 @@ class PluginLoader:
                 continue
             yield (plugin_name, plugin_class)
 
-    async def _load_plugin(self, plugin_instance: SparkthPlugin) -> None:
-        """
-        Load and instantiate a plugin.
-
-        Args:
-            plugin_name: Name of the plugin to load
-
-        Returns:
-            Loaded plugin instance
-
-        Raises:
-            PluginLoadError: If plugin fails to load
-        """
-        # TODO this is a lazy import to avoid circular dependencies. We should be able
-        # to get rid of it once we get rid of PLUGIN_CONFIG_CLASSES.
-        from app.services.plugin import PluginService
-
-        try:
-            self._loaded_plugins[plugin_instance.name] = plugin_instance
-            plugin_service = PluginService()
-
-            async with AsyncSession(async_engine, expire_on_commit=False) as session:
-                await plugin_service.get_or_create(
-                    session,
-                    plugin_instance.name,
-                    plugin_instance.is_core,
-                    plugin_instance.get_config_schema(),
-                )
-
-        except (TypeError, AttributeError, RuntimeError) as e:
-            raise PluginLoadError(f"Failed to load plugin {plugin_instance.name}") from e
-
     def get_loaded_plugins(self) -> list[tuple[str, SparkthPlugin]]:
         """
-        Get all loaded plugin instances. Note that load_all() must be called before.
+        Get all loaded plugin instances.
 
         Returns:
-            Dictionary mapping plugin names to plugin instances
+            List where plugins are sorted in alphabetical order.
         """
         return list(sorted(self._loaded_plugins.items()))
 
@@ -159,11 +118,7 @@ def _load_plugin_class(module_string: str) -> tuple[str, Type[SparkthPlugin]]:
     if ":" not in module_string:
         raise PluginLoadError(f"Invalid module format. Expected 'module.path:ClassName', got '{module_string}'")
 
-    try:
-        module_name, class_name = module_string.split(":", 1)
-    except ValueError:
-        raise PluginLoadError(f"Invalid module format. Expected 'module.path:ClassName', got '{module_string}'")
-
+    module_name, class_name = module_string.split(":", 1)
     module_name = module_name.strip()
     class_name = class_name.strip()
 
@@ -173,7 +128,7 @@ def _load_plugin_class(module_string: str) -> tuple[str, Type[SparkthPlugin]]:
     try:
         module = importlib.import_module(module_name)
     except ImportError as e:
-        raise PluginLoadError(f"Failed to import module '{module_name}': {e}")
+        raise PluginLoadError(f"Failed to import module '{module_name}': {e}") from e
 
     if not hasattr(module, class_name):
         raise PluginLoadError(f"Class '{class_name}' not found in module '{module_name}'")

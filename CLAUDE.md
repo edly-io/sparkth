@@ -24,7 +24,7 @@ app/
   lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
   api/v1/        # REST endpoints: auth, user, user-plugins, file-parser
-  plugins/       # Plugin framework: base.py (SparkthPlugin, @tool), manager.py
+  plugins/       # Plugin framework: base.py (SparkthPlugin, @tool), loader.py
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters

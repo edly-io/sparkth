@@ -5,11 +5,13 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.db import get_async_session
 from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
-from app.plugins import PLUGIN_CONFIG_CLASSES
+from app.plugins import PLUGIN_CONFIG_CLASSES, get_plugin_loader
 from app.plugins.adapters import PLUGIN_ADAPTERS
 from app.plugins.config_base import PluginConfig
+from app.plugins.exceptions import PluginLoadError
 
 logger = get_logger(__name__)
 
@@ -129,6 +131,28 @@ class PluginService:
         statement = select(Plugin).where(Plugin.name == name, Plugin.deleted_at == None)
         result = await session.exec(statement)
         return result.one_or_none()
+
+    async def get_or_create_all(self) -> None:
+        """
+        Load and instantiate all plugins. This must be called at startup time to make
+        sure that all plugins exist in the database.
+
+        Raises:
+            PluginLoadError: If plugin fails to load
+        """
+        plugin_loader = get_plugin_loader()
+        for plugin_name, plugin_instance in plugin_loader.get_loaded_plugins():
+            try:
+                async for session in get_async_session():
+                    await self.get_or_create(
+                        session,
+                        plugin_instance.name,
+                        plugin_instance.is_core,
+                        plugin_instance.get_config_schema(),
+                    )
+
+            except (TypeError, AttributeError, RuntimeError) as e:
+                raise PluginLoadError(f"Failed to load plugin {plugin_instance.name}") from e
 
     async def get_or_create(
         self,

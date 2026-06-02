@@ -17,6 +17,7 @@ from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_loader
 from app.plugins.middleware import PluginAccessMiddleware
+from app.services.plugin import get_plugin_service
 
 configure_logging()
 
@@ -31,8 +32,11 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     Plugin lifespan context manager.
     Handles plugin loading on startup and cleanup on shutdown.
     """
+    # Make sure all plugins exist in database
+    plugin_service = get_plugin_service()
+    await plugin_service.get_or_create_all()
+
     plugin_loader = get_plugin_loader()
-    await plugin_loader.load_all()
     try:
         loaded_plugins = plugin_loader.get_loaded_plugins()
         loaded_plugin_names = [name for name, _plugin in loaded_plugins]

@@ -35,8 +35,10 @@ def get_plugin_loader() -> PluginLoader:
     """
     Get the singleton PluginLoader instance.
 
+    This function is safe and efficient to call multiple times.
+
     Returns:
-        PluginLoader: The global plugin manager instance
+        PluginLoader: The global plugin loader instance
     """
     return PluginLoader.instance()
 
