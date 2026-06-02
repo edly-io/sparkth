@@ -27,9 +27,6 @@ class ChatPlugin(SparkthPlugin):
 
         logger.info("Chat plugin initialized")
 
-    def initialize(self) -> None:
-        super().initialize()
-
         if not self.config_schema:
             raise ValueError("ChatUserConfig is required")
 

@@ -7,7 +7,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.lib.log import get_logger
-from app.plugins import get_plugin_manager
+from app.plugins import get_plugin_loader
 
 logger = get_logger(__name__)
 
@@ -60,10 +60,9 @@ class ToolRegistry:
         if self._initialized:
             return
 
-        plugin_manager = get_plugin_manager()
-        loaded_plugins = plugin_manager.get_loaded_plugins()
-
-        for plugin_name, plugin in loaded_plugins.items():
+        plugin_loader = get_plugin_loader()
+        loaded_plugins = plugin_loader.get_loaded_plugins()
+        for plugin_name, plugin in loaded_plugins:
             if plugin_name == "chat":
                 continue
 

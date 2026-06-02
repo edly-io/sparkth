@@ -28,29 +28,23 @@ from app.plugins.exceptions import (
     PluginValidationError,
 )
 
-from .manager import PluginManager
-
-# Global plugin manager instance
-_plugin_manager_instance: PluginManager | None = None
+from .loader import PluginLoader
 
 
-def get_plugin_manager() -> PluginManager:
+def get_plugin_loader() -> PluginLoader:
     """
-    Get the singleton PluginManager instance.
+    Get the singleton PluginLoader instance.
 
     Returns:
-        PluginManager: The global plugin manager instance
+        PluginLoader: The global plugin manager instance
     """
-    global _plugin_manager_instance
-    if _plugin_manager_instance is None:
-        _plugin_manager_instance = PluginManager()
-    return _plugin_manager_instance
+    return PluginLoader.instance()
 
 
 __all__ = [
     "SparkthPlugin",
-    "PluginManager",
-    "get_plugin_manager",
+    "PluginLoader",
+    "get_plugin_loader",
     "PluginError",
     "PluginNotFoundError",
     "PluginLoadError",

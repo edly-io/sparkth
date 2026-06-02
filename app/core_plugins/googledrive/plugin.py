@@ -1,6 +1,7 @@
 """Google Drive plugin for Sparkth."""
 
 from app.core_plugins.googledrive.config import GoogleDriveConfig
+from app.core_plugins.googledrive.routes import router
 from app.plugins.base import SparkthPlugin
 
 
@@ -20,12 +21,6 @@ class GoogleDrivePlugin(SparkthPlugin):
             description="Google Drive integration for folder sync and file management",
             author="Sparkth Team",
         )
-
-    def initialize(self) -> None:
-        """Initialize the Google Drive plugin."""
-        super().initialize()
-        from app.core_plugins.googledrive.routes import router
-
         self.add_route(router)
 
     def get_route_prefix(self) -> str:

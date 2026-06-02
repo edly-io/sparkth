@@ -2,6 +2,7 @@
 
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.models import BotResponseLog, SlackWorkspace
+from app.core_plugins.slack.routes import router
 from app.plugins.base import SparkthPlugin
 
 
@@ -18,10 +19,6 @@ class Slack(SparkthPlugin):
             author="Sparkth Team",
         )
 
-    def initialize(self) -> None:
-        from app.core_plugins.slack.routes import router
-
-        super().initialize()
         self.add_model(SlackWorkspace)
         self.add_model(BotResponseLog)
         self.add_route(router)

@@ -215,7 +215,7 @@ class MyAppPluginConfigAdapter(LLMConfigAdapter):
 
 ## Plugin Name Derivation
 
-You do **not** choose the plugin name freely. The `PluginManager` instantiates each plugin with a name it derives from the class name (`_class_name_to_plugin_name` in `app/plugins/manager.py`): it strips a trailing `Plugin` suffix and kebab-cases the rest.
+You do **not** choose the plugin name freely. The `PluginLoader` instantiates each plugin with a name it derives from the class name (`_class_name_to_plugin_name` in `app/plugins/loader.py`): it strips a trailing `Plugin` suffix and kebab-cases the rest.
 
 | Class name | Derived name |
 |---|---|
@@ -229,7 +229,7 @@ This derived name is what gets passed to your `__init__` and is the key you must
 
 ## Basic Plugin Structure
 
-The manager constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/manager.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
+The loader constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
 ```python
 # app/core_plugins/myappplugin/plugin.py
@@ -253,7 +253,7 @@ async def create_item(data: dict):
 class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(
-            plugin_name,                  # name is supplied by the manager
+            plugin_name,                  # name is supplied by the plugin loader
             MyAppPluginConfig,               # config_schema (positional)
             version="1.0.0",
             description="My plugin description",
