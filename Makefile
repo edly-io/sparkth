@@ -146,14 +146,12 @@ lint.frontend: ## Check frontend lint errors (oxlint)
 	cd frontend && bun run lint
 
 lint.backend: ## Check backend lint errors (ruff)
-	uv run ruff check --select I
 	uv run ruff check
 
 lint.fix.frontend: ## Auto-fix frontend lint errors (oxlint)
 	cd frontend && bun run lint:fix
 
 lint.fix.backend: ## Auto-fix backend lint errors (ruff)
-	uv run ruff check --select I --fix
 	uv run ruff check --fix
 
 lint.format.frontend: ## Format frontend code (oxfmt, check=1 to check only)

@@ -50,11 +50,8 @@ jobs:
       - name: Check formatting (ruff)
         run: uv run ruff format --check .
 
-      - name: Check import sorting (ruff)
-        run: uv run ruff check --select I .
-
-      - name: Lint (ruff)
-        run: uv run ruff check .
+      - name: Lint backend
+        run: make lint.backend
 
       - name: Type check (mypy)
         run: uv run mypy --strict app/ tests/
