@@ -15,7 +15,7 @@ from app.core_plugins.chat.routes import chat_router
 from app.lib.log import configure_logging, get_logger
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
-from app.plugins import get_plugin_manager
+from app.plugins import get_plugin_loader
 from app.plugins.middleware import PluginAccessMiddleware
 
 configure_logging()
@@ -31,15 +31,15 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     Plugin lifespan context manager.
     Handles plugin loading on startup and cleanup on shutdown.
     """
-    plugin_manager = get_plugin_manager()
+    plugin_loader = get_plugin_loader()
+    await plugin_loader.load_all()
     try:
-        loaded_plugins = await plugin_manager.load_all_enabled()
+        loaded_plugins = plugin_loader.get_loaded_plugins()
+        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
         if loaded_plugins:
-            logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins.keys())}")
+            logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
 
-        plugin_manager.enable_all_loaded()
-
-        for plugin_name, plugin in loaded_plugins.items():
+        for plugin_name, plugin in loaded_plugins:
             try:
                 routes = plugin.get_routes()
                 if routes:
@@ -53,7 +53,7 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
             except (AttributeError, TypeError, ValueError) as e:
                 logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
 
-        for plugin_name, plugin in loaded_plugins.items():
+        for plugin_name, plugin in loaded_plugins:
             try:
                 middleware_list = plugin.get_middleware()
                 if not middleware_list:
@@ -71,8 +71,7 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     yield
 
     try:
-        plugin_manager.disable_all_loaded()
-        plugin_manager.unload_all()
+        plugin_loader.unload_all()
     except (RuntimeError, AttributeError) as e:
         logger.error(f"Plugin cleanup failed: {e}")
 

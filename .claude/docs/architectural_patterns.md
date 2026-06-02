@@ -27,7 +27,7 @@ Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:
 
 **Files:** `app/plugins/manager.py`, `app/main.py` (lifespan handler)
 
-The `PluginManager` singleton manages discovery → load → enable → disable → unload. The FastAPI lifespan context manager calls `load_all_enabled()` on startup and cleanup on shutdown. Each plugin can contribute:
+The `PluginLoader` singleton manages discovery → load → enable → disable → unload. The FastAPI lifespan context manager calls `load_all()` on startup and cleanup on shutdown. Each plugin can contribute:
 
 - **Routes:** `FastAPI.include_router()`
 - **Models:** SQLModel table classes
@@ -49,7 +49,7 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 
 - Endpoint functions stay thin; business logic lives in `app/services/`
 - All DB access is async: `AsyncSession` injected via `Depends(get_async_session)`
-- Plugin routes are mounted dynamically by the plugin manager at startup
+- Plugin routes are mounted dynamically by the plugin loader at startup
 
 ---
 

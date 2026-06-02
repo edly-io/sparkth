@@ -10,7 +10,7 @@ from sqlmodel import SQLModel
 from app.core.config import get_settings
 from app.lib.log import get_logger
 from app.models import *  # noqa: F403
-from app.plugins import get_plugin_manager
+from app.plugins import get_plugin_loader
 
 logger = get_logger(__name__)
 
@@ -24,9 +24,9 @@ config.set_main_option("sqlalchemy.url", db_url)
 # Import plugin models for Alembic autogenerate
 def import_plugin_models():
     """Import models from all enabled plugins for Alembic to discover."""
-    plugin_manager = get_plugin_manager()
+    plugin_loader = get_plugin_loader()
     try:
-        loaded_plugins = asyncio.run(plugin_manager.load_all_enabled())
+        loaded_plugins = asyncio.run(plugin_loader.load_all())
     except (ProgrammingError, UndefinedTableError) as e:
         if 'relation "plugins" does not exist' in str(e):
             logger.warning("plugins table not yet created — skipping plugin model import")
@@ -34,7 +34,8 @@ def import_plugin_models():
         raise
 
     # Get models from each plugin
-    for plugin_name, plugin in loaded_plugins.items():
+    loaded_plugins = plugin_loader.get_loaded_plugins()
+    for plugin_name, plugin in loaded_plugins:
         models = plugin.get_models()
         if models:
             logger.info(f"Loaded {len(models)} model(s) from plugin '{plugin_name}'")

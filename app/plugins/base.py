@@ -171,9 +171,7 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.is_core = is_core
         self.author = author
         self.dependencies = dependencies or []
-        self.enabled = enabled
         self.config_schema = config_schema
-        self._initialized = False
         self._routes: list[APIRouter] = []
         self._models: list[Type[SQLModel]] = []
         self._mcp_tools: list[dict[str, Any]] = []
@@ -205,40 +203,6 @@ class SparkthPlugin(metaclass=PluginMeta):
                 )
             except (AttributeError, TypeError, KeyError) as e:
                 logger.error(f"Failed to auto-register tool from method '{method_name}' in plugin '{self.name}': {e}")
-
-    def initialize(self) -> None:
-        """
-        Initialize the plugin.
-
-        Called once when the plugin is first loaded. Use this to set up
-        any resources, validate configuration, or prepare the plugin for use.
-        This is called before enable().
-
-        Override this method to add custom initialization logic.
-        """
-        self._initialized = True
-
-    def enable(self) -> None:
-        """
-        Enable the plugin.
-
-        Called when the plugin is enabled. Use this to register hooks,
-        start background tasks, or perform any enable-specific logic.
-
-        Override this method to add custom enable logic.
-        """
-        self.enabled = True
-
-    def disable(self) -> None:
-        """
-        Disable the plugin.
-
-        Called when the plugin is disabled. Use this to clean up resources,
-        unregister hooks, or stop background tasks.
-
-        Override this method to add custom disable logic.
-        """
-        self.enabled = False
 
     def add_route(self, router: APIRouter) -> None:
         """
@@ -557,24 +521,25 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def add_middleware(self, middleware: Middleware) -> None:
         """
-                Add FastAPI middleware to this plugin.
+        Add FastAPI middleware to this plugin.
 
-                Args:
-                    middleware: Middleware instance to add
+        Args:
+            middleware: Middleware instance to add
 
-                Example:
+        Example:
+
         ```python
-                    def initialize(self):
-                        super().initialize()
-                        from starlette.middleware.cors import CORSMiddleware
+        def __init__(self, name: str):
+            super().__init__(name)
+            from starlette.middleware.cors import CORSMiddleware
 
-                        self.add_middleware(
-                            Middleware(
-                                CORSMiddleware,
-                                allow_origins=["*"],
-                                allow_methods=["*"]
-                            )
-                        )
+            self.add_middleware(
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=["*"],
+                    allow_methods=["*"]
+                )
+            )
         ```
         """
         self._middleware.append(middleware)
@@ -625,33 +590,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             Configuration value or default
         """
         return getattr(self.config_schema, key, default)
-
-    def is_initialized(self) -> bool:
-        """Check if plugin has been initialized."""
-        return self._initialized
-
-    def is_enabled(self) -> bool:
-        """Check if plugin is currently enabled."""
-        return self.enabled
-
-    def get_info(self) -> dict[str, Any]:
-        """
-        Return plugin metadata and state information.
-
-        Returns:
-            Dictionary containing plugin information
-        """
-        return {
-            "name": self.name,
-            "version": self.version,
-            "is_core": self.is_core,
-            "description": self.description,
-            "author": self.author,
-            "dependencies": self.dependencies,
-            "enabled": self.enabled,
-            "initialized": self._initialized,
-            "config_schema": self.get_config_schema(),
-        }
 
     def __repr__(self) -> str:
         """Return string representation of the plugin."""
