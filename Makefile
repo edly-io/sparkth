@@ -96,11 +96,12 @@ backend.build: ## Build Python package (sdist + wheel)
 backend.install: uv ## Install exact backend dependencies from lockfile
 	uv sync --frozen
 
-backend.install.dev: uv ## Install exact backend dev dependencies from lockfile
-	uv sync --frozen --all-extras --dev
-	$(MAKE) backend.install.githooks
+backend.install.dev: uv backend.install.dev.requirements backend.install.dev.githooks ## Install dev requirements and githooks
 
-backend.install.githooks: ## Install git hooks
+backend.install.dev.requirements: ## Install exact backend dev dependencies from lockfile
+	uv sync --frozen --all-extras --dev
+
+backend.install.dev.githooks: ## Install git hooks
 	uv run lefthook install
 
 lock: ## Update lockfile
