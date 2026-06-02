@@ -99,7 +99,7 @@ backend.install: uv ## Install exact backend dependencies from lockfile
 backend.install.dev: uv backend.install.dev.requirements backend.install.dev.githooks ## Install dev requirements and githooks
 
 backend.install.dev.requirements: ## Install exact backend dev dependencies from lockfile
-	uv sync --frozen --all-extras --dev
+	uv sync --frozen --dev
 
 backend.install.dev.githooks: ## Install git hooks
 	uv run lefthook install
