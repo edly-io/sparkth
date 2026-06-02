@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.cache import CacheService, get_cache_service
 from app.core.config import get_settings
 from app.core.encryption import EncryptionService, get_encryption_service
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.llm.exceptions import (
     LLMConfigDuplicateNameError,
     LLMConfigInactiveError,

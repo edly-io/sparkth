@@ -6,7 +6,7 @@ from typing import Any
 from docx import Document as DocxDocument
 from docx.oxml.ns import qn
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.rag.constants import EXTRACTION_DOCX_HEADING_MAP, EXTRACTION_DOCX_ORDERED_LIST_FORMATS
 from app.rag.extraction.base import BaseExtractor
 from app.rag.extraction.utils import render_markdown_table

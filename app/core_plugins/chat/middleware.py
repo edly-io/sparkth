@@ -5,7 +5,7 @@ from fastapi import HTTPException, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.cache import CacheService
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 

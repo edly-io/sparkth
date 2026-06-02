@@ -17,7 +17,7 @@ from typing import Any, AsyncGenerator
 import psutil
 
 from app.core.config import get_settings
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -70,7 +70,7 @@ def _ensure_log_dir_and_handler() -> None:
             backupCount=5,
             encoding="utf-8",
         )
-        _memprof_logger = logging.getLogger("sparkth.app.memory_profiler.file")
+        _memprof_logger = get_logger("app.memory_profiler.file")
         _memprof_logger.setLevel(logging.INFO)
         _memprof_logger.addHandler(_memprof_handler)
         _memprof_logger.propagate = False  # Don't duplicate to console logger

@@ -6,7 +6,7 @@ from typing import Any, get_type_hints
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.plugins import get_plugin_manager
 
 logger = get_logger(__name__)

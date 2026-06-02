@@ -5,7 +5,7 @@ from typing import Any
 from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.rag.constants import (
     EXTRACTION_HTML_CONTAINER_TAGS,
     EXTRACTION_HTML_HEADING_MAP,

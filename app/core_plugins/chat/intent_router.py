@@ -8,8 +8,8 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
-from app.core.logger import get_logger
 from app.core_plugins.chat.schemas import RAGRoutingDecision
+from app.lib.log import get_logger
 from app.models.drive import DriveFile
 
 logger = get_logger(__name__)

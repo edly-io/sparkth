@@ -1,17 +1,17 @@
 """RAG cleanup: remove chunks orphaned by soft-deleted Drive files."""
 
 import asyncio
-import logging
 
 from sqlalchemy import delete
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import async_engine
+from app.lib.log import configure_logging, get_logger
 from app.models.drive import DriveFile  # noqa: TCH001
 from app.rag.db_models import DocumentChunk, DriveFileChunkLink
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def cleanup_deleted_files() -> None:
@@ -99,5 +99,5 @@ async def cleanup_deleted_files() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
+    configure_logging()
     asyncio.run(cleanup_deleted_files())

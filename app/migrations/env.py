@@ -8,7 +8,7 @@ from sqlalchemy.exc import ProgrammingError
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.models import *  # noqa: F403
 from app.plugins import get_plugin_manager
 

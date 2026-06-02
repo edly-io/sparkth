@@ -4,7 +4,6 @@ User Plugin Management API Endpoints
 Allows users to manage their plugin preferences (enable/disable plugins).
 """
 
-import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.db import get_async_session
+from app.lib.log import get_logger
 from app.models.plugin import Plugin
 from app.models.user import User
 from app.services.plugin import (
@@ -24,8 +24,7 @@ from app.services.plugin import (
     get_plugin_service,
 )
 
-# Get the root logger
-logger = logging.getLogger()
+logger = get_logger(__name__)
 
 
 router: APIRouter = APIRouter()

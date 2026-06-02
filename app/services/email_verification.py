@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.email import send_email
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.models.email_verification import EmailVerificationToken
 from app.models.user import User
 
