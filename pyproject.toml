@@ -78,9 +78,15 @@ exclude = [
 line-length = 120
 
 [tool.ruff.lint]
-ignore = ["E711", "E712"]
-extend-select = [
-    "I", # import order
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "PLE",  # pylint errors
+]
+ignore = [
+    "E711", # none-comparison
+    "E712", # true-false-comparison
 ]
 
 [tool.pydantic-mypy]
