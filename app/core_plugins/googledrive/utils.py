@@ -332,9 +332,10 @@ async def _process_single_file(
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
     except Exception as e:
+        # We catch (then re-raise) all exceptions to make sure the file status is not stale
         logger.error("Unknown error during RAG processing for '%s': %s / %s", log_name, e.__class__, e)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Unknown error")
-        raise e
+        raise
     finally:
         session.expunge_all()
         gc.collect()
