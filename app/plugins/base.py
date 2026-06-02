@@ -151,7 +151,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         description: str = "",
         author: str = "",
         dependencies: list[str] | None = None,
-        enabled: bool = True,
     ):
         """
         Initialize the plugin with metadata.
@@ -163,7 +162,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             description: Brief description of plugin functionality
             author: Plugin author name or organization
             dependencies: List of other plugin names this plugin depends on
-            enabled: Whether the plugin is enabled by default
         """
         self.name = name
         self.version = version
