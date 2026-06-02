@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 import httpx
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -331,16 +331,10 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
-    except SQLAlchemyError as e:
-        logger.error("Database error during RAG processing for '%s': %s", log_name, e)
-        try:
-            await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
-        except SQLAlchemyError as status_err:
-            logger.error(
-                "Failed to set RAG status to FAILED for '%s': %s",
-                log_name,
-                status_err,
-            )
+    except Exception as e:
+        logger.error("Unknown error during RAG processing for '%s': %s / %s", log_name, e.__class__, e)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Unknown error")
+        raise e
     finally:
         session.expunge_all()
         gc.collect()
