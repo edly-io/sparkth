@@ -58,8 +58,10 @@ make mcp                    # MCP server (HTTP mode)
 make test                   # Run all tests (frontend + backend)
 make test.backend           # Run all backend tests
 make test.backend.pytest    # Run unit tests with pytest
-make test.backend.format    # Run formatting tests
-make test.frontend          # Run frontend tests only
+make test.backend.format    # Run backend formatting tests
+make test.frontend          # Run all frontend tests
+make test.frontend.vitest   # Run unit tests with vitest
+make test.frontend.format   # Run frontend formatting tests
 make mypy                   # mypy --strict
 
 # Linting

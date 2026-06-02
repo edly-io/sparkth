@@ -157,8 +157,15 @@ test.backend.format: ## Run backend formatting tests
 	$(MAKE) lint.format.backend check=1
 
 .PHONY: test.frontend
-test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
+test.frontend: lint.frontend test.frontend.vitest test.frontend.format ## Run frontend linting, unit and formatting tests
+
+.PHONY: test.frontend.vitest
+test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [path] [with-coverage=1])
 	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
+
+.PHONY: test.frontend.format
+test.frontend.format: ## Run frontend formatting tests
+	$(MAKE) lint.format.frontend check=1
 
 ##@ Linting
 .PHONY: lint
