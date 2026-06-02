@@ -357,7 +357,11 @@ class TestChunkingEdgeCases:
         assert chunks == []
 
     def test_unicode_content_preserved(self) -> None:
-        md = "# \u0627\u0644\u0639\u0646\u0648\u0627\u0646\n\n\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u0646\u0635 \u0628\u0627\u0644\u0639\u0631\u0628\u064a\u0629.\n\n## \u6807\u9898\n\n\u4e2d\u6587\u5185\u5bb9\u3002\n".encode()
+        md = (
+            "# \u0627\u0644\u0639\u0646\u0648\u0627\u0646\n\n\u0645\u062d\u062a\u0648\u0649 "
+            "\u0627\u0644\u0646\u0635 \u0628\u0627\u0644\u0639\u0631\u0628\u064a\u0629."
+            "\n\n## \u6807\u9898\n\n\u4e2d\u6587\u5185\u5bb9\u3002\n"
+        ).encode()
         chunks = _run(md, "unicode.md")
         content = _all_content(chunks)
         assert "\u0645\u062d\u062a\u0648\u0649" in content

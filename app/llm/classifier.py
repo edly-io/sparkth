@@ -39,7 +39,7 @@ OUT OF SCOPE — respond in_scope: false:
 - Creative writing unrelated to course content (poems, fiction, stories)
 - Real-time information (news, weather, stock prices)
 - Translating or rewriting documents unrelated to course design
-- Any task not related to building or improving educational content"""
+- Any task not related to building or improving educational content"""  # noqa: E501
 
 # Cheapest capable model per provider — classification uses few tokens and needs low latency
 _CLASSIFIER_MODELS: dict[str, str] = {

@@ -88,8 +88,8 @@ async def build_lms_credentials_message(
     if not credential_sections:
         return _LMS_RULES
 
-    return (
-        _LMS_RULES
-        + "\n5. Use the credentials below automatically when calling LMS tools without asking the user to provide them again:\n\n"
-        + "\n\n".join(credential_sections)
+    rule_5 = (
+        "5. Use the credentials below automatically when calling "
+        "LMS tools without asking the user to provide them again:"
     )
+    return _LMS_RULES + f"\n{rule_5}\n\n" + "\n\n".join(credential_sections)
