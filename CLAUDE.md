@@ -57,6 +57,9 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/log.py`](app/lib/log.py) — logging. Obtain loggers via `get_logger`
   (never `logging.getLogger`); `configure_logging` is the single logging setup,
   called once per process entrypoint.
+- [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
+  background/non-request code; `get_async_session`/`get_session` are the FastAPI
+  dependencies.
 
 ## Essential Commands
 

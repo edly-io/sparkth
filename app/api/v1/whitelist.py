@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import require_superuser
-from app.core.db import get_async_session
+from app.lib.db import get_async_session
 from app.models.user import User
 from app.schemas import WhitelistedEmailCreate, WhitelistedEmailResponse
 from app.services.whitelist import WhitelistService

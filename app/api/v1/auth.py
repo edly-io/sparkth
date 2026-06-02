@@ -15,12 +15,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import security
 from app.core.config import get_settings
-from app.core.db import get_async_session
 from app.core.google_auth import (
     exchange_auth_code,
     generate_google_login_url,
     get_google_user_info,
 )
+from app.lib.db import get_async_session
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (

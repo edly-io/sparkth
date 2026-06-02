@@ -5,7 +5,7 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import get_async_session
+from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
 from app.plugins import PLUGIN_CONFIG_CLASSES, get_plugin_loader
