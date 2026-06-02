@@ -32,7 +32,7 @@ jobs:
         working-directory: frontend
 
   backend:
-    name: Backend Lint, Type Check & Test
+    name: Backend Lint, Type Check & Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -47,23 +47,14 @@ jobs:
       - name: Install the project
         run: make backend.install.dev.requirements
 
-      - name: Check formatting (ruff)
-        run: uv run ruff format --check .
-
-      - name: Lint backend
+      - name: Run backend linting tests
         run: make lint.backend
 
-      - name: Type check (mypy)
-        run: uv run mypy --strict app/ tests/
+      - name: Run type checks
+        run: make mypy
 
-      - name: Run tests
-        run: uv run pytest
-        env:
-          DATABASE_URL: sqlite+aiosqlite:///./test.db
-          SECRET_KEY: secret-key-for-ci
-          SLACK_CLIENT_ID: fake-client-id
-          SLACK_CLIENT_SECRET: fake-client-secret
-          SLACK_SIGNING_SECRET: fake-signing-secret
-          SLACK_REDIRECT_URI: http://localhost/callback
-          RAG_MCP_URL: http://localhost:7728/mcp
-          LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
+      - name: Run unit tests
+        run: make test.backend.pytest
+
+      - name: Run formatting tests
+        run: make test.backend.format
