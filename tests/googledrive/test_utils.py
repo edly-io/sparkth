@@ -814,27 +814,10 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="err.pdf")
 
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+        with pytest.raises(SQLAlchemyError):
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
         assert drive_file.rag_status == RagStatus.FAILED
-
-    @patch("app.core_plugins.googledrive.utils._download_file")
-    @patch("app.core_plugins.googledrive.utils._set_rag_status")
-    async def test_set_rag_status_failure_in_sqlalchemy_fallback_is_swallowed(
-        self, mock_set_status: AsyncMock, mock_download: AsyncMock
-    ) -> None:
-        """When _set_rag_status itself raises inside except SQLAlchemyError, error is swallowed."""
-        session = _make_async_session()
-        store = AsyncMock()
-
-        mock_download.side_effect = SQLAlchemyError("db connection lost")
-        # First call sets PROCESSING (succeeds), second raises
-        mock_set_status.side_effect = [None, SQLAlchemyError("db gone")]
-
-        drive_file = _make_drive_file(name="bad.pdf")
-
-        # No exception re-raised, error is swallowed
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
 
 
 # ---------------------------------------------------------------------------
