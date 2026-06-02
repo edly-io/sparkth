@@ -1,7 +1,6 @@
 services:
   # Sparkth App
   app:
-    container_name: sparkth-app
     build:
       context: .
       dockerfile: Dockerfile.local
@@ -40,7 +39,6 @@ services:
 
   # Mailpit (local SMTP for development)
   mailpit:
-    container_name: sparkth-mailpit
     image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
     ports:
@@ -55,7 +53,6 @@ services:
 
   # Postgres
   db:
-    container_name: sparkth-db
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
@@ -72,7 +69,6 @@ services:
 
   # Redis
   redis:
-    container_name: sparkth-redis
     image: docker.io/redis:7-alpine
     restart: unless-stopped
     volumes:
@@ -86,7 +82,6 @@ services:
   # RAG Cleanup Job
   rag-cleanup:
     image: sparkth:local
-    container_name: sparkth-rag-cleanup
     pull_policy: never
     env_file:
       - .env
@@ -100,7 +95,6 @@ services:
 
   # RAG Metadata MCP Server
   rag-mcp:
-    container_name: sparkth-rag-mcp
     image: sparkth:local
     pull_policy: never
     restart: unless-stopped
@@ -118,7 +112,6 @@ services:
   # Alembic Migrations
   migrations:
     image: sparkth:local
-    container_name: sparkth-migrations
     pull_policy: never
     env_file:
       - .env
