@@ -34,8 +34,8 @@ def _rows(*values: object) -> MagicMock:
 
 @pytest.fixture
 def patch_session() -> Generator[MagicMock, None, None]:
-    """Patch AsyncSession so cleanup_deleted_files uses our mock."""
-    with patch("app.rag.cleanup.AsyncSession") as mock_cls:
+    """Patch session_scope so cleanup_deleted_files uses our mock."""
+    with patch("app.rag.cleanup.session_scope") as mock_cls:
         yield mock_cls
 
 

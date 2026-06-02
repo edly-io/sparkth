@@ -149,7 +149,7 @@ class TestGenerateConversationTitle:
         user_id: int = 42,
         first_user_message: str = "some message",
     ) -> None:
-        with patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session):
+        with patch("app.core_plugins.chat.conversation_title.session_scope", return_value=mock_session):
             await generate_conversation_title(
                 conversation_id=conversation_id,
                 user_id=user_id,
@@ -230,7 +230,7 @@ class TestGenerateConversationTitle:
         """The provider passed in is the one whose send_message is called."""
         mock_provider, mock_service, mock_session = self._make_mocks("Passed Provider Title")
 
-        with patch("app.core_plugins.chat.conversation_title.AsyncSession", return_value=mock_session):
+        with patch("app.core_plugins.chat.conversation_title.session_scope", return_value=mock_session):
             await generate_conversation_title(
                 conversation_id=8,
                 user_id=42,

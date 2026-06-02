@@ -575,7 +575,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -597,7 +597,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -619,7 +619,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -641,7 +641,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -672,7 +672,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
             patch(
                 "app.core_plugins.slack.routes._build_llm_provider",
                 new_callable=AsyncMock,
@@ -711,7 +711,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
             patch(
                 "app.core_plugins.slack.routes.answer_question",
                 new_callable=AsyncMock,
@@ -745,7 +745,7 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.AsyncSession", mock_session_cls),
+            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
             patch("app.core_plugins.slack.routes._build_llm_provider", new_callable=AsyncMock, return_value=None),
             patch(
                 "app.core_plugins.slack.routes.answer_question",
@@ -843,7 +843,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_encryption_service"),
         patch("app.core_plugins.slack.routes.get_cache_service"),
         patch("app.core_plugins.slack.routes.get_settings"),
-        patch("app.core_plugins.slack.routes.AsyncSession") as mock_async_session_cls,
+        patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
         mock_aq.return_value = ("Synthesized answer", ResponseType.rag_match)
 
@@ -921,7 +921,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_encryption_service"),
         patch("app.core_plugins.slack.routes.get_cache_service"),
         patch("app.core_plugins.slack.routes.get_settings"),
-        patch("app.core_plugins.slack.routes.AsyncSession") as mock_async_session_cls,
+        patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
         mock_aq.return_value = ("Synthesized answer", ResponseType.rag_match)
 
@@ -997,7 +997,7 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1035,7 +1035,7 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1071,7 +1071,7 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1111,7 +1111,7 @@ class TestDispatchEventLogging:
                 return_value=("alice", "general"),
             ),
             patch("app.core_plugins.slack.routes.is_greeting", return_value=True),
-            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1146,7 +1146,7 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.AsyncSession", return_value=self._make_fake_session(added)),
+            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,

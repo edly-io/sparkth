@@ -16,7 +16,6 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import async_engine, get_async_session
 from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.conversation_title import (
     extract_title_from_messages,
@@ -42,6 +41,7 @@ from app.core_plugins.chat.schemas import (
 )
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
+from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
@@ -691,7 +691,7 @@ async def stream_chat_response(
             await queue.put(payload)
 
     async def _process_and_stream() -> None:
-        async with AsyncSession(async_engine, expire_on_commit=False) as bg_session:
+        async with session_scope() as bg_session:
             try:
                 await _run(bg_session)
             except BaseException as exc:

@@ -4,9 +4,8 @@ import asyncio
 
 from sqlalchemy import delete
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import async_engine
+from app.lib.db import session_scope
 from app.lib.log import configure_logging, get_logger
 from app.models.drive import DriveFile  # noqa: TCH001
 from app.rag.db_models import DocumentChunk, DriveFileChunkLink
@@ -26,7 +25,7 @@ async def cleanup_deleted_files() -> None:
     This is a system-wide background job: it operates across all users
     intentionally, as orphan cleanup is not scoped per user.
     """
-    async with AsyncSession(async_engine, expire_on_commit=False) as session:
+    async with session_scope() as session:
         deleted_ids_result = await session.scalars(
             select(DriveFile.id).where(col(DriveFile.is_deleted) == True)  # noqa: E712
         )

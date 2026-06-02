@@ -17,7 +17,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.config import get_settings
-from app.core.db import async_engine, get_async_session, get_session
 from app.core.encryption import get_encryption_service
 from app.core_plugins.slack.client import SlackClient
 from app.core_plugins.slack.config import SlackConfig
@@ -50,6 +49,7 @@ from app.core_plugins.slack.types import (
     LogsResponse,
     RagSourcesResponse,
 )
+from app.lib.db import get_async_session, get_session, session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
@@ -376,7 +376,7 @@ async def _dispatch_event(
         slack_channel_name=slack_channel_name,
     )
 
-    async with AsyncSession(async_engine, expire_on_commit=False) as session:
+    async with session_scope() as session:
         plugin_map = await PluginService().get_user_plugin_map(session, user_id)
 
         user_plugin = plugin_map.get("slack")

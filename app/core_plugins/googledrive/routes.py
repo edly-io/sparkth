@@ -12,7 +12,6 @@ from sqlmodel import Session, select
 
 from app.api.v1.auth import get_current_user
 from app.core.config import get_settings
-from app.core.db import get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.oauth import (
     decode_state,
@@ -43,6 +42,7 @@ from app.core_plugins.googledrive.types import (
     SyncStatusResponse,
 )
 from app.core_plugins.googledrive.utils import process_folder_rag
+from app.lib.db import get_session
 from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
