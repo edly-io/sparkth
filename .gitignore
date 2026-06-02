@@ -150,7 +150,7 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
+.env.local
 .envrc
 .venv
 env/
@@ -237,3 +237,4 @@ pr-comments/
 *.DS_Store
 .superpowers
 docs/superpowers/
+CLAUDE.local.md

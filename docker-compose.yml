@@ -10,21 +10,14 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:7727:7727"
+    command: ${APP_COMMAND:-fastapi run --host 0.0.0.0 app/main.py}
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
-      REDIS_URL: redis://redis:6379
-      PORT: "7727"
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_USE_TLS: "false"
+      - path: .env.local
+        required: false
     volumes:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
-      - .ignored/logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
@@ -44,10 +37,8 @@ services:
     ports:
       - "127.0.0.1:8025:8025"
       - "127.0.0.1:1025:1025"
-    environment:
-      MP_MAX_MESSAGES: "5000"
-      MP_SMTP_AUTH_ACCEPT_ANY: "1"
-      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    env_file:
+      - .env
     volumes:
       - mailpit_data:/data
 
@@ -55,10 +46,8 @@ services:
   db:
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-sparkth}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sparkth_password}
-      POSTGRES_DB: ${POSTGRES_DB:-sparkth}
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -85,8 +74,8 @@ services:
     pull_policy: never
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
+      - path: .env.local
+        required: false
     command: python -m app.rag.cleanup
     depends_on:
       db:
@@ -100,8 +89,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
+      - path: .env.local
+        required: false
     volumes:
       - ./app:/app/app
     command: python -m app.rag_mcp.main
@@ -115,8 +104,8 @@ services:
     pull_policy: never
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
+      - path: .env.local
+        required: false
     volumes:
       - ./app:/app/app
     command: alembic upgrade head

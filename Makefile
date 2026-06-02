@@ -33,7 +33,7 @@ uv: ## Install uv if missing
 base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
 	docker build -f Dockerfile.base -t sparkth-base:local .
 
-up: ## Build and start app (frontend + API + db)
+up: ## Build and start the sparkth app along with all services
 	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
 	docker compose build app
 	docker compose up -d
@@ -41,10 +41,10 @@ up: ## Build and start app (frontend + API + db)
 up.dev: ## Build and start app in dev mode (hot reload)
 	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
 	docker compose build app
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	APP_COMMAND="fastapi dev --host 0.0.0.0 app/main.py" docker compose up -d
 
 down: ## Stop and remove containers
-	docker compose down
+	docker compose down $(ARGS)
 
 clean: ## Stop and wipe database volume (fresh start)
 	docker compose down -v db
