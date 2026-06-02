@@ -14,7 +14,10 @@ from app.rag_mcp.tools import (
 
 mcp = FastMCP(
     name="SparkthRAGMetadata",
-    instructions="Metadata-only tools for the Sparkth RAG pipeline. Returns document and section structure — no embeddings or raw content.",
+    instructions=(
+        "Metadata-only tools for the Sparkth RAG pipeline. "
+        "Returns document and section structure — no embeddings or raw content."
+    ),
 )
 
 

@@ -290,7 +290,10 @@ async def chat_completion(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail) from exc
     except LLMConfigInactiveError as exc:
         logger.warning("LLMConfig %s is inactive for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = "The selected AI key is deactivated. Go to AI Keys to reactivate it, or choose a different one in chat settings."
+        detail = (
+            "The selected AI key is deactivated. Go to AI Keys to "
+            "reactivate it, or choose a different one in chat settings."
+        )
         await _persist_pre_stream_error(session, service, request, current_user.id, detail)  # type: ignore[arg-type]
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
 
