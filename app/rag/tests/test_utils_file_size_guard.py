@@ -6,7 +6,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core_plugins.googledrive.utils import DriveRagPipeline
+from app.core_plugins.googledrive.utils import _process_single_file
 from app.rag.types import RagStatus
 
 
@@ -34,16 +34,12 @@ async def test_file_exceeding_size_limit_is_marked_failed(session: AsyncSession)
     big_bytes = b"x" * (51 * 1024 * 1024)
     mock_store = MagicMock()
     with (
-        patch(
-            "app.core_plugins.googledrive.utils.DriveRagPipeline._download_file", new=AsyncMock(return_value=big_bytes)
-        ),
+        patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=big_bytes)),
         patch("app.core_plugins.googledrive.utils.get_settings") as mock_settings,
         patch("app.core_plugins.googledrive.utils.extract_to_markdown") as mock_extract,
     ):
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
-        await DriveRagPipeline()._process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, store=mock_store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=mock_store)
     # Re-fetch the drive_file from the database since expunge_all() detaches it
     from app.models.drive import DriveFile
 
@@ -77,13 +73,11 @@ async def test_pre_download_size_guard_skips_download(session: AsyncSession) -> 
     mock_store = MagicMock()
 
     with (
-        patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file") as mock_download,
+        patch("app.core_plugins.googledrive.utils._download_file") as mock_download,
         patch("app.core_plugins.googledrive.utils.get_settings") as mock_settings,
     ):
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
-        await DriveRagPipeline()._process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, store=mock_store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=mock_store)
 
     # Re-fetch the drive_file from the database since expunge_all() detaches it
     result = await session.exec(select(DriveFile).where(DriveFile.id == 3))
@@ -119,7 +113,7 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
     # We only care that extraction IS reached, not that it completes
     with (
         patch(
-            "app.core_plugins.googledrive.utils.DriveRagPipeline._download_file",
+            "app.core_plugins.googledrive.utils._download_file",
             new=AsyncMock(return_value=small_bytes),
         ),
         patch("app.core_plugins.googledrive.utils.get_settings") as mock_settings,
@@ -128,9 +122,7 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
         mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
         mock_settings.return_value.RAG_CONCURRENCY = 1
         # RuntimeError is caught by _process_single_file's except clause
-        await DriveRagPipeline()._process_single_file(
-            drive_file, user_id=1, access_token="tok", session=session, store=mock_store
-        )
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=mock_store)
 
     # Re-fetch the drive_file from the database since expunge_all() detaches it
     result = await session.exec(select(DriveFile).where(DriveFile.id == 2))

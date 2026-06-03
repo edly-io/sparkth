@@ -665,9 +665,8 @@ class TestSupportedExtensions:
         assert SUPPORTED_EXTENSIONS == frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
 
     def test_utils_uses_extraction_constant(self) -> None:
-        from app.core_plugins.googledrive.utils import DriveRagPipeline
+        from app.core_plugins.googledrive.utils import _is_supported_for_rag
         from app.rag.extraction import SUPPORTED_EXTENSIONS
 
-        pipeline = DriveRagPipeline()
         for ext in SUPPORTED_EXTENSIONS:
-            assert pipeline._is_supported_for_rag(f"file.{ext}") is True
+            assert _is_supported_for_rag(f"file.{ext}") is True

@@ -9,24 +9,20 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core_plugins.googledrive.client import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
-    DriveRagPipeline,
+    _download_file,
+    _find_duplicate_file,
+    _is_supported_for_rag,
+    _link_chunks_from_duplicate,
+    _process_single_file,
+    _resolve_filename,
+    _set_rag_status,
+    _store_and_link_chunks,
     process_folder_rag,
 )
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.exceptions import ScannedPDFError
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, ChunkMetadata, RagStatus
-
-_pipeline = DriveRagPipeline()
-
-_download_file = _pipeline._download_file
-_find_duplicate_file = _pipeline._find_duplicate_file
-_is_supported_for_rag = _pipeline._is_supported_for_rag
-_link_chunks_from_duplicate = _pipeline._link_chunks_from_duplicate
-_process_single_file = _pipeline._process_single_file
-_resolve_filename = _pipeline._resolve_filename
-_set_rag_status = _pipeline._set_rag_status
-_store_and_link_chunks = _pipeline._store_and_link_chunks
 
 
 def _make_async_session() -> AsyncMock:
@@ -613,9 +609,9 @@ class TestProcessSingleFile:
         assert drive_file.rag_status == RagStatus.READY
         session.commit.assert_awaited()
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._find_duplicate_file")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._link_chunks_from_duplicate")
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._find_duplicate_file")
+    @patch("app.core_plugins.googledrive.utils._link_chunks_from_duplicate")
     async def test_duplicate_file_links_and_marks_ready(
         self,
         mock_link: AsyncMock,
@@ -640,11 +636,11 @@ class TestProcessSingleFile:
         assert drive_file.content_hash == hashlib.sha256(file_bytes).hexdigest()
         mock_link.assert_awaited_once()
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._find_duplicate_file", return_value=None)
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
     @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
     @patch("app.core_plugins.googledrive.utils.chunk_document")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._store_and_link_chunks")
+    @patch("app.core_plugins.googledrive.utils._store_and_link_chunks")
     async def test_new_file_full_pipeline(
         self,
         mock_embed: AsyncMock,
@@ -675,8 +671,8 @@ class TestProcessSingleFile:
         mock_chunk.assert_called_once_with(mock_extraction_result)
         mock_embed.assert_awaited_once()
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._find_duplicate_file", return_value=None)
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
     @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
     @patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[])
     async def test_empty_chunks_marks_ready(
@@ -698,7 +694,7 @@ class TestProcessSingleFile:
 
         assert drive_file.rag_status == RagStatus.READY
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
+    @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_drive_api_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """GoogleDriveAPIError should mark the file as failed."""
         session = _make_async_session()
@@ -711,7 +707,7 @@ class TestProcessSingleFile:
 
         assert drive_file.rag_status == RagStatus.FAILED
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
+    @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_value_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """ValueError (e.g. unsupported file type in extraction) should mark failed."""
         session = _make_async_session()
@@ -724,8 +720,8 @@ class TestProcessSingleFile:
 
         assert drive_file.rag_status == RagStatus.FAILED
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._find_duplicate_file", return_value=None)
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
     @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
     async def test_scanned_pdf_marks_failed_with_user_message(
         self,
@@ -749,7 +745,7 @@ class TestProcessSingleFile:
         assert "internal/path" not in (drive_file.rag_error or "")
         assert "secret.pdf" not in (drive_file.rag_error or "")
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
+    @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_google_doc_filename_resolved(self, mock_download: AsyncMock) -> None:
         """Google Docs should have .pdf appended for extraction."""
         session = _make_async_session()
@@ -762,7 +758,7 @@ class TestProcessSingleFile:
         )
 
         with (
-            patch("app.core_plugins.googledrive.utils.DriveRagPipeline._find_duplicate_file", return_value=None),
+            patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None),
             patch("app.core_plugins.googledrive.utils.extract_to_markdown") as mock_extract,
             patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[]),
         ):
@@ -785,7 +781,7 @@ class TestProcessSingleFile:
         session.commit.assert_not_awaited()
         assert drive_file.rag_status is None
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
+    @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_integrity_error_rollback_refresh_mark_failed(self, mock_download: AsyncMock) -> None:
         """IntegrityError triggers rollback → refresh → FAILED."""
         from sqlalchemy.exc import IntegrityError
@@ -804,7 +800,7 @@ class TestProcessSingleFile:
         session.refresh.assert_has_awaits([call(drive_file), call(drive_file)])
         assert drive_file.rag_status == RagStatus.FAILED
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
+    @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_sqlalchemy_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """SQLAlchemyError during processing sets FAILED status."""
         session = _make_async_session()
@@ -818,8 +814,8 @@ class TestProcessSingleFile:
 
         assert drive_file.rag_status == RagStatus.FAILED
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._download_file")
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._set_rag_status")
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    @patch("app.core_plugins.googledrive.utils._set_rag_status")
     async def test_set_rag_status_failure_in_sqlalchemy_fallback_is_swallowed(
         self, mock_set_status: AsyncMock, mock_download: AsyncMock
     ) -> None:
@@ -860,7 +856,7 @@ class TestProcessFolderRag:
         await process_folder_rag(1, user_id=1, access_token="tok")
         # Returns early without processing any files
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._process_single_file")
+    @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_skips_ready_files(
@@ -904,7 +900,7 @@ class TestProcessFolderRag:
         processed_file = mock_process.call_args[0][0]
         assert processed_file.id == 2
 
-    @patch("app.core_plugins.googledrive.utils.DriveRagPipeline._process_single_file")
+    @patch("app.core_plugins.googledrive.utils._process_single_file")
     @patch("app.core_plugins.googledrive.utils.VectorStoreService")
     @patch("app.core_plugins.googledrive.utils.AsyncSession")
     async def test_base_exception_from_gather_is_logged(
