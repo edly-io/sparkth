@@ -5,11 +5,22 @@ services:
       context: .
       dockerfile: Dockerfile.local
       # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
     restart: unless-stopped
     ports:
       - "127.0.0.1:7727:7727"
+    # Below id the deafult command `fastapi run ...` which runs fastapi without hot-reload.
+    # The "make up" commands starts the container without hot-reload
+    # The "make up.dev" command sets the `APP_COMMAND` env to `fastapi dev ...` and then runs the container
+    # this causes the container to run with hot-reload (i.e in development mode)
+    #
+    # For production environment, this docker-comopse file is not used so the following `command` is not used.
+    # The production contianers are orchestrated by kubernetes and that container's command is dictated by the
+    # CMD statement in the Dockerfile
     command: ${APP_COMMAND:-fastapi run --host 0.0.0.0 app/main.py}
     env_file:
       - .env
@@ -31,6 +42,7 @@ services:
         condition: service_started
 
   # Mailpit (local SMTP for development)
+  # For production we should use AWS's managed email services such as AWS SES STMP interface
   mailpit:
     image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
@@ -43,6 +55,7 @@ services:
       - mailpit_data:/data
 
   # Postgres
+  # For production we should use a managed DB service e.g AWS RDS
   db:
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
@@ -57,6 +70,7 @@ services:
       retries: 5
 
   # Redis
+  # For production we should use a redis service e.g AWS' managed redis service
   redis:
     image: docker.io/redis:7-alpine
     restart: unless-stopped
@@ -69,8 +83,12 @@ services:
       retries: 5
 
   # RAG Cleanup Job
+  # In production this contianer is meant to be run via a scheduled cronjob.
   rag-cleanup:
+    # 'sparkth:local' is hte local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
     env_file:
       - .env
@@ -84,8 +102,12 @@ services:
 
   # RAG Metadata MCP Server
   rag-mcp:
+    # 'sparkth:local' is hte local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
+    # For production we should keep the restart policy the same.
     restart: unless-stopped
     env_file:
       - .env
@@ -99,8 +121,13 @@ services:
         condition: service_healthy
 
   # Alembic Migrations
+  # In production this is meant to be run as a k8s 'Job'. It could be an 'initContainer' for the above 'app' container
+  # or it could be a standalone job that runs before the 'app' container is deployed.
   migrations:
+    # 'sparkth:local' is hte local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
     env_file:
       - .env
@@ -109,6 +136,7 @@ services:
     volumes:
       - ./app:/app/app
     command: alembic upgrade head
+    # For production we should set the restat policy to 'no', sicne the only purpose of this job is to apply migrations and exit.
     restart: "no"
     depends_on:
       db:
