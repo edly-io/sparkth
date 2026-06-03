@@ -13,7 +13,6 @@ Provides the foundation for all Sparkth plugins with support for:
 from typing import Any, Callable, Type, TypeVar
 
 from app.lib.log import get_logger
-from app.plugins.config_base import PluginConfig
 
 logger = get_logger(__name__)
 
@@ -139,7 +138,6 @@ class SparkthPlugin(metaclass=PluginMeta):
     def __init__(
         self,
         name: str,
-        config_schema: Type[PluginConfig] | None = None,
         is_core: bool = False,
         version: str = "1.0.0",
         description: str = "",
@@ -150,7 +148,6 @@ class SparkthPlugin(metaclass=PluginMeta):
 
         Args:
             name: Unique identifier for the plugin (e.g., "tasks-plugin")
-            config_schema: Plugin-specific configuration (inherits from app.plugins.config_base:PluginConfig)
             version: Semantic version string (e.g., "1.0.0")
             description: Brief description of plugin functionality
             author: Plugin author name or organization
@@ -160,24 +157,12 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.description = description
         self.is_core = is_core
         self.author = author
-        self.config_schema = config_schema
 
         # Collect @tool-decorated methods into the MCP_TOOLS hook. Imported lazily
         # to avoid an import cycle (the hook module imports SparkthPlugin).
         from app.lib.mcp.hooks import collect_plugin_tools
 
         collect_plugin_tools(self)
-
-    def get_config_schema(self) -> dict[str, Any]:
-        """
-        Return JSON Schema for plugin configuration validation.
-
-        Uses the plugin's Pydantic model to generate the schema.
-
-        Returns:
-            JSON Schema dictionary
-        """
-        return self.config_schema.model_json_schema() if self.config_schema else {}
 
     def __repr__(self) -> str:
         """Return string representation of the plugin."""

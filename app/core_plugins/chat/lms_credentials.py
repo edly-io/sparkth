@@ -25,9 +25,9 @@ def _lms_tool_prefixes() -> tuple[str, ...]:
     Any config class that overrides ``lms_tool_prefix`` contributes its prefix.
     Lazy-imported to avoid circular dependencies at module load time.
     """
-    from app.plugins import PLUGIN_CONFIG_CLASSES  # lazy import — avoids circular dep
+    from app.lib.config.hooks import iter_plugin_config_schemas  # lazy import — avoids circular dep
 
-    return tuple(prefix for cls in PLUGIN_CONFIG_CLASSES.values() if (prefix := cls.lms_tool_prefix()) is not None)
+    return tuple(prefix for _name, cls in iter_plugin_config_schemas() if (prefix := cls.lms_tool_prefix()) is not None)
 
 
 def _has_lms_tools(tools: list[Any]) -> bool:
@@ -60,7 +60,7 @@ async def build_lms_credentials_message(
     if not tools or not _has_lms_tools(tools):
         return None
 
-    from app.plugins import PLUGIN_CONFIG_CLASSES  # lazy import — avoids circular dep
+    from app.lib.config.hooks import iter_plugin_config_schemas  # lazy import — avoids circular dep
     from app.services.plugin import PluginService  # lazy import — avoids circular dep
 
     plugin_service = PluginService()
@@ -68,7 +68,7 @@ async def build_lms_credentials_message(
 
     credential_sections: list[str] = []
 
-    for plugin_name, config_class in PLUGIN_CONFIG_CLASSES.items():
+    for plugin_name, config_class in iter_plugin_config_schemas():
         if config_class.lms_tool_prefix() is None:
             continue
 
