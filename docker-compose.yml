@@ -1,10 +1,11 @@
 services:
   # Sparkth App
+  # The main sparkth app container.
   app:
+    # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
     build:
       context: .
       dockerfile: Dockerfile.local
-      # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
     # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
     # to GitHub Container Registry by CI
     image: sparkth:local
@@ -13,14 +14,14 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:7727:7727"
-    # Below id the deafult command `fastapi run ...` which runs fastapi without hot-reload.
-    # The "make up" commands starts the container without hot-reload
+    # Below is the default command `fastapi run ...` which runs fastapi without hot-reload.
+    # The "make up" command starts the container using the `command` below (without hot-reload).
     # The "make up.dev" command sets the `APP_COMMAND` env to `fastapi dev ...` and then runs the container
     # this causes the container to run with hot-reload (i.e in development mode)
     #
-    # For production environment, this docker-comopse file is not used so the following `command` is not used.
-    # The production contianers are orchestrated by kubernetes and that container's command is dictated by the
-    # CMD statement in the Dockerfile
+    # For production environment, this docker-compose file is not used so the following `command` is not used at all.
+    # The production containers are orchestrated by kubernetes and the command used for runnning the container is
+    # dictated by the CMD statement in the Dockerfile.
     command: ${APP_COMMAND:-fastapi run --host 0.0.0.0 app/main.py}
     env_file:
       - .env
@@ -42,7 +43,7 @@ services:
         condition: service_started
 
   # Mailpit (local SMTP for development)
-  # For production we should use AWS's managed email services such as AWS SES STMP interface
+  # For production we should use a managed email services e.g AWS SES SMTP interface
   mailpit:
     image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
@@ -83,9 +84,9 @@ services:
       retries: 5
 
   # RAG Cleanup Job
-  # In production this contianer is meant to be run via a scheduled cronjob.
+  # In production this container is meant to be run as a k8s 'CronJob'.
   rag-cleanup:
-    # 'sparkth:local' is hte local dev image built from Dockerfile.local. In production, use the image published
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
     # to GitHub Container Registry by CI
     image: sparkth:local
     # In production we should always pull the remote image, the below `pull_policy` is only for local development
@@ -101,8 +102,9 @@ services:
     restart: "no"
 
   # RAG Metadata MCP Server
+  # In production this should be run as a separate contianer than the 'app' container.
   rag-mcp:
-    # 'sparkth:local' is hte local dev image built from Dockerfile.local. In production, use the image published
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
     # to GitHub Container Registry by CI
     image: sparkth:local
     # In production we should always pull the remote image, the below `pull_policy` is only for local development
@@ -122,9 +124,9 @@ services:
 
   # Alembic Migrations
   # In production this is meant to be run as a k8s 'Job'. It could be an 'initContainer' for the above 'app' container
-  # or it could be a standalone job that runs before the 'app' container is deployed.
+  # or it could be a standalone job that is run by a CI-pipeline before the 'app' container is deployed.
   migrations:
-    # 'sparkth:local' is hte local dev image built from Dockerfile.local. In production, use the image published
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
     # to GitHub Container Registry by CI
     image: sparkth:local
     # In production we should always pull the remote image, the below `pull_policy` is only for local development
@@ -136,7 +138,7 @@ services:
     volumes:
       - ./app:/app/app
     command: alembic upgrade head
-    # For production we should set the restat policy to 'no', sicne the only purpose of this job is to apply migrations and exit.
+    # For production we should set the restart policy to 'no', since the only purpose of this job is to apply migrations and exit.
     restart: "no"
     depends_on:
       db:
