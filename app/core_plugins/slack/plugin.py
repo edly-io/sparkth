@@ -3,6 +3,7 @@
 import app.core_plugins.slack.models  # noqa: F401 — registers tables in SQLModel metadata for Alembic
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.routes import router
+from app.lib.routes.hooks import ROUTES
 from app.plugins.base import SparkthPlugin
 
 
@@ -11,11 +12,4 @@ class Slack(SparkthPlugin):
 
     def __init__(self, name: str = "slack") -> None:
         super().__init__(name=name, config_schema=SlackConfig)
-
-        self.add_route(router)
-
-    def get_route_prefix(self) -> str:
-        return "/api/v1/slack"
-
-    def get_route_tags(self) -> list[str]:
-        return ["Slack TA Bot"]
+        ROUTES.add_item(self, (router, "/api/v1/slack", ["Slack TA Bot"]))

@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.lib.log import configure_logging, get_logger
+from app.lib.routes.hooks import ROUTES
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_loader
@@ -41,19 +42,22 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
         if loaded_plugins:
             logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
 
-        for plugin_name, plugin in loaded_plugins:
-            try:
-                routes = plugin.get_routes()
-                if routes:
-                    for router in routes:
-                        prefix = plugin.get_route_prefix()
-                        tags = plugin.get_route_tags()
-                        tags_param: Union[list[Union[str, Enum]], None] = (
-                            cast(Union[list[Union[str, Enum]], None], tags) if tags else None
-                        )
-                        application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
-            except (AttributeError, TypeError, ValueError) as e:
-                logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
+        for plugin, (router, route_prefix, route_tags) in ROUTES.iter_items():
+            # Tag every route with the owning plugin for PluginAccessMiddleware.
+            plugin_tag = f"plugin:{plugin.name}"
+            if router.tags:
+                if plugin_tag not in router.tags:
+                    router.tags.append(plugin_tag)
+            else:
+                router.tags = [plugin_tag]
+            for route in router.routes:
+                if hasattr(route, "endpoint"):
+                    setattr(route.endpoint, "__plugin_name__", plugin.name)
+
+            tags_param: Union[list[Union[str, Enum]], None] = (
+                cast(Union[list[Union[str, Enum]], None], route_tags) if route_tags else None
+            )
+            application.include_router(router, prefix=route_prefix, tags=tags_param)
 
     except (ImportError, RuntimeError, OSError) as e:
         logger.error(f"Plugin initialization failed: {e}")

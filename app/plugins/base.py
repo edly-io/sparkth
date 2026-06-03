@@ -10,8 +10,6 @@ Provides the foundation for all Sparkth plugins with support for:
 import inspect
 from typing import Any, Callable, Type, TypeVar, get_type_hints
 
-from fastapi import APIRouter
-
 from app.lib.log import get_logger
 from app.plugins.config_base import PluginConfig
 
@@ -141,7 +139,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         self.name = name
         self.config_schema = config_schema
-        self._routes: list[APIRouter] = []
         self._mcp_tools: list[dict[str, Any]] = []
 
         self._register_tools_from_metaclass()
@@ -170,88 +167,6 @@ class SparkthPlugin(metaclass=PluginMeta):
                 )
             except (AttributeError, TypeError, KeyError) as e:
                 logger.error(f"Failed to auto-register tool from method '{method_name}' in plugin '{self.name}': {e}")
-
-    def add_route(self, router: APIRouter) -> None:
-        """
-        Add a FastAPI router to this plugin.
-
-        Args:
-            router: APIRouter instance to add
-
-        Example:
-        ```python
-        router = APIRouter(prefix="/tasks", tags=["Tasks"])
-
-        @router.get("/")
-        def list_tasks():
-            return {"tasks": []}
-
-        class TasksPlugin(SparkthPlugin):
-            def __init__(self, plugin_name: str) -> None:
-                super().__init__(plugin_name)
-                self.add_route(router)
-        ```
-        """
-        self._routes.append(router)
-
-    def get_routes(self) -> list[APIRouter]:
-        """
-        Return FastAPI routers to be registered with the application.
-
-        Override this method to provide custom API endpoints, or use add_route()
-        to register routes dynamically.
-
-        All routes are automatically tagged with plugin metadata for access control.
-
-        Returns:
-            List of APIRouter instances
-        """
-        routes = self._routes.copy()
-        for router in routes:
-            self._tag_router_with_plugin(router)
-        return routes
-
-    def _tag_router_with_plugin(self, router: APIRouter) -> None:
-        """
-        Tag all routes in a router with plugin metadata.
-
-        This adds the plugin name to each route's tags for identification
-        by the PluginAccessMiddleware.
-
-        Args:
-            router: APIRouter to tag
-        """
-        plugin_tag = f"plugin:{self.name}"
-        if router.tags:
-            if plugin_tag not in router.tags:
-                router.tags.append(plugin_tag)
-        else:
-            router.tags = [plugin_tag]
-
-        for route in router.routes:
-            if hasattr(route, "endpoint"):
-                setattr(route.endpoint, "__plugin_name__", self.name)
-
-    def get_route_prefix(self) -> str | None:
-        """
-        Return a prefix to be applied to all routes from this plugin.
-
-        If None, routes will be registered at the root level.
-        If provided, all plugin routes will be prefixed with this path.
-
-        Returns:
-            Optional path prefix (e.g., "/plugins/my-app")
-        """
-        return None
-
-    def get_route_tags(self) -> list[str]:
-        """
-        Return OpenAPI tags to be applied to all routes from this plugin.
-
-        Returns:
-            List of tag strings for route categorization
-        """
-        return [self.name]
 
     def add_mcp_tool(
         self,
