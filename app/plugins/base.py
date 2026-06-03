@@ -11,7 +11,6 @@ Provides the foundation for all Sparkth plugins with support for:
 """
 
 import inspect
-from pathlib import Path
 from typing import Any, Callable, Type, TypeVar, get_type_hints
 
 from fastapi import APIRouter
@@ -149,7 +148,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         version: str = "1.0.0",
         description: str = "",
         author: str = "",
-        dependencies: list[str] | None = None,
     ):
         """
         Initialize the plugin with metadata.
@@ -160,14 +158,12 @@ class SparkthPlugin(metaclass=PluginMeta):
             version: Semantic version string (e.g., "1.0.0")
             description: Brief description of plugin functionality
             author: Plugin author name or organization
-            dependencies: List of other plugin names this plugin depends on
         """
         self.name = name
         self.version = version
         self.description = description
         self.is_core = is_core
         self.author = author
-        self.dependencies = dependencies or []
         self.config_schema = config_schema
         self._routes: list[APIRouter] = []
         self._models: list[Type[SQLModel]] = []
@@ -315,18 +311,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             List of SQLModel class types
         """
         return self._models.copy()
-
-    def get_migrations_path(self) -> Path | None:
-        """
-        Return the path to Alembic migration files for this plugin.
-
-        If your plugin includes database schema changes, provide the
-        directory containing migration version files.
-
-        Returns:
-            Path to migrations directory, or None if no migrations
-        """
-        return None
 
     def add_mcp_tool(
         self,
@@ -525,30 +509,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             JSON Schema dictionary
         """
         return self.config_schema.model_json_schema() if self.config_schema else {}
-
-    def get_default_config(self) -> dict[str, Any]:
-        """
-        Return default configuration values for the plugin.
-
-        Override this method to provide sensible defaults.
-
-        Returns:
-            Dictionary of default configuration values
-        """
-        return {}
-
-    def get_config_value(self, key: str, default: Any = None) -> Any:
-        """
-        Get a configuration value by key.
-
-        Args:
-            key: Configuration key
-            default: Default value if key not found
-
-        Returns:
-            Configuration value or default
-        """
-        return getattr(self.config_schema, key, default)
 
     def __repr__(self) -> str:
         """Return string representation of the plugin."""
