@@ -8,29 +8,33 @@ on:
     paths:
       - "frontend/**"
 
+concurrency:
+  group: react-doctor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   react-doctor:
+    name: React Doctor
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0 # required for --diff
 
-      - name: Run React Doctor
-        uses: millionco/react-doctor@0.0.38
-        env:
-          NO_COLOR: "1"
-          FORCE_COLOR: "0"
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          directory: frontend
-          diff: main
-          verbose: true
-          fail-on: none
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          bun-version: latest
+
+      - name: Install dependencies
+        run: make frontend.install
+
+      # Gate on findings in changed files and emit inline annotations.
+      # Reproduce locally with: make lint.frontend.react-doctor
+      - name: Run React Doctor
+        run: make lint.frontend.react-doctor REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }} RD_ARGS=--annotations

@@ -191,6 +191,12 @@ lint.frontend: ## Check frontend lint errors (oxlint)
 lint.backend: ## Check backend lint errors (ruff)
 	uv run ruff check
 
+# Base branch react-doctor diffs against; override in CI (e.g. origin/main).
+REACT_DOCTOR_BASE ?= main
+.PHONY: lint.frontend.react-doctor
+lint.frontend.react-doctor: ## Run react-doctor on files changed vs REACT_DOCTOR_BASE (default main)
+	cd frontend && bunx react-doctor@0.2.16 . --diff $(REACT_DOCTOR_BASE) --fail-on warning $(RD_ARGS)
+
 .PHONY: lint.fix.frontend
 lint.fix.frontend: ## Auto-fix frontend lint errors (oxlint)
 	cd frontend && bun run lint:fix
