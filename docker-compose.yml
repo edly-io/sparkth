@@ -1,145 +1,150 @@
 services:
-  # ----------------------------------------
-  # Sparkth API Service
-  # ----------------------------------------
-  api:
+  # Sparkth App
+  # The main sparkth app container.
+  app:
+    # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
     build:
       context: .
       dockerfile: Dockerfile.local
-      # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
+    pull_policy: never
     restart: unless-stopped
     ports:
       - "127.0.0.1:7727:7727"
+    # Below is the default command `fastapi run ...` which runs fastapi without hot-reload.
+    # The "make up" command starts the container using the `command` below (without hot-reload).
+    # The "make up.dev" command sets the `APP_COMMAND` env to `fastapi dev ...` and then runs the container
+    # this causes the container to run with hot-reload (i.e in development mode)
+    #
+    # For production environment, this docker-compose file is not used so the following `command` is not used at all.
+    # The production containers are orchestrated by kubernetes and the command used for running the container is
+    # dictated by the CMD statement in the Dockerfile.
+    command: ${APP_COMMAND:-fastapi run --host 0.0.0.0 app/main.py}
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      REDIS_URL: redis://redis:6379
-      PORT: "7727"
-      TOKENIZERS_PARALLELISM: "false"
-      # Disable HuggingFace XET chunked download protocol — it can hang indefinitely
-      # on unauthenticated requests. Standard HTTP download is reliable.
-      HF_HUB_DISABLE_XET: "1"
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_USE_TLS: "false"
-      SMTP_FROM_EMAIL: no-reply@sparkth.local
-      SMTP_FROM_NAME: Sparkth
+      - path: .env.local
+        required: false
     volumes:
       - ./app:/app/app
       - ./frontend/out:/app/frontend/out
-      - .ignored/logs:/app/logs
-      - hf_cache:/home/nonroot/.cache/huggingface
     depends_on:
-      - db
-      - redis
-      - rag-mcp
-      - mailpit
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      rag-mcp:
+        condition: service_started
+      mailpit:
+        condition: service_started
 
-  # ----------------------------------------
   # Mailpit (local SMTP for development)
-  # ----------------------------------------
+  # For production we should use a managed email services e.g AWS SES SMTP interface
   mailpit:
     image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:8025:8025"
       - "127.0.0.1:1025:1025"
-    environment:
-      MP_MAX_MESSAGES: "5000"
-      MP_SMTP_AUTH_ACCEPT_ANY: "1"
-      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    env_file:
+      - .env
     volumes:
       - mailpit_data:/data
 
-  # ----------------------------------------
   # Postgres
-  # ----------------------------------------
+  # For production we should use a managed DB service e.g AWS RDS
   db:
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: sparkth
-      POSTGRES_PASSWORD: sparkth_password
-      POSTGRES_DB: sparkth
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sparkth}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # ----------------------------------------
   # Redis
-  # ----------------------------------------
+  # For production we should use a redis service e.g AWS' managed redis service
   redis:
     image: docker.io/redis:7-alpine
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-  # ----------------------------------------
   # RAG Cleanup Job
-  # ----------------------------------------
+  # In production this container is meant to be run as a k8s 'CronJob'.
   rag-cleanup:
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      TOKENIZERS_PARALLELISM: "false"
-      HF_HUB_DISABLE_XET: "1"
-    volumes:
-      - ./app:/app/app
-      - hf_cache:/home/nonroot/.cache/huggingface
+      - path: .env.local
+        required: false
     command: python -m app.rag.cleanup
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: "no"
 
-  # ----------------------------------------
   # RAG Metadata MCP Server
-  # ----------------------------------------
+  # In production this should be run as a separate container than the 'app' container.
   rag-mcp:
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
+    # For production we should keep the restart policy the same.
     restart: unless-stopped
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      TOKENIZERS_PARALLELISM: "false"
-      HF_HUB_DISABLE_XET: "1"
+      - path: .env.local
+        required: false
     volumes:
       - ./app:/app/app
-      - hf_cache:/home/nonroot/.cache/huggingface
     command: python -m app.rag_mcp.main
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
-  # ----------------------------------------
   # Alembic Migrations
-  # ----------------------------------------
+  # In production this is meant to be run as a k8s 'Job'. It could be an 'initContainer' for the above 'app' container
+  # or it could be a standalone job that is run by a CI-pipeline before the 'app' container is deployed.
   migrations:
+    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
+    # to GitHub Container Registry by CI
     image: sparkth:local
+    # In production we should always pull the remote image, the below `pull_policy` is only for local development
     pull_policy: never
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
+      - path: .env.local
+        required: false
     volumes:
       - ./app:/app/app
-    command: >
-      sh -c "
-      echo '⏳ Waiting for DB...' &&
-      alembic upgrade head &&
-      echo '✅ Alembic migrations complete'
-      "
+    command: alembic upgrade head
+    # For production we should set the restart policy to 'no', since the only purpose of this job is to apply migrations and exit.
+    restart: "no"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   redis_data:
-  hf_cache:
   mailpit_data:
