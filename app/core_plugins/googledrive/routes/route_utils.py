@@ -5,6 +5,7 @@ FastAPI dependencies.
 """
 
 from datetime import datetime, timezone
+from typing import cast
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
@@ -85,7 +86,7 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
             session.add(existing_file)
         else:
             new_file = DriveFile(
-                folder_id=folder.id,  # type: ignore[arg-type]
+                folder_id=cast(int, folder.id),
                 user_id=user_id,
                 drive_file_id=df["id"],
                 name=df["name"],

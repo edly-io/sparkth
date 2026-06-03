@@ -1,6 +1,7 @@
 """Google Drive folder endpoints."""
 
 from datetime import datetime, timezone
+from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func
@@ -36,6 +37,7 @@ def list_folders(
 ) -> PaginatedResponse[DriveFolderResponse]:
     """List synced Google Drive folders for the current user with pagination."""
     file_count_subq = (
+        # mypy doesn't understand passing model columns directly to select() and group_by()
         select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))  # type: ignore[arg-type]
         .where(DriveFile.is_deleted == False)  # noqa: E712
         .group_by(DriveFile.folder_id)  # type: ignore[arg-type]
@@ -44,6 +46,7 @@ def list_folders(
 
     base_stmt = (
         select(DriveFolder, file_count_subq.c.file_count)
+        # mypy can't verify the join condition between a model column and a subquery column
         .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)  # type: ignore[arg-type]
         .where(
             DriveFolder.user_id == user_id,
@@ -65,7 +68,7 @@ def list_folders(
     return PaginatedResponse(
         items=[
             DriveFolderResponse(
-                id=folder.id,  # type: ignore[arg-type]
+                id=cast(int, folder.id),
                 drive_folder_id=folder.drive_folder_id,
                 name=folder.drive_folder_name,
                 parent_id=folder.drive_parent_id,
@@ -119,10 +122,10 @@ async def sync_folder(
     session.refresh(folder)
 
     file_count = await _sync_folder_files(session, folder, user_id, access_token)
-    background_tasks.add_task(process_folder_rag, folder.id, user_id, access_token)  # type: ignore[arg-type]
+    background_tasks.add_task(process_folder_rag, cast(int, folder.id), user_id, access_token)
 
     return DriveFolderResponse(
-        id=folder.id,  # type: ignore[arg-type]
+        id=cast(int, folder.id),
         drive_folder_id=folder.drive_folder_id,
         name=folder.drive_folder_name,
         parent_id=folder.drive_parent_id,
@@ -159,7 +162,7 @@ async def create_folder(
     session.refresh(folder)
 
     return DriveFolderResponse(
-        id=folder.id,  # type: ignore[arg-type]
+        id=cast(int, folder.id),
         drive_folder_id=folder.drive_folder_id,
         name=folder.drive_folder_name,
         parent_id=folder.drive_parent_id,
@@ -195,7 +198,7 @@ def get_folder(
 
     files = [
         DriveFileResponse(
-            id=f.id,  # type: ignore[arg-type]
+            id=cast(int, f.id),
             drive_file_id=f.drive_file_id,
             name=f.name,
             mime_type=f.mime_type,
@@ -209,7 +212,7 @@ def get_folder(
     ]
 
     return DriveFolderWithFilesResponse(
-        id=folder.id,  # type: ignore[arg-type]
+        id=cast(int, folder.id),
         drive_folder_id=folder.drive_folder_id,
         name=folder.drive_folder_name,
         parent_id=folder.drive_parent_id,
@@ -277,10 +280,10 @@ async def refresh_folder(
 
     try:
         await _sync_folder_files(session, folder, user_id, access_token)
-        background_tasks.add_task(process_folder_rag, folder.id, user_id, access_token)  # type: ignore[arg-type]
+        background_tasks.add_task(process_folder_rag, cast(int, folder.id), user_id, access_token)
 
         return SyncStatusResponse(
-            folder_id=folder.id,  # type: ignore[arg-type]
+            folder_id=cast(int, folder.id),
             sync_status=folder.sync_status,
             last_synced_at=folder.last_synced_at,
         )
@@ -296,7 +299,7 @@ async def refresh_folder(
         session.refresh(folder)
 
         return SyncStatusResponse(
-            folder_id=folder.id,  # type: ignore[arg-type]
+            folder_id=cast(int, folder.id),
             sync_status="error",
             last_synced_at=folder.last_synced_at,
             error=str(e),

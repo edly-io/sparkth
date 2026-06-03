@@ -2,8 +2,9 @@
 
 import re
 import urllib.parse
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from datetime import datetime, timezone
+from typing import cast
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -57,12 +58,12 @@ def list_files(
     )
 
     total = session.exec(select(func.count()).select_from(base_query.subquery())).one()
-    files = session.exec(base_query.offset(skip).limit(limit)).all()
+    files: Sequence[DriveFile] = session.exec(base_query.offset(skip).limit(limit)).all()
 
     return PaginatedResponse(
         items=[
             DriveFileResponse(
-                id=f.id,  # type: ignore[arg-type]
+                id=cast(int, f.id),
                 drive_file_id=f.drive_file_id,
                 name=f.name,
                 mime_type=f.mime_type,
@@ -122,7 +123,7 @@ async def upload_file(
         modified_time = datetime.fromisoformat(file_metadata["modifiedTime"].replace("Z", "+00:00"))
 
     drive_file = DriveFile(
-        folder_id=folder.id,  # type: ignore[arg-type]
+        folder_id=cast(int, folder.id),
         user_id=user_id,
         drive_file_id=file_metadata["id"],
         name=file_metadata["name"],
@@ -138,7 +139,7 @@ async def upload_file(
     session.refresh(drive_file)
 
     return DriveFileResponse(
-        id=drive_file.id,  # type: ignore[arg-type]
+        id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
         name=drive_file.name,
         mime_type=drive_file.mime_type,
@@ -168,7 +169,7 @@ def get_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     return DriveFileResponse(
-        id=drive_file.id,  # type: ignore[arg-type]
+        id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
         name=drive_file.name,
         mime_type=drive_file.mime_type,
@@ -198,7 +199,7 @@ def get_file_rag_status(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     return FileRagStatusResponse(
-        file_id=drive_file.id,  # type: ignore[arg-type]
+        file_id=cast(int, drive_file.id),
         name=drive_file.name,
         rag_status=drive_file.rag_status,
         rag_error=drive_file.rag_error,
@@ -233,7 +234,7 @@ def get_folder_rag_status(
         folder_id=folder_id,
         files=[
             FileRagStatusResponse(
-                file_id=f.id,  # type: ignore[arg-type]
+                file_id=cast(int, f.id),
                 name=f.name,
                 rag_status=f.rag_status,
                 rag_error=f.rag_error,
@@ -325,7 +326,7 @@ async def rename_file(
     session.refresh(drive_file)
 
     return DriveFileResponse(
-        id=drive_file.id,  # type: ignore[arg-type]
+        id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
         name=drive_file.name,
         mime_type=drive_file.mime_type,
