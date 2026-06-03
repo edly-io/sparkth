@@ -27,7 +27,7 @@ app/
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
-  rag/           # Retrieval-augmented generation (loader, vectorstore, retriever)
+  rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/    # Alembic versions
 
@@ -46,7 +46,7 @@ tests/           # pytest suite for api/, chat/, mcp/, and other cross-cutting t
 
 ```bash
 # Docker (recommended for full stack)
-make up              # Build + start (PostgreSQL + Redis + API + frontend)
+make up              # Build + start all services
 make up.dev          # Dev mode with hot reload
 make down            # Stop containers
 make clean           # Stop + wipe database volume
@@ -82,14 +82,15 @@ make frontend.build  # Static export → frontend/out/
 
 # Database
 make migrations      # Run pending Alembic migrations
-make shell           # Shell inside API container
+make shell           # Shell inside a container, defaults to app (make shell [service])
+make logs            # Tail logs for all containers (make logs [service])
 make db-shell        # PostgreSQL shell
 make create-user     # Create user (pass args after --)
 ```
 
 ## Environment Setup
 
-Copy `.env.example` → `.env`. Required variables:
+`.env` is committed with working dev defaults — `make up` works out of the box. For sensitive credentials (Google OAuth, Slack), create a `.env.local` file (git-ignored). See the production checklist at the top of `.env` for values that must change before deploying.
 
 | Variable | Purpose |
 |---|---|
@@ -97,14 +98,23 @@ Copy `.env.example` → `.env`. Required variables:
 | `SECRET_KEY` | JWT signing key |
 | `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
 | `REDIS_URL` | Redis for chat session caching and the email-verification resend rate-limit bucket |
-| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP (Amazon SES, Mailgun, MailHog, …) |
+| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (add to `.env.local`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP — dev default is Mailpit (bundled); use Amazon SES, Mailgun, etc. in production |
 | `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | From-header for verification + other transactional emails |
 | `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |
 | `FRONTEND_BASE_URL` | Base URL used in verification email links |
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
+
+### Adding a new environment variable
+
+**`.env` is always the source of truth.** It must have complete, up-to-date information about every variable the application needs.
+
+- **Non-sensitive variable** — add it to `.env` with an appropriate dev default value.
+- **Sensitive variable** (API keys, OAuth secrets, passwords) — add it to the user's `.env.local` (git-ignored), but add a reference to it in the `# !! MUST change in production !!` comment block at the top of `.env` so developers know it exists and where to set it.
+
+Never add a variable only to `.env.local` without a corresponding reference in `.env`.
 
 ## Development Workflow: Test-Driven Development (TDD)
 
@@ -124,6 +134,18 @@ For every new feature, endpoint, service method, utility, or plugin tool:
 > Never write implementation code before a corresponding failing test exists.
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
+
+## Documentation Hygiene
+
+**Always update documentation alongside every code change — no exceptions.**
+
+Documentation includes:
+
+- **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit.
+- **Inline comments** — remove or update comments that describe logic that has changed. Never leave comments that contradict the code.
+- **Markdown files** — `CLAUDE.md`, `README.md`, plugin guides, and any other `.md` files must be updated when commands, architecture, configuration, or behaviour they describe changes.
+
+The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
 
 ## Database Migrations
 

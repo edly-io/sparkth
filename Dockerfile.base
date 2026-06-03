@@ -1,5 +1,5 @@
 # Dockerfile.base
-# Pre-bakes all heavy third-party Python deps (PyTorch, sentence-transformers, etc.)
+# Pre-bakes all heavy third-party Python deps
 # into a versioned local image so Dockerfile.local never re-downloads them.
 #
 # Rebuild only when uv.lock or pyproject.toml changes:
