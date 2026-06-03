@@ -237,3 +237,6 @@ pr-comments/
 *.DS_Store
 .superpowers
 docs/superpowers/
+
+.env.local
+CLAUDE.local.md
