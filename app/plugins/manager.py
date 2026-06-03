@@ -132,8 +132,8 @@ class PluginManager:
         Convert class name to plugin name.
 
         Examples:
-            CanvasPlugin -> canvas-plugin
-            OpenEdXPlugin -> openedx-plugin
+            CanvasPlugin -> canvas
+            OpenEdxPlugin -> open-edx
         """
         if class_name.endswith("Plugin"):
             class_name = class_name[:-6]

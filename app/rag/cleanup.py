@@ -27,7 +27,7 @@ async def cleanup_deleted_files() -> None:
     intentionally, as orphan cleanup is not scoped per user.
     """
     async with AsyncSession(async_engine, expire_on_commit=False) as session:
-        deleted_ids_result = await session.exec(
+        deleted_ids_result = await session.scalars(
             select(DriveFile.id).where(col(DriveFile.is_deleted) == True)  # noqa: E712
         )
         deleted_file_ids = list(deleted_ids_result.all())
@@ -39,7 +39,7 @@ async def cleanup_deleted_files() -> None:
         logger.info("Found %d deleted Drive files to process.", len(deleted_file_ids))
 
         # Chunks linked to deleted files
-        candidate_result = await session.exec(
+        candidate_result = await session.scalars(
             select(DriveFileChunkLink.chunk_id).where(
                 DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]
             )
@@ -50,7 +50,7 @@ async def cleanup_deleted_files() -> None:
 
         if candidate_chunk_ids:
             # Chunks still referenced by at least one live file
-            alive_result = await session.exec(
+            alive_result = await session.scalars(
                 select(DriveFileChunkLink.chunk_id)
                 .join(DriveFile, DriveFileChunkLink.drive_file_id == DriveFile.id)  # type: ignore[arg-type]
                 .where(

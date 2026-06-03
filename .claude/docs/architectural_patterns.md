@@ -119,14 +119,15 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 
 ---
 
-## 9. Chat Plugin: Service + Provider + Encryption
+## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `app/core_plugins/chat/service.py`, `app/core_plugins/chat/providers.py`, `app/core_plugins/chat/encryption.py`, `app/core_plugins/chat/cache.py`
+**Files:** `app/core_plugins/chat/service.py`, `app/core_plugins/chat/intent_router.py`, `app/core_plugins/chat/middleware.py`, `app/llm/providers.py`, `app/llm/service.py`, `app/core/encryption.py`, `app/core/cache.py`
 
 - `ChatService` owns conversation logic and history management
-- `providers.py` abstracts LLM backends (OpenAI, Claude, Google) behind a uniform interface
-- Conversations stored encrypted at rest using Fernet (AES-128); key from `CHAT_ENCRYPTION_KEY`
-- Redis (`cache.py`) manages session state and enforces rate limits (per-user + concurrent stream caps)
+- LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `app/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
+- `RAGIntentRouter` (`intent_router.py`) decides how to route a user turn
+- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`app/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
+- Redis (`app/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 
 ---
 

@@ -50,7 +50,7 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
 
 3. Install git hooks:
    ```bash
-   make backend.install.githooks
+   make backend.install.dev.githooks
    ```
 
 ## Running the MCP Server (Docker)
