@@ -1,6 +1,4 @@
 import asyncio
-import logging
-import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from enum import Enum
@@ -14,18 +12,15 @@ from starlette.types import ASGIApp
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core_plugins.chat.routes import chat_router
+from app.lib.log import configure_logging, get_logger
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 from app.plugins.middleware import PluginAccessMiddleware
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+configure_logging()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 settings = get_settings()
 

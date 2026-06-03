@@ -7,7 +7,7 @@ preserving heading hierarchy, lists, and tables for downstream chunking.
 from pathlib import Path
 
 from app.core.config import get_settings, parse_rag_allowed_extensions
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.rag.extraction.base import BaseExtractor
 from app.rag.extraction.docx import DocxExtractor
 from app.rag.extraction.html import HTMLExtractor

@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -6,10 +5,13 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
 from app.plugins import PLUGIN_CONFIG_CLASSES
 from app.plugins.adapters import PLUGIN_ADAPTERS
 from app.plugins.config_base import PluginConfig
+
+logger = get_logger(__name__)
 
 
 class ConfigValidationError(Exception):
@@ -64,11 +66,11 @@ class PluginService:
 
         config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
         if not config_class:
-            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
+            logger.error(f"Plugin '{plugin.name}' config class is missing or invalid")
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
         if not issubclass(config_class, PluginConfig):
-            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
+            logger.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
         try:

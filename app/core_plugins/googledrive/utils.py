@@ -4,7 +4,6 @@ import asyncio
 import ctypes
 import gc
 import hashlib
-import logging
 import sys
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
+from app.lib.log import get_logger
 from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.chunking import chunk_document
@@ -25,7 +25,7 @@ from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
 from app.rag.store import ChunkInput, VectorStoreService
 from app.rag.types import Chunk, RagStatus
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DriveRagPipeline:

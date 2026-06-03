@@ -6,8 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logger import get_logger
 from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
+from app.lib.log import get_logger
 from app.models.drive import DriveFile
 from app.rag.types import RagStatus
 

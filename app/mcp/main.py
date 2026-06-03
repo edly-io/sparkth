@@ -1,15 +1,15 @@
 import argparse
 import asyncio
-import logging
 from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.lib.log import configure_logging, get_logger
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
 from app.plugins import get_plugin_manager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MCPToolDefinition(BaseModel):
@@ -167,6 +167,8 @@ def run_http(host: str, port: int) -> None:
 
 
 def main() -> None:
+    configure_logging()
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(

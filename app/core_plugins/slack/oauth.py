@@ -11,9 +11,9 @@ from itsdangerous import URLSafeTimedSerializer
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
-from app.core.logger import get_logger
 from app.core_plugins.slack.constants import BOT_SCOPES, SLACK_AUTHORIZE_URL, SLACK_TOKEN_URL, STATE_MAX_AGE
 from app.core_plugins.slack.models import SlackWorkspace
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 

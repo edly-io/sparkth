@@ -13,7 +13,7 @@ from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.core.config import get_settings
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.rag.constants import AGENT_CONTEXT_KEYS, AGENT_MAX_RECURSION
 from app.rag.exceptions import RAGRetrievalError
 from app.rag.types import RAGSearchAgentResponse

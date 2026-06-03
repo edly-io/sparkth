@@ -11,7 +11,6 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import async_engine
-from app.core.logger import get_logger
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
@@ -22,6 +21,7 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.models import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
+from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
 from app.rag.context_service import RAGContextService, format_chunks_as_context

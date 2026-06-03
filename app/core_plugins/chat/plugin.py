@@ -1,9 +1,9 @@
 from starlette.middleware import Middleware
 
-from app.core.logger import get_logger
 from app.core_plugins.chat.config import ChatUserConfig
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.routes import chat_router
+from app.lib.log import get_logger
 from app.plugins.base import SparkthPlugin
 
 logger = get_logger(__name__)
