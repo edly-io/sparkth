@@ -19,6 +19,7 @@ from app.core_plugins.openedx.schemas import (
     UpdateXBlockPayload,
     XBlockPayload,
 )
+from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.enums import Method
 from app.lib.exceptions import AuthenticationError, LMSRequestError
 from app.plugins.base import SparkthPlugin, tool
@@ -125,7 +126,8 @@ class OpenEdxPlugin(SparkthPlugin):
     """
 
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name, OpenEdxConfig)
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, OpenEdxConfig)
 
     @tool(description="Authenticate the Openedx credentials", category="openedx-auth")
     async def openedx_authenticate(self, payload: Auth) -> dict[str, Any]:

@@ -3,12 +3,18 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.constants import LMS_RULES
-from app.plugins import PLUGIN_CONFIG_CLASSES
+from app.lib.config import iter_plugin_config_schemas
 from app.services.plugin import PluginService
 
 
 def _lms_tool_prefixes() -> tuple[str, ...]:
-    return tuple(prefix for cls in PLUGIN_CONFIG_CLASSES.values() if (prefix := cls.lms_tool_prefix()) is not None)
+    """
+    Derive LMS tool-name prefixes from all registered plugin configs.
+
+    Any config class that overrides ``lms_tool_prefix`` contributes its prefix.
+    """
+
+    return tuple(prefix for _name, cls in iter_plugin_config_schemas() if (prefix := cls.lms_tool_prefix()) is not None)
 
 
 def _has_lms_tools(tools: list[Any]) -> bool:
@@ -44,7 +50,7 @@ async def build_lms_credentials_message(
 
     credential_sections: list[str] = []
 
-    for plugin_name, config_class in PLUGIN_CONFIG_CLASSES.items():
+    for plugin_name, config_class in iter_plugin_config_schemas():
         if config_class.lms_tool_prefix() is None:
             continue
 
