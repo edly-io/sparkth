@@ -3,6 +3,7 @@
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.models import BotResponseLog, SlackWorkspace
 from app.core_plugins.slack.routes import router
+from app.lib.routes.hooks import ROUTES
 from app.plugins.base import SparkthPlugin
 
 
@@ -21,10 +22,4 @@ class Slack(SparkthPlugin):
 
         self.add_model(SlackWorkspace)
         self.add_model(BotResponseLog)
-        self.add_route(router)
-
-    def get_route_prefix(self) -> str:
-        return "/api/v1/slack"
-
-    def get_route_tags(self) -> list[str]:
-        return ["Slack TA Bot"]
+        ROUTES.add_item(self, ("/api/v1/slack", ["Slack TA Bot"], router))

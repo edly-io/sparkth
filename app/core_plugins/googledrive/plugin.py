@@ -2,6 +2,7 @@
 
 from app.core_plugins.googledrive.config import GoogleDriveConfig
 from app.core_plugins.googledrive.routes import router
+from app.lib.routes.hooks import ROUTES
 from app.plugins.base import SparkthPlugin
 
 
@@ -21,12 +22,4 @@ class GoogleDrivePlugin(SparkthPlugin):
             description="Google Drive integration for folder sync and file management",
             author="Sparkth Team",
         )
-        self.add_route(router)
-
-    def get_route_prefix(self) -> str:
-        """Return the route prefix for Google Drive endpoints."""
-        return "/api/v1/googledrive"
-
-    def get_route_tags(self) -> list[str]:
-        """Return OpenAPI tags for Google Drive routes."""
-        return ["Google Drive"]
+        ROUTES.add_item(self, ("/api/v1/googledrive", ["Google Drive"], router))
