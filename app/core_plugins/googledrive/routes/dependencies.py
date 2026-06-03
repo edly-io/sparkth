@@ -6,12 +6,10 @@ Functions here are injected via ``Depends()`` by route handlers.
 from fastapi import Depends, HTTPException, status
 
 from app.api.v1.auth import get_current_user
-from app.core_plugins.googledrive.oauth import get_valid_access_token  # re-exported for routes
 from app.lib.log import get_logger
 from app.models.user import User
 
 __all__ = [
-    "get_valid_access_token",
     "require_user_id",
 ]
 

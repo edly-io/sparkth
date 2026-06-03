@@ -10,8 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
-from app.core_plugins.googledrive.routes.dependencies import get_valid_access_token, require_user_id
-from app.core_plugins.googledrive.routes.route_utils import _sync_folder_files, get_drive_credentials
+from app.core_plugins.googledrive.oauth import get_valid_access_token
+from app.core_plugins.googledrive.routes.dependencies import require_user_id
+from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
 from app.core_plugins.googledrive.types import (
     CreateFolderRequest,
     DriveFileResponse,
@@ -24,9 +25,12 @@ from app.core_plugins.googledrive.types import (
 from app.core_plugins.googledrive.utils import process_folder_rag
 from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
+from app.rag.types import RagStatus
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+_FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
 
 
 @router.get("/folders", response_model=PaginatedResponse[DriveFolderResponse])
@@ -306,3 +310,74 @@ async def refresh_folder(
             last_synced_at=folder.last_synced_at,
             error=str(e),
         )
+
+
+async def _sync_folder_files(session: AsyncSession, folder: DriveFolder, user_id: int, access_token: str) -> int:
+    """Sync a folder's files from the Drive API into the database.
+
+    Fetches the current file list from Drive, upserts new or changed files,
+    and soft-deletes any local records whose Drive counterpart has been removed.
+
+    Returns:
+        Number of active (non-deleted) files after sync.
+    """
+    async with GoogleDriveClient(access_token) as client:
+        drive_files_data = await client.list_files(folder_id=folder.drive_folder_id)
+
+    now = datetime.now(timezone.utc)
+    drive_files = [f for f in drive_files_data.get("files", []) if f.get("mimeType") != _FOLDER_MIME_TYPE]
+    drive_file_ids = {f["id"] for f in drive_files}
+
+    result = await session.exec(
+        select(DriveFile).where(
+            DriveFile.folder_id == folder.id,
+            DriveFile.is_deleted == False,  # noqa: E712
+        )
+    )
+    existing_files = result.all()
+    existing_map = {f.drive_file_id: f for f in existing_files}
+
+    for df in drive_files:
+        modified_time = None
+        if df.get("modifiedTime"):
+            modified_time = datetime.fromisoformat(df["modifiedTime"].replace("Z", "+00:00"))
+
+        if df["id"] in existing_map:
+            existing_file = existing_map[df["id"]]
+            existing_file.name = df["name"]
+            existing_file.mime_type = df.get("mimeType")
+            existing_file.size = int(df["size"]) if df.get("size") else None
+            existing_file.md5_checksum = df.get("md5Checksum")
+            existing_file.modified_time = modified_time
+            existing_file.last_synced_at = now
+            existing_file.update_timestamp()
+            session.add(existing_file)
+        else:
+            new_file = DriveFile(
+                folder_id=cast(int, folder.id),
+                user_id=user_id,
+                drive_file_id=df["id"],
+                name=df["name"],
+                mime_type=df.get("mimeType"),
+                size=int(df["size"]) if df.get("size") else None,
+                md5_checksum=df.get("md5Checksum"),
+                modified_time=modified_time,
+                last_synced_at=now,
+                rag_status=RagStatus.QUEUED,
+            )
+            session.add(new_file)
+
+    for file_id, existing_file in existing_map.items():
+        if file_id not in drive_file_ids:
+            existing_file.soft_delete()
+            session.add(existing_file)
+
+    folder.last_synced_at = now
+    folder.sync_status = "synced"
+    folder.sync_error = None
+    folder.update_timestamp()
+    session.add(folder)
+    await session.commit()
+    await session.refresh(folder)
+
+    return len(drive_files)
