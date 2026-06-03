@@ -1,7 +1,5 @@
 """Google Drive OAuth endpoints."""
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
@@ -25,10 +23,11 @@ from app.core_plugins.googledrive.routes.dependencies import (
     require_user_id,
 )
 from app.core_plugins.googledrive.types import AuthorizationUrlResponse, ConnectionStatusResponse
+from app.lib.log import get_logger
 from app.models.user import User
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get("/oauth/authorize", response_model=AuthorizationUrlResponse)
