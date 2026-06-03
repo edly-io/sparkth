@@ -5,20 +5,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.core_plugins.chat.routes.completions import _resolve_drive_file_blocks
+from app.core_plugins.chat.routes.helpers import resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
-_PATCH_TARGET = "app.core_plugins.chat.routes.completions.get_rag_context_service"
+_PATCH_TARGET = "app.core_plugins.chat.routes.helpers.get_rag_context_service"
 
 
 class TestResolveBlocksUsesAgent:
-    """Test that _resolve_drive_file_blocks uses the agent method."""
+    """Test that resolve_drive_file_blocks uses the agent method."""
 
     @pytest.mark.asyncio
     async def test_calls_get_context_via_agent(self) -> None:
-        """Test that _resolve_drive_file_blocks calls get_context_via_agent."""
+        """Test that resolve_drive_file_blocks calls get_context_via_agent."""
         messages = [
             ChatMessage(
                 role="user",
@@ -40,7 +40,7 @@ class TestResolveBlocksUsesAgent:
         mock_rag_service.get_context_via_agent = AsyncMock(return_value=mock_context)
 
         with patch(_PATCH_TARGET, return_value=mock_rag_service):
-            await _resolve_drive_file_blocks(
+            await resolve_drive_file_blocks(
                 messages=messages,
                 session=mock_session,
                 user_id=1,
@@ -72,7 +72,7 @@ class TestResolveBlocksUsesAgent:
 
         with pytest.raises(HTTPException) as exc_info:
             with patch(_PATCH_TARGET, return_value=mock_rag_service):
-                await _resolve_drive_file_blocks(
+                await resolve_drive_file_blocks(
                     messages=messages,
                     session=mock_session,
                     user_id=1,
@@ -100,7 +100,7 @@ class TestResolveBlocksUsesAgent:
 
         with pytest.raises(HTTPException) as exc_info:
             with patch(_PATCH_TARGET, return_value=mock_rag_service):
-                await _resolve_drive_file_blocks(
+                await resolve_drive_file_blocks(
                     messages=messages,
                     session=mock_session,
                     user_id=1,
@@ -128,7 +128,7 @@ class TestResolveBlocksUsesAgent:
 
         with pytest.raises(HTTPException) as exc_info:
             with patch(_PATCH_TARGET, return_value=mock_rag_service):
-                await _resolve_drive_file_blocks(
+                await resolve_drive_file_blocks(
                     messages=messages,
                     session=mock_session,
                     user_id=1,

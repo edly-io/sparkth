@@ -1,10 +1,12 @@
+from functools import lru_cache
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.plugins.config_base import PluginConfig
 
 
-class ChatSystemConfig(BaseSettings):
+class ChatSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CHAT_",
         env_file=".env",
@@ -26,3 +28,9 @@ class ChatUserConfig(PluginConfig):
         default=None,
         description="Overrides the default model in the selected LLMConfig",
     )
+
+
+@lru_cache
+def get_chat_settings() -> ChatSettings:
+    """Dependency to get chat settings from environment variables."""
+    return ChatSettings()

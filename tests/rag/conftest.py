@@ -1,23 +1,27 @@
-# app.models.__init__ imports app.rag.db_models (for Alembic autogenerate), and
-# app.rag.db_models imports app.models.base, creating a circular dependency.
-# Importing app.models here first puts it in sys.modules before any test file
-# triggers app.rag.db_models, breaking the cycle.
-from collections.abc import AsyncGenerator
+"""Shared fixtures for RAG tests.
+
+The generic test environment is set by the app.testing plugin (registered in the
+root conftest), which also imports app.main → app.models at startup. That
+early import breaks a circular dependency: app.models imports app.rag.db_models
+(for Alembic autogenerate) which imports app.models.base, so app.models must
+already be in sys.modules before any test file triggers app.rag.db_models.
+"""
+
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import patch
 
-import app.models  # noqa: F401
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from tests.lib.env import TEST_DATABASE_URL
-from tests.lib.fixtures import session  # noqa: F401 — re-exported for pytest discovery
+import app.models  # noqa: F401
+from app.testing import DATABASE_URL
 
 
 @pytest.fixture(autouse=True)
-def _allow_all_extensions() -> Any:
+def _allow_all_extensions() -> Generator[None, None, None]:
     """Patch extraction settings so no extension is blocked by default.
 
     Also seeds the int-typed RAG_* settings used by _extract_pdf so tests
@@ -34,24 +38,6 @@ def _allow_all_extensions() -> Any:
 
 
 @pytest.fixture(scope="session")
-async def engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Full in-memory SQLite engine with all SQLModel tables."""
-    from sqlmodel import SQLModel
-
-    eng = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
-    await eng.dispose()
-
-
-@pytest.fixture(scope="session")
 async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
     """In-memory SQLite engine for RAG tests.
 
@@ -59,7 +45,7 @@ async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
     service level with mocks, so the full schema is unnecessary here.
     """
     engine = create_async_engine(
-        TEST_DATABASE_URL,
+        DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )

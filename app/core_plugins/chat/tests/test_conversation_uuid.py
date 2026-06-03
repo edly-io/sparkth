@@ -17,15 +17,15 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
+from app.core_plugins.chat.config import get_chat_settings
 from app.core_plugins.chat.models import Conversation, Message  # noqa: F401 used in route fixture tests
-from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
     ConversationResponse,
 )
-from app.core_plugins.chat.service import ChatService
+from app.core_plugins.chat.service import ChatService, get_chat_service
 from app.llm.service import get_llm_service
 from app.main import app
 
@@ -179,7 +179,7 @@ class TestConversationUUIDRoutes:
         mock_llm_service.get = AsyncMock(return_value=mock_llm_config)
         mock_llm_service.resolve = AsyncMock(return_value=(mock_llm_config, "sk-fake-key"))
 
-        app.dependency_overrides[get_chat_system_config] = lambda: mock_config
+        app.dependency_overrides[get_chat_settings] = lambda: mock_config
         app.dependency_overrides[get_chat_service] = lambda: mock_service
         app.dependency_overrides[get_llm_service] = lambda: mock_llm_service
 
@@ -256,9 +256,9 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.completions.generate_conversation_title"),
+            patch("app.core_plugins.chat.routes.helpers.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
-            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_classifier_cls,
+            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
@@ -308,7 +308,7 @@ class TestConversationUUIDRoutes:
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
-            patch("app.core_plugins.chat.routes.completions.ScopeClassifier") as mock_classifier_cls,
+            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)

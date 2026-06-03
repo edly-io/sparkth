@@ -291,3 +291,8 @@ class ChatService:
         )
         result = await session.exec(stmt)
         return list(result.all())
+
+
+def get_chat_service() -> ChatService:
+    """Dependency to get chat service."""
+    return ChatService()

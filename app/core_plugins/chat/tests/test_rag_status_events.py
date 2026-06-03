@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core_plugins.chat.routes import stream_chat_response
-from app.core_plugins.chat.routes.conversations import _parse_metadata_list
+from app.core_plugins.chat.routes.completions import stream_chat_response
+from app.core_plugins.chat.routes.helpers import parse_metadata_list
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
@@ -580,34 +580,34 @@ async def test_unexpected_error_persists_error_to_db() -> None:
 
 class TestParseMetadataList:
     def test_returns_none_for_no_metadata(self) -> None:
-        assert _parse_metadata_list(None, "tool_calls") is None
+        assert parse_metadata_list(None, "tool_calls") is None
 
     def test_returns_none_for_empty_metadata(self) -> None:
-        assert _parse_metadata_list("{}", "tool_calls") is None
+        assert parse_metadata_list("{}", "tool_calls") is None
 
     def test_returns_none_for_invalid_json(self) -> None:
-        assert _parse_metadata_list("not-json", "tool_calls") is None
+        assert parse_metadata_list("not-json", "tool_calls") is None
 
     def test_returns_none_when_value_not_list(self) -> None:
-        assert _parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
+        assert parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
 
     def test_returns_list_for_tool_calls_key(self) -> None:
         meta = json.dumps({"tool_calls": [{"name": "search_web"}, {"name": "search_web"}]})
-        result = _parse_metadata_list(meta, "tool_calls")
+        result = parse_metadata_list(meta, "tool_calls")
         assert result is not None
         assert len(result) == 2
         assert result[0]["name"] == "search_web"
 
     def test_returns_list_for_rag_sections_key(self) -> None:
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
-        result = _parse_metadata_list(meta, "rag_sections")
+        result = parse_metadata_list(meta, "rag_sections")
         assert result is not None
         assert len(result) == 1
         assert result[0]["name"] == "Intro"
 
     def test_ignores_other_keys(self) -> None:
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
-        assert _parse_metadata_list(meta, "tool_calls") is None
+        assert parse_metadata_list(meta, "tool_calls") is None
 
 
 # ---------------------------------------------------------------------------

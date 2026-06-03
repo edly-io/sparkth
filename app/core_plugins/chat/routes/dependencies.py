@@ -1,4 +1,3 @@
-from functools import lru_cache
 from typing import cast
 from uuid import UUID
 
@@ -6,22 +5,10 @@ from fastapi import Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import get_async_session
-from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.models import Conversation
-from app.core_plugins.chat.service import ChatService
+from app.core_plugins.chat.service import ChatService, get_chat_service
+from app.lib.db import get_async_session
 from app.models.user import User
-
-
-@lru_cache
-def get_chat_system_config() -> ChatSystemConfig:
-    """Dependency to get chat system configuration from environment variables."""
-    return ChatSystemConfig()
-
-
-def get_chat_service() -> ChatService:
-    """Dependency to get chat service."""
-    return ChatService()
 
 
 async def get_owned_conversation(

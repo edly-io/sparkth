@@ -1,5 +1,4 @@
-import json
-from typing import Any, cast
+from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -7,34 +6,22 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import get_async_session
-from app.core.logger import get_logger
 from app.core_plugins.chat.models import Message
-from app.core_plugins.chat.routes.dependencies import get_chat_service
+from app.core_plugins.chat.routes.helpers import parse_metadata_list
 from app.core_plugins.chat.schemas import (
     ConversationDetailResponse,
     ConversationListResponse,
     ConversationResponse,
     MessageResponse,
 )
-from app.core_plugins.chat.service import ChatService
+from app.core_plugins.chat.service import ChatService, get_chat_service
+from app.lib.db import get_async_session
+from app.lib.log import get_logger
 from app.models.user import User
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-def _parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:
-    if not model_metadata:
-        return None
-    try:
-        meta = json.loads(model_metadata)
-        value = meta.get(key)
-        return value if isinstance(value, list) else None
-    except (json.JSONDecodeError, AttributeError) as exc:
-        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
-        return None
 
 
 @router.get("/conversations", response_model=ConversationListResponse)
@@ -112,7 +99,23 @@ async def get_conversation(
         exclude_errors=False,
     )
 
-    message_count = len(messages)
+    message_responses = [
+        MessageResponse(
+            id=cast(int, msg.id),
+            role=msg.role,
+            content=msg.content,
+            tokens_used=msg.tokens_used,
+            cost=msg.cost,
+            created_at=msg.created_at,
+            message_type=msg.message_type,
+            attachment_name=msg.attachment_name,
+            attachment_size=msg.attachment_size,
+            rag_sections=parse_metadata_list(msg.model_metadata, "rag_sections"),
+            tool_calls=parse_metadata_list(msg.model_metadata, "tool_calls"),
+            is_error=msg.is_error,
+        )
+        for msg in messages
+    ]
 
     return ConversationDetailResponse(
         id=conversation.uuid,
@@ -121,26 +124,10 @@ async def get_conversation(
         title=conversation.title,
         total_tokens_used=conversation.total_tokens_used,
         total_cost=conversation.total_cost,
-        message_count=message_count,
+        message_count=len(message_responses),
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        messages=[
-            MessageResponse(
-                id=cast(int, msg.id),
-                role=msg.role,
-                content=msg.content,
-                tokens_used=msg.tokens_used,
-                cost=msg.cost,
-                created_at=msg.created_at,
-                message_type=msg.message_type,
-                attachment_name=msg.attachment_name,
-                attachment_size=msg.attachment_size,
-                rag_sections=_parse_metadata_list(msg.model_metadata, "rag_sections"),
-                tool_calls=_parse_metadata_list(msg.model_metadata, "tool_calls"),
-                is_error=msg.is_error,
-            )
-            for msg in messages
-        ],
+        messages=message_responses,
     )
 
 
@@ -179,7 +166,7 @@ async def get_last_conversation_message(
         message_type=msg.message_type,
         attachment_name=msg.attachment_name,
         attachment_size=msg.attachment_size,
-        rag_sections=_parse_metadata_list(msg.model_metadata, "rag_sections"),
-        tool_calls=_parse_metadata_list(msg.model_metadata, "tool_calls"),
+        rag_sections=parse_metadata_list(msg.model_metadata, "rag_sections"),
+        tool_calls=parse_metadata_list(msg.model_metadata, "tool_calls"),
         is_error=msg.is_error,
     )

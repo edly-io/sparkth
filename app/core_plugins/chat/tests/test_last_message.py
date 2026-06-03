@@ -8,9 +8,9 @@ import httpx
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core_plugins.chat.config import get_chat_settings
 from app.core_plugins.chat.models import Conversation, Message
-from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
-from app.core_plugins.chat.service import ChatService
+from app.core_plugins.chat.service import ChatService, get_chat_service
 from app.llm.service import get_llm_service
 from app.main import app
 
@@ -24,7 +24,7 @@ class TestGetLastMessage:
 
         mock_llm_service = MagicMock()
 
-        app.dependency_overrides[get_chat_system_config] = lambda: mock_config
+        app.dependency_overrides[get_chat_settings] = lambda: mock_config
         app.dependency_overrides[get_chat_service] = lambda: ChatService()
         app.dependency_overrides[get_llm_service] = lambda: mock_llm_service
 

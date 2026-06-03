@@ -2,20 +2,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-_LMS_RULES = (
-    "If the user asks whether you have their credentials for any LMS (e.g., 'Do you have my <LMS NAME> credentials?') "
-    "OR requests any LMS-related action (such as publishing a course, fetching courses, or creating/updating content), "
-    "you must follow these rules:\n\n"
-    "1. NEVER request, accept, or display LMS credentials in the chat.\n"
-    "2. If the LMS is NOT configured:\n"
-    "   - Clearly state that you do not have access to their <LMS NAME> credentials.\n"
-    "   - Instruct the user to configure their credentials via the 'My Plugins' page.\n\n"
-    "3. If the LMS IS configured:\n"
-    "   - Do NOT reveal or display any credentials.\n"
-    "   - Inform the user that their credentials are already configured.\n"
-    "   - Direct them to the 'My Plugins' page if they want to view or manage them.\n\n"
-    "4. These rules apply to ALL LMS platforms without exception."
-)
+from app.core_plugins.chat.constants import LMS_RULES
 
 
 def _lms_tool_prefixes() -> tuple[str, ...]:
@@ -78,10 +65,11 @@ async def build_lms_credentials_message(
             credential_sections.append(hint)
 
     if not credential_sections:
-        return _LMS_RULES
+        return LMS_RULES
 
     return (
-        _LMS_RULES
-        + "\n5. Use the credentials below automatically when calling LMS tools without asking the user to provide them again:\n\n"
+        LMS_RULES
+        + "\n5. Use the credentials below automatically when calling LMS tools without asking"
+        + " the user to provide them again:\n\n"
         + "\n\n".join(credential_sections)
     )

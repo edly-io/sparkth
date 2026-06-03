@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.core_plugins.chat.routes.completions import _extract_query_text, _resolve_drive_file_blocks
+from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.db_models import DocumentChunk
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.store import SimilarityResult
 
-_PATCH_TARGET = "app.core_plugins.chat.routes.completions.get_rag_context_service"
+_PATCH_TARGET = "app.core_plugins.chat.routes.helpers.get_rag_context_service"
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
@@ -101,11 +101,11 @@ class TestSchemaValidation:
 class TestExtractQueryText:
     def test_plain_string_message(self) -> None:
         messages = [_user_msg("Create a course on photosynthesis")]
-        assert _extract_query_text(messages) == "Create a course on photosynthesis"
+        assert extract_query_text(messages) == "Create a course on photosynthesis"
 
     def test_list_content_extracts_text_blocks(self) -> None:
         messages = [_user_msg([_drive_block(1), _text_block("Create a course on plants")])]
-        assert _extract_query_text(messages) == "Create a course on plants"
+        assert extract_query_text(messages) == "Create a course on plants"
 
     def test_uses_last_user_message(self) -> None:
         messages = [
@@ -113,15 +113,15 @@ class TestExtractQueryText:
             _assistant_msg("Response"),
             _user_msg("Second message"),
         ]
-        assert _extract_query_text(messages) == "Second message"
+        assert extract_query_text(messages) == "Second message"
 
     def test_no_user_message_returns_empty(self) -> None:
         messages = [_assistant_msg("Hello")]
-        assert _extract_query_text(messages) == ""
+        assert extract_query_text(messages) == ""
 
     def test_list_with_no_text_blocks_returns_empty(self) -> None:
         messages = [_user_msg([_drive_block(1)])]
-        assert _extract_query_text(messages) == ""
+        assert extract_query_text(messages) == ""
 
 
 class TestResolveDriveFileBlocks:
@@ -129,7 +129,7 @@ class TestResolveDriveFileBlocks:
     async def test_no_drive_file_blocks_returns_messages_unchanged(self) -> None:
         messages = [_user_msg("Just text"), _assistant_msg("Response")]
         with patch(_PATCH_TARGET, return_value=_make_rag_service()):
-            result = await _resolve_drive_file_blocks(
+            result = await resolve_drive_file_blocks(
                 messages=messages,
                 session=AsyncMock(),
                 user_id=1,
@@ -150,9 +150,7 @@ class TestResolveDriveFileBlocks:
         )
 
         with patch(_PATCH_TARGET, return_value=mock_svc):
-            result = await _resolve_drive_file_blocks(
-                messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock()
-            )
+            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
 
         assert len(result) == 1
         content = result[0].content
@@ -170,9 +168,7 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([base64_block])]
 
         with patch(_PATCH_TARGET, return_value=_make_rag_service()):
-            result = await _resolve_drive_file_blocks(
-                messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock()
-            )
+            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
         content = result[0].content
         assert isinstance(content, list)
         assert content[0] == base64_block
@@ -184,7 +180,7 @@ class TestResolveDriveFileBlocks:
 
         with pytest.raises(HTTPException) as exc_info:
             with patch(_PATCH_TARGET, return_value=mock_svc):
-                await _resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+                await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
         assert exc_info.value.status_code == 422
 
     @pytest.mark.asyncio
@@ -194,7 +190,7 @@ class TestResolveDriveFileBlocks:
 
         with pytest.raises(HTTPException) as exc_info:
             with patch(_PATCH_TARGET, return_value=mock_svc):
-                await _resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+                await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
         assert exc_info.value.status_code == 422
         assert "processing" in exc_info.value.detail
 
@@ -205,7 +201,7 @@ class TestResolveDriveFileBlocks:
 
         with pytest.raises(HTTPException) as exc_info:
             with patch(_PATCH_TARGET, return_value=mock_svc):
-                await _resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+                await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
         assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
@@ -221,9 +217,7 @@ class TestResolveDriveFileBlocks:
         )
 
         with patch(_PATCH_TARGET, return_value=mock_svc):
-            result = await _resolve_drive_file_blocks(
-                messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock()
-            )
+            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
 
         content = result[0].content
         assert isinstance(content, list)
@@ -237,7 +231,5 @@ class TestResolveDriveFileBlocks:
     async def test_string_content_message_passed_through(self) -> None:
         messages = [_user_msg("plain text message")]
         with patch(_PATCH_TARGET, return_value=_make_rag_service()):
-            result = await _resolve_drive_file_blocks(
-                messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock()
-            )
+            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
         assert result[0].content == "plain text message"

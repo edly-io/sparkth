@@ -96,7 +96,7 @@ class ToolRegistry:
             hints.pop("self", None)
             return hints
         except (TypeError, NameError, AttributeError) as e:
-            logger.debug(f"Could not get type hints: {e}")
+            logger.debug("Could not get type hints: %s", e)
             return {}
 
     def _build_args_schema_from_handler(
@@ -150,7 +150,7 @@ class ToolRegistry:
 
             return create_model(name + "Input", **field_definitions)
         except (TypeError, ValueError, AttributeError) as e:
-            logger.debug(f"Could not build args_schema from handler hints for '{name}': {e}")
+            logger.debug("Could not build args_schema from handler hints for '%s': %s", name, e)
             return None
 
     def _convert_mcp_to_langchain_tool(self, mcp_tool: dict[str, Any]) -> BaseTool:
