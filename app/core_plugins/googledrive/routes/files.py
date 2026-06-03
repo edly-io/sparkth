@@ -13,11 +13,8 @@ from sqlmodel import Session, select
 from app.core.db import get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.constants import DRIVE_MAX_UPLOAD_BYTES
-from app.core_plugins.googledrive.routes.dependencies import (
-    get_drive_credentials,
-    get_valid_access_token,
-    require_user_id,
-)
+from app.core_plugins.googledrive.routes.dependencies import get_valid_access_token, require_user_id
+from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
 from app.core_plugins.googledrive.types import (
     DriveBrowseItem,
     DriveBrowseResponse,

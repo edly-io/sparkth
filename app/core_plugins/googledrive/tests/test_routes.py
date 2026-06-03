@@ -227,7 +227,7 @@ class TestSyncFolder:
         with (
             patch("app.core_plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
             patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
-            patch("app.core_plugins.googledrive.routes.deps.GoogleDriveClient") as mock_deps_client_cls,
+            patch("app.core_plugins.googledrive.routes.route_utils.GoogleDriveClient") as mock_deps_client_cls,
         ):
             mock_client = AsyncMock()
             mock_client.get_folder.return_value = folder_metadata
@@ -276,7 +276,7 @@ class TestRefreshFolder:
     ) -> None:
         """POST /folders/{id}/refresh should re-sync files from Drive."""
         with (
-            patch("app.core_plugins.googledrive.routes.deps.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.route_utils.GoogleDriveClient") as mock_client_cls,
             patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
@@ -312,7 +312,7 @@ class TestRefreshFolder:
     ) -> None:
         """Subfolder entries returned by the Drive API must not be stored as DriveFiles."""
         with (
-            patch("app.core_plugins.googledrive.routes.deps.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.route_utils.GoogleDriveClient") as mock_client_cls,
             patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
