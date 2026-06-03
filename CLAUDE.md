@@ -24,8 +24,8 @@ app/
   lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
   api/v1/        # REST endpoints: auth, user, user-plugins, file-parser
-  plugins/       # Plugin framework: base.py (SparkthPlugin, @tool), manager.py
-  core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/
+  plugins/       # Plugin framework: base.py (SparkthPlugin, @tool), loader.py
+  core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
@@ -38,8 +38,9 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # pytest suite for api/, chat/, mcp/, and other cross-cutting tests
-                 # RAG tests live co-located at app/rag/tests/ (both dirs in testpaths)
+tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, rag_mcp/, services/
+                 # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
+                 # Shared fixtures: app/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
 ```
 
@@ -56,6 +57,9 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/log.py`](app/lib/log.py) — logging. Obtain loggers via `get_logger`
   (never `logging.getLogger`); `configure_logging` is the single logging setup,
   called once per process entrypoint.
+- [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
+  background/non-request code; `get_async_session`/`get_session` are the FastAPI
+  dependencies.
 
 ## Essential Commands
 
@@ -139,9 +143,7 @@ Never add a variable only to `.env.local` without a corresponding reference in `
 
 For every new feature, endpoint, service method, utility, or plugin tool:
 
-1. **Write the test first** — create or update the relevant test file. Two conventions are in use:
-   - Cross-cutting / integration tests: `tests/<module>/test_foo.py` mirroring `app/<module>/foo.py`
-   - Co-located package tests: `app/<package>/tests/test_foo.py` (e.g. RAG tests live at `app/rag/tests/`)
+1. **Write the test first** — create or update the relevant test file, following the [Test Layout](#test-layout) rules below.
 2. **Confirm the test fails** — the test must fail before any implementation exists (red phase)
 3. **Write the minimum implementation** to make the test pass (green phase)
 4. **Refactor** while keeping all tests green
@@ -161,6 +163,22 @@ Documentation includes:
 - **Markdown files** — `CLAUDE.md`, `README.md`, plugin guides, and any other `.md` files must be updated when commands, architecture, configuration, or behaviour they describe changes.
 
 The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
+
+### Test Layout
+
+Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
+
+- **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, rag_mcp, services)
+
+  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`).
+
+How the suite is wired:
+
+- Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
+- Shared fixtures (`engine`, `session`, `client`, `setup_plugins_and_user`, …) and the generic test environment live in [`app/testing.py`](app/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["app.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
+- The four required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `RAG_MCP_URL`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 ## Database Migrations
 

@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import async_engine
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
@@ -21,6 +20,7 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.models import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
+from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
@@ -136,7 +136,7 @@ async def _run_agent_fan_out(
         return []
 
     async def _run_single(file_id: int) -> RAGContext:
-        async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
+        async with session_scope() as file_session:
             return await _get_rag_service().get_context_via_agent(
                 session=file_session,
                 user_id=user_id,

@@ -1,22 +1,12 @@
-"""Shared fixtures for RAG tests."""
+"""Shared fixtures for RAG tests.
 
-import os
+The generic test environment is set by the app.testing plugin (registered in the
+root conftest), which also imports app.main → app.models at startup. That
+early import breaks a circular dependency: app.models imports app.rag.db_models
+(for Alembic autogenerate) which imports app.models.base, so app.models must
+already be in sys.modules before any test file triggers app.rag.db_models.
+"""
 
-# Must be set before any app module is imported so get_settings() and
-# async_engine are initialised with test values rather than prod defaults.
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
-os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
-os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
-os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
-os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
-os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
-
-# app.models.__init__ imports app.rag.db_models (for Alembic autogenerate), and
-# app.rag.db_models imports app.models.base, creating a circular dependency.
-# Importing app.models here first puts it in sys.modules before any test file
-# triggers app.rag.db_models, breaking the cycle.
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import patch
@@ -25,8 +15,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-import app.models  # noqa: F401
 
 
 @pytest.fixture(autouse=True)

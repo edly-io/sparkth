@@ -1,9 +1,6 @@
-from collections.abc import AsyncGenerator, Generator
-
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import Session, create_engine
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel import create_engine
 
 from app.core.config import get_settings
 
@@ -31,15 +28,3 @@ async_engine = create_async_engine(_async_db_url, echo=False, pool_pre_ping=True
 
 def get_engine() -> Engine:
     return engine
-
-
-def get_session() -> Generator[Session, None, None]:
-    """Synchronous session generator for non-async code."""
-    with Session(engine) as session:
-        yield session
-
-
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    """Async session generator for async code."""
-    async with AsyncSession(async_engine, expire_on_commit=False) as session:
-        yield session

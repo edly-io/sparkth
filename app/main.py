@@ -1,13 +1,12 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from enum import Enum
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, Union, cast
+from typing import Union, cast
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
@@ -15,8 +14,9 @@ from app.core_plugins.chat.routes import chat_router
 from app.lib.log import configure_logging, get_logger
 from app.mcp.main import register_plugin_tools
 from app.mcp.server import mcp
-from app.plugins import get_plugin_manager
+from app.plugins import get_plugin_loader
 from app.plugins.middleware import PluginAccessMiddleware
+from app.services.plugin import get_plugin_service
 
 configure_logging()
 
@@ -31,15 +31,18 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     Plugin lifespan context manager.
     Handles plugin loading on startup and cleanup on shutdown.
     """
-    plugin_manager = get_plugin_manager()
+    # Make sure all plugins exist in database
+    plugin_service = get_plugin_service()
+    await plugin_service.get_or_create_all()
+
+    plugin_loader = get_plugin_loader()
     try:
-        loaded_plugins = await plugin_manager.load_all_enabled()
+        loaded_plugins = plugin_loader.get_loaded_plugins()
+        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
         if loaded_plugins:
-            logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins.keys())}")
+            logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
 
-        plugin_manager.enable_all_loaded()
-
-        for plugin_name, plugin in loaded_plugins.items():
+        for plugin_name, plugin in loaded_plugins:
             try:
                 routes = plugin.get_routes()
                 if routes:
@@ -53,26 +56,13 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
             except (AttributeError, TypeError, ValueError) as e:
                 logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
 
-        for plugin_name, plugin in loaded_plugins.items():
-            try:
-                middleware_list = plugin.get_middleware()
-                if not middleware_list:
-                    continue
-
-                for middleware_item in middleware_list:
-                    mw = cast(Callable[[ASGIApp], ASGIApp], middleware_item.cls)
-                    application.add_middleware(mw, **cast(dict[str, Any], middleware_item.kwargs))
-            except (AttributeError, TypeError, ValueError) as e:
-                logger.error(f"Failed to register middleware for plugin '{plugin_name}': {e}")
-
     except (ImportError, RuntimeError, OSError) as e:
         logger.error(f"Plugin initialization failed: {e}")
 
     yield
 
     try:
-        plugin_manager.disable_all_loaded()
-        plugin_manager.unload_all()
+        plugin_loader.unload_all()
     except (RuntimeError, AttributeError) as e:
         logger.error(f"Plugin cleanup failed: {e}")
 

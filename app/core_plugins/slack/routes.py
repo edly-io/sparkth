@@ -11,14 +11,12 @@ from fastapi.responses import RedirectResponse
 from langchain_core.exceptions import LangChainException
 from pydantic import ValidationError
 from sqlalchemy import and_, or_
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.config import get_settings
-from app.core.db import async_engine, get_async_session, get_session
 from app.core.encryption import get_encryption_service
 from app.core_plugins.slack.client import SlackClient
 from app.core_plugins.slack.config import SlackConfig
@@ -51,6 +49,7 @@ from app.core_plugins.slack.types import (
     LogsResponse,
     RagSourcesResponse,
 )
+from app.lib.db import get_async_session, get_session, session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
@@ -147,18 +146,14 @@ async def oauth_callback(
         ) from exc
 
     # Log the connection event
-    try:
-        session.add(
-            SlackConnectionLog(
-                workspace_id=workspace.id,  # type: ignore[arg-type]
-                event_type=ConnectionEventType.connected,
-                team_name=token_data["team"]["name"],
-            )
+    session.add(
+        SlackConnectionLog(
+            workspace_id=workspace.id,  # type: ignore[arg-type]
+            event_type=ConnectionEventType.connected,
+            team_name=token_data["team"]["name"],
         )
-        session.commit()
-    except SQLAlchemyError as exc:
-        session.rollback()
-        logger.error("Failed to log Slack connect event for user %s: %s", user_id, exc)
+    )
+    session.commit()
 
     return RedirectResponse(url=f"{SLACK_FRONTEND_PATH}?connected=true")
 
@@ -174,18 +169,14 @@ def disconnect_workspace(
         logger.warning("Disconnect requested but no workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
 
-    try:
-        session.add(
-            SlackConnectionLog(
-                workspace_id=workspace.id,  # type: ignore[arg-type]
-                event_type=ConnectionEventType.disconnected,
-                team_name=workspace.team_name,
-            )
+    session.add(
+        SlackConnectionLog(
+            workspace_id=workspace.id,  # type: ignore[arg-type]
+            event_type=ConnectionEventType.disconnected,
+            team_name=workspace.team_name,
         )
-        session.commit()
-    except SQLAlchemyError as exc:
-        session.rollback()
-        logger.error("Failed to log Slack disconnect event for user %d: %s", user_id, exc)
+    )
+    session.commit()
 
     delete_workspace(session, user_id)
     return {"detail": "Slack workspace disconnected successfully"}
@@ -245,7 +236,7 @@ async def _build_llm_provider(
             system_prompt=SYNTHESIS_SYSTEM_PROMPT,
             temperature=temperature,
         )
-    except (ValueError, SQLAlchemyError) as exc:
+    except ValueError as exc:
         logger.warning(
             "Could not resolve LLM config %s for user %d — synthesis disabled: %s",
             config_id,
@@ -311,24 +302,21 @@ async def _log_response(
     slack_user_name: str | None,
     slack_channel_name: str | None,
 ) -> None:
-    try:
-        session.add(
-            BotResponseLog(
-                workspace_id=workspace_id,
-                slack_channel=channel,
-                slack_user=slack_user,
-                slack_ts=posted_ts,
-                question=question,
-                answer=answer,
-                rag_matched=rag_matched,
-                response_type=response_type,
-                slack_user_name=slack_user_name,
-                slack_channel_name=slack_channel_name,
-            )
+    session.add(
+        BotResponseLog(
+            workspace_id=workspace_id,
+            slack_channel=channel,
+            slack_user=slack_user,
+            slack_ts=posted_ts,
+            question=question,
+            answer=answer,
+            rag_matched=rag_matched,
+            response_type=response_type,
+            slack_user_name=slack_user_name,
+            slack_channel_name=slack_channel_name,
         )
-        await session.commit()
-    except SQLAlchemyError as exc:
-        logger.error("Failed to log bot response for workspace %s: %s", workspace_id, exc)
+    )
+    await session.commit()
 
 
 async def _reply_and_log(
@@ -388,12 +376,8 @@ async def _dispatch_event(
         slack_channel_name=slack_channel_name,
     )
 
-    async with AsyncSession(async_engine, expire_on_commit=False) as session:
-        try:
-            plugin_map = await PluginService().get_user_plugin_map(session, user_id)
-        except SQLAlchemyError as exc:
-            logger.error("Failed to load plugin map for user %d: %s", user_id, exc)
-            return
+    async with session_scope() as session:
+        plugin_map = await PluginService().get_user_plugin_map(session, user_id)
 
         user_plugin = plugin_map.get("slack")
         if not user_plugin:
@@ -494,7 +478,7 @@ async def _dispatch_event(
                             llm_provider=llm_provider,
                         )
                         rag_matched = response_type == ResponseType.rag_match
-                    except (SQLAlchemyError, LangChainException, OSError) as exc:
+                    except (LangChainException, OSError) as exc:
                         logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
                         answer = RETRIEVAL_ERROR_MESSAGE
                         rag_matched = False
@@ -723,12 +707,5 @@ async def list_rag_sources(
 ) -> RagSourcesResponse:
     """Return the distinct RAG source names available to the current user."""
     store = VectorStoreService()
-    try:
-        sources = await store.get_sources(session=session, user_id=user_id)
-    except SQLAlchemyError as exc:
-        logger.error("Failed to fetch RAG sources for user %d: %s", user_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve RAG sources.",
-        ) from exc
+    sources = await store.get_sources(session=session, user_id=user_id)
     return RagSourcesResponse(sources=sources)

@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -89,7 +88,7 @@ class RAGContextService:
                 section_keys=[s.model_dump() for s in decision.selected_sections],
                 limit=limit,
             )
-        except SQLAlchemyError as exc:
+        except Exception as exc:
             logger.error("Section fetch failed for file_db_id=%d: %s", file_db_id, exc)
             raise RAGRetrievalError(f"Section fetch failed: {exc}") from exc
 

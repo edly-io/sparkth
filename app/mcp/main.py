@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from app.lib.log import configure_logging, get_logger
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
-from app.plugins import get_plugin_manager
+from app.plugins import get_plugin_loader
 
 logger = get_logger(__name__)
 
@@ -55,21 +55,22 @@ def register_plugin_tools() -> None:
     Note: Assumes plugins are already loaded by the plugin lifespan manager.
     """
     try:
-        plugin_manager = get_plugin_manager()
+        plugin_loader = get_plugin_loader()
 
-        loaded_plugins = plugin_manager.get_loaded_plugins()
+        loaded_plugins = plugin_loader.get_loaded_plugins()
+        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
 
         if not loaded_plugins:
             logger.info("No plugins loaded for MCP tool registration")
             return
 
-        logger.info(f"Registering MCP tools from {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugins.keys())}")
+        logger.info(f"Registering MCP tools from {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
 
         registered_tools: dict[str, str] = {}
         total_tools = 0
         total_failed = 0
 
-        for plugin_name, plugin in loaded_plugins.items():
+        for plugin_name, plugin in loaded_plugins:
             plugin_tool_count = 0
             plugin_failed_count = 0
 

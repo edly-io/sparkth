@@ -1,8 +1,6 @@
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.core.db import async_engine
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
+from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider
 
@@ -57,7 +55,7 @@ async def generate_conversation_title(
         )
         title = response["content"].strip().strip("\"'").strip()
         if title:
-            async with AsyncSession(async_engine, expire_on_commit=False) as session:
+            async with session_scope() as session:
                 await service.update_conversation_title(
                     session=session,
                     conversation_id=conversation_id,

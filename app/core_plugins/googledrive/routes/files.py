@@ -12,7 +12,6 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.constants import DRIVE_MAX_UPLOAD_BYTES
 from app.core_plugins.googledrive.oauth import get_valid_access_token
@@ -27,6 +26,7 @@ from app.core_plugins.googledrive.types import (
     PaginatedResponse,
     RenameFileRequest,
 )
+from app.lib.db import get_async_session, get_session
 from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.types import RagStatus

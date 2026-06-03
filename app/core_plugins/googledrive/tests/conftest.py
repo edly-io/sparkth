@@ -15,8 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.config import Settings
-from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.routes import router as drive_router
+from app.lib.db import get_async_session, get_session
 from app.main import app
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User

@@ -1,6 +1,17 @@
+"""Shared pytest fixtures and test environment for the backend test suite.
+
+This module lives under ``app/`` (rather than in a conftest) so that it travels
+with the core package: a plugin extracted into its own repository can register
+the same shared fixtures via ``pytest_plugins = ["app.testing"]`` in its own
+conftest.
+
+Importing this module sets the generic test environment variables as a side
+effect, so it must be imported before any ``app.*`` module that reads settings.
+Plugin-specific environment (e.g. ``SLACK_*``) belongs in that plugin's own
+conftest, not here.
+"""
+
 import os
-from collections.abc import AsyncGenerator, Generator
-from typing import Any, cast
 
 # Set test environment variables BEFORE importing app modules.
 # This must happen before app/core/config.py calls get_settings(), which caches
@@ -10,10 +21,9 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
 os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
-os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
-os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
-os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
-os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
+
+from collections.abc import AsyncGenerator, Generator
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
@@ -24,7 +34,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import get_async_session
+from app.lib.db import get_async_session
 from app.main import app
 from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User

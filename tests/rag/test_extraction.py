@@ -1,5 +1,5 @@
 """
-app/rag/tests/test_extraction.py
+tests/rag/test_extraction.py
 
 Unit tests for app/rag/extraction.py
 Covers: PDF, DOCX, HTML, TXT extraction + public API routing + error handling.

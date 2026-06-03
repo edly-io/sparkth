@@ -8,13 +8,13 @@ import sys
 from pathlib import Path
 
 import httpx
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings, parse_rag_allowed_extensions
-from app.core.db import async_engine
 from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
+from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile, DriveFolder
@@ -320,16 +320,11 @@ async def _process_single_file(
         await session.rollback()
         await session.refresh(drive_file)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database integrity error")
-    except SQLAlchemyError as e:
-        logger.error("Database error during RAG processing for '%s': %s", log_name, e)
-        try:
-            await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Database error")
-        except SQLAlchemyError as status_err:
-            logger.error(
-                "Failed to set RAG status to FAILED for '%s': %s",
-                log_name,
-                status_err,
-            )
+    except Exception as e:
+        # We catch (then re-raise) all exceptions to make sure the file status is not stale
+        logger.error("Unknown error during RAG processing for '%s': %s / %s", log_name, e.__class__, e)
+        await _set_rag_status(session, drive_file, RagStatus.FAILED, error="Unknown error")
+        raise
     finally:
         session.expunge_all()
         gc.collect()
@@ -341,7 +336,7 @@ async def process_folder_rag(
     access_token: str,
 ) -> None:
     """Run the RAG pipeline for all supported files in a synced folder."""
-    async with AsyncSession(async_engine, expire_on_commit=False) as session:
+    async with session_scope() as session:
         folder_result = await session.exec(select(DriveFolder).where(DriveFolder.id == folder_id))
         folder = folder_result.first()
         if folder is None:
@@ -364,7 +359,7 @@ async def process_folder_rag(
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:
         async with semaphore:
-            async with AsyncSession(async_engine, expire_on_commit=False) as file_session:
+            async with session_scope() as file_session:
                 await _process_single_file(drive_file, user_id, access_token, file_session, store)
             # Session is now fully closed: connection returned to pool, identity map
             # cleared. Run GC + malloc_trim here so freed connection buffers and
