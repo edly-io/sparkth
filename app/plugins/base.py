@@ -5,7 +5,7 @@ Provides the foundation for all Sparkth plugins with support for:
 - Route registration
 - Database models and migrations
 - MCP tools
-- Middleware and dependencies
+- Dependencies
 - Configuration management
 - Lifecycle hooks
 """
@@ -16,7 +16,6 @@ from typing import Any, Callable, Type, TypeVar, get_type_hints
 
 from fastapi import APIRouter
 from sqlmodel import SQLModel
-from starlette.middleware import Middleware
 
 from app.lib.log import get_logger
 from app.plugins.config_base import PluginConfig
@@ -173,7 +172,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self._routes: list[APIRouter] = []
         self._models: list[Type[SQLModel]] = []
         self._mcp_tools: list[dict[str, Any]] = []
-        self._middleware: list[Middleware] = []
 
         self._register_tools_from_metaclass()
 
@@ -516,43 +514,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             List of MCP tool definitions
         """
         return self._mcp_tools.copy()
-
-    def add_middleware(self, middleware: Middleware) -> None:
-        """
-        Add FastAPI middleware to this plugin.
-
-        Args:
-            middleware: Middleware instance to add
-
-        Example:
-
-        ```python
-        def __init__(self, name: str):
-            super().__init__(name)
-            from starlette.middleware.cors import CORSMiddleware
-
-            self.add_middleware(
-                Middleware(
-                    CORSMiddleware,
-                    allow_origins=["*"],
-                    allow_methods=["*"]
-                )
-            )
-        ```
-        """
-        self._middleware.append(middleware)
-
-    def get_middleware(self) -> list[Middleware]:
-        """
-        Return FastAPI middleware to be added to the application.
-
-        Override this method to provide middleware, or use add_middleware()
-        to register middleware dynamically.
-
-        Returns:
-            List of Middleware instances
-        """
-        return self._middleware.copy()
 
     def get_config_schema(self) -> dict[str, Any]:
         """

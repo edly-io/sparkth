@@ -1,13 +1,12 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from enum import Enum
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, Union, cast
+from typing import Union, cast
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from starlette.types import ASGIApp
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
@@ -56,18 +55,6 @@ async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
                         application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
             except (AttributeError, TypeError, ValueError) as e:
                 logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
-
-        for plugin_name, plugin in loaded_plugins:
-            try:
-                middleware_list = plugin.get_middleware()
-                if not middleware_list:
-                    continue
-
-                for middleware_item in middleware_list:
-                    mw = cast(Callable[[ASGIApp], ASGIApp], middleware_item.cls)
-                    application.add_middleware(mw, **cast(dict[str, Any], middleware_item.kwargs))
-            except (AttributeError, TypeError, ValueError) as e:
-                logger.error(f"Failed to register middleware for plugin '{plugin_name}': {e}")
 
     except (ImportError, RuntimeError, OSError) as e:
         logger.error(f"Plugin initialization failed: {e}")

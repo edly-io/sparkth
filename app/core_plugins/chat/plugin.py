@@ -1,5 +1,3 @@
-from starlette.middleware import Middleware
-
 from app.core_plugins.chat.config import ChatUserConfig
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.routes import chat_router
@@ -34,6 +32,3 @@ class ChatPlugin(SparkthPlugin):
 
     def get_route_prefix(self) -> str:
         return "/api/v1"
-
-    def get_middleware(self) -> list[Middleware]:
-        return []

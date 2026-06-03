@@ -7,7 +7,7 @@ Provides a flexible, OOP-based plugin architecture with:
 - Route registration
 - Database models and migrations
 - MCP tools integration
-- Middleware and dependency injection
+- Dependency injection
 - Configuration management
 """
 
