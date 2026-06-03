@@ -5,10 +5,11 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.config import get_plugin_config_schema
 from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
-from app.plugins import PLUGIN_CONFIG_CLASSES, get_plugin_loader
+from app.plugins import get_plugin_loader
 from app.plugins.adapters import PLUGIN_ADAPTERS
 from app.plugins.config_base import PluginConfig
 
@@ -65,7 +66,7 @@ class PluginService:
             ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
         """
 
-        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        config_class = get_plugin_config_schema(plugin.name)
         if not config_class:
             logger.error(f"Plugin '{plugin.name}' config class is missing or invalid")
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
@@ -146,7 +147,8 @@ class PluginService:
             existing = {plugin.name: plugin for plugin in result.all()}
 
             for _name, plugin_instance in loaded:
-                schema = plugin_instance.get_config_schema()
+                config_class = get_plugin_config_schema(plugin_instance.name)
+                schema = config_class.model_json_schema() if config_class else {}
                 current = existing.get(plugin_instance.name)
                 if current is None:
                     # New plugins are enabled by default and considered core.
@@ -279,7 +281,7 @@ class PluginService:
         else:
             merged_config = user_config
 
-        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        config_class = get_plugin_config_schema(plugin.name)
         if config_class:
             known_fields = set(config_class.model_fields.keys())
             merged_config = {k: v for k, v in merged_config.items() if k in known_fields}
