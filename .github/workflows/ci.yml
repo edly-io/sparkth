@@ -9,7 +9,7 @@ on:
 
 jobs:
   frontend:
-    name: Frontend Lint & Format
+    name: Frontend Lint, Test & Format
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -24,17 +24,13 @@ jobs:
       - name: Install dependencies
         run: make frontend.install
 
-      - name: Lint (oxlint)
-        run: make lint.frontend
-
-      - name: Run unit tests
-        run: make test.frontend.vitest
-
-      - name: Check formatting (oxfmt)
-        run: make test.frontend.format
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.frontend` (lint + vitest + format check).
+      - name: Run frontend tests
+        run: make test.frontend
 
   backend:
-    name: Backend Lint, Type Check & Unit Tests
+    name: Backend Lint, Type Check, Test & Format
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -49,14 +45,7 @@ jobs:
       - name: Install the project
         run: make backend.install.dev.requirements
 
-      - name: Run backend linting tests
-        run: make lint.backend
-
-      - name: Run type checks
-        run: make mypy
-
-      - name: Run unit tests
-        run: make test.backend.pytest
-
-      - name: Run formatting tests
-        run: make test.backend.format
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.backend` (lint + mypy + pytest + format check).
+      - name: Run backend tests
+        run: make test.backend
