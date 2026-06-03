@@ -82,28 +82,27 @@ class MyLmsConfig(PluginConfig):
         )
 ```
 
-Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is registered in `PLUGIN_CONFIG_CLASSES`.
+Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is contributed to the `CONFIG_SCHEMAS` hook (see below).
 
 
 ## Register the plugin configuration class
 
-Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely (the built-in `google-drive` plugin has no entry in `PLUGIN_CONFIG_CLASSES`).
+Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely.
 
-When you do register one, add your plugin’s config class to the `PLUGIN_CONFIG_CLASSES` mapping. **The dict key must be the plugin's _derived_ name** — see [Plugin Name Derivation](#plugin-name-derivation) below. For a class named `FooBarPlugin` the key is `foo-bar`.
+When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _derived_ name (the value passed to `__init__` — see [Plugin Name Derivation](#plugin-name-derivation) below), so no name string is needed at the call site.
 
 ```python
-# app/plugins/__init__.py
+# app/core_plugins/myappplugin/plugin.py
 
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
+from app.lib.config.hooks import CONFIG_SCHEMAS
+from app.plugins.base import SparkthPlugin
 
-# ...
 
-PLUGIN_CONFIG_CLASSES = {
-    "canvas": CanvasConfig,
-    "open-edx": OpenEdxConfig,
-    "my-app": MyAppPluginConfig  # key = derived plugin name, not an arbitrary label
-}
-
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
 ```
 
 
@@ -224,7 +223,7 @@ You do **not** choose the plugin name freely. The `PluginLoader` instantiates ea
 | `MyAppPlugin` | `my-app` |
 | `Slack` (no suffix) | `slack` |
 
-This derived name is what gets passed to your `__init__` and is the key you must use in `PLUGIN_CONFIG_CLASSES` and `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
+This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and the key you must use in `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
 
 
 ## Basic Plugin Structure

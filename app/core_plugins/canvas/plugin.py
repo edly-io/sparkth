@@ -34,6 +34,7 @@ from app.core_plugins.canvas.schemas import (
     UpdateQuestionPayload,
     UpdateQuizPayload,
 )
+from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.exceptions import AuthenticationError, LMSRequestError
 from app.plugins.base import SparkthPlugin, tool
 
@@ -57,7 +58,8 @@ class CanvasPlugin(SparkthPlugin):
     """
 
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name, CanvasConfig)
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, CanvasConfig)
 
     @tool(description="Authenticate Canvas API URL and token", category="canvas-auth")
     async def canvas_authenticate(self, auth: AuthenticationPayload) -> dict[str, Any]:
