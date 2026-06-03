@@ -4,6 +4,7 @@ from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.lib.log import get_logger
+from app.lib.mcp.hooks import MCP_TOOLS
 from app.mcp.prompts.prompt import get_course_generation_prompt
 from app.mcp.types import CourseGenerationPromptRequest
 from app.plugins import get_plugin_loader
@@ -95,18 +96,9 @@ def register_plugin_tools() -> None:
     registered_tools: dict[str, str] = {}
     total_tools = 0
 
-    for plugin_name, plugin in loaded_plugins:
-        mcp_tools = plugin.get_mcp_tools()
-
-        if not mcp_tools:
-            logger.debug(f"Plugin '{plugin_name}' has no MCP tools to register")
-            continue
-
-        for tool_def in mcp_tools:
-            _validate_and_register_tool(tool_def, plugin_name, registered_tools)
-            total_tools += 1
-
-        logger.info(f"✓ Plugin '{plugin_name}' registered {len(mcp_tools)} tool(s)")
+    for plugin, tool_def in MCP_TOOLS.iter_items():
+        _validate_and_register_tool(tool_def, plugin.name, registered_tools)
+        total_tools += 1
 
     logger.info(f"MCP tool registration complete: {total_tools} tool(s) registered successfully")
 

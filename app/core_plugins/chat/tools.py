@@ -60,24 +60,24 @@ class ToolRegistry:
         if self._initialized:
             return
 
-        plugin_loader = get_plugin_loader()
-        loaded_plugins = plugin_loader.get_loaded_plugins()
-        for plugin_name, plugin in loaded_plugins:
-            if plugin_name == "chat":
+        # Instantiate plugins so their tools are contributed to the MCP_TOOLS hook.
+        get_plugin_loader()
+        from app.lib.mcp.hooks import MCP_TOOLS
+
+        for plugin, mcp_tool in MCP_TOOLS.iter_items():
+            if plugin.name == "chat":
                 continue
 
-            mcp_tools = plugin.get_mcp_tools()
-            for mcp_tool in mcp_tools:
-                try:
-                    langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
-                    self.register_tool(langchain_tool)
-                except (KeyError, TypeError, ValueError, ValidationError) as e:
-                    logger.error(
-                        "Failed to convert MCP tool '%s' to LangChain tool: %s",
-                        mcp_tool.get("name"),
-                        e,
-                        exc_info=True,
-                    )
+            try:
+                langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
+                self.register_tool(langchain_tool)
+            except (KeyError, TypeError, ValueError, ValidationError) as e:
+                logger.error(
+                    "Failed to convert MCP tool '%s' to LangChain tool: %s",
+                    mcp_tool.get("name"),
+                    e,
+                    exc_info=True,
+                )
 
         self._initialized = True
         logger.info("Discovered %d tools from plugins", len(self._tools))
