@@ -2,7 +2,7 @@
 
 Registers ``app.testing`` as a pytest plugin so its shared fixtures (and the
 generic test environment it sets on import) are available to every test in the
-repo — the central ``tests/`` tree and the co-located ``app/rag/tests/`` and
+repo — the central ``tests/`` tree and the co-located
 ``app/core_plugins/<plugin>/tests/`` trees alike — without each conftest having
 to import and re-export them.
 
