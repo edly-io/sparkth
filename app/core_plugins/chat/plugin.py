@@ -2,6 +2,7 @@ from app.core_plugins.chat.config import ChatUserConfig
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.routes import chat_router
 from app.lib.log import get_logger
+from app.lib.models.hooks import MODELS
 from app.lib.routes.hooks import ROUTES
 from app.plugins.base import SparkthPlugin
 
@@ -19,8 +20,8 @@ class ChatPlugin(SparkthPlugin):
             author="Sparkth Team",
         )
 
-        self.add_model(Conversation)
-        self.add_model(Message)
+        MODELS.add_item(self, Conversation)
+        MODELS.add_item(self, Message)
 
         ROUTES.add_item(self, ("/api/v1", ["chat"], chat_router))
 

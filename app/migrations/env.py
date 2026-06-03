@@ -9,6 +9,7 @@ from sqlmodel import SQLModel
 
 from app.core.config import get_settings
 from app.lib.log import get_logger
+from app.lib.models.hooks import MODELS
 from app.models import *  # noqa: F403
 from app.plugins import get_plugin_loader
 from app.services.plugin import get_plugin_service
@@ -35,12 +36,14 @@ def import_plugin_models():
             return
         raise
 
-    # Get models from each plugin
-    plugin_loader = get_plugin_loader()
-    for plugin_name, plugin in plugin_loader.get_loaded_plugins():
-        models = plugin.get_models()
-        if models:
-            logger.info(f"Loaded {len(models)} model(s) from plugin '{plugin_name}'")
+    # Instantiate plugins so their models register into SQLModel.metadata and
+    # are contributed to the MODELS hook.
+    get_plugin_loader()
+    model_counts: dict[str, int] = {}
+    for plugin, _model in MODELS.iter_items():
+        model_counts[plugin.name] = model_counts.get(plugin.name, 0) + 1
+    for plugin_name, count in model_counts.items():
+        logger.info(f"Loaded {count} model(s) from plugin '{plugin_name}'")
 
 
 # this is the Alembic Config object, which provides

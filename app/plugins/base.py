@@ -13,8 +13,6 @@ Provides the foundation for all Sparkth plugins with support for:
 import inspect
 from typing import Any, Callable, Type, TypeVar, get_type_hints
 
-from sqlmodel import SQLModel
-
 from app.lib.log import get_logger
 from app.plugins.config_base import PluginConfig
 
@@ -164,7 +162,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.is_core = is_core
         self.author = author
         self.config_schema = config_schema
-        self._models: list[Type[SQLModel]] = []
         self._mcp_tools: list[dict[str, Any]] = []
 
         self._register_tools_from_metaclass()
@@ -193,40 +190,6 @@ class SparkthPlugin(metaclass=PluginMeta):
                 )
             except (AttributeError, TypeError, KeyError) as e:
                 logger.error(f"Failed to auto-register tool from method '{method_name}' in plugin '{self.name}': {e}")
-
-    def add_model(self, model: Type[SQLModel]) -> None:
-        """
-                Add a SQLModel class to this plugin.
-
-                Args:
-                    model: SQLModel class to add
-
-                Example:
-        ```python
-                    class Task(SQLModel, table=True):
-                        id: int | None = Field(primary_key=True)
-                        title: str
-                        completed: bool = False
-
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
-                            self.add_model(Task)
-        ```
-        """
-        self._models.append(model)
-
-    def get_models(self) -> list[Type[SQLModel]]:
-        """
-        Return SQLModel classes to be registered with the application.
-
-        Override this method to provide database models, or use add_model()
-        to register models dynamically.
-
-        Returns:
-            List of SQLModel class types
-        """
-        return self._models.copy()
 
     def add_mcp_tool(
         self,
