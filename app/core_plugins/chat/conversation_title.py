@@ -1,4 +1,4 @@
-from app.core_plugins.chat.config import ChatSystemConfig
+from app.core_plugins.chat.routes.dependencies import get_chat_system_config
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.lib.db import session_scope
@@ -42,9 +42,9 @@ async def generate_conversation_title(
     first_user_message: str,
     service: ChatService,
     provider: BaseChatProvider,
-    config: ChatSystemConfig,
 ) -> None:
     """Background task: ask the LLM for a short title and persist it."""
+    config = get_chat_system_config()
     try:
         prompt = (
             "Generate a concise 3-6 word title for a conversation that starts with "

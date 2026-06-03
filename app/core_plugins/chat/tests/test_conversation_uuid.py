@@ -6,22 +6,28 @@ Tests for the conversation UUID feature (PR #220 / Issue #190):
   - API routes accept/return UUIDs for conversations
 """
 
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
-from app.core_plugins.chat.models import Conversation  # noqa: F401 used in route fixture tests
+from app.core_plugins.chat.models import Conversation, Message  # noqa: F401 used in route fixture tests
+from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
 from app.core_plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
     ConversationResponse,
 )
+from app.core_plugins.chat.service import ChatService
+from app.llm.service import get_llm_service
+from app.main import app
 
 # ===========================================================================
 # Conversation model — UUID field
@@ -55,8 +61,6 @@ class TestConversationModelUUID:
 
 class TestGetConversationByUUID:
     async def test_returns_conversation_matching_uuid_and_user(self, session: "AsyncSession") -> None:
-        from app.core_plugins.chat.service import ChatService
-
         svc = ChatService()
         conv = Conversation(user_id=42, provider="openai", model="gpt-4o")
         session.add(conv)
@@ -69,8 +73,6 @@ class TestGetConversationByUUID:
         assert result.uuid == conv.uuid
 
     async def test_returns_none_for_wrong_user(self, session: "AsyncSession") -> None:
-        from app.core_plugins.chat.service import ChatService
-
         svc = ChatService()
         conv = Conversation(user_id=42, provider="openai", model="gpt-4o")
         session.add(conv)
@@ -81,8 +83,6 @@ class TestGetConversationByUUID:
         assert result is None
 
     async def test_returns_none_for_nonexistent_uuid(self, session: "AsyncSession") -> None:
-        from app.core_plugins.chat.service import ChatService
-
         svc = ChatService()
         result = await svc.get_conversation_by_uuid(session, uuid=uuid4(), user_id=1)
         assert result is None
@@ -120,8 +120,6 @@ class TestConversationUUIDSchemas:
         assert req.conversation_id == uid
 
     def test_chat_completion_request_rejects_integer_conversation_id(self) -> None:
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError):
             ChatCompletionRequest(
                 llm_config_id=1,
@@ -141,8 +139,6 @@ class TestConversationUUIDSchemas:
         assert resp.conversation_id == uid
 
     def test_conversation_response_id_is_uuid(self) -> None:
-        from datetime import datetime, timezone
-
         uid = uuid7()
         now = datetime.now(timezone.utc)
         resp = ConversationResponse(
@@ -169,11 +165,6 @@ class TestConversationUUIDRoutes:
     @pytest.fixture(autouse=True)
     def _override_chat_deps(self, client: httpx.AsyncClient) -> None:  # noqa: PT004
         """Override chat dependencies so route tests don't need real env vars."""
-        from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
-        from app.core_plugins.chat.service import ChatService
-        from app.llm.service import get_llm_service
-        from app.main import app
-
         mock_config = MagicMock()
         mock_config.max_tool_executions = 50
         mock_config.title_max_length = 60
@@ -253,8 +244,6 @@ class TestConversationUUIDRoutes:
     async def test_completions_returns_uuid_conversation_id(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
     ) -> None:
-        from app.core_plugins.chat.models import Message
-
         mock_response: dict[str, Any] = {
             "content": "Hello!",
             "role": "assistant",
@@ -296,8 +285,6 @@ class TestConversationUUIDRoutes:
     async def test_completions_with_existing_uuid_conversation(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
     ) -> None:
-        from app.core_plugins.chat.models import Message
-
         conv = Conversation(
             user_id=current_user.id,
             provider="openai",

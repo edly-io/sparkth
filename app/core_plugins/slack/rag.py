@@ -23,7 +23,7 @@ from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
-from app.rag.context_service import RAGContextService, format_chunks_as_context
+from app.rag.context_service import RAGContextService, format_chunks_as_context, get_rag_context_service
 from app.rag.exceptions import (
     DriveFileNotFoundError,
     RAGNotReadyError,

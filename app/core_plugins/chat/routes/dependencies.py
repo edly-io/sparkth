@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import cast
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -10,10 +11,9 @@ from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.service import ChatService
 from app.models.user import User
-from app.rag.context_service import RAGContextService
 
 
-@lru_cache  # singleton by design — mirrors app.core.config.get_settings(); call .cache_clear() in tests that mutate env vars
+@lru_cache
 def get_chat_system_config() -> ChatSystemConfig:
     """Dependency to get chat system configuration from environment variables."""
     return ChatSystemConfig()
@@ -22,11 +22,6 @@ def get_chat_system_config() -> ChatSystemConfig:
 def get_chat_service() -> ChatService:
     """Dependency to get chat service."""
     return ChatService()
-
-
-def get_rag_context_service() -> RAGContextService:
-    """FastAPI dependency: returns a stateless RAGContextService."""
-    return RAGContextService()
 
 
 async def get_owned_conversation(
@@ -39,7 +34,7 @@ async def get_owned_conversation(
     conversation = await service.get_conversation_by_uuid(
         session=session,
         uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
+        user_id=cast(int, current_user.id),
     )
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")

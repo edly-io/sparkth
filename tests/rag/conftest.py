@@ -1,24 +1,23 @@
-"""Shared fixtures for RAG tests.
-
-The generic test environment is set by the app.testing plugin (registered in the
-root conftest), which also imports app.main → app.models at startup. That
-early import breaks a circular dependency: app.models imports app.rag.db_models
-(for Alembic autogenerate) which imports app.models.base, so app.models must
-already be in sys.modules before any test file triggers app.rag.db_models.
-"""
-
-from collections.abc import AsyncGenerator, Generator
+# app.models.__init__ imports app.rag.db_models (for Alembic autogenerate), and
+# app.rag.db_models imports app.models.base, creating a circular dependency.
+# Importing app.models here first puts it in sys.modules before any test file
+# triggers app.rag.db_models, breaking the cycle.
+from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import patch
 
+import app.models  # noqa: F401
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from tests.lib.env import TEST_DATABASE_URL
+from tests.lib.fixtures import session  # noqa: F401 — re-exported for pytest discovery
+
 
 @pytest.fixture(autouse=True)
-def _allow_all_extensions() -> Generator[None, None, None]:
+def _allow_all_extensions() -> Any:
     """Patch extraction settings so no extension is blocked by default.
 
     Also seeds the int-typed RAG_* settings used by _extract_pdf so tests
@@ -40,7 +39,7 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
     from sqlmodel import SQLModel
 
     eng = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
+        TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
@@ -52,19 +51,6 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
     await eng.dispose()
 
 
-@pytest.fixture
-async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Async session with per-test rollback."""
-    async with engine.connect() as conn:
-        tx = await conn.begin()
-        s: Any = AsyncSession(bind=conn)
-        try:
-            yield s
-        finally:
-            await s.close()
-            await tx.rollback()
-
-
 @pytest.fixture(scope="session")
 async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
     """In-memory SQLite engine for RAG tests.
@@ -73,7 +59,7 @@ async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
     service level with mocks, so the full schema is unnecessary here.
     """
     engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
+        TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )

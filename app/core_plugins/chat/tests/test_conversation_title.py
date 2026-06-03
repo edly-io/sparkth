@@ -1,6 +1,5 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.core_plugins.chat.config import ChatSystemConfig
 from app.core_plugins.chat.conversation_title import (
     extract_title_from_messages,
     generate_conversation_title,
@@ -157,7 +156,6 @@ class TestGenerateConversationTitle:
                 first_user_message=first_user_message,
                 service=mock_service,
                 provider=mock_provider,
-                config=ChatSystemConfig(),
             )
 
     async def test_calls_update_with_llm_title(self) -> None:
@@ -209,7 +207,6 @@ class TestGenerateConversationTitle:
             first_user_message="message",
             service=mock_service,
             provider=mock_provider,
-            config=ChatSystemConfig(),
         )
 
     async def test_prompt_contains_first_user_message(self) -> None:
@@ -240,7 +237,6 @@ class TestGenerateConversationTitle:
                 first_user_message="some message",
                 service=mock_service,
                 provider=mock_provider,
-                config=ChatSystemConfig(),
             )
 
         mock_provider.send_message.assert_awaited_once()

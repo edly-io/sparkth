@@ -1,5 +1,6 @@
 """Tests for GET /conversations/{conversation_id}/last-message endpoint."""
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -8,16 +9,15 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, Message
+from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
+from app.core_plugins.chat.service import ChatService
+from app.llm.service import get_llm_service
+from app.main import app
 
 
 class TestGetLastMessage:
     @pytest.fixture(autouse=True)
     def _override_chat_deps(self, client: httpx.AsyncClient) -> None:  # noqa: PT004
-        from app.core_plugins.chat.routes import get_chat_service, get_chat_system_config
-        from app.core_plugins.chat.service import ChatService
-        from app.llm.service import get_llm_service
-        from app.main import app
-
         mock_config = MagicMock()
         mock_config.max_tool_executions = 50
         mock_config.title_max_length = 60
@@ -71,8 +71,6 @@ class TestGetLastMessage:
         self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
     ) -> None:
         """Last message is the most recently created one."""
-        from datetime import datetime, timedelta, timezone
-
         conv = Conversation(user_id=current_user.id, provider="openai", model="gpt-4o")
         session.add(conv)
         await session.commit()

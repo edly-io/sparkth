@@ -1,3 +1,5 @@
+from typing import cast
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,9 +29,9 @@ async def list_conversation_attachments(
 ) -> list[AttachedDriveFileResponse]:
     drive_files = await service.list_conversation_attachments(
         session,
-        conversation_id=conversation.id,  # type: ignore
+        conversation_id=cast(int, conversation.id),
     )
-    return [AttachedDriveFileResponse(id=f.id, name=f.name, size=f.size) for f in drive_files]  # type: ignore
+    return [AttachedDriveFileResponse(id=cast(int, f.id), name=f.name, size=f.size) for f in drive_files]
 
 
 @router.post(
@@ -47,7 +49,7 @@ async def attach_file_to_conversation(
     drive_file = await service.get_user_owned_drive_file(
         session,
         drive_file_id=body.drive_file_id,
-        user_id=current_user.id,  # type: ignore
+        user_id=cast(int, current_user.id),
     )
     if not drive_file:
         raise HTTPException(
@@ -56,11 +58,11 @@ async def attach_file_to_conversation(
         )
     attachment = await service.attach_drive_file(
         session,
-        conversation_id=conversation.id,  # type: ignore
-        drive_file_id=drive_file.id,  # type: ignore
+        conversation_id=cast(int, conversation.id),
+        drive_file_id=cast(int, drive_file.id),
     )
     return ConversationAttachmentResponse(
-        id=attachment.id,  # type: ignore
+        id=cast(int, attachment.id),
         conversation_id=attachment.conversation_id,
         drive_file_id=attachment.drive_file_id,
         attached_at=attachment.attached_at,
@@ -81,7 +83,7 @@ async def detach_file_from_conversation(
     drive_file = await service.get_user_owned_drive_file(
         session,
         drive_file_id=drive_file_id,
-        user_id=current_user.id,  # type: ignore
+        user_id=cast(int, current_user.id),
     )
     if not drive_file:
         raise HTTPException(
@@ -90,6 +92,6 @@ async def detach_file_from_conversation(
         )
     await service.detach_drive_file(
         session,
-        conversation_id=conversation.id,  # type: ignore
+        conversation_id=cast(int, conversation.id),
         drive_file_id=drive_file_id,
     )

@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -47,7 +47,7 @@ async def list_conversations(
 ) -> ConversationListResponse:
     conversations, total = await service.list_conversations(
         session=session,
-        user_id=current_user.id,  # type: ignore
+        user_id=cast(int, current_user.id),
         limit=limit,
         offset=offset,
     )
@@ -70,7 +70,7 @@ async def list_conversations(
             title=conv.title,
             total_tokens_used=conv.total_tokens_used,
             total_cost=conv.total_cost,
-            message_count=message_counts.get(conv.id, 0),  # type: ignore
+            message_count=message_counts.get(cast(int, conv.id), 0),
             created_at=conv.created_at,
             updated_at=conv.updated_at,
         )
@@ -95,7 +95,7 @@ async def get_conversation(
     conversation = await service.get_conversation_by_uuid(
         session=session,
         uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
+        user_id=cast(int, current_user.id),
     )
 
     if not conversation:
@@ -106,7 +106,7 @@ async def get_conversation(
 
     messages = await service.get_conversation_messages(
         session=session,
-        conversation_id=conversation.id,  # type: ignore
+        conversation_id=cast(int, conversation.id),
         limit=limit,
         offset=offset,
         exclude_errors=False,
@@ -126,7 +126,7 @@ async def get_conversation(
         updated_at=conversation.updated_at,
         messages=[
             MessageResponse(
-                id=msg.id,  # type: ignore
+                id=cast(int, msg.id),
                 role=msg.role,
                 content=msg.content,
                 tokens_used=msg.tokens_used,
@@ -157,20 +157,20 @@ async def get_last_conversation_message(
     conversation = await service.get_conversation_by_uuid(
         session=session,
         uuid=conversation_id,
-        user_id=current_user.id,  # type: ignore
+        user_id=cast(int, current_user.id),
     )
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
     msg = await service.get_last_conversation_message(
         session=session,
-        conversation_id=conversation.id,  # type: ignore
+        conversation_id=cast(int, conversation.id),
     )
     if msg is None:
         return None
 
     return MessageResponse(
-        id=msg.id,  # type: ignore
+        id=cast(int, msg.id),
         role=msg.role,
         content=msg.content,
         tokens_used=msg.tokens_used,

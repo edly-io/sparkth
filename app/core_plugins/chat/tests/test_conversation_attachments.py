@@ -413,8 +413,6 @@ class TestAttachmentEndpoints:
         session: AsyncSession,
     ) -> None:
         """GET only returns READY files, not pending/failed ones."""
-        from app.rag.types import RagStatus
-
         conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
         folder, folder_id = await _seed_drive_folder(session, user_id=cast(int, current_user.id))
         ready_file, ready_id = await _seed_drive_file(
@@ -442,8 +440,6 @@ class TestAttachmentEndpoints:
         session: AsyncSession,
     ) -> None:
         """GET with non-existent conversation UUID returns 404."""
-        from uuid import uuid4
-
         response = await client.get(f"/api/v1/chat/conversations/{uuid4()}/attachments")
 
         assert response.status_code == 404
