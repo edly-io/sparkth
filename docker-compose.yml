@@ -20,7 +20,7 @@ services:
     # this causes the container to run with hot-reload (i.e in development mode)
     #
     # For production environment, this docker-compose file is not used so the following `command` is not used at all.
-    # The production containers are orchestrated by kubernetes and the command used for runnning the container is
+    # The production containers are orchestrated by kubernetes and the command used for running the container is
     # dictated by the CMD statement in the Dockerfile.
     command: ${APP_COMMAND:-fastapi run --host 0.0.0.0 app/main.py}
     env_file:
@@ -102,7 +102,7 @@ services:
     restart: "no"
 
   # RAG Metadata MCP Server
-  # In production this should be run as a separate contianer than the 'app' container.
+  # In production this should be run as a separate container than the 'app' container.
   rag-mcp:
     # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
     # to GitHub Container Registry by CI
