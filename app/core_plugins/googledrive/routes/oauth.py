@@ -19,7 +19,11 @@ from app.core_plugins.googledrive.oauth import (
     revoke_token,
     save_tokens,
 )
-from app.core_plugins.googledrive.routes.deps import get_drive_credentials, get_valid_access_token, require_user_id
+from app.core_plugins.googledrive.routes.dependencies import (
+    get_drive_credentials,
+    get_valid_access_token,
+    require_user_id,
+)
 from app.core_plugins.googledrive.types import AuthorizationUrlResponse, ConnectionStatusResponse
 from app.models.user import User
 

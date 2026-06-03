@@ -1,4 +1,7 @@
-"""Shared dependencies and helpers for Google Drive route handlers."""
+"""Shared FastAPI dependencies for Google Drive route handlers.
+
+This module centralises the concerns every Google Drive route needs.
+"""
 
 import logging
 from datetime import datetime, timezone

@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from app.core.db import get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
-from app.core_plugins.googledrive.routes.deps import (
+from app.core_plugins.googledrive.routes.dependencies import (
     _sync_folder_files,
     get_drive_credentials,
     get_valid_access_token,
