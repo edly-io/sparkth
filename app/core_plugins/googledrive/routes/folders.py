@@ -6,8 +6,9 @@ from typing import cast
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlmodel import Session, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import get_session
+from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.routes.dependencies import get_valid_access_token, require_user_id
 from app.core_plugins.googledrive.routes.route_utils import _sync_folder_files, get_drive_credentials
@@ -89,20 +90,20 @@ async def sync_folder(
     request: SyncFolderRequest,
     background_tasks: BackgroundTasks,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveFolderResponse:
     """Sync an existing Google Drive folder."""
     client_id, client_secret, _ = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
-    existing = session.exec(
+    result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.user_id == user_id,
             DriveFolder.drive_folder_id == request.drive_folder_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
-    if existing:
+    )
+    if result.first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Folder is already synced")
 
     async with GoogleDriveClient(access_token) as client:
@@ -118,8 +119,8 @@ async def sync_folder(
         sync_status="syncing",
     )
     session.add(folder)
-    session.commit()
-    session.refresh(folder)
+    await session.commit()
+    await session.refresh(folder)
 
     file_count = await _sync_folder_files(session, folder, user_id, access_token)
     background_tasks.add_task(process_folder_rag, cast(int, folder.id), user_id, access_token)
@@ -139,7 +140,7 @@ async def sync_folder(
 async def create_folder(
     request: CreateFolderRequest,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveFolderResponse:
     """Create a new folder in Google Drive and sync it."""
     client_id, client_secret, _ = get_drive_credentials()
@@ -158,8 +159,8 @@ async def create_folder(
         sync_status="synced",
     )
     session.add(folder)
-    session.commit()
-    session.refresh(folder)
+    await session.commit()
+    await session.refresh(folder)
 
     return DriveFolderResponse(
         id=cast(int, folder.id),
@@ -262,16 +263,17 @@ async def refresh_folder(
     folder_id: int,
     background_tasks: BackgroundTasks,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> SyncStatusResponse:
     """Refresh folder contents from Google Drive."""
-    folder = session.exec(
+    result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    folder = result.first()
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
@@ -295,8 +297,8 @@ async def refresh_folder(
         folder.sync_error = str(e)
         folder.update_timestamp()
         session.add(folder)
-        session.commit()
-        session.refresh(folder)
+        await session.commit()
+        await session.refresh(folder)
 
         return SyncStatusResponse(
             folder_id=cast(int, folder.id),

@@ -227,7 +227,7 @@ class TestSyncFolder:
         with (
             patch("app.core_plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
             patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
-            patch("app.core_plugins.googledrive.routes.route_utils.GoogleDriveClient") as mock_deps_client_cls,
+            patch("app.core_plugins.googledrive.routes.route_utils.GoogleDriveClient") as mock_route_utils_client_cls,
         ):
             mock_client = AsyncMock()
             mock_client.get_folder.return_value = folder_metadata
@@ -235,8 +235,8 @@ class TestSyncFolder:
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
-            mock_deps_client_cls.return_value = mock_client
-            mock_deps_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+            mock_route_utils_client_cls.return_value = mock_client
+            mock_route_utils_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
             response = await drive_client.post(
                 "/api/v1/googledrive/folders/sync",

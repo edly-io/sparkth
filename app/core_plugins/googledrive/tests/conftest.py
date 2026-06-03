@@ -1,5 +1,6 @@
 """Fixtures for Google Drive plugin tests."""
 
+import os
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
@@ -7,17 +8,48 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlmodel import Session
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine, delete
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.config import Settings
-from app.core.db import get_session
+from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.routes import router as drive_router
 from app.main import app
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
 
-# Register Drive routes on the app (normally done by plugin lifespan)
+# ---------------------------------------------------------------------------
+# Shared named in-memory SQLite database
+#
+# The googledrive tests exercise both sync and async route handlers. SQLite's
+# named in-memory databases (with ?cache=shared) let a pysqlite sync engine
+# and an aiosqlite async engine connect to the same database, so test data
+# written by the sync fixtures is visible to async handlers and vice versa.
+# ---------------------------------------------------------------------------
+_DRIVE_DB_NAME = f"sparkth_drive_{os.getpid()}"
+_DRIVE_SYNC_URL = f"sqlite:///file:{_DRIVE_DB_NAME}?mode=memory&cache=shared&uri=true"
+_DRIVE_ASYNC_URL = f"sqlite+aiosqlite:///file:{_DRIVE_DB_NAME}?mode=memory&cache=shared&uri=true"
+
+# StaticPool pins a single underlying connection per engine for the whole
+# session. That keeps the shared in-memory database alive (SQLite drops an
+# in-memory DB when its last connection closes) and lets the sync and async
+# engines see each other's committed data via the shared cache.
+_drive_sync_engine = create_engine(
+    _DRIVE_SYNC_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+_drive_async_engine = create_async_engine(
+    _DRIVE_ASYNC_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+SQLModel.metadata.create_all(_drive_sync_engine)
+
+# Route registration
 _DRIVE_PREFIX = "/api/v1/googledrive"
 _drive_routes_registered = False
 
@@ -35,6 +67,20 @@ def _ensure_drive_routes() -> None:
 _ensure_drive_routes()
 
 
+# Test isolation: truncate drive tables before every test
+@pytest.fixture(autouse=True)
+def _clean_drive_tables() -> Generator[None, None, None]:
+    """Truncate drive-specific tables before each test for clean isolation."""
+    with Session(_drive_sync_engine) as s:
+        s.exec(delete(DriveOAuthToken))
+        s.exec(delete(DriveFile))
+        s.exec(delete(DriveFolder))
+        s.exec(delete(User).where(User.username == "driveuser"))  # type: ignore[arg-type]
+        s.commit()
+    yield
+
+
+# Autouse: RAG settings stub
 @pytest.fixture(autouse=True)
 def _default_rag_settings() -> Generator[None, None, None]:
     """Patch get_settings in utils so the local .env does not block test files.
@@ -50,9 +96,32 @@ def _default_rag_settings() -> Generator[None, None, None]:
         yield
 
 
+# Test data fixtures
+@pytest.fixture
+def sync_session() -> Generator[Session, None, None]:
+    """Override root conftest sync_session for googledrive tests.
+
+    Uses the shared drive test database so sync helpers operate on the same
+    data as route handlers.
+    """
+    with Session(_drive_sync_engine) as s:
+        yield s
+
+
+@pytest.fixture
+async def async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Async session backed by the shared drive test database.
+
+    Used by test_oauth.py to exercise the async oauth helper functions against
+    the same data that the sync data fixtures create.
+    """
+    async with AsyncSession(_drive_async_engine) as s:
+        yield s
+
+
 @pytest.fixture
 def test_user(sync_session: Session) -> User:
-    """Create a test user in the database."""
+    """Create a test user in the shared drive test database."""
     user = User(
         name="Drive Test User",
         username="driveuser",
@@ -67,7 +136,7 @@ def test_user(sync_session: Session) -> User:
 
 @pytest.fixture
 def test_oauth_token(sync_session: Session, test_user: User) -> DriveOAuthToken:
-    """Create a test OAuth token record."""
+    """Create a test OAuth token record in the shared drive test database."""
     from app.core_plugins.googledrive.oauth import encrypt_token
 
     token = DriveOAuthToken(
@@ -85,7 +154,7 @@ def test_oauth_token(sync_session: Session, test_user: User) -> DriveOAuthToken:
 
 @pytest.fixture
 def test_folder(sync_session: Session, test_user: User) -> DriveFolder:
-    """Create a test synced folder."""
+    """Create a test synced folder in the shared drive test database."""
     folder = DriveFolder(
         user_id=cast(int, test_user.id),
         drive_folder_id="drive_folder_abc123",
@@ -102,7 +171,7 @@ def test_folder(sync_session: Session, test_user: User) -> DriveFolder:
 
 @pytest.fixture
 def test_file(sync_session: Session, test_user: User, test_folder: DriveFolder) -> DriveFile:
-    """Create a test drive file."""
+    """Create a test drive file in the shared drive test database."""
     drive_file = DriveFile(
         folder_id=cast(int, test_folder.id),
         user_id=cast(int, test_user.id),
@@ -120,6 +189,7 @@ def test_file(sync_session: Session, test_user: User, test_folder: DriveFolder) 
     return drive_file
 
 
+# Mocking fixtures
 @pytest.fixture
 def mock_drive_credentials() -> Generator[None, None, None]:
     """Mock Google Drive OAuth credentials."""
@@ -143,21 +213,32 @@ def mock_valid_access_token() -> Generator[None, None, None]:
         yield
 
 
+# HTTP test client
 @pytest.fixture
 async def drive_client(
-    sync_session: Session,
     test_user: User,
     mock_drive_credentials: Any,
 ) -> AsyncGenerator[AsyncClient, None]:
-    """AsyncClient with overridden session and auth for Drive route tests."""
+    """AsyncClient with overridden session dependencies for Drive route tests.
+
+    Both get_session (sync handlers) and get_async_session (async handlers)
+    are overridden with sessions backed by the shared named in-memory SQLite
+    database, so all route handlers see the same test data.
+    """
 
     def get_session_override() -> Generator[Session, None, None]:
-        yield sync_session
+        with Session(_drive_sync_engine) as s:
+            yield s
+
+    async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
+        async with AsyncSession(_drive_async_engine) as s:
+            yield s
 
     async def get_user_override() -> User:
         return test_user
 
     app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[get_async_session] = get_async_session_override
     app.dependency_overrides[get_current_user] = get_user_override
 
     async with AsyncClient(
@@ -167,4 +248,5 @@ async def drive_client(
         yield ac
 
     app.dependency_overrides.pop(get_session, None)
+    app.dependency_overrides.pop(get_async_session, None)
     app.dependency_overrides.pop(get_current_user, None)

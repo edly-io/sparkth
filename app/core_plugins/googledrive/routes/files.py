@@ -10,8 +10,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import get_session
+from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.constants import DRIVE_MAX_UPLOAD_BYTES
 from app.core_plugins.googledrive.routes.dependencies import get_valid_access_token, require_user_id
@@ -86,16 +87,17 @@ async def upload_file(
     folder_id: int,
     file: UploadFile = File(...),
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveFileResponse:
     """Upload a file to a Google Drive folder."""
-    folder = session.exec(
+    result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    folder = result.first()
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
@@ -135,8 +137,8 @@ async def upload_file(
         rag_status=RagStatus.QUEUED,
     )
     session.add(drive_file)
-    session.commit()
-    session.refresh(drive_file)
+    await session.commit()
+    await session.refresh(drive_file)
 
     return DriveFileResponse(
         id=cast(int, drive_file.id),
@@ -248,16 +250,17 @@ def get_folder_rag_status(
 async def download_file(
     file_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> StreamingResponse:
     """Download a file from Google Drive."""
-    drive_file = session.exec(
+    db_result = await session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
             DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    drive_file = db_result.first()
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
@@ -296,16 +299,17 @@ async def rename_file(
     file_id: int,
     request: RenameFileRequest,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveFileResponse:
     """Rename a file in Google Drive."""
-    drive_file = session.exec(
+    db_result = await session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
             DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    drive_file = db_result.first()
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
@@ -322,8 +326,8 @@ async def rename_file(
     drive_file.name = request.name
     drive_file.update_timestamp()
     session.add(drive_file)
-    session.commit()
-    session.refresh(drive_file)
+    await session.commit()
+    await session.refresh(drive_file)
 
     return DriveFileResponse(
         id=cast(int, drive_file.id),
@@ -367,7 +371,7 @@ async def browse_drive(
     folder_id: str | None = Query(None, description="Drive folder ID to browse (root if omitted)"),
     page_token: str | None = Query(None, description="Pagination token"),
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveBrowseResponse:
     """Browse Google Drive contents."""
     client_id, client_secret, _ = get_drive_credentials()

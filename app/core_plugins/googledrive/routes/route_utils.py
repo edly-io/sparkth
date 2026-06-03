@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core_plugins.googledrive.client import GoogleDriveClient
@@ -45,7 +46,7 @@ def get_drive_credentials() -> tuple[str, str, str]:
     return client_id, client_secret, redirect_uri
 
 
-async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int, access_token: str) -> int:
+async def _sync_folder_files(session: AsyncSession, folder: DriveFolder, user_id: int, access_token: str) -> int:
     """Sync a folder's files from the Drive API into the database.
 
     Fetches the current file list from Drive, upserts new or changed files,
@@ -61,12 +62,13 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
     drive_files = [f for f in drive_files_data.get("files", []) if f.get("mimeType") != _FOLDER_MIME_TYPE]
     drive_file_ids = {f["id"] for f in drive_files}
 
-    existing_files = session.exec(
+    result = await session.exec(
         select(DriveFile).where(
             DriveFile.folder_id == folder.id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).all()
+    )
+    existing_files = result.all()
     existing_map = {f.drive_file_id: f for f in existing_files}
 
     for df in drive_files:
@@ -109,7 +111,7 @@ async def _sync_folder_files(session: Session, folder: DriveFolder, user_id: int
     folder.sync_error = None
     folder.update_timestamp()
     session.add(folder)
-    session.commit()
-    session.refresh(folder)
+    await session.commit()
+    await session.refresh(folder)
 
     return len(drive_files)

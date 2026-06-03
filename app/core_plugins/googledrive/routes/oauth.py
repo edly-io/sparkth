@@ -3,9 +3,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.db import get_session
+from app.core.db import get_async_session, get_session
 from app.core_plugins.googledrive.oauth import (
     decode_state,
     decrypt_token,
@@ -43,7 +44,7 @@ def get_authorization_url(
 async def oauth_callback(
     code: str = Query(...),
     state: str = Query(...),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> RedirectResponse:
     """Handle OAuth callback from Google."""
     from itsdangerous import BadSignature, SignatureExpired
@@ -65,7 +66,7 @@ async def oauth_callback(
 
     refresh_token = token_data.get("refresh_token", "")
     if not refresh_token:
-        existing = get_token_record(session, user_id)
+        existing = await get_token_record(session, user_id)
         if existing:
             refresh_token = decrypt_token(existing.refresh_token_encrypted)
 
@@ -76,7 +77,7 @@ async def oauth_callback(
         )
 
     try:
-        save_tokens(
+        await save_tokens(
             session,
             user_id,
             token_data["access_token"],
@@ -96,10 +97,10 @@ async def oauth_callback(
 @router.delete("/oauth/disconnect")
 async def disconnect_drive(
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Disconnect Google Drive by revoking and deleting tokens."""
-    token_record = get_token_record(session, user_id)
+    token_record = await get_token_record(session, user_id)
     if not token_record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google Drive not connected")
 
@@ -109,17 +110,17 @@ async def disconnect_drive(
     except ValueError:
         logger.warning("Failed to decrypt token for revocation, proceeding with deletion")
 
-    delete_token(session, user_id)
+    await delete_token(session, user_id)
     return {"detail": "Google Drive disconnected successfully"}
 
 
 @router.get("/oauth/status", response_model=ConnectionStatusResponse)
 async def get_connection_status(
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> ConnectionStatusResponse:
     """Get Google Drive connection status."""
-    token_record = get_token_record(session, user_id)
+    token_record = await get_token_record(session, user_id)
     if not token_record:
         return ConnectionStatusResponse(connected=False)
 
