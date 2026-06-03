@@ -27,9 +27,8 @@ jobs:
       - name: Lint (oxlint)
         run: make lint.frontend
 
-      # TODO uncomment this once frontend unit tests are fixed
-      # - name: Run unit tests
-      #   run: make test.frontend.vitest
+      - name: Run unit tests
+        run: make test.frontend.vitest
 
       - name: Check formatting (oxfmt)
         run: make test.frontend.format
