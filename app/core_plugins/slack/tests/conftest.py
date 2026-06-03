@@ -1,5 +1,16 @@
 """Shared fixtures for Slack plugin tests."""
 
+import os
+
+# Slack OAuth credentials default to "" in core config, so they are optional for
+# app boot. Set test values before importing app modules so settings-reading
+# tests see them. This env is plugin-local — it stays out of the shared
+# app.testing module.
+os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
+os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
+os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
+os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
+
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
 from unittest.mock import patch
@@ -17,15 +28,6 @@ from app.models.user import User
 # Register Slack routes once (mirrors the googledrive pattern)
 _SLACK_PREFIX = "/api/v1/slack"
 _slack_routes_registered = False
-
-
-@pytest.fixture(autouse=True)
-def _clear_settings_cache() -> Generator[None, None, None]:
-    from app.core.config import get_settings
-
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 def _ensure_slack_routes() -> None:
