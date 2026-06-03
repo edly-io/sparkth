@@ -3,7 +3,6 @@
 This module centralises the concerns every Google Drive route needs.
 """
 
-import logging
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, status
@@ -12,7 +11,9 @@ from sqlmodel import Session, select
 from app.api.v1.auth import get_current_user
 from app.core.config import get_settings
 from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.core_plugins.googledrive.oauth import get_valid_access_token  # re-exported for routes
+from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 from app.rag.types import RagStatus
@@ -23,7 +24,7 @@ __all__ = [
     "require_user_id",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
 
@@ -47,7 +48,7 @@ def get_drive_credentials() -> tuple[str, str, str]:
     settings = get_settings()
     client_id = settings.GOOGLE_CLIENT_ID
     client_secret = settings.GOOGLE_CLIENT_SECRET
-    redirect_uri = settings.GOOGLE_DRIVE_REDIRECT_URI
+    redirect_uri = get_googledrive_settings().GOOGLE_DRIVE_REDIRECT_URI
 
     if not client_id or not client_secret:
         raise HTTPException(

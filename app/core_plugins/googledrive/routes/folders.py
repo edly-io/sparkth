@@ -1,6 +1,5 @@
 """Google Drive folder endpoints."""
 
-import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -25,10 +24,11 @@ from app.core_plugins.googledrive.types import (
     SyncStatusResponse,
 )
 from app.core_plugins.googledrive.utils import process_folder_rag
+from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get("/folders", response_model=PaginatedResponse[DriveFolderResponse])

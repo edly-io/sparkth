@@ -1,6 +1,5 @@
 """Google Drive file endpoints."""
 
-import logging
 import re
 import urllib.parse
 from collections.abc import AsyncGenerator
@@ -28,11 +27,12 @@ from app.core_plugins.googledrive.types import (
     PaginatedResponse,
     RenameFileRequest,
 )
+from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.types import RagStatus
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @router.get("/folders/{folder_id}/files", response_model=PaginatedResponse[DriveFileResponse])
