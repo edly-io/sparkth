@@ -55,58 +55,23 @@ def register_plugin_tools() -> None:
     Note: Assumes plugins are already loaded by the plugin lifespan manager.
     """
     try:
-        plugin_loader = get_plugin_loader()
-
-        loaded_plugins = plugin_loader.get_loaded_plugins()
-        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
-
-        if not loaded_plugins:
-            logger.info("No plugins loaded for MCP tool registration")
-            return
-
-        logger.info(f"Registering MCP tools from {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
+        # Instantiate plugins so their tools are contributed to the MCP_TOOLS hook.
+        get_plugin_loader()
+        from app.lib.mcp.hooks import MCP_TOOLS
 
         registered_tools: dict[str, str] = {}
         total_tools = 0
         total_failed = 0
 
-        for plugin_name, plugin in loaded_plugins:
-            plugin_tool_count = 0
-            plugin_failed_count = 0
-
+        for plugin, tool_def in MCP_TOOLS.iter_items():
             try:
-                mcp_tools = plugin.get_mcp_tools()
-
-                if not mcp_tools:
-                    logger.debug(f"Plugin '{plugin_name}' has no MCP tools to register")
-                    continue
-
-                for tool_def in mcp_tools:
-                    try:
-                        success = _validate_and_register_tool(tool_def, plugin_name, registered_tools)
-
-                        if success:
-                            plugin_tool_count += 1
-                            total_tools += 1
-                        else:
-                            plugin_failed_count += 1
-                            total_failed += 1
-
-                    except (ValidationError, ValueError, TypeError) as e:
-                        logger.error(f"Failed to register tool from plugin '{plugin_name}': {e}")
-                        plugin_failed_count += 1
-                        total_failed += 1
-
-                if plugin_tool_count > 0:
-                    logger.info(
-                        f"✓ Plugin '{plugin_name}' registered {plugin_tool_count} tool(s)"
-                        + (f" ({plugin_failed_count} failed)" if plugin_failed_count > 0 else "")
-                    )
-                elif plugin_failed_count > 0:
-                    logger.warning(f"Plugin '{plugin_name}' failed to register {plugin_failed_count} tool(s)")
-
-            except (AttributeError, RuntimeError) as e:
-                logger.error(f"Failed to process MCP tools from plugin '{plugin_name}': {e}")
+                if _validate_and_register_tool(tool_def, plugin.name, registered_tools):
+                    total_tools += 1
+                else:
+                    total_failed += 1
+            except (ValidationError, ValueError, TypeError) as e:
+                logger.error(f"Failed to register tool from plugin '{plugin.name}': {e}")
+                total_failed += 1
 
         logger.info(
             f"MCP tool registration complete: {total_tools} tool(s) registered successfully"
