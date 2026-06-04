@@ -3,7 +3,7 @@
 import base64
 import hashlib
 from datetime import timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 from cryptography.fernet import Fernet
@@ -199,7 +199,7 @@ async def save_tokens(
     return token_record
 
 
-async def get_token_record(session: AsyncSession, user_id: int) -> Optional[DriveOAuthToken]:
+async def get_token_record(session: AsyncSession, user_id: int) -> DriveOAuthToken | None:
     """Get OAuth token record for a user."""
     result = await session.exec(
         select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id, DriveOAuthToken.is_deleted == False)  # noqa: E712

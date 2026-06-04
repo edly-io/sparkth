@@ -108,8 +108,9 @@ async def upload_file(
 
     content = await file.read()
     if len(content) > DRIVE_MAX_UPLOAD_BYTES:
+        limit_mb = DRIVE_MAX_UPLOAD_BYTES / (1024 * 1024)
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File size exceeds 30MB limit."
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File size exceeds %.0fMB limit." % limit_mb
         )
     mime_type = file.content_type or "application/octet-stream"
 
