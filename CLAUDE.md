@@ -184,7 +184,7 @@ How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
 - Shared fixtures (`engine`, `session`, `client`, `setup_plugins_and_user`, …) and the generic test environment live in [`app/testing.py`](app/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["app.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
-- The four required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `RAG_MCP_URL`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 ## Database Migrations

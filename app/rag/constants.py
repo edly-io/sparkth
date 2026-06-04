@@ -3,7 +3,6 @@ import os
 DEFAULT_RAG_CHUNKS = 12
 
 # agent.py
-AGENT_CONTEXT_KEYS = frozenset({"user_id", "file_id"})
 AGENT_MAX_RECURSION = int(os.getenv("RAG_AGENT_MAX_RECURSION", "25"))
 
 # chunking.py

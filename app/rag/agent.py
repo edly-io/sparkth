@@ -2,31 +2,20 @@
 
 from typing import Any
 
-from httpx import ConnectError, HTTPStatusError
 from langchain.agents import create_agent
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.tools import StructuredTool
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_mcp_adapters.sessions import StreamableHttpConnection
 from langgraph.errors import GraphRecursionError
-from pydantic import BaseModel, Field, ValidationError, create_model
+from pydantic import ValidationError
 
-from app.core.config import get_settings
 from app.lib.log import get_logger
-from app.rag.constants import AGENT_CONTEXT_KEYS, AGENT_MAX_RECURSION
+from app.rag.agent_tools import build_search_tools
+from app.rag.constants import AGENT_MAX_RECURSION
 from app.rag.exceptions import RAGRetrievalError
 from app.rag.types import RAGSearchAgentResponse
 from app.rag.utils import get_asset
 
 logger = get_logger(__name__)
-
-_JSON_TYPE_MAP: dict[str, type] = {
-    "integer": int,
-    "string": str,
-    "number": float,
-    "boolean": bool,
-}
 
 
 class RAGSearchAgent:
@@ -45,16 +34,10 @@ class RAGSearchAgent:
             RAGSearchAgentResponse with source_name and selected_sections
 
         Raises:
-            RAGRetrievalError: If MCP client connection or agent invocation fails
+            RAGRetrievalError: If a metadata query or agent invocation fails
         """
-        rag_mcp_url = get_settings().RAG_MCP_URL
-
         try:
-            client = MultiServerMCPClient(
-                {"rag-meta": StreamableHttpConnection(url=rag_mcp_url, transport="streamable_http")}
-            )
-            agent_tools = await client.get_tools()
-            agent_tools = self._bind_user_context(agent_tools, user_id, file_id)
+            agent_tools = build_search_tools(user_id, file_id)
 
             agent: Any = create_agent(
                 model=llm, tools=agent_tools, response_format=RAGSearchAgentResponse, name="rag_search_agent"
@@ -79,9 +62,6 @@ class RAGSearchAgent:
         except ValidationError as exc:
             logger.exception("Agent response validation failed for user %d, file %d", user_id, file_id)
             raise RAGRetrievalError(f"Agent returned an invalid response structure: {exc}") from exc
-        except (ConnectError, HTTPStatusError) as exc:
-            logger.exception("MCP client connection error for user %s, file %s", user_id, file_id)
-            raise RAGRetrievalError(f"Failed to connect to RAG metadata server: {exc}") from exc
         except GraphRecursionError as exc:
             logger.error(
                 "RAG agent exceeded recursion limit (%d steps) for user %d, file %d",
@@ -93,49 +73,3 @@ class RAGSearchAgent:
         except LangChainException as exc:
             logger.exception("Agent invocation error for user %s, file %s", user_id, file_id)
             raise RAGRetrievalError(f"Agent failed to process query: {exc}") from exc
-
-    @staticmethod
-    def _bind_user_context(tools: list[Any], user_id: int, file_id: int) -> list[Any]:
-        """Strip user_id/file_id from MCP tool input schemas and inject them on invocation.
-
-        Uses tool.args (LangChain's stable JSON-schema property) rather than
-        args_schema.model_fields so this works reliably with MCP adapter tools.
-        """
-        result: list[Any] = []
-        for tool in tools:
-            try:
-                tool_arg_names = set((tool.args or {}).keys())
-            except (AttributeError, TypeError):
-                result.append(tool)
-                continue
-
-            injected: dict[str, int] = {
-                k: (user_id if k == "user_id" else file_id) for k in AGENT_CONTEXT_KEYS if k in tool_arg_names
-            }
-
-            if not injected:
-                result.append(tool)
-                continue
-
-            remaining = {k: v for k, v in tool.args.items() if k not in AGENT_CONTEXT_KEYS}
-            field_defs: dict[str, Any] = {
-                name: (
-                    _JSON_TYPE_MAP.get(schema.get("type", "string"), Any),
-                    Field(description=schema.get("description", name)),
-                )
-                for name, schema in remaining.items()
-            }
-            ReducedSchema: type[BaseModel] = create_model(f"{tool.name}_Input", **field_defs)
-
-            async def _coroutine(_t: Any = tool, _ctx: dict[str, int] = injected, **kwargs: Any) -> Any:
-                return await _t.ainvoke({**kwargs, **_ctx})
-
-            result.append(
-                StructuredTool(
-                    name=tool.name,
-                    description=tool.description,
-                    args_schema=ReducedSchema,
-                    coroutine=_coroutine,
-                )
-            )
-        return result
