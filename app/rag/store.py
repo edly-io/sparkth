@@ -10,7 +10,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.log import get_logger
 from app.memory_profiler import profile_memory
-from app.models.drive import DriveFile
 from app.rag.config import get_rag_settings
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.types import Chunk, ChunkInput, SimilarityResult
@@ -190,6 +189,10 @@ async def store_and_link_chunks(
 
     Returns (new_count, reused_count).
     """
+    # TODO: The DriveFile DB model is shared between the GoogleDrive plugin and the RAG module.
+    # This might need to be moved to the shared lib.
+    from app.models.drive import DriveFile  # lazy import — see module-top note on the cycle
+
     chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
 
     # Batch-lookup which chunk hashes already exist, excluding chunks that are
