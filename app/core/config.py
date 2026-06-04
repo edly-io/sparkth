@@ -39,14 +39,6 @@ class Settings(BaseSettings):
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
     FRONTEND_BASE_URL: str = "http://localhost:7727"
 
-    RAG_CONCURRENCY: int = 1  # max number of files to process in parallel for RAG
-    RAG_MAX_FILE_SIZE_MB: int = 50  # skip files larger than this during RAG ingestion
-    RAG_STORE_BATCH_SIZE: int = 32  # number of chunks to write to DB per batch
-    RAG_DISPLAY_NAME_MAX_CHARS: int = 30  # max chars for section/filename labels in the UI
-    MEMORY_PROFILING_ENABLED: bool = False
-    RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported
-    RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE: int = 100  # below this avg, a PDF is treated as scanned/image-only
-    RAG_PDF_EXTRACTION_BATCH_SIZE: int = 10  # number of pages per pymupdf4llm.to_markdown() call
     RAG_MCP_URL: str
 
     LLM_ENCRYPTION_KEY: str
@@ -57,19 +49,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
-def parse_rag_allowed_extensions(raw: str) -> list[str]:
-    """Parse a comma-separated extensions string into a normalised list.
-
-    Strips whitespace, lowercases, and removes leading dots and duplicates.
-    Returns an empty list when *raw* is blank, which means all supported types
-    are permitted.
-    """
-    if not raw.strip():
-        return []
-    parts = [ext.strip().lower().lstrip(".") for ext in raw.split(",")]
-    return list(dict.fromkeys(p for p in parts if p))
 
 
 # Plugin Configuration

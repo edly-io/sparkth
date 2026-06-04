@@ -51,10 +51,10 @@ from app.core_plugins.slack.types import (
 )
 from app.lib.db import get_async_session, get_session, session_scope
 from app.lib.log import get_logger
+from app.lib.rag.store import ChunkStoreService
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
 from app.models.user import User
-from app.rag.store import ChunkStoreService
 from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()

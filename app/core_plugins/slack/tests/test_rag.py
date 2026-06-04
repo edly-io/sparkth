@@ -19,9 +19,9 @@ from app.core_plugins.slack.rag import (
     _run_agent_fan_out,
     answer_question,
 )
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.store import SimilarityResult
-from app.rag.types import RAGContext
+from app.lib.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.lib.rag.store import SimilarityResult
+from app.lib.rag.types import RAGContext
 
 
 @pytest.mark.asyncio

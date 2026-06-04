@@ -15,10 +15,10 @@ from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.intent_router import RAGIntentRouterError
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import RAGRoutingDecision
+from app.lib.rag.enums import RagStatus
 from app.models.drive import DriveFile, DriveFolder
 from app.models.llm import LLMConfig
 from app.models.user import User
-from app.rag.types import RagStatus
 
 
 def _parse_sse_events(content: bytes) -> list[dict[str, Any]]:

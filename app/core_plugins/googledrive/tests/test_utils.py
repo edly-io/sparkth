@@ -19,10 +19,11 @@ from app.core_plugins.googledrive.utils import (
     _store_and_link_chunks,
     process_folder_rag,
 )
+from app.lib.rag.enums import RagStatus
+from app.lib.rag.exceptions import ScannedPDFError
+from app.lib.rag.store import ChunkInput, ChunkStoreService
+from app.lib.rag.types import Chunk, ChunkMetadata
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.exceptions import ScannedPDFError
-from app.rag.store import ChunkInput, ChunkStoreService
-from app.rag.types import Chunk, ChunkMetadata, RagStatus
 
 
 def _make_async_session() -> AsyncMock:
@@ -453,8 +454,8 @@ class TestEmbedAndStoreChunks:
 
         from sqlmodel.ext.asyncio.session import AsyncSession
 
+        from app.lib.rag.models import DocumentChunk, DriveFileChunkLink
         from app.models.drive import DriveFolder
-        from app.rag.db_models import DocumentChunk, DriveFileChunkLink
 
         async_session: AsyncSession = session
 
@@ -549,7 +550,7 @@ class TestProcessSingleFile:
         session = _make_async_session()
         drive_file = _make_drive_file(name="lecture.mp3", mime_type="audio/mpeg")
 
-        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_get:
             mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,txt,docx"
             mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
             await _process_single_file(
@@ -568,7 +569,7 @@ class TestProcessSingleFile:
         session = _make_async_session()
         drive_file = _make_drive_file(name="song.mp3", mime_type="audio/mpeg")
 
-        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_get:
             mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
             mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
             await _process_single_file(
@@ -588,7 +589,7 @@ class TestProcessSingleFile:
         session = _make_async_session()
         drive_file = _make_drive_file(name="image.png", mime_type="image/png")
 
-        with patch("app.core_plugins.googledrive.utils.get_settings") as mock_get:
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_get:
             mock_get.return_value.RAG_ALLOWED_EXTENSIONS = ""
             mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
             await _process_single_file(

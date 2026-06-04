@@ -1,6 +1,6 @@
 """Tests for RAG_ALLOWED_EXTENSIONS settings and its parser."""
 
-from app.core.config import parse_rag_allowed_extensions
+from app.lib.rag.config import parse_rag_allowed_extensions
 
 
 class TestParseRagAllowedExtensions:

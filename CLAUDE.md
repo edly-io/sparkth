@@ -28,7 +28,7 @@ app/
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
-  rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
+  lib/rag/       # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/    # Alembic versions
 
@@ -60,6 +60,9 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
   background/non-request code; `get_async_session`/`get_session` are the FastAPI
   dependencies.
+- [`app/lib/rag/`](app/lib/rag/) — RAG pipeline (extraction, chunking, storage,
+  agent-driven retrieval, cleanup). Internal implementation details are private;
+  the stable public API will be exposed via `app/lib/rag/__init__.py` (see issue #398).
 
 ## Essential Commands
 
@@ -171,7 +174,7 @@ Tests live next to the code they own, so each plugin stays a self-contained, por
 - **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
 - **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, rag_mcp, services)
 
-  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`).
+  RAG lives under `app/lib/rag/`, so its tests live at `tests/lib/rag/`.
 
 How the suite is wired:
 

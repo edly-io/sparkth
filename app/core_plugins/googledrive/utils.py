@@ -12,19 +12,20 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings, parse_rag_allowed_extensions
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
 from app.lib.log import get_logger
+from app.lib.rag.chunking import chunk_document
+from app.lib.rag.config import get_rag_settings, parse_rag_allowed_extensions
+from app.lib.rag.enums import RagStatus
+from app.lib.rag.exceptions import ScannedPDFError
+from app.lib.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
+from app.lib.rag.models import DocumentChunk, DriveFileChunkLink
+from app.lib.rag.store import ChunkInput, ChunkStoreService
+from app.lib.rag.types import Chunk
 from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.chunking import chunk_document
-from app.rag.db_models import DocumentChunk, DriveFileChunkLink
-from app.rag.exceptions import ScannedPDFError
-from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
-from app.rag.store import ChunkInput, ChunkStoreService
-from app.rag.types import Chunk, RagStatus
 
 logger = get_logger(__name__)
 
@@ -184,7 +185,7 @@ async def _process_single_file(
     """Run the full RAG pipeline for a single Drive file."""
     filename = _resolve_filename(drive_file)
     log_name = drive_file.name or filename
-    settings = get_settings()
+    settings = get_rag_settings()
 
     allowed = parse_rag_allowed_extensions(settings.RAG_ALLOWED_EXTENSIONS)
     if allowed:
@@ -356,7 +357,7 @@ async def process_folder_rag(
         return
 
     store = ChunkStoreService()
-    semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
+    semaphore = asyncio.Semaphore(get_rag_settings().RAG_CONCURRENCY)
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:
         async with semaphore:

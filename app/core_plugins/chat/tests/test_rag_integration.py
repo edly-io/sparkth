@@ -9,10 +9,10 @@ from fastapi import HTTPException
 
 from app.core_plugins.chat.routes import _extract_query_text, _resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
-from app.rag.context_service import RAGContext, RAGContextService
-from app.rag.db_models import DocumentChunk
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.store import SimilarityResult
+from app.lib.rag.context_service import RAGContext, RAGContextService
+from app.lib.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.lib.rag.models import DocumentChunk
+from app.lib.rag.store import SimilarityResult
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
