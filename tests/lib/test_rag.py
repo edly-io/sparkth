@@ -7,6 +7,7 @@ public boundary, never the RAG internals behind it.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.language_models import BaseChatModel
 
 import app.lib.rag as rag_api
 from app.lib.rag import (
@@ -74,3 +75,28 @@ class TestIngestDocument:
         assert result == IngestionResult(new_chunks=1, reused_chunks=0)
         mock_store.assert_awaited_once()
         mock_session.commit.assert_awaited_once()
+
+
+class TestRetrieveContextSurface:
+    def test_exposes_retrieve_context(self) -> None:
+        assert callable(rag_api.retrieve_context)
+
+    def test_exposes_retrieved_chunk(self) -> None:
+        rc = rag_api.RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="x")
+        assert rc.content == "x"
+
+    def test_exposes_retrieval_exceptions(self) -> None:
+        assert issubclass(rag_api.DriveFileNotFoundError, Exception)
+        assert issubclass(rag_api.RAGNotReadyError, Exception)
+        assert issubclass(rag_api.RAGRetrievalError, Exception)
+
+
+class TestRetrieveContext:
+    @pytest.mark.asyncio
+    async def test_delegates_to_orchestration(self) -> None:
+        chunk = rag_api.RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="x")
+        mock_llm = MagicMock(spec=BaseChatModel)
+        with patch("app.lib.rag.retrieve_chunks", new=AsyncMock(return_value=[chunk])) as mock_retrieve:
+            result = await rag_api.retrieve_context(user_id=1, file_ids=[10], query="q", llm=mock_llm)
+        assert result == [chunk]
+        mock_retrieve.assert_awaited_once()
