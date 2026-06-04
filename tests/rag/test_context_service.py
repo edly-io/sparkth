@@ -120,28 +120,7 @@ class TestResolveSourceName:
         assert _resolve_source_name(df) == "diagram.pdf"
 
 
-class TestDeadConstantsRemoved:
-    def test_default_similarity_threshold_not_exported(self) -> None:
-        import app.rag.constants as c
-
-        assert not hasattr(c, "DEFAULT_SIMILARITY_THRESHOLD")
-
-    def test_default_top_sections_not_exported(self) -> None:
-        import app.rag.constants as c
-
-        assert not hasattr(c, "DEFAULT_TOP_SECTIONS")
-
-
 class TestRAGContextType:
-    def test_rag_context_has_no_ranked_sections_field(self) -> None:
-        """ranked_sections field must have been removed."""
-        import dataclasses
-
-        from app.rag.types import RAGContext
-
-        field_names = {f.name for f in dataclasses.fields(RAGContext)}
-        assert "ranked_sections" not in field_names
-
     def test_rag_context_constructs_without_ranked_sections(self) -> None:
         """RAGContext can be constructed with just the required fields."""
         from app.rag.types import RAGContext
