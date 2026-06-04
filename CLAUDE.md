@@ -64,15 +64,14 @@ Current modules (see the source for the full API — do not duplicate it here):
 ## Essential Commands
 
 ```bash
-# Docker (recommended for full stack)
-make up              # Build + start all services
-make up.dev          # Dev mode with hot reload
-make down            # Stop containers
-make clean           # Stop + wipe database volume
+# Backing services (Docker): Postgres, Redis, Mailpit — the backend/frontend run natively
+make services        # Start backing services in the background
+make down            # Stop service containers
+make clean           # Stop services + wipe data volumes
 
-# Local backend (requires uv)
+# Local backend (requires uv) — connects to the backing services above
 make backend.install.dev    # Install dev dependencies
-make api                    # FastAPI on http://0.0.0.0:7727
+make api                    # FastAPI on http://0.0.0.0:7727 (hot reload)
 make mcp                    # MCP server (HTTP mode)
 make test                   # Run all tests (frontend + backend)
 make test.backend           # Run all backend tests
@@ -101,16 +100,15 @@ make frontend        # Next.js dev server on :3000
 make frontend.build  # Static export → frontend/out/
 
 # Database
-make migrations      # Run pending Alembic migrations
-make shell           # Shell inside a container, defaults to app (make shell [service])
-make logs            # Tail logs for all containers (make logs [service])
+make migrations      # Apply Alembic migrations (native)
+make logs            # Tail logs for the service containers (make logs [service])
 make db-shell        # PostgreSQL shell
 make create-user     # Create user (pass args after --)
 ```
 
 ## Environment Setup
 
-`.env` is committed with working dev defaults — `make up` works out of the box. For sensitive credentials (Google OAuth, Slack), create a `.env.local` file (git-ignored). See the production checklist at the top of `.env` for values that must change before deploying.
+`.env` is committed with working dev defaults (localhost-first: it points at the backing services published by `docker-compose.yml`). For sensitive credentials (Google OAuth, Slack) and local overrides, create a `.env.local` file (git-ignored) — it takes precedence over `.env` and is read by both the native backend and `docker compose`. See the production checklist at the top of `.env` for values that must change before deploying.
 
 | Variable | Purpose |
 |---|---|

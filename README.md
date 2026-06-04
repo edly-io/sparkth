@@ -53,18 +53,18 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
    make backend.install.dev.githooks
    ```
 
-## Running the MCP Server (Docker)
+## Running the backend
 
 `.env` is committed with working dev defaults and works out of the box.
-For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there.
+For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there. `.env.local` takes precedence over `.env`.
 
-Run in development mode with hot reload:
+In development the backend runs natively on the host and connects to Postgres, Redis, and Mailpit running in Docker:
 
-    make up.dev
+    make services     # start Postgres, Redis, Mailpit (Docker)
+    make migrations   # apply database migrations
+    make api          # run the FastAPI backend on http://0.0.0.0:7727 (hot reload)
 
-Or without hot reload:
-
-    make up
+For the frontend dev server, see [Developing/Running the Frontend](#developingrunning-the-frontend) below.
 
 ### Transport mode: http / stdio
 
@@ -120,7 +120,7 @@ Build the frontend as static files (exported to `frontend/out/`):
 make frontend.build
 ```
 
-The static files are automatically served by FastAPI when you run `make up` or `make up.dev`.
+In production these static files are served by the FastAPI backend (baked into the Docker image at `frontend/out/`).
 
 ### Feature Flags
 `REGISTRATION_ENABLED`
@@ -150,7 +150,7 @@ REGISTRATION_ENABLED=true
 
 Changing this flag does not affect existing users.
 
-Make sure to run `make up` or `make up.dev` after changing the `.env` variable to apply the new setting.
+Make sure to restart the backend (`make api`) after changing the `.env` variable to apply the new setting.
 
 ## Integrating with Claude Desktop
 
