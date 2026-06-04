@@ -86,7 +86,7 @@ async def _find_duplicate_file(
 
 async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk_ids: set[int]) -> None:
     """Insert bridge-table links for chunk_ids not already linked to drive_file_id."""
-    already_linked = await session.exec(
+    already_linked = await session.scalars(
         select(DriveFileChunkLink.chunk_id).where(
             DriveFileChunkLink.drive_file_id == drive_file_id,
         )
@@ -100,7 +100,7 @@ async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk
 
 async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int, source_file_id: int) -> None:
     """Copy bridge-table links from an existing duplicate file, skipping any that already exist."""
-    source_links = await session.exec(
+    source_links = await session.scalars(
         select(DriveFileChunkLink.chunk_id).where(
             DriveFileChunkLink.drive_file_id == source_file_id,
         )
