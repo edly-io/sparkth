@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.rag.agent import RAGSearchAgent
 
@@ -18,11 +20,11 @@ from app.rag.config import get_rag_settings
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.store import ChunkStoreService, SimilarityResult
-from app.rag.types import RAGContext
+from app.rag.types import RAGContext, RetrievedChunk
 from app.rag.utils import resolve_source_name
 
 # Re-export for backwards-compatibility with modules that import from context_service
-__all__ = ["RAGContext", "RAGContextService", "format_chunks_as_context"]
+__all__ = ["RAGContext", "RAGContextService", "format_chunks_as_context", "retrieve_chunks"]
 
 logger = get_logger(__name__)
 
@@ -167,3 +169,86 @@ class RAGContextService:
 
 # Backward-compatibility alias
 format_chunks_as_context = RAGContextService.format_chunks_as_context
+
+
+async def _validate_files_ready(session: AsyncSession, user_id: int, file_ids: list[int]) -> None:
+    """Verify every file is owned by user_id and in READY state.
+
+    Raises:
+        DriveFileNotFoundError: a file id is missing or not owned by the user.
+        RAGNotReadyError: a file exists but its rag_status is not READY.
+    """
+    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+
+    result = await session.exec(
+        select(DriveFile).where(
+            col(DriveFile.id).in_(file_ids),
+            col(DriveFile.user_id) == user_id,
+            col(DriveFile.is_deleted) == False,  # noqa: E712
+        )
+    )
+    found = {f.id: f for f in result.all()}
+    for file_id in file_ids:
+        drive_file = found.get(file_id)
+        if drive_file is None:
+            logger.warning("DriveFile not found: id=%d user_id=%d", file_id, user_id)
+            raise DriveFileNotFoundError(f"File with id={file_id} not found or not accessible.")
+        if drive_file.rag_status != RagStatus.READY:
+            status_str = str(drive_file.rag_status or "None")
+            logger.warning("RAG not ready: file_db_id=%d status=%s", file_id, status_str)
+            raise RAGNotReadyError(file_id, status_str)
+
+
+async def _search_one_file(
+    service: RAGContextService,
+    user_id: int,
+    file_id: int,
+    query: str,
+    llm: Any,
+) -> RAGContext:
+    """Run the per-file agent search in its own session (for concurrent fan-out)."""
+    async with session_scope() as file_session:
+        return await service.get_context_via_agent(
+            session=file_session,
+            user_id=user_id,
+            file_db_id=file_id,
+            query=query,
+            llm=llm,
+        )
+
+
+async def retrieve_chunks(
+    user_id: int,
+    file_ids: list[int],
+    query: str,
+    llm: Any,
+) -> list[RetrievedChunk]:
+    """Validate all files are READY, then fan out agent retrieval per file.
+
+    Returns a flat list of RetrievedChunk across all files (file_ids order).
+
+    Raises:
+        DriveFileNotFoundError / RAGNotReadyError: validation failed (nothing searched).
+        RAGRetrievalError: a per-file agent search or section fetch failed.
+    """
+    if not file_ids:
+        return []
+
+    async with session_scope() as session:
+        await _validate_files_ready(session, user_id, file_ids)
+
+    service = RAGContextService()
+    tasks = [_search_one_file(service, user_id, fid, query, llm) for fid in file_ids]
+    contexts = await asyncio.gather(*tasks)
+
+    return [
+        RetrievedChunk(
+            source_name=sr.chunk.source_name,
+            chapter=sr.chunk.chapter,
+            section=sr.chunk.section,
+            subsection=sr.chunk.subsection,
+            content=sr.chunk.content,
+        )
+        for ctx in contexts
+        for sr in ctx.chunks
+    ]
