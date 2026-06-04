@@ -5,7 +5,7 @@ from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.client import GoogleDriveClient
@@ -22,7 +22,7 @@ from app.core_plugins.googledrive.types import (
     SyncStatusResponse,
 )
 from app.core_plugins.googledrive.utils import process_folder_rag
-from app.lib.db import get_async_session, get_session
+from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.types import RagStatus
@@ -34,11 +34,11 @@ _FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
 
 
 @router.get("/folders", response_model=PaginatedResponse[DriveFolderResponse])
-def list_folders(
+async def list_folders(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> PaginatedResponse[DriveFolderResponse]:
     """List synced Google Drive folders for the current user with pagination."""
     file_count_subq = (
@@ -67,8 +67,8 @@ def list_folders(
         )
         .subquery()
     )
-    total = session.exec(count_stmt).one()
-    rows = session.exec(base_stmt.offset(skip).limit(limit)).all()
+    total = (await session.exec(count_stmt)).one()
+    rows = (await session.exec(base_stmt.offset(skip).limit(limit))).all()
 
     return PaginatedResponse(
         items=[
@@ -178,28 +178,30 @@ async def create_folder(
 
 
 @router.get("/folders/{folder_id}", response_model=DriveFolderWithFilesResponse)
-def get_folder(
+async def get_folder(
     folder_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveFolderWithFilesResponse:
     """Get a synced folder with its files."""
-    folder = session.exec(
+    folder_result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    folder = folder_result.first()
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
-    folder_files = session.exec(
+    files_result = await session.exec(
         select(DriveFile).where(
             DriveFile.folder_id == folder.id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).all()
+    )
+    folder_files = files_result.all()
 
     files = [
         DriveFileResponse(
@@ -229,35 +231,36 @@ def get_folder(
 
 
 @router.delete("/folders/{folder_id}")
-def delete_folder(
+async def delete_folder(
     folder_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Remove a folder and all its files from Sparkth tracking."""
-    folder = session.exec(
+    folder_result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    folder = folder_result.first()
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
-    folder_files = session.exec(
+    files_result = await session.exec(
         select(DriveFile).where(
             DriveFile.folder_id == folder.id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).all()
-    for f in folder_files:
+    )
+    for f in files_result.all():
         f.soft_delete()
         session.add(f)
 
     folder.soft_delete()
     session.add(folder)
-    session.commit()
+    await session.commit()
 
     return {"detail": "Folder removed from Sparkth successfully"}
 

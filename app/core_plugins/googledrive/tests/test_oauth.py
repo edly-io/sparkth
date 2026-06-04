@@ -98,12 +98,12 @@ class TestDecodeState:
 
 class TestSaveTokens:
     @pytest.mark.asyncio
-    async def test_save_new_token(self, async_session: AsyncSession, test_user: User) -> None:
+    async def test_save_new_token(self, session: AsyncSession, test_user: User) -> None:
         """Saving tokens for a new user creates a record."""
         user_id = cast(int, test_user.id)
 
         record = await save_tokens(
-            async_session,
+            session,
             user_id,
             access_token="access_123",
             refresh_token="refresh_456",
@@ -117,12 +117,12 @@ class TestSaveTokens:
         assert record.scopes == "drive.file"
 
     @pytest.mark.asyncio
-    async def test_save_updates_existing_token(self, async_session: AsyncSession, test_user: User) -> None:
+    async def test_save_updates_existing_token(self, session: AsyncSession, test_user: User) -> None:
         """Saving tokens when a record exists should update it."""
         user_id = cast(int, test_user.id)
 
-        await save_tokens(async_session, user_id, "old_access", "old_refresh", 3600, "scope1")
-        record = await save_tokens(async_session, user_id, "new_access", "new_refresh", 7200, "scope2")
+        await save_tokens(session, user_id, "old_access", "old_refresh", 3600, "scope1")
+        record = await save_tokens(session, user_id, "new_access", "new_refresh", 7200, "scope2")
 
         assert decrypt_token(record.access_token_encrypted) == "new_access"
         assert record.scopes == "scope2"
@@ -131,33 +131,33 @@ class TestSaveTokens:
 class TestGetTokenRecord:
     @pytest.mark.asyncio
     async def test_returns_token_when_exists(
-        self, async_session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
+        self, session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
     ) -> None:
         """Should return the token record for a connected user."""
-        record = await get_token_record(async_session, cast(int, test_user.id))
+        record = await get_token_record(session, cast(int, test_user.id))
 
         assert record is not None
         assert record.user_id == test_user.id
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_token(self, async_session: AsyncSession, test_user: User) -> None:
+    async def test_returns_none_when_no_token(self, session: AsyncSession, test_user: User) -> None:
         """Should return None when user has no token."""
-        record = await get_token_record(async_session, cast(int, test_user.id))
+        record = await get_token_record(session, cast(int, test_user.id))
 
         assert record is None
 
     @pytest.mark.asyncio
     async def test_returns_none_for_soft_deleted_token(
-        self, async_session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
+        self, session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
     ) -> None:
         """Should not return soft-deleted tokens."""
-        record = await get_token_record(async_session, cast(int, test_user.id))
+        record = await get_token_record(session, cast(int, test_user.id))
         assert record is not None
         record.soft_delete()
-        async_session.add(record)
-        await async_session.commit()
+        session.add(record)
+        await session.flush()
 
-        record = await get_token_record(async_session, cast(int, test_user.id))
+        record = await get_token_record(session, cast(int, test_user.id))
 
         assert record is None
 
@@ -165,19 +165,21 @@ class TestGetTokenRecord:
 class TestDeleteToken:
     @pytest.mark.asyncio
     async def test_soft_deletes_token(
-        self, async_session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
+        self, session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
     ) -> None:
         """Delete should soft-delete the token record."""
-        result = await delete_token(async_session, cast(int, test_user.id))
+        # Capture the id before delete_token commits (which expires the ORM object).
+        user_id = cast(int, test_user.id)
+        result = await delete_token(session, user_id)
 
         assert result is True
-        record = await get_token_record(async_session, cast(int, test_user.id))
+        record = await get_token_record(session, user_id)
         assert record is None
 
     @pytest.mark.asyncio
-    async def test_returns_false_when_no_token(self, async_session: AsyncSession, test_user: User) -> None:
+    async def test_returns_false_when_no_token(self, session: AsyncSession, test_user: User) -> None:
         """Delete should return False when no token exists."""
-        result = await delete_token(async_session, cast(int, test_user.id))
+        result = await delete_token(session, cast(int, test_user.id))
 
         assert result is False
 
@@ -185,39 +187,39 @@ class TestDeleteToken:
 class TestGetValidAccessToken:
     @pytest.mark.asyncio
     async def test_returns_existing_token_if_not_expired(
-        self, async_session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
+        self, session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
     ) -> None:
         """Should return existing access token if not expired."""
-        token = await get_valid_access_token(async_session, cast(int, test_user.id), "client_id", "client_secret")
+        token = await get_valid_access_token(session, cast(int, test_user.id), "client_id", "client_secret")
 
         assert token == "fake_access_token"
 
     @pytest.mark.asyncio
     async def test_refreshes_expired_token(
-        self, async_session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
+        self, session: AsyncSession, test_user: User, test_oauth_token: DriveOAuthToken
     ) -> None:
         """Should refresh and return new token if expired."""
         # Make token expired
-        record = await get_token_record(async_session, cast(int, test_user.id))
+        record = await get_token_record(session, cast(int, test_user.id))
         assert record is not None
         record.token_expiry = datetime.now(timezone.utc) - timedelta(minutes=10)
-        async_session.add(record)
-        await async_session.commit()
+        session.add(record)
+        await session.flush()
 
         with patch(
             "app.core_plugins.googledrive.oauth.refresh_access_token",
             new_callable=AsyncMock,
             return_value={"access_token": "refreshed_token", "expires_in": 3600},
         ):
-            token = await get_valid_access_token(async_session, cast(int, test_user.id), "client_id", "client_secret")
+            token = await get_valid_access_token(session, cast(int, test_user.id), "client_id", "client_secret")
 
         assert token == "refreshed_token"
 
     @pytest.mark.asyncio
-    async def test_raises_when_not_connected(self, async_session: AsyncSession, test_user: User) -> None:
+    async def test_raises_when_not_connected(self, session: AsyncSession, test_user: User) -> None:
         """Should raise ValueError when user has no token."""
         with pytest.raises(ValueError, match="not connected"):
-            await get_valid_access_token(async_session, cast(int, test_user.id), "client_id", "client_secret")
+            await get_valid_access_token(session, cast(int, test_user.id), "client_id", "client_secret")
 
 
 class TestExchangeCodeForTokens:

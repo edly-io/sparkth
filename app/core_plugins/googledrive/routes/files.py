@@ -9,7 +9,7 @@ from typing import cast
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.client import GoogleDriveClient
@@ -26,7 +26,7 @@ from app.core_plugins.googledrive.types import (
     PaginatedResponse,
     RenameFileRequest,
 )
-from app.lib.db import get_async_session, get_session
+from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.types import RagStatus
@@ -36,21 +36,22 @@ logger = get_logger(__name__)
 
 
 @router.get("/folders/{folder_id}/files", response_model=PaginatedResponse[DriveFileResponse])
-def list_files(
+async def list_files(
     folder_id: int,
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> PaginatedResponse[DriveFileResponse]:
     """List files in a synced folder with pagination."""
-    folder = session.exec(
+    folder_result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    folder = folder_result.first()
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
@@ -59,8 +60,8 @@ def list_files(
         DriveFile.is_deleted == False,  # noqa: E712
     )
 
-    total = session.exec(select(func.count()).select_from(base_query.subquery())).one()
-    files: Sequence[DriveFile] = session.exec(base_query.offset(skip).limit(limit)).all()
+    total = (await session.exec(select(func.count()).select_from(base_query.subquery()))).one()
+    files: Sequence[DriveFile] = (await session.exec(base_query.offset(skip).limit(limit))).all()
 
     return PaginatedResponse(
         items=[
@@ -155,19 +156,20 @@ async def upload_file(
 
 
 @router.get("/files/{file_id}", response_model=DriveFileResponse)
-def get_file(
+async def get_file(
     file_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> DriveFileResponse:
     """Get file metadata."""
-    drive_file = session.exec(
+    result = await session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
             DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    drive_file = result.first()
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
@@ -185,19 +187,20 @@ def get_file(
 
 
 @router.get("/files/{file_id}/rag-status", response_model=FileRagStatusResponse)
-def get_file_rag_status(
+async def get_file_rag_status(
     file_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> FileRagStatusResponse:
     """Get the RAG processing status for a single file."""
-    drive_file = session.exec(
+    result = await session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
             DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    drive_file = result.first()
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
@@ -210,28 +213,30 @@ def get_file_rag_status(
 
 
 @router.get("/folders/{folder_id}/rag-status", response_model=FolderRagStatusResponse)
-def get_folder_rag_status(
+async def get_folder_rag_status(
     folder_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> FolderRagStatusResponse:
     """Get the RAG processing status for all files in a folder."""
-    folder = session.exec(
+    folder_result = await session.exec(
         select(DriveFolder).where(
             DriveFolder.id == folder_id,
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    folder = folder_result.first()
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
 
-    files = session.exec(
+    files_result = await session.exec(
         select(DriveFile).where(
             DriveFile.folder_id == folder_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).all()
+    )
+    files = files_result.all()
 
     return FolderRagStatusResponse(
         folder_id=folder_id,
@@ -344,25 +349,26 @@ async def rename_file(
 
 
 @router.delete("/files/{file_id}")
-def delete_file(
+async def delete_file(
     file_id: int,
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Soft-delete a file from Sparkth (does not delete from Drive)."""
-    drive_file = session.exec(
+    result = await session.exec(
         select(DriveFile).where(
             DriveFile.id == file_id,
             DriveFile.user_id == user_id,
             DriveFile.is_deleted == False,  # noqa: E712
         )
-    ).first()
+    )
+    drive_file = result.first()
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     drive_file.soft_delete()
     session.add(drive_file)
-    session.commit()
+    await session.commit()
 
     return {"detail": "File removed from Sparkth successfully"}
 
