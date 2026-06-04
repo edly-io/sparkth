@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkInput, VectorStoreService
+from app.rag.store import ChunkInput, ChunkStoreService
 
 
 class TestChunkInput:
@@ -42,25 +42,25 @@ class TestStoreChunksNoProvider:
 
     async def test_store_chunks_signature_has_no_provider(self) -> None:
         """store_chunks must not have a 'provider' parameter."""
-        sig = inspect.signature(VectorStoreService.store_chunks)
+        sig = inspect.signature(ChunkStoreService.store_chunks)
         assert "provider" not in sig.parameters
 
     async def test_store_chunks_empty_list_no_provider(self) -> None:
         """Calling store_chunks with no provider succeeds."""
-        service = VectorStoreService()
+        service = ChunkStoreService()
         mock_session = AsyncMock()
         result = await service.store_chunks(mock_session, user_id=1, chunks=[])
         assert result == []
 
 
-class TestVectorStoreService:
+class TestChunkStoreService:
     @pytest.fixture
-    def service(self) -> VectorStoreService:
-        return VectorStoreService()
+    def service(self) -> ChunkStoreService:
+        return ChunkStoreService()
 
     async def test_store_chunks_empty_list(
         self,
-        service: VectorStoreService,
+        service: ChunkStoreService,
     ) -> None:
         mock_session = AsyncMock()
         result = await service.store_chunks(mock_session, user_id=1, chunks=[])
@@ -68,7 +68,7 @@ class TestVectorStoreService:
 
     async def test_store_chunks_flushes_session(
         self,
-        service: VectorStoreService,
+        service: ChunkStoreService,
     ) -> None:
         chunks = [
             ChunkInput(content="chunk 1", source_name="doc.pdf", chapter="Ch1"),
@@ -95,7 +95,7 @@ class TestVectorStoreService:
 
     async def test_store_chunks_metadata_mapping(
         self,
-        service: VectorStoreService,
+        service: ChunkStoreService,
     ) -> None:
         chunks = [
             ChunkInput(
@@ -140,7 +140,7 @@ class TestVectorStoreService:
         assert call_args.token_count == 100
         mock_session.flush.assert_awaited_once()
 
-    async def test_delete_by_source(self, service: VectorStoreService) -> None:
+    async def test_delete_by_source(self, service: ChunkStoreService) -> None:
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.rowcount = 5
@@ -152,7 +152,7 @@ class TestVectorStoreService:
         mock_session.execute.assert_awaited_once()
         mock_session.flush.assert_awaited_once()
 
-    async def test_get_sources(self, service: VectorStoreService) -> None:
+    async def test_get_sources(self, service: ChunkStoreService) -> None:
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = ["doc1.pdf", "doc2.pdf"]

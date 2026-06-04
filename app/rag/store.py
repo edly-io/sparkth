@@ -13,12 +13,12 @@ from app.rag.db_models import DocumentChunk
 from app.rag.types import ChunkInput, SimilarityResult
 
 # Re-export for backwards-compatibility with modules that import from store
-__all__ = ["ChunkInput", "SimilarityResult", "VectorStoreService"]
+__all__ = ["ChunkInput", "SimilarityResult", "ChunkStoreService"]
 
 logger = get_logger(__name__)
 
 
-class VectorStoreService:
+class ChunkStoreService:
     """Service for storing and retrieving document chunks."""
 
     async def store_chunks(
@@ -61,7 +61,7 @@ class VectorStoreService:
                 session.add(row)
                 batch_rows.append(row)
 
-            async with profile_memory("vectorstore_write", source=source, n_rows=len(batch_rows)):
+            async with profile_memory("chunkstore_write", source=source, n_rows=len(batch_rows)):
                 await session.flush()
 
             batch_ids = [row.id for row in batch_rows if row.id is not None]

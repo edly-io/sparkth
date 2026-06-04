@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkInput, VectorStoreService
+from app.rag.store import ChunkInput, ChunkStoreService
 
 
 def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
@@ -18,7 +18,7 @@ class TestStoreMemory:
     @pytest.mark.asyncio
     async def test_store_chunks_returns_list_of_ints(self) -> None:
         """Verify store_chunks returns list[int] not list[DocumentChunk]."""
-        service = VectorStoreService()
+        service = ChunkStoreService()
         chunks = _make_chunks(3)
 
         mock_session = AsyncMock()
@@ -47,7 +47,7 @@ class TestStoreMemory:
     @pytest.mark.asyncio
     async def test_store_chunks_expunges_each_batch(self) -> None:
         """Verify session.expunge is called after each batch flush."""
-        service = VectorStoreService()
+        service = ChunkStoreService()
         chunks = _make_chunks(25)  # 3 batches with batch_size=10
 
         mock_session = AsyncMock()

@@ -10,7 +10,7 @@ from app.models.drive import DriveFile
 from app.rag import constants
 from app.rag.agent import RAGSearchAgent
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.store import SimilarityResult, VectorStoreService
+from app.rag.store import ChunkStoreService, SimilarityResult
 from app.rag.types import RAGContext, RagStatus
 from app.rag.utils import resolve_source_name
 
@@ -25,9 +25,9 @@ class RAGContextService:
 
     def __init__(
         self,
-        vector_store: VectorStoreService | None = None,
+        chunk_store: ChunkStoreService | None = None,
     ) -> None:
-        self._store = vector_store or VectorStoreService()
+        self._store = chunk_store or ChunkStoreService()
 
     async def get_context_via_agent(
         self,

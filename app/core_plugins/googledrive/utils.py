@@ -22,7 +22,7 @@ from app.rag.chunking import chunk_document
 from app.rag.db_models import DocumentChunk, DriveFileChunkLink
 from app.rag.exceptions import ScannedPDFError
 from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
-from app.rag.store import ChunkInput, VectorStoreService
+from app.rag.store import ChunkInput, ChunkStoreService
 from app.rag.types import Chunk, RagStatus
 
 logger = get_logger(__name__)
@@ -113,7 +113,7 @@ async def _store_and_link_chunks(
     user_id: int,
     drive_file_id: int,
     chunks: list[Chunk],
-    store: VectorStoreService,
+    store: ChunkStoreService,
 ) -> tuple[int, int]:
     """Store new chunks, reuse existing ones, and create bridge-table links.
 
@@ -182,7 +182,7 @@ async def _process_single_file(
     user_id: int,
     access_token: str,
     session: AsyncSession,
-    store: VectorStoreService,
+    store: ChunkStoreService,
 ) -> None:
     """Run the full RAG pipeline for a single Drive file."""
     filename = _resolve_filename(drive_file)
@@ -365,7 +365,7 @@ async def process_folder_rag(
     if not files:
         return
 
-    store = VectorStoreService()
+    store = ChunkStoreService()
     semaphore = asyncio.Semaphore(get_settings().RAG_CONCURRENCY)
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:

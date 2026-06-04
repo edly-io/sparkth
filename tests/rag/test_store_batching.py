@@ -1,10 +1,10 @@
-"""Tests for batched chunk storage in VectorStoreService."""
+"""Tests for batched chunk storage in ChunkStoreService."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkInput, VectorStoreService
+from app.rag.store import ChunkInput, ChunkStoreService
 
 
 def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
@@ -29,7 +29,7 @@ def _make_mock_chunk_class(n: int) -> MagicMock:
 @pytest.mark.asyncio
 async def test_store_chunks_splits_into_batches() -> None:
     """With RAG_STORE_BATCH_SIZE=10 and 25 chunks, session.flush is called 3 times."""
-    service = VectorStoreService()
+    service = ChunkStoreService()
     chunks = _make_chunks(25)
 
     mock_session = AsyncMock()
@@ -55,7 +55,7 @@ async def test_store_chunks_splits_into_batches() -> None:
 @pytest.mark.asyncio
 async def test_store_chunks_single_batch_when_chunks_fit() -> None:
     """When all chunks fit in one batch, session.flush is called exactly once."""
-    service = VectorStoreService()
+    service = ChunkStoreService()
     chunks = _make_chunks(5)
 
     mock_session = AsyncMock()
@@ -77,7 +77,7 @@ async def test_store_chunks_single_batch_when_chunks_fit() -> None:
 @pytest.mark.asyncio
 async def test_store_chunks_empty_returns_empty() -> None:
     """Calling store_chunks with an empty list returns [] without calling session."""
-    service = VectorStoreService()
+    service = ChunkStoreService()
 
     mock_session = AsyncMock()
     mock_session.flush = AsyncMock()
