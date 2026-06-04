@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
     FRONTEND_BASE_URL: str = "http://localhost:7727"
 
+    MEMORY_PROFILING_ENABLED: bool = False
+
     RAG_MCP_URL: str
 
     LLM_ENCRYPTION_KEY: str

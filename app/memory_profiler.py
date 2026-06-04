@@ -16,8 +16,8 @@ from typing import Any, AsyncGenerator
 
 import psutil
 
+from app.core.config import get_settings
 from app.lib.log import get_logger
-from app.lib.rag.config import get_rag_settings
 
 logger = get_logger(__name__)
 
@@ -108,7 +108,7 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
     """
     global _tracing_depth
 
-    if not get_rag_settings().MEMORY_PROFILING_ENABLED:
+    if not get_settings().MEMORY_PROFILING_ENABLED:
         yield
         return
 
@@ -178,7 +178,7 @@ async def profile_memory(stage: str, **extra: Any) -> AsyncGenerator[None, None]
 
 def log_memory_snapshot(label: str, **extra: Any) -> None:
     """Emit a one-shot RSS sample as a MEMPROF log line."""
-    if not get_rag_settings().MEMORY_PROFILING_ENABLED:
+    if not get_settings().MEMORY_PROFILING_ENABLED:
         return
 
     _ensure_log_dir_and_handler()

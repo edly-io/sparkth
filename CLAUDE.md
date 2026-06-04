@@ -172,7 +172,7 @@ The rule applies to both new work and incidental changes. If you touch a file an
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
 - **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
-- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, rag_mcp, services)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, lib/rag, llm, rag_mcp, services)
 
   RAG lives under `app/lib/rag/`, so its tests live at `tests/lib/rag/`.
 
