@@ -56,12 +56,15 @@ describe("useRagStatusPolling", () => {
     });
   });
 
-  it("returns empty ragStatuses initially", () => {
+  it("returns empty ragStatuses initially", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({ folder_id: 1, files: [] });
 
     const { result } = renderHook(() => useRagStatusPolling([1], "token"));
 
     expect(result.current.ragStatuses).toEqual({});
+
+    // Flush the mount-triggered poll so its state update settles inside act().
+    await act(async () => {});
   });
 
   it("does not fetch when folderIds is empty", () => {
@@ -274,10 +277,14 @@ describe("useRagStatusPolling", () => {
     renderHook(() => useRagStatusPolling([1], "token"));
 
     // Flush the initial async poll (fires immediately, not via timer)
-    await vi.advanceTimersByTimeAsync(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
 
     // First poll errored → delay doubled to 10000; advance past it to trigger second poll
-    await vi.advanceTimersByTimeAsync(10001);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10001);
+    });
 
     // Second call should have fired and succeeded
     expect(callCount).toBeGreaterThanOrEqual(2);
