@@ -768,7 +768,7 @@ class TestRagSources:
         test_user: User,
     ) -> None:
         with patch(
-            "app.core_plugins.slack.routes.VectorStoreService",
+            "app.core_plugins.slack.routes.ChunkStoreService",
         ) as mock_store_cls:
             mock_store = AsyncMock()
             mock_store.get_sources = AsyncMock(return_value=[])
@@ -787,7 +787,7 @@ class TestRagSources:
         test_user: User,
     ) -> None:
         with patch(
-            "app.core_plugins.slack.routes.VectorStoreService",
+            "app.core_plugins.slack.routes.ChunkStoreService",
         ) as mock_store_cls:
             mock_store = AsyncMock()
             mock_store.get_sources = AsyncMock(return_value=["doc_a", "doc_b"])

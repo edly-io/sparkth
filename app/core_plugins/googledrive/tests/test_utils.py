@@ -22,7 +22,7 @@ from app.core_plugins.googledrive.utils import (
 )
 from app.models.drive import DriveFile, DriveFolder
 from app.rag.exceptions import ScannedPDFError
-from app.rag.store import ChunkInput, VectorStoreService
+from app.rag.store import ChunkInput, ChunkStoreService
 from app.rag.types import Chunk, ChunkMetadata, RagStatus
 
 _ChunkRow = namedtuple("_ChunkRow", ["id", "chunk_content_hash"])
@@ -304,7 +304,7 @@ class TestEmbedAndStoreChunks:
     async def test_all_new_chunks(self) -> None:
         """When no chunks exist in DB, all should be embedded."""
         session = _make_async_session()
-        store = AsyncMock(spec=VectorStoreService)
+        store = AsyncMock(spec=ChunkStoreService)
 
         chunks = self._make_chunks(["chunk A", "chunk B"])
 
@@ -344,7 +344,7 @@ class TestEmbedAndStoreChunks:
     async def test_all_reused_chunks(self) -> None:
         """When all chunks already exist, none should be embedded."""
         session = _make_async_session()
-        store = AsyncMock(spec=VectorStoreService)
+        store = AsyncMock(spec=ChunkStoreService)
 
         chunks = self._make_chunks(["chunk A"])
         chunk_hash = hashlib.sha256("chunk A".encode()).hexdigest()
@@ -378,7 +378,7 @@ class TestEmbedAndStoreChunks:
     async def test_mixed_new_and_reused(self) -> None:
         """When some chunks exist and some don't."""
         session = _make_async_session()
-        store = AsyncMock(spec=VectorStoreService)
+        store = AsyncMock(spec=ChunkStoreService)
 
         chunks = self._make_chunks(["existing chunk", "new chunk"])
         existing_hash = hashlib.sha256("existing chunk".encode()).hexdigest()
@@ -413,7 +413,7 @@ class TestEmbedAndStoreChunks:
     async def test_skips_already_linked_chunks(self) -> None:
         """Bridge-link rows that already exist should not be re-inserted."""
         session = _make_async_session()
-        store = AsyncMock(spec=VectorStoreService)
+        store = AsyncMock(spec=ChunkStoreService)
 
         chunks = self._make_chunks(["chunk A", "chunk B"])
         hash_a = hashlib.sha256("chunk A".encode()).hexdigest()
@@ -521,7 +521,7 @@ class TestEmbedAndStoreChunks:
         await async_session.flush()
 
         # Call the function under test
-        store = AsyncMock(spec=VectorStoreService)
+        store = AsyncMock(spec=ChunkStoreService)
         store.store_chunks = AsyncMock(return_value=[999])  # fake new chunk ID
 
         assert user.id is not None
@@ -844,7 +844,7 @@ class TestProcessFolderRag:
         # Returns early without processing any files
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
-    @patch("app.core_plugins.googledrive.utils.VectorStoreService")
+    @patch("app.core_plugins.googledrive.utils.ChunkStoreService")
     @patch("app.core_plugins.googledrive.utils.session_scope")
     async def test_skips_ready_files(
         self,
@@ -888,7 +888,7 @@ class TestProcessFolderRag:
         assert processed_file.id == 2
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
-    @patch("app.core_plugins.googledrive.utils.VectorStoreService")
+    @patch("app.core_plugins.googledrive.utils.ChunkStoreService")
     @patch("app.core_plugins.googledrive.utils.session_scope")
     async def test_base_exception_from_gather_is_logged(
         self,

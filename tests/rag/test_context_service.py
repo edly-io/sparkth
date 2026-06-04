@@ -84,11 +84,11 @@ class TestRAGContextServiceInit:
         service = RAGContextService()
         assert service is not None
 
-    def test_can_construct_with_vector_store_kwarg(self) -> None:
-        """vector_store kwarg still accepted."""
+    def test_can_construct_with_chunk_store_kwarg(self) -> None:
+        """chunk_store kwarg accepted."""
         from unittest.mock import MagicMock
 
-        service = RAGContextService(vector_store=MagicMock())
+        service = RAGContextService(chunk_store=MagicMock())
         assert service is not None
 
 

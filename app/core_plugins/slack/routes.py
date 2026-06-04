@@ -54,7 +54,7 @@ from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
 from app.models.user import User
-from app.rag.store import VectorStoreService
+from app.rag.store import ChunkStoreService
 from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
@@ -706,6 +706,6 @@ async def list_rag_sources(
     session: AsyncSession = Depends(get_async_session),
 ) -> RagSourcesResponse:
     """Return the distinct RAG source names available to the current user."""
-    store = VectorStoreService()
+    store = ChunkStoreService()
     sources = await store.get_sources(session=session, user_id=user_id)
     return RagSourcesResponse(sources=sources)

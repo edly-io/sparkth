@@ -76,7 +76,7 @@ class Chunk:
 
 @dataclass
 class ChunkInput:
-    """Flattened chunk data passed to the vector store for persistence."""
+    """Flattened chunk data passed to the chunk store for persistence."""
 
     content: str
     source_name: str
