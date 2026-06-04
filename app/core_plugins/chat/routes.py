@@ -43,6 +43,13 @@ from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
+from app.lib.rag import (
+    DriveFileNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
+    RetrievedChunk,
+    retrieve_context,
+)
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
@@ -53,16 +60,55 @@ from app.llm.providers import (
 from app.llm.service import LLMConfigService, get_llm_service
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
-from app.rag.context_service import RAGContextService
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.types import RAGContext
-from app.rag.utils import get_asset
+from app.rag.utils import get_asset  # loads the chat RAG prompt asset (residual; see #398)
 
 logger = get_logger(__name__)
 
 _RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt", "txt")
 if not isinstance(_RAG_CONTEXT_PROMPT, str):
     raise TypeError("rag_context_replacement_prompt asset must be a string")
+
+
+def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
+    """Render one document's retrieved chunks as a prompt text block."""
+    lines = [
+        f"[DOCUMENT CONTEXT: {source_name}]",
+        "The following excerpts were retrieved from the document to inform your response:",
+        "",
+    ]
+    for i, c in enumerate(chunks, 1):
+        parts = [p for p in [c.chapter, c.section, c.subsection] if p]
+        label = " / ".join(parts) if parts else "General"
+        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
+        lines.append(c.content.strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
+    """Group retrieved chunks by source_name, preserving first-seen order."""
+    grouped: dict[str, list[RetrievedChunk]] = {}
+    for c in chunks:
+        grouped.setdefault(c.source_name, []).append(c)
+    return grouped
+
+
+def _collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
+    """Extract all drive_file block file_ids from a list of messages, preserving order."""
+    file_ids: list[int] = []
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if not isinstance(block, dict) or block.get("type") != "drive_file":
+                continue
+            raw_id = block.get("file_id")
+            if raw_id is None:
+                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                continue
+            file_ids.append(int(raw_id))
+    return file_ids
+
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -101,11 +147,6 @@ def get_chat_service() -> ChatService:
     return ChatService()
 
 
-def get_rag_context_service() -> RAGContextService:
-    """FastAPI dependency: returns a stateless RAGContextService."""
-    return RAGContextService()
-
-
 async def _stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content."""
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
@@ -141,13 +182,14 @@ def _extract_query_text(messages: list[ChatMessage]) -> str:
 
 async def _resolve_drive_file_blocks(
     messages: list[ChatMessage],
-    session: AsyncSession,
     user_id: int,
-    rag_service: RAGContextService,
+    query_text: str,
     llm: Any,
 ) -> list[ChatMessage]:
     """Replace drive_file content blocks with RAG context text blocks.
 
+    Collects all drive_file IDs in each message, calls retrieve_context once per
+    message, groups results by source, and injects one text block per source.
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
 
@@ -155,7 +197,6 @@ async def _resolve_drive_file_blocks(
         HTTPException(422): file not found, not owned, or RAG not ready.
         HTTPException(500): agent retrieval or section-chunk fetch failure.
     """
-    query_text = _extract_query_text(messages)
     resolved: list[ChatMessage] = []
 
     for msg in messages:
@@ -163,57 +204,57 @@ async def _resolve_drive_file_blocks(
             resolved.append(msg)
             continue
 
-        has_drive_file = any(isinstance(b, dict) and b.get("type") == "drive_file" for b in msg.content)
-        if not has_drive_file:
+        file_ids: list[int] = []
+        non_file_blocks: list[dict[str, Any]] = []
+        for block in msg.content:
+            if isinstance(block, dict) and block.get("type") == "drive_file":
+                raw_id = block.get("file_id")
+                if raw_id is None:
+                    logger.warning("Skipping drive_file block missing file_id: %s", block)
+                    continue
+                file_ids.append(int(raw_id))
+            else:
+                non_file_blocks.append(block)
+
+        if not file_ids:
             resolved.append(msg)
             continue
 
-        non_file_blocks: list[dict[str, Any]] = []
-        rag_blocks: list[dict[str, Any]] = []
-        for block in msg.content:
-            if not isinstance(block, dict) or block.get("type") != "drive_file":
-                non_file_blocks.append(block)
-                continue
+        try:
+            chunks = await retrieve_context(
+                user_id=user_id,
+                file_ids=file_ids,
+                query=query_text,
+                llm=llm,
+            )
+        except DriveFileNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="One or more files not found or not accessible.",
+            ) from exc
+        except RAGNotReadyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(f"A file is still being processed (status: {exc.rag_status}). Please wait and try again."),
+            ) from exc
+        except RAGRetrievalError as exc:
+            logger.error("RAG retrieval error for file_ids=%s: %s", file_ids, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve document context. Please try again.",
+            ) from exc
 
-            raw_id = block.get("file_id")
-            if raw_id is None:
-                logger.warning("Skipping drive_file block missing file_id: %s", block)
-                continue
-            file_id: int = int(raw_id)
-            try:
-                context = await rag_service.get_context_via_agent(
-                    session=session,
-                    user_id=user_id,
-                    file_db_id=file_id,
-                    query=query_text,
-                    llm=llm,
-                )
-                if context.chunks:
-                    rag_blocks.append({"type": "text", "text": context.formatted_text})
-                logger.info(
-                    "Replaced drive_file block file_id=%d with %d RAG chunks",
-                    file_id,
-                    len(context.chunks),
-                )
-            except DriveFileNotFoundError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"File (id={file_id}) not found or not accessible.",
-                ) from exc
-            except RAGNotReadyError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=(
-                        f"File (id={file_id}) is still being processed "
-                        f"(status: {exc.rag_status}). Please wait and try again."
-                    ),
-                ) from exc
-            except RAGRetrievalError as exc:
-                logger.error("RAG retrieval error for file_id=%d: %s", file_id, exc)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to retrieve document context. Please try again.",
-                ) from exc
+        grouped = _group_by_source(chunks)
+        rag_blocks: list[dict[str, Any]] = [
+            {"type": "text", "text": _format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
+        ]
+
+        logger.info(
+            "Replaced drive_file blocks file_ids=%s with %d RAG chunks across %d source(s)",
+            file_ids,
+            len(chunks),
+            len(grouped),
+        )
 
         if rag_blocks:
             user_text_blocks = [b for b in non_file_blocks if isinstance(b, dict) and b.get("type") == "text"]
@@ -266,7 +307,6 @@ async def chat_completion(
     service: ChatService = Depends(get_chat_service),
     llm_service: LLMConfigService = Depends(get_llm_service),
     config: ChatSystemConfig = Depends(get_chat_system_config),
-    rag_service: RAGContextService = Depends(get_rag_context_service),
 ) -> Any:
     try:
         llm_config, api_key = await llm_service.resolve(
@@ -524,9 +564,8 @@ async def chat_completion(
                 # the query text block is preserved alongside it.
                 resolved_messages = await _resolve_drive_file_blocks(
                     messages=unresolved_messages,
-                    session=session,
                     user_id=current_user.id,  # type: ignore[arg-type]
-                    rag_service=rag_service,
+                    query_text=query_text,
                     llm=provider.create_llm(),
                 )
             else:
@@ -570,7 +609,6 @@ async def chat_completion(
             if should_run_rag and unresolved_messages:
                 stream_kwargs = {
                     "unresolved_messages": unresolved_messages,
-                    "rag_service": rag_service,
                     "user_id": current_user.id,
                     "llm": provider.create_llm(),
                     "should_run_rag": True,
@@ -670,7 +708,6 @@ async def stream_chat_response(
     service: ChatService,
     tools: list[Any] | None = None,
     unresolved_messages: list[ChatMessage] | None = None,
-    rag_service: RAGContextService | None = None,
     user_id: int | None = None,
     llm: Any | None = None,
     should_run_rag: bool = False,
@@ -719,142 +756,116 @@ async def stream_chat_response(
         confirmed_rag_sections: list[dict[str, str | None]] = []
 
         # --- Phase 1: RAG resolution ---
-        if should_run_rag and unresolved_messages and rag_service and user_id is not None:
-            file_count = sum(
-                1
-                for msg in unresolved_messages
-                if isinstance(msg.content, list)
-                for b in msg.content
-                if isinstance(b, dict) and b.get("type") == "drive_file"
-            )
-            await _put(json.dumps({"status": "scanning_attachments", "file_count": file_count, "done": False}))
+        file_ids: list[int] = _collect_drive_file_ids(unresolved_messages) if unresolved_messages else []
+
+        if should_run_rag and unresolved_messages and user_id is not None:
+            await _put(json.dumps({"status": "scanning_attachments", "file_count": len(file_ids), "done": False}))
 
         if not should_run_rag and rag_routing_reason is not None:
             await _put(json.dumps({"status": "skipping_rag", "reason": rag_routing_reason, "done": False}))
 
-        if unresolved_messages and rag_service and user_id is not None:
+        if should_run_rag and unresolved_messages and user_id is not None:
             query_text = _extract_query_text(unresolved_messages)
-            files_with_no_results: list[str] = []
             any_results_found = False
-            rag_context_map: dict[int, RAGContext] = {}
 
-            for msg in unresolved_messages:
-                if not isinstance(msg.content, list):
-                    continue
-                for block in msg.content:
-                    if not isinstance(block, dict) or block.get("type") != "drive_file":
-                        continue
-                    raw_id = block.get("file_id")
-                    if raw_id is None:
-                        logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
-                        continue
-                    file_id: int = int(raw_id)
+            await _put(json.dumps({"status": "searching_documents", "file_count": len(file_ids), "done": False}))
 
-                    await _put(json.dumps({"status": "searching_document", "file_id": file_id, "done": False}))
+            logger.info("Agentic RAG search for file_ids=%s query_len=%d", file_ids, len(query_text))
+            assert llm is not None, "llm must be provided when RAG resolution is active"
+            try:
+                all_chunks = await retrieve_context(
+                    user_id=user_id,
+                    file_ids=file_ids,
+                    query=query_text,
+                    llm=llm,
+                )
+            except DriveFileNotFoundError as exc:
+                logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
+                error_text = "The attached file could not be found or is no longer accessible."
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=error_text,
+                    is_error=True,
+                )
+                await _put(json.dumps({"error": error_text, "done": True}))
+                return
+            except RAGNotReadyError as exc:
+                logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
+                error_text = "The attached file is still being processed. Please wait a moment and try again."
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=error_text,
+                    is_error=True,
+                )
+                await _put(json.dumps({"error": error_text, "done": True}))
+                return
+            except RAGRetrievalError as exc:
+                logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
+                error_text = "Failed to search the attached file. Please try again."
+                await service.add_message(
+                    session=bg_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=error_text,
+                    is_error=True,
+                )
+                await _put(json.dumps({"error": error_text, "done": True}))
+                return
 
-                    logger.info("Agentic RAG search for file_id=%d query_len=%d", file_id, len(query_text))
-                    try:
-                        context = await rag_service.get_context_via_agent(
-                            session=bg_session,
-                            user_id=user_id,
-                            file_db_id=file_id,
-                            query=query_text,
-                            llm=llm,
-                        )
-                    except DriveFileNotFoundError as exc:
-                        logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
-                        error_text = "The attached file could not be found or is no longer accessible."
-                        await service.add_message(
-                            session=bg_session,
-                            conversation_id=conversation_id,
-                            role="assistant",
-                            content=error_text,
-                            is_error=True,
-                        )
-                        await _put(json.dumps({"error": error_text, "done": True}))
-                        return
-                    except RAGNotReadyError as exc:
-                        logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
-                        error_text = "The attached file is still being processed. Please wait a moment and try again."
-                        await service.add_message(
-                            session=bg_session,
-                            conversation_id=conversation_id,
-                            role="assistant",
-                            content=error_text,
-                            is_error=True,
-                        )
-                        await _put(json.dumps({"error": error_text, "done": True}))
-                        return
-                    except RAGRetrievalError as exc:
-                        logger.error("Agentic RAG failed for file_id=%d: %s", file_id, exc)
-                        error_text = "Failed to search the attached file. Please try again."
-                        await service.add_message(
-                            session=bg_session,
-                            conversation_id=conversation_id,
-                            role="assistant",
-                            content=error_text,
-                            is_error=True,
-                        )
-                        await _put(json.dumps({"error": error_text, "done": True}))
-                        return
+            grouped = _group_by_source(all_chunks)
+            source_blocks: dict[str, str] = {
+                source: _format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
+            }
+            any_results_found = bool(source_blocks)
 
-                    source_name = context.source_name
-                    results = context.chunks
-
-                    if not results:
-                        files_with_no_results.append(source_name)
-                        continue
-
-                    any_results_found = True
-                    rag_context_map[file_id] = context
-
-                    seen_section_keys: set[str] = set()
-                    for r in results:
-                        chunk = r.chunk
-                        label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
-                        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-                        name = " / ".join(parts) if parts else "General"
-                        key = f"{label}:{name}"
-                        if key not in seen_section_keys:
-                            seen_section_keys.add(key)
-                            confirmed_rag_sections.append({"type": label, "name": name, "source": source_name})
+            # Build confirmed_rag_sections from each chunk's hierarchy
+            seen_section_keys: set[str] = set()
+            for chunk in all_chunks:
+                label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
+                parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+                name = " / ".join(parts) if parts else "General"
+                key = f"{label}:{name}:{chunk.source_name}"
+                if key not in seen_section_keys:
+                    seen_section_keys.add(key)
+                    confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
 
             # Single assembly pass: replace all drive_file blocks with resolved RAG context.
+            rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
             for m in messages:
                 if not isinstance(m.get("content"), list):
                     continue
-                rag_blocks: list[dict[str, Any]] = []
                 user_text_blocks: list[dict[str, Any]] = []
                 other_blocks: list[dict[str, Any]] = []
                 has_drive_file = False
                 for b in m["content"]:
                     if isinstance(b, dict) and b.get("type") == "drive_file":
                         has_drive_file = True
-                        fid = b.get("file_id")
-                        if fid is not None and int(fid) in rag_context_map:
-                            rag_blocks.append({"type": "text", "text": rag_context_map[int(fid)].formatted_text})
                     elif isinstance(b, dict) and b.get("type") == "text":
                         user_text_blocks.append(b)
                     else:
                         other_blocks.append(b)
                 if not has_drive_file:
                     continue
-                if rag_blocks:
+                if rag_block_list:
                     m["content"] = (
-                        [{"type": "text", "text": _RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
+                        [{"type": "text", "text": _RAG_CONTEXT_PROMPT}]
+                        + other_blocks
+                        + rag_block_list
+                        + user_text_blocks
                     )
                 else:
                     m["content"] = other_blocks + user_text_blocks
 
-            if files_with_no_results and not any_results_found:
-                source_label = (
-                    f"**{files_with_no_results[0]}**" if len(files_with_no_results) == 1 else "your documents"
-                )
+            if not any_results_found:
                 no_chunks_msg = (
-                    f"I searched {source_label} but couldn't find content closely "
-                    f"matching your query.\n\n"
-                    f"Please try rephrasing your question, or check that your documents "
-                    f"contain information about this topic."
+                    "I searched your documents but couldn't find content closely "
+                    "matching your query.\n\n"
+                    "Please try rephrasing your question, or check that your documents "
+                    "contain information about this topic."
                 )
                 await service.add_message(
                     session=bg_session,

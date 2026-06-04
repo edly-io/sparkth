@@ -6,16 +6,33 @@ import pytest
 from fastapi import HTTPException
 
 from app.core_plugins.chat.schemas import ChatMessage
-from app.rag.context_service import RAGContext, RAGContextService
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.lib.rag import (
+    DriveFileNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
+    RetrievedChunk,
+)
+
+
+def _make_chunk(
+    content: str = "Some content",
+    source_name: str = "test.pdf",
+) -> RetrievedChunk:
+    return RetrievedChunk(
+        source_name=source_name,
+        chapter=None,
+        section="Section 1",
+        subsection=None,
+        content=content,
+    )
 
 
 class TestResolveBlocksUsesAgent:
-    """Test that _resolve_drive_file_blocks uses the agent method."""
+    """Test that _resolve_drive_file_blocks delegates to retrieve_context."""
 
     @pytest.mark.asyncio
-    async def test_calls_get_context_via_agent(self) -> None:
-        """Test that _resolve_drive_file_blocks calls get_context_via_agent."""
+    async def test_calls_retrieve_context(self) -> None:
+        """Test that _resolve_drive_file_blocks calls retrieve_context with correct args."""
         from app.core_plugins.chat.routes import _resolve_drive_file_blocks
 
         messages = [
@@ -28,29 +45,20 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        mock_session = AsyncMock()
-        mock_rag_service = AsyncMock(spec=RAGContextService)
-        mock_context = RAGContext(
-            file_db_id=1,
-            source_name="test.pdf",
-            chunks=[],
-            formatted_text="[CONTEXT]",
-        )
-        mock_rag_service.get_context_via_agent = AsyncMock(return_value=mock_context)
-
-        with patch("app.core_plugins.chat.routes.RAGContextService", return_value=mock_rag_service):
+        mock_llm = MagicMock()
+        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+            mock_retrieve.return_value = [_make_chunk()]
             await _resolve_drive_file_blocks(
                 messages=messages,
-                session=mock_session,
                 user_id=1,
-                rag_service=mock_rag_service,
-                llm=MagicMock(),
+                query_text="What is in this file?",
+                llm=mock_llm,
             )
 
-            # Verify get_context_via_agent was called
-            mock_rag_service.get_context_via_agent.assert_called_once()
-            call_kwargs = mock_rag_service.get_context_via_agent.call_args[1]
-            assert call_kwargs["file_db_id"] == 1
+            mock_retrieve.assert_called_once()
+            call_kwargs = mock_retrieve.call_args[1]
+            assert call_kwargs["user_id"] == 1
+            assert 1 in call_kwargs["file_ids"]
             assert "llm" in call_kwargs
 
     @pytest.mark.asyncio
@@ -68,18 +76,15 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        mock_session = AsyncMock()
-        mock_rag_service = AsyncMock(spec=RAGContextService)
-        mock_rag_service.get_context_via_agent = AsyncMock(side_effect=DriveFileNotFoundError("Not found"))
-
-        with pytest.raises(HTTPException) as exc_info:
-            await _resolve_drive_file_blocks(
-                messages=messages,
-                session=mock_session,
-                user_id=1,
-                rag_service=mock_rag_service,
-                llm=MagicMock(),
-            )
+        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+            mock_retrieve.side_effect = DriveFileNotFoundError("Not found")
+            with pytest.raises(HTTPException) as exc_info:
+                await _resolve_drive_file_blocks(
+                    messages=messages,
+                    user_id=1,
+                    query_text="Query",
+                    llm=MagicMock(),
+                )
 
         assert exc_info.value.status_code == 422
 
@@ -98,18 +103,15 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        mock_session = AsyncMock()
-        mock_rag_service = AsyncMock(spec=RAGContextService)
-        mock_rag_service.get_context_via_agent = AsyncMock(side_effect=RAGNotReadyError(1, "processing"))
-
-        with pytest.raises(HTTPException) as exc_info:
-            await _resolve_drive_file_blocks(
-                messages=messages,
-                session=mock_session,
-                user_id=1,
-                rag_service=mock_rag_service,
-                llm=MagicMock(),
-            )
+        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+            mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
+            with pytest.raises(HTTPException) as exc_info:
+                await _resolve_drive_file_blocks(
+                    messages=messages,
+                    user_id=1,
+                    query_text="Query",
+                    llm=MagicMock(),
+                )
 
         assert exc_info.value.status_code == 422
 
@@ -128,17 +130,14 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        mock_session = AsyncMock()
-        mock_rag_service = AsyncMock(spec=RAGContextService)
-        mock_rag_service.get_context_via_agent = AsyncMock(side_effect=RAGRetrievalError("Retrieval failed"))
-
-        with pytest.raises(HTTPException) as exc_info:
-            await _resolve_drive_file_blocks(
-                messages=messages,
-                session=mock_session,
-                user_id=1,
-                rag_service=mock_rag_service,
-                llm=MagicMock(),
-            )
+        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+            mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
+            with pytest.raises(HTTPException) as exc_info:
+                await _resolve_drive_file_blocks(
+                    messages=messages,
+                    user_id=1,
+                    query_text="Query",
+                    llm=MagicMock(),
+                )
 
         assert exc_info.value.status_code == 500
