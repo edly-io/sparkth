@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # required for react-doctor --diff
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -25,9 +27,10 @@ jobs:
         run: make frontend.install
 
       # Single high-level target so a CI failure reproduces locally with
-      # exactly `make test.frontend` (lint + vitest + format check).
+      # exactly `make test.frontend` (lint + react-doctor + vitest + format check).
+      # Override the react-doctor base to the PR's actual base and emit inline annotations.
       - name: Run frontend tests
-        run: make test.frontend
+        run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }} RD_ARGS=--annotations
 
   backend:
     name: Backend Lint, Type Check, Test & Format
