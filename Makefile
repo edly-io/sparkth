@@ -22,69 +22,49 @@ help: ## Show this help
 uv: ## Install uv if missing
 	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 
-##@ Docker Setup/Operations
-.PHONY: base
-base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
-	docker build -f Dockerfile.base -t sparkth-base:local .
-
-.PHONY: up
-up: ## Build and start the sparkth app along with all services
-	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build app
+##@ Backing Services (Docker)
+# In development the backend and frontend run natively; Docker only provides the
+# Postgres, Redis, and Mailpit services they connect to (see docker-compose.yml).
+.PHONY: services
+services: ## Start backing services (Postgres, Redis, Mailpit) in the background
 	docker compose up -d
 
-.PHONY: up.dev
-up.dev: ## Build and start app in dev mode (hot reload)
-	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build app
-	APP_COMMAND="fastapi dev --host 0.0.0.0 app/main.py" docker compose up -d
-
 .PHONY: down
-down: ## Stop and remove containers
+down: ## Stop and remove service containers
 	docker compose down $(ARGS)
 
 .PHONY: clean
-clean: ## Stop and wipe database volume (fresh start)
-	docker compose down -v db
+clean: ## Stop services and wipe data volumes (fresh start)
+	docker compose down -v
 
 .PHONY: restart
-restart: ## Restart all containers
+restart: ## Restart backing services
 	docker compose restart
 
 .PHONY: logs
 logs: ## Tail logs (make logs [service] — omit service to tail all)
 	docker compose logs -f $(ARGS)
 
-.PHONY: shell
-shell: ## Open shell inside a container (make shell [service] — defaults to app)
-	docker compose exec $(or $(ARGS),app) /bin/bash
-
 .PHONY: db-shell
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}
 
 .PHONY: migrations
-migrations: ## Run Alembic migrations in Docker
-	docker compose up migrations
+migrations: ## Apply Alembic migrations (native)
+	uv run alembic upgrade head
 
 .PHONY: rag-cleanup
-rag-cleanup: ## Run RAG cleanup task in Docker
-	docker compose run --rm rag-cleanup 2>&1 | tail -1
+rag-cleanup: ## Run the RAG cleanup task (native)
+	uv run python -m app.rag.cleanup
 
-.PHONY: app-restart
-app-restart: ## Restart the app container for fast iteration
-	docker compose down app
-	docker compose up app -d
-
-##@ User Management (Runs inside Docker)
-# These run inside the container so they can access the DB network
+##@ User Management
 .PHONY: create-user
 create-user: ## Create user (make create-user -- --username john)
-	docker compose exec app python -m app.cli.main users create-user $(ARGS)
+	uv run python -m app.cli.main users create-user $(ARGS)
 
 .PHONY: reset-password
 reset-password: ## Reset password (make reset-password -- username)
-	docker compose exec app python -m app.cli.main users reset-password $(ARGS)
+	uv run python -m app.cli.main users reset-password $(ARGS)
 
 ##@ Frontend
 .PHONY: frontend.build

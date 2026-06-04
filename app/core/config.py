@@ -5,7 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # `.env` holds dev defaults; `.env.local` (git-ignored) holds sensitive creds and
+    # local overrides and takes precedence. Real environment variables (CI, prod/k8s)
+    # still win over both.
+    model_config = SettingsConfigDict(env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="ignore")
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS512"
