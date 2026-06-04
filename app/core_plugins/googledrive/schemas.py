@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-from app.rag.enums import RagStatus
+from app.lib.rag import RagStatus
 
 T = TypeVar("T")
 
