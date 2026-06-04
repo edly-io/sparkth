@@ -14,6 +14,7 @@ __all__ = [
     "ChunkMetadata",
     # Retrieval
     "RAGContext",
+    "RetrievedChunk",
     "SimilarityResult",
     # Ingestion
     "IngestionResult",
@@ -102,3 +103,14 @@ class IngestionResult:
 
     new_chunks: int
     reused_chunks: int
+
+
+@dataclass
+class RetrievedChunk:
+    """A chunk returned by retrieval, with its document/section attribution."""
+
+    source_name: str
+    chapter: str | None
+    section: str | None
+    subsection: str | None
+    content: str
