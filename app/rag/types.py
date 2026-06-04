@@ -15,12 +15,9 @@ __all__ = [
     # Retrieval
     "RAGContext",
     "SimilarityResult",
+    # Ingestion
+    "IngestionResult",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Extraction
-# ---------------------------------------------------------------------------
 
 
 @dataclass(repr=False)
@@ -35,11 +32,6 @@ class ExtractionResult:
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
-
-
-# ---------------------------------------------------------------------------
-# Chunking
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -81,11 +73,6 @@ class ChunkInput:
     chunk_content_hash: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# Retrieval
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class SimilarityResult:
     """A document chunk paired with a relevance score.
@@ -107,3 +94,11 @@ class RAGContext:
     source_name: str
     chunks: list[SimilarityResult]
     formatted_text: str
+
+
+@dataclass
+class IngestionResult:
+    """Outcome of a successful document ingestion."""
+
+    new_chunks: int
+    reused_chunks: int

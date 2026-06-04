@@ -51,15 +51,3 @@ class UnsupportedFileTypeError(RAGIngestionError):
     Callers typically treat this as a benign skip (the file is fine, it just
     isn't RAG-ingestible).
     """
-
-
-class FileTypeNotAllowedError(RAGIngestionError):
-    """Raised when a file's type is excluded by the RAG_ALLOWED_EXTENSIONS allowlist.
-
-    Carries the allowed extension list so callers can surface it to the user.
-    """
-
-    def __init__(self, allowed_extensions: list[str]) -> None:
-        self.allowed_extensions = allowed_extensions
-        accepted = ", ".join(f".{e}" for e in allowed_extensions)
-        super().__init__(f"Unsupported file extension. Allowed: {accepted}.")

@@ -106,8 +106,3 @@ class DocumentChunker:
         chunks = self._split(result.markdown, result.source_name)
         logger.info("Chunking complete: '%s' → %d chunks", result.source_name, len(chunks))
         return chunks
-
-
-def chunk_document(result: ExtractionResult) -> list[Chunk]:
-    """Thin wrapper around DocumentChunker.chunk for backward compatibility."""
-    return DocumentChunker().chunk(result)

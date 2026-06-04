@@ -1,27 +1,15 @@
-"""Tests for app/rag/ingestion.py — store-and-link helpers."""
+"""Tests for app.rag.store.store_and_link_chunks — chunk storage + dedup + linking."""
 
 import hashlib
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.enums import DocType
-from app.rag.exceptions import (
-    FileTypeNotAllowedError,
-    ScannedPDFError,
-    UnsupportedFileTypeError,
-)
-from app.rag.ingestion import (
-    IngestionResult,
-    _check_eligibility,
-    _store_and_link_chunks,
-    ingest_document,
-)
 from app.rag.models import DocumentChunk, DriveFileChunkLink
-from app.rag.store import ChunkStoreService
-from app.rag.types import Chunk, ChunkInput, ChunkMetadata, ExtractionResult
+from app.rag.store import ChunkInput, ChunkStoreService, store_and_link_chunks
+from app.rag.types import Chunk, ChunkMetadata
 
 
 def _make_async_session() -> AsyncMock:
@@ -38,26 +26,20 @@ def _make_async_session() -> AsyncMock:
     return session
 
 
-def _make_chunk(content: str, source: str = "doc.pdf") -> Chunk:
-    return Chunk(content=content, metadata=ChunkMetadata(source_name=source))
-
-
-class TestEmbedAndStoreChunks:
+class TestStoreAndLinkChunks:
     def _make_chunks(self, contents: list[str]) -> list[Chunk]:
         return [Chunk(content=c, metadata=ChunkMetadata(source_name="test.pdf")) for c in contents]
 
     async def test_all_new_chunks(self) -> None:
-        """When no chunks exist in DB, all should be embedded."""
+        """When no chunks exist in DB, all should be stored."""
         session = _make_async_session()
         store = AsyncMock(spec=ChunkStoreService)
 
         chunks = self._make_chunks(["chunk A", "chunk B"])
 
-        # No existing chunks in DB
         existing_result = MagicMock()
         existing_result.all.return_value = []
 
-        # No existing links
         links_result = MagicMock()
         links_result.all.return_value = []
 
@@ -66,7 +48,7 @@ class TestEmbedAndStoreChunks:
 
         store.store_chunks = AsyncMock(return_value=[100, 101])
 
-        new_count, reused_count = await _store_and_link_chunks(
+        new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
@@ -77,7 +59,6 @@ class TestEmbedAndStoreChunks:
         assert new_count == 2
         assert reused_count == 0
         store.store_chunks.assert_awaited_once()
-        # Verify ChunkInputs were passed
         call_args = store.store_chunks.call_args
         chunk_inputs = call_args[0][2]  # third positional arg
         assert len(chunk_inputs) == 2
@@ -85,18 +66,16 @@ class TestEmbedAndStoreChunks:
         assert all(ci.chunk_content_hash is not None for ci in chunk_inputs)
 
     async def test_all_reused_chunks(self) -> None:
-        """When all chunks already exist, none should be embedded."""
+        """When all chunks already exist, none should be stored."""
         session = _make_async_session()
         store = AsyncMock(spec=ChunkStoreService)
 
         chunks = self._make_chunks(["chunk A"])
         chunk_hash = hashlib.sha256("chunk A".encode()).hexdigest()
 
-        # One existing chunk with matching hash: (id, chunk_content_hash)
         existing_result = MagicMock()
         existing_result.all.return_value = [(50, chunk_hash)]
 
-        # No existing links
         links_result = MagicMock()
         links_result.all.return_value = []
 
@@ -104,7 +83,7 @@ class TestEmbedAndStoreChunks:
         session.scalars = AsyncMock(return_value=links_result)
         store.store_chunks = AsyncMock(return_value=[])
 
-        new_count, reused_count = await _store_and_link_chunks(
+        new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
@@ -114,7 +93,6 @@ class TestEmbedAndStoreChunks:
 
         assert new_count == 0
         assert reused_count == 1
-        # store_chunks called with empty list
         store.store_chunks.assert_awaited_once()
         call_args = store.store_chunks.call_args
         assert call_args[0][2] == []
@@ -127,7 +105,6 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["existing chunk", "new chunk"])
         existing_hash = hashlib.sha256("existing chunk".encode()).hexdigest()
 
-        # Existing chunk: (id, chunk_content_hash)
         existing_result = MagicMock()
         existing_result.all.return_value = [(50, existing_hash)]
 
@@ -139,7 +116,7 @@ class TestEmbedAndStoreChunks:
 
         store.store_chunks = AsyncMock(return_value=[51])
 
-        new_count, reused_count = await _store_and_link_chunks(
+        new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=10,
@@ -149,7 +126,6 @@ class TestEmbedAndStoreChunks:
 
         assert new_count == 1
         assert reused_count == 1
-        # Bridge links created for both
         session.add_all.assert_called_once()
         added_links = session.add_all.call_args[0][0]
         link_chunk_ids = {link.chunk_id for link in added_links}
@@ -164,11 +140,9 @@ class TestEmbedAndStoreChunks:
         hash_a = hashlib.sha256("chunk A".encode()).hexdigest()
         hash_b = hashlib.sha256("chunk B".encode()).hexdigest()
 
-        # Both chunks already exist in DB: (id, chunk_content_hash)
         existing_result = MagicMock()
         existing_result.all.return_value = [(10, hash_a), (11, hash_b)]
 
-        # chunk 10 already linked; chunk 11 is not
         links_result = MagicMock()
         links_result.all.return_value = [10]
 
@@ -176,7 +150,7 @@ class TestEmbedAndStoreChunks:
         session.scalars = AsyncMock(return_value=links_result)
         store.store_chunks = AsyncMock(return_value=[])
 
-        new_count, reused_count = await _store_and_link_chunks(
+        new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
             drive_file_id=5,
@@ -186,7 +160,6 @@ class TestEmbedAndStoreChunks:
 
         assert new_count == 0
         assert reused_count == 2
-        # Only chunk 11 should be newly linked
         session.add_all.assert_called_once()
         added_links = session.add_all.call_args[0][0]
         assert len(added_links) == 1
@@ -200,7 +173,6 @@ class TestEmbedAndStoreChunks:
 
         async_session: AsyncSession = session
 
-        # Seed: user already exists in the shared engine fixture — create a minimal one
         user = User(name="ReuseTest", username="reusetest", email="reuse@test.com", hashed_password="x")
         async_session.add(user)
         await async_session.flush()
@@ -216,9 +188,7 @@ class TestEmbedAndStoreChunks:
         async_session.add(folder)
         await async_session.flush()
 
-        # The NEW file being processed (active)
         assert folder.id is not None
-        assert user.id is not None
         new_drive_file = DriveFile(
             folder_id=folder.id,
             user_id=user.id,
@@ -229,7 +199,6 @@ class TestEmbedAndStoreChunks:
         async_session.add(new_drive_file)
         await async_session.flush()
 
-        # The OLD deleted file whose chunk we must NOT reuse
         deleted_drive_file = DriveFile(
             folder_id=folder.id,
             user_id=user.id,
@@ -253,20 +222,17 @@ class TestEmbedAndStoreChunks:
         async_session.add(existing_chunk)
         await async_session.flush()
 
-        # Link the chunk only to the deleted file
         assert deleted_drive_file.id is not None
         assert existing_chunk.id is not None
         link = DriveFileChunkLink(drive_file_id=deleted_drive_file.id, chunk_id=existing_chunk.id)
         async_session.add(link)
         await async_session.flush()
 
-        # Call the function under test
         store = AsyncMock(spec=ChunkStoreService)
         store.store_chunks = AsyncMock(return_value=[999])  # fake new chunk ID
 
-        assert user.id is not None
         assert new_drive_file.id is not None
-        new_count, reused_count = await _store_and_link_chunks(
+        new_count, reused_count = await store_and_link_chunks(
             async_session,
             user_id=user.id,
             drive_file_id=new_drive_file.id,
@@ -275,75 +241,4 @@ class TestEmbedAndStoreChunks:
         )
 
         assert reused_count == 0, "chunk linked only to a deleted file must not be reused"
-        assert new_count == 1, "chunk must be re-embedded since its only source is deleted"
-
-
-class TestCheckEligibility:
-    def test_disallowed_extension_raises(self) -> None:
-        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(FileTypeNotAllowedError) as exc_info:
-                _check_eligibility("notes.docx")
-            assert exc_info.value.allowed_extensions == ["pdf"]
-
-    def test_unsupported_extension_raises(self) -> None:
-        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            with pytest.raises(UnsupportedFileTypeError):
-                _check_eligibility("image.png")
-
-    def test_supported_allowed_extension_passes(self) -> None:
-        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            _check_eligibility("notes.pdf")  # no raise
-
-
-class TestIngestDocument:
-    @pytest.mark.asyncio
-    async def test_unsupported_type_raises_before_extraction(self) -> None:
-        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            with pytest.raises(UnsupportedFileTypeError):
-                await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="img.png")
-
-    @pytest.mark.asyncio
-    async def test_empty_chunks_returns_zero_counts(self) -> None:
-        extraction = ExtractionResult(markdown="", doc_type=DocType.TXT, source_name="a.txt")
-        with (
-            patch("app.rag.ingestion.get_rag_settings") as mock_settings,
-            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
-            patch("app.rag.ingestion.chunk_document", return_value=[]),
-        ):
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            result = await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="a.txt")
-        assert result == IngestionResult(new_chunks=0, reused_chunks=0)
-
-    @pytest.mark.asyncio
-    async def test_scanned_pdf_propagates(self) -> None:
-        with (
-            patch("app.rag.ingestion.get_rag_settings") as mock_settings,
-            patch("app.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")),
-        ):
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            with pytest.raises(ScannedPDFError):
-                await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="a.pdf")
-
-    @pytest.mark.asyncio
-    async def test_happy_path_returns_counts(self) -> None:
-        extraction = ExtractionResult(markdown="# H\ntext", doc_type=DocType.TXT, source_name="a.txt")
-        chunks = [_make_chunk("text", source="a.txt")]
-        with (
-            patch("app.rag.ingestion.get_rag_settings") as mock_settings,
-            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
-            patch("app.rag.ingestion.chunk_document", return_value=chunks),
-            patch("app.rag.ingestion.session_scope") as mock_scope,
-            patch("app.rag.ingestion._store_and_link_chunks", return_value=(1, 0)) as mock_store,
-        ):
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            mock_session = AsyncMock()
-            mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="a.txt")
-        assert result == IngestionResult(new_chunks=1, reused_chunks=0)
-        mock_store.assert_awaited_once()
-        mock_session.commit.assert_awaited_once()
+        assert new_count == 1, "chunk must be re-stored since its only source is deleted"

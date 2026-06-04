@@ -259,26 +259,6 @@ class TestLinkChunksFromDuplicate:
 
 class TestProcessSingleFile:
     @pytest.mark.asyncio
-    async def test_disallowed_extension_fails_with_error(self) -> None:
-        from app.lib.rag import FileTypeNotAllowedError
-
-        drive_file = _make_drive_file(name="notes.docx", mime_type="application/octet-stream")
-        session = _make_async_session()
-        with (
-            patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
-            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
-            patch(
-                "app.core_plugins.googledrive.utils.ingest_document",
-                new=AsyncMock(side_effect=FileTypeNotAllowedError(["pdf"])),
-            ),
-        ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
-            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
-        assert drive_file.rag_status == RagStatus.FAILED
-        assert "Allowed: .pdf" in (drive_file.rag_error or "")
-
-    @pytest.mark.asyncio
     async def test_unsupported_file_marks_ready(self) -> None:
         from app.lib.rag import UnsupportedFileTypeError
 

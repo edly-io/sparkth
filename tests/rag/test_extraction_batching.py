@@ -85,7 +85,6 @@ class TestBatchingLoop:
             patch("app.rag.extraction.pdf.fitz.TOOLS"),
             patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md") as mock_to_md,
         ):
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
             mock_settings.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 0  # never scanned
             mock_settings.return_value.RAG_PDF_EXTRACTION_BATCH_SIZE = 3
             _extract_pdf(b"%PDF-fake", "doc.pdf")  # no batch_size kwarg

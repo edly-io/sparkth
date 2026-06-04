@@ -16,7 +16,6 @@ from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.lib.rag import (
-    FileTypeNotAllowedError,
     RagStatus,
     ScannedPDFError,
     UnsupportedFileTypeError,
@@ -213,9 +212,6 @@ async def _process_single_file(
     except UnsupportedFileTypeError:
         logger.debug("Skipping unsupported file type for RAG: %s", filename)
         await _set_rag_status(session, drive_file, RagStatus.READY)
-    except FileTypeNotAllowedError as exc:
-        logger.warning("Blocked disallowed file type for '%s'", log_name)
-        await _set_rag_status(session, drive_file, RagStatus.FAILED, error=str(exc))
     except ScannedPDFError:
         logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
         await _set_rag_status(session, drive_file, RagStatus.FAILED, error=ScannedPDFError.USER_MESSAGE)

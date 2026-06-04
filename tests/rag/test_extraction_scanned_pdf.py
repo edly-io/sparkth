@@ -182,7 +182,6 @@ class TestExtractPDFRejectsScanned:
             patch("app.rag.extraction.pdf.fitz.TOOLS"),
             patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
             mock_settings.return_value.RAG_PDF_EXTRACTION_BATCH_SIZE = 10
             mock_settings.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 10
             # Should NOT raise — 50 > 10

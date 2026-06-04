@@ -44,13 +44,8 @@ _ensure_drive_routes()
 
 @pytest.fixture(autouse=True)
 def _default_rag_settings() -> Generator[None, None, None]:
-    """Patch get_settings in utils so the local .env does not block test files.
-
-    Tests that need a specific RAG_ALLOWED_EXTENSIONS value override this with
-    their own inner patch() context manager.
-    """
+    """Patch get_rag_settings in utils so the local .env does not affect tests."""
     mock_settings = MagicMock(spec=RAGSettings)
-    mock_settings.RAG_ALLOWED_EXTENSIONS = ""
     mock_settings.RAG_MAX_FILE_SIZE_MB = 50
     mock_settings.RAG_CONCURRENCY = 1
     with patch("app.core_plugins.googledrive.utils.get_rag_settings", return_value=mock_settings):

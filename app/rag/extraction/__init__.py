@@ -7,7 +7,7 @@ preserving heading hierarchy, lists, and tables for downstream chunking.
 from pathlib import Path
 
 from app.lib.log import get_logger
-from app.rag.config import get_rag_settings, parse_rag_allowed_extensions
+from app.rag.exceptions import UnsupportedFileTypeError
 from app.rag.extraction.base import BaseExtractor
 from app.rag.extraction.docx import DocxExtractor
 from app.rag.extraction.html import HTMLExtractor
@@ -29,7 +29,19 @@ _REGISTRY: dict[str, BaseExtractor] = {
     "md": _txt,
 }
 
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(_REGISTRY)
+SUPPORTED_EXTENSIONS_FOR_EXTRACTION: frozenset[str] = frozenset(_REGISTRY)
+
+
+def check_extraction_eligibility(filename: str) -> None:
+    """Raise UnsupportedFileTypeError if *filename*'s type cannot be extracted.
+
+    This is the single source of truth for which files RAG can ingest. Clients
+    can call it to check eligibility (e.g. before downloading) without invoking
+    the full extraction pipeline.
+    """
+    suffix = Path(filename).suffix.lower().lstrip(".")
+    if suffix not in SUPPORTED_EXTENSIONS_FOR_EXTRACTION:
+        raise UnsupportedFileTypeError(f"Unsupported file type '.{suffix}' for RAG ingestion.")
 
 
 def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
@@ -39,20 +51,14 @@ def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
 
     Usage:
         result = extract_to_markdown(file_bytes, "lecture_notes.pdf")
-        print(result.markdown)
     """
     suffix = Path(filename).suffix.lower().lstrip(".")
-
-    # This is defense-in-depth for non-Drive callers of extract_to_markdown
-    allowed = parse_rag_allowed_extensions(get_rag_settings().RAG_ALLOWED_EXTENSIONS)
-    if allowed and suffix not in allowed:
-        accepted = ", ".join(f".{e}" for e in allowed)
-        raise ValueError(f"Unsupported file extension. Allowed: {accepted}.")
-
     extractor = _REGISTRY.get(suffix)
 
     if extractor is None:
-        raise ValueError(f"Unsupported file type '.{suffix}' for '{filename}'. Supported: {list(_REGISTRY.keys())}")
+        raise ValueError(
+            f"Unsupported file type '.{suffix}' for extraction. file: '{filename}'. Supported: {list(_REGISTRY.keys())}"
+        )
 
     logger.info("Extracting '%s' as %s", filename, suffix.upper())
     result = extractor.extract(data, filename)
@@ -69,12 +75,13 @@ def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
 
 
 __all__ = [
+    "SUPPORTED_EXTENSIONS_FOR_EXTRACTION",
     "BaseExtractor",
     "DocxExtractor",
     "ExtractionResult",
     "HTMLExtractor",
     "PDFExtractor",
-    "SUPPORTED_EXTENSIONS",
     "TXTExtractor",
+    "check_extraction_eligibility",
     "extract_to_markdown",
 ]

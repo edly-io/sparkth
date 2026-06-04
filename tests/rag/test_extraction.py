@@ -13,11 +13,14 @@ import pytest
 from bs4 import Tag
 
 from app.rag.enums import DocType
+from app.rag.exceptions import UnsupportedFileTypeError
 from app.rag.extraction import (
+    SUPPORTED_EXTENSIONS_FOR_EXTRACTION,
     DocxExtractor,
     ExtractionResult,
     HTMLExtractor,
     TXTExtractor,
+    check_extraction_eligibility,
     extract_to_markdown,
 )
 
@@ -612,54 +615,21 @@ class TestExtractToMarkdown:
         assert extract_to_markdown(buf.getvalue(), "file.docx").doc_type == DocType.DOCX
 
 
-class TestAllowedExtensionsFilter:
-    def test_extension_not_in_allowed_list_raises(self) -> None:
-        with patch("app.rag.extraction.get_rag_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(ValueError, match="Unsupported file extension"):
-                extract_to_markdown(MINIMAL_HTML, "page.html")
+class TestCheckExtractionEligibility:
+    def test_unsupported_extension_raises(self) -> None:
+        with pytest.raises(UnsupportedFileTypeError):
+            check_extraction_eligibility("image.png")
 
-    def test_allowed_extension_proceeds(self) -> None:
-        with patch("app.rag.extraction.get_rag_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "txt"
-            result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
-            assert result.doc_type == DocType.TXT
+    def test_supported_extension_passes(self) -> None:
+        check_extraction_eligibility("notes.pdf")  # no raise
 
-    def test_error_message_includes_accepted_types(self) -> None:
-        with patch("app.rag.extraction.get_rag_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
-            with pytest.raises(ValueError, match="Unsupported file extension") as exc_info:
-                extract_to_markdown(TXT_CONTENT, "notes.txt")
-            msg = str(exc_info.value)
-            assert ".pdf" in msg
-            assert ".docx" in msg
-
-    def test_empty_string_permits_all_supported(self) -> None:
-        with patch("app.rag.extraction.get_rag_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
-            assert result.doc_type == DocType.TXT
-
-    def test_uppercase_file_extension_normalised(self) -> None:
-        with patch("app.rag.extraction.get_rag_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "txt"
-            result = extract_to_markdown(TXT_CONTENT, "lecture.TXT")
-            assert result.doc_type == DocType.TXT
-
-    def test_disallowed_extension_raises_descriptive_error_not_unsupported(self) -> None:
-        with patch("app.rag.extraction.get_rag_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(ValueError, match="Unsupported file extension"):
-                extract_to_markdown(TXT_CONTENT, "notes.txt")
+    def test_supported_extension_case_insensitive(self) -> None:
+        check_extraction_eligibility("notes.PDF")  # no raise
 
 
-class TestSupportedExtensions:
+class TestSupportedExtensionsForExtraction:
     def test_exported_constant_exists(self) -> None:
-        from app.rag.extraction import SUPPORTED_EXTENSIONS
-
-        assert isinstance(SUPPORTED_EXTENSIONS, frozenset)
+        assert isinstance(SUPPORTED_EXTENSIONS_FOR_EXTRACTION, frozenset)
 
     def test_contains_expected_extensions(self) -> None:
-        from app.rag.extraction import SUPPORTED_EXTENSIONS
-
-        assert SUPPORTED_EXTENSIONS == frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
+        assert SUPPORTED_EXTENSIONS_FOR_EXTRACTION == frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
