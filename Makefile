@@ -157,7 +157,7 @@ test.backend.format: ## Run backend formatting tests
 	$(MAKE) lint.format.backend check=1
 
 .PHONY: test.frontend
-test.frontend: lint.frontend test.frontend.vitest test.frontend.format ## Run frontend linting, unit and formatting tests
+test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, unit and formatting tests
 
 .PHONY: test.frontend.vitest
 test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [path] [with-coverage=1])
