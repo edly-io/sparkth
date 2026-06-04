@@ -19,7 +19,7 @@ from app.core_plugins.googledrive.oauth import (
 )
 from app.core_plugins.googledrive.routes.dependencies import require_user_id
 from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
-from app.core_plugins.googledrive.types import AuthorizationUrlResponse, ConnectionStatusResponse
+from app.core_plugins.googledrive.schemas import AuthorizationUrlResponse, ConnectionStatusResponse
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.user import User

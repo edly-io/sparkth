@@ -13,7 +13,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings, parse_rag_allowed_extensions
-from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
+from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.memory_profiler import profile_memory

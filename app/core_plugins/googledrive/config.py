@@ -28,7 +28,7 @@ class GoogleDriveSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:7727/api/v1/googledrive/oauth/callback"
+    GOOGLE_DRIVE_REDIRECT_URI: str
 
 
 @lru_cache

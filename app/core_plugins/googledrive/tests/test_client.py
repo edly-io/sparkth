@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
+from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 
 
 def _mock_aiohttp_response(

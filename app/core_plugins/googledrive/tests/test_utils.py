@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core_plugins.googledrive.client import GoogleDriveAPIError
+from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
     _find_duplicate_file,
