@@ -10,17 +10,14 @@ from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
     _find_duplicate_file,
-    _is_supported_for_rag,
     _link_chunks_from_duplicate,
     _process_single_file,
     _resolve_filename,
     _set_rag_status,
     process_folder_rag,
 )
+from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.enums import RagStatus
-from app.rag.exceptions import ScannedPDFError
-from app.rag.types import Chunk, ChunkMetadata
 
 
 def _make_async_session() -> AsyncMock:
@@ -100,38 +97,6 @@ class TestResolveFilename:
     def test_none_mime_type(self) -> None:
         f = _make_drive_file(name="mystery.bin", mime_type=None)
         assert _resolve_filename(f) == "mystery.bin"
-
-
-# ---------------------------------------------------------------------------
-# _is_supported_for_rag
-# ---------------------------------------------------------------------------
-
-
-class TestIsSupportedForRag:
-    @pytest.mark.parametrize(
-        "filename",
-        ["report.pdf", "notes.docx", "page.html", "page.htm", "readme.txt", "notes.md"],
-    )
-    def test_supported_extensions(self, filename: str) -> None:
-        assert _is_supported_for_rag(filename) is True
-
-    @pytest.mark.parametrize(
-        "filename",
-        ["image.png", "photo.jpg", "video.mp4", "archive.zip", "data.csv", "sheet.xlsx"],
-    )
-    def test_unsupported_extensions(self, filename: str) -> None:
-        assert _is_supported_for_rag(filename) is False
-
-    def test_case_insensitive(self) -> None:
-        assert _is_supported_for_rag("REPORT.PDF") is True
-        assert _is_supported_for_rag("Notes.DOCX") is True
-
-    def test_no_extension(self) -> None:
-        assert _is_supported_for_rag("README") is False
-
-    def test_double_extension_uses_last(self) -> None:
-        assert _is_supported_for_rag("file.backup.pdf") is True
-        assert _is_supported_for_rag("file.pdf.bak") is False
 
 
 # ---------------------------------------------------------------------------
@@ -293,74 +258,94 @@ class TestLinkChunksFromDuplicate:
 
 
 class TestProcessSingleFile:
+    @pytest.mark.asyncio
     async def test_disallowed_extension_fails_with_error(self) -> None:
-        """Files whose extension is not in RAG_ALLOWED_EXTENSIONS should be FAILED."""
+        from app.lib.rag import FileTypeNotAllowedError
+
+        drive_file = _make_drive_file(name="notes.docx", mime_type="application/octet-stream")
         session = _make_async_session()
-        drive_file = _make_drive_file(name="lecture.mp3", mime_type="audio/mpeg")
-
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_get:
-            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,txt,docx"
-            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
-            await _process_single_file(
-                drive_file,
-                user_id=1,
-                access_token="tok",
-                session=session,
-                store=AsyncMock(),
-            )
-
+        with (
+            patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
+            patch(
+                "app.core_plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(side_effect=FileTypeNotAllowedError(["pdf"])),
+            ),
+        ):
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
         assert drive_file.rag_status == RagStatus.FAILED
-        assert drive_file.rag_error is not None
-        assert "Unsupported file extension" in drive_file.rag_error
+        assert "Allowed: .pdf" in (drive_file.rag_error or "")
 
-    async def test_disallowed_extension_error_lists_accepted_types(self) -> None:
-        session = _make_async_session()
-        drive_file = _make_drive_file(name="song.mp3", mime_type="audio/mpeg")
+    @pytest.mark.asyncio
+    async def test_unsupported_file_marks_ready(self) -> None:
+        from app.lib.rag import UnsupportedFileTypeError
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_get:
-            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
-            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
-            await _process_single_file(
-                drive_file,
-                user_id=1,
-                access_token="tok",
-                session=session,
-                store=AsyncMock(),
-            )
-
-        assert drive_file.rag_error is not None
-        assert ".pdf" in drive_file.rag_error
-        assert ".docx" in drive_file.rag_error
-
-    async def test_empty_allowed_extensions_does_not_block_supported_file(self) -> None:
-        """When RAG_ALLOWED_EXTENSIONS is empty all technically-supported types are allowed."""
-        session = _make_async_session()
         drive_file = _make_drive_file(name="image.png", mime_type="image/png")
-
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_get:
-            mock_get.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            mock_get.return_value.RAG_MAX_FILE_SIZE_MB = 50
-            await _process_single_file(
-                drive_file,
-                user_id=1,
-                access_token="tok",
-                session=session,
-                store=AsyncMock(),
-            )
-
-        # .png is technically unsupported — should still be READY (silent skip), not FAILED
-        assert drive_file.rag_status == RagStatus.READY
-
-    async def test_skips_unsupported_file(self) -> None:
-        """Unsupported files should be set to READY so polling stops."""
         session = _make_async_session()
-        store = AsyncMock()
-        drive_file = _make_drive_file(name="image.png", mime_type="image/png")
-
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
-
+        with (
+            patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
+            patch(
+                "app.core_plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(side_effect=UnsupportedFileTypeError("nope")),
+            ),
+        ):
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
         assert drive_file.rag_status == RagStatus.READY
-        session.commit.assert_awaited()
+        assert drive_file.rag_error is None
+
+    @pytest.mark.asyncio
+    async def test_scanned_pdf_marks_failed_with_user_message(self) -> None:
+        from app.lib.rag import ScannedPDFError
+
+        drive_file = _make_drive_file(name="scan.pdf", mime_type="application/pdf")
+        session = _make_async_session()
+        with (
+            patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
+            patch(
+                "app.core_plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(side_effect=ScannedPDFError("scan.pdf")),
+            ),
+        ):
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
+        assert drive_file.rag_status == RagStatus.FAILED
+        assert drive_file.rag_error == ScannedPDFError.USER_MESSAGE
+
+    @pytest.mark.asyncio
+    async def test_new_file_full_pipeline_marks_ready(self) -> None:
+        from app.lib.rag import IngestionResult
+
+        drive_file = _make_drive_file(name="doc.pdf", mime_type="application/pdf")
+        session = _make_async_session()
+        with (
+            patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
+            patch(
+                "app.core_plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(return_value=IngestionResult(new_chunks=3, reused_chunks=1)),
+            ) as mock_ingest,
+        ):
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
+        assert drive_file.rag_status == RagStatus.READY
+        mock_ingest.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_none_id_returns_early(self) -> None:
+        drive_file = _make_drive_file(name="doc.pdf", mime_type="application/pdf")
+        drive_file.id = None
+        session = _make_async_session()
+        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
+        session.commit.assert_not_called()
+        assert drive_file.rag_status is None
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     @patch("app.core_plugins.googledrive.utils._find_duplicate_file")
@@ -373,7 +358,6 @@ class TestProcessSingleFile:
     ) -> None:
         """Duplicate files should link to existing chunks and be marked ready."""
         session = _make_async_session()
-        store = AsyncMock()
 
         file_bytes = b"duplicate content"
         mock_download.return_value = file_bytes
@@ -383,80 +367,25 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="copy.pdf")
 
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.READY
         assert drive_file.content_hash == hashlib.sha256(file_bytes).hexdigest()
         mock_link.assert_awaited_once()
 
     @patch("app.core_plugins.googledrive.utils._download_file")
-    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
-    @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
-    @patch("app.core_plugins.googledrive.utils.chunk_document")
-    @patch("app.core_plugins.googledrive.utils._store_and_link_chunks")
-    async def test_new_file_full_pipeline(
-        self,
-        mock_embed: AsyncMock,
-        mock_chunk: MagicMock,
-        mock_extract: MagicMock,
-        mock_find_dup: AsyncMock,
-        mock_download: AsyncMock,
-    ) -> None:
-        """New files should go through extract -> chunk -> embed -> store."""
-        session = _make_async_session()
-        store = AsyncMock()
-
-        mock_download.return_value = b"file content"
-
-        mock_extraction_result = MagicMock()
-        mock_extract.return_value = mock_extraction_result
-
-        chunks = [Chunk(content="chunk 1", metadata=ChunkMetadata(source_name="test.pdf"))]
-        mock_chunk.return_value = chunks
-        mock_embed.return_value = (1, 0)
-
-        drive_file = _make_drive_file(name="new_doc.pdf")
-
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
-
-        assert drive_file.rag_status == RagStatus.READY
-        mock_extract.assert_called_once_with(b"file content", "new_doc.pdf")
-        mock_chunk.assert_called_once_with(mock_extraction_result)
-        mock_embed.assert_awaited_once()
-
-    @patch("app.core_plugins.googledrive.utils._download_file")
-    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
-    @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
-    @patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[])
-    async def test_empty_chunks_marks_ready(
-        self,
-        mock_chunk: MagicMock,
-        mock_extract: MagicMock,
-        mock_find_dup: AsyncMock,
-        mock_download: AsyncMock,
-    ) -> None:
-        """Files that produce no chunks should still be marked ready."""
-        session = _make_async_session()
-        store = AsyncMock()
-        mock_download.return_value = b"content"
-        mock_extract.return_value = MagicMock()
-
-        drive_file = _make_drive_file(name="empty.pdf")
-
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
-
-        assert drive_file.rag_status == RagStatus.READY
-
-    @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_drive_api_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """GoogleDriveAPIError should mark the file as failed."""
         session = _make_async_session()
-        store = AsyncMock()
         mock_download.side_effect = GoogleDriveAPIError(500, "Server Error")
 
         drive_file = _make_drive_file(name="failing.pdf")
 
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED
 
@@ -464,45 +393,22 @@ class TestProcessSingleFile:
     async def test_value_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """ValueError (e.g. unsupported file type in extraction) should mark failed."""
         session = _make_async_session()
-        store = AsyncMock()
         mock_download.side_effect = ValueError("Unsupported file type")
 
         drive_file = _make_drive_file(name="bad.pdf")
 
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED
-
-    @patch("app.core_plugins.googledrive.utils._download_file")
-    @patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None)
-    @patch("app.core_plugins.googledrive.utils.extract_to_markdown")
-    async def test_scanned_pdf_marks_failed_with_user_message(
-        self,
-        mock_extract: MagicMock,
-        mock_find_dup: AsyncMock,
-        mock_download: AsyncMock,
-    ) -> None:
-        """ScannedPDFError must transition the file to FAILED with the generic user message."""
-        session = _make_async_session()
-        store = AsyncMock()
-        mock_download.return_value = b"%PDF-fake"
-        mock_extract.side_effect = ScannedPDFError("internal/path/secret.pdf")
-
-        drive_file = _make_drive_file(name="english 4.pdf")
-
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
-
-        assert drive_file.rag_status == RagStatus.FAILED
-        assert drive_file.rag_error == ScannedPDFError.USER_MESSAGE
-        # The source_name passed into ScannedPDFError must NOT appear in the user-facing error
-        assert "internal/path" not in (drive_file.rag_error or "")
-        assert "secret.pdf" not in (drive_file.rag_error or "")
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_google_doc_filename_resolved(self, mock_download: AsyncMock) -> None:
-        """Google Docs should have .pdf appended for extraction."""
+        """Google Docs should have .pdf appended when passed to ingest_document."""
+        from app.lib.rag import IngestionResult
+
         session = _make_async_session()
-        store = AsyncMock()
         mock_download.return_value = b"content"
 
         drive_file = _make_drive_file(
@@ -512,27 +418,16 @@ class TestProcessSingleFile:
 
         with (
             patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None),
-            patch("app.core_plugins.googledrive.utils.extract_to_markdown") as mock_extract,
-            patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[]),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.ingest_document") as mock_ingest,
         ):
-            mock_extract.return_value = MagicMock()
-            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_ingest.return_value = IngestionResult(new_chunks=1, reused_chunks=0)
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
-        # extract_to_markdown should be called with .pdf filename
-        mock_extract.assert_called_once_with(b"content", "My Doc.pdf")
-
-    async def test_none_id_returns_early(self) -> None:
-        """drive_file.id is None should log error and return without touching session."""
-        session = _make_async_session()
-        store = AsyncMock()
-
-        drive_file = _make_drive_file(name="doc.pdf")
-        drive_file.id = None
-
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
-
-        session.commit.assert_not_awaited()
-        assert drive_file.rag_status is None
+        # ingest_document should be called with .pdf filename
+        mock_ingest.assert_awaited_once()
+        assert mock_ingest.call_args.kwargs["filename"] == "My Doc.pdf"
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_integrity_error_rollback_refresh_mark_failed(self, mock_download: AsyncMock) -> None:
@@ -540,13 +435,14 @@ class TestProcessSingleFile:
         from sqlalchemy.exc import IntegrityError
 
         session = _make_async_session()
-        store = AsyncMock()
 
         mock_download.side_effect = IntegrityError(None, None, Exception("unique violation"))
 
         drive_file = _make_drive_file(name="dup.pdf")
 
-        await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         session.rollback.assert_awaited_once()
         # session.refresh.assert_awaited_once_with(drive_file)
@@ -557,16 +453,51 @@ class TestProcessSingleFile:
     async def test_sqlalchemy_error_marks_failed(self, mock_download: AsyncMock) -> None:
         """SQLAlchemyError during processing sets FAILED status."""
         session = _make_async_session()
-        store = AsyncMock()
 
         mock_download.side_effect = SQLAlchemyError("db connection lost")
 
         drive_file = _make_drive_file(name="err.pdf")
 
-        with pytest.raises(SQLAlchemyError):
-            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session, store=store)
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            with pytest.raises(SQLAlchemyError):
+                await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED
+
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    async def test_size_guard_drive_reported_marks_failed(self, mock_download: AsyncMock) -> None:
+        """Drive-reported size exceeding limit should set FAILED without downloading."""
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="huge.pdf")
+        drive_file.size = 200 * 1024 * 1024  # 200 MB
+
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
+
+        assert drive_file.rag_status == RagStatus.FAILED
+        assert drive_file.rag_error is not None
+        assert "too large" in drive_file.rag_error
+        mock_download.assert_not_awaited()
+
+    @patch("app.core_plugins.googledrive.utils._download_file")
+    async def test_size_guard_post_download_marks_failed(self, mock_download: AsyncMock) -> None:
+        """Post-download size check: file bytes exceeding limit should set FAILED."""
+        session = _make_async_session()
+        drive_file = _make_drive_file(name="big.pdf")
+        # No Drive-reported size so it falls through to post-download check
+        drive_file.size = None
+        # Return oversized content
+        mock_download.return_value = b"x" * (60 * 1024 * 1024)  # 60 MB
+
+        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
+
+        assert drive_file.rag_status == RagStatus.FAILED
+        assert drive_file.rag_error is not None
+        assert "too large" in drive_file.rag_error
 
 
 # ---------------------------------------------------------------------------
@@ -593,12 +524,10 @@ class TestProcessFolderRag:
         # Returns early without processing any files
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
-    @patch("app.core_plugins.googledrive.utils.ChunkStoreService")
     @patch("app.core_plugins.googledrive.utils.session_scope")
     async def test_skips_ready_files(
         self,
         mock_session_cls: MagicMock,
-        mock_store_cls: MagicMock,
         mock_process: AsyncMock,
     ) -> None:
         """Files with rag_status='ready' should be skipped."""
@@ -637,12 +566,10 @@ class TestProcessFolderRag:
         assert processed_file.id == 2
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
-    @patch("app.core_plugins.googledrive.utils.ChunkStoreService")
     @patch("app.core_plugins.googledrive.utils.session_scope")
     async def test_base_exception_from_gather_is_logged(
         self,
         mock_session_cls: MagicMock,
-        mock_store_cls: MagicMock,
         mock_process: AsyncMock,
     ) -> None:
         """BaseException raised inside a gather task must be logged, not re-raised."""

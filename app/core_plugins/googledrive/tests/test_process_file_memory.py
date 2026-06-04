@@ -2,8 +2,6 @@
 
 import inspect
 import sys
-from contextlib import AbstractContextManager, ExitStack
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,39 +27,32 @@ class TestProcessFileMemory:
     @pytest.mark.asyncio
     async def test_malloc_trim_not_called_on_darwin(self) -> None:
         """Verify malloc_trim is NOT called on macOS (darwin)."""
-
-        # Setup mocks
-        mock_drive_file = MagicMock(id=1, name="test.pdf", rag_status=None, size=100)
+        mock_drive_file = MagicMock(id=1, name="test.pdf", rag_status=None, size=None)
         mock_session = AsyncMock()
-        mock_session.add = MagicMock()  # Stop the RuntimeWarnings
+        mock_session.add = MagicMock()
 
-        # Mock session.execute to return a result with scalars
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.first.return_value = None
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        patches: list[AbstractContextManager[Any]] = [
-            patch("ctypes.CDLL"),
-            patch("app.core_plugins.googledrive.utils._download_file", return_value=b"%PDF-1.4\n"),
-            patch("app.core_plugins.googledrive.utils.extract_to_markdown", return_value=MagicMock(markdown="# Test")),
-            patch("app.core_plugins.googledrive.utils.chunk_document", return_value=[]),
-        ]
-
-        with patch.object(sys, "platform", "darwin"), ExitStack() as stack:
-            # Enter all context managers
-            mocks: list[Any] = [stack.enter_context(p) for p in patches]
-            mock_cdll = mocks[0]
+        with (
+            patch("ctypes.CDLL") as mock_cdll,
+            patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"%PDF-1.4\n")),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
+            patch(
+                "app.core_plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(return_value=MagicMock(new_chunks=0, reused_chunks=0)),
+            ),
+            patch.object(sys, "platform", "darwin"),
+        ):
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
 
             await _process_single_file(
                 mock_drive_file,
                 user_id=1,
                 access_token="fake",
                 session=mock_session,
-                store=MagicMock(),
             )
 
-            # ctypes.CDLL should NOT be called on non-Linux
-            mock_cdll.assert_not_called()
+        # ctypes.CDLL should NOT be called on non-Linux (darwin)
+        mock_cdll.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_session_expunge_all_called_in_finally(self) -> None:
@@ -76,13 +67,22 @@ class TestProcessFileMemory:
         mock_session = AsyncMock()
         mock_session.expunge_all = MagicMock()
 
-        with pytest.raises(Exception):
-            await _process_single_file(
-                mock_drive_file,
-                user_id=1,
-                access_token="fake",
-                session=mock_session,
-                store=MagicMock(),
-            )
+        # Trigger the generic Exception branch by raising from _download_file
+        with (
+            patch(
+                "app.core_plugins.googledrive.utils._download_file",
+                new=AsyncMock(side_effect=Exception("unexpected boom")),
+            ),
+            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+        ):
+            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+
+            with pytest.raises(Exception):
+                await _process_single_file(
+                    mock_drive_file,
+                    user_id=1,
+                    access_token="fake",
+                    session=mock_session,
+                )
 
         mock_session.expunge_all.assert_called_once()
