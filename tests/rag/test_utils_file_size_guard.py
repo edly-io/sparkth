@@ -7,8 +7,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.utils import _process_single_file
+from app.lib.rag import RagStatus
 from app.models.drive import DriveFile
-from app.rag.enums import RagStatus
 
 
 @pytest.mark.asyncio
