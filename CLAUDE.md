@@ -61,9 +61,9 @@ Current modules (see the source for the full API — do not duplicate it here):
   background/non-request code; `get_async_session`/`get_session` are the FastAPI
   dependencies.
 - [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. Import RAG functionality
-  from here (`ingest_document`, `IngestionResult`, `RagStatus`, ingestion
-  exceptions); never import from `app.rag.*` directly. Implementation lives in
-  `app/rag/` (see issue #398).
+  from here (`ingest_document`, `retrieve_context`, `RetrievedChunk`,
+  `IngestionResult`, `RagStatus`, RAG exceptions); never import from `app.rag.*`
+  directly. Implementation lives in `app/rag/` (see issue #398).
 
 ## Essential Commands
 
