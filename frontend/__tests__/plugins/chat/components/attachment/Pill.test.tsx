@@ -46,12 +46,7 @@ describe("Pill", () => {
 
       render(<Pill attachments={attachments} onPreview={mockOnPreview} onRemove={mockOnRemove} />);
 
-      const removeButton = screen
-        .getByRole("button", { name: "" })
-        .parentElement?.querySelector("button:last-child");
-      if (removeButton) {
-        await userEvent.click(removeButton);
-      }
+      await userEvent.click(screen.getByTitle("Remove attachment"));
 
       expect(mockOnRemove).toHaveBeenCalledWith(undefined);
     });
@@ -101,16 +96,18 @@ describe("Pill", () => {
       ];
 
       render(
-        <TooltipProvider>
+        <TooltipProvider delayDuration={0}>
           <Pill attachments={attachments} onPreview={mockOnPreview} onRemove={mockOnRemove} />
         </TooltipProvider>,
       );
 
-      // First "Remove attachment" button belongs to the first file in the visible area
-      const firstRemoveButton = screen.getAllByTitle("Remove attachment")[0];
+      // Per-file remove buttons live inside the tooltip listing the secondary
+      // files (attachments after the first), so open it before clicking.
+      await userEvent.hover(screen.getByText(/\+ 1 other/));
+      const firstRemoveButton = (await screen.findAllByTitle("Remove attachment"))[0];
       await userEvent.click(firstRemoveButton);
 
-      expect(mockOnRemove).toHaveBeenCalledWith(100);
+      expect(mockOnRemove).toHaveBeenCalledWith(123);
     });
   });
 
