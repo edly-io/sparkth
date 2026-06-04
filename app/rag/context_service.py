@@ -1,13 +1,19 @@
 """RAG context retrieval for chat course generation."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.log import get_logger
-from app.models.drive import DriveFile
 from app.rag.agent import RAGSearchAgent
+
+if TYPE_CHECKING:
+    # Imported under TYPE_CHECKING only to avoid a runtime cycle: app.models.drive
+    # imports RagStatus from app.lib.rag, which imports this module.
+    from app.models.drive import DriveFile
 from app.rag.config import get_rag_settings
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
@@ -134,6 +140,8 @@ class RAGContextService:
         user_id: int,
         file_db_id: int,
     ) -> DriveFile:
+        from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+
         result = await session.exec(
             select(DriveFile).where(
                 col(DriveFile.id) == file_db_id,

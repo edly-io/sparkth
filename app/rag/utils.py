@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from app.models.drive import DriveFile
 from app.rag import constants
+
+if TYPE_CHECKING:
+    # Imported under TYPE_CHECKING only: app.models.drive imports RagStatus from
+    # app.lib.rag, which imports this module — a runtime import here would cycle.
+    from app.models.drive import DriveFile
 
 
 def get_asset(file_name: str, file_extension: str) -> str | dict[str, Any]:
