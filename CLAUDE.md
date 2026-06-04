@@ -28,7 +28,7 @@ app/
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
-  lib/rag/       # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
+  rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/    # Alembic versions
 
@@ -60,9 +60,9 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
   background/non-request code; `get_async_session`/`get_session` are the FastAPI
   dependencies.
-- [`app/lib/rag/`](app/lib/rag/) — RAG pipeline (extraction, chunking, storage,
-  agent-driven retrieval, cleanup). Internal implementation details are private;
-  the stable public API will be exposed via `app/lib/rag/__init__.py` (see issue #398).
+- [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. All plugins and external
+  modules must import from here; never import directly from `app.rag.*`. The
+  implementation lives in `app/rag/` (see issue #398).
 
 ## Essential Commands
 
@@ -172,9 +172,9 @@ The rule applies to both new work and incidental changes. If you touch a file an
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
 - **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
-- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, lib/rag, llm, rag_mcp, services)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, rag_mcp, services)
 
-  RAG lives under `app/lib/rag/`, so its tests live at `tests/lib/rag/`.
+  RAG is core, so its tests live at `tests/rag/` (not co-located under `app/rag/`).
 
 How the suite is wired:
 

@@ -6,8 +6,8 @@ import pytest
 from fastapi import HTTPException
 
 from app.core_plugins.chat.schemas import ChatMessage
-from app.lib.rag.context_service import RAGContext, RAGContextService
-from app.lib.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.context_service import RAGContext, RAGContextService
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 
 class TestResolveBlocksUsesAgent:

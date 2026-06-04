@@ -9,8 +9,8 @@ import pytest
 
 from app.core_plugins.chat.routes import stream_chat_response
 from app.core_plugins.chat.schemas import ChatMessage
-from app.lib.rag.context_service import RAGContext, RAGContextService
-from app.lib.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.context_service import RAGContext, RAGContextService
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 
 def _make_rag_service(context: RAGContext) -> RAGContextService:

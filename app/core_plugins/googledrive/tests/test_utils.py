@@ -19,11 +19,11 @@ from app.core_plugins.googledrive.utils import (
     _store_and_link_chunks,
     process_folder_rag,
 )
-from app.lib.rag.enums import RagStatus
-from app.lib.rag.exceptions import ScannedPDFError
-from app.lib.rag.store import ChunkInput, ChunkStoreService
-from app.lib.rag.types import Chunk, ChunkMetadata
 from app.models.drive import DriveFile, DriveFolder
+from app.rag.enums import RagStatus
+from app.rag.exceptions import ScannedPDFError
+from app.rag.store import ChunkInput, ChunkStoreService
+from app.rag.types import Chunk, ChunkMetadata
 
 
 def _make_async_session() -> AsyncMock:
@@ -454,8 +454,8 @@ class TestEmbedAndStoreChunks:
 
         from sqlmodel.ext.asyncio.session import AsyncSession
 
-        from app.lib.rag.models import DocumentChunk, DriveFileChunkLink
         from app.models.drive import DriveFolder
+        from app.rag.models import DocumentChunk, DriveFileChunkLink
 
         async_session: AsyncSession = session
 

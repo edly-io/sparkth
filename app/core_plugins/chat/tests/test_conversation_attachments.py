@@ -10,9 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment
 from app.core_plugins.chat.service import ChatService
-from app.lib.rag.enums import RagStatus
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
+from app.rag.enums import RagStatus
 
 
 async def _seed_drive_folder(session: AsyncSession, user_id: int = 1) -> tuple[DriveFolder, int]:
@@ -413,7 +413,7 @@ class TestAttachmentEndpoints:
         session: AsyncSession,
     ) -> None:
         """GET only returns READY files, not pending/failed ones."""
-        from app.lib.rag.enums import RagStatus
+        from app.rag.enums import RagStatus
 
         conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
         folder, folder_id = await _seed_drive_folder(session, user_id=cast(int, current_user.id))

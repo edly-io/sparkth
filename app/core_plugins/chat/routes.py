@@ -43,10 +43,6 @@ from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import get_tool_registry
 from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
-from app.lib.rag.context_service import RAGContextService
-from app.lib.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.lib.rag.types import RAGContext
-from app.lib.rag.utils import get_asset
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
@@ -57,6 +53,10 @@ from app.llm.providers import (
 from app.llm.service import LLMConfigService, get_llm_service
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
+from app.rag.context_service import RAGContextService
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.types import RAGContext
+from app.rag.utils import get_asset
 
 logger = get_logger(__name__)
 

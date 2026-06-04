@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
-# NOTE: RagStatus lives in app.lib.rag.enums; importing it here would create a circular import
-# via app.lib.rag.enums → app.lib.rag.models → app.models.__init__ → app.lib.rag.models.
+# NOTE: RagStatus lives in app.rag.enums; importing it here would create a circular import
+# via app.rag.enums → app.rag.models → app.models.__init__ → app.rag.models.
 # Using str avoids the cycle — RagStatus is a StrEnum so values are already plain strings.
 
 

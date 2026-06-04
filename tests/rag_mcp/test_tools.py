@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.rag.enums import RagStatus
+from app.rag.enums import RagStatus
 from app.rag_mcp.tools import (
     get_chunk_stats,
     get_document_structure,

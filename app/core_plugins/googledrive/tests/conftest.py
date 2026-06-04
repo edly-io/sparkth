@@ -19,10 +19,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.core_plugins.googledrive.routes import router as drive_router
 from app.lib.db import get_async_session
-from app.lib.rag.config import RAGSettings
 from app.main import app
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
+from app.rag.config import RAGSettings
 
 # Register Drive routes on the app (normally done by plugin lifespan)
 _DRIVE_PREFIX = "/api/v1/googledrive"

@@ -22,18 +22,18 @@ from app.core_plugins.slack.models import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
 from app.lib.db import session_scope
 from app.lib.log import get_logger
-from app.lib.rag.context_service import RAGContextService, format_chunks_as_context
-from app.lib.rag.enums import RagStatus
-from app.lib.rag.exceptions import (
+from app.llm.providers import BaseChatProvider
+from app.models.drive import DriveFile
+from app.rag.context_service import RAGContextService, format_chunks_as_context
+from app.rag.enums import RagStatus
+from app.rag.exceptions import (
     DriveFileNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
 )
-from app.lib.rag.store import SimilarityResult
-from app.lib.rag.types import RAGContext
-from app.lib.rag.utils import resolve_source_name
-from app.llm.providers import BaseChatProvider
-from app.models.drive import DriveFile
+from app.rag.store import SimilarityResult
+from app.rag.types import RAGContext
+from app.rag.utils import resolve_source_name
 
 logger = get_logger(__name__)
 

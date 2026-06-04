@@ -16,16 +16,16 @@ from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
 from app.lib.log import get_logger
-from app.lib.rag.chunking import chunk_document
-from app.lib.rag.config import get_rag_settings, parse_rag_allowed_extensions
-from app.lib.rag.enums import RagStatus
-from app.lib.rag.exceptions import ScannedPDFError
-from app.lib.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
-from app.lib.rag.models import DocumentChunk, DriveFileChunkLink
-from app.lib.rag.store import ChunkInput, ChunkStoreService
-from app.lib.rag.types import Chunk
 from app.memory_profiler import profile_memory
 from app.models.drive import DriveFile, DriveFolder
+from app.rag.chunking import chunk_document
+from app.rag.config import get_rag_settings, parse_rag_allowed_extensions
+from app.rag.enums import RagStatus
+from app.rag.exceptions import ScannedPDFError
+from app.rag.extraction import SUPPORTED_EXTENSIONS, extract_to_markdown
+from app.rag.models import DocumentChunk, DriveFileChunkLink
+from app.rag.store import ChunkInput, ChunkStoreService
+from app.rag.types import Chunk
 
 logger = get_logger(__name__)
 
