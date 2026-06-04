@@ -96,8 +96,8 @@ make lint.format.backend     # Format backend code (ruff)
 make lint.frontend.react-doctor  # React health check on files changed vs main (CI gate)
 
 # Local frontend
-make frontend        # Next.js dev server on :3000
-make frontend.build  # Static export → frontend/out/
+make frontend        # Next.js dev server on :3000 (proxies /api to the backend; needs `make api` running)
+make frontend.build  # Static export → frontend/out/ (served by the backend in production)
 
 # Database
 make migrations      # Apply Alembic migrations (native)
