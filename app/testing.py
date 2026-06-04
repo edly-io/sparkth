@@ -16,7 +16,7 @@ import os
 # Set test environment variables BEFORE importing app modules.
 # This must happen before app/core/config.py calls get_settings(), which caches
 # the settings. We also need DATABASE_URL set before app/core/db.py creates
-# the async_engine at import time, and before rag_mcp/db.py initializes.
+# the async_engine at import time.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
