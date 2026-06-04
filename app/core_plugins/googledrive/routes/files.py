@@ -13,7 +13,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.client import GoogleDriveClient
-from app.core_plugins.googledrive.constants import DRIVE_MAX_UPLOAD_BYTES
+from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.core_plugins.googledrive.oauth import get_valid_access_token
 from app.core_plugins.googledrive.routes.dependencies import require_user_id
 from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
@@ -107,8 +107,9 @@ async def upload_file(
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     content = await file.read()
-    if len(content) > DRIVE_MAX_UPLOAD_BYTES:
-        limit_mb = DRIVE_MAX_UPLOAD_BYTES / (1024 * 1024)
+    max_upload_bytes = get_googledrive_settings().DRIVE_MAX_UPLOAD_BYTES
+    if len(content) > max_upload_bytes:
+        limit_mb = max_upload_bytes / (1024 * 1024)
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File size exceeds %.0fMB limit." % limit_mb
         )

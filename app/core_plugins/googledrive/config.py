@@ -29,6 +29,7 @@ class GoogleDriveSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     GOOGLE_DRIVE_REDIRECT_URI: str
+    DRIVE_MAX_UPLOAD_BYTES: int = 30 * 1024 * 1024
 
 
 @lru_cache
