@@ -39,9 +39,7 @@ async def cleanup_deleted_files() -> None:
 
         # Chunks linked to deleted files
         candidate_result = await session.scalars(
-            select(DriveFileChunkLink.chunk_id).where(
-                DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]
-            )
+            select(DriveFileChunkLink.chunk_id).where(col(DriveFileChunkLink.drive_file_id).in_(deleted_file_ids))
         )
         candidate_chunk_ids = set(candidate_result.all())
 
@@ -51,9 +49,9 @@ async def cleanup_deleted_files() -> None:
             # Chunks still referenced by at least one live file
             alive_result = await session.scalars(
                 select(DriveFileChunkLink.chunk_id)
-                .join(DriveFile, DriveFileChunkLink.drive_file_id == DriveFile.id)  # type: ignore[arg-type]
+                .join(DriveFile, col(DriveFileChunkLink.drive_file_id) == col(DriveFile.id))
                 .where(
-                    DriveFileChunkLink.chunk_id.in_(candidate_chunk_ids),  # type: ignore[attr-defined]
+                    col(DriveFileChunkLink.chunk_id).in_(candidate_chunk_ids),
                     col(DriveFile.is_deleted) == False,  # noqa: E712
                 )
             )
@@ -69,25 +67,15 @@ async def cleanup_deleted_files() -> None:
         # Remove ALL bridge-table links for deleted files (not just orphan links)
         # so the FK constraint on DriveFile.id is satisfied before hard-deletion.
         await session.execute(
-            delete(DriveFileChunkLink).where(
-                DriveFileChunkLink.drive_file_id.in_(deleted_file_ids)  # type: ignore[attr-defined]
-            )
+            delete(DriveFileChunkLink).where(col(DriveFileChunkLink.drive_file_id).in_(deleted_file_ids))
         )
 
         # Delete orphaned chunks
         if orphan_chunk_ids:
-            await session.execute(
-                delete(DocumentChunk).where(
-                    DocumentChunk.id.in_(orphan_chunk_ids)  # type: ignore[union-attr]
-                )
-            )
+            await session.execute(delete(DocumentChunk).where(col(DocumentChunk.id).in_(orphan_chunk_ids)))
 
         # Hard-delete the soft-deleted DriveFile rows (including duplicates with no chunks)
-        await session.execute(
-            delete(DriveFile).where(
-                DriveFile.id.in_(deleted_file_ids)  # type: ignore[union-attr]
-            )
-        )
+        await session.execute(delete(DriveFile).where(col(DriveFile.id).in_(deleted_file_ids)))
 
         await session.commit()
         logger.info(

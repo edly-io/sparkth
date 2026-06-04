@@ -1,8 +1,9 @@
 """Document chunk storage service."""
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, delete, or_
+from sqlalchemy.engine import CursorResult
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -142,7 +143,7 @@ class ChunkStoreService:
         )
         result = await session.execute(stmt)
         await session.flush()
-        count: int = result.rowcount  # type: ignore[attr-defined]
+        count: int = cast(CursorResult[Any], result).rowcount
         logger.info("Deleted %d chunks for user_id=%d, source='%s'", count, user_id, source_name)
         return count
 
