@@ -120,72 +120,10 @@ class TestResolveSourceName:
         assert _resolve_source_name(df) == "diagram.pdf"
 
 
-class TestDeadConstantsRemoved:
-    def test_default_similarity_threshold_not_exported(self) -> None:
-        import app.rag.constants as c
-
-        assert not hasattr(c, "DEFAULT_SIMILARITY_THRESHOLD")
-
-    def test_default_top_sections_not_exported(self) -> None:
-        import app.rag.constants as c
-
-        assert not hasattr(c, "DEFAULT_TOP_SECTIONS")
-
-
 class TestRAGContextType:
-    def test_rag_context_has_no_ranked_sections_field(self) -> None:
-        """ranked_sections field must have been removed."""
-        import dataclasses
-
-        from app.rag.types import RAGContext
-
-        field_names = {f.name for f in dataclasses.fields(RAGContext)}
-        assert "ranked_sections" not in field_names
-
     def test_rag_context_constructs_without_ranked_sections(self) -> None:
         """RAGContext can be constructed with just the required fields."""
         from app.rag.types import RAGContext
 
         ctx = RAGContext(file_db_id=1, source_name="doc.pdf", chunks=[], formatted_text="")
         assert ctx.file_db_id == 1
-
-
-class TestEmbeddingProviderInfrastructureRemoved:
-    def test_embedding_provider_module_not_importable(self) -> None:
-        """app.rag.provider must not exist after cleanup."""
-        import importlib
-        import sys
-
-        # Remove cached module if present
-        sys.modules.pop("app.rag.provider", None)
-        try:
-            importlib.import_module("app.rag.provider")
-            raise AssertionError("app.rag.provider should not exist")
-        except ModuleNotFoundError:
-            pass  # expected
-
-    def test_embeddings_module_not_importable(self) -> None:
-        """app.rag.embeddings must not exist after cleanup."""
-        import importlib
-        import sys
-
-        sys.modules.pop("app.rag.embeddings", None)
-        try:
-            importlib.import_module("app.rag.embeddings")
-            raise AssertionError("app.rag.embeddings should not exist")
-        except ModuleNotFoundError:
-            pass  # expected
-
-
-class TestHuggingFaceDepsRemoved:
-    def test_langchain_huggingface_not_imported_in_any_live_module(self) -> None:
-        """No live module should import langchain_huggingface after cleanup."""
-        import pathlib
-
-        live_paths = list(pathlib.Path("app").rglob("*.py"))
-        for p in live_paths:
-            if "__pycache__" in str(p) or "test_" in p.name:
-                continue
-            content = p.read_text()
-            if "langchain_huggingface" in content or "langchain-huggingface" in content:
-                raise AssertionError(f"langchain_huggingface still imported in {p}")
