@@ -94,6 +94,7 @@ make lint.fix.frontend       # Auto-fix frontend lint errors (oxlint)
 make lint.fix.backend        # Auto-fix backend lint errors (ruff)
 make lint.format.frontend    # Format frontend code (oxfmt)
 make lint.format.backend     # Format backend code (ruff)
+make lint.frontend.react-doctor  # React health check on files changed vs main (CI gate)
 
 # Local frontend
 make frontend        # Next.js dev server on :3000
