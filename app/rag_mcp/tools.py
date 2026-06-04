@@ -1,4 +1,4 @@
-"""Metadata-only tools for RAG MCP server."""
+"""Metadata-only tools for the RAG search agent."""
 
 from typing import cast
 

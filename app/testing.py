@@ -19,7 +19,6 @@ import os
 # the async_engine at import time.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("RAG_MCP_URL", "http://localhost:8000")
 os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
 
 from collections.abc import AsyncGenerator, Generator

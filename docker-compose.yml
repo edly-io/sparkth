@@ -37,8 +37,6 @@ services:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
-      rag-mcp:
-        condition: service_started
       mailpit:
         condition: service_started
 
@@ -100,27 +98,6 @@ services:
       db:
         condition: service_healthy
     restart: "no"
-
-  # RAG Metadata MCP Server
-  # In production this should be run as a separate container than the 'app' container.
-  rag-mcp:
-    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
-    # to GitHub Container Registry by CI
-    image: sparkth:local
-    # In production we should always pull the remote image, the below `pull_policy` is only for local development
-    pull_policy: never
-    # For production we should keep the restart policy the same.
-    restart: unless-stopped
-    env_file:
-      - .env
-      - path: .env.local
-        required: false
-    volumes:
-      - ./app:/app/app
-    command: python -m app.rag_mcp.main
-    depends_on:
-      db:
-        condition: service_healthy
 
   # Alembic Migrations
   # In production this is meant to be run as a k8s 'Job'. It could be an 'initContainer' for the above 'app' container
