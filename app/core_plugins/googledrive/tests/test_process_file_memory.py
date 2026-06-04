@@ -34,7 +34,7 @@ class TestProcessFileMemory:
         with (
             patch("ctypes.CDLL") as mock_cdll,
             patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"%PDF-1.4\n")),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
             patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
@@ -42,7 +42,7 @@ class TestProcessFileMemory:
             ),
             patch.object(sys, "platform", "darwin"),
         ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
 
             await _process_single_file(
                 mock_drive_file,
@@ -73,9 +73,9 @@ class TestProcessFileMemory:
                 "app.core_plugins.googledrive.utils._download_file",
                 new=AsyncMock(side_effect=Exception("unexpected boom")),
             ),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
         ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
 
             with pytest.raises(Exception):
                 await _process_single_file(

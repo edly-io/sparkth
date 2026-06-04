@@ -266,14 +266,14 @@ class TestProcessSingleFile:
         session = _make_async_session()
         with (
             patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
             patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
                 new=AsyncMock(side_effect=UnsupportedFileTypeError("nope")),
             ),
         ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
         assert drive_file.rag_status == RagStatus.READY
         assert drive_file.rag_error is None
@@ -286,14 +286,14 @@ class TestProcessSingleFile:
         session = _make_async_session()
         with (
             patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
             patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
                 new=AsyncMock(side_effect=ScannedPDFError("scan.pdf")),
             ),
         ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
         assert drive_file.rag_status == RagStatus.FAILED
         assert drive_file.rag_error == ScannedPDFError.USER_MESSAGE
@@ -306,14 +306,14 @@ class TestProcessSingleFile:
         session = _make_async_session()
         with (
             patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
             patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
                 new=AsyncMock(return_value=IngestionResult(new_chunks=3, reused_chunks=1)),
             ) as mock_ingest,
         ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
         assert drive_file.rag_status == RagStatus.READY
         mock_ingest.assert_awaited_once()
@@ -347,8 +347,8 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="copy.pdf")
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.READY
@@ -363,8 +363,8 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="failing.pdf")
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED
@@ -377,8 +377,8 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="bad.pdf")
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED
@@ -398,10 +398,10 @@ class TestProcessSingleFile:
 
         with (
             patch("app.core_plugins.googledrive.utils._find_duplicate_file", return_value=None),
-            patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings,
+            patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
             patch("app.core_plugins.googledrive.utils.ingest_document") as mock_ingest,
         ):
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             mock_ingest.return_value = IngestionResult(new_chunks=1, reused_chunks=0)
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
@@ -420,8 +420,8 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="dup.pdf")
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         session.rollback.assert_awaited_once()
@@ -438,8 +438,8 @@ class TestProcessSingleFile:
 
         drive_file = _make_drive_file(name="err.pdf")
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             with pytest.raises(SQLAlchemyError):
                 await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
@@ -452,8 +452,8 @@ class TestProcessSingleFile:
         drive_file = _make_drive_file(name="huge.pdf")
         drive_file.size = 200 * 1024 * 1024  # 200 MB
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED
@@ -471,8 +471,8 @@ class TestProcessSingleFile:
         # Return oversized content
         mock_download.return_value = b"x" * (60 * 1024 * 1024)  # 60 MB
 
-        with patch("app.core_plugins.googledrive.utils.get_rag_settings") as mock_settings:
-            mock_settings.return_value.RAG_MAX_FILE_SIZE_MB = 50
+        with patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings:
+            mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
             await _process_single_file(drive_file, user_id=1, access_token="tok", session=session)
 
         assert drive_file.rag_status == RagStatus.FAILED

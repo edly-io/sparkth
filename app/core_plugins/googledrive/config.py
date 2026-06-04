@@ -30,6 +30,11 @@ class GoogleDriveSettings(BaseSettings):
 
     GOOGLE_DRIVE_REDIRECT_URI: str
     DRIVE_MAX_UPLOAD_BYTES: int = 30 * 1024 * 1024
+    # Max files ingested in parallel during a folder sync.
+    INGESTION_CONCURRENCY: int = 1
+    # Files larger than this are skipped during ingestion (the client enforces
+    # the size guard; the RAG pipeline itself does not limit file size).
+    INGESTION_MAX_FILE_SIZE_MB: int = 50
 
 
 @lru_cache

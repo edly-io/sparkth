@@ -12,6 +12,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
 from app.lib.log import get_logger
@@ -22,7 +23,6 @@ from app.lib.rag import (
     ingest_document,
 )
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.config import get_rag_settings  # size guard + concurrency (residual; see #398)
 from app.rag.models import DriveFileChunkLink  # duplicate-file path (residual; see #398)
 
 logger = get_logger(__name__)
@@ -113,7 +113,7 @@ async def _reject_if_oversized(
     if size_bytes <= limit_mb * 1024 * 1024:
         return False
     logger.warning(
-        "Skipping '%s': size %d bytes exceeds RAG_MAX_FILE_SIZE_MB=%d.",
+        "Skipping '%s': size %d bytes exceeds INGESTION_MAX_FILE_SIZE_MB=%d.",
         filename,
         size_bytes,
         limit_mb,
@@ -140,8 +140,8 @@ async def _ingest_drive_file(
     Sets PROCESSING/READY status and may early-return after a size guard or a
     duplicate match. Raises ingestion/Drive exceptions for the caller to map.
     """
-    settings = get_rag_settings()
-    limit_mb = settings.RAG_MAX_FILE_SIZE_MB
+    settings = get_googledrive_settings()
+    limit_mb = settings.INGESTION_MAX_FILE_SIZE_MB
 
     await _set_rag_status(session, drive_file, RagStatus.PROCESSING)
     await session.refresh(drive_file)
@@ -269,7 +269,7 @@ async def process_folder_rag(
     if not files:
         return
 
-    semaphore = asyncio.Semaphore(get_rag_settings().RAG_CONCURRENCY)
+    semaphore = asyncio.Semaphore(get_googledrive_settings().INGESTION_CONCURRENCY)
 
     async def _process_with_own_session(drive_file: DriveFile) -> None:
         async with semaphore:
