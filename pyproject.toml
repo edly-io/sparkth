@@ -104,7 +104,6 @@ module = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests", "app/rag/tests", "app/core_plugins/googledrive/tests"]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",
 ]
