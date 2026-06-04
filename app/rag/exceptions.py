@@ -39,3 +39,27 @@ class ScannedPDFError(RAGError):
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name
         super().__init__(self.USER_MESSAGE)
+
+
+class RAGIngestionError(RAGError):
+    """Base exception for failures during document ingestion."""
+
+
+class UnsupportedFileTypeError(RAGIngestionError):
+    """Raised when a file's type cannot be handled by the RAG extractors.
+
+    Callers typically treat this as a benign skip (the file is fine, it just
+    isn't RAG-ingestible).
+    """
+
+
+class FileTypeNotAllowedError(RAGIngestionError):
+    """Raised when a file's type is excluded by the RAG_ALLOWED_EXTENSIONS allowlist.
+
+    Carries the allowed extension list so callers can surface it to the user.
+    """
+
+    def __init__(self, allowed_extensions: list[str]) -> None:
+        self.allowed_extensions = allowed_extensions
+        accepted = ", ".join(f".{e}" for e in allowed_extensions)
+        super().__init__(f"Unsupported file extension. Allowed: {accepted}.")
