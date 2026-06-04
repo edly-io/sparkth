@@ -2,15 +2,26 @@
 
 import hashlib
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.ingestion import _store_and_link_chunks
+from app.rag.enums import DocType
+from app.rag.exceptions import (
+    FileTypeNotAllowedError,
+    ScannedPDFError,
+    UnsupportedFileTypeError,
+)
+from app.rag.ingestion import (
+    IngestionResult,
+    _check_eligibility,
+    _store_and_link_chunks,
+    ingest_document,
+)
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.store import ChunkStoreService
-from app.rag.types import Chunk, ChunkInput, ChunkMetadata
+from app.rag.types import Chunk, ChunkInput, ChunkMetadata, ExtractionResult
 
 
 def _make_async_session() -> AsyncMock:
@@ -25,6 +36,10 @@ def _make_async_session() -> AsyncMock:
     session.add = MagicMock()
     session.add_all = MagicMock()
     return session
+
+
+def _make_chunk(content: str, source: str = "doc.pdf") -> Chunk:
+    return Chunk(content=content, metadata=ChunkMetadata(source_name=source))
 
 
 class TestEmbedAndStoreChunks:
@@ -261,3 +276,74 @@ class TestEmbedAndStoreChunks:
 
         assert reused_count == 0, "chunk linked only to a deleted file must not be reused"
         assert new_count == 1, "chunk must be re-embedded since its only source is deleted"
+
+
+class TestCheckEligibility:
+    def test_disallowed_extension_raises(self) -> None:
+        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
+            with pytest.raises(FileTypeNotAllowedError) as exc_info:
+                _check_eligibility("notes.docx")
+            assert exc_info.value.allowed_extensions == ["pdf"]
+
+    def test_unsupported_extension_raises(self) -> None:
+        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            with pytest.raises(UnsupportedFileTypeError):
+                _check_eligibility("image.png")
+
+    def test_supported_allowed_extension_passes(self) -> None:
+        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            _check_eligibility("notes.pdf")  # no raise
+
+
+class TestIngestDocument:
+    @pytest.mark.asyncio
+    async def test_unsupported_type_raises_before_extraction(self) -> None:
+        with patch("app.rag.ingestion.get_rag_settings") as mock_settings:
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            with pytest.raises(UnsupportedFileTypeError):
+                await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="img.png")
+
+    @pytest.mark.asyncio
+    async def test_empty_chunks_returns_zero_counts(self) -> None:
+        extraction = ExtractionResult(markdown="", doc_type=DocType.TXT, source_name="a.txt")
+        with (
+            patch("app.rag.ingestion.get_rag_settings") as mock_settings,
+            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
+            patch("app.rag.ingestion.chunk_document", return_value=[]),
+        ):
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            result = await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="a.txt")
+        assert result == IngestionResult(new_chunks=0, reused_chunks=0)
+
+    @pytest.mark.asyncio
+    async def test_scanned_pdf_propagates(self) -> None:
+        with (
+            patch("app.rag.ingestion.get_rag_settings") as mock_settings,
+            patch("app.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")),
+        ):
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            with pytest.raises(ScannedPDFError):
+                await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="a.pdf")
+
+    @pytest.mark.asyncio
+    async def test_happy_path_returns_counts(self) -> None:
+        extraction = ExtractionResult(markdown="# H\ntext", doc_type=DocType.TXT, source_name="a.txt")
+        chunks = [_make_chunk("text", source="a.txt")]
+        with (
+            patch("app.rag.ingestion.get_rag_settings") as mock_settings,
+            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
+            patch("app.rag.ingestion.chunk_document", return_value=chunks),
+            patch("app.rag.ingestion.session_scope") as mock_scope,
+            patch("app.rag.ingestion._store_and_link_chunks", return_value=(1, 0)) as mock_store,
+        ):
+            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
+            mock_session = AsyncMock()
+            mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await ingest_document(user_id=1, owner_file_id=10, file_bytes=b"x", filename="a.txt")
+        assert result == IngestionResult(new_chunks=1, reused_chunks=0)
+        mock_store.assert_awaited_once()
+        mock_session.commit.assert_awaited_once()
