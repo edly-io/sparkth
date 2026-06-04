@@ -97,20 +97,21 @@ Once the server is running, you can access the interactive API documentation loc
 * **ReDoc:** [http://127.0.0.1:7727/redoc](http://127.0.0.1:7727/redoc)
     * *Best for reading documentation structure.*
 
-## Accessing the frontend
-Frontend files are being served by FastAPI via static files. Go to [http://127.0.0.1:7727/login](http://127.0.0.1:7727/login) to go to the login page for Sparkth.
-
 ## Developing/Running the Frontend
 
 The frontend is a [Next.js](https://nextjs.org) application located in the `frontend/` directory.
 
 ### Development (with hot reload)
 
+With the backend running (`make api`), start the frontend dev server:
+
 ```bash
 make frontend
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser. The dev server proxies `/api/*` requests to the backend (default `http://localhost:7727`; override with the `BACKEND_URL` environment variable), so the same-origin relative API calls work while you get hot reload.
+
+> Note: full-page redirects from OAuth (Google/Slack) and email-verification flows land on the backend's `FRONTEND_BASE_URL` (`:7727` by default), not on `:3000`. Set `FRONTEND_BASE_URL=http://localhost:3000` in `.env.local` if you need to exercise those flows against the dev server.
 
 ### Production Build
 
@@ -120,7 +121,7 @@ Build the frontend as static files (exported to `frontend/out/`):
 make frontend.build
 ```
 
-In production these static files are served by the FastAPI backend (baked into the Docker image at `frontend/out/`).
+In production these static files are served by the FastAPI backend at the same origin (baked into the Docker image at `frontend/out/`), which is why the frontend uses relative `/api` URLs.
 
 ### Feature Flags
 `REGISTRATION_ENABLED`
