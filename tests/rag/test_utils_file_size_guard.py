@@ -105,7 +105,10 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
 
     # We only care that extraction IS reached, not that it completes
     with (
-        patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=small_bytes)),
+        patch(
+            "app.core_plugins.googledrive.utils._download_file",
+            new=AsyncMock(return_value=small_bytes),
+        ),
         patch("app.core_plugins.googledrive.utils.get_settings") as mock_settings,
         patch("app.core_plugins.googledrive.utils.extract_to_markdown", side_effect=RuntimeError("stop here")),
     ):
@@ -118,6 +121,5 @@ async def test_file_within_size_limit_proceeds_to_extraction(session: AsyncSessi
     result = await session.exec(select(DriveFile).where(DriveFile.id == 2))
     refreshed_file = result.first()
     assert refreshed_file is not None
-    # The file should NOT be QUEUED (guard did not fire); it reached extraction and then FAILED
     assert refreshed_file.rag_status == RagStatus.FAILED
     assert "too large" not in (refreshed_file.rag_error or "").lower()

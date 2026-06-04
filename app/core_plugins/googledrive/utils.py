@@ -13,7 +13,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings, parse_rag_allowed_extensions
-from app.core_plugins.googledrive.client import GoogleDriveAPIError, GoogleDriveClient
+from app.core_plugins.googledrive.client import GoogleDriveClient
+from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.memory_profiler import profile_memory
@@ -164,11 +165,7 @@ async def _store_and_link_chunks(
             )
 
     # Store only new chunks
-    new_ids = await store.store_chunks(
-        session,
-        user_id,
-        new_chunk_inputs,
-    )
+    new_ids = await store.store_chunks(session, user_id, new_chunk_inputs)
 
     # Create bridge-table links, skipping any that already exist
     all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
@@ -289,15 +286,8 @@ async def _process_single_file(
                 await _set_rag_status(session, drive_file, RagStatus.READY)
                 return
 
-            # Store → Link
             async with profile_memory("store_and_link", file=filename, chunks=len(chunks)):
-                new_count, reused_count = await _store_and_link_chunks(
-                    session,
-                    user_id,
-                    file_id,
-                    chunks,
-                    store,
-                )
+                new_count, reused_count = await _store_and_link_chunks(session, user_id, file_id, chunks, store)
 
             del chunks
 

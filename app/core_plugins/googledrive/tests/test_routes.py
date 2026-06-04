@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import status
 from httpx import AsyncClient
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
@@ -50,7 +51,7 @@ class TestConnectionStatus:
     ) -> None:
         """GET /oauth/status should return connected=true with email when token exists."""
         with patch(
-            "app.core_plugins.googledrive.routes.get_user_info",
+            "app.core_plugins.googledrive.routes.oauth.get_user_info",
             new_callable=AsyncMock,
             return_value={"email": "user@gmail.com"},
         ):
@@ -78,7 +79,7 @@ class TestDisconnect:
     ) -> None:
         """DELETE /oauth/disconnect should soft-delete token and revoke with Google."""
         with patch(
-            "app.core_plugins.googledrive.routes.revoke_token",
+            "app.core_plugins.googledrive.routes.oauth.revoke_token",
             new_callable=AsyncMock,
             return_value=True,
         ):
@@ -126,12 +127,12 @@ class TestListFolders:
         self,
         drive_client: AsyncClient,
         test_folder: DriveFolder,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /folders should not return soft-deleted folders."""
         test_folder.soft_delete()
-        sync_session.add(test_folder)
-        sync_session.commit()
+        session.add(test_folder)
+        await session.flush()
 
         response = await drive_client.get("/api/v1/googledrive/folders")
 
@@ -172,12 +173,12 @@ class TestGetFolder:
         drive_client: AsyncClient,
         test_folder: DriveFolder,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /folders/{id} should not include soft-deleted files."""
         test_file.soft_delete()
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}")
 
@@ -225,8 +226,8 @@ class TestSyncFolder:
         }
 
         with (
-            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
-            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
             mock_client.get_folder.return_value = folder_metadata
@@ -273,8 +274,8 @@ class TestRefreshFolder:
     ) -> None:
         """POST /folders/{id}/refresh should re-sync files from Drive."""
         with (
-            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
-            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
             mock_client.list_files.return_value = {
@@ -290,6 +291,7 @@ class TestRefreshFolder:
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
+            mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
             response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
 
@@ -304,12 +306,12 @@ class TestRefreshFolder:
         test_folder: DriveFolder,
         test_oauth_token: DriveOAuthToken,
         mock_valid_access_token: None,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """Subfolder entries returned by the Drive API must not be stored as DriveFiles."""
         with (
-            patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls,
-            patch("app.core_plugins.googledrive.routes.process_folder_rag", new_callable=AsyncMock),
+            patch("app.core_plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
+            patch("app.core_plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
         ):
             mock_client = AsyncMock()
             mock_client.list_files.return_value = {
@@ -330,11 +332,12 @@ class TestRefreshFolder:
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
+            mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
             response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
 
         assert response.status_code == status.HTTP_200_OK
-        stored = sync_session.exec(select(DriveFile).where(DriveFile.folder_id == test_folder.id)).all()
+        stored = (await session.exec(select(DriveFile).where(DriveFile.folder_id == test_folder.id))).all()
         stored_ids = {f.drive_file_id for f in stored}
         assert "real_file_1" in stored_ids
         assert "subfolder_1" not in stored_ids
@@ -380,12 +383,12 @@ class TestListFiles:
         drive_client: AsyncClient,
         test_folder: DriveFolder,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /folders/{id}/files should include rag_status for each file."""
         test_file.rag_status = RagStatus.READY
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/files")
 
@@ -423,12 +426,12 @@ class TestGetFile:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /files/{id} should include rag_status and rag_error fields."""
         test_file.rag_status = RagStatus.PROCESSING
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
 
@@ -459,7 +462,7 @@ class TestDownloadFile:
         async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             yield b"file content"
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.stream_download = _fake_stream
             mock_client.__aenter__.return_value = mock_client
@@ -478,7 +481,7 @@ class TestDownloadFile:
         drive_client: AsyncClient,
         test_oauth_token: DriveOAuthToken,
         mock_valid_access_token: None,
-        sync_session: Session,
+        session: AsyncSession,
         test_user: User,
         test_folder: DriveFolder,
     ) -> None:
@@ -493,16 +496,16 @@ class TestDownloadFile:
             size=None,
             last_synced_at=datetime.now(timezone.utc),
         )
-        sync_session.add(doc_file)
-        sync_session.commit()
-        sync_session.refresh(doc_file)
+        session.add(doc_file)
+        await session.flush()
+        await session.refresh(doc_file)
 
         from app.core_plugins.googledrive.client import GoogleDriveClient as RealClient
 
         async def _fake_stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
             yield b"%PDF-1.4"
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.stream_download = _fake_stream
             mock_client.__aenter__.return_value = mock_client
@@ -540,7 +543,7 @@ class TestDownloadFile:
             raise RuntimeError("Drive API error")
             yield  # noqa: RET503 — make this an async generator
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.stream_download = _failing_stream
             mock_client.__aenter__.return_value = mock_client
@@ -561,7 +564,7 @@ class TestRenameFile:
         mock_valid_access_token: None,
     ) -> None:
         """PATCH /files/{id} should rename file in Drive and DB."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.rename_file.return_value = {"id": "f1", "name": "renamed.pdf"}
             mock_client.__aenter__.return_value = mock_client
@@ -596,7 +599,7 @@ class TestRenameFile:
         mock_valid_access_token: None,
     ) -> None:
         """Drive API error during rename should return 502."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.rename_file.side_effect = RuntimeError("403 Forbidden")
             mock_client.__aenter__.return_value = mock_client
@@ -617,7 +620,7 @@ class TestDeleteFile:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """DELETE /files/{id} should soft-delete locally; file remains in Google Drive."""
         response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
@@ -625,7 +628,7 @@ class TestDeleteFile:
         assert response.status_code == status.HTTP_200_OK
         assert "removed" in response.json()["detail"].lower()
 
-        sync_session.refresh(test_file)
+        await session.refresh(test_file)
         assert test_file.is_deleted is True
         assert test_file.deleted_at is not None
 
@@ -634,11 +637,20 @@ class TestDeleteFile:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
+        session: AsyncSession,
     ) -> None:
-        """File should return 404 on GET after deletion."""
-        await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+        """A soft-deleted file should return 404 on GET.
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
+        The DELETE endpoint's soft-delete behaviour is covered by
+        ``test_delete_marks_file_as_deleted``; here we verify that GET excludes
+        an already-deleted file.
+        """
+        test_file.soft_delete()
+        session.add(test_file)
+        await session.flush()
+        file_id = test_file.id
+
+        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
@@ -675,12 +687,12 @@ class TestGetFileRagStatus:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /files/{id}/rag-status should return 'processing' while pipeline runs."""
         test_file.rag_status = RagStatus.PROCESSING
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -692,12 +704,12 @@ class TestGetFileRagStatus:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /files/{id}/rag-status should return 'ready' when processing is complete."""
         test_file.rag_status = RagStatus.READY
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -709,12 +721,12 @@ class TestGetFileRagStatus:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /files/{id}/rag-status should return 'failed' when processing errored."""
         test_file.rag_status = RagStatus.FAILED
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -733,12 +745,12 @@ class TestGetFileRagStatus:
         self,
         drive_client: AsyncClient,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /files/{id}/rag-status should return 404 for soft-deleted files."""
         test_file.soft_delete()
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -752,7 +764,7 @@ class TestGetFolderRagStatus:
         drive_client: AsyncClient,
         test_folder: DriveFolder,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
         test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should return rag_status for every file."""
@@ -767,9 +779,9 @@ class TestGetFolderRagStatus:
             rag_status=RagStatus.PROCESSING,
             last_synced_at=test_file.last_synced_at,
         )
-        sync_session.add(test_file)
-        sync_session.add(second_file)
-        sync_session.commit()
+        session.add(test_file)
+        session.add(second_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -807,7 +819,7 @@ class TestGetFolderRagStatus:
         drive_client: AsyncClient,
         test_folder: DriveFolder,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
         test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should exclude soft-deleted files."""
@@ -824,9 +836,9 @@ class TestGetFolderRagStatus:
             last_synced_at=test_file.last_synced_at,
         )
         deleted_file.soft_delete()
-        sync_session.add(test_file)
-        sync_session.add(deleted_file)
-        sync_session.commit()
+        session.add(test_file)
+        session.add(deleted_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -843,13 +855,13 @@ class TestRagErrorInResponse:
         drive_client: AsyncClient,
         test_folder: DriveFolder,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /folders/{id}/rag-status should include rag_error for failed files."""
         test_file.rag_status = RagStatus.FAILED
         test_file.rag_error = "Download failed: 403 Forbidden"
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -864,12 +876,12 @@ class TestRagErrorInResponse:
         drive_client: AsyncClient,
         test_folder: DriveFolder,
         test_file: DriveFile,
-        sync_session: Session,
+        session: AsyncSession,
     ) -> None:
         """GET /folders/{id}/rag-status should return null rag_error for non-failed files."""
         test_file.rag_status = RagStatus.READY
-        sync_session.add(test_file)
-        sync_session.commit()
+        session.add(test_file)
+        await session.flush()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -905,7 +917,7 @@ class TestBrowseDrive:
             ],
         }
 
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.browse.return_value = browse_result
             mock_client.__aenter__.return_value = mock_client
@@ -932,7 +944,7 @@ class TestBrowseDrive:
         mock_valid_access_token: None,
     ) -> None:
         """GET /browse?folder_id=X should browse a specific folder."""
-        with patch("app.core_plugins.googledrive.routes.GoogleDriveClient") as mock_client_cls:
+        with patch("app.core_plugins.googledrive.routes.files.GoogleDriveClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.browse.return_value = {"files": []}
             mock_client.__aenter__.return_value = mock_client

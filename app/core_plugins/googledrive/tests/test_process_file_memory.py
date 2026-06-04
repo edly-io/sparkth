@@ -18,7 +18,7 @@ class TestProcessFileMemory:
     async def test_process_with_own_session_calls_gc_collect(self) -> None:
         """Verify that after session close, gc.collect() is called in _process_with_own_session."""
         # Since _process_with_own_session is a nested function, we verify the behavior
-        # indirectly by checking that the module has the correct cleanup code structure.
+        # indirectly by checking that the function has the correct cleanup code structure.
         # The actual malloc_trim behavior is verified through integration testing.
         source = inspect.getsource(process_folder_rag)
         # Verify that _process_with_own_session includes gc.collect() after session close

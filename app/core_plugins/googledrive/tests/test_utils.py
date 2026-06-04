@@ -1,14 +1,13 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 import hashlib
-from collections import namedtuple
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core_plugins.googledrive.client import GoogleDriveAPIError
+from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
     _find_duplicate_file,
@@ -24,8 +23,6 @@ from app.models.drive import DriveFile, DriveFolder
 from app.rag.exceptions import ScannedPDFError
 from app.rag.store import ChunkInput, ChunkStoreService
 from app.rag.types import Chunk, ChunkMetadata, RagStatus
-
-_ChunkRow = namedtuple("_ChunkRow", ["id", "chunk_content_hash"])
 
 
 def _make_async_session() -> AsyncMock:
@@ -317,7 +314,7 @@ class TestEmbedAndStoreChunks:
         links_result.all.return_value = []
 
         session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(side_effect=[links_result])
+        session.scalars = AsyncMock(return_value=links_result)
 
         row1 = MagicMock(id=100)
         row2 = MagicMock(id=101)
@@ -349,15 +346,16 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["chunk A"])
         chunk_hash = hashlib.sha256("chunk A".encode()).hexdigest()
 
+        # One existing chunk with matching hash: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [_ChunkRow(50, chunk_hash)]
+        existing_result.all.return_value = [(50, chunk_hash)]
 
         # No existing links
         links_result = MagicMock()
         links_result.all.return_value = []
 
         session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(side_effect=[links_result])
+        session.scalars = AsyncMock(return_value=links_result)
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await _store_and_link_chunks(
@@ -383,14 +381,15 @@ class TestEmbedAndStoreChunks:
         chunks = self._make_chunks(["existing chunk", "new chunk"])
         existing_hash = hashlib.sha256("existing chunk".encode()).hexdigest()
 
+        # Existing chunk: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [_ChunkRow(50, existing_hash)]
+        existing_result.all.return_value = [(50, existing_hash)]
 
         links_result = MagicMock()
         links_result.all.return_value = []
 
         session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(side_effect=[links_result])
+        session.scalars = AsyncMock(return_value=links_result)
 
         store.store_chunks = AsyncMock(return_value=[51])
 
@@ -419,15 +418,16 @@ class TestEmbedAndStoreChunks:
         hash_a = hashlib.sha256("chunk A".encode()).hexdigest()
         hash_b = hashlib.sha256("chunk B".encode()).hexdigest()
 
+        # Both chunks already exist in DB: (id, chunk_content_hash)
         existing_result = MagicMock()
-        existing_result.all.return_value = [_ChunkRow(10, hash_a), _ChunkRow(11, hash_b)]
+        existing_result.all.return_value = [(10, hash_a), (11, hash_b)]
 
         # chunk 10 already linked; chunk 11 is not
         links_result = MagicMock()
         links_result.all.return_value = [10]
 
         session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(side_effect=[links_result])
+        session.scalars = AsyncMock(return_value=links_result)
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await _store_and_link_chunks(
