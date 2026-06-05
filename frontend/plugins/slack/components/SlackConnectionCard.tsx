@@ -61,7 +61,7 @@ export default function SlackConnectionCard({
       <Card variant="outlined" className="p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <SlackIcon className="h-10 w-10 shrink-0 text-foreground" />
+            <SlackIcon className="size-10 shrink-0 text-foreground" />
             <div>
               <h3 className="text-base font-semibold text-foreground">Slack TA Bot</h3>
               <p className="text-sm text-muted-foreground">
@@ -80,7 +80,7 @@ export default function SlackConnectionCard({
               loading={loading}
               className="border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-900/20"
             >
-              <Unplug className="w-4 h-4 mr-1" aria-hidden="true" />
+              <Unplug className="size-4 mr-1" aria-hidden="true" />
               Disconnect
             </Button>
           ) : (

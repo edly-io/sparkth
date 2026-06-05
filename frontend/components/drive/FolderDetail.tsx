@@ -197,7 +197,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
       <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <Folder className="h-6 w-6 text-warning-500 shrink-0" />
+            <Folder className="size-6 text-warning-500 shrink-0" />
             <div>
               <DialogTitle>{folder.name}</DialogTitle>
               <DialogDescription>{files.length} files</DialogDescription>
@@ -212,9 +212,9 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
             onClick={handleSync}
             disabled={loading}
             aria-label="Sync folder"
-            className="h-8 w-8"
+            className="size-8"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
 
@@ -225,7 +225,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
             </div>
           ) : files.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+              <FileText className="mx-auto size-10 text-muted-foreground/40 mb-3" />
               <p className="text-sm text-muted-foreground">No files in this folder</p>
             </div>
           ) : (
@@ -258,7 +258,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
               onClick={() => fileInputRef.current?.click()}
               loading={uploading}
             >
-              <Upload className="w-4 h-4 mr-2" />
+              <Upload className="size-4 mr-2" />
               Upload File
             </Button>
           </div>

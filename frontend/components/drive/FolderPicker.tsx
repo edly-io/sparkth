@@ -48,6 +48,7 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
               <li key={item.id ?? "root"} className="flex items-center">
                 {index > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mx-0.5" />}
                 <button
+                  type="button"
                   onClick={() => handleBreadcrumbClick(index)}
                   className={
                     index === currentPath.length - 1
@@ -79,10 +80,11 @@ export default function FolderPicker({ onClose, onFolderSynced }: FolderPickerPr
                   className="flex items-center justify-between py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <button
+                    type="button"
                     onClick={() => handleFolderClick(item)}
                     className="flex items-center gap-3 flex-1 text-left cursor-pointer"
                   >
-                    <Folder className="h-5 w-5 text-warning-500 shrink-0" />
+                    <Folder className="size-5 text-warning-500 shrink-0" />
                     <span className="text-sm text-foreground">{item.name}</span>
                   </button>
                   {syncedDriveFolderIds.has(item.id) ? (

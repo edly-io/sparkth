@@ -29,7 +29,7 @@ export default function ResourcesPage() {
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="text-center">
-            <DefaultFileIcon className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
+            <DefaultFileIcon className="mx-auto size-16 text-muted-foreground/30 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-1">No plugins connected</h3>
             <p className="text-sm text-muted-foreground">
               Enable a plugin from My Plugins to start importing resources

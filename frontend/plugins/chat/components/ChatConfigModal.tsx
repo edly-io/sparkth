@@ -174,7 +174,7 @@ export default function ChatConfigModal({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!canSave} loading={isSaving} spinnerLabel="Saving">
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="size-4 mr-2" />
             Save Changes
           </Button>
         </DialogFooter>

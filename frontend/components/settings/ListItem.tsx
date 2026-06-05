@@ -103,7 +103,7 @@ export default function PluginListItem({
               className="p-2 text-primary-600 dark:text-primary-400"
               title="Configure plugin"
             >
-              <Sliders className="w-5 h-5" />
+              <Sliders className="size-5" />
             </Button>
           </div>
         </div>

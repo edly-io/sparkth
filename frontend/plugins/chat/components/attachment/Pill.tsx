@@ -28,7 +28,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             onClick={() => onPreview(firstAttachment)}
             className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="size-4" />
             <span className="truncate">
               {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
             </span>
@@ -41,7 +41,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
               className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
               title="Remove attachment"
             >
-              <X className="w-4 h-4" />
+              <X className="size-4" />
             </Button>
           )}
         </>
@@ -55,7 +55,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
               onClick={() => onPreview(firstAttachment)}
               className="flex items-center gap-2 text-foreground hover:underline p-0 h-auto"
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="size-4" />
               <span className="truncate">
                 {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
               </span>
@@ -77,11 +77,12 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                       <span>{truncate(attachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
                       {onRemove && (
                         <button
+                          type="button"
                           onClick={() => onRemove(attachment.driveFileDbId)}
                           className="ml-2 text-muted-foreground hover:text-foreground"
                           title="Remove attachment"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="size-3" />
                         </button>
                       )}
                     </div>
@@ -99,7 +100,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
               className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
               title="Remove all attachments"
             >
-              <X className="w-4 h-4" />
+              <X className="size-4" />
             </Button>
           )}
         </>

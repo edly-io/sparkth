@@ -34,6 +34,7 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(
 
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
               aria-label="Dismiss alert"
               className="
@@ -43,7 +44,7 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(
                 transition
               "
             >
-              <X className="w-4 h-4" />
+              <X className="size-4" />
             </button>
           )}
         </div>

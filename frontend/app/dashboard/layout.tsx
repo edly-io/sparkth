@@ -18,7 +18,7 @@ function MobileHeader() {
   return (
     <div className="lg:hidden flex items-center justify-between px-2 py-2 border-b border-border bg-card">
       <Button variant="ghost" size="icon" onClick={toggle} aria-label="Open menu">
-        <Menu className="h-6 w-6" />
+        <Menu className="size-6" />
       </Button>
       <SparkthLogo size={48} />
       <ThemeToggle />

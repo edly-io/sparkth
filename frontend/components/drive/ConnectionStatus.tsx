@@ -63,7 +63,7 @@ export default function ConnectionStatus({
     <Card variant="outlined" className="p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <GoogleDriveIcon className="h-10 w-10 shrink-0" />
+          <GoogleDriveIcon className="size-10 shrink-0" />
           <div>
             <h3 className="text-base font-semibold text-foreground">Google Drive</h3>
             <p className="text-sm text-muted-foreground">
@@ -76,13 +76,13 @@ export default function ConnectionStatus({
           <div className="flex items-center gap-2">
             {onResync && (
               <Button variant="outline" size="sm" onClick={onResync} disabled={resyncing}>
-                <RefreshCw className={`w-4 h-4 mr-1 ${resyncing ? "animate-spin" : ""}`} />
+                <RefreshCw className={`size-4 mr-1 ${resyncing ? "animate-spin" : ""}`} />
                 Re-sync
               </Button>
             )}
             {onSyncFolder && (
               <Button variant="outline" size="sm" onClick={onSyncFolder}>
-                <FolderSync className="w-4 h-4 mr-1" />
+                <FolderSync className="size-4 mr-1" />
                 Sync Folder
               </Button>
             )}
@@ -93,7 +93,7 @@ export default function ConnectionStatus({
               loading={loading}
               className="border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-900/20"
             >
-              <Unplug className="w-4 h-4 mr-1" />
+              <Unplug className="size-4 mr-1" />
               Disconnect
             </Button>
           </div>

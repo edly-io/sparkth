@@ -1,9 +1,9 @@
 import { Loader2 } from "lucide-react";
 
 const sizeClasses = {
-  sm: "w-4 h-4",
-  md: "h-6 w-6",
-  lg: "h-10 w-10",
+  sm: "size-4",
+  md: "size-6",
+  lg: "size-10",
 } as const;
 
 interface SpinnerProps {

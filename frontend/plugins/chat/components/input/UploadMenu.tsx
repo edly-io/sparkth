@@ -42,7 +42,7 @@ export function UploadMenu({
           onClick={() => inputRef.current?.click()}
           className="w-full !justify-start gap-3 rounded-none"
         >
-          <FileText className="w-5 h-5" />
+          <FileText className="size-5" />
           <span className="text-left">Select File</span>
         </Button>
         {isDriveEnabled && onPickFromDrive && (
@@ -55,7 +55,7 @@ export function UploadMenu({
             }}
             className="w-full !justify-start gap-3 rounded-none"
           >
-            <GoogleDriveIcon className="w-5 h-5" />
+            <GoogleDriveIcon className="size-5" />
             <span className="text-left">Pick from Google Drive</span>
           </Button>
         )}

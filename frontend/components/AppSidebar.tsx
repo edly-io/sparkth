@@ -101,7 +101,7 @@ export default function AppSidebar({
           <>
             <SparkthLogo size={32} iconOnly />
             <Button variant="ghost" size="icon" onClick={onNavigate} aria-label="Close sidebar">
-              <X className="h-5 w-5" />
+              <X className="size-5" />
             </Button>
           </>
         ) : (
@@ -122,13 +122,13 @@ export default function AppSidebar({
                     className={
                       isCollapsed
                         ? "absolute inset-0 w-full h-full flex-shrink-0"
-                        : "absolute right-0 h-9 w-9 flex-shrink-0"
+                        : "absolute right-0 size-9 flex-shrink-0"
                     }
                   >
                     {isCollapsed ? (
-                      <PanelLeft className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                      <PanelLeft className="size-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                     ) : (
-                      <PanelLeftClose className="h-5 w-5" />
+                      <PanelLeftClose className="size-5" />
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -178,7 +178,7 @@ export default function AppSidebar({
                 `}
                 title={isCollapsed ? "Resources" : undefined}
               >
-                <Folder className="w-5 h-5 flex-shrink-0" />
+                <Folder className="size-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
                   <span className="font-medium">Resources</span>
                 )}
@@ -200,7 +200,7 @@ export default function AppSidebar({
                 `}
                 title={isCollapsed ? "My Plugins" : undefined}
               >
-                <Puzzle className="w-5 h-5 flex-shrink-0" />
+                <Puzzle className="size-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
                   <span className="font-medium">My Plugins</span>
                 )}
@@ -223,7 +223,7 @@ export default function AppSidebar({
                 `}
                 title={isCollapsed ? "AI Keys" : undefined}
               >
-                <Key className="w-5 h-5 flex-shrink-0" />
+                <Key className="size-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
                   <span className="font-medium">AI Keys</span>
                 )}
@@ -246,7 +246,7 @@ export default function AppSidebar({
                   `}
                   title={isCollapsed ? "Admin" : undefined}
                 >
-                  <Shield className="w-5 h-5 flex-shrink-0" />
+                  <Shield className="size-5 flex-shrink-0" />
                   {!(isCollapsed && variant === "desktop") && (
                     <span className="font-medium">Admin</span>
                   )}
@@ -281,10 +281,10 @@ export default function AppSidebar({
                   alt={user.name || "User"}
                   width={32}
                   height={32}
-                  className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                  className="size-8 rounded-full object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-error-400 to-error-600 flex items-center justify-center flex-shrink-0">
+                <div className="size-8 rounded-full bg-gradient-to-br from-error-400 to-error-600 flex items-center justify-center flex-shrink-0">
                   <span className="text-sm text-white font-semibold">
                     {user?.name?.charAt(0).toUpperCase() || "👤"}
                   </span>
@@ -300,7 +300,7 @@ export default function AppSidebar({
                       {user?.plan || "Free Plan"}
                     </p>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-muted flex-shrink-0" />
+                  <ChevronDown className="size-4 text-muted flex-shrink-0" />
                 </>
               )}
             </Button>
@@ -311,7 +311,7 @@ export default function AppSidebar({
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
               onClick={handleNavClick}
             >
-              <UserIcon className="w-4 h-4 flex-shrink-0" />
+              <UserIcon className="size-4 flex-shrink-0" />
               <span className="truncate">Profile</span>
             </Link>
             <Link
@@ -319,7 +319,7 @@ export default function AppSidebar({
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
               onClick={handleNavClick}
             >
-              <Settings className="w-4 h-4 flex-shrink-0" />
+              <Settings className="size-4 flex-shrink-0" />
               <span className="truncate">Settings</span>
             </Link>
             {onLogout && (
@@ -330,7 +330,7 @@ export default function AppSidebar({
                   onClick={onLogout}
                   className="w-full flex items-center justify-start gap-3 px-3 py-2 min-h-[40px] text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/30 rounded-lg"
                 >
-                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  <LogOut className="size-4 flex-shrink-0" />
                   <span className="truncate">Logout</span>
                 </Button>
               </>
@@ -376,9 +376,9 @@ function PluginNavItem({
       title={isCollapsed ? label : plugin.description}
     >
       {Icon ? (
-        <Icon className="w-5 h-5 flex-shrink-0" />
+        <Icon className="size-5 flex-shrink-0" />
       ) : (
-        <div className="w-5 h-5 flex-shrink-0 rounded bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+        <div className="size-5 flex-shrink-0 rounded bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
           <span className="text-xs font-semibold text-muted-foreground">
             {label.charAt(0).toUpperCase()}
           </span>

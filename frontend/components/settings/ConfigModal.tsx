@@ -111,7 +111,7 @@ export function PluginConfigModal({
             loading={isSaving}
             spinnerLabel="Saving"
           >
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="size-4 mr-2" />
             Save Changes
           </Button>
         </DialogFooter>

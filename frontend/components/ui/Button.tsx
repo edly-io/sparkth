@@ -20,7 +20,7 @@ const buttonVariants = cva(
         sm: "px-3 py-1.5 text-sm rounded-md",
         md: "px-4 py-2.5 text-base rounded-lg",
         lg: "px-6 py-3 text-lg rounded-lg",
-        icon: "h-11 w-11 rounded-lg",
+        icon: "size-11 rounded-lg",
       },
       fullWidth: {
         true: "w-full",
@@ -67,7 +67,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {loading ? (
           <>
             <svg
-              className="animate-spin -ml-1 mr-2 h-4 w-4"
+              className="animate-spin -ml-1 mr-2 size-4"
               fill="none"
               viewBox="0 0 24 24"
               aria-hidden="true"

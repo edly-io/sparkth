@@ -154,7 +154,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
                   setRotateSuccess(false);
                 }}
               >
-                <RotateCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                <RotateCw className="size-4 mr-1.5" aria-hidden="true" />
                 Rotate Key
               </Button>
             </div>
@@ -189,7 +189,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
                   disabled={!newKey.trim()}
                   aria-label="Confirm key rotation"
                 >
-                  <Save className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  <Save className="size-4 mr-1.5" aria-hidden="true" />
                   Save Key
                 </Button>
               </div>
@@ -382,7 +382,7 @@ function ConfigRow({
           onClick={() => onEdit(config)}
           aria-label={`Edit config ${config.name}`}
         >
-          <Pencil className="h-4 w-4" aria-hidden="true" />
+          <Pencil className="size-4" aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
@@ -391,7 +391,7 @@ function ConfigRow({
           aria-label={`Delete config ${config.name}`}
           className="text-error-500 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20"
         >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
+          <Trash2 className="size-4" aria-hidden="true" />
         </Button>
       </div>
     </div>
@@ -684,7 +684,7 @@ export default function LLMConfigurePage() {
         {/* New Config button */}
         <div className="mb-4 sm:mb-6">
           <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
-            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+            <Plus className="size-4 mr-1.5" aria-hidden="true" />
             New Config
           </Button>
         </div>
@@ -710,10 +710,10 @@ export default function LLMConfigurePage() {
           </div>
         ) : (
           <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
-            <KeyRound className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
+            <KeyRound className="mx-auto mb-4 size-10 text-muted-foreground" aria-hidden="true" />
             <p className="text-muted-foreground mb-4">No LLM configs found.</p>
             <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
-              <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+              <Plus className="size-4 mr-1.5" aria-hidden="true" />
               Create Your First Config
             </Button>
           </div>

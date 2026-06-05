@@ -81,7 +81,7 @@ export default function DocSourcePicker({
           <div className="flex items-center justify-between gap-3">
             <span>{error}</span>
             <Button variant="ghost" size="sm" onClick={load}>
-              <RefreshCw className="w-4 h-4 mr-1" aria-hidden="true" />
+              <RefreshCw className="size-4 mr-1" aria-hidden="true" />
               Retry
             </Button>
           </div>
@@ -139,7 +139,7 @@ export default function DocSourcePicker({
                   checked={isSelected}
                   disabled={disabled}
                   onChange={() => toggle(source)}
-                  className="w-4 h-4 rounded border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="size-4 rounded border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-sm text-foreground truncate">{source}</span>
               </label>

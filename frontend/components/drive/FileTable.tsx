@@ -63,7 +63,7 @@ export function FileTable({
           <tr key={file.id} className="hover:bg-surface-variant/50 transition-colors">
             <td className="px-6 py-3">
               <div className="flex items-center gap-3 min-w-0">
-                <FileText className="h-4 w-4 text-secondary-500 shrink-0" />
+                <FileText className="size-4 text-secondary-500 shrink-0" />
                 {editingFileId === file.id ? (
                   <input
                     type="text"
@@ -121,31 +121,31 @@ export function FileTable({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="size-8"
                       onClick={() => onDownload(file)}
                       disabled={actionFileId === file.id}
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="size-8"
                       onClick={() =>
                         dispatch({ type: "START_EDIT", fileId: file.id, name: file.name })
                       }
                       disabled={actionFileId === file.id}
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-error-500"
+                      className="size-8 text-muted-foreground hover:text-error-500"
                       onClick={() => onDelete(file)}
                       disabled={actionFileId === file.id}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </>
                 )}

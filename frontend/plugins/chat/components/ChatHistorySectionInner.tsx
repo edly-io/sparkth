@@ -43,7 +43,7 @@ export default function ChatHistorySectionInner({
             title="New chat"
             className="w-full flex justify-center"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="size-4" />
           </Button>
         </Link>
       </div>
@@ -57,7 +57,7 @@ export default function ChatHistorySectionInner({
           Recent chats
         </span>
         <Link href="/dashboard/chat" onClick={onNavigate}>
-          <Button variant="ghost" size="icon" title="New chat" className="h-6 w-6">
+          <Button variant="ghost" size="icon" title="New chat" className="size-6">
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </Link>

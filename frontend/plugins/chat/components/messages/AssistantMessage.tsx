@@ -10,9 +10,9 @@ import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 function ThinkingDots() {
   return (
     <div className="flex items-center gap-1 py-1">
-      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:0ms]" />
-      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:150ms]" />
-      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:300ms]" />
+      <span className="size-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:0ms]" />
+      <span className="size-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:150ms]" />
+      <span className="size-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:300ms]" />
     </div>
   );
 }
@@ -51,8 +51,8 @@ export function AssistantMessage({
 
   return (
     <div className="flex gap-4">
-      <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
-        <Bot className="w-4 h-4" />
+      <div className="size-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
+        <Bot className="size-4" />
       </div>
 
       <div className="max-w-[75%] w-fit space-y-2">
@@ -69,7 +69,7 @@ export function AssistantMessage({
                   {section.state === "scanning" ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-0.5 animate-pulse" />
                   ) : (
-                    <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
+                    <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
                   )}
                   <span className="capitalize">{section.type}</span>
                   <span className="text-neutral-300 dark:text-neutral-600">—</span>
@@ -100,7 +100,7 @@ export function AssistantMessage({
                           key={`${section.type}-${section.name}`}
                           className="text-xs text-neutral-500 dark:text-neutral-400 flex items-baseline gap-1.5"
                         >
-                          <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
+                          <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
                           <span className="capitalize">{section.type}</span>
                           <span className="text-neutral-300 dark:text-neutral-600">—</span>
                           <span>
@@ -139,7 +139,7 @@ export function AssistantMessage({
                     {tool.status === "running" ? (
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse" />
                     ) : (
-                      <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
+                      <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
                     )}
                     <span>{formatToolName(tool.name)}</span>
                   </li>
@@ -158,7 +158,7 @@ export function AssistantMessage({
                         key={`${tool.name}-${i}`}
                         className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"
                       >
-                        <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
+                        <span className="size-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
                         <span>{formatToolName(tool.name)}</span>
                       </li>
                     ))}
@@ -173,7 +173,7 @@ export function AssistantMessage({
           (message.isError ? (
             <Card variant="outlined" className="p-4 border-error bg-error-50">
               <div className="flex items-start gap-2 text-error-500">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <AlertCircle className="size-4 mt-0.5 flex-shrink-0" />
                 <p className="text-sm">
                   {displayText || "Something went wrong. Please try again."}
                 </p>
@@ -184,7 +184,7 @@ export function AssistantMessage({
               {isThinking ? (
                 message.statusText ? (
                   <div className="flex items-center gap-2 py-1">
-                    <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
+                    <span className="size-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
                     <p className="text-sm text-muted-foreground">{message.statusText}</p>
                   </div>
                 ) : (
@@ -194,7 +194,7 @@ export function AssistantMessage({
                 <div className="flex items-start gap-2">
                   <span
                     data-testid="pending-indicator"
-                    className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
+                    className="size-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
                   />
                   <div className="prose prose-neutral dark:prose-invert max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>

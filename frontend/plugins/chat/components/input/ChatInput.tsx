@@ -49,8 +49,8 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
         {uploadError && (
           <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30">
             <span className="truncate">{uploadError}</span>
-            <button onClick={() => setUploadError(null)} className="shrink-0">
-              <X className="w-4 h-4" />
+            <button type="button" onClick={() => setUploadError(null)} className="shrink-0">
+              <X className="size-4" />
             </button>
           </div>
         )}
@@ -81,7 +81,7 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
                 size="icon"
                 onClick={() => setShowUploadMenu(!showUploadMenu)}
               >
-                <Paperclip className="w-5 h-5" />
+                <Paperclip className="size-5" />
               </Button>
 
               {showUploadMenu && (
@@ -97,7 +97,7 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
             <div className="flex gap-1">
               {/* TODO: Voice input - disabled for now
               <Button variant="ghost" size="icon">
-                <Mic className="w-5 h-5" />
+                <Mic className="size-5" />
               </Button>
               */}
 
@@ -110,7 +110,7 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
                 }
                 className="rounded-full bg-foreground text-background"
               >
-                <ArrowUp className="w-5 h-5" />
+                <ArrowUp className="size-5" />
               </Button>
             </div>
           </div>

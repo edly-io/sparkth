@@ -25,7 +25,7 @@ export function RagStatusIndicator({ fileId, status, error }: RagStatusIndicator
         data-testid={`rag-status-${fileId}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`inline-block w-3 h-3 rounded-full cursor-default ${color}`}
+        className={`inline-block size-3 rounded-full cursor-default ${color}`}
       />
       {hovered && (
         <div

@@ -64,15 +64,15 @@ interface FolderTotal {
 
 function getFileIcon(mimeType: string) {
   if (mimeType.includes("pdf")) {
-    return <PdfIcon className="w-5 h-5 text-error-500 flex-shrink-0" />;
+    return <PdfIcon className="size-5 text-error-500 flex-shrink-0" />;
   }
   if (mimeType.includes("image")) {
-    return <ImageIcon className="w-5 h-5 text-pink-500 flex-shrink-0" />;
+    return <ImageIcon className="size-5 text-pink-500 flex-shrink-0" />;
   }
   if (mimeType.includes("document") || mimeType.includes("word") || mimeType.includes("text")) {
-    return <FileText className="w-5 h-5 text-blue-500 flex-shrink-0" />;
+    return <FileText className="size-5 text-blue-500 flex-shrink-0" />;
   }
-  return <DefaultFileIcon className="w-5 h-5 text-muted-foreground flex-shrink-0" />;
+  return <DefaultFileIcon className="size-5 text-muted-foreground flex-shrink-0" />;
 }
 
 function mapSyncStatus(syncStatus: string): ResourceStatus {
@@ -329,7 +329,7 @@ function ResourcesHeader() {
 function EmptyState() {
   return (
     <div className="rounded-xl border border-border bg-card p-12 text-center">
-      <DefaultFileIcon className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
+      <DefaultFileIcon className="mx-auto size-16 text-muted-foreground/30 mb-4" />
       <h3 className="text-lg font-semibold text-foreground mb-1">No resources yet</h3>
       <p className="text-sm text-muted-foreground">
         Import files from your connected plugins to get started
@@ -437,11 +437,11 @@ function ResourcesTable({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          className="size-8 text-muted-foreground hover:text-foreground"
                           onClick={() => onDownload(resource)}
                           disabled={downloadingId === resource.id}
                         >
-                          <Download className="w-4 h-4" />
+                          <Download className="size-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Download</TooltipContent>
@@ -451,11 +451,11 @@ function ResourcesTable({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-error-500 hover:bg-error-50 dark:hover:bg-error-900/30"
+                          className="size-8 text-muted-foreground hover:text-error-500 hover:bg-error-50 dark:hover:bg-error-900/30"
                           onClick={() => onDelete(resource)}
                           disabled={deletingId === resource.id}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="size-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Delete</TooltipContent>
@@ -479,23 +479,23 @@ function ResourcesTable({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="size-8"
               disabled={currentPage === 1 || pageLoading}
               onClick={() => onPageChange(currentPage - 1)}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="size-4" />
             </Button>
             {getPageNumbers(currentPage, totalPages).map((page) =>
               page === "ellipsis-start" || page === "ellipsis-end" ? (
-                <span key={page} className="w-8 h-8 flex items-center justify-center">
-                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                <span key={page} className="size-8 flex items-center justify-center">
+                  <MoreHorizontal className="size-4 text-muted-foreground" />
                 </span>
               ) : (
                 <Button
                   key={page}
                   variant={page === currentPage ? "primary" : "ghost"}
                   size="icon"
-                  className="h-8 w-8 text-xs"
+                  className="size-8 text-xs"
                   disabled={pageLoading}
                   onClick={() => onPageChange(page)}
                 >
@@ -506,11 +506,11 @@ function ResourcesTable({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="size-8"
               disabled={currentPage === totalPages || pageLoading}
               onClick={() => onPageChange(currentPage + 1)}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -804,7 +804,7 @@ export default function GoogleDrive() {
           <div className="flex items-center justify-between rounded-lg border border-error-200 bg-error-50 dark:border-error-800 dark:bg-error-900/30 px-4 py-3">
             <p className="text-sm text-error-700 dark:text-error-400">{error}</p>
             <Button variant="ghost" size="sm" onClick={handleReload}>
-              <RefreshCw className="w-4 h-4 mr-1" />
+              <RefreshCw className="size-4 mr-1" />
               Retry
             </Button>
           </div>

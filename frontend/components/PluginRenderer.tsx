@@ -99,7 +99,7 @@ export default function PluginRenderer({
         <div className="text-center max-w-md">
           <div className="text-muted mb-4">
             <svg
-              className="w-16 h-16 mx-auto"
+              className="size-16 mx-auto"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

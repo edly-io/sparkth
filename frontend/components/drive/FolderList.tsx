@@ -66,7 +66,7 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
   if (folders.length === 0) {
     return (
       <Card variant="outlined" className="py-12 text-center">
-        <Folder className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+        <Folder className="mx-auto size-10 text-muted-foreground/40 mb-3" />
         <h3 className="text-sm font-medium text-foreground">No folders synced</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Click &quot;Sync Folder&quot; to add a Google Drive folder.
@@ -95,7 +95,7 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Folder className="h-6 w-6 text-warning-500 shrink-0" />
+                  <Folder className="size-6 text-warning-500 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-foreground">{folder.name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -123,10 +123,10 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
                     size="icon"
                     onClick={() => handleRefresh(folder)}
                     disabled={loadingId === folder.id}
-                    className="h-8 w-8"
+                    className="size-8"
                   >
                     <RefreshCw
-                      className={`h-4 w-4 ${loadingId === folder.id ? "animate-spin" : ""}`}
+                      className={`size-4 ${loadingId === folder.id ? "animate-spin" : ""}`}
                     />
                   </Button>
 
@@ -135,9 +135,9 @@ export default function FolderList({ folders, onFoldersChange }: FolderListProps
                     size="icon"
                     onClick={() => handleRemove(folder)}
                     disabled={loadingId === folder.id}
-                    className="h-8 w-8 text-muted-foreground hover:text-error-500"
+                    className="size-8 text-muted-foreground hover:text-error-500"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="size-4" />
                   </Button>
                 </div>
               </div>

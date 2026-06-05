@@ -189,7 +189,7 @@ export default function WhitelistPage() {
             disabled={!state.newValue.trim()}
             spinnerLabel="Adding"
           >
-            <Plus className="w-4 h-4 mr-1" />
+            <Plus className="size-4 mr-1" />
             Add
           </Button>
         </form>
@@ -242,7 +242,7 @@ export default function WhitelistPage() {
                         aria-label={`Remove ${entry.value}`}
                         className="text-error-500 hover:text-error-700 hover:bg-error-50 dark:hover:bg-error-900/30"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="size-4" />
                       </Button>
                     </td>
                   </tr>
@@ -252,7 +252,7 @@ export default function WhitelistPage() {
           </div>
         ) : (
           <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
-            <Mail className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+            <Mail className="size-12 mx-auto mb-4 text-muted-foreground/50" />
             <p className="text-muted-foreground">
               No whitelisted emails yet. Add an email or domain to allow registration.
             </p>

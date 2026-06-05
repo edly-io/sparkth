@@ -184,7 +184,7 @@ export default function DriveFilePicker({
       <DialogContent className="max-h-[80vh] flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <GoogleDriveIcon className="w-6 h-6" />
+            <GoogleDriveIcon className="size-6" />
             <DialogTitle>Pick a file from Google Drive</DialogTitle>
           </div>
           <DialogDescription>Select a file from your synced folders to attach.</DialogDescription>
@@ -194,6 +194,7 @@ export default function DriveFilePicker({
           <ol className="flex items-center gap-1 text-sm">
             <li>
               <button
+                type="button"
                 onClick={handleBackToFolders}
                 className={
                   selectedFolder
@@ -228,10 +229,11 @@ export default function DriveFilePicker({
                 {folders.map((folder) => (
                   <li key={folder.id}>
                     <button
+                      type="button"
                       onClick={() => handleFolderClick(folder)}
                       className="flex items-center gap-3 w-full text-left py-3 hover:bg-surface-variant/50 -mx-2 px-2 rounded-lg transition-colors"
                     >
-                      <Folder className="h-5 w-5 text-warning-500 shrink-0" />
+                      <Folder className="size-5 text-warning-500 shrink-0" />
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm text-foreground">{folder.name}</span>
                         <span className="text-xs text-muted-foreground">
@@ -265,10 +267,10 @@ export default function DriveFilePicker({
                         checked={isSelected}
                         disabled={!isReady}
                         onChange={() => toggleFileSelection(file.id)}
-                        className="w-4 h-4 rounded border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="size-4 rounded border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label={`Select ${file.name}`}
                       />
-                      <FileText className="h-5 w-5 text-secondary-500 shrink-0" />
+                      <FileText className="size-5 text-secondary-500 shrink-0" />
                       <span className="text-sm text-foreground truncate flex-1 min-w-0">
                         {file.name}
                       </span>

@@ -40,7 +40,7 @@ export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFiles
                   title="Remove file"
                   onClick={() => onDetachFile(file.driveFileDbId!)}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="size-4" />
                 </Button>
               </li>
             ))}

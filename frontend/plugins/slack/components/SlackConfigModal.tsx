@@ -261,7 +261,7 @@ export default function SlackConfigModal({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaving} loading={isSaving} spinnerLabel="Saving">
-            <Save className="w-4 h-4 mr-2" aria-hidden="true" />
+            <Save className="size-4 mr-2" aria-hidden="true" />
             Save Changes
           </Button>
         </DialogFooter>

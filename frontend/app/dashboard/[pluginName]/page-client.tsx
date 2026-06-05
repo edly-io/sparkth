@@ -38,7 +38,7 @@ export default function PluginPageClient() {
         <div className="text-center max-w-md">
           <div className="text-error-600 dark:text-error-400 mb-4">
             <svg
-              className="w-16 h-16 mx-auto"
+              className="size-16 mx-auto"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -71,7 +71,7 @@ export default function PluginPageClient() {
         <div className="text-center max-w-md">
           <div className="text-muted mb-4">
             <svg
-              className="w-16 h-16 mx-auto"
+              className="size-16 mx-auto"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -109,7 +109,7 @@ export default function PluginPageClient() {
         <div className="text-center max-w-md">
           <div className="text-warning-500 mb-4">
             <svg
-              className="w-16 h-16 mx-auto"
+              className="size-16 mx-auto"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
