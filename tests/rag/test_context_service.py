@@ -1,4 +1,4 @@
-"""Tests for RAG context service functions."""
+"""Tests for RAG retrieval utils — chunk formatting and source name resolution."""
 
 from unittest.mock import MagicMock
 
