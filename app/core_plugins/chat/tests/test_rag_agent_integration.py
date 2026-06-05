@@ -28,11 +28,11 @@ def _make_chunk(
 
 
 class TestResolveBlocksUsesAgent:
-    """Test that _resolve_drive_file_blocks delegates to retrieve_context."""
+    """Test that _resolve_drive_file_blocks delegates to agentic_retrieve_context."""
 
     @pytest.mark.asyncio
     async def test_calls_retrieve_context(self) -> None:
-        """Test that _resolve_drive_file_blocks calls retrieve_context with correct args."""
+        """Test that _resolve_drive_file_blocks calls agentic_retrieve_context with correct args."""
         from app.core_plugins.chat.routes import _resolve_drive_file_blocks
 
         messages = [
@@ -46,7 +46,7 @@ class TestResolveBlocksUsesAgent:
         ]
 
         mock_llm = MagicMock()
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = [_make_chunk()]
             await _resolve_drive_file_blocks(
                 messages=messages,
@@ -76,7 +76,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = DriveFileNotFoundError("Not found")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
@@ -103,7 +103,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
@@ -130,7 +130,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(

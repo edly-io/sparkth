@@ -24,7 +24,7 @@ from app.lib.rag import (
     RAGRetrievalError,
     RagStatus,
     RetrievedChunk,
-    retrieve_context,
+    agentic_retrieve_context,
 )
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
@@ -121,7 +121,7 @@ async def answer_question(
     Steps:
       1. Resolve allowed_sources to RAG-ready DriveFile IDs (or top-N owner files
          when allowed_sources is empty).
-      2. Retrieve relevant chunks via retrieve_context (validates all files READY,
+      2. Retrieve relevant chunks via agentic_retrieve_context (validates all files READY,
          fans out internally across all file_ids).
       3. If no chunks are returned, reply with the configured fallback_message.
       4. Optionally synthesize via LLM; otherwise return formatted raw chunks.
@@ -132,7 +132,7 @@ async def answer_question(
 
     Note: unlike the previous fan-out implementation, a single per-file agent failure
     now fails the entire answer with RETRIEVAL_ERROR_MESSAGE (strict mode via
-    retrieve_context).
+    agentic_retrieve_context).
 
     Args:
         session: Async SQLModel session.
@@ -165,7 +165,7 @@ async def answer_question(
         return NO_FILES_RESOLVED_MESSAGE, ResponseType.no_files_resolved
 
     try:
-        chunks = await retrieve_context(
+        chunks = await agentic_retrieve_context(
             user_id=user_id,
             file_ids=file_ids,
             query=question,

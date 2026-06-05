@@ -125,7 +125,7 @@ async def test_answer_question_returns_file_not_found_on_drive_file_not_found_er
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
         mock_retrieve.side_effect = DriveFileNotFoundError("missing")
@@ -145,7 +145,7 @@ async def test_answer_question_returns_not_ready_on_rag_not_ready_error() -> Non
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
         mock_retrieve.side_effect = RAGNotReadyError(file_db_id=10, rag_status="processing")
@@ -165,7 +165,7 @@ async def test_answer_question_returns_retrieval_error_on_rag_retrieval_error() 
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10, 11]
         mock_retrieve.side_effect = RAGRetrievalError("agent error")
@@ -185,7 +185,7 @@ async def test_answer_question_returns_fallback_when_chunks_empty() -> None:
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
         mock_retrieve.return_value = []
@@ -206,7 +206,7 @@ async def test_answer_question_synthesizes_when_llm_provider_set() -> None:
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
         patch("app.core_plugins.slack.rag.synthesize_answer", new_callable=AsyncMock) as synth,
     ):
         resolver.return_value = [10]
@@ -236,7 +236,7 @@ async def test_answer_question_returns_raw_chunks_when_no_synthesis_llm() -> Non
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
         mock_retrieve.return_value = [_make_retrieved_chunk("Recursion calls itself.", "docs.pdf")]
@@ -258,7 +258,7 @@ async def test_answer_question_falls_back_to_raw_chunks_on_synthesis_error() -> 
 
     with (
         patch("app.core_plugins.slack.rag._resolve_files_for_sources", new_callable=AsyncMock) as resolver,
-        patch("app.core_plugins.slack.rag.retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
         patch("app.core_plugins.slack.rag.synthesize_answer", new_callable=AsyncMock) as synth,
     ):
         resolver.return_value = [10]

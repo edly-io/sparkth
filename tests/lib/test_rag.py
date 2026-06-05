@@ -78,7 +78,7 @@ class TestIngestDocument:
 
 class TestRetrieveContextSurface:
     def test_exposes_retrieve_context(self) -> None:
-        assert callable(rag_api.retrieve_context)
+        assert callable(rag_api.agentic_retrieve_context)
 
     def test_exposes_retrieved_chunk(self) -> None:
         rc = rag_api.RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="x")
@@ -93,7 +93,7 @@ class TestRetrieveContextSurface:
 class TestRetrieveContext:
     @pytest.mark.asyncio
     async def test_empty_file_ids_returns_empty(self) -> None:
-        result = await rag_api.retrieve_context(user_id=1, file_ids=[], query="q", llm=MagicMock())
+        result = await rag_api.agentic_retrieve_context(user_id=1, file_ids=[], query="q", llm=MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
@@ -124,7 +124,7 @@ class TestRetrieveContext:
             patch("app.lib.rag._validate_files_ready", new=AsyncMock()),
             patch("app.lib.rag.retrieve_context_from_file", new=AsyncMock(return_value=mock_ctx)) as mock_fn,
         ):
-            result = await rag_api.retrieve_context(user_id=1, file_ids=[10], query="q", llm=MagicMock())
+            result = await rag_api.agentic_retrieve_context(user_id=1, file_ids=[10], query="q", llm=MagicMock())
         assert len(result) == 1
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"

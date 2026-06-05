@@ -35,7 +35,7 @@ __all__ = [
     "ScannedPDFError",
     "UnsupportedFileTypeError",
     "ingest_document",
-    "retrieve_context",
+    "agentic_retrieve_context",
 ]
 
 
@@ -86,32 +86,28 @@ async def ingest_document(
     return IngestionResult(new_chunks=new_count, reused_chunks=reused_count)
 
 
-async def retrieve_context(
+async def agentic_retrieve_context(
     user_id: int,
     file_ids: list[int],
     query: str,
     llm: BaseChatModel,
-    retrieval_method: str = "agentic",
 ) -> list[RetrievedChunk]:
     """Retrieve relevant document chunks for a query across the given files.
 
     Validates that every file is owned by the user and READY (raising otherwise),
-    then retrieves context per file using the specified retrieval method and
-    returns a flat list of RetrievedChunk. Opens its own database sessions.
+    then uses agentic section retrieval per file and returns a flat list of
+    RetrievedChunk. Opens its own database sessions.
 
     Args:
         user_id: Owner of the files (row-level scope).
         file_ids: Files to search. All must exist and be READY.
         query: The user's natural-language query.
-        llm: LangChain chat model used by the retrieval implementation.
-        retrieval_method: Method to use for retrieval. Available methods are
-            documented in RETRIEVAL_REGISTRY. Defaults to "agentic".
+        llm: LangChain chat model used by the retrieval agent.
 
     Returns:
         Flat list of RetrievedChunk across all files (empty if no matches).
 
     Raises:
-        ValueError: retrieval_method is not a known method.
         DriveFileNotFoundError: a file is missing or not owned by the user.
         RAGNotReadyError: a file exists but is not READY.
         RAGRetrievalError: retrieval failed.
@@ -122,7 +118,7 @@ async def retrieve_context(
     async with session_scope() as session:
         await _validate_files_ready(session, user_id, file_ids)
 
-    tasks = [retrieve_context_from_file(user_id, fid, query, llm, retrieval_method) for fid in file_ids]
+    tasks = [retrieve_context_from_file(user_id, fid, query, llm) for fid in file_ids]
     contexts = await asyncio.gather(*tasks)
 
     return [

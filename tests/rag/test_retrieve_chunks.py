@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.lib.rag import retrieve_context as retrieve_chunks
+from app.lib.rag import agentic_retrieve_context as retrieve_chunks
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.models import DocumentChunk

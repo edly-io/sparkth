@@ -112,7 +112,7 @@ class TestResolveDriveFileBlocks:
     @pytest.mark.asyncio
     async def test_no_drive_file_blocks_returns_messages_unchanged(self) -> None:
         messages = [_user_msg("Just text"), _assistant_msg("Response")]
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             result = await _resolve_drive_file_blocks(
                 messages=messages,
                 user_id=1,
@@ -127,7 +127,7 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([_drive_block(42), _text_block("Generate a course")])]
         chunks = [_make_chunk("Content here.", source_name="doc.pdf")]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = chunks
             result = await _resolve_drive_file_blocks(
                 messages=messages,
@@ -152,7 +152,7 @@ class TestResolveDriveFileBlocks:
         base64_block = {"type": "document", "source": {"type": "base64", "data": data}}
         messages = [_user_msg([base64_block])]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = []
             result = await _resolve_drive_file_blocks(
                 messages=messages,
@@ -168,7 +168,7 @@ class TestResolveDriveFileBlocks:
     async def test_file_not_found_raises_http_422(self) -> None:
         messages = [_user_msg([_drive_block(999)])]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = DriveFileNotFoundError("not found")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
@@ -183,7 +183,7 @@ class TestResolveDriveFileBlocks:
     async def test_rag_not_ready_raises_http_422_with_status_in_detail(self) -> None:
         messages = [_user_msg([_drive_block(1)])]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
@@ -199,7 +199,7 @@ class TestResolveDriveFileBlocks:
     async def test_retrieval_error_raises_http_500(self) -> None:
         messages = [_user_msg([_drive_block(1)])]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError("db down")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
@@ -214,7 +214,7 @@ class TestResolveDriveFileBlocks:
     async def test_empty_rag_results_drops_drive_file_block_silently(self) -> None:
         messages = [_user_msg([_drive_block(7), _text_block("Summarize this")])]
 
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = []
             result = await _resolve_drive_file_blocks(
                 messages=messages,
@@ -234,7 +234,7 @@ class TestResolveDriveFileBlocks:
     @pytest.mark.asyncio
     async def test_string_content_message_passed_through(self) -> None:
         messages = [_user_msg("plain text message")]
-        with patch("app.core_plugins.chat.routes.retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
             result = await _resolve_drive_file_blocks(
                 messages=messages,
                 user_id=1,

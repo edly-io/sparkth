@@ -1,6 +1,7 @@
 import asyncio
 import json
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, AsyncGenerator, Literal, cast
 from uuid import UUID
 
@@ -48,7 +49,7 @@ from app.lib.rag import (
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
-    retrieve_context,
+    agentic_retrieve_context,
 )
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
@@ -60,13 +61,10 @@ from app.llm.providers import (
 from app.llm.service import LLMConfigService, get_llm_service
 from app.models.drive import DriveFile as DriveFileModel
 from app.models.user import User
-from app.rag.utils import get_asset  # loads the chat RAG prompt asset (residual; see #398)
 
 logger = get_logger(__name__)
 
-_RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt", "txt")
-if not isinstance(_RAG_CONTEXT_PROMPT, str):
-    raise TypeError("rag_context_replacement_prompt asset must be a string")
+_RAG_CONTEXT_PROMPT: str = (Path(__file__).parent / "assets" / "rag_context_replacement_prompt.txt").read_text()
 
 
 def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
@@ -188,7 +186,7 @@ async def _resolve_drive_file_blocks(
 ) -> list[ChatMessage]:
     """Replace drive_file content blocks with RAG context text blocks.
 
-    Collects all drive_file IDs in each message, calls retrieve_context once per
+    Collects all drive_file IDs in each message, calls agentic_retrieve_context once per
     message, groups results by source, and injects one text block per source.
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
@@ -221,7 +219,7 @@ async def _resolve_drive_file_blocks(
             continue
 
         try:
-            chunks = await retrieve_context(
+            chunks = await agentic_retrieve_context(
                 user_id=user_id,
                 file_ids=file_ids,
                 query=query_text,
@@ -773,7 +771,7 @@ async def stream_chat_response(
             logger.info("Agentic RAG search for file_ids=%s query_len=%d", file_ids, len(query_text))
             assert llm is not None, "llm must be provided when RAG resolution is active"
             try:
-                all_chunks = await retrieve_context(
+                all_chunks = await agentic_retrieve_context(
                     user_id=user_id,
                     file_ids=file_ids,
                     query=query_text,
