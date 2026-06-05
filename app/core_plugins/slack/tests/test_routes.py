@@ -10,6 +10,7 @@ from fastapi import status
 from httpx import ASGITransport, AsyncClient
 from itsdangerous import SignatureExpired
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.constants import (
@@ -70,15 +71,16 @@ class TestDisconnect:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
-    async def test_disconnects_successfully(self, slack_client: AsyncClient, test_workspace: SlackWorkspace) -> None:
+    async def test_disconnects_successfully(
+        self, slack_client: AsyncClient, test_workspace: SlackWorkspace, session: AsyncSession
+    ) -> None:
         response = await slack_client.delete("/api/v1/slack/oauth/disconnect")
 
         assert response.status_code == status.HTTP_200_OK
         assert "disconnected" in response.json()["detail"]
 
-        # Status should now be not connected
-        status_resp = await slack_client.get("/api/v1/slack/oauth/status")
-        assert status_resp.json()["connected"] is False
+        await session.refresh(test_workspace)
+        assert not test_workspace.is_active
 
 
 class TestOAuthCallback:
@@ -335,7 +337,7 @@ class TestGetLogs:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
         log = BotResponseLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -349,8 +351,8 @@ class TestGetLogs:
             slack_user_name="alice",
             slack_channel_name="general",
         )
-        sync_session.add(log)
-        sync_session.commit()
+        session.add(log)
+        await session.flush()
 
         response = await slack_client.get("/api/v1/slack/logs")
         assert response.status_code == status.HTTP_200_OK
@@ -369,16 +371,16 @@ class TestGetLogs:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
-        sync_session.add(
+        session.add(
             SlackConnectionLog(
                 workspace_id=test_workspace.id,  # type: ignore[arg-type]
                 event_type=ConnectionEventType.CONNECTED,
                 team_name="Test Workspace",
             )
         )
-        sync_session.commit()
+        await session.flush()
 
         response = await slack_client.get("/api/v1/slack/logs")
         assert response.status_code == status.HTTP_200_OK
@@ -394,7 +396,7 @@ class TestGetLogs:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
         base = datetime.now(timezone.utc)
 
@@ -409,8 +411,8 @@ class TestGetLogs:
             response_type=ResponseType.FALLBACK,
             created_at=base - timedelta(seconds=1),
         )
-        sync_session.add(msg_log)
-        sync_session.commit()
+        session.add(msg_log)
+        await session.flush()
 
         conn_log = SlackConnectionLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -418,8 +420,8 @@ class TestGetLogs:
             team_name="Test Workspace",
             created_at=base,
         )
-        sync_session.add(conn_log)
-        sync_session.commit()
+        session.add(conn_log)
+        await session.flush()
 
         response = await slack_client.get("/api/v1/slack/logs")
         data = response.json()
@@ -432,12 +434,12 @@ class TestGetLogs:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
         base = datetime.now(timezone.utc)
 
         for i in range(3):
-            sync_session.add(
+            session.add(
                 BotResponseLog(
                     workspace_id=test_workspace.id,  # type: ignore[arg-type]
                     slack_channel="C1",
@@ -450,7 +452,7 @@ class TestGetLogs:
                     created_at=base - timedelta(seconds=2 - i),
                 )
             )
-            sync_session.commit()
+            await session.flush()
 
         response = await slack_client.get("/api/v1/slack/logs?limit=2")
         data = response.json()
@@ -467,7 +469,7 @@ class TestGetLogs:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
         base = datetime.now(timezone.utc)
 
@@ -484,9 +486,9 @@ class TestGetLogs:
                 response_type=ResponseType.FALLBACK,
                 created_at=base - timedelta(seconds=2 - i),
             )
-            sync_session.add(log)
-            sync_session.commit()
-            sync_session.refresh(log)
+            session.add(log)
+            await session.flush()
+            await session.refresh(log)
             ids.append(log.id)
 
         first = await slack_client.get("/api/v1/slack/logs?limit=2")
@@ -506,7 +508,7 @@ class TestGetLogs:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
         base = datetime.now(timezone.utc)
 
@@ -521,12 +523,12 @@ class TestGetLogs:
             response_type=ResponseType.FALLBACK,
             created_at=base - timedelta(seconds=2),
         )
-        sync_session.add(old_log)
-        sync_session.commit()
-        sync_session.refresh(old_log)
+        session.add(old_log)
+        await session.flush()
+        await session.refresh(old_log)
         since = old_log.id
 
-        sync_session.add(
+        session.add(
             SlackConnectionLog(
                 workspace_id=test_workspace.id,  # type: ignore[arg-type]
                 event_type=ConnectionEventType.CONNECTED,
@@ -534,7 +536,7 @@ class TestGetLogs:
                 created_at=base - timedelta(seconds=1),
             )
         )
-        sync_session.commit()
+        await session.flush()
 
         new_log = BotResponseLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -547,8 +549,8 @@ class TestGetLogs:
             response_type=ResponseType.RAG_MATCH,
             created_at=base,
         )
-        sync_session.add(new_log)
-        sync_session.commit()
+        session.add(new_log)
+        await session.flush()
 
         response = await slack_client.get(f"/api/v1/slack/logs?since_id={since}&limit=10")
         data = response.json()
@@ -1219,7 +1221,7 @@ class TestConnectionEventLogging:
         self,
         slack_client: AsyncClient,
         test_user: object,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
         fake_token_data = {
             "ok": True,
@@ -1240,7 +1242,7 @@ class TestConnectionEventLogging:
                 follow_redirects=False,
             )
 
-        logs = sync_session.exec(select(SlackConnectionLog)).all()
+        logs = (await session.exec(select(SlackConnectionLog))).all()
         assert len(logs) == 1
         assert logs[0].event_type == ConnectionEventType.CONNECTED
         assert logs[0].team_name == "Conn Team"
@@ -1251,12 +1253,13 @@ class TestConnectionEventLogging:
         self,
         slack_client: AsyncClient,
         test_workspace: SlackWorkspace,
-        sync_session: Any,
+        session: AsyncSession,
     ) -> None:
+        workspace_id = test_workspace.id
         response = await slack_client.delete("/api/v1/slack/oauth/disconnect")
         assert response.status_code == status.HTTP_200_OK
 
-        logs = sync_session.exec(select(SlackConnectionLog)).all()
+        logs = (await session.exec(select(SlackConnectionLog))).all()
         assert len(logs) == 1
         assert logs[0].event_type == ConnectionEventType.DISCONNECTED
-        assert logs[0].workspace_id == test_workspace.id
+        assert logs[0].workspace_id == workspace_id

@@ -11,7 +11,7 @@ from langchain_core.exceptions import LangChainException
 from pydantic import ValidationError
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import Session, col, select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.cache import get_cache_service
@@ -40,7 +40,7 @@ from app.core_plugins.slack.types import (
     LogsResponse,
     RagSourcesResponse,
 )
-from app.lib.db import get_async_session, get_session, session_scope
+from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
@@ -362,7 +362,7 @@ async def slack_events(
     request: Request,
     background_tasks: BackgroundTasks,
     service: WorkspaceService = Depends(get_workspace_service),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Receive Slack Events API payloads. Returns 200 immediately."""
     raw_body = await request.body()
@@ -397,7 +397,7 @@ async def slack_events(
     if payload.get("type") == "event_callback":
         team_id: str = payload.get("team_id", "")
         event: dict[str, Any] = payload.get("event", {})
-        workspace = service.get_by_team(session, team_id)
+        workspace = await service.get_by_team(session, team_id)
         if workspace and should_handle_event(event, workspace.bot_user_id):
             background_tasks.add_task(
                 _dispatch_event,
@@ -412,9 +412,9 @@ async def slack_events(
 
 
 @router.get("/logs", response_model=LogsResponse)
-def get_response_logs(
+async def get_response_logs(
     user_id: int = Depends(require_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = Query(default=None),
     since_id: int | None = Query(default=None, ge=0),
@@ -428,7 +428,7 @@ def get_response_logs(
             detail="Invalid pagination parameters: only one pagination strategy may be used at a time.",
         )
 
-    workspace = service.get(session, user_id)
+    workspace = await service.get(session, user_id)
     if not workspace:
         logger.warning("GET /logs: no Slack workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
@@ -442,7 +442,7 @@ def get_response_logs(
             .order_by(col(BotResponseLog.id).asc())
             .limit(limit + 1)
         )
-        rows = session.exec(stmt).all()
+        rows = (await session.exec(stmt)).all()
         has_more = len(rows) > limit
         if has_more:
             rows = rows[:limit]
@@ -509,8 +509,8 @@ def get_response_logs(
             # cursor is a message; connections at cursor_dt sort after it, so include them
             conn_stmt = conn_stmt.where(col(SlackConnectionLog.created_at) <= cursor_dt)
 
-    msg_rows = session.exec(msg_stmt).all()
-    conn_rows = session.exec(conn_stmt).all()
+    msg_rows = (await session.exec(msg_stmt)).all()
+    conn_rows = (await session.exec(conn_stmt)).all()
 
     all_items: list[LogItem] = [_to_message_item(r) for r in msg_rows] + [_to_connection_item(r) for r in conn_rows]
     # Newest first; messages precede connections at equal timestamps (stable tiebreak).

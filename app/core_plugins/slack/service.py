@@ -4,7 +4,8 @@ from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core_plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
@@ -39,9 +40,9 @@ def get_workspace_service() -> "WorkspaceService":
 class WorkspaceService:
     """Handles persistence of Slack workspace connections in the database."""
 
-    def save(
+    async def save(
         self,
-        session: Session,
+        session: AsyncSession,
         user_id: int,
         team_id: str,
         team_name: str,
@@ -57,21 +58,25 @@ class WorkspaceService:
             bot_user_id=bot_user_id,
         )
         try:
-            with session.begin_nested():
+            async with session.begin_nested():
                 session.add(workspace)
         except IntegrityError:
-            existing_for_user = session.exec(
-                select(SlackWorkspace).where(
-                    SlackWorkspace.user_id == user_id,
-                    SlackWorkspace.is_deleted == False,  # noqa: E712
+            existing_for_user = (
+                await session.exec(
+                    select(SlackWorkspace).where(
+                        SlackWorkspace.user_id == user_id,
+                        SlackWorkspace.is_deleted == False,  # noqa: E712
+                    )
                 )
             ).first()
             if existing_for_user:
                 raise UserAlreadyConnectedError(user_id)
-            existing_for_team = session.exec(
-                select(SlackWorkspace).where(
-                    SlackWorkspace.team_id == team_id,
-                    SlackWorkspace.is_deleted == False,  # noqa: E712
+            existing_for_team = (
+                await session.exec(
+                    select(SlackWorkspace).where(
+                        SlackWorkspace.team_id == team_id,
+                        SlackWorkspace.is_deleted == False,  # noqa: E712
+                    )
                 )
             ).first()
             if existing_for_team:
@@ -85,32 +90,36 @@ class WorkspaceService:
             )
             raise
 
-        session.commit()
-        session.refresh(workspace)
+        await session.commit()
+        await session.refresh(workspace)
         return workspace
 
-    def get(self, session: Session, user_id: int) -> SlackWorkspace | None:
-        return session.exec(
-            select(SlackWorkspace).where(
-                SlackWorkspace.user_id == user_id,
-                SlackWorkspace.is_active == True,  # noqa: E712
-                SlackWorkspace.is_deleted == False,  # noqa: E712
+    async def get(self, session: AsyncSession, user_id: int) -> SlackWorkspace | None:
+        return (
+            await session.exec(
+                select(SlackWorkspace).where(
+                    SlackWorkspace.user_id == user_id,
+                    SlackWorkspace.is_active == True,  # noqa: E712
+                    SlackWorkspace.is_deleted == False,  # noqa: E712
+                )
             )
         ).first()
 
-    def get_by_team(self, session: Session, team_id: str) -> SlackWorkspace | None:
-        return session.exec(
-            select(SlackWorkspace).where(
-                SlackWorkspace.team_id == team_id,
-                SlackWorkspace.is_active == True,  # noqa: E712
-                SlackWorkspace.is_deleted == False,  # noqa: E712
+    async def get_by_team(self, session: AsyncSession, team_id: str) -> SlackWorkspace | None:
+        return (
+            await session.exec(
+                select(SlackWorkspace).where(
+                    SlackWorkspace.team_id == team_id,
+                    SlackWorkspace.is_active == True,  # noqa: E712
+                    SlackWorkspace.is_deleted == False,  # noqa: E712
+                )
             )
         ).first()
 
-    def delete(self, session: Session, user_id: int) -> None:
-        workspace = self.get(session, user_id)
+    async def delete(self, session: AsyncSession, user_id: int) -> None:
+        workspace = await self.get(session, user_id)
         if workspace:
             workspace.soft_delete()
             workspace.is_active = False
             session.add(workspace)
-            session.commit()
+            await session.commit()

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from itsdangerous import BadSignature, SignatureExpired
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from app.core_plugins.slack.models import SlackWorkspace
@@ -108,11 +108,13 @@ class TestExchangeCodeForTokens:
 
 
 class TestWorkspaceCRUD:
-    def test_save_new_workspace(self, sync_session: Session, test_user: User) -> None:
+    @pytest.mark.asyncio
+    async def test_save_new_workspace(self, session: AsyncSession, test_user: User) -> None:
+        user_id = cast(int, test_user.id)
         service = WorkspaceService()
-        ws = service.save(
-            sync_session,
-            user_id=cast(int, test_user.id),
+        ws = await service.save(
+            session,
+            user_id=user_id,
             team_id="T_NEW",
             team_name="New Team",
             bot_token="xoxb-real",
@@ -121,64 +123,77 @@ class TestWorkspaceCRUD:
         assert ws.id is not None
         assert ws.team_id == "T_NEW"
         assert decrypt_token(ws.bot_token_encrypted) == "xoxb-real"
-        assert service.get(sync_session, cast(int, test_user.id)) is not None
+        assert await service.get(session, user_id) is not None
 
-    def test_save_raises_when_user_already_connected(self, sync_session: Session, test_user: User) -> None:
+    @pytest.mark.asyncio
+    async def test_save_raises_when_user_already_connected(self, session: AsyncSession, test_user: User) -> None:
+        user_id = cast(int, test_user.id)
         service = WorkspaceService()
-        service.save(sync_session, cast(int, test_user.id), "T_FIRST", "First", "tok1", "U1")
+        await service.save(session, user_id, "T_FIRST", "First", "tok1", "U1")
         with pytest.raises(UserAlreadyConnectedError):
-            service.save(sync_session, cast(int, test_user.id), "T_SECOND", "Second", "tok2", "U2")
+            await service.save(session, user_id, "T_SECOND", "Second", "tok2", "U2")
 
-    def test_get_workspace_returns_none_when_absent(self, sync_session: Session, test_user: User) -> None:
-        assert WorkspaceService().get(sync_session, cast(int, test_user.id)) is None
+    @pytest.mark.asyncio
+    async def test_get_workspace_returns_none_when_absent(self, session: AsyncSession, test_user: User) -> None:
+        assert await WorkspaceService().get(session, cast(int, test_user.id)) is None
 
-    def test_get_workspace_returns_none_after_soft_delete(
-        self, sync_session: Session, test_workspace: SlackWorkspace, test_user: User
+    @pytest.mark.asyncio
+    async def test_get_workspace_returns_none_after_soft_delete(
+        self, session: AsyncSession, test_workspace: SlackWorkspace, test_user: User
     ) -> None:
+        user_id = cast(int, test_user.id)
         service = WorkspaceService()
-        service.delete(sync_session, cast(int, test_user.id))
-        assert service.get(sync_session, cast(int, test_user.id)) is None
+        await service.delete(session, user_id)
+        assert await service.get(session, user_id) is None
 
-    def test_delete_workspace_when_none_is_noop(self, sync_session: Session, test_user: User) -> None:
-        WorkspaceService().delete(sync_session, cast(int, test_user.id))
+    @pytest.mark.asyncio
+    async def test_delete_workspace_when_none_is_noop(self, session: AsyncSession, test_user: User) -> None:
+        await WorkspaceService().delete(session, cast(int, test_user.id))
 
-    def test_save_raises_when_team_id_already_active(self, sync_session: Session, test_user: User) -> None:
+    @pytest.mark.asyncio
+    async def test_save_raises_when_team_id_already_active(self, session: AsyncSession, test_user: User) -> None:
         """Raises WorkspaceAlreadyConnectedError when team_id is already taken."""
+        user_id = cast(int, test_user.id)
         other_user = User(
             name="Other User",
             username="otheruser",
             email="other@example.com",
             hashed_password="fakehashedpassword",
         )
-        sync_session.add(other_user)
-        sync_session.commit()
-        sync_session.refresh(other_user)
+        session.add(other_user)
+        await session.flush()
+        await session.refresh(other_user)
+        other_user_id = cast(int, other_user.id)
 
-        WorkspaceService().save(sync_session, cast(int, other_user.id), "T_DUP", "Dup Team", "xoxb-tok", "U_BOT")
+        await WorkspaceService().save(session, other_user_id, "T_DUP", "Dup Team", "xoxb-tok", "U_BOT")
 
         with pytest.raises(WorkspaceAlreadyConnectedError):
-            WorkspaceService().save(sync_session, cast(int, test_user.id), "T_DUP", "Dup Team", "xoxb-tok2", "U_BOT2")
+            await WorkspaceService().save(session, user_id, "T_DUP", "Dup Team", "xoxb-tok2", "U_BOT2")
 
-    def test_save_raises_when_team_id_taken_by_another_user(
-        self, sync_session: Session, test_user: User, test_workspace: SlackWorkspace
+    @pytest.mark.asyncio
+    async def test_save_raises_when_team_id_taken_by_another_user(
+        self, session: AsyncSession, test_user: User, test_workspace: SlackWorkspace
     ) -> None:
         """Second user cannot connect a team_id already active under another user."""
+        team_id = test_workspace.team_id
+        team_name = test_workspace.team_name
         other_user = User(
             name="Other User",
             username="otheruser",
             email="other@example.com",
             hashed_password="fakehashedpassword",
         )
-        sync_session.add(other_user)
-        sync_session.commit()
-        sync_session.refresh(other_user)
+        session.add(other_user)
+        await session.flush()
+        await session.refresh(other_user)
+        other_user_id = cast(int, other_user.id)
 
         with pytest.raises(WorkspaceAlreadyConnectedError):
-            WorkspaceService().save(
-                sync_session,
-                cast(int, other_user.id),
-                test_workspace.team_id,
-                test_workspace.team_name,
+            await WorkspaceService().save(
+                session,
+                other_user_id,
+                team_id,
+                team_name,
                 "xoxb-other",
                 "U_OTHER",
             )

@@ -17,13 +17,13 @@ from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core_plugins.slack.config import SlackSettings
 from app.core_plugins.slack.models import SlackWorkspace
 from app.core_plugins.slack.service import encrypt_token
-from app.lib.db import get_session
+from app.lib.db import get_async_session
 from app.main import app
 from app.models.user import User
 from tests.lib.routes import register_router
@@ -48,21 +48,21 @@ def _clear_settings_cache() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def test_user(sync_session: Session) -> User:
+async def test_user(session: AsyncSession) -> User:
     user = User(
         name="Slack Test User",
         username="slackuser",
         email="slack@example.com",
         hashed_password="fakehashedpassword",
     )
-    sync_session.add(user)
-    sync_session.commit()
-    sync_session.refresh(user)
+    session.add(user)
+    await session.flush()
+    await session.refresh(user)
     return user
 
 
 @pytest.fixture
-def test_workspace(sync_session: Session, test_user: User) -> SlackWorkspace:
+async def test_workspace(session: AsyncSession, test_user: User) -> SlackWorkspace:
     workspace = SlackWorkspace(
         user_id=cast(int, test_user.id),
         team_id="T123ABC",
@@ -71,9 +71,9 @@ def test_workspace(sync_session: Session, test_user: User) -> SlackWorkspace:
         bot_user_id="U_BOT_ID",
         is_active=True,
     )
-    sync_session.add(workspace)
-    sync_session.commit()
-    sync_session.refresh(workspace)
+    session.add(workspace)
+    await session.flush()
+    await session.refresh(workspace)
     return workspace
 
 
@@ -94,17 +94,17 @@ def mock_slack_credentials() -> Generator[None, None, None]:
 
 @pytest.fixture
 async def slack_client(
-    sync_session: Session,
+    session: AsyncSession,
     test_user: User,
     mock_slack_credentials: Any,
 ) -> AsyncGenerator[AsyncClient, None]:
-    def get_session_override() -> Generator[Session, None, None]:
-        yield sync_session
+    async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
+        yield session
 
     async def get_user_override() -> User:
         return test_user
 
-    app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[get_async_session] = get_async_session_override
     app.dependency_overrides[get_current_user] = get_user_override
 
     async with AsyncClient(
@@ -113,5 +113,5 @@ async def slack_client(
     ) as ac:
         yield ac
 
-    app.dependency_overrides.pop(get_session, None)
+    app.dependency_overrides.pop(get_async_session, None)
     app.dependency_overrides.pop(get_current_user, None)
