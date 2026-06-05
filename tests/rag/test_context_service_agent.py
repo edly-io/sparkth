@@ -39,7 +39,7 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[mock_result])
 
         with (
-            patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
+            patch("app.rag.retrieval.agent._lookup_drive_file", return_value=mock_file),
             patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
@@ -75,7 +75,7 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
         with (
-            patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
+            patch("app.rag.retrieval.agent._lookup_drive_file", return_value=mock_file),
             patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
@@ -101,7 +101,7 @@ class TestGetContextViaAgent:
         """Missing file raises DriveFileNotFoundError."""
         mock_session = AsyncMock(spec=AsyncSession)
 
-        with patch("app.rag.context_service._lookup_drive_file") as mock_lookup:
+        with patch("app.rag.retrieval.agent._lookup_drive_file") as mock_lookup:
             mock_lookup.side_effect = DriveFileNotFoundError("Not found")
 
             with pytest.raises(DriveFileNotFoundError):
@@ -118,7 +118,7 @@ class TestGetContextViaAgent:
         """RAGNotReadyError is raised when file is not ready."""
         mock_session = AsyncMock(spec=AsyncSession)
 
-        with patch("app.rag.context_service._lookup_drive_file") as mock_lookup:
+        with patch("app.rag.retrieval.agent._lookup_drive_file") as mock_lookup:
             mock_lookup.side_effect = RAGNotReadyError(1, "processing")
 
             with pytest.raises(RAGNotReadyError):
@@ -140,7 +140,7 @@ class TestGetContextViaAgent:
         mock_file.rag_status = RagStatus.READY
 
         with (
-            patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
+            patch("app.rag.retrieval.agent._lookup_drive_file", return_value=mock_file),
             patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
         ):
             mock_agent.side_effect = RAGRetrievalError("Agent failed")
@@ -167,7 +167,7 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(side_effect=SQLAlchemyError("DB error"))
 
         with (
-            patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
+            patch("app.rag.retrieval.agent._lookup_drive_file", return_value=mock_file),
             patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
@@ -198,7 +198,7 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
         with (
-            patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
+            patch("app.rag.retrieval.agent._lookup_drive_file", return_value=mock_file),
             patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):

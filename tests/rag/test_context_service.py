@@ -2,9 +2,9 @@
 
 from unittest.mock import MagicMock
 
-from app.rag.context_service import format_chunks_as_context
 from app.rag.enums import RagStatus
 from app.rag.models import DocumentChunk
+from app.rag.retrieval.utils import format_chunks_as_context
 from app.rag.types import SimilarityResult
 from app.rag.utils import resolve_source_name as _resolve_source_name
 

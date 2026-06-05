@@ -18,6 +18,7 @@ from app.lib.log import get_logger
 from app.rag.config import get_rag_settings
 from app.rag.constants import AGENT_CONTEXT_KEYS
 from app.rag.exceptions import RAGRetrievalError
+from app.rag.retrieval.utils import _lookup_drive_file, format_chunks_as_context
 from app.rag.schemas import RAGSearchAgentResponse
 from app.rag.store import ChunkStoreService
 from app.rag.types import RAGContext
@@ -161,8 +162,6 @@ async def get_context_via_agent(
         RAGNotReadyError: File exists but rag_status is not READY.
         RAGRetrievalError: Agent invocation or section fetch failed.
     """
-    from app.rag.context_service import _lookup_drive_file, format_chunks_as_context  # avoid circular import
-
     store = ChunkStoreService()
     drive_file = await _lookup_drive_file(session, user_id, file_db_id)
     source_name = resolve_source_name(drive_file)

@@ -1,4 +1,4 @@
-"""RAG context retrieval — shared utilities for lookup, formatting, and validation."""
+"""Shared utilities for RAG retrieval — file lookup, chunk formatting, and batch validation."""
 
 from __future__ import annotations
 
@@ -98,6 +98,3 @@ async def _validate_files_ready(session: AsyncSession, user_id: int, file_ids: l
             status_str = str(drive_file.rag_status or "None")
             logger.warning("RAG not ready: file_db_id=%d status=%s", file_id, status_str)
             raise RAGNotReadyError(file_id, status_str)
-
-
-__all__ = ["format_chunks_as_context"]
