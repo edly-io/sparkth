@@ -121,7 +121,9 @@ class TestRetrieveContext:
         )
         with (
             patch("app.lib.rag._validate_files_ready", new=AsyncMock()),
-            patch("app.lib.rag.retrieve_context_from_file", new=AsyncMock(return_value=mock_ctx)) as mock_fn,
+            patch(
+                "app.lib.rag.get_context_via_agent_with_isolated_session", new=AsyncMock(return_value=mock_ctx)
+            ) as mock_fn,
         ):
             result = await rag_api.agentic_retrieve_context(1, [10], "q", MagicMock())
         assert len(result) == 1

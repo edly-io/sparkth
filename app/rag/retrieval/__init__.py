@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
 
-async def retrieve_context_from_file(
+async def get_context_via_agent_with_isolated_session(
     user_id: int,
     file_id: int,
     query: str,
