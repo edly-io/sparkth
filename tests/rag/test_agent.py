@@ -9,7 +9,7 @@ from langchain_core.exceptions import LangChainException
 from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, ValidationError
 
-from app.rag.agent import RAGSearchAgent
+from app.rag.agent import _bind_user_context, run_rag_search
 from app.rag.exceptions import RAGRetrievalError
 from app.rag.schemas import RAGSearchAgentResponse, SectionRef
 
@@ -38,7 +38,7 @@ def _schema_to_args(schema: type[BaseModel]) -> dict[str, Any]:
 
 
 class TestBindUserContext:
-    """Unit tests for RAGSearchAgent._bind_user_context tool-binding helper."""
+    """Unit tests for _bind_user_context tool-binding helper."""
 
     def _make_tool(self, name: str, schema: type[BaseModel]) -> MagicMock:
         tool = MagicMock()
@@ -50,7 +50,7 @@ class TestBindUserContext:
 
     def test_removes_user_id_and_file_id_from_schema(self) -> None:
         tool = self._make_tool("search", _SchemaWithBoth)
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=1, file_id=2)
+        bound = _bind_user_context([tool], user_id=1, file_id=2)
         assert len(bound) == 1
         remaining = set(bound[0].args_schema.model_fields.keys())
         assert "user_id" not in remaining
@@ -59,17 +59,17 @@ class TestBindUserContext:
 
     def test_removes_user_id_only_when_file_id_absent(self) -> None:
         tool = self._make_tool("list_files", _SchemaUserOnly)
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=7, file_id=99)
+        bound = _bind_user_context([tool], user_id=7, file_id=99)
         assert set(bound[0].args_schema.model_fields.keys()) == set()
 
     def test_passes_through_tool_without_context_fields(self) -> None:
         tool = self._make_tool("other", _SchemaNoContext)
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=1, file_id=2)
+        bound = _bind_user_context([tool], user_id=1, file_id=2)
         assert bound[0] is tool
 
     def test_preserves_tool_name_and_description(self) -> None:
         tool = self._make_tool("get_document_structure", _SchemaWithBoth)
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=3, file_id=5)
+        bound = _bind_user_context([tool], user_id=3, file_id=5)
         assert bound[0].name == "get_document_structure"
         assert bound[0].description == "desc of get_document_structure"
 
@@ -78,7 +78,7 @@ class TestBindUserContext:
         tool.name = "broken"
         tool.description = "broken tool"
         type(tool).args = property(lambda self: (_ for _ in ()).throw(AttributeError("no args")))
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=1, file_id=2)
+        bound = _bind_user_context([tool], user_id=1, file_id=2)
         assert bound[0] is tool
 
     @pytest.mark.asyncio
@@ -91,7 +91,7 @@ class TestBindUserContext:
             return data
 
         tool.ainvoke = _fake_ainvoke
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=42, file_id=10)
+        bound = _bind_user_context([tool], user_id=42, file_id=10)
         await bound[0].ainvoke({"keyword": "intro"})
         assert len(captured) == 1
         assert captured[0]["user_id"] == 42
@@ -108,7 +108,7 @@ class TestBindUserContext:
             return data
 
         tool.ainvoke = _fake_ainvoke
-        bound = RAGSearchAgent._bind_user_context([tool], user_id=5, file_id=99)
+        bound = _bind_user_context([tool], user_id=5, file_id=99)
         await bound[0].ainvoke({})
         assert captured[0] == {"user_id": 5}
 
@@ -121,8 +121,8 @@ def _make_validation_error() -> ValidationError:
     raise AssertionError("ValidationError not raised")
 
 
-class TestRAGSearchAgent:
-    """Tests for RAGSearchAgent.search covering the structured_response extraction and error paths."""
+class TestRunRagSearch:
+    """Tests for run_rag_search covering the structured_response extraction and error paths."""
 
     def _patch_agent(self, agent: Any) -> Any:
         return patch("app.rag.agent.create_agent", return_value=agent)
@@ -154,7 +154,7 @@ class TestRAGSearchAgent:
         agent = self._make_agent({"structured_response": expected})
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
-            result = await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+            result = await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
         assert result.source_name == "doc.pdf"
         assert len(result.selected_sections) == 1
@@ -165,7 +165,7 @@ class TestRAGSearchAgent:
         agent = self._make_agent({"messages": []})
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
-            result = await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+            result = await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
         assert result.source_name == ""
         assert result.selected_sections == []
@@ -177,21 +177,21 @@ class TestRAGSearchAgent:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
     async def test_connect_error_raises_retrieval_error(self) -> None:
         exc = ConnectError("connection refused", request=Request("GET", "http://test-mcp"))
         with self._patch_settings(), self._patch_mcp_client(side_effect=exc):
             with pytest.raises(RAGRetrievalError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
     async def test_http_status_error_raises_retrieval_error(self) -> None:
         exc = HTTPStatusError("503", request=Request("GET", "http://test-mcp"), response=Response(503))
         with self._patch_settings(), self._patch_mcp_client(side_effect=exc):
             with pytest.raises(RAGRetrievalError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
     async def test_langchain_exception_raises_retrieval_error(self) -> None:
@@ -200,7 +200,7 @@ class TestRAGSearchAgent:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
     async def test_graph_recursion_error_raises_retrieval_error(self) -> None:
@@ -209,7 +209,7 @@ class TestRAGSearchAgent:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError, match="maximum steps"):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
 
     @pytest.mark.asyncio
     async def test_value_error_propagates(self) -> None:
@@ -218,4 +218,4 @@ class TestRAGSearchAgent:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(ValueError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_rag_search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")

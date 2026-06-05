@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.db import session_scope
 from app.lib.log import get_logger
-from app.rag.agent import RAGSearchAgent
+from app.rag.agent import run_rag_search
 
 if TYPE_CHECKING:
     # Imported under TYPE_CHECKING only to avoid a runtime cycle: app.models.drive
@@ -116,7 +116,7 @@ async def get_context_via_agent(
         len(query),
     )
 
-    decision = await RAGSearchAgent().search(
+    decision = await run_rag_search(
         llm=llm,
         user_id=user_id,
         file_id=file_db_id,
