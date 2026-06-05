@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from itsdangerous import BadSignature, SignatureExpired
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.slack.config import SlackSettings, get_slack_settings
 from app.core_plugins.slack.enums import ConnectionEventType
@@ -15,7 +15,7 @@ from app.core_plugins.slack.oauth import decode_state, exchange_code_for_tokens,
 from app.core_plugins.slack.routes.dependencies import require_user_id
 from app.core_plugins.slack.service import WorkspaceService, get_workspace_service
 from app.core_plugins.slack.types import AuthorizationUrlResponse, ConnectionStatusResponse
-from app.lib.db import get_session
+from app.lib.db import get_async_session
 from app.lib.log import get_logger
 
 oauth_router: APIRouter = APIRouter()
@@ -50,7 +50,7 @@ async def oauth_callback(
     code: str = Query(...),
     state: str = Query(...),
     service: WorkspaceService = Depends(get_workspace_service),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> RedirectResponse:
     """Handle Slack OAuth redirect, persist workspace token."""
     try:
@@ -81,7 +81,7 @@ async def oauth_callback(
         ) from exc
 
     try:
-        workspace = service.save(
+        workspace = await service.save(
             session,
             user_id,
             token_data["team"]["id"],
@@ -116,22 +116,22 @@ async def oauth_callback(
                 team_name=token_data["team"]["name"],
             )
         )
-        session.commit()
+        await session.commit()
     except SQLAlchemyError as exc:
-        session.rollback()
+        await session.rollback()
         logger.error("Failed to log Slack connect event for user %s: %s", user_id, exc)
 
     return RedirectResponse(url=f"{get_slack_settings().frontend_path}?connected=true")
 
 
 @oauth_router.delete("/oauth/disconnect")
-def disconnect_workspace(
+async def disconnect_workspace(
     user_id: int = Depends(require_user_id),
     service: WorkspaceService = Depends(get_workspace_service),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Disconnect the Slack workspace for the current user."""
-    workspace = service.get(session, user_id)
+    workspace = await service.get(session, user_id)
     if not workspace:
         logger.warning("Disconnect requested but no workspace found for user %d", user_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
@@ -144,23 +144,27 @@ def disconnect_workspace(
                 team_name=workspace.team_name,
             )
         )
-        session.commit()
+        await session.commit()
     except SQLAlchemyError as exc:
-        session.rollback()
+        await session.rollback()
         logger.error("Failed to log Slack disconnect event for user %d: %s", user_id, exc)
 
-    service.delete(session, user_id)
+    # TODO: the connection-log commit above and service.delete() below run in
+    # separate transactions — a crash between them leaves a DISCONNECTED log
+    # entry while the workspace remains active. Wrap both in a single
+    # transaction when revisiting this area.
+    await service.delete(session, user_id)
     return {"detail": "Slack workspace disconnected successfully"}
 
 
 @oauth_router.get("/oauth/status", response_model=ConnectionStatusResponse)
-def get_connection_status(
+async def get_connection_status(
     user_id: int = Depends(require_user_id),
     service: WorkspaceService = Depends(get_workspace_service),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_async_session),
 ) -> ConnectionStatusResponse:
     """Return Slack connection status for the current user."""
-    workspace = service.get(session, user_id)
+    workspace = await service.get(session, user_id)
     if not workspace:
         return ConnectionStatusResponse(connected=False)
     return ConnectionStatusResponse(
