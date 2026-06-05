@@ -6,17 +6,13 @@ from app.rag.enums import DocType
 from app.rag.models import DocumentChunk
 
 __all__ = [
-    # Extraction
     "ExtractionResult",
-    # Chunking
     "Chunk",
     "ChunkInput",
     "ChunkMetadata",
-    # Retrieval
     "RAGContext",
     "RetrievedChunk",
     "SimilarityResult",
-    # Ingestion
     "IngestionResult",
 ]
 

@@ -34,7 +34,7 @@ class TestRetrieveChunks:
         with (
             patch("app.rag.context_service._validate_files_ready", new=AsyncMock()),
             patch(
-                "app.rag.context_service.RAGContextService.get_context_via_agent",
+                "app.rag.context_service.get_context_via_agent",
                 new=AsyncMock(side_effect=[_ctx("a.pdf", "alpha"), _ctx("b.pdf", "beta")]),
             ),
         ):
@@ -52,7 +52,7 @@ class TestRetrieveChunks:
                 "app.rag.context_service._validate_files_ready",
                 new=AsyncMock(side_effect=DriveFileNotFoundError("nope")),
             ),
-            patch("app.rag.context_service.RAGContextService.get_context_via_agent", new=get_ctx),
+            patch("app.rag.context_service.get_context_via_agent", new=get_ctx),
         ):
             with pytest.raises(DriveFileNotFoundError):
                 await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())
@@ -66,7 +66,7 @@ class TestRetrieveChunks:
                 "app.rag.context_service._validate_files_ready",
                 new=AsyncMock(side_effect=RAGNotReadyError(10, str(RagStatus.PROCESSING))),
             ),
-            patch("app.rag.context_service.RAGContextService.get_context_via_agent", new=get_ctx),
+            patch("app.rag.context_service.get_context_via_agent", new=get_ctx),
         ):
             with pytest.raises(RAGNotReadyError):
                 await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())
@@ -77,7 +77,7 @@ class TestRetrieveChunks:
         with (
             patch("app.rag.context_service._validate_files_ready", new=AsyncMock()),
             patch(
-                "app.rag.context_service.RAGContextService.get_context_via_agent",
+                "app.rag.context_service.get_context_via_agent",
                 new=AsyncMock(side_effect=RAGRetrievalError("agent boom")),
             ),
         ):

@@ -39,7 +39,7 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_rag_search", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
@@ -76,7 +76,7 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_rag_search", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
@@ -142,7 +142,7 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_rag_search", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
         ):
             mock_agent.side_effect = RAGRetrievalError("Agent failed")
 
@@ -169,7 +169,7 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_rag_search", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
@@ -200,7 +200,7 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_rag_search", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
             patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(

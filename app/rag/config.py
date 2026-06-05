@@ -18,9 +18,6 @@ class RAGSettings(BaseSettings):
     RAG_CHUNKING_SECONDARY_OVERLAP: int = 50
     RAG_CHUNKING_TIKTOKEN_ENCODING: str = "cl100k_base"
 
-    # RAG_MCP_URL belongs to the rag_mcp server, not the RAG pipeline itself.
-    # It will be moved into rag_mcp's own config in a future refactor (see #398).
-
 
 @lru_cache
 def get_rag_settings() -> RAGSettings:

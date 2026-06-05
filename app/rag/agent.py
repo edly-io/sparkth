@@ -30,7 +30,7 @@ _JSON_TYPE_MAP: dict[str, type] = {
 }
 
 
-async def run_rag_search(llm: Any, user_id: int, file_id: int, user_query: str) -> RAGSearchAgentResponse:
+async def run_agentic_rag_retrieval(llm: Any, user_id: int, file_id: int, user_query: str) -> RAGSearchAgentResponse:
     """Run agentic RAG search to determine target sections.
 
     Args:
