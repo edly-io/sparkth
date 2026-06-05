@@ -1,7 +1,6 @@
 from app.rag.enums import DocType
 from app.rag.ingestion.chunking import DocumentChunker
-from app.rag.ingestion.extraction import ExtractionResult
-from app.rag.types import Chunk, ChunkMetadata
+from app.rag.types import Chunk, ChunkMetadata, ExtractionResult
 
 STRUCTURED_MD = """\
 # Introduction to Machine Learning

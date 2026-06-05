@@ -21,8 +21,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from app.lib.log import get_logger
 from app.rag.config import get_rag_settings
 from app.rag.constants import CHUNKING_MARKDOWN_HEADERS
-from app.rag.ingestion.extraction import ExtractionResult
-from app.rag.types import Chunk, ChunkMetadata
+from app.rag.types import Chunk, ChunkMetadata, ExtractionResult
 
 logger = get_logger(__name__)
 

@@ -17,12 +17,12 @@ from app.rag.exceptions import UnsupportedFileTypeError
 from app.rag.ingestion.extraction import (
     SUPPORTED_EXTENSIONS_FOR_EXTRACTION,
     DocxExtractor,
-    ExtractionResult,
     HTMLExtractor,
     TXTExtractor,
     check_extraction_eligibility,
     extract_to_markdown,
 )
+from app.rag.types import ExtractionResult
 
 SIMPLE_HTML = b"""
 <html><body>

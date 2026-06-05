@@ -13,7 +13,7 @@ from app.rag.ingestion.extraction.docx import DocxExtractor
 from app.rag.ingestion.extraction.html import HTMLExtractor
 from app.rag.ingestion.extraction.pdf import PDFExtractor
 from app.rag.ingestion.extraction.txt import TXTExtractor
-from app.rag.types import ExtractionResult
+from app.rag.types import ExtractionResult  # used in return type of extract_to_markdown
 
 logger = get_logger(__name__)
 
@@ -78,7 +78,6 @@ __all__ = [
     "SUPPORTED_EXTENSIONS_FOR_EXTRACTION",
     "BaseExtractor",
     "DocxExtractor",
-    "ExtractionResult",
     "HTMLExtractor",
     "PDFExtractor",
     "TXTExtractor",
