@@ -156,8 +156,6 @@ async def get_context_via_agent(
     understands the user's intent, and hand-picks the relevant sections.
     All chunks in those sections are fetched directly — no similarity search.
 
-    This is the registered handler for retrieval_method="agentic".
-
     Raises:
         DriveFileNotFoundError: File not found or not owned by user.
         RAGNotReadyError: File exists but rag_status is not READY.

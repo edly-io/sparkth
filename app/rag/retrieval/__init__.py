@@ -1,25 +1,8 @@
-"""RAG retrieval module.
-
-The retrieval registry maps retrieval method names to their implementation
-functions. Each registered function has the signature:
-
-    async def fn(
-        session: AsyncSession,
-        user_id: int,
-        file_db_id: int,
-        query: str,
-        llm: Any,
-    ) -> RAGContext
-
-Available retrieval methods:
-    "agentic" (default): LangGraph ReAct agent inspects the document structure
-        via MCP tools, selects relevant sections, and fetches their chunks
-        directly — no vector similarity search.
-"""
+"""RAG retrieval module — agentic context retrieval for one or more files."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Coroutine
+from typing import TYPE_CHECKING
 
 from app.lib.db import session_scope
 from app.rag.retrieval.agent import get_context_via_agent
@@ -28,12 +11,6 @@ from app.rag.types import RAGContext
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
-# Maps retrieval method name -> retrieval function.
-# Add new retrieval methods here as additional entries.
-RETRIEVAL_REGISTRY: dict[str, Callable[..., Coroutine[Any, Any, RAGContext]]] = {
-    "agentic": get_context_via_agent,
-}
-
 
 async def retrieve_context_from_file(
     user_id: int,
@@ -41,7 +18,7 @@ async def retrieve_context_from_file(
     query: str,
     llm: BaseChatModel,
 ) -> RAGContext:
-    """Retrieve context for a single file using the agentic retrieval method.
+    """Retrieve context for a single file using agentic section retrieval.
 
     Opens its own DB session so concurrent callers (asyncio.gather fan-out)
     do not share a session — AsyncSession is not concurrency-safe.
@@ -56,6 +33,5 @@ async def retrieve_context_from_file(
         DriveFileNotFoundError / RAGNotReadyError: file access/readiness failure.
         RAGRetrievalError: retrieval failed.
     """
-    retrieval_fn = RETRIEVAL_REGISTRY["agentic"]
     async with session_scope() as file_session:
-        return await retrieval_fn(file_session, user_id, file_id, query, llm)
+        return await get_context_via_agent(file_session, user_id, file_id, query, llm)
