@@ -1,7 +1,8 @@
-from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
+
+from app.core_plugins.openedx.enums import Component
 
 
 class TokenResponse(BaseModel):
@@ -71,11 +72,6 @@ class XBlockPayload(BaseModel):
     parent_locator: str
     category: str
     display_name: str
-
-
-class Component(str, Enum):
-    PROBLEM = "Problem"
-    HTML = "Html"
 
 
 class ProblemOrHtmlArgs(BaseModel):

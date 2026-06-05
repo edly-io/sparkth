@@ -1,68 +1,70 @@
-from types import TracebackType
-from typing import Any, Type
+from typing import Any
 from urllib.parse import urljoin
 
-import aiohttp
+from app.lib.enums import Method
+from app.lib.exceptions import AuthenticationError
+from app.lib.http import BaseHttpClient
 
-from app.mcp.request import request
-from app.mcp.types import AuthenticationError
 
+class CanvasClient(BaseHttpClient):
+    """HTTP client for the Canvas LMS REST API."""
 
-class CanvasClient:
-    def __init__(self, api_url: str, api_token: str):
-        self.api_url = api_url.rstrip("/")
+    def __init__(self, api_url: str, api_token: str) -> None:
+        super().__init__(api_url)
         self.api_token = api_token
-        self.session = aiohttp.ClientSession()
 
-    async def __aenter__(self) -> CanvasClient:
-        return self
+    @property
+    def token(self) -> str | None:
+        return self.api_token or None
 
-    async def __aexit__(
-        self,
-        _exc_type: Type[BaseException] | None,
-        _exc_val: BaseException | None,
-        _exc_tb: TracebackType | None,
-    ) -> None:
-        await self.close()
+    async def _request_dict(
+        self, method: Method, endpoint: str, payload: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Call ``_request`` and assert the response is a JSON object."""
+        result = await self._request(method, endpoint, payload=payload)
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected JSON object from {method} {endpoint}, got {type(result).__name__}")
+        return result
 
-    @staticmethod
-    async def authenticate(new_api_url: str, new_api_token: str) -> int:
-        async with aiohttp.ClientSession() as session:
-            url = urljoin(new_api_url.rstrip("/") + "/", "users/self")
-            headers = {"Authorization": f"Bearer {new_api_token}"}
+    async def authenticate(self) -> int:
+        """Verify the API token by calling the Canvas self endpoint; returns the HTTP status code."""
+        url = urljoin(self.base_url.rstrip("/") + "/", "users/self")
 
-            async with session.get(url, headers=headers) as response:
-                if response.status != 200:
-                    response_message = await response.json()
-                    errors = response_message["errors"][0]["message"]
-                    raise AuthenticationError(response.status, errors)
-        return response.status
+        def _extract(data: dict[str, Any]) -> str | None:
+            errors = data.get("errors")
+            if isinstance(errors, list) and errors:
+                first = errors[0]
+                if isinstance(first, dict):
+                    return first.get("message")
+                if isinstance(first, str):
+                    return first
+            return None
+
+        async with self.session.get(url, headers={"Authorization": f"Bearer {self.api_token}"}) as response:
+            if response.status < 200 or response.status >= 300:
+                err = await self._handle_error_response(Method.GET, url, response, error_extractor=_extract)
+                raise AuthenticationError(response.status, err.message)
+            return response.status
 
     async def get(self, endpoint: str) -> dict[str, Any]:
-        return await self.request_bearer("get", endpoint)
+        """Send a GET request and return the response as a JSON object."""
+        return await self._request_dict(Method.GET, endpoint)
+
+    async def get_all(self, endpoint: str) -> list[Any]:
+        """Send a GET request and return the response as a JSON array."""
+        result = await self._request(Method.GET, endpoint)
+        if not isinstance(result, list):
+            raise ValueError(f"Expected JSON array from GET {endpoint}, got {type(result).__name__}")
+        return result
 
     async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self.request_bearer("post", endpoint, payload)
+        """Send a POST request with a JSON body and return the response as a JSON object."""
+        return await self._request_dict(Method.POST, endpoint, payload)
 
     async def put(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self.request_bearer("put", endpoint, payload)
+        """Send a PUT request with a JSON body and return the response as a JSON object."""
+        return await self._request_dict(Method.PUT, endpoint, payload)
 
     async def delete(self, endpoint: str) -> dict[str, Any]:
-        return await self.request_bearer("delete", endpoint)
-
-    async def request_bearer(self, method: str, endpoint: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        if not self.api_token:
-            raise AuthenticationError(401, "API Token not found")
-
-        url = urljoin(self.api_url + "/", endpoint.lstrip("/"))
-        return await request(
-            method,
-            url,
-            self.session,
-            token=self.api_token,
-            payload=payload,
-        )
-
-    async def close(self) -> None:
-        if self.session and not self.session.closed:
-            await self.session.close()
+        """Send a DELETE request and return the response as a JSON object."""
+        return await self._request_dict(Method.DELETE, endpoint)
