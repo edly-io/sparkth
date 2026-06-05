@@ -120,7 +120,7 @@ class TestRetrieveContext:
             formatted_text="",
         )
         with (
-            patch("app.lib.rag._validate_files_ready", new=AsyncMock()),
+            patch("app.lib.rag.validate_files_ready", new=AsyncMock()),
             patch(
                 "app.lib.rag.get_context_via_agent_with_isolated_session", new=AsyncMock(return_value=mock_ctx)
             ) as mock_fn,

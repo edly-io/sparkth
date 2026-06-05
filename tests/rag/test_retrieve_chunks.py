@@ -31,7 +31,7 @@ class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_maps_chunks_to_retrieved_chunks(self) -> None:
         with (
-            patch("app.lib.rag._validate_files_ready", new=AsyncMock()),
+            patch("app.lib.rag.validate_files_ready", new=AsyncMock()),
             patch(
                 "app.lib.rag.get_context_via_agent_with_isolated_session",
                 new=AsyncMock(side_effect=[_ctx("a.pdf", "alpha"), _ctx("b.pdf", "beta")]),
@@ -48,7 +48,7 @@ class TestRetrieveChunks:
         get_ctx = AsyncMock()
         with (
             patch(
-                "app.lib.rag._validate_files_ready",
+                "app.lib.rag.validate_files_ready",
                 new=AsyncMock(side_effect=DriveFileNotFoundError("nope")),
             ),
             patch("app.lib.rag.get_context_via_agent_with_isolated_session", new=get_ctx),
@@ -62,7 +62,7 @@ class TestRetrieveChunks:
         get_ctx = AsyncMock()
         with (
             patch(
-                "app.lib.rag._validate_files_ready",
+                "app.lib.rag.validate_files_ready",
                 new=AsyncMock(side_effect=RAGNotReadyError(10, str(RagStatus.PROCESSING))),
             ),
             patch("app.lib.rag.get_context_via_agent_with_isolated_session", new=get_ctx),
@@ -74,7 +74,7 @@ class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_retrieval_error_propagates(self) -> None:
         with (
-            patch("app.lib.rag._validate_files_ready", new=AsyncMock()),
+            patch("app.lib.rag.validate_files_ready", new=AsyncMock()),
             patch(
                 "app.lib.rag.get_context_via_agent_with_isolated_session",
                 new=AsyncMock(side_effect=RAGRetrievalError("agent boom")),

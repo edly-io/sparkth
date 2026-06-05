@@ -21,7 +21,7 @@ from app.rag.exceptions import (  # noqa: F401 — re-exported in __all__
 from app.rag.ingestion.chunking import DocumentChunker
 from app.rag.ingestion.extraction import check_extraction_eligibility, extract_to_markdown
 from app.rag.retrieval import get_context_via_agent_with_isolated_session
-from app.rag.retrieval.utils import _validate_files_ready
+from app.rag.retrieval.utils import validate_files_ready
 from app.rag.store import ChunkStoreService, store_and_link_chunks
 from app.rag.types import IngestionResult, RetrievedChunk  # noqa: F401 — re-exported in __all__
 
@@ -116,7 +116,7 @@ async def agentic_retrieve_context(
         return []
 
     async with session_scope() as session:
-        await _validate_files_ready(session, user_id, file_ids)
+        await validate_files_ready(session, user_id, file_ids)
 
     tasks = [get_context_via_agent_with_isolated_session(user_id, fid, query, llm) for fid in file_ids]
     contexts = await asyncio.gather(*tasks)
