@@ -1,4 +1,9 @@
-"""Document chunk storage service."""
+"""RAG database storage service — shared by ingestion and retrieval.
+
+``ChunkStoreService`` is the single point of contact between the RAG pipeline
+and the database. Ingestion uses it to persist and deduplicate chunks;
+retrieval uses it to fetch chunks by section.
+"""
 
 import hashlib
 from typing import Any, cast

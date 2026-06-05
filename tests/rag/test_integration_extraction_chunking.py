@@ -7,8 +7,8 @@ import io
 
 import pytest
 
-from app.rag.chunking import DocumentChunker
-from app.rag.extraction import extract_to_markdown
+from app.rag.ingestion.chunking import DocumentChunker
+from app.rag.ingestion.extraction import extract_to_markdown
 from app.rag.types import Chunk
 
 

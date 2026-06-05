@@ -14,7 +14,7 @@ def _default_pdf_settings() -> Generator[None, None, None]:
     Tests that specifically test these settings override them with their
     own inner patch() context managers.
     """
-    with patch("app.rag.extraction.pdf.get_rag_settings") as mock:
+    with patch("app.rag.ingestion.extraction.pdf.get_rag_settings") as mock:
         mock.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 100
         mock.return_value.RAG_PDF_EXTRACTION_BATCH_SIZE = 10
         yield

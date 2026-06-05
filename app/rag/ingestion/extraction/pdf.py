@@ -9,7 +9,7 @@ from app.lib.log import get_logger
 from app.rag.config import get_rag_settings
 from app.rag.enums import DocType
 from app.rag.exceptions import ScannedPDFError
-from app.rag.extraction.base import BaseExtractor
+from app.rag.ingestion.extraction.base import BaseExtractor
 from app.rag.types import ExtractionResult
 
 logger = get_logger(__name__)

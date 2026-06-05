@@ -1,6 +1,6 @@
-from app.rag.chunking import DocumentChunker
 from app.rag.enums import DocType
-from app.rag.extraction import ExtractionResult
+from app.rag.ingestion.chunking import DocumentChunker
+from app.rag.ingestion.extraction import ExtractionResult
 from app.rag.types import Chunk, ChunkMetadata
 
 STRUCTURED_MD = """\

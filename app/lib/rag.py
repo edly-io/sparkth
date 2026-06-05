@@ -10,7 +10,6 @@ from langchain_core.language_models import BaseChatModel
 
 from app.lib.db import session_scope
 from app.memory_profiler import profile_memory
-from app.rag.chunking import DocumentChunker
 from app.rag.context_service import _validate_files_ready
 from app.rag.enums import RagStatus
 from app.rag.exceptions import (
@@ -20,7 +19,8 @@ from app.rag.exceptions import (
     ScannedPDFError,
     UnsupportedFileTypeError,
 )
-from app.rag.extraction import check_extraction_eligibility, extract_to_markdown
+from app.rag.ingestion.chunking import DocumentChunker
+from app.rag.ingestion.extraction import check_extraction_eligibility, extract_to_markdown
 from app.rag.retrieval import retrieve_context_from_file
 from app.rag.store import ChunkStoreService, store_and_link_chunks
 from app.rag.types import IngestionResult, RetrievedChunk

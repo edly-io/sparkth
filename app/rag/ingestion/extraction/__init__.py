@@ -8,11 +8,11 @@ from pathlib import Path
 
 from app.lib.log import get_logger
 from app.rag.exceptions import UnsupportedFileTypeError
-from app.rag.extraction.base import BaseExtractor
-from app.rag.extraction.docx import DocxExtractor
-from app.rag.extraction.html import HTMLExtractor
-from app.rag.extraction.pdf import PDFExtractor
-from app.rag.extraction.txt import TXTExtractor
+from app.rag.ingestion.extraction.base import BaseExtractor
+from app.rag.ingestion.extraction.docx import DocxExtractor
+from app.rag.ingestion.extraction.html import HTMLExtractor
+from app.rag.ingestion.extraction.pdf import PDFExtractor
+from app.rag.ingestion.extraction.txt import TXTExtractor
 from app.rag.types import ExtractionResult
 
 logger = get_logger(__name__)
