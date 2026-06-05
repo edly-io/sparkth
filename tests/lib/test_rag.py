@@ -7,7 +7,6 @@ public boundary, never the RAG internals behind it.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.language_models import BaseChatModel
 
 import app.lib.rag as rag_api
 from app.lib.rag import (
@@ -93,10 +92,40 @@ class TestRetrieveContextSurface:
 
 class TestRetrieveContext:
     @pytest.mark.asyncio
-    async def test_delegates_to_orchestration(self) -> None:
-        chunk = rag_api.RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="x")
-        mock_llm = MagicMock(spec=BaseChatModel)
-        with patch("app.lib.rag.retrieve_chunks", new=AsyncMock(return_value=[chunk])) as mock_retrieve:
-            result = await rag_api.retrieve_context(user_id=1, file_ids=[10], query="q", llm=mock_llm)
-        assert result == [chunk]
-        mock_retrieve.assert_awaited_once()
+    async def test_empty_file_ids_returns_empty(self) -> None:
+        result = await rag_api.retrieve_context(user_id=1, file_ids=[], query="q", llm=MagicMock())
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_returns_retrieved_chunks_from_file(self) -> None:
+        from app.rag.models import DocumentChunk
+        from app.rag.store import SimilarityResult
+        from app.rag.types import RAGContext
+
+        mock_ctx = RAGContext(
+            file_db_id=10,
+            source_name="a.pdf",
+            chunks=[
+                SimilarityResult(
+                    chunk=DocumentChunk(
+                        user_id=1,
+                        source_name="a.pdf",
+                        content="hello",
+                        chapter="Ch",
+                        section=None,
+                        subsection=None,
+                    ),
+                    similarity=1.0,
+                )
+            ],
+            formatted_text="",
+        )
+        with (
+            patch("app.lib.rag._validate_files_ready", new=AsyncMock()),
+            patch("app.lib.rag.retrieve_context_from_file", new=AsyncMock(return_value=mock_ctx)) as mock_fn,
+        ):
+            result = await rag_api.retrieve_context(user_id=1, file_ids=[10], query="q", llm=MagicMock())
+        assert len(result) == 1
+        assert result[0].content == "hello"
+        assert result[0].source_name == "a.pdf"
+        mock_fn.assert_awaited_once()

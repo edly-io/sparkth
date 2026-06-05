@@ -11,7 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from app.lib.db import session_scope
 from app.memory_profiler import profile_memory
 from app.rag.chunking import DocumentChunker
-from app.rag.context_service import retrieve_chunks
+from app.rag.context_service import _validate_files_ready, retrieve_context_from_file
 from app.rag.enums import RagStatus
 from app.rag.exceptions import (
     DriveFileNotFoundError,
@@ -111,4 +111,23 @@ async def retrieve_context(
         RAGNotReadyError: a file exists but is not READY.
         RAGRetrievalError: agent search or section fetch failed.
     """
-    return await retrieve_chunks(user_id=user_id, file_ids=file_ids, query=query, llm=llm)
+    if not file_ids:
+        return []
+
+    async with session_scope() as session:
+        await _validate_files_ready(session, user_id, file_ids)
+
+    tasks = [retrieve_context_from_file(user_id, fid, query, llm) for fid in file_ids]
+    contexts = await asyncio.gather(*tasks)
+
+    return [
+        RetrievedChunk(
+            source_name=sr.chunk.source_name,
+            chapter=sr.chunk.chapter,
+            section=sr.chunk.section,
+            subsection=sr.chunk.subsection,
+            content=sr.chunk.content,
+        )
+        for ctx in contexts
+        for sr in ctx.chunks
+    ]

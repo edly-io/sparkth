@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from sqlmodel import col, select
@@ -23,10 +22,10 @@ from app.rag.config import get_rag_settings
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.store import ChunkStoreService, SimilarityResult
-from app.rag.types import RAGContext, RetrievedChunk
+from app.rag.types import RAGContext
 from app.rag.utils import resolve_source_name
 
-__all__ = ["RAGContext", "format_chunks_as_context", "get_context_via_agent", "retrieve_chunks"]
+__all__ = ["RAGContext", "format_chunks_as_context", "get_context_via_agent", "retrieve_context_from_file"]
 
 logger = get_logger(__name__)
 
@@ -184,13 +183,17 @@ async def _validate_files_ready(session: AsyncSession, user_id: int, file_ids: l
             raise RAGNotReadyError(file_id, status_str)
 
 
-async def _search_one_file(
+async def retrieve_context_from_file(
     user_id: int,
     file_id: int,
     query: str,
     llm: BaseChatModel,
 ) -> RAGContext:
-    """Run the per-file agent search in its own session (for concurrent fan-out)."""
+    """Run agent-driven retrieval for a single file in its own DB session.
+
+    Opens its own session so concurrent callers (e.g. asyncio.gather fan-out)
+    do not share a session — AsyncSession is not concurrency-safe.
+    """
     async with session_scope() as file_session:
         return await get_context_via_agent(
             session=file_session,
@@ -199,39 +202,3 @@ async def _search_one_file(
             query=query,
             llm=llm,
         )
-
-
-async def retrieve_chunks(
-    user_id: int,
-    file_ids: list[int],
-    query: str,
-    llm: BaseChatModel,
-) -> list[RetrievedChunk]:
-    """Validate all files are READY, then fan out agent retrieval per file.
-
-    Returns a flat list of RetrievedChunk across all files (file_ids order).
-
-    Raises:
-        DriveFileNotFoundError / RAGNotReadyError: validation failed (nothing searched).
-        RAGRetrievalError: a per-file agent search or section fetch failed.
-    """
-    if not file_ids:
-        return []
-
-    async with session_scope() as session:
-        await _validate_files_ready(session, user_id, file_ids)
-
-    tasks = [_search_one_file(user_id, fid, query, llm) for fid in file_ids]
-    contexts = await asyncio.gather(*tasks)
-
-    return [
-        RetrievedChunk(
-            source_name=sr.chunk.source_name,
-            chapter=sr.chunk.chapter,
-            section=sr.chunk.section,
-            subsection=sr.chunk.subsection,
-            content=sr.chunk.content,
-        )
-        for ctx in contexts
-        for sr in ctx.chunks
-    ]
