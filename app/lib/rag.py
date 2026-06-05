@@ -11,8 +11,8 @@ from langchain_core.language_models import BaseChatModel
 from app.lib.db import session_scope
 from app.memory_profiler import profile_memory
 from app.rag.context_service import _validate_files_ready
-from app.rag.enums import RagStatus
-from app.rag.exceptions import (
+from app.rag.enums import RagStatus  # noqa: F401 — re-exported in __all__
+from app.rag.exceptions import (  # noqa: F401 — re-exported in __all__
     DriveFileNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
@@ -23,7 +23,7 @@ from app.rag.ingestion.chunking import DocumentChunker
 from app.rag.ingestion.extraction import check_extraction_eligibility, extract_to_markdown
 from app.rag.retrieval import retrieve_context_from_file
 from app.rag.store import ChunkStoreService, store_and_link_chunks
-from app.rag.types import IngestionResult, RetrievedChunk
+from app.rag.types import IngestionResult, RetrievedChunk  # noqa: F401 — re-exported in __all__
 
 __all__ = [
     "DriveFileNotFoundError",
@@ -34,8 +34,8 @@ __all__ = [
     "RetrievedChunk",
     "ScannedPDFError",
     "UnsupportedFileTypeError",
-    "ingest_document",
     "agentic_retrieve_context",
+    "ingest_document",
 ]
 
 

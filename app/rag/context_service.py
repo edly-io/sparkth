@@ -16,10 +16,7 @@ if TYPE_CHECKING:
 
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError
-from app.rag.store import SimilarityResult
-from app.rag.types import RAGContext
-
-__all__ = ["RAGContext", "format_chunks_as_context"]
+from app.rag.types import SimilarityResult
 
 logger = get_logger(__name__)
 
@@ -101,3 +98,6 @@ async def _validate_files_ready(session: AsyncSession, user_id: int, file_ids: l
             status_str = str(drive_file.rag_status or "None")
             logger.warning("RAG not ready: file_db_id=%d status=%s", file_id, status_str)
             raise RAGNotReadyError(file_id, status_str)
+
+
+__all__ = ["format_chunks_as_context"]

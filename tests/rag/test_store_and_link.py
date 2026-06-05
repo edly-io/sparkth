@@ -8,8 +8,8 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.rag.models import DocumentChunk, DriveFileChunkLink
-from app.rag.store import ChunkInput, ChunkStoreService, store_and_link_chunks
-from app.rag.types import Chunk, ChunkMetadata
+from app.rag.store import ChunkStoreService, store_and_link_chunks
+from app.rag.types import Chunk, ChunkInput, ChunkMetadata
 
 
 def _make_async_session() -> AsyncMock:

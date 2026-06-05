@@ -8,8 +8,7 @@ from app.lib.rag import agentic_retrieve_context as retrieve_chunks
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.models import DocumentChunk
-from app.rag.store import SimilarityResult
-from app.rag.types import RAGContext, RetrievedChunk
+from app.rag.types import RAGContext, RetrievedChunk, SimilarityResult
 
 
 def _ctx(source: str, *contents: str) -> RAGContext:

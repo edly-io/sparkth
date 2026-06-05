@@ -19,8 +19,7 @@ from app.rag.config import get_rag_settings
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.types import Chunk, ChunkInput, SimilarityResult
 
-# Re-export for backwards-compatibility with modules that import from store
-__all__ = ["ChunkInput", "SimilarityResult", "ChunkStoreService", "store_and_link_chunks"]
+__all__ = ["ChunkStoreService", "store_and_link_chunks"]
 
 logger = get_logger(__name__)
 

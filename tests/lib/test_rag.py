@@ -99,8 +99,7 @@ class TestRetrieveContext:
     @pytest.mark.asyncio
     async def test_returns_retrieved_chunks_from_file(self) -> None:
         from app.rag.models import DocumentChunk
-        from app.rag.store import SimilarityResult
-        from app.rag.types import RAGContext
+        from app.rag.types import RAGContext, SimilarityResult
 
         mock_ctx = RAGContext(
             file_db_id=10,

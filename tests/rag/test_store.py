@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkInput, ChunkStoreService
+from app.rag.store import ChunkStoreService
+from app.rag.types import ChunkInput
 
 
 class TestChunkInput:
