@@ -19,8 +19,6 @@ from app.rag.config import get_rag_settings
 from app.rag.models import DocumentChunk, DriveFileChunkLink
 from app.rag.types import Chunk, ChunkInput, SimilarityResult
 
-__all__ = ["ChunkStoreService", "store_and_link_chunks"]
-
 logger = get_logger(__name__)
 
 

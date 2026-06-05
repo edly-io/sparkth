@@ -8,11 +8,11 @@ from pathlib import Path
 
 from app.lib.log import get_logger
 from app.rag.exceptions import UnsupportedFileTypeError
-from app.rag.ingestion.extraction.base import BaseExtractor
-from app.rag.ingestion.extraction.docx import DocxExtractor
-from app.rag.ingestion.extraction.html import HTMLExtractor
-from app.rag.ingestion.extraction.pdf import PDFExtractor
-from app.rag.ingestion.extraction.txt import TXTExtractor
+from app.rag.ingestion.extraction.base import BaseExtractor as BaseExtractor
+from app.rag.ingestion.extraction.docx import DocxExtractor as DocxExtractor
+from app.rag.ingestion.extraction.html import HTMLExtractor as HTMLExtractor
+from app.rag.ingestion.extraction.pdf import PDFExtractor as PDFExtractor
+from app.rag.ingestion.extraction.txt import TXTExtractor as TXTExtractor
 from app.rag.types import ExtractionResult  # used in return type of extract_to_markdown
 
 logger = get_logger(__name__)
@@ -72,15 +72,3 @@ def extract_to_markdown(data: bytes, filename: str) -> ExtractionResult:
         len(result.markdown),
     )
     return result
-
-
-__all__ = [
-    "SUPPORTED_EXTENSIONS_FOR_EXTRACTION",
-    "BaseExtractor",
-    "DocxExtractor",
-    "HTMLExtractor",
-    "PDFExtractor",
-    "TXTExtractor",
-    "check_extraction_eligibility",
-    "extract_to_markdown",
-]
