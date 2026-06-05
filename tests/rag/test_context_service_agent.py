@@ -60,8 +60,7 @@ class TestGetContextViaAgent:
         assert result.source_name == "bio.pdf"
         assert len(result.chunks) == 1
         mock_store.fetch_chunks_by_sections.assert_awaited_once()
-        call_kwargs = mock_store.fetch_chunks_by_sections.call_args.kwargs
-        assert call_kwargs["section_keys"] == [s.model_dump() for s in selected]
+        assert mock_store.fetch_chunks_by_sections.call_args.args[3] == [s.model_dump() for s in selected]
 
     @pytest.mark.asyncio
     async def test_empty_sections_returns_no_chunks(self) -> None:
@@ -95,8 +94,7 @@ class TestGetContextViaAgent:
 
         assert result.chunks == []
         mock_store.fetch_chunks_by_sections.assert_awaited_once()
-        call_kwargs = mock_store.fetch_chunks_by_sections.call_args.kwargs
-        assert call_kwargs["section_keys"] == []
+        assert mock_store.fetch_chunks_by_sections.call_args.args[3] == []
 
     @pytest.mark.asyncio
     async def test_file_not_found_raises_drive_file_not_found_error(self) -> None:
@@ -218,5 +216,4 @@ class TestGetContextViaAgent:
             )
 
             mock_agent.assert_called_once()
-            call_kwargs = mock_agent.call_args.kwargs
-            assert call_kwargs["user_query"] == "test.pdf"
+            assert mock_agent.call_args.args[3] == "test.pdf"

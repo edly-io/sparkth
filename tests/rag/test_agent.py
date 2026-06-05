@@ -154,7 +154,7 @@ class TestRunRagSearch:
         agent = self._make_agent({"structured_response": expected})
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
-            result = await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+            result = await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
         assert result.source_name == "doc.pdf"
         assert len(result.selected_sections) == 1
@@ -165,7 +165,7 @@ class TestRunRagSearch:
         agent = self._make_agent({"messages": []})
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
-            result = await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+            result = await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
         assert result.source_name == ""
         assert result.selected_sections == []
@@ -177,21 +177,21 @@ class TestRunRagSearch:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_connect_error_raises_retrieval_error(self) -> None:
         exc = ConnectError("connection refused", request=Request("GET", "http://test-mcp"))
         with self._patch_settings(), self._patch_mcp_client(side_effect=exc):
             with pytest.raises(RAGRetrievalError):
-                await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_http_status_error_raises_retrieval_error(self) -> None:
         exc = HTTPStatusError("503", request=Request("GET", "http://test-mcp"), response=Response(503))
         with self._patch_settings(), self._patch_mcp_client(side_effect=exc):
             with pytest.raises(RAGRetrievalError):
-                await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_langchain_exception_raises_retrieval_error(self) -> None:
@@ -200,7 +200,7 @@ class TestRunRagSearch:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_graph_recursion_error_raises_retrieval_error(self) -> None:
@@ -209,7 +209,7 @@ class TestRunRagSearch:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError, match="maximum steps"):
-                await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_value_error_propagates(self) -> None:
@@ -218,4 +218,4 @@ class TestRunRagSearch:
 
         with self._patch_settings(), self._patch_mcp_client(), self._patch_agent(agent):
             with pytest.raises(ValueError):
-                await run_agentic_rag_retrieval(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")

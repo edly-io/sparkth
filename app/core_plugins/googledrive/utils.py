@@ -172,12 +172,7 @@ async def _ingest_drive_file(
         )
         return
 
-    result = await ingest_document(
-        user_id=user_id,
-        owner_file_id=file_id,
-        file_bytes=file_bytes,
-        filename=filename,
-    )
+    result = await ingest_document(user_id, file_id, file_bytes, filename)
     await _set_rag_status(session, drive_file, RagStatus.READY)
     logger.info(
         "RAG processing complete for '%s': %d new chunks stored, %d reused.",

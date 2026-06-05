@@ -56,10 +56,10 @@ class TestResolveBlocksUsesAgent:
             )
 
             mock_retrieve.assert_called_once()
-            call_kwargs = mock_retrieve.call_args[1]
-            assert call_kwargs["user_id"] == 1
-            assert 1 in call_kwargs["file_ids"]
-            assert "llm" in call_kwargs
+
+            assert mock_retrieve.call_args.args[0] == 1  # user_id
+            assert 1 in mock_retrieve.call_args.args[1]  # file_ids
+            assert mock_retrieve.call_args.args[3] is not None  # llm
 
     @pytest.mark.asyncio
     async def test_drive_file_not_found_returns_422(self) -> None:

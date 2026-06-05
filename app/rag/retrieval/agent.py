@@ -33,6 +33,52 @@ _JSON_TYPE_MAP: dict[str, type] = {
 }
 
 
+def _bind_user_context(tools: list[Any], user_id: int, file_id: int) -> list[Any]:
+    """Strip user_id/file_id from MCP tool input schemas and inject them on invocation.
+
+    Uses tool.args (LangChain's stable JSON-schema property) rather than
+    args_schema.model_fields so this works reliably with MCP adapter tools.
+    """
+    result: list[Any] = []
+    for tool in tools:
+        try:
+            tool_arg_names = set((tool.args or {}).keys())
+        except (AttributeError, TypeError):
+            result.append(tool)
+            continue
+
+        injected: dict[str, int] = {
+            k: (user_id if k == "user_id" else file_id) for k in AGENT_CONTEXT_KEYS if k in tool_arg_names
+        }
+
+        if not injected:
+            result.append(tool)
+            continue
+
+        remaining = {k: v for k, v in tool.args.items() if k not in AGENT_CONTEXT_KEYS}
+        field_defs: dict[str, Any] = {
+            name: (
+                _JSON_TYPE_MAP.get(schema.get("type", "string"), Any),
+                Field(description=schema.get("description", name)),
+            )
+            for name, schema in remaining.items()
+        }
+        ReducedSchema: type[BaseModel] = create_model(f"{tool.name}_Input", **field_defs)
+
+        async def _coroutine(_t: Any = tool, _ctx: dict[str, int] = injected, **kwargs: Any) -> Any:
+            return await _t.ainvoke({**kwargs, **_ctx})
+
+        result.append(
+            StructuredTool(
+                name=tool.name,
+                description=tool.description,
+                args_schema=ReducedSchema,
+                coroutine=_coroutine,
+            )
+        )
+    return result
+
+
 async def run_agentic_rag_retrieval(llm: Any, user_id: int, file_id: int, user_query: str) -> RAGSearchAgentResponse:
     """Run agentic RAG search to determine target sections.
 
@@ -96,52 +142,6 @@ async def run_agentic_rag_retrieval(llm: Any, user_id: int, file_id: int, user_q
         raise RAGRetrievalError(f"Agent failed to process query: {exc}") from exc
 
 
-def _bind_user_context(tools: list[Any], user_id: int, file_id: int) -> list[Any]:
-    """Strip user_id/file_id from MCP tool input schemas and inject them on invocation.
-
-    Uses tool.args (LangChain's stable JSON-schema property) rather than
-    args_schema.model_fields so this works reliably with MCP adapter tools.
-    """
-    result: list[Any] = []
-    for tool in tools:
-        try:
-            tool_arg_names = set((tool.args or {}).keys())
-        except (AttributeError, TypeError):
-            result.append(tool)
-            continue
-
-        injected: dict[str, int] = {
-            k: (user_id if k == "user_id" else file_id) for k in AGENT_CONTEXT_KEYS if k in tool_arg_names
-        }
-
-        if not injected:
-            result.append(tool)
-            continue
-
-        remaining = {k: v for k, v in tool.args.items() if k not in AGENT_CONTEXT_KEYS}
-        field_defs: dict[str, Any] = {
-            name: (
-                _JSON_TYPE_MAP.get(schema.get("type", "string"), Any),
-                Field(description=schema.get("description", name)),
-            )
-            for name, schema in remaining.items()
-        }
-        ReducedSchema: type[BaseModel] = create_model(f"{tool.name}_Input", **field_defs)
-
-        async def _coroutine(_t: Any = tool, _ctx: dict[str, int] = injected, **kwargs: Any) -> Any:
-            return await _t.ainvoke({**kwargs, **_ctx})
-
-        result.append(
-            StructuredTool(
-                name=tool.name,
-                description=tool.description,
-                args_schema=ReducedSchema,
-                coroutine=_coroutine,
-            )
-        )
-    return result
-
-
 async def get_context_via_agent(
     session: AsyncSession,
     user_id: int,
@@ -180,12 +180,7 @@ async def get_context_via_agent(
         len(query),
     )
 
-    decision = await run_agentic_rag_retrieval(
-        llm=llm,
-        user_id=user_id,
-        file_id=file_db_id,
-        user_query=query,
-    )
+    decision = await run_agentic_rag_retrieval(llm, user_id, file_db_id, query)
 
     logger.info(
         "RAG agent selected %d section(s) for file_db_id=%d",
@@ -195,11 +190,11 @@ async def get_context_via_agent(
 
     try:
         results = await store.fetch_chunks_by_sections(
-            session=session,
-            user_id=user_id,
-            source_name=source_name,
-            section_keys=[s.model_dump() for s in decision.selected_sections],
-            limit=limit,
+            session,
+            user_id,
+            source_name,
+            [s.model_dump() for s in decision.selected_sections],
+            limit,
         )
     except Exception as exc:
         logger.error("Section fetch failed for file_db_id=%d: %s", file_db_id, exc)

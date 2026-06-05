@@ -219,12 +219,7 @@ async def _resolve_drive_file_blocks(
             continue
 
         try:
-            chunks = await agentic_retrieve_context(
-                user_id=user_id,
-                file_ids=file_ids,
-                query=query_text,
-                llm=llm,
-            )
+            chunks = await agentic_retrieve_context(user_id, file_ids, query_text, llm)
         except DriveFileNotFoundError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -771,12 +766,7 @@ async def stream_chat_response(
             logger.info("Agentic RAG search for file_ids=%s query_len=%d", file_ids, len(query_text))
             assert llm is not None, "llm must be provided when RAG resolution is active"
             try:
-                all_chunks = await agentic_retrieve_context(
-                    user_id=user_id,
-                    file_ids=file_ids,
-                    query=query_text,
-                    llm=llm,
-                )
+                all_chunks = await agentic_retrieve_context(user_id, file_ids, query_text, llm)
             except DriveFileNotFoundError as exc:
                 logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
                 error_text = "The attached file could not be found or is no longer accessible."

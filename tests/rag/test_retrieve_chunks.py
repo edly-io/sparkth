@@ -26,7 +26,7 @@ def _ctx(source: str, *contents: str) -> RAGContext:
 class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_empty_file_ids_returns_empty(self) -> None:
-        result = await retrieve_chunks(user_id=1, file_ids=[], query="q", llm=MagicMock())
+        result = await retrieve_chunks(1, [], "q", MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
@@ -38,7 +38,7 @@ class TestRetrieveChunks:
                 new=AsyncMock(side_effect=[_ctx("a.pdf", "alpha"), _ctx("b.pdf", "beta")]),
             ),
         ):
-            result = await retrieve_chunks(user_id=1, file_ids=[10, 11], query="q", llm=MagicMock())
+            result = await retrieve_chunks(1, [10, 11], "q", MagicMock())
         assert result == [
             RetrievedChunk(source_name="a.pdf", chapter="Ch", section=None, subsection=None, content="alpha"),
             RetrievedChunk(source_name="b.pdf", chapter="Ch", section=None, subsection=None, content="beta"),
@@ -55,7 +55,7 @@ class TestRetrieveChunks:
             patch("app.lib.rag.retrieve_context_from_file", new=get_ctx),
         ):
             with pytest.raises(DriveFileNotFoundError):
-                await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())
+                await retrieve_chunks(1, [10], "q", MagicMock())
         get_ctx.assert_not_awaited()  # nothing searched
 
     @pytest.mark.asyncio
@@ -69,7 +69,7 @@ class TestRetrieveChunks:
             patch("app.lib.rag.retrieve_context_from_file", new=get_ctx),
         ):
             with pytest.raises(RAGNotReadyError):
-                await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())
+                await retrieve_chunks(1, [10], "q", MagicMock())
         get_ctx.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -82,4 +82,4 @@ class TestRetrieveChunks:
             ),
         ):
             with pytest.raises(RAGRetrievalError):
-                await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())
+                await retrieve_chunks(1, [10], "q", MagicMock())

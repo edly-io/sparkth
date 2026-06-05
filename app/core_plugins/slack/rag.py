@@ -165,12 +165,7 @@ async def answer_question(
         return NO_FILES_RESOLVED_MESSAGE, ResponseType.no_files_resolved
 
     try:
-        chunks = await agentic_retrieve_context(
-            user_id=user_id,
-            file_ids=file_ids,
-            query=question,
-            llm=agent_llm,
-        )
+        chunks = await agentic_retrieve_context(user_id, file_ids, question, agent_llm)
     except DriveFileNotFoundError as exc:
         logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
         return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.drive_file_not_found
