@@ -25,7 +25,8 @@ from app.rag.types import Chunk, ChunkMetadata, ExtractionResult
 
 logger = get_logger(__name__)
 
-_ENCODING = tiktoken.get_encoding(get_rag_settings().RAG_CHUNKING_TIKTOKEN_ENCODING)
+_settings = get_rag_settings()
+_ENCODING = tiktoken.get_encoding(_settings.RAG_CHUNKING_TIKTOKEN_ENCODING)
 
 
 class DocumentChunker:
@@ -36,7 +37,6 @@ class DocumentChunker:
             headers_to_split_on=CHUNKING_MARKDOWN_HEADERS,
             strip_headers=False,
         )
-        _settings = get_rag_settings()
         self._token_splitter = RecursiveCharacterTextSplitter(
             chunk_size=_settings.RAG_CHUNKING_TOKEN_LIMIT,
             chunk_overlap=_settings.RAG_CHUNKING_SECONDARY_OVERLAP,
@@ -81,12 +81,11 @@ class DocumentChunker:
             metadata = self._build_metadata(doc.metadata, source_name)
             chunk = Chunk(content=content, metadata=metadata)
 
-            token_limit = get_rag_settings().RAG_CHUNKING_TOKEN_LIMIT
-            if self._count_tokens(content) > token_limit:
+            if self._count_tokens(content) > _settings.RAG_CHUNKING_TOKEN_LIMIT:
                 logger.debug(
                     "'%s' chunk >%d tokens — applying secondary split.",
                     source_name,
-                    token_limit,
+                    _settings.RAG_CHUNKING_TOKEN_LIMIT,
                 )
                 chunks.extend(self._secondary_split(chunk))
             else:
