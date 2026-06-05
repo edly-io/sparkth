@@ -18,7 +18,7 @@ from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.encryption import get_encryption_service
 from app.core_plugins.slack.client import SlackClient
-from app.core_plugins.slack.config import SlackConfig, get_slack_system_config
+from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,
     NO_AI_KEY_MESSAGE,
@@ -30,8 +30,9 @@ from app.core_plugins.slack.events import extract_question, is_greeting, should_
 from app.core_plugins.slack.exceptions import SlackSignatureError
 from app.core_plugins.slack.models import BotResponseLog, SlackConnectionLog
 from app.core_plugins.slack.rag import answer_question
-from app.core_plugins.slack.routes.oauth import get_workspace_service, oauth_router, require_user_id
-from app.core_plugins.slack.service import WorkspaceService, decrypt_token
+from app.core_plugins.slack.routes.dependencies import require_user_id
+from app.core_plugins.slack.routes.oauth import oauth_router
+from app.core_plugins.slack.service import WorkspaceService, decrypt_token, get_workspace_service
 from app.core_plugins.slack.types import (
     BotResponseLogItem,
     ConnectionLogItem,
@@ -74,9 +75,9 @@ async def _build_llm_provider(
 
     try:
         llm_config, api_key = await llm_service.resolve(
-            session=session,
-            user_id=user_id,
-            config_id=config_id,
+            session,
+            user_id,
+            config_id,
         )
 
         return get_provider(
@@ -107,7 +108,7 @@ async def _post_slack_message(
     try:
         bot_token = decrypt_token(bot_token_encrypted)
         async with SlackClient(bot_token) as slack:
-            resp = await slack.post_message(channel=channel, text=text, thread_ts=thread_ts)
+            resp = await slack.post_message(channel, text=text, thread_ts=thread_ts)
         return str(resp.get("ts", ""))
     except (ValueError, httpx.HTTPStatusError, httpx.RequestError) as exc:
         logger.error(
@@ -322,11 +323,11 @@ async def _dispatch_event(
                 else:
                     try:
                         answer, response_type = await answer_question(
-                            session=session,
-                            user_id=user_id,
-                            question=question,
-                            config=config,
-                            agent_llm=agent_llm,
+                            session,
+                            user_id,
+                            question,
+                            config,
+                            agent_llm,
                             llm_provider=llm_provider,
                         )
                         rag_matched = response_type == ResponseType.RAG_MATCH
@@ -368,10 +369,10 @@ async def slack_events(
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     slack_sig = request.headers.get("X-Slack-Signature", "")
 
-    system_cfg = get_slack_system_config()
-    if system_cfg.SLACK_SIGNING_SECRET:
+    system_cfg = get_slack_settings()
+    if system_cfg.signing_secret:
         try:
-            SlackClient.verify_signature(system_cfg.SLACK_SIGNING_SECRET, timestamp, raw_body, slack_sig)
+            SlackClient.verify_signature(system_cfg.signing_secret, timestamp, raw_body, slack_sig)
         except SlackSignatureError as exc:
             logger.warning("Slack signature verification failed: %s", exc)
             raise HTTPException(

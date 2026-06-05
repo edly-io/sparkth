@@ -53,7 +53,7 @@ class BotResponseLog(TimestampedModel, SQLModel, table=True):
     rag_matched: bool = Field(default=False, nullable=False)
     response_type: ResponseType = Field(
         sa_column=Column(
-            SQLAlchemyEnum(ResponseType, name="responsetype"),
+            SQLAlchemyEnum(ResponseType, name="responsetype", values_callable=lambda e: [m.value for m in e]),
             nullable=False,
             server_default="legacy",
         )
@@ -71,7 +71,9 @@ class SlackConnectionLog(TimestampedModel, SQLModel, table=True):
     workspace_id: int = Field(foreign_key="slack_workspaces.id", index=True, nullable=False)
     event_type: ConnectionEventType = Field(
         sa_column=Column(
-            SQLAlchemyEnum(ConnectionEventType, name="connectioneventtype"),
+            SQLAlchemyEnum(
+                ConnectionEventType, name="connectioneventtype", values_callable=lambda e: [m.value for m in e]
+            ),
             nullable=False,
         )
     )

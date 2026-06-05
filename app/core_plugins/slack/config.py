@@ -18,17 +18,17 @@ class SlackSettings(BaseSettings):
         extra="ignore",
     )
     # Slack TA Bot OAuth
-    SLACK_CLIENT_ID: str = ""
-    SLACK_CLIENT_SECRET: str = ""
-    SLACK_SIGNING_SECRET: str = ""
-    SLACK_REDIRECT_URI: str = ""
+    client_id: str = ""
+    client_secret: str = ""
+    signing_secret: str = ""
+    redirect_uri: str = ""
 
-    STATE_MAX_AGE: int = 600
-    MAX_TIMESTAMP_DELTA: int = 300
-    MAX_AGENT_FILES: int = 5
-    MAX_QUESTION_LEN: int = 500
-    FRONTEND_PATH: str = "/dashboard/slack"
-    BOT_SCOPES: list[str] = Field(
+    state_max_age: int = 600
+    max_timestamp_delta: int = 300
+    max_agent_files: int = 5
+    max_question_len: int = 500
+    frontend_path: str = "/dashboard/slack"
+    bot_scopes: list[str] = Field(
         default=[
             "app_mentions:read",
             "channels:history",
@@ -39,7 +39,7 @@ class SlackSettings(BaseSettings):
         ]
     )
 
-    @field_validator("BOT_SCOPES", mode="before")
+    @field_validator("bot_scopes", mode="before")
     @classmethod
     def parse_scopes(cls, v: object) -> object:
         if isinstance(v, str):
@@ -83,5 +83,5 @@ class SlackConfig(PluginConfig):
 
 
 @lru_cache
-def get_slack_system_config() -> SlackSettings:
+def get_slack_settings() -> SlackSettings:
     return SlackSettings()

@@ -1,5 +1,6 @@
 import base64
 import hashlib
+from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.exc import IntegrityError
@@ -8,20 +9,31 @@ from sqlmodel import Session, select
 from app.core.config import get_settings
 from app.core_plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from app.core_plugins.slack.models import SlackWorkspace
+from app.lib.log import get_logger
 
-_key = hashlib.sha256(get_settings().SECRET_KEY.encode()).digest()
-_fernet = Fernet(base64.urlsafe_b64encode(_key))
+logger = get_logger(__name__)
+
+
+@lru_cache
+def _get_fernet() -> Fernet:
+    key = hashlib.sha256(get_settings().SECRET_KEY.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key))
 
 
 def encrypt_token(token: str) -> str:
-    return _fernet.encrypt(token.encode()).decode()
+    return _get_fernet().encrypt(token.encode()).decode()
 
 
 def decrypt_token(encrypted: str) -> str:
     try:
-        return _fernet.decrypt(encrypted.encode()).decode()
+        return _get_fernet().decrypt(encrypted.encode()).decode()
     except InvalidToken as exc:
         raise ValueError("Failed to decrypt Slack bot token") from exc
+
+
+def get_workspace_service() -> "WorkspaceService":
+    """FastAPI dependency that returns a WorkspaceService."""
+    return WorkspaceService()
 
 
 class WorkspaceService:
@@ -64,6 +76,13 @@ class WorkspaceService:
             ).first()
             if existing_for_team:
                 raise WorkspaceAlreadyConnectedError(team_id)
+
+            logger.error(
+                "Unexpected IntegrityError saving workspace for user=%d team=%s",
+                user_id,
+                team_id,
+                exc_info=True,
+            )
             raise
 
         session.commit()

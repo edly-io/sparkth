@@ -197,8 +197,8 @@ class TestSlackEvents:
     @pytest.mark.asyncio
     async def test_url_verification_returns_challenge(self, slack_client: AsyncClient) -> None:
         payload = {"type": "url_verification", "challenge": "3eZbrw1aBm"}
-        with patch("app.core_plugins.slack.routes.get_slack_system_config") as mock_settings:
-            mock_settings.return_value.SLACK_SIGNING_SECRET = ""
+        with patch("app.core_plugins.slack.routes.get_slack_settings") as mock_settings:
+            mock_settings.return_value.signing_secret = ""
             response = await slack_client.post(
                 "/api/v1/slack/events",
                 json=payload,
@@ -209,8 +209,8 @@ class TestSlackEvents:
 
     @pytest.mark.asyncio
     async def test_bad_signature_returns_403(self, slack_client: AsyncClient) -> None:
-        with patch("app.core_plugins.slack.routes.get_slack_system_config") as mock_settings:
-            mock_settings.return_value.SLACK_SIGNING_SECRET = "real_secret"
+        with patch("app.core_plugins.slack.routes.get_slack_settings") as mock_settings:
+            mock_settings.return_value.signing_secret = "real_secret"
 
             response = await slack_client.post(
                 "/api/v1/slack/events",
@@ -229,8 +229,8 @@ class TestSlackEvents:
             "team_id": "T_UNKNOWN",
             "event": {"type": "app_mention", "text": "<@BOT> hi", "user": "U1", "channel": "C1"},
         }
-        with patch("app.core_plugins.slack.routes.get_slack_system_config") as mock_settings:
-            mock_settings.return_value.SLACK_SIGNING_SECRET = ""
+        with patch("app.core_plugins.slack.routes.get_slack_settings") as mock_settings:
+            mock_settings.return_value.signing_secret = ""
             response = await slack_client.post(
                 "/api/v1/slack/events",
                 json=payload,
@@ -257,10 +257,10 @@ class TestSlackEvents:
             },
         }
         with (
-            patch("app.core_plugins.slack.routes.get_slack_system_config") as mock_settings,
+            patch("app.core_plugins.slack.routes.get_slack_settings") as mock_settings,
             patch("app.core_plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
         ):
-            mock_settings.return_value.SLACK_SIGNING_SECRET = ""
+            mock_settings.return_value.signing_secret = ""
             response = await slack_client.post(
                 "/api/v1/slack/events",
                 json=payload,
@@ -295,10 +295,10 @@ class TestDispatchEventGreeting:
             },
         }
         with (
-            patch("app.core_plugins.slack.routes.get_slack_system_config") as mock_settings,
+            patch("app.core_plugins.slack.routes.get_slack_settings") as mock_settings,
             patch("app.core_plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
         ):
-            mock_settings.return_value.SLACK_SIGNING_SECRET = ""
+            mock_settings.return_value.signing_secret = ""
             response = await slack_client.post(
                 "/api/v1/slack/events",
                 json=payload,
@@ -896,7 +896,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
         patch("app.core_plugins.slack.routes.get_encryption_service"),
         patch("app.core_plugins.slack.routes.get_cache_service"),
-        patch("app.core_plugins.slack.routes.get_slack_system_config"),
+        patch("app.core_plugins.slack.routes.get_slack_settings"),
         patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
         mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)
@@ -974,7 +974,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
         patch("app.core_plugins.slack.routes.get_encryption_service"),
         patch("app.core_plugins.slack.routes.get_cache_service"),
-        patch("app.core_plugins.slack.routes.get_slack_system_config"),
+        patch("app.core_plugins.slack.routes.get_slack_settings"),
         patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
         mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)

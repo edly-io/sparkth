@@ -25,4 +25,4 @@ GREETING_PATTERN = re.compile(
 )
 
 # LLM synthesis system prompt
-SYNTHESIS_SYSTEM_PROMPT = (Path(__file__).parent / "assets" / "synthesis_system_prompt.txt").read_text()
+SYNTHESIS_SYSTEM_PROMPT = (Path(__file__).parent / "assets" / "synthesis_system_prompt.txt").read_text(encoding="utf-8")

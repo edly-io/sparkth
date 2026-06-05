@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core_plugins.slack.config import SlackConfig, get_slack_system_config
+from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
     NO_FILES_RESOLVED_MESSAGE,
@@ -86,11 +86,11 @@ async def _resolve_files_for_sources(
 
     result = await session.exec(stmt)
     files: list[DriveFile] = list(result.all())
+    max_files = get_slack_settings().max_agent_files
 
     if allowed_sources:
         allowed_set = set(allowed_sources)
         matched = [f.id for f in files if f.id is not None and resolve_source_name(f) in allowed_set]
-        max_files = get_slack_system_config().MAX_AGENT_FILES
         if len(matched) > max_files:
             logger.warning(
                 "Slack agentic RAG: %d sources resolved for user=%d, capping at MAX_AGENT_FILES=%d",
@@ -101,7 +101,7 @@ async def _resolve_files_for_sources(
             matched = matched[:max_files]
         return matched
 
-    return [f.id for f in files[: get_slack_system_config().MAX_AGENT_FILES] if f.id is not None]
+    return [f.id for f in files[:max_files] if f.id is not None]
 
 
 async def _run_agent_fan_out(
@@ -123,14 +123,16 @@ async def _run_agent_fan_out(
     if not file_ids:
         return []
 
+    rag_service = RAGContextService()
+
     async def _run_single(file_id: int) -> RAGContext:
         async with session_scope() as file_session:
-            return await RAGContextService().get_context_via_agent(
-                session=file_session,
-                user_id=user_id,
-                file_db_id=file_id,
-                query=question,
-                llm=agent_llm,
+            return await rag_service.get_context_via_agent(
+                file_session,
+                user_id,
+                file_id,
+                question,
+                agent_llm,
             )
 
     raw: list[RAGContext | BaseException] = await asyncio.gather(
@@ -206,10 +208,10 @@ async def answer_question(
 
     try:
         contexts = await _run_agent_fan_out(
-            user_id=user_id,
-            file_ids=file_ids,
-            question=question,
-            agent_llm=agent_llm,
+            user_id,
+            file_ids,
+            question,
+            agent_llm,
         )
     except DriveFileNotFoundError as exc:
         logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
@@ -250,9 +252,9 @@ async def answer_question(
     if llm_provider:
         try:
             answer = await synthesize_answer(
-                question=question,
-                context=formatted_context,
-                provider=llm_provider,
+                question,
+                formatted_context,
+                llm_provider,
             )
             return answer, ResponseType.RAG_MATCH
         except (LangChainException, ValidationError, ValueError, RuntimeError, httpx.RemoteProtocolError) as exc:

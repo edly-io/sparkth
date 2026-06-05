@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.exceptions import LangChainException
 
-from app.core_plugins.slack.config import SlackConfig, get_slack_system_config
+from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
     NO_FILES_RESOLVED_MESSAGE,
@@ -55,7 +55,7 @@ async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> N
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=[])
     assert result == [1, 2, 3, 4, 5]
-    assert len(result) == get_slack_system_config().MAX_AGENT_FILES
+    assert len(result) == get_slack_settings().max_agent_files
 
 
 @pytest.mark.asyncio

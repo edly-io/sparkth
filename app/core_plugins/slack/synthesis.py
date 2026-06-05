@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from app.core_plugins.slack.config import get_slack_system_config
+from app.core_plugins.slack.config import get_slack_settings
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider
 
@@ -18,7 +18,7 @@ async def synthesize_answer(
 
     Returns the LLM's synthesized answer string.
     """
-    safe_question = question[: get_slack_system_config().MAX_QUESTION_LEN]
+    safe_question = question[: get_slack_settings().max_question_len]
     user_content = (
         f"## Student Question\n"
         f"<student_question>{safe_question}</student_question>\n\n"

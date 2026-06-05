@@ -7,53 +7,41 @@ from itsdangerous import BadSignature, SignatureExpired
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from app.api.v1.auth import get_current_user
-from app.core_plugins.slack.config import get_slack_system_config
+from app.core_plugins.slack.config import SlackSettings, get_slack_settings
 from app.core_plugins.slack.enums import ConnectionEventType
 from app.core_plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from app.core_plugins.slack.models import SlackConnectionLog
 from app.core_plugins.slack.oauth import decode_state, exchange_code_for_tokens, generate_authorization_url
-from app.core_plugins.slack.service import WorkspaceService
+from app.core_plugins.slack.routes.dependencies import require_user_id
+from app.core_plugins.slack.service import WorkspaceService, get_workspace_service
 from app.core_plugins.slack.types import AuthorizationUrlResponse, ConnectionStatusResponse
 from app.lib.db import get_session
 from app.lib.log import get_logger
-from app.models.user import User
 
 oauth_router: APIRouter = APIRouter()
 logger = get_logger(__name__)
 
 
-def require_user_id(current_user: User = Depends(get_current_user)) -> int:
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated")
-    return current_user.id
-
-
-def get_slack_credentials() -> tuple[str, str, str, str]:
-    """Return (client_id, client_secret, redirect_uri, signing_secret).
+def get_slack_credentials() -> SlackSettings:
+    """Return validated Slack settings.
 
     Raises HTTPException 503 if any environmental credential is missing.
     """
-    s = get_slack_system_config()
-    if not s.SLACK_CLIENT_ID or not s.SLACK_CLIENT_SECRET or not s.SLACK_SIGNING_SECRET or not s.SLACK_REDIRECT_URI:
+    s = get_slack_settings()
+    if not s.client_id or not s.client_secret or not s.signing_secret or not s.redirect_uri:
         logger.error(
             "Slack credentials not configured. Set SLACK_CLIENT_ID, "
             "SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET, SLACK_REDIRECT_URI"
         )
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Slack credentials not configured.")
-    return s.SLACK_CLIENT_ID, s.SLACK_CLIENT_SECRET, s.SLACK_REDIRECT_URI, s.SLACK_SIGNING_SECRET
-
-
-def get_workspace_service() -> WorkspaceService:
-    """Dependency to get slack workspace service."""
-    return WorkspaceService()
+    return s
 
 
 @oauth_router.get("/oauth/authorize", response_model=AuthorizationUrlResponse)
 def get_authorization_url(user_id: int = Depends(require_user_id)) -> AuthorizationUrlResponse:
     """Return the Slack OAuth install URL."""
-    client_id, _, redirect_uri, _ = get_slack_credentials()
-    url = generate_authorization_url(user_id, client_id, redirect_uri)
+    creds = get_slack_credentials()
+    url = generate_authorization_url(user_id, creds.client_id, creds.redirect_uri)
     return AuthorizationUrlResponse(url=url)
 
 
@@ -77,10 +65,10 @@ async def oauth_callback(
         logger.warning("Invalid Slack OAuth state received: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.") from exc
 
-    client_id, client_secret, redirect_uri, _ = get_slack_credentials()
+    creds = get_slack_credentials()
 
     try:
-        token_data = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
+        token_data = await exchange_code_for_tokens(code, creds.client_id, creds.client_secret, creds.redirect_uri)
     except (ValueError, httpx.HTTPStatusError) as exc:
         logger.error("Slack OAuth code exchange failed for user %s: %s", user_id, exc)
         raise HTTPException(
@@ -133,7 +121,7 @@ async def oauth_callback(
         session.rollback()
         logger.error("Failed to log Slack connect event for user %s: %s", user_id, exc)
 
-    return RedirectResponse(url=f"{get_slack_system_config().FRONTEND_PATH}?connected=true")
+    return RedirectResponse(url=f"{get_slack_settings().frontend_path}?connected=true")
 
 
 @oauth_router.delete("/oauth/disconnect")

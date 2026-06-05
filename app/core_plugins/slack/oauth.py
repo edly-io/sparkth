@@ -1,34 +1,38 @@
 """Slack OAuth helpers for the TA Bot plugin."""
 
 import urllib.parse
+from functools import lru_cache
 from typing import Any
 
 import httpx
 from itsdangerous import URLSafeTimedSerializer
 
 from app.core.config import get_settings
-from app.core_plugins.slack.config import get_slack_system_config
+from app.core_plugins.slack.config import get_slack_settings
 from app.core_plugins.slack.constants import SLACK_AUTHORIZE_URL, SLACK_TOKEN_URL
 from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 
-_signer = URLSafeTimedSerializer(get_settings().SECRET_KEY, salt="slack-oauth-state")
+
+@lru_cache
+def _get_signer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(get_settings().SECRET_KEY, salt="slack-oauth-state")
 
 
 def generate_state(user_id: int) -> str:
-    return _signer.dumps({"user_id": user_id})
+    return _get_signer().dumps({"user_id": user_id})
 
 
 def decode_state(state: str) -> dict[str, int]:
-    data: dict[str, int] = _signer.loads(state, max_age=get_slack_system_config().STATE_MAX_AGE)
+    data: dict[str, int] = _get_signer().loads(state, max_age=get_slack_settings().state_max_age)
     return data
 
 
 def generate_authorization_url(user_id: int, client_id: str, redirect_uri: str) -> str:
     params = {
         "client_id": client_id,
-        "scope": ",".join(get_slack_system_config().BOT_SCOPES),
+        "scope": ",".join(get_slack_settings().bot_scopes),
         "redirect_uri": redirect_uri,
         "state": generate_state(user_id),
     }
