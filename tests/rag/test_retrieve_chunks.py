@@ -1,4 +1,4 @@
-"""Tests for the multi-file retrieval orchestration (app.rag.context_service.retrieve_chunks)."""
+"""Tests for agentic_retrieve_context — multi-file readiness validation + concurrent retrieval."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
