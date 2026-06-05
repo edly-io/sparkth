@@ -11,7 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from app.lib.db import session_scope
 from app.memory_profiler import profile_memory
 from app.rag.chunking import DocumentChunker
-from app.rag.context_service import _validate_files_ready, retrieve_context_from_file
+from app.rag.context_service import _validate_files_ready
 from app.rag.enums import RagStatus
 from app.rag.exceptions import (
     DriveFileNotFoundError,
@@ -21,6 +21,7 @@ from app.rag.exceptions import (
     UnsupportedFileTypeError,
 )
 from app.rag.extraction import check_extraction_eligibility, extract_to_markdown
+from app.rag.retrieval import retrieve_context_from_file
 from app.rag.store import ChunkStoreService, store_and_link_chunks
 from app.rag.types import IngestionResult, RetrievedChunk
 
@@ -90,26 +91,30 @@ async def retrieve_context(
     file_ids: list[int],
     query: str,
     llm: BaseChatModel,
+    retrieval_method: str = "agentic",
 ) -> list[RetrievedChunk]:
     """Retrieve relevant document chunks for a query across the given files.
 
     Validates that every file is owned by the user and READY (raising otherwise),
-    then runs agent-driven section retrieval per file and returns a flat list of
-    RetrievedChunk. Opens its own database sessions.
+    then retrieves context per file using the specified retrieval method and
+    returns a flat list of RetrievedChunk. Opens its own database sessions.
 
     Args:
         user_id: Owner of the files (row-level scope).
         file_ids: Files to search. All must exist and be READY.
         query: The user's natural-language query.
-        llm: LangChain chat model used by the retrieval agent.
+        llm: LangChain chat model used by the retrieval implementation.
+        retrieval_method: Method to use for retrieval. Available methods are
+            documented in RETRIEVAL_REGISTRY. Defaults to "agentic".
 
     Returns:
         Flat list of RetrievedChunk across all files (empty if no matches).
 
     Raises:
+        ValueError: retrieval_method is not a known method.
         DriveFileNotFoundError: a file is missing or not owned by the user.
         RAGNotReadyError: a file exists but is not READY.
-        RAGRetrievalError: agent search or section fetch failed.
+        RAGRetrievalError: retrieval failed.
     """
     if not file_ids:
         return []
@@ -117,7 +122,7 @@ async def retrieve_context(
     async with session_scope() as session:
         await _validate_files_ready(session, user_id, file_ids)
 
-    tasks = [retrieve_context_from_file(user_id, fid, query, llm) for fid in file_ids]
+    tasks = [retrieve_context_from_file(user_id, fid, query, llm, retrieval_method) for fid in file_ids]
     contexts = await asyncio.gather(*tasks)
 
     return [

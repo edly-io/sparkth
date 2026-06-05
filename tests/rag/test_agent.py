@@ -9,8 +9,8 @@ from langchain_core.exceptions import LangChainException
 from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, ValidationError
 
-from app.rag.agent import _bind_user_context, run_agentic_rag_retrieval
 from app.rag.exceptions import RAGRetrievalError
+from app.rag.retrieval.agent import _bind_user_context, run_agentic_rag_retrieval
 from app.rag.schemas import RAGSearchAgentResponse, SectionRef
 
 
@@ -125,7 +125,7 @@ class TestRunRagSearch:
     """Tests for run_agentic_rag_retrieval covering the structured_response extraction and error paths."""
 
     def _patch_agent(self, agent: Any) -> Any:
-        return patch("app.rag.agent.create_agent", return_value=agent)
+        return patch("app.rag.retrieval.agent.create_agent", return_value=agent)
 
     def _patch_mcp_client(self, side_effect: Exception | None = None) -> Any:
         mock_cls = MagicMock()
@@ -133,12 +133,12 @@ class TestRunRagSearch:
             mock_cls.return_value.get_tools = AsyncMock(side_effect=side_effect)
         else:
             mock_cls.return_value.get_tools = AsyncMock(return_value=[])
-        return patch("app.rag.agent.MultiServerMCPClient", mock_cls)
+        return patch("app.rag.retrieval.agent.MultiServerMCPClient", mock_cls)
 
     def _patch_settings(self) -> Any:
         mock_settings = MagicMock()
         mock_settings.RAG_MCP_URL = "http://test-mcp:7728/mcp"
-        return patch("app.rag.agent.get_settings", return_value=mock_settings)
+        return patch("app.rag.retrieval.agent.get_settings", return_value=mock_settings)
 
     def _make_agent(self, return_value: dict[str, Any]) -> MagicMock:
         agent = MagicMock()

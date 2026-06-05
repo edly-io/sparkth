@@ -1,4 +1,4 @@
-"""LangGraph ReAct agent for agentic RAG search."""
+"""Agentic RAG retrieval — LangGraph ReAct agent + orchestration for one file."""
 
 from typing import Any
 
@@ -11,6 +11,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import StreamableHttpConnection
 from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, Field, ValidationError, create_model
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.lib.log import get_logger
@@ -18,7 +19,9 @@ from app.rag.config import get_rag_settings
 from app.rag.constants import AGENT_CONTEXT_KEYS
 from app.rag.exceptions import RAGRetrievalError
 from app.rag.schemas import RAGSearchAgentResponse
-from app.rag.utils import get_asset
+from app.rag.store import ChunkStoreService
+from app.rag.types import RAGContext
+from app.rag.utils import get_asset, resolve_source_name
 
 logger = get_logger(__name__)
 
@@ -137,3 +140,81 @@ def _bind_user_context(tools: list[Any], user_id: int, file_id: int) -> list[Any
             )
         )
     return result
+
+
+async def get_context_via_agent(
+    session: AsyncSession,
+    user_id: int,
+    file_db_id: int,
+    query: str,
+    llm: Any,
+    limit: int = get_rag_settings().RAG_DEFAULT_CHUNKS,
+) -> RAGContext:
+    """Retrieve RAG context for one file by agent-driven section selection.
+
+    A LangGraph ReAct agent inspects the document structure via MCP tools,
+    understands the user's intent, and hand-picks the relevant sections.
+    All chunks in those sections are fetched directly — no similarity search.
+
+    This is the registered handler for retrieval_method="agentic".
+
+    Raises:
+        DriveFileNotFoundError: File not found or not owned by user.
+        RAGNotReadyError: File exists but rag_status is not READY.
+        RAGRetrievalError: Agent invocation or section fetch failed.
+    """
+    from app.rag.context_service import _lookup_drive_file, format_chunks_as_context  # avoid circular import
+
+    store = ChunkStoreService()
+    drive_file = await _lookup_drive_file(session, user_id, file_db_id)
+    source_name = resolve_source_name(drive_file)
+
+    if not query.strip():
+        query = source_name
+
+    logger.info(
+        "RAG retrieval via agent: user=%d file_db_id=%d source_name=%s query_len=%d",
+        user_id,
+        file_db_id,
+        source_name,
+        len(query),
+    )
+
+    decision = await run_agentic_rag_retrieval(
+        llm=llm,
+        user_id=user_id,
+        file_id=file_db_id,
+        user_query=query,
+    )
+
+    logger.info(
+        "RAG agent selected %d section(s) for file_db_id=%d",
+        len(decision.selected_sections),
+        file_db_id,
+    )
+
+    try:
+        results = await store.fetch_chunks_by_sections(
+            session=session,
+            user_id=user_id,
+            source_name=source_name,
+            section_keys=[s.model_dump() for s in decision.selected_sections],
+            limit=limit,
+        )
+    except Exception as exc:
+        logger.error("Section fetch failed for file_db_id=%d: %s", file_db_id, exc)
+        raise RAGRetrievalError(f"Section fetch failed: {exc}") from exc
+
+    logger.info("RAG: found %d chunks for file_db_id=%d via agent", len(results), file_db_id)
+    logger.info(
+        "RAG chunk IDs in context for file_db_id=%d: %s",
+        file_db_id,
+        [r.chunk.id for r in results],
+    )
+
+    return RAGContext(
+        file_db_id=file_db_id,
+        source_name=source_name,
+        chunks=results,
+        formatted_text=format_chunks_as_context(source_name, results),
+    )

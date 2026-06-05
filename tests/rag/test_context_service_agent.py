@@ -6,9 +6,10 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.context_service import RAGContext, get_context_via_agent
+from app.rag.context_service import RAGContext
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.retrieval.agent import get_context_via_agent
 from app.rag.schemas import RAGSearchAgentResponse, SectionRef
 
 
@@ -39,8 +40,8 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
+            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="bio.pdf",
@@ -76,8 +77,8 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
+            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="test.pdf",
@@ -142,7 +143,7 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
         ):
             mock_agent.side_effect = RAGRetrievalError("Agent failed")
 
@@ -169,8 +170,8 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
+            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="test.pdf",
@@ -200,8 +201,8 @@ class TestGetContextViaAgent:
 
         with (
             patch("app.rag.context_service._lookup_drive_file", return_value=mock_file),
-            patch("app.rag.context_service.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.context_service.ChunkStoreService", return_value=mock_store),
+            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="test.pdf",

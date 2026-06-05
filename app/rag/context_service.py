@@ -1,31 +1,25 @@
-"""RAG context retrieval"""
+"""RAG context retrieval — shared utilities for lookup, formatting, and validation."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.db import session_scope
 from app.lib.log import get_logger
-from app.rag.agent import run_agentic_rag_retrieval
 
 if TYPE_CHECKING:
     # Imported under TYPE_CHECKING only to avoid a runtime cycle: app.models.drive
     # imports RagStatus from app.lib.rag, which imports this module.
-    from langchain_core.language_models import BaseChatModel
-
     from app.models.drive import DriveFile
 
-from app.rag.config import get_rag_settings
 from app.rag.enums import RagStatus
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.store import ChunkStoreService, SimilarityResult
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError
+from app.rag.store import SimilarityResult
 from app.rag.types import RAGContext
-from app.rag.utils import resolve_source_name
 
-__all__ = ["RAGContext", "format_chunks_as_context", "get_context_via_agent", "retrieve_context_from_file"]
+__all__ = ["RAGContext", "format_chunks_as_context"]
 
 logger = get_logger(__name__)
 
@@ -81,80 +75,6 @@ def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) 
     return "\n".join(lines)
 
 
-async def get_context_via_agent(
-    session: AsyncSession,
-    user_id: int,
-    file_db_id: int,
-    query: str,
-    llm: Any,
-    limit: int = get_rag_settings().RAG_DEFAULT_CHUNKS,
-) -> RAGContext:
-    """Retrieve RAG context by agent-driven section selection.
-
-    A LangGraph ReAct agent inspects the document structure via MCP tools,
-    understands the user's intent, and hand-picks the relevant sections.
-    All chunks in those sections are fetched directly — no similarity search.
-
-    Raises:
-        DriveFileNotFoundError: File not found or not owned by user.
-        RAGNotReadyError: File exists but rag_status is not READY.
-        RAGRetrievalError: Agent invocation or section fetch failed.
-    """
-    store = ChunkStoreService()
-    drive_file = await _lookup_drive_file(session, user_id, file_db_id)
-    source_name = resolve_source_name(drive_file)
-
-    if not query.strip():
-        query = source_name
-
-    logger.info(
-        "RAG retrieval via agent: user=%d file_db_id=%d source_name=%s query_len=%d",
-        user_id,
-        file_db_id,
-        source_name,
-        len(query),
-    )
-
-    decision = await run_agentic_rag_retrieval(
-        llm=llm,
-        user_id=user_id,
-        file_id=file_db_id,
-        user_query=query,
-    )
-
-    logger.info(
-        "RAG agent selected %d section(s) for file_db_id=%d",
-        len(decision.selected_sections),
-        file_db_id,
-    )
-
-    try:
-        results = await store.fetch_chunks_by_sections(
-            session=session,
-            user_id=user_id,
-            source_name=source_name,
-            section_keys=[s.model_dump() for s in decision.selected_sections],
-            limit=limit,
-        )
-    except Exception as exc:
-        logger.error("Section fetch failed for file_db_id=%d: %s", file_db_id, exc)
-        raise RAGRetrievalError(f"Section fetch failed: {exc}") from exc
-
-    logger.info("RAG: found %d chunks for file_db_id=%d via agent", len(results), file_db_id)
-    logger.info(
-        "RAG chunk IDs in context for file_db_id=%d: %s",
-        file_db_id,
-        [r.chunk.id for r in results],
-    )
-
-    return RAGContext(
-        file_db_id=file_db_id,
-        source_name=source_name,
-        chunks=results,
-        formatted_text=format_chunks_as_context(source_name, results),
-    )
-
-
 async def _validate_files_ready(session: AsyncSession, user_id: int, file_ids: list[int]) -> None:
     """Verify every file is owned by user_id and in READY state.
 
@@ -181,24 +101,3 @@ async def _validate_files_ready(session: AsyncSession, user_id: int, file_ids: l
             status_str = str(drive_file.rag_status or "None")
             logger.warning("RAG not ready: file_db_id=%d status=%s", file_id, status_str)
             raise RAGNotReadyError(file_id, status_str)
-
-
-async def retrieve_context_from_file(
-    user_id: int,
-    file_id: int,
-    query: str,
-    llm: BaseChatModel,
-) -> RAGContext:
-    """Run agent-driven retrieval for a single file in its own DB session.
-
-    Opens its own session so concurrent callers (e.g. asyncio.gather fan-out)
-    do not share a session — AsyncSession is not concurrency-safe.
-    """
-    async with session_scope() as file_session:
-        return await get_context_via_agent(
-            session=file_session,
-            user_id=user_id,
-            file_db_id=file_id,
-            query=query,
-            llm=llm,
-        )
