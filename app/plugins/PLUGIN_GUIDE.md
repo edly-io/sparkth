@@ -356,7 +356,7 @@ class WeatherPlugin(SparkthPlugin):
 
 ```bash
 # Start the FastAPI server locally (http://0.0.0.0:7727)
-make api
+make backend.up.dev
 
 # Test API (routes mount at the router's own prefix by default — see below)
 curl http://localhost:7727/my-app/
