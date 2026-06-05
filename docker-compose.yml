@@ -1,9 +1,9 @@
 # Backing services for local development.
 #
-# In development the backend (make api) and frontend (make frontend) run natively
-# on the host; this file only provides the Postgres, Redis, and Mailpit services
-# they talk to. Ports are published on 127.0.0.1 so the native processes can reach
-# them. The application image itself is built only for production (see Dockerfile,
+# In development the backend (make backend.up.dev) and frontend (make frontend.up.dev)
+# run natively on the host; this file only provides the Postgres, Redis, and Mailpit
+# services they talk to. Ports are published on 127.0.0.1 so the native processes can
+# reach them. The application image itself is built only for production (see Dockerfile,
 # published to GHCR by CI and orchestrated by Kubernetes).
 services:
   # Mailpit (local SMTP for development)

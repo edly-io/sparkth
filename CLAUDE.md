@@ -65,13 +65,13 @@ Current modules (see the source for the full API — do not duplicate it here):
 
 ```bash
 # Backing services (Docker): Postgres, Redis, Mailpit — the backend/frontend run natively
-make services        # Start backing services in the background
-make down            # Stop service containers
-make clean           # Stop services + wipe data volumes
+make services.up     # Start backing services in the background
+make services.down   # Stop service containers
+make services.clean  # Stop services + wipe data volumes
 
 # Local backend (requires uv) — connects to the backing services above
 make backend.install.dev    # Install dev dependencies
-make api                    # FastAPI on http://0.0.0.0:7727 (hot reload)
+make backend.up.dev         # FastAPI on http://0.0.0.0:7727 (hot reload)
 make mcp                    # MCP server (HTTP mode)
 make test                   # Run all tests (frontend + backend)
 make test.backend           # Run all backend tests
@@ -96,14 +96,14 @@ make lint.format.backend     # Format backend code (ruff)
 make lint.frontend.react-doctor  # React health check on files changed vs main (CI gate)
 
 # Local frontend
-make frontend        # Next.js dev server on :3000 (proxies /api to the backend; needs `make api` running)
+make frontend.up.dev # Next.js dev server on :3000 (proxies /api to the backend; needs `make backend.up.dev` running)
 make frontend.build  # Static export → frontend/out/ (served by the backend in production)
 
 # Database
-make migrations      # Apply Alembic migrations (native)
-make logs            # Tail logs for the service containers (make logs [service])
-make db-shell        # PostgreSQL shell
-make create-user     # Create user (pass args after --)
+make migrations         # Apply Alembic migrations (native)
+make services.logs      # Tail logs for the service containers (make services.logs [service])
+make db-shell           # PostgreSQL shell
+make create-user        # Create user (pass args after --)
 ```
 
 ## Environment Setup

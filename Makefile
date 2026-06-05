@@ -25,24 +25,24 @@ uv: ## Install uv if missing
 ##@ Backing Services (Docker)
 # In development the backend and frontend run natively; Docker only provides the
 # Postgres, Redis, and Mailpit services they connect to (see docker-compose.yml).
-.PHONY: services
-services: ## Start backing services (Postgres, Redis, Mailpit) in the background
+.PHONY: services.up
+services.up: ## Start backing services (Postgres, Redis, Mailpit) in the background
 	docker compose up -d
 
-.PHONY: down
-down: ## Stop and remove service containers
-	docker compose down $(ARGS)
+.PHONY: services.down
+services.down: ## Stop and remove service containers
+	docker compose down
 
-.PHONY: clean
-clean: ## Stop services and wipe data volumes (fresh start)
+.PHONY: services.clean
+services.clean: ## Stop services and wipe data volumes (fresh start)
 	docker compose down -v
 
-.PHONY: restart
-restart: ## Restart backing services
+.PHONY: services.restart
+services.restart: ## Restart backing services
 	docker compose restart
 
-.PHONY: logs
-logs: ## Tail logs (make logs [service] — omit service to tail all)
+.PHONY: services.logs
+services.logs: ## Tail logs (make services.logs [service] — omit service to tail all)
 	docker compose logs -f $(ARGS)
 
 .PHONY: db-shell
@@ -71,13 +71,13 @@ reset-password: ## Reset password (make reset-password -- username)
 frontend.build: ## Build frontend (static export to frontend/out)
 	cd frontend && bun run build
 
-.PHONY: frontend.install
-frontend.install: ## Install exact frontend dependencies from lockfile
+.PHONY: frontend.install.dev
+frontend.install.dev: ## Install exact frontend dependencies from lockfile
 	cd frontend && bun install --frozen-lockfile
 
-.PHONY: frontend
-frontend: ## Run frontend dev server (hot reload)
-	cd frontend && bun install && bun run dev
+.PHONY: frontend.up.dev
+frontend.up.dev: ## Run frontend dev server (hot reload)
+	cd frontend && bun run dev
 
 ##@ Backend
 .PHONY: backend.build
@@ -99,13 +99,14 @@ backend.install.dev.requirements: ## Install exact backend dev dependencies from
 backend.install.dev.githooks: ## Install git hooks
 	uv run lefthook install
 
-.PHONY: lock
-lock: ## Update lockfile
-	uv lock
 
-.PHONY: api
-api: ## Run FastAPI server locally
+.PHONY: backend.up.dev
+backend.up.dev: ## Run FastAPI server locally
 	uv run fastapi dev app/main.py --host 0.0.0.0 --port 7727
+
+.PHONY: lock
+lock: ## Update uv lockfile
+	uv lock
 
 .PHONY: mcp
 mcp: ## Run MCP server locally (HTTP mode)
@@ -118,6 +119,11 @@ cli: ## Run CLI tool (make cli -- users --help)
 .PHONY: mypy
 mypy: ## Run mypy type checking
 	uv run mypy --strict app/ tests/
+
+##@ Docker
+.PHONY: docker.build
+docker.build: ## Build the Docker image
+	docker build -t ghcr.io/edly-io/sparkth:latest .
 
 ##@ Testing
 .PHONY: test
