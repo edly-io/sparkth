@@ -6,7 +6,7 @@ import pytest
 
 from app.rag.context_service import retrieve_chunks
 from app.rag.enums import RagStatus
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError
+from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.models import DocumentChunk
 from app.rag.store import SimilarityResult
 from app.rag.types import RAGContext, RetrievedChunk
@@ -71,3 +71,15 @@ class TestRetrieveChunks:
             with pytest.raises(RAGNotReadyError):
                 await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())
         get_ctx.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_retrieval_error_propagates(self) -> None:
+        with (
+            patch("app.rag.context_service._validate_files_ready", new=AsyncMock()),
+            patch(
+                "app.rag.context_service.RAGContextService.get_context_via_agent",
+                new=AsyncMock(side_effect=RAGRetrievalError("agent boom")),
+            ),
+        ):
+            with pytest.raises(RAGRetrievalError):
+                await retrieve_chunks(user_id=1, file_ids=[10], query="q", llm=MagicMock())

@@ -15,6 +15,8 @@ from app.rag.agent import RAGSearchAgent
 if TYPE_CHECKING:
     # Imported under TYPE_CHECKING only to avoid a runtime cycle: app.models.drive
     # imports RagStatus from app.lib.rag, which imports this module.
+    from langchain_core.language_models import BaseChatModel
+
     from app.models.drive import DriveFile
 from app.rag.config import get_rag_settings
 from app.rag.enums import RagStatus
@@ -204,7 +206,7 @@ async def _search_one_file(
     user_id: int,
     file_id: int,
     query: str,
-    llm: Any,
+    llm: BaseChatModel,
 ) -> RAGContext:
     """Run the per-file agent search in its own session (for concurrent fan-out)."""
     async with session_scope() as file_session:
@@ -221,7 +223,7 @@ async def retrieve_chunks(
     user_id: int,
     file_ids: list[int],
     query: str,
-    llm: Any,
+    llm: BaseChatModel,
 ) -> list[RetrievedChunk]:
     """Validate all files are READY, then fan out agent retrieval per file.
 

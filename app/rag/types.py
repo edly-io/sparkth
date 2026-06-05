@@ -80,7 +80,7 @@ class SimilarityResult:
 
     The agentic retrieval path selects chunks by section rather than vector
     similarity, so `similarity` is always 1.0. The field is retained as the
-    common chunk container shape consumed by `format_chunks_as_context`.
+    common chunk container shape used by the internal retrieval path.
     """
 
     chunk: DocumentChunk
