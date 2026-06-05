@@ -54,9 +54,11 @@ function getInitialToken(): string | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(getInitialToken);
+  // Start with no token and loading=true ("still checking"). localStorage can't be
+  // read during the server render, so we defer the auth decision to the effect below.
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(() => getInitialToken() !== null);
+  const [loading, setLoading] = useState(true);
 
   const login = (newToken: string, expiresAt: string) => {
     setAuthTokens(newToken, expiresAt);
@@ -94,6 +96,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [logout],
   );
+
+  // Runs once, in the browser only (effects never run on the server), where
+  // localStorage exists. Read the stored token; if there's none, we're logged out.
+  useEffect(() => {
+    const stored = getInitialToken();
+    if (stored) {
+      setToken(stored); // triggers the effect below, which clears loading via fetchUser
+    } else {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!token) return;
