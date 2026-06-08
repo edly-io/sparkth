@@ -9,9 +9,9 @@ from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
 from app.lib.log import get_logger
-from app.rag.agent_tools import build_search_tools
 from app.rag.constants import AGENT_MAX_RECURSION
 from app.rag.exceptions import RAGRetrievalError
+from app.rag.mcp.agent_tools import build_search_tools
 from app.rag.types import RAGSearchAgentResponse
 from app.rag.utils import get_asset
 

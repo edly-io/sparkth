@@ -38,7 +38,7 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, rag_mcp/, services/
+tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, services/
                  # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
                  # Shared fixtures: app/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
@@ -174,9 +174,10 @@ The rule applies to both new work and incidental changes. If you touch a file an
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
 - **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
-- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, rag_mcp, services)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, services)
 
-  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`).
+  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`); the
+  RAG MCP tooling under `app/rag/mcp/` is mirrored by `tests/rag/mcp/`.
 
 How the suite is wired:
 
