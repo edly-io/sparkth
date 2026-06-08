@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # `.env` holds dev defaults; `.env.local` (git-ignored) holds sensitive creds and
+    # local overrides and takes precedence. Real environment variables (CI, prod/k8s)
+    # still win over both.
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS512"
@@ -18,12 +21,6 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:7727/api/v1/auth/google/callback"
-
-    # Slack TA Bot OAuth
-    SLACK_CLIENT_ID: str = ""
-    SLACK_CLIENT_SECRET: str = ""
-    SLACK_SIGNING_SECRET: str = ""
-    SLACK_REDIRECT_URI: str = ""
 
     # Email / SMTP
     SMTP_HOST: str = ""
@@ -40,8 +37,6 @@ class Settings(BaseSettings):
     FRONTEND_BASE_URL: str = "http://localhost:7727"
 
     MEMORY_PROFILING_ENABLED: bool = False
-
-    RAG_MCP_URL: str
 
     LLM_ENCRYPTION_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"

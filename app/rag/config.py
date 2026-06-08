@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class RAGSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    RAG_MCP_URL: str = "http://localhost:7728/mcp"
     RAG_STORE_BATCH_SIZE: int = 32
     RAG_DISPLAY_NAME_MAX_CHARS: int = 30
     RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE: int = 100

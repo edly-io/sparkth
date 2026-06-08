@@ -13,7 +13,6 @@ from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, Field, ValidationError, create_model
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
 from app.lib.log import get_logger
 from app.rag.config import get_rag_settings
 from app.rag.constants import AGENT_CONTEXT_KEYS
@@ -95,7 +94,7 @@ async def run_agentic_rag_retrieval(llm: Any, user_id: int, file_id: int, user_q
     Raises:
         RAGRetrievalError: If MCP client connection or agent invocation fails
     """
-    rag_mcp_url = get_settings().RAG_MCP_URL
+    rag_mcp_url = get_rag_settings().RAG_MCP_URL
 
     try:
         client = MultiServerMCPClient(

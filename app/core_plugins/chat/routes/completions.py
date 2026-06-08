@@ -19,6 +19,8 @@ from app.core_plugins.chat.intent_router import RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.helpers import (
+    _format_source_block,
+    _group_by_source,
     attach_request_drive_files,
     classify_in_scope,
     extract_query_text,
@@ -39,7 +41,6 @@ from app.lib.rag import (
     DriveFileNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
-    RetrievedChunk,
     agentic_retrieve_context,
 )
 from app.llm.classifier import HistoryTurn
@@ -52,28 +53,6 @@ from app.models.user import User
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
-    lines = [
-        f"[DOCUMENT CONTEXT: {source_name}]",
-        "The following excerpts were retrieved from the document to inform your response:",
-        "",
-    ]
-    for i, chunk in enumerate(chunks, 1):
-        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-        label = " / ".join(parts) if parts else "General"
-        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
-        lines.append(chunk.content.strip())
-        lines.append("")
-    return "\n".join(lines)
-
-
-def _group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
-    grouped: dict[str, list[RetrievedChunk]] = {}
-    for chunk in chunks:
-        grouped.setdefault(chunk.source_name, []).append(chunk)
-    return grouped
 
 
 def _collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
@@ -90,18 +69,6 @@ def _collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
                 continue
             file_ids.append(int(raw_id))
     return file_ids
-
-
-def _parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:
-    if not model_metadata:
-        return None
-    try:
-        metadata = json.loads(model_metadata)
-        value = metadata.get(key)
-        return value if isinstance(value, list) else None
-    except (json.JSONDecodeError, AttributeError) as exc:
-        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
-        return None
 
 
 @router.post("/completions", response_model=ChatCompletionResponse)

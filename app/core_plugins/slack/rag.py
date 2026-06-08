@@ -182,9 +182,9 @@ async def answer_question(
     if llm_provider:
         try:
             answer = await synthesize_answer(
-                question=question,
-                context=formatted_context,
-                provider=llm_provider,
+                question,
+                formatted_context,
+                llm_provider,
             )
             return answer, ResponseType.RAG_MATCH
         except (LangChainException, ValidationError, ValueError, RuntimeError, httpx.RemoteProtocolError) as exc:

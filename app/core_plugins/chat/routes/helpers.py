@@ -35,11 +35,6 @@ from app.models.drive import DriveFile as DriveFileModel
 logger = get_logger(__name__)
 
 
-def get_rag_context_service() -> None:
-    """Compatibility shim retained for tests that patch the old dependency."""
-    return None
-
-
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content."""
     yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
@@ -59,6 +54,28 @@ def extract_query_text(messages: list[ChatMessage]) -> str:
         if joined:
             return joined
     return ""
+
+
+def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
+    lines = [
+        f"[DOCUMENT CONTEXT: {source_name}]",
+        "The following excerpts were retrieved from the document to inform your response:",
+        "",
+    ]
+    for i, chunk in enumerate(chunks, 1):
+        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+        label = " / ".join(parts) if parts else "General"
+        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
+        lines.append(chunk.content.strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
+    grouped: dict[str, list[RetrievedChunk]] = {}
+    for chunk in chunks:
+        grouped.setdefault(chunk.source_name, []).append(chunk)
+    return grouped
 
 
 async def resolve_drive_file_blocks(
@@ -146,30 +163,6 @@ async def resolve_drive_file_blocks(
         resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
 
     return resolved
-
-
-def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
-    """Render one document's retrieved chunks as a prompt text block."""
-    lines = [
-        f"[DOCUMENT CONTEXT: {source_name}]",
-        "The following excerpts were retrieved from the document to inform your response:",
-        "",
-    ]
-    for i, chunk in enumerate(chunks, 1):
-        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-        label = " / ".join(parts) if parts else "General"
-        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
-        lines.append(chunk.content.strip())
-        lines.append("")
-    return "\n".join(lines)
-
-
-def _group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
-    """Group retrieved chunks by source_name, preserving first-seen order."""
-    grouped: dict[str, list[RetrievedChunk]] = {}
-    for chunk in chunks:
-        grouped.setdefault(chunk.source_name, []).append(chunk)
-    return grouped
 
 
 async def persist_pre_stream_error(

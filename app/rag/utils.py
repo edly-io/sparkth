@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def get_asset(file_name: str, file_extension: str) -> str | dict[str, Any]:
-    """Read a file from app/lib/rag/assets and return its contents.
+    """Read a file from app/rag/assets and return its contents.
 
     Returns a str for .txt files and a dict for .json files.
     """
