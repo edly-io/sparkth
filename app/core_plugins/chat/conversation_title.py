@@ -1,3 +1,4 @@
+from app.core_plugins.chat.config import get_chat_settings
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.lib.db import session_scope
@@ -25,7 +26,7 @@ def get_first_user_text(messages: list[ChatMessage]) -> str | None:
     return None
 
 
-def extract_title_from_messages(messages: list[ChatMessage], max_length: int = 60) -> str | None:
+def extract_title_from_messages(messages: list[ChatMessage], max_length: int) -> str | None:
     """Derive a provisional conversation title from the first user message."""
     text = get_first_user_text(messages)
     if not text:
@@ -42,16 +43,17 @@ async def generate_conversation_title(
     service: ChatService,
     provider: BaseChatProvider,
 ) -> None:
-    """Background task: ask the user's configured LLM for a short title and persist it."""
+    """Background task: ask the LLM for a short title and persist it."""
+    config = get_chat_settings()
     try:
         prompt = (
             "Generate a concise 3-6 word title for a conversation that starts with "
             "the following message. Reply with only the title, no quotes or punctuation:\n\n"
-            f"{first_user_message[:500]}"
+            f"{first_user_message[: config.title_prompt_max_chars]}"
         )
         response = await provider.send_message(
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=20,
+            max_tokens=config.title_llm_max_tokens,
         )
         title = response["content"].strip().strip("\"'").strip()
         if title:
@@ -60,8 +62,8 @@ async def generate_conversation_title(
                     session=session,
                     conversation_id=conversation_id,
                     user_id=user_id,
-                    title=title[:255],
+                    title=title[: config.title_db_max_length],
                 )
-            logger.info(f"Generated title for conversation {conversation_id}: {title!r}")
+            logger.info("Generated title for conversation %d: %r", conversation_id, title)
     except (KeyError, ValueError, RuntimeError, OSError) as e:
-        logger.warning(f"Title generation failed for conversation {conversation_id}: {e}")
+        logger.warning("Title generation failed for conversation %d: %s", conversation_id, e)

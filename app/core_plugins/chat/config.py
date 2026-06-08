@@ -1,10 +1,12 @@
+from functools import lru_cache
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.plugins.config_base import PluginConfig
 
 
-class ChatSystemConfig(BaseSettings):
+class ChatSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CHAT_",
         env_file=".env",
@@ -12,13 +14,12 @@ class ChatSystemConfig(BaseSettings):
         extra="ignore",
     )
 
-    rate_limit_requests_per_minute: int = 60
-    rate_limit_chat_per_minute: int = 10
-    rate_limit_concurrent_streams: int = 5
-
     max_tool_executions: int = 50
-
     title_max_length: int = 60
+    title_prompt_max_chars: int = 500
+    title_llm_max_tokens: int = 20
+    title_db_max_length: int = 255
+    title_llm_temperature: float = 0.3
 
 
 class ChatUserConfig(PluginConfig):
@@ -27,3 +28,9 @@ class ChatUserConfig(PluginConfig):
         default=None,
         description="Overrides the default model in the selected LLMConfig",
     )
+
+
+@lru_cache
+def get_chat_settings() -> ChatSettings:
+    """Dependency to get chat settings from environment variables."""
+    return ChatSettings()

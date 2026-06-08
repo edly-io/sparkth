@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef } from "react";
-import { setAuthTokens } from "@/lib/auth-context";
+import { setAuthTokens } from "@/lib/auth-tokens";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
@@ -16,7 +16,7 @@ function LoadingSpinner() {
         </div>
         <div className="flex items-center justify-center gap-3">
           <Spinner />
-          <p className="text-muted-foreground">Completing sign in...</p>
+          <p className="text-muted-foreground">Completing sign in…</p>
         </div>
       </div>
     </div>

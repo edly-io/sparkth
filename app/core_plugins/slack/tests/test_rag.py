@@ -5,15 +5,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.exceptions import LangChainException
 
-from app.core_plugins.slack.config import SlackConfig
+from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
     NO_FILES_RESOLVED_MESSAGE,
     RAG_NOT_READY_MESSAGE,
     RETRIEVAL_ERROR_MESSAGE,
-    SLACK_MAX_AGENT_FILES,
 )
-from app.core_plugins.slack.models import ResponseType
+from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.rag import (
     _resolve_files_for_sources,
     answer_question,
@@ -49,7 +48,7 @@ async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch:
 
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> None:
-    """When allowed_sources is empty, returns up to SLACK_MAX_AGENT_FILES owner document_ids ordered by id ASC."""
+    """When allowed_sources is empty, returns up to max_agent_files owner document_ids ordered by id ASC."""
     mock_session = AsyncMock()
     mock_files = [
         MagicMock(id=i, document_id=i * 10, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)
@@ -60,7 +59,7 @@ async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> N
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=[])
     assert result == [10, 20, 30, 40, 50]
-    assert len(result) == SLACK_MAX_AGENT_FILES
+    assert len(result) == get_slack_settings().max_agent_files
 
 
 @pytest.mark.asyncio
@@ -115,7 +114,7 @@ async def test_answer_question_returns_no_files_response_when_no_files_resolved(
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert response_type == ResponseType.no_files_resolved
+    assert response_type == ResponseType.NO_FILES_RESOLVED
     assert answer == NO_FILES_RESOLVED_MESSAGE
 
 
@@ -136,7 +135,7 @@ async def test_answer_question_returns_file_not_found_on_drive_file_not_found_er
         )
 
     assert answer == DRIVE_FILE_NOT_FOUND_MESSAGE
-    assert response_type == ResponseType.drive_file_not_found
+    assert response_type == ResponseType.DRIVE_FILE_NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -156,7 +155,7 @@ async def test_answer_question_returns_not_ready_on_rag_not_ready_error() -> Non
         )
 
     assert answer == RAG_NOT_READY_MESSAGE
-    assert response_type == ResponseType.rag_not_ready
+    assert response_type == ResponseType.RAG_NOT_READY
 
 
 @pytest.mark.asyncio
@@ -175,7 +174,7 @@ async def test_answer_question_returns_retrieval_error_on_rag_retrieval_error() 
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert response_type == ResponseType.retrieval_error
+    assert response_type == ResponseType.RETRIEVAL_ERROR
     assert answer == RETRIEVAL_ERROR_MESSAGE
 
 
@@ -195,7 +194,7 @@ async def test_answer_question_returns_fallback_when_chunks_empty() -> None:
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert response_type == ResponseType.fallback
+    assert response_type == ResponseType.FALLBACK
     assert answer == "Nothing found."
 
 
@@ -224,7 +223,7 @@ async def test_answer_question_synthesizes_when_llm_provider_set() -> None:
             llm_provider=llm_provider,
         )
 
-    assert response_type == ResponseType.rag_match
+    assert response_type == ResponseType.RAG_MATCH
     assert answer == "Loops are constructs that repeat code."
     synth.assert_awaited_once()
 
@@ -246,7 +245,7 @@ async def test_answer_question_returns_raw_chunks_when_no_synthesis_llm() -> Non
             session=mock_session, user_id=1, question="recursion?", config=config, agent_llm=agent_llm
         )
 
-    assert response_type == ResponseType.rag_match
+    assert response_type == ResponseType.RAG_MATCH
     assert "AI summary is not available" in answer
     assert "Recursion calls itself." in answer
 
@@ -276,6 +275,6 @@ async def test_answer_question_falls_back_to_raw_chunks_on_synthesis_error() -> 
             llm_provider=llm_provider,
         )
 
-    assert response_type == ResponseType.rag_match
+    assert response_type == ResponseType.RAG_MATCH
     assert "Loops repeat." in answer
     assert "Could not generate" in answer

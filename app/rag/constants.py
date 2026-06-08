@@ -1,5 +1,3 @@
-AGENT_CONTEXT_KEYS = frozenset({"user_id", "file_id"})
-
 CHUNKING_MARKDOWN_HEADERS = [
     ("#", "chapter"),
     ("##", "section"),

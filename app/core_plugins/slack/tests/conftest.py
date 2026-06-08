@@ -20,32 +20,31 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session
 
 from app.api.v1.auth import get_current_user
+from app.core_plugins.slack.config import SlackSettings
 from app.core_plugins.slack.models import SlackWorkspace
+from app.core_plugins.slack.service import encrypt_token
 from app.lib.db import get_session
 from app.main import app
 from app.models.user import User
+from tests.lib.routes import register_router
 
-# Register Slack routes once (mirrors the googledrive pattern)
-_SLACK_PREFIX = "/api/v1/slack"
-_slack_routes_registered = False
+try:
+    from app.core_plugins.slack.routes import router as slack_router
 
-
-def _ensure_slack_routes() -> None:
-    global _slack_routes_registered
-    if _slack_routes_registered:
-        return
-    try:
-        from app.core_plugins.slack.routes import router as slack_router
-
-        existing = {getattr(r, "path", None) for r in app.routes}
-        if f"{_SLACK_PREFIX}/oauth/authorize" not in existing:
-            app.include_router(slack_router, prefix=_SLACK_PREFIX, tags=["Slack TA Bot"])
-        _slack_routes_registered = True
-    except ImportError:
-        pass  # routes not yet implemented; model/config tests still run
+    register_router(
+        app, slack_router, sentinel_path="/api/v1/slack/oauth/authorize", prefix="/api/v1/slack", tags=["Slack TA Bot"]
+    )
+except ImportError:
+    pass  # routes not yet implemented; model/config tests still run
 
 
-_ensure_slack_routes()
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> Generator[None, None, None]:
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -64,8 +63,6 @@ def test_user(sync_session: Session) -> User:
 
 @pytest.fixture
 def test_workspace(sync_session: Session, test_user: User) -> SlackWorkspace:
-    from app.core_plugins.slack.oauth import encrypt_token
-
     workspace = SlackWorkspace(
         user_id=cast(int, test_user.id),
         team_id="T123ABC",
@@ -82,14 +79,15 @@ def test_workspace(sync_session: Session, test_user: User) -> SlackWorkspace:
 
 @pytest.fixture
 def mock_slack_credentials() -> Generator[None, None, None]:
+    fake = SlackSettings(
+        client_id="fake_client_id",
+        client_secret="fake_client_secret",
+        redirect_uri="http://localhost/callback",
+        signing_secret="fake_signing_secret",
+    )
     with patch(
-        "app.core_plugins.slack.routes.get_slack_credentials",
-        return_value=(
-            "fake_client_id",
-            "fake_client_secret",
-            "http://localhost/callback",
-            "fake_signing_secret",
-        ),
+        "app.core_plugins.slack.routes.oauth.get_slack_credentials",
+        return_value=fake,
     ):
         yield
 

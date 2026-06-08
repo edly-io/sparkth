@@ -7,14 +7,21 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
-    name: Frontend Lint & Format
+    name: Frontend Lint, Test & Format
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # required for react-doctor --diff
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -22,19 +29,17 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: make frontend.install
+        run: make frontend.install.dev
 
-      - name: Lint (oxlint)
-        run: make lint.frontend
-
-      - name: Run unit tests
-        run: make test.frontend.vitest
-
-      - name: Check formatting (oxfmt)
-        run: make test.frontend.format
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.frontend` (lint + react-doctor + vitest + format check).
+      # Override the react-doctor base to the PR's actual base.
+      - name: Run frontend tests
+        run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }}
 
   backend:
-    name: Backend Lint, Type Check & Unit Tests
+    name: Backend Lint, Type Check, Test & Format
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -49,14 +54,7 @@ jobs:
       - name: Install the project
         run: make backend.install.dev.requirements
 
-      - name: Run backend linting tests
-        run: make lint.backend
-
-      - name: Run type checks
-        run: make mypy
-
-      - name: Run unit tests
-        run: make test.backend.pytest
-
-      - name: Run formatting tests
-        run: make test.backend.format
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.backend` (lint + mypy + pytest + format check).
+      - name: Run backend tests
+        run: make test.backend

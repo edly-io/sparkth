@@ -1,19 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-
-const TOKEN_KEY = "access_token";
-const EXPIRES_KEY = "expires_at";
-
-export function setAuthTokens(token: string, expiresAt: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(EXPIRES_KEY, expiresAt);
-}
-
-export function clearAuthTokens(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(EXPIRES_KEY);
-}
+import { createContext, use, useState, useEffect, useMemo, ReactNode, useCallback } from "react";
+import { setAuthTokens, clearAuthTokens, getStoredToken } from "@/lib/auth-tokens";
 
 interface User {
   id?: string;
@@ -37,32 +25,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function getInitialToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  const storedToken = localStorage.getItem(TOKEN_KEY);
-  const expiresAt = localStorage.getItem(EXPIRES_KEY);
-
-  if (storedToken && expiresAt) {
-    const isExpired = new Date(expiresAt) < new Date();
-    if (!isExpired) {
-      return storedToken;
-    }
-    clearAuthTokens();
-  }
-  return null;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(getInitialToken);
+  // Start with no token and loading=true ("still checking"). localStorage can't be
+  // read during the server render, so we defer the auth decision to the effect below.
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(() => getInitialToken() !== null);
-
-  const login = (newToken: string, expiresAt: string) => {
-    setAuthTokens(newToken, expiresAt);
-    setToken(newToken);
-    setLoading(true);
-  };
+  const [loading, setLoading] = useState(true);
 
   const logout = useCallback(() => {
     clearAuthTokens();
@@ -95,36 +63,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [logout],
   );
 
-  useEffect(() => {
-    if (!token) return;
-    fetchUser(token);
-  }, [token, fetchUser]);
+  const login = useCallback(
+    (newToken: string, expiresAt: string) => {
+      setAuthTokens(newToken, expiresAt);
+      setToken(newToken);
+      setLoading(true);
+      // Fetch directly from the handler that starts the flow rather than via a
+      // token-watching effect, so we don't chain effects (extra renders).
+      fetchUser(newToken);
+    },
+    [fetchUser],
+  );
 
-  const refreshUser = async () => {
+  // Runs once, in the browser only (effects never run on the server), where
+  // localStorage exists. Read the stored token and, if present, load the user.
+  useEffect(() => {
+    const stored = getStoredToken();
+    if (stored) {
+      setToken(stored);
+      fetchUser(stored);
+    } else {
+      setLoading(false);
+    }
+  }, [fetchUser]);
+
+  const refreshUser = useCallback(async () => {
     if (token) {
       await fetchUser(token);
     }
-  };
+  }, [token, fetchUser]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        token,
-        user,
-        isAuthenticated: !!token,
-        loading,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  // Memoize so consumers don't re-render on every provider render (new value identity).
+  const value = useMemo(
+    () => ({
+      token,
+      user,
+      isAuthenticated: !!token,
+      loading,
+      login,
+      logout,
+      refreshUser,
+    }),
+    [token, user, loading, login, logout, refreshUser],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
+  const context = use(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }

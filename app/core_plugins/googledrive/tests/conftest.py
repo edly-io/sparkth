@@ -23,23 +23,11 @@ from app.lib.db import get_async_session
 from app.main import app
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
+from tests.lib.routes import register_router
 
-# Register Drive routes on the app (normally done by plugin lifespan)
-_DRIVE_PREFIX = "/api/v1/googledrive"
-_drive_routes_registered = False
-
-
-def _ensure_drive_routes() -> None:
-    global _drive_routes_registered
-    if _drive_routes_registered:
-        return
-    existing = {getattr(r, "path", None) for r in app.routes}
-    if f"{_DRIVE_PREFIX}/folders" not in existing:
-        app.include_router(drive_router, prefix=_DRIVE_PREFIX, tags=["Google Drive"])
-    _drive_routes_registered = True
-
-
-_ensure_drive_routes()
+register_router(
+    app, drive_router, sentinel_path="/api/v1/googledrive/folders", prefix="/api/v1/googledrive", tags=["Google Drive"]
+)
 
 
 @pytest.fixture(autouse=True)

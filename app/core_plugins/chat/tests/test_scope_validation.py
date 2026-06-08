@@ -2,6 +2,7 @@
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -12,6 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.models import Conversation
+from app.core_plugins.chat.routes.helpers import stream_out_of_scope_refusal
+from app.core_plugins.chat.schemas import ChatCompletionResponse, ChatMessage
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.models.llm import LLMConfig
 from app.models.user import User
@@ -73,15 +76,13 @@ class TestScopeValidation:
 
 
 class TestStreamOutOfScopeRefusal:
-    """Test the _stream_out_of_scope_refusal SSE generator."""
+    """Test the stream_out_of_scope_refusal SSE generator."""
 
     @pytest.mark.asyncio
     async def test_emits_single_done_event_with_refusal_content(self) -> None:
-        """_stream_out_of_scope_refusal yields exactly one SSE done event."""
-        from app.core_plugins.chat.routes import _stream_out_of_scope_refusal
-
+        """stream_out_of_scope_refusal yields exactly one SSE done event."""
         events = []
-        async for chunk in _stream_out_of_scope_refusal():
+        async for chunk in stream_out_of_scope_refusal():
             events.append(chunk)
 
         assert len(events) == 1
@@ -95,8 +96,6 @@ class TestChatCompletionResponseSchema:
     """ChatCompletionResponse must accept a null conversation_id."""
 
     def test_conversation_id_can_be_none(self) -> None:
-        from app.core_plugins.chat.schemas import ChatCompletionResponse, ChatMessage
-
         resp = ChatCompletionResponse(
             message=ChatMessage(role="assistant", content="sorry"),
             conversation_id=None,
@@ -106,10 +105,6 @@ class TestChatCompletionResponseSchema:
         assert resp.conversation_id is None
 
     def test_conversation_id_can_be_uuid(self) -> None:
-        from uuid import uuid4
-
-        from app.core_plugins.chat.schemas import ChatCompletionResponse, ChatMessage
-
         uid = uuid4()
         resp = ChatCompletionResponse(
             message=ChatMessage(role="assistant", content="hello"),
@@ -168,8 +163,9 @@ class TestOutOfScopeConversationCreation:
         mock_msg.id = 1
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider"),
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=False),
+            patch("app.core_plugins.chat.routes.completions.get_provider"),
+            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
+            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.add_message",
                 new_callable=AsyncMock,
@@ -216,8 +212,9 @@ class TestOutOfScopeConversationCreation:
         await session.commit()
 
         with (
-            patch("app.core_plugins.chat.routes.get_provider"),
-            patch("app.core_plugins.chat.routes.is_query_in_scope", return_value=False),
+            patch("app.core_plugins.chat.routes.completions.get_provider"),
+            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
+            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=False),
             patch(
                 "app.core_plugins.chat.service.ChatService.get_conversation_messages",
                 new_callable=AsyncMock,

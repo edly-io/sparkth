@@ -458,8 +458,6 @@ class TestAttachmentEndpoints:
         session: AsyncSession,
     ) -> None:
         """GET with non-existent conversation UUID returns 404."""
-        from uuid import uuid4
-
         response = await client.get(f"/api/v1/chat/conversations/{uuid4()}/attachments")
 
         assert response.status_code == 404

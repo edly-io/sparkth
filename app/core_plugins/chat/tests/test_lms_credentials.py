@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core_plugins.chat.constants import LMS_RULES
 from app.core_plugins.chat.lms_credentials import (
-    _LMS_RULES,
     _has_lms_tools,
     build_lms_credentials_message,
 )
@@ -89,7 +89,7 @@ class TestBuildLmsCredentialsMessage:
             new=AsyncMock(return_value={}),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
-        assert result == _LMS_RULES
+        assert result == LMS_RULES
         assert "My Plugins" in result
 
     async def test_openedx_credentials_included(self, mock_session: AsyncMock) -> None:
@@ -136,7 +136,7 @@ class TestBuildLmsCredentialsMessage:
             new=AsyncMock(return_value={}),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
-        assert result == _LMS_RULES
+        assert result == LMS_RULES
         assert "5." not in result
 
     async def test_rule_5_present_when_credentials_configured(self, mock_session: AsyncMock) -> None:
@@ -160,7 +160,7 @@ class TestBuildLmsCredentialsMessage:
             new=AsyncMock(return_value=plugin_map),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
-        assert result == _LMS_RULES
+        assert result == LMS_RULES
 
     async def test_empty_config_falls_back_to_hint(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_authenticate")]
@@ -170,4 +170,4 @@ class TestBuildLmsCredentialsMessage:
             new=AsyncMock(return_value=plugin_map),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
-        assert result == _LMS_RULES
+        assert result == LMS_RULES

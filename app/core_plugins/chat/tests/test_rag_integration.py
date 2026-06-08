@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.core_plugins.chat.routes import _extract_query_text, _resolve_drive_file_blocks
+from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
     DriveFileNotFoundError,
@@ -18,7 +18,7 @@ from app.lib.rag import (
 
 
 def _make_session(drive_file_ids: list[int] | None = None) -> AsyncMock:
-    """Create a mock session that returns the given drive_file_ids as document_ids via _to_document_ids."""
+    """Create a mock async session for resolve_drive_file_blocks tests."""
     return AsyncMock()
 
 
@@ -90,11 +90,11 @@ class TestSchemaValidation:
 class TestExtractQueryText:
     def test_plain_string_message(self) -> None:
         messages = [_user_msg("Create a course on photosynthesis")]
-        assert _extract_query_text(messages) == "Create a course on photosynthesis"
+        assert extract_query_text(messages) == "Create a course on photosynthesis"
 
     def test_list_content_extracts_text_blocks(self) -> None:
         messages = [_user_msg([_drive_block(1), _text_block("Create a course on plants")])]
-        assert _extract_query_text(messages) == "Create a course on plants"
+        assert extract_query_text(messages) == "Create a course on plants"
 
     def test_uses_last_user_message(self) -> None:
         messages = [
@@ -102,15 +102,15 @@ class TestExtractQueryText:
             _assistant_msg("Response"),
             _user_msg("Second message"),
         ]
-        assert _extract_query_text(messages) == "Second message"
+        assert extract_query_text(messages) == "Second message"
 
     def test_no_user_message_returns_empty(self) -> None:
         messages = [_assistant_msg("Hello")]
-        assert _extract_query_text(messages) == ""
+        assert extract_query_text(messages) == ""
 
     def test_list_with_no_text_blocks_returns_empty(self) -> None:
         messages = [_user_msg([_drive_block(1)])]
-        assert _extract_query_text(messages) == ""
+        assert extract_query_text(messages) == ""
 
 
 class TestResolveDriveFileBlocks:
@@ -118,16 +118,17 @@ class TestResolveDriveFileBlocks:
     async def test_no_drive_file_blocks_returns_messages_unchanged(self) -> None:
         messages = [_user_msg("Just text"), _assistant_msg("Response")]
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = []
-            result = await _resolve_drive_file_blocks(
-                _make_session(),
-                messages,
-                1,
-                "Just text",
-                MagicMock(),
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                session=_make_session(),
+                user_id=1,
+                llm=MagicMock(),
             )
         mock_retrieve.assert_not_called()
         assert result == messages
@@ -138,17 +139,18 @@ class TestResolveDriveFileBlocks:
         chunks = [_make_chunk("Content here.", source_name="doc.pdf")]
 
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = [42]
             mock_retrieve.return_value = chunks
-            result = await _resolve_drive_file_blocks(
-                _make_session(),
-                messages,
-                1,
-                "Generate a course",
-                MagicMock(),
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                session=_make_session(),
+                user_id=1,
+                llm=MagicMock(),
             )
 
         assert len(result) == 1
@@ -168,17 +170,18 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([base64_block])]
 
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = []
             mock_retrieve.return_value = []
-            result = await _resolve_drive_file_blocks(
-                _make_session(),
-                messages,
-                1,
-                "",
-                MagicMock(),
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                session=_make_session(),
+                user_id=1,
+                llm=MagicMock(),
             )
         content = result[0].content
         assert isinstance(content, list)
@@ -189,18 +192,19 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([_drive_block(999)])]
 
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = [999]
             mock_retrieve.side_effect = DriveFileNotFoundError("not found")
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_drive_file_blocks(
-                    _make_session(),
-                    messages,
-                    1,
-                    "query",
-                    MagicMock(),
+                await resolve_drive_file_blocks(
+                    messages=messages,
+                    session=_make_session(),
+                    user_id=1,
+                    llm=MagicMock(),
                 )
         assert exc_info.value.status_code == 422
 
@@ -209,18 +213,19 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([_drive_block(1)])]
 
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = [1]
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_drive_file_blocks(
-                    _make_session(),
-                    messages,
-                    1,
-                    "query",
-                    MagicMock(),
+                await resolve_drive_file_blocks(
+                    messages=messages,
+                    session=_make_session(),
+                    user_id=1,
+                    llm=MagicMock(),
                 )
         assert exc_info.value.status_code == 422
         assert "processing" in exc_info.value.detail
@@ -230,18 +235,19 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([_drive_block(1)])]
 
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = [1]
             mock_retrieve.side_effect = RAGRetrievalError("db down")
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_drive_file_blocks(
-                    _make_session(),
-                    messages,
-                    1,
-                    "query",
-                    MagicMock(),
+                await resolve_drive_file_blocks(
+                    messages=messages,
+                    session=_make_session(),
+                    user_id=1,
+                    llm=MagicMock(),
                 )
         assert exc_info.value.status_code == 500
 
@@ -250,17 +256,18 @@ class TestResolveDriveFileBlocks:
         messages = [_user_msg([_drive_block(7), _text_block("Summarize this")])]
 
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = [7]
             mock_retrieve.return_value = []
-            result = await _resolve_drive_file_blocks(
-                _make_session(),
-                messages,
-                1,
-                "Summarize this",
-                MagicMock(),
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                session=_make_session(),
+                user_id=1,
+                llm=MagicMock(),
             )
 
         content = result[0].content
@@ -275,16 +282,17 @@ class TestResolveDriveFileBlocks:
     async def test_string_content_message_passed_through(self) -> None:
         messages = [_user_msg("plain text message")]
         with (
-            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
-            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch(
+                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
+            ) as mock_retrieve,
+            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = []
-            result = await _resolve_drive_file_blocks(
-                _make_session(),
-                messages,
-                1,
-                "plain text message",
-                MagicMock(),
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                session=_make_session(),
+                user_id=1,
+                llm=MagicMock(),
             )
         mock_retrieve.assert_not_called()
         assert result[0].content == "plain text message"

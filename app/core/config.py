@@ -5,7 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # `.env` holds dev defaults; `.env.local` (git-ignored) holds sensitive creds and
+    # local overrides and takes precedence. Real environment variables (CI, prod/k8s)
+    # still win over both.
+    model_config = SettingsConfigDict(env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="ignore")
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS512"
@@ -18,12 +21,6 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:7727/api/v1/auth/google/callback"
-
-    # Slack TA Bot OAuth
-    SLACK_CLIENT_ID: str = ""
-    SLACK_CLIENT_SECRET: str = ""
-    SLACK_SIGNING_SECRET: str = ""
-    SLACK_REDIRECT_URI: str = ""
 
     # Email / SMTP
     SMTP_HOST: str = ""
@@ -41,7 +38,9 @@ class Settings(BaseSettings):
 
     MEMORY_PROFILING_ENABLED: bool = False
 
-    RAG_MCP_URL: str
+    RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported
+    RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE: int = 100  # below this avg, a PDF is treated as scanned/image-only
+    RAG_PDF_EXTRACTION_BATCH_SIZE: int = 10  # number of pages per pymupdf4llm.to_markdown() call
 
     LLM_ENCRYPTION_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
