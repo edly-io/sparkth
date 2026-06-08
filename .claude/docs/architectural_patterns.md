@@ -104,13 +104,8 @@ async def endpoint(
 
 ```
 PluginError (base)
-├── PluginNotFoundError
 ├── PluginLoadError
 ├── PluginValidationError
-├── PluginDependencyError
-├── PluginAlreadyLoadedError
-├── PluginNotLoadedError
-└── PluginConfigError
 ```
 
 Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` at the endpoint layer. MCP tools raise `AuthenticationError` for credential issues.

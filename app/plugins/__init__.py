@@ -18,13 +18,8 @@ from app.core_plugins.slack.config import SlackConfig
 from app.plugins.base import SparkthPlugin
 from app.plugins.config_base import PluginConfig
 from app.plugins.exceptions import (
-    PluginAlreadyLoadedError,
-    PluginConfigError,
-    PluginDependencyError,
     PluginError,
     PluginLoadError,
-    PluginNotFoundError,
-    PluginNotLoadedError,
     PluginValidationError,
 )
 
@@ -48,13 +43,8 @@ __all__ = [
     "PluginLoader",
     "get_plugin_loader",
     "PluginError",
-    "PluginNotFoundError",
     "PluginLoadError",
     "PluginValidationError",
-    "PluginDependencyError",
-    "PluginAlreadyLoadedError",
-    "PluginNotLoadedError",
-    "PluginConfigError",
 ]
 
 
