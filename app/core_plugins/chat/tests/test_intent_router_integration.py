@@ -476,7 +476,6 @@ async def _seed_file(session: AsyncSession, folder_id: int, user_id: int, name: 
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
         patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
         patch("app.core_plugins.chat.routes.helpers.ScopeClassifier"),
         patch("app.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
