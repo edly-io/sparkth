@@ -1,42 +1,45 @@
 import inspect
-from typing import Any, Callable, Type, get_type_hints
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, get_type_hints
+
+from pydantic import BaseModel
 
 from app.lib.hooks import PluginCollectionHook
 from app.lib.log import get_logger
-from app.plugins.base import SparkthPlugin
 
 logger = get_logger(__name__)
 
-# MCP tool definitions contributed by plugins. Each item is the dict consumed by
-# the MCP server (app/mcp/main.py) and the chat tool registry.
-MCP_TOOLS: PluginCollectionHook[dict[str, Any]] = PluginCollectionHook()
 
+@dataclass
+class Tool:
+    """An MCP tool a plugin contributes to the :data:`MCP_TOOLS` hook.
 
-def collect_plugin_tools(plugin: SparkthPlugin) -> None:
-    """Collect the plugin's ``@tool``-decorated methods into the MCP_TOOLS hook.
-
-    Reads the registry populated by ``PluginMeta`` at class-definition time, binds
-    each method to the instance, and builds the tool definition (auto-generating the
-    input schema from the handler signature).
+    The plugin registers it from its ``__init__`` with
+    ``MCP_TOOLS.add_item(self, Tool(self.my_method, category="..."))``. The tool's
+    ``name`` and ``description`` are derived from the bound handler (its name and
+    docstring); the input schema is auto-generated from the handler signature.
     """
-    tool_registry = getattr(type(plugin), "_tool_registry", {})
 
-    for method_name, tool_info in tool_registry.items():
-        try:
-            handler = getattr(plugin, method_name)
-            tool_def: dict[str, Any] = {
-                "name": tool_info["name"],
-                "handler": handler,
-                "description": tool_info["description"],
-                "inputSchema": generate_input_schema(handler),
-                "category": tool_info["category"],
-                "version": tool_info["version"],
-                "plugin": plugin.name,
-            }
-            MCP_TOOLS.add_item(plugin, tool_def)
-            logger.debug(f"Collected tool '{tool_info['name']}' from method '{method_name}' in plugin '{plugin.name}'")
-        except (AttributeError, TypeError, KeyError) as e:
-            logger.error(f"Failed to collect tool from method '{method_name}' in plugin '{plugin.name}': {e}")
+    handler: Callable[..., Any]
+    category: str | None = None
+
+    @property
+    def name(self) -> str:
+        return self.handler.__name__
+
+    @property
+    def description(self) -> str:
+        return (self.handler.__doc__ or "").strip()
+
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return generate_input_schema(self.handler)
+
+
+# MCP tools contributed by plugins, consumed by the MCP server (app/mcp/main.py)
+# and the chat tool registry (app/core_plugins/chat/tools.py).
+MCP_TOOLS: PluginCollectionHook[Tool] = PluginCollectionHook()
 
 
 def generate_input_schema(func: Callable[..., Any]) -> dict[str, Any]:
@@ -68,27 +71,22 @@ def generate_input_schema(func: Callable[..., Any]) -> dict[str, Any]:
         return {"type": "object", "properties": {}}
 
 
-def type_to_json_schema(py_type: Type[Any]) -> dict[str, Any]:
+def type_to_json_schema(py_type: type[Any]) -> dict[str, Any]:
     """Convert a Python type to a JSON Schema type definition."""
     # Check if it's a Pydantic BaseModel
-    try:
-        from pydantic import BaseModel
+    if isinstance(py_type, type) and issubclass(py_type, BaseModel):
+        model_schema = py_type.model_json_schema()
+        defs = model_schema.get("$defs", {})
+        properties = model_schema.get("properties", {})
+        # Resolve all $ref references inline so the schema is self-contained
+        resolved_properties = {k: resolve_schema_refs(v, defs) for k, v in properties.items()}
+        return {
+            "type": "object",
+            "properties": resolved_properties,
+            "required": model_schema.get("required", []),
+        }
 
-        if isinstance(py_type, type) and issubclass(py_type, BaseModel):
-            model_schema = py_type.model_json_schema()
-            defs = model_schema.get("$defs", {})
-            properties = model_schema.get("properties", {})
-            # Resolve all $ref references inline so the schema is self-contained
-            resolved_properties = {k: resolve_schema_refs(v, defs) for k, v in properties.items()}
-            return {
-                "type": "object",
-                "properties": resolved_properties,
-                "required": model_schema.get("required", []),
-            }
-    except (ImportError, TypeError):
-        pass
-
-    type_map: dict[Type[Any], dict[str, str]] = {
+    type_map: dict[type[Any], dict[str, str]] = {
         int: {"type": "integer"},
         float: {"type": "number"},
         str: {"type": "string"},

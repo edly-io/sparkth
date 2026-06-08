@@ -33,9 +33,12 @@ class PluginCollectionHook(BasePluginHook[list[T]]):
     """A hook that holds a list of items per plugin."""
 
     def add_item(self, plugin: SparkthPlugin, item: T) -> None:
+        self.add_items(plugin, [item])
+
+    def add_items(self, plugin: SparkthPlugin, items: list[T]) -> None:
         if plugin not in self._items:
             self._items[plugin] = []
-        self._items[plugin].append(item)
+        self._items[plugin].extend(items)
 
     def iter_items(self) -> Iterator[tuple[SparkthPlugin, T]]:
         for plugin, plugin_items in self._iter_plugin_items():
