@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.rag.agent_tools import build_search_tools
+from app.rag.mcp.agent_tools import build_search_tools
 
 
 def _by_name(tools: list[Any]) -> dict[str, Any]:
@@ -49,7 +49,7 @@ class TestBuildSearchTools:
     @pytest.mark.asyncio
     async def test_invocation_injects_user_id_and_file_id(self) -> None:
         tool = _by_name(build_search_tools(user_id=42, file_id=10))["get_document_structure"]
-        with patch("app.rag.agent_tools.tools.get_document_structure", new_callable=AsyncMock) as mock_fn:
+        with patch("app.rag.mcp.agent_tools.tools.get_document_structure", new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = []
             await tool.ainvoke({})
         mock_fn.assert_awaited_once_with(user_id=42, file_id=10)
@@ -57,7 +57,7 @@ class TestBuildSearchTools:
     @pytest.mark.asyncio
     async def test_search_tool_injects_context_and_passes_keyword(self) -> None:
         tool = _by_name(build_search_tools(user_id=5, file_id=7))["search_section_by_keyword"]
-        with patch("app.rag.agent_tools.tools.search_section_by_keyword", new_callable=AsyncMock) as mock_fn:
+        with patch("app.rag.mcp.agent_tools.tools.search_section_by_keyword", new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = []
             await tool.ainvoke({"keyword": "intro"})
         mock_fn.assert_awaited_once_with(user_id=5, file_id=7, keyword="intro")
@@ -65,7 +65,7 @@ class TestBuildSearchTools:
     @pytest.mark.asyncio
     async def test_list_user_files_injects_only_user_id(self) -> None:
         tool = _by_name(build_search_tools(user_id=9, file_id=99))["list_user_files"]
-        with patch("app.rag.agent_tools.tools.list_user_files", new_callable=AsyncMock) as mock_fn:
+        with patch("app.rag.mcp.agent_tools.tools.list_user_files", new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = []
             await tool.ainvoke({})
         mock_fn.assert_awaited_once_with(user_id=9)

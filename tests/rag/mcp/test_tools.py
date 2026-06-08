@@ -7,8 +7,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.types import RagStatus
-from app.rag_mcp.tools import (
+from app.rag.mcp.tools import (
     get_chunk_stats,
     get_document_structure,
     get_file_metadata,
@@ -16,6 +15,7 @@ from app.rag_mcp.tools import (
     list_user_files,
     search_section_by_keyword,
 )
+from app.rag.types import RagStatus
 
 
 class TestListUserFiles:
@@ -33,7 +33,7 @@ class TestListUserFiles:
         mock_file.rag_status = RagStatus.READY
         mock_file.is_deleted = False
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.all.return_value = [mock_file]
@@ -49,7 +49,7 @@ class TestListUserFiles:
     @pytest.mark.asyncio
     async def test_excludes_deleted_files(self) -> None:
         """Test that deleted files are excluded."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.all.return_value = []
@@ -63,7 +63,7 @@ class TestListUserFiles:
     @pytest.mark.asyncio
     async def test_excludes_non_ready_files(self) -> None:
         """Test that non-READY files are excluded."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.all.return_value = []
@@ -77,7 +77,7 @@ class TestListUserFiles:
     @pytest.mark.asyncio
     async def test_sqlalchemy_error_raises(self) -> None:
         """Test that SQLAlchemyError is re-raised."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
             mock_get_session.return_value.__aenter__.return_value = mock_session
@@ -99,7 +99,7 @@ class TestGetFileMetadata:
         mock_file.size = 1024
         mock_file.modified_time = datetime(2024, 1, 1)
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.first.return_value = mock_file
@@ -115,7 +115,7 @@ class TestGetFileMetadata:
     @pytest.mark.asyncio
     async def test_returns_none_for_missing_file(self) -> None:
         """Test that None is returned for missing file."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.first.return_value = None
@@ -129,7 +129,7 @@ class TestGetFileMetadata:
     @pytest.mark.asyncio
     async def test_scoped_to_user_id(self) -> None:
         """Test that the query is scoped to user_id."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.first.return_value = None
@@ -151,7 +151,7 @@ class TestListFileSections:
         mock_file.id = 1
         mock_file.name = "test.pdf"
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
@@ -174,7 +174,7 @@ class TestListFileSections:
     @pytest.mark.asyncio
     async def test_file_not_found_returns_empty(self) -> None:
         """Test that empty list is returned when file not found."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
             mock_result.first.return_value = None
@@ -196,7 +196,7 @@ class TestGetChunkStats:
         mock_file.id = 1
         mock_file.name = "test.pdf"
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
@@ -250,7 +250,7 @@ class TestGetDocumentStructure:
             ("Chapter 1", "Background", None, 5),
             ("Chapter 2", None, None, 2),
         ]
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_get_session.return_value.__aenter__.return_value = self._make_session(self._mock_file(), rows)
             result = await get_document_structure(user_id=1, file_id=1)
 
@@ -261,7 +261,7 @@ class TestGetDocumentStructure:
     async def test_chunk_count_and_fields_populated(self) -> None:
         """chunk_count and section fields must be taken directly from the aggregation row."""
         rows = [("Ch1", "Sec1", "Sub1", 7)]
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_get_session.return_value.__aenter__.return_value = self._make_session(self._mock_file(), rows)
             result = await get_document_structure(user_id=1, file_id=1)
 
@@ -277,7 +277,7 @@ class TestGetDocumentStructure:
     @pytest.mark.asyncio
     async def test_file_not_found_returns_empty(self) -> None:
         """Returns empty list when the file does not belong to the user."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_get_session.return_value.__aenter__.return_value = self._make_session(None, [])
             result = await get_document_structure(user_id=1, file_id=999)
 
@@ -286,7 +286,7 @@ class TestGetDocumentStructure:
     @pytest.mark.asyncio
     async def test_sqlalchemy_error_raises(self) -> None:
         """SQLAlchemyError must propagate to the caller."""
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
             mock_get_session.return_value.__aenter__.return_value = mock_session
@@ -305,7 +305,7 @@ class TestSearchSectionByKeyword:
         mock_file.id = 1
         mock_file.name = "test.pdf"
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
@@ -331,7 +331,7 @@ class TestSearchSectionByKeyword:
         mock_file.id = 1
         mock_file.name = "test.pdf"
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()
@@ -363,7 +363,7 @@ class TestSearchSectionByKeyword:
         mock_file.id = 1
         mock_file.name = "test.pdf"
 
-        with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
+        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
 
             mock_file_result = MagicMock()

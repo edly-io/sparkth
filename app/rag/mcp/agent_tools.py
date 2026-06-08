@@ -1,6 +1,6 @@
 """Build in-process LangChain tools for the RAG search agent.
 
-Wraps the metadata functions in :mod:`app.rag_mcp.tools` as LangChain
+Wraps the metadata functions in :mod:`app.rag.mcp.tools` as LangChain
 ``StructuredTool`` instances, binding ``user_id``/``file_id`` via closure so the
 agent only ever sees query-relevant arguments. This replaces the previous
 out-of-process FastMCP server: the tools now run as direct Python calls.
@@ -8,7 +8,7 @@ out-of-process FastMCP server: the tools now run as direct Python calls.
 
 from langchain_core.tools import StructuredTool
 
-from app.rag_mcp import schemas, tools
+from app.rag.mcp import schemas, tools
 
 
 def build_search_tools(user_id: int, file_id: int) -> list[StructuredTool]:
