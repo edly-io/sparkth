@@ -12,6 +12,7 @@ from app.lib.log import get_logger
 if TYPE_CHECKING:
     # Imported under TYPE_CHECKING only to avoid a runtime cycle: app.models.drive
     # imports RagStatus from app.lib.rag, which imports this module.
+    # TODO: this circular dependency will be resolved once the Document API gets implemented
     from app.models.drive import DriveFile
 
 from app.rag.enums import RagStatus

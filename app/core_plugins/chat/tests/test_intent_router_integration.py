@@ -95,7 +95,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -175,7 +174,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
@@ -265,7 +263,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -338,7 +335,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -399,7 +395,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -544,7 +539,6 @@ class TestDriveFileIdsOwnershipCheck:
         file2_id = await _seed_file(session, folder_id, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch(
@@ -597,7 +591,6 @@ class TestDriveFileIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch(
@@ -648,7 +641,6 @@ class TestDriveFileIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch(
@@ -712,7 +704,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
@@ -775,7 +766,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.get_rag_context_service"),
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
             patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
             patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,

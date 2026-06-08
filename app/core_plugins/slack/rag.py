@@ -32,6 +32,8 @@ from app.rag.utils import resolve_source_name
 logger = get_logger(__name__)
 
 
+# TODO: this function is almost similar to app.core_plugins.chat.routes.helper.format_source_block
+# we need to figure out how to remove this duplication.
 def _format_context(chunks: list[RetrievedChunk]) -> str:
     """Render retrieved chunks as per-document context blocks for synthesis."""
     by_source: dict[str, list[RetrievedChunk]] = {}

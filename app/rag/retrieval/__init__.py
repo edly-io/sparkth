@@ -13,8 +13,6 @@ from app.rag.types import RAGContext, RetrievedChunk
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
-__all__ = ["agentic_retrieve_context", "get_context_via_agent_with_isolated_session"]
-
 
 async def get_context_via_agent_with_isolated_session(
     query: str,
