@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from app.rag.enums import RagStatus
+from app.lib.rag import RagStatus
 from app.rag.models import DocumentChunk
 from app.rag.retrieval.utils import format_chunks_as_context
 from app.rag.types import SimilarityResult

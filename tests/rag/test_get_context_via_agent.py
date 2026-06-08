@@ -6,8 +6,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.enums import RagStatus
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.lib.rag import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError, RagStatus
 from app.rag.retrieval.agent import get_context_via_agent
 from app.rag.schemas import RAGSearchAgentResponse, SectionRef
 from app.rag.types import RAGContext
