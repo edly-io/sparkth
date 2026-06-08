@@ -8,8 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
 from app.lib.log import get_logger
+from app.lib.rag import RagStatus
 from app.models.drive import DriveFile
-from app.rag.types import RagStatus
 
 logger = get_logger(__name__)
 

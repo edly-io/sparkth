@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkInput, ChunkStoreService
+from app.rag.store import ChunkStoreService
+from app.rag.types import ChunkInput
 
 
 class TestChunkInput:
@@ -167,16 +168,16 @@ class TestChunkStoreService:
 class TestDocumentChunkModel:
     def test_embedding_column_removed(self) -> None:
         """DocumentChunk must no longer have an embedding column."""
-        from app.rag.db_models import DocumentChunk
+        from app.rag.models import DocumentChunk
 
         assert not hasattr(DocumentChunk, "embedding")
 
     def test_embedding_model_column_removed(self) -> None:
-        from app.rag.db_models import DocumentChunk
+        from app.rag.models import DocumentChunk
 
         assert not hasattr(DocumentChunk, "embedding_model")
 
     def test_embedding_provider_column_removed(self) -> None:
-        from app.rag.db_models import DocumentChunk
+        from app.rag.models import DocumentChunk
 
         assert not hasattr(DocumentChunk, "embedding_provider")

@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.rag import RagStatus
 from app.rag.mcp.tools import (
     get_chunk_stats,
     get_document_structure,
@@ -15,7 +16,6 @@ from app.rag.mcp.tools import (
     list_user_files,
     search_section_by_keyword,
 )
-from app.rag.types import RagStatus
 
 
 class TestListUserFiles:

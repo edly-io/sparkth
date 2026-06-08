@@ -2,31 +2,8 @@
 
 from dataclasses import dataclass, field
 
-from app.rag.db_models import DocumentChunk
-from app.rag.enums import DocType, RagStatus
-from app.rag.pydantic_models import RAGSearchAgentResponse, SectionRef
-
-__all__ = [
-    # Re-exported from submodules for convenience
-    "DocType",
-    "RagStatus",
-    "RAGSearchAgentResponse",
-    "SectionRef",
-    # Extraction
-    "ExtractionResult",
-    # Chunking
-    "Chunk",
-    "ChunkInput",
-    "ChunkMetadata",
-    # Retrieval
-    "RAGContext",
-    "SimilarityResult",
-]
-
-
-# ---------------------------------------------------------------------------
-# Extraction
-# ---------------------------------------------------------------------------
+from app.rag.enums import DocType
+from app.rag.models import DocumentChunk
 
 
 @dataclass(repr=False)
@@ -41,11 +18,6 @@ class ExtractionResult:
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
-
-
-# ---------------------------------------------------------------------------
-# Chunking
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -87,18 +59,13 @@ class ChunkInput:
     chunk_content_hash: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# Retrieval
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class SimilarityResult:
     """A document chunk paired with a relevance score.
 
     The agentic retrieval path selects chunks by section rather than vector
     similarity, so `similarity` is always 1.0. The field is retained as the
-    common chunk container shape consumed by `format_chunks_as_context`.
+    common chunk container shape used by the internal retrieval path.
     """
 
     chunk: DocumentChunk
@@ -113,3 +80,22 @@ class RAGContext:
     source_name: str
     chunks: list[SimilarityResult]
     formatted_text: str
+
+
+@dataclass
+class IngestionResult:
+    """Outcome of a successful document ingestion."""
+
+    new_chunks: int
+    reused_chunks: int
+
+
+@dataclass
+class RetrievedChunk:
+    """A chunk returned by retrieval, with its document/section attribution."""
+
+    source_name: str
+    chapter: str | None
+    section: str | None
+    subsection: str | None
+    content: str

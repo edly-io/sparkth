@@ -10,9 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment
 from app.core_plugins.chat.service import ChatService
+from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
-from app.rag.types import RagStatus
 
 
 async def _seed_drive_folder(session: AsyncSession, user_id: int = 1) -> tuple[DriveFolder, int]:

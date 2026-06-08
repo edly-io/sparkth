@@ -1,26 +1,36 @@
 """Tests for SSE status events during RAG retrieval."""
 
 import asyncio
-import inspect
 import json
-import uuid
-from datetime import datetime
 from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core_plugins.chat.routes.completions import stream_chat_response
-from app.core_plugins.chat.routes.helpers import parse_metadata_list
-from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
-from app.rag.context_service import RAGContext, RAGContextService
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.core_plugins.chat.schemas import ChatMessage
+from app.lib.rag import (
+    DriveFileNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
+    RetrievedChunk,
+)
 
 
-def _make_rag_service(context: RAGContext) -> RAGContextService:
-    mock_service = MagicMock(spec=RAGContextService)
-    mock_service.get_context_via_agent = AsyncMock(return_value=context)
-    return mock_service
+def _make_chunk(
+    content: str = "Content here.",
+    source_name: str = "doc.pdf",
+    chapter: str | None = None,
+    section: str | None = "Content",
+    subsection: str | None = None,
+) -> RetrievedChunk:
+    return RetrievedChunk(
+        source_name=source_name,
+        chapter=chapter,
+        section=section,
+        subsection=subsection,
+        content=content,
+    )
 
 
 def _make_provider() -> MagicMock:
@@ -45,23 +55,27 @@ def _make_service() -> MagicMock:
 def _make_conversation() -> MagicMock:
     conv = MagicMock()
     conv.id = 1
+    import uuid
+
     conv.uuid = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
     return conv
 
 
+def _unresolved_with_file(file_id: int = 1) -> list[ChatMessage]:
+    return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": file_id}])]
+
+
+async def _collect_events(gen: AsyncGenerator[str, None]) -> list[dict]:  # type: ignore[type-arg]
+    events = []
+    async for chunk in gen:
+        if chunk.startswith("data:"):
+            events.append(json.loads(chunk.replace("data: ", "").strip()))
+    return events
+
+
 @pytest.mark.asyncio
 async def test_status_events_emitted_before_tokens() -> None:
-    sr = MagicMock()
-    sr.chunk.chapter = None
-    sr.chunk.section = "Content"
-    sr.chunk.subsection = None
-
-    rag_context = RAGContext(
-        file_db_id=42,
-        source_name="doc.pdf",
-        chunks=[sr],
-        formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nContent here.",
-    )
+    chunks = [_make_chunk("Content here.", source_name="doc.pdf", section="Content")]
 
     unresolved = [
         ChatMessage(
@@ -69,19 +83,24 @@ async def test_status_events_emitted_before_tokens() -> None:
         )
     ]
 
-    events = []
-    async for chunk in stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 42}]}],
-        conversation=_make_conversation(),
-        service=_make_service(),
-        tools=None,
-        unresolved_messages=unresolved,
-        rag_service=_make_rag_service(rag_context),
-        user_id=1,
-        llm=MagicMock(),
-    ):
-        events.append(chunk)
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.return_value = chunks
+        events = []
+        async for chunk in stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 42}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=unresolved,
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+        ):
+            events.append(chunk)
 
     # Parse SSE events
     parsed = []
@@ -92,7 +111,9 @@ async def test_status_events_emitted_before_tokens() -> None:
     statuses = [e for e in parsed if "status" in e]
     status_names = [e["status"] for e in statuses]
 
-    assert "searching_document" in status_names
+    # Single searching_documents event (not per-file searching_document)
+    assert "searching_documents" in status_names
+    assert "searching_document" not in status_names
     assert "generating" in status_names
 
     # Status events must precede token events
@@ -102,41 +123,71 @@ async def test_status_events_emitted_before_tokens() -> None:
 
 
 @pytest.mark.asyncio
+async def test_searching_documents_event_includes_file_count() -> None:
+    """The searching_documents status event includes a file_count field."""
+    chunks = [_make_chunk("Content.", source_name="doc.pdf")]
+
+    unresolved = [
+        ChatMessage(
+            role="user",
+            content=[
+                {"type": "drive_file", "file_id": 1},
+                {"type": "drive_file", "file_id": 2},
+                {"type": "text", "text": "Query"},
+            ],
+        )
+    ]
+
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.return_value = chunks
+        events = []
+        async for chunk in stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=unresolved,
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+        ):
+            events.append(chunk)
+
+    parsed = [json.loads(e.replace("data: ", "").strip()) for e in events if e.startswith("data:")]
+    searching_event = next((e for e in parsed if e.get("status") == "searching_documents"), None)
+    assert searching_event is not None
+    assert searching_event["file_count"] == 2
+
+
+@pytest.mark.asyncio
 async def test_agent_context_injected_into_messages() -> None:
     """Agent-retrieved context is injected into messages before the LLM call."""
-    chunk = MagicMock()
-    chunk.chapter = None
-    chunk.section = "Data Privacy"
-    chunk.subsection = None
-    chunk.content = "Data privacy content."
-    chunk.id = 10
-
-    sr = MagicMock()
-    sr.chunk = chunk
-    sr.similarity = 1.0
-
-    rag_context = RAGContext(
-        file_db_id=1,
-        source_name="doc.pdf",
-        chunks=[sr],
-        formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nData privacy content.",
-    )
+    chunks = [_make_chunk("Data privacy content.", source_name="doc.pdf", section="Data Privacy")]
 
     original_messages = [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}]
     unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
 
-    async for _ in stream_chat_response(
-        provider=_make_provider(),
-        messages=original_messages,
-        conversation=_make_conversation(),
-        service=_make_service(),
-        tools=None,
-        unresolved_messages=unresolved,
-        rag_service=_make_rag_service(rag_context),
-        user_id=1,
-        llm=MagicMock(),
-    ):
-        pass
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.return_value = chunks
+        async for _ in stream_chat_response(
+            provider=_make_provider(),
+            messages=original_messages,
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=unresolved,
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+        ):
+            pass
 
     # The drive_file block should be gone; two text blocks remain:
     # [0] context-retention prompt, [1] the RAG context
@@ -151,23 +202,10 @@ async def test_agent_context_injected_into_messages() -> None:
 @pytest.mark.asyncio
 async def test_multi_file_rag_context_preserved() -> None:
     """RAG context from file₁ is not dropped when file₂ is processed in the same message."""
-
-    def _make_context(file_db_id: int, source: str, text: str) -> RAGContext:
-        sr = MagicMock()
-        sr.chunk.chapter = None
-        sr.chunk.section = "Section"
-        sr.chunk.subsection = None
-        sr.chunk.id = file_db_id
-        return RAGContext(file_db_id=file_db_id, source_name=source, chunks=[sr], formatted_text=text)
-
-    ctx1 = _make_context(1, "file1.pdf", "Context from file 1.")
-    ctx2 = _make_context(2, "file2.pdf", "Context from file 2.")
-
-    async def _get_context(session: object, user_id: object, file_db_id: int, **_: object) -> RAGContext:
-        return ctx1 if file_db_id == 1 else ctx2
-
-    rag_service = MagicMock(spec=RAGContextService)
-    rag_service.get_context_via_agent = _get_context
+    chunks = [
+        _make_chunk("Context from file 1.", source_name="file1.pdf", section="Section"),
+        _make_chunk("Context from file 2.", source_name="file2.pdf", section="Section"),
+    ]
 
     original_messages = [
         {"role": "user", "content": [{"type": "drive_file", "file_id": 1}, {"type": "drive_file", "file_id": 2}]}
@@ -179,23 +217,28 @@ async def test_multi_file_rag_context_preserved() -> None:
         )
     ]
 
-    async for _ in stream_chat_response(
-        provider=_make_provider(),
-        messages=original_messages,
-        conversation=_make_conversation(),
-        service=_make_service(),
-        tools=None,
-        unresolved_messages=unresolved,
-        rag_service=rag_service,
-        user_id=1,
-        llm=MagicMock(),
-    ):
-        pass
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.return_value = chunks
+        async for _ in stream_chat_response(
+            provider=_make_provider(),
+            messages=original_messages,
+            conversation=_make_conversation(),
+            service=_make_service(),
+            tools=None,
+            unresolved_messages=unresolved,
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+        ):
+            pass
 
     content = original_messages[0]["content"]
     assert isinstance(content, list)
     text_blocks = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
-    # context prompt + two RAG context blocks — neither file's context is lost
+    # context prompt + two RAG context blocks (one per source) — neither file's context is lost
     assert len(text_blocks) == 3
     assert any("Context from file 1." in t for t in text_blocks)
     assert any("Context from file 2." in t for t in text_blocks)
@@ -226,40 +269,31 @@ async def test_no_status_events_without_drive_file_blocks() -> None:
 @pytest.mark.asyncio
 async def test_confirmed_rag_sections_saved_as_metadata() -> None:
     """Confirmed RAG sections are persisted in model_metadata when saving the assistant message."""
-
-    sr1 = MagicMock()
-    sr1.chunk.section = "Introduction"
-    sr1.chunk.chapter = None
-    sr1.chunk.subsection = None
-    sr1.chunk.content = "Intro content"
-    sr2 = MagicMock()
-    sr2.chunk.section = "Conclusion"
-    sr2.chunk.chapter = None
-    sr2.chunk.subsection = None
-    sr2.chunk.content = "Conclusion content"
-
-    rag_context = RAGContext(
-        file_db_id=1,
-        source_name="guide.pdf",
-        chunks=[sr1, sr2],
-        formatted_text="[DOCUMENT CONTEXT: guide.pdf]\nContent.",
-    )
+    chunks = [
+        _make_chunk("Intro content", source_name="guide.pdf", section="Introduction"),
+        _make_chunk("Conclusion content", source_name="guide.pdf", section="Conclusion"),
+    ]
 
     unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
     service = _make_service()
 
-    async for _ in stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        unresolved_messages=unresolved,
-        rag_service=_make_rag_service(rag_context),
-        user_id=1,
-        llm=MagicMock(),
-    ):
-        pass
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.return_value = chunks
+        async for _ in stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=service,
+            tools=None,
+            unresolved_messages=unresolved,
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+        ):
+            pass
 
     # The last add_message call (assistant message) should include rag_sections in metadata
     add_message_calls = service.add_message.call_args_list
@@ -305,6 +339,10 @@ async def test_no_rag_sections_metadata_without_drive_files() -> None:
 
 class TestMessageResponseRagSections:
     def test_message_response_accepts_rag_sections(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -322,6 +360,10 @@ class TestMessageResponseRagSections:
         assert response.rag_sections[0]["name"] == "Introduction"
 
     def test_message_response_rag_sections_defaults_to_none(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -341,39 +383,26 @@ class TestMessageResponseRagSections:
 # ---------------------------------------------------------------------------
 
 
-def _make_failing_rag_service(exc: Exception) -> RAGContextService:
-    mock_service = MagicMock(spec=RAGContextService)
-    mock_service.get_context_via_agent = AsyncMock(side_effect=exc)
-    return mock_service
-
-
-def _unresolved_with_file(file_id: int = 1) -> list[ChatMessage]:
-    return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": file_id}])]
-
-
-async def _collect_events(gen: AsyncGenerator[str, None]) -> list[dict]:  # type: ignore[type-arg]
-    events = []
-    async for chunk in gen:
-        if chunk.startswith("data:"):
-            events.append(json.loads(chunk.replace("data: ", "").strip()))
-    return events
-
-
 @pytest.mark.asyncio
 async def test_drive_file_not_found_emits_friendly_error() -> None:
-    events = await _collect_events(
-        stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=_unresolved_with_file(),
-            rag_service=_make_failing_rag_service(DriveFileNotFoundError()),
-            user_id=1,
-            llm=MagicMock(),
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.side_effect = DriveFileNotFoundError()
+        events = await _collect_events(
+            stream_chat_response(
+                provider=_make_provider(),
+                messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+                conversation=_make_conversation(),
+                service=_make_service(),
+                tools=None,
+                unresolved_messages=_unresolved_with_file(),
+                user_id=1,
+                llm=MagicMock(),
+                should_run_rag=True,
+            )
         )
-    )
 
     error_events = [e for e in events if "error" in e]
     assert len(error_events) == 1
@@ -384,19 +413,24 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
 
 @pytest.mark.asyncio
 async def test_rag_not_ready_emits_friendly_error() -> None:
-    events = await _collect_events(
-        stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=_unresolved_with_file(),
-            rag_service=_make_failing_rag_service(RAGNotReadyError(file_db_id=1, rag_status="PENDING")),
-            user_id=1,
-            llm=MagicMock(),
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
+        events = await _collect_events(
+            stream_chat_response(
+                provider=_make_provider(),
+                messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+                conversation=_make_conversation(),
+                service=_make_service(),
+                tools=None,
+                unresolved_messages=_unresolved_with_file(),
+                user_id=1,
+                llm=MagicMock(),
+                should_run_rag=True,
+            )
         )
-    )
 
     error_events = [e for e in events if "error" in e]
     assert len(error_events) == 1
@@ -407,19 +441,24 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
 
 @pytest.mark.asyncio
 async def test_rag_retrieval_error_emits_friendly_error() -> None:
-    events = await _collect_events(
-        stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=_unresolved_with_file(),
-            rag_service=_make_failing_rag_service(RAGRetrievalError()),
-            user_id=1,
-            llm=MagicMock(),
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.side_effect = RAGRetrievalError()
+        events = await _collect_events(
+            stream_chat_response(
+                provider=_make_provider(),
+                messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+                conversation=_make_conversation(),
+                service=_make_service(),
+                tools=None,
+                unresolved_messages=_unresolved_with_file(),
+                user_id=1,
+                llm=MagicMock(),
+                should_run_rag=True,
+            )
         )
-    )
 
     error_events = [e for e in events if "error" in e]
     assert len(error_events) == 1
@@ -469,20 +508,25 @@ async def test_drive_file_not_found_persists_error_to_db() -> None:
     """DriveFileNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    gen = stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        unresolved_messages=_unresolved_with_file(),
-        rag_service=_make_failing_rag_service(DriveFileNotFoundError()),
-        user_id=1,
-        llm=MagicMock(),
-        _task_holder=task_holder,
-    )
-    async for _ in gen:
-        pass
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.side_effect = DriveFileNotFoundError()
+        gen = stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=service,
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+            _task_holder=task_holder,
+        )
+        async for _ in gen:
+            pass
     await task_holder[0]
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
@@ -496,20 +540,25 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
     """RAGNotReadyError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    gen = stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        unresolved_messages=_unresolved_with_file(),
-        rag_service=_make_failing_rag_service(RAGNotReadyError(file_db_id=1, rag_status="PENDING")),
-        user_id=1,
-        llm=MagicMock(),
-        _task_holder=task_holder,
-    )
-    async for _ in gen:
-        pass
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
+        gen = stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=service,
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+            _task_holder=task_holder,
+        )
+        async for _ in gen:
+            pass
     await task_holder[0]
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
@@ -521,20 +570,25 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
     """RAGRetrievalError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    gen = stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        unresolved_messages=_unresolved_with_file(),
-        rag_service=_make_failing_rag_service(RAGRetrievalError()),
-        user_id=1,
-        llm=MagicMock(),
-        _task_holder=task_holder,
-    )
-    async for _ in gen:
-        pass
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
+        mock_retrieve.side_effect = RAGRetrievalError()
+        gen = stream_chat_response(
+            provider=_make_provider(),
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            conversation=_make_conversation(),
+            service=service,
+            tools=None,
+            unresolved_messages=_unresolved_with_file(),
+            user_id=1,
+            llm=MagicMock(),
+            should_run_rag=True,
+            _task_holder=task_holder,
+        )
+        async for _ in gen:
+            pass
     await task_holder[0]
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
@@ -580,18 +634,32 @@ async def test_unexpected_error_persists_error_to_db() -> None:
 
 class TestParseMetadataList:
     def test_returns_none_for_no_metadata(self) -> None:
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         assert parse_metadata_list(None, "tool_calls") is None
 
     def test_returns_none_for_empty_metadata(self) -> None:
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         assert parse_metadata_list("{}", "tool_calls") is None
 
     def test_returns_none_for_invalid_json(self) -> None:
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         assert parse_metadata_list("not-json", "tool_calls") is None
 
     def test_returns_none_when_value_not_list(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         assert parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
 
     def test_returns_list_for_tool_calls_key(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         meta = json.dumps({"tool_calls": [{"name": "search_web"}, {"name": "search_web"}]})
         result = parse_metadata_list(meta, "tool_calls")
         assert result is not None
@@ -599,6 +667,10 @@ class TestParseMetadataList:
         assert result[0]["name"] == "search_web"
 
     def test_returns_list_for_rag_sections_key(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
         result = parse_metadata_list(meta, "rag_sections")
         assert result is not None
@@ -606,6 +678,10 @@ class TestParseMetadataList:
         assert result[0]["name"] == "Intro"
 
     def test_ignores_other_keys(self) -> None:
+        import json
+
+        from app.core_plugins.chat.routes.helpers import parse_metadata_list
+
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
         assert parse_metadata_list(meta, "tool_calls") is None
 
@@ -714,6 +790,10 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
 
 class TestMessageResponseToolCalls:
     def test_message_response_accepts_tool_calls(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -731,6 +811,10 @@ class TestMessageResponseToolCalls:
         assert response.tool_calls[0]["name"] == "search_web"
 
     def test_message_response_tool_calls_defaults_to_none(self) -> None:
+        from datetime import datetime
+
+        from app.core_plugins.chat.schemas import MessageResponse
+
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -748,11 +832,15 @@ class TestMessageResponseToolCalls:
 class TestSimilarityThresholdRemoved:
     def test_chat_completion_request_has_no_similarity_threshold(self) -> None:
         """similarity_threshold field must be removed from ChatCompletionRequest."""
+        from app.core_plugins.chat.schemas import ChatCompletionRequest
+
         # The field must not be present in the model's fields
         assert "similarity_threshold" not in ChatCompletionRequest.model_fields
 
     def test_chat_completion_request_accepts_valid_fields(self) -> None:
         """ChatCompletionRequest still works without similarity_threshold."""
+        from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
+
         req = ChatCompletionRequest(
             llm_config_id=1,
             messages=[ChatMessage(role="user", content="hello")],
@@ -761,5 +849,9 @@ class TestSimilarityThresholdRemoved:
 
     def test_stream_chat_response_has_no_similarity_threshold_param(self) -> None:
         """stream_chat_response must not have a similarity_threshold parameter."""
+        import inspect
+
+        from app.core_plugins.chat.routes.completions import stream_chat_response
+
         sig = inspect.signature(stream_chat_response)
         assert "similarity_threshold" not in sig.parameters

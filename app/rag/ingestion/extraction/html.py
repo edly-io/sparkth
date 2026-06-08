@@ -12,9 +12,10 @@ from app.rag.constants import (
     EXTRACTION_HTML_TEXT_BLOCK_TAGS,
     EXTRACTION_HTML_VOID_TAGS,
 )
-from app.rag.extraction.base import BaseExtractor
-from app.rag.extraction.utils import render_markdown_table
-from app.rag.types import DocType, ExtractionResult
+from app.rag.enums import DocType
+from app.rag.ingestion.extraction.base import BaseExtractor
+from app.rag.ingestion.extraction.utils import render_markdown_table
+from app.rag.types import ExtractionResult
 
 logger = get_logger(__name__)
 

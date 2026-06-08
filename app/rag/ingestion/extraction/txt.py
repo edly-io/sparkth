@@ -1,7 +1,8 @@
 """Plain-text and Markdown extractor."""
 
-from app.rag.extraction.base import BaseExtractor
-from app.rag.types import DocType, ExtractionResult
+from app.rag.enums import DocType
+from app.rag.ingestion.extraction.base import BaseExtractor
+from app.rag.types import ExtractionResult
 
 
 class TXTExtractor(BaseExtractor):

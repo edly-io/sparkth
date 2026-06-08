@@ -20,12 +20,17 @@ from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
 from app.lib.log import get_logger
+from app.lib.rag import (
+    DriveFileNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
+    RetrievedChunk,
+    agentic_retrieve_context,
+)
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import BaseChatProvider, get_provider
 from app.models.drive import DriveFile as DriveFileModel
-from app.rag.context_service import get_rag_context_service
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
 logger = get_logger(__name__)
 
@@ -51,9 +56,46 @@ def extract_query_text(messages: list[ChatMessage]) -> str:
     return ""
 
 
+def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
+    lines = [
+        f"[DOCUMENT CONTEXT: {source_name}]",
+        "The following excerpts were retrieved from the document to inform your response:",
+        "",
+    ]
+    for i, chunk in enumerate(chunks, 1):
+        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+        label = " / ".join(parts) if parts else "General"
+        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
+        lines.append(chunk.content.strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
+    grouped: dict[str, list[RetrievedChunk]] = {}
+    for chunk in chunks:
+        grouped.setdefault(chunk.source_name, []).append(chunk)
+    return grouped
+
+
+def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
+    file_ids: list[int] = []
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if not isinstance(block, dict) or block.get("type") != "drive_file":
+                continue
+            raw_id = block.get("file_id")
+            if raw_id is None:
+                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                continue
+            file_ids.append(int(raw_id))
+    return file_ids
+
+
 async def resolve_drive_file_blocks(
     messages: list[ChatMessage],
-    session: AsyncSession,
     user_id: int,
     llm: Any,
 ) -> list[ChatMessage]:
@@ -80,51 +122,51 @@ async def resolve_drive_file_blocks(
             continue
 
         non_file_blocks: list[dict[str, Any]] = []
-        rag_blocks: list[dict[str, Any]] = []
+        file_ids: list[int] = []
         for block in msg.content:
-            if not isinstance(block, dict) or block.get("type") != "drive_file":
+            if isinstance(block, dict) and block.get("type") == "drive_file":
+                raw_id = block.get("file_id")
+                if raw_id is None:
+                    logger.warning("Skipping drive_file block missing file_id: %s", block)
+                    continue
+                file_ids.append(int(raw_id))
+            else:
                 non_file_blocks.append(block)
-                continue
 
-            raw_id = block.get("file_id")
-            if raw_id is None:
-                logger.warning("Skipping drive_file block missing file_id: %s", block)
-                continue
-            file_id: int = int(raw_id)
-            try:
-                context = await get_rag_context_service().get_context_via_agent(
-                    session=session,
-                    user_id=user_id,
-                    file_db_id=file_id,
-                    query=query_text,
-                    llm=llm,
-                )
-                if context.chunks:
-                    rag_blocks.append({"type": "text", "text": context.formatted_text})
-                logger.info(
-                    "Replaced drive_file block file_id=%d with %d RAG chunks",
-                    file_id,
-                    len(context.chunks),
-                )
-            except DriveFileNotFoundError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"File (id={file_id}) not found or not accessible.",
-                ) from exc
-            except RAGNotReadyError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=(
-                        f"File (id={file_id}) is still being processed "
-                        f"(status: {exc.rag_status}). Please wait and try again."
-                    ),
-                ) from exc
-            except RAGRetrievalError as exc:
-                logger.error("RAG retrieval error for file_id=%d: %s", file_id, exc)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to retrieve document context. Please try again.",
-                ) from exc
+        if not file_ids:
+            resolved.append(msg)
+            continue
+
+        try:
+            chunks = await agentic_retrieve_context(query_text, file_ids, user_id, llm)
+        except DriveFileNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="One or more files not found or not accessible.",
+            ) from exc
+        except RAGNotReadyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(f"A file is still being processed (status: {exc.rag_status}). Please wait and try again."),
+            ) from exc
+        except RAGRetrievalError as exc:
+            logger.error("RAG retrieval error for file_ids=%s: %s", file_ids, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve document context. Please try again.",
+            ) from exc
+
+        grouped = group_by_source(chunks)
+        rag_blocks: list[dict[str, Any]] = [
+            {"type": "text", "text": format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
+        ]
+
+        logger.info(
+            "Replaced drive_file blocks file_ids=%s with %d RAG chunks across %d source(s)",
+            file_ids,
+            len(chunks),
+            len(grouped),
+        )
 
         if rag_blocks:
             user_text_blocks = [b for b in non_file_blocks if isinstance(b, dict) and b.get("type") == "text"]

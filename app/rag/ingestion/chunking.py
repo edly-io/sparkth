@@ -6,7 +6,7 @@ Three-layer chunking pipeline:
   Layer 1: extraction.py converts raw files to structured Markdown (upstream).
   Layer 2: MarkdownHeaderTextSplitter splits on heading hierarchy (#, ##, ###),
            producing one chunk per section with chapter/section/subsection metadata.
-  Layer 3: Any chunk exceeding CHUNKING_TOKEN_LIMIT tokens is further split with
+  Layer 3: Any chunk exceeding RAG_CHUNKING_TOKEN_LIMIT tokens is further split with
            RecursiveCharacterTextSplitter (token-aware, with overlap), inheriting
            the parent section's metadata.
 
@@ -19,18 +19,14 @@ import tiktoken
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 from app.lib.log import get_logger
-from app.rag.constants import (
-    CHUNKING_MARKDOWN_HEADERS,
-    CHUNKING_SECONDARY_OVERLAP,
-    CHUNKING_TIKTOKEN_ENCODING,
-    CHUNKING_TOKEN_LIMIT,
-)
-from app.rag.extraction import ExtractionResult
-from app.rag.types import Chunk, ChunkMetadata
+from app.rag.config import get_rag_settings
+from app.rag.constants import CHUNKING_MARKDOWN_HEADERS
+from app.rag.types import Chunk, ChunkMetadata, ExtractionResult
 
 logger = get_logger(__name__)
 
-_ENCODING = tiktoken.get_encoding(CHUNKING_TIKTOKEN_ENCODING)
+_settings = get_rag_settings()
+_ENCODING = tiktoken.get_encoding(_settings.RAG_CHUNKING_TIKTOKEN_ENCODING)
 
 
 class DocumentChunker:
@@ -42,8 +38,8 @@ class DocumentChunker:
             strip_headers=False,
         )
         self._token_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=CHUNKING_TOKEN_LIMIT,
-            chunk_overlap=CHUNKING_SECONDARY_OVERLAP,
+            chunk_size=_settings.RAG_CHUNKING_TOKEN_LIMIT,
+            chunk_overlap=_settings.RAG_CHUNKING_SECONDARY_OVERLAP,
             length_function=self._count_tokens,
         )
 
@@ -85,11 +81,11 @@ class DocumentChunker:
             metadata = self._build_metadata(doc.metadata, source_name)
             chunk = Chunk(content=content, metadata=metadata)
 
-            if self._count_tokens(content) > CHUNKING_TOKEN_LIMIT:
+            if self._count_tokens(content) > _settings.RAG_CHUNKING_TOKEN_LIMIT:
                 logger.debug(
                     "'%s' chunk >%d tokens — applying secondary split.",
                     source_name,
-                    CHUNKING_TOKEN_LIMIT,
+                    _settings.RAG_CHUNKING_TOKEN_LIMIT,
                 )
                 chunks.extend(self._secondary_split(chunk))
             else:
@@ -108,8 +104,3 @@ class DocumentChunker:
         chunks = self._split(result.markdown, result.source_name)
         logger.info("Chunking complete: '%s' → %d chunks", result.source_name, len(chunks))
         return chunks
-
-
-def chunk_document(result: ExtractionResult) -> list[Chunk]:
-    """Thin wrapper around DocumentChunker.chunk for backward compatibility."""
-    return DocumentChunker().chunk(result)

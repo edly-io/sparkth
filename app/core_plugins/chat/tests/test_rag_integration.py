@@ -9,12 +9,12 @@ from fastapi import HTTPException
 
 from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
-from app.rag.context_service import RAGContext, RAGContextService
-from app.rag.db_models import DocumentChunk
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.store import SimilarityResult
-
-_PATCH_TARGET = "app.core_plugins.chat.routes.helpers.get_rag_context_service"
+from app.lib.rag import (
+    DriveFileNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
+    RetrievedChunk,
+)
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
@@ -33,36 +33,20 @@ def _text_block(text: str) -> dict[str, Any]:
     return {"type": "text", "text": text}
 
 
-def _make_chunk(content: str = "Some content") -> MagicMock:
-    chunk = MagicMock(spec=DocumentChunk)
-    chunk.content = content
-    chunk.chapter = "Chapter 1"
-    chunk.section = "Section 1"
-    chunk.subsection = None
-    return chunk
-
-
-def _make_sr(content: str = "Content", sim: float = 0.9) -> SimilarityResult:
-    return SimilarityResult(chunk=_make_chunk(content), similarity=sim)
-
-
-def _make_rag_service(
-    *,
-    context: RAGContext | None = None,
-    raises: Exception | None = None,
-) -> RAGContextService:
-    mock_service = MagicMock(spec=RAGContextService)
-    if raises:
-        mock_service.get_context_via_agent = AsyncMock(side_effect=raises)
-    else:
-        ctx = context or RAGContext(
-            file_db_id=1,
-            source_name="doc.pdf",
-            chunks=[_make_sr()],
-            formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nExcerpts here.",
-        )
-        mock_service.get_context_via_agent = AsyncMock(return_value=ctx)
-    return mock_service
+def _make_chunk(
+    content: str = "Some content",
+    source_name: str = "doc.pdf",
+    chapter: str | None = "Chapter 1",
+    section: str | None = "Section 1",
+    subsection: str | None = None,
+) -> RetrievedChunk:
+    return RetrievedChunk(
+        source_name=source_name,
+        chapter=chapter,
+        section=section,
+        subsection=subsection,
+        content=content,
+    )
 
 
 class TestSchemaValidation:
@@ -128,29 +112,33 @@ class TestResolveDriveFileBlocks:
     @pytest.mark.asyncio
     async def test_no_drive_file_blocks_returns_messages_unchanged(self) -> None:
         messages = [_user_msg("Just text"), _assistant_msg("Response")]
-        with patch(_PATCH_TARGET, return_value=_make_rag_service()):
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
             result = await resolve_drive_file_blocks(
                 messages=messages,
-                session=AsyncMock(),
                 user_id=1,
                 llm=MagicMock(),
             )
+        mock_retrieve.assert_not_called()
         assert result == messages
 
     @pytest.mark.asyncio
     async def test_drive_file_block_replaced_with_text_block(self) -> None:
         messages = [_user_msg([_drive_block(42), _text_block("Generate a course")])]
-        mock_svc = _make_rag_service(
-            context=RAGContext(
-                file_db_id=42,
-                source_name="doc.pdf",
-                chunks=[_make_sr("Content here.")],
-                formatted_text="[DOCUMENT CONTEXT: doc.pdf]\nContent here.",
-            )
-        )
+        chunks = [_make_chunk("Content here.", source_name="doc.pdf")]
 
-        with patch(_PATCH_TARGET, return_value=mock_svc):
-            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.return_value = chunks
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                user_id=1,
+                llm=MagicMock(),
+            )
 
         assert len(result) == 1
         content = result[0].content
@@ -160,6 +148,7 @@ class TestResolveDriveFileBlocks:
         assert "text" in types
         text_contents = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
         assert any("[DOCUMENT CONTEXT" in t for t in text_contents)
+        assert any("Content here." in t for t in text_contents)
 
     @pytest.mark.asyncio
     async def test_base64_block_passed_through_unchanged(self) -> None:
@@ -167,8 +156,16 @@ class TestResolveDriveFileBlocks:
         base64_block = {"type": "document", "source": {"type": "base64", "data": data}}
         messages = [_user_msg([base64_block])]
 
-        with patch(_PATCH_TARGET, return_value=_make_rag_service()):
-            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.return_value = []
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                user_id=1,
+                llm=MagicMock(),
+            )
         content = result[0].content
         assert isinstance(content, list)
         assert content[0] == base64_block
@@ -176,60 +173,89 @@ class TestResolveDriveFileBlocks:
     @pytest.mark.asyncio
     async def test_file_not_found_raises_http_422(self) -> None:
         messages = [_user_msg([_drive_block(999)])]
-        mock_svc = _make_rag_service(raises=DriveFileNotFoundError("not found"))
 
-        with pytest.raises(HTTPException) as exc_info:
-            with patch(_PATCH_TARGET, return_value=mock_svc):
-                await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.side_effect = DriveFileNotFoundError("not found")
+            with pytest.raises(HTTPException) as exc_info:
+                await resolve_drive_file_blocks(
+                    messages=messages,
+                    user_id=1,
+                    llm=MagicMock(),
+                )
         assert exc_info.value.status_code == 422
 
     @pytest.mark.asyncio
     async def test_rag_not_ready_raises_http_422_with_status_in_detail(self) -> None:
         messages = [_user_msg([_drive_block(1)])]
-        mock_svc = _make_rag_service(raises=RAGNotReadyError(1, "processing"))
 
-        with pytest.raises(HTTPException) as exc_info:
-            with patch(_PATCH_TARGET, return_value=mock_svc):
-                await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
+            with pytest.raises(HTTPException) as exc_info:
+                await resolve_drive_file_blocks(
+                    messages=messages,
+                    user_id=1,
+                    llm=MagicMock(),
+                )
         assert exc_info.value.status_code == 422
         assert "processing" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_retrieval_error_raises_http_500(self) -> None:
         messages = [_user_msg([_drive_block(1)])]
-        mock_svc = _make_rag_service(raises=RAGRetrievalError("db down"))
 
-        with pytest.raises(HTTPException) as exc_info:
-            with patch(_PATCH_TARGET, return_value=mock_svc):
-                await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.side_effect = RAGRetrievalError("db down")
+            with pytest.raises(HTTPException) as exc_info:
+                await resolve_drive_file_blocks(
+                    messages=messages,
+                    user_id=1,
+                    llm=MagicMock(),
+                )
         assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
     async def test_empty_rag_results_drops_drive_file_block_silently(self) -> None:
         messages = [_user_msg([_drive_block(7), _text_block("Summarize this")])]
-        mock_svc = _make_rag_service(
-            context=RAGContext(
-                file_db_id=7,
-                source_name="empty.pdf",
-                chunks=[],
-                formatted_text="[DOCUMENT CONTEXT: empty.pdf]\nNo relevant excerpts found.",
-            )
-        )
 
-        with patch(_PATCH_TARGET, return_value=mock_svc):
-            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.return_value = []
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                user_id=1,
+                llm=MagicMock(),
+            )
 
         content = result[0].content
         assert isinstance(content, list)
         types = [b["type"] for b in content if isinstance(b, dict)]
         assert "drive_file" not in types
-        assert "text" in types
+        # No context blocks injected since there are no chunks
         text_contents = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
-        assert not any("No relevant excerpts found" in t for t in text_contents)
+        assert not any("[DOCUMENT CONTEXT" in t for t in text_contents)
 
     @pytest.mark.asyncio
     async def test_string_content_message_passed_through(self) -> None:
         messages = [_user_msg("plain text message")]
-        with patch(_PATCH_TARGET, return_value=_make_rag_service()):
-            result = await resolve_drive_file_blocks(messages=messages, session=AsyncMock(), user_id=1, llm=MagicMock())
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            result = await resolve_drive_file_blocks(
+                messages=messages,
+                user_id=1,
+                llm=MagicMock(),
+            )
+        mock_retrieve.assert_not_called()
         assert result[0].content == "plain text message"

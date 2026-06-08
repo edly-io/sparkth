@@ -562,5 +562,6 @@ async def list_rag_sources(
 ) -> RagSourcesResponse:
     """Return the distinct RAG source names available to the current user."""
     store = ChunkStoreService()
+    # TODO: The following is still calling a function from RAG's internal implementation, need to fix this
     sources = await store.get_sources(session=session, user_id=user_id)
     return RagSourcesResponse(sources=sources)

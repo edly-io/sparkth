@@ -11,9 +11,9 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
-from app.rag.types import RagStatus
 
 # ---------------------------------------------------------------------------
 # OAuth Endpoints

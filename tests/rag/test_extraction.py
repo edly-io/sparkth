@@ -1,7 +1,7 @@
 """
 tests/rag/test_extraction.py
 
-Unit tests for app/rag/extraction.py
+Unit tests for app/rag/extraction.
 Covers: PDF, DOCX, HTML, TXT extraction + public API routing + error handling.
 """
 
@@ -12,14 +12,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 from bs4 import Tag
 
-from app.rag.extraction import (
+from app.rag.enums import DocType
+from app.rag.exceptions import UnsupportedFileTypeError
+from app.rag.ingestion.extraction import (
+    SUPPORTED_EXTENSIONS_FOR_EXTRACTION,
     DocxExtractor,
-    ExtractionResult,
     HTMLExtractor,
     TXTExtractor,
+    check_extraction_eligibility,
     extract_to_markdown,
 )
-from app.rag.types import DocType
+from app.rag.types import ExtractionResult
 
 SIMPLE_HTML = b"""
 <html><body>
@@ -80,9 +83,9 @@ def _make_mock_pdf_doc(page_count: int, text_per_page: str = "lorem ipsum " * 50
 class TestExtractPDF:
     def test_calls_pymupdf4llm_and_returns_result(self) -> None:
         with (
-            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
-            patch("app.rag.extraction.pdf.fitz.TOOLS"),
-            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="# Chapter 1") as mock_to_md,
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="# Chapter 1") as mock_to_md,
         ):
             result = extract_to_markdown(b"%PDF-fake", "notes.pdf")
 
@@ -93,9 +96,9 @@ class TestExtractPDF:
     def test_fitz_open_called_with_stream_and_filetype(self) -> None:
         raw = b"%PDF-fake"
         with (
-            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(1)) as mock_fitz,
-            patch("app.rag.extraction.pdf.fitz.TOOLS"),
-            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(1)) as mock_fitz,
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             extract_to_markdown(raw, "notes.pdf")
 
@@ -104,9 +107,9 @@ class TestExtractPDF:
     def test_separators_stripped_from_markdown(self) -> None:
         fake_md = "page1\n-----\npage2\n-----\npage3"
         with (
-            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
-            patch("app.rag.extraction.pdf.fitz.TOOLS"),
-            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value=fake_md),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value=fake_md),
         ):
             result = extract_to_markdown(b"%PDF-fake", "book.pdf")
 
@@ -117,9 +120,9 @@ class TestExtractPDF:
 
     def test_page_count_comes_from_doc_length(self) -> None:
         with (
-            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(7)),
-            patch("app.rag.extraction.pdf.fitz.TOOLS"),
-            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(7)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             result = extract_to_markdown(b"%PDF-fake", "book.pdf")
 
@@ -127,9 +130,9 @@ class TestExtractPDF:
 
     def test_single_page_doc(self) -> None:
         with (
-            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(1)),
-            patch("app.rag.extraction.pdf.fitz.TOOLS"),
-            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="one page"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(1)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="one page"),
         ):
             result = extract_to_markdown(b"%PDF-fake", "one.pdf")
 
@@ -595,9 +598,9 @@ class TestExtractToMarkdown:
 
     def test_pdf_routing_calls_pymupdf(self) -> None:
         with (
-            patch("app.rag.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
-            patch("app.rag.extraction.pdf.fitz.TOOLS"),
-            patch("app.rag.extraction.pdf.pymupdf4llm.to_markdown", return_value="# MD") as m,
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_pdf_doc(3)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="# MD") as m,
         ):
             extract_to_markdown(b"%PDF", "deck.pdf")
         m.assert_called_once()
@@ -612,61 +615,21 @@ class TestExtractToMarkdown:
         assert extract_to_markdown(buf.getvalue(), "file.docx").doc_type == DocType.DOCX
 
 
-class TestAllowedExtensionsFilter:
-    def test_extension_not_in_allowed_list_raises(self) -> None:
-        with patch("app.rag.extraction.get_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(ValueError, match="Unsupported file extension"):
-                extract_to_markdown(MINIMAL_HTML, "page.html")
+class TestCheckExtractionEligibility:
+    def test_unsupported_extension_raises(self) -> None:
+        with pytest.raises(UnsupportedFileTypeError):
+            check_extraction_eligibility("image.png")
 
-    def test_allowed_extension_proceeds(self) -> None:
-        with patch("app.rag.extraction.get_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "txt"
-            result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
-            assert result.doc_type == DocType.TXT
+    def test_supported_extension_passes(self) -> None:
+        check_extraction_eligibility("notes.pdf")  # no raise
 
-    def test_error_message_includes_accepted_types(self) -> None:
-        with patch("app.rag.extraction.get_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf,docx"
-            with pytest.raises(ValueError, match="Unsupported file extension") as exc_info:
-                extract_to_markdown(TXT_CONTENT, "notes.txt")
-            msg = str(exc_info.value)
-            assert ".pdf" in msg
-            assert ".docx" in msg
-
-    def test_empty_string_permits_all_supported(self) -> None:
-        with patch("app.rag.extraction.get_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = ""
-            result = extract_to_markdown(TXT_CONTENT, "lecture.txt")
-            assert result.doc_type == DocType.TXT
-
-    def test_uppercase_file_extension_normalised(self) -> None:
-        with patch("app.rag.extraction.get_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "txt"
-            result = extract_to_markdown(TXT_CONTENT, "lecture.TXT")
-            assert result.doc_type == DocType.TXT
-
-    def test_disallowed_extension_raises_descriptive_error_not_unsupported(self) -> None:
-        with patch("app.rag.extraction.get_settings") as mock:
-            mock.return_value.RAG_ALLOWED_EXTENSIONS = "pdf"
-            with pytest.raises(ValueError, match="Unsupported file extension"):
-                extract_to_markdown(TXT_CONTENT, "notes.txt")
+    def test_supported_extension_case_insensitive(self) -> None:
+        check_extraction_eligibility("notes.PDF")  # no raise
 
 
-class TestSupportedExtensions:
+class TestSupportedExtensionsForExtraction:
     def test_exported_constant_exists(self) -> None:
-        from app.rag.extraction import SUPPORTED_EXTENSIONS
-
-        assert isinstance(SUPPORTED_EXTENSIONS, frozenset)
+        assert isinstance(SUPPORTED_EXTENSIONS_FOR_EXTRACTION, frozenset)
 
     def test_contains_expected_extensions(self) -> None:
-        from app.rag.extraction import SUPPORTED_EXTENSIONS
-
-        assert SUPPORTED_EXTENSIONS == frozenset({"pdf", "docx", "html", "htm", "txt", "md"})
-
-    def test_utils_uses_extraction_constant(self) -> None:
-        from app.core_plugins.googledrive.utils import _is_supported_for_rag
-        from app.rag.extraction import SUPPORTED_EXTENSIONS
-
-        for ext in SUPPORTED_EXTENSIONS:
-            assert _is_supported_for_rag(f"file.{ext}") is True
+        assert SUPPORTED_EXTENSIONS_FOR_EXTRACTION == frozenset({"pdf", "docx", "html", "htm", "txt", "md"})

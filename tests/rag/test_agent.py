@@ -8,9 +8,9 @@ from langchain_core.exceptions import LangChainException
 from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
-from app.rag.agent import RAGSearchAgent
 from app.rag.exceptions import RAGRetrievalError
-from app.rag.types import RAGSearchAgentResponse, SectionRef
+from app.rag.retrieval.agent import run_agentic_rag_retrieval
+from app.rag.schemas import RAGSearchAgentResponse, SectionRef
 
 
 def _make_validation_error() -> ValidationError:
@@ -21,14 +21,14 @@ def _make_validation_error() -> ValidationError:
     raise AssertionError("ValidationError not raised")
 
 
-class TestRAGSearchAgent:
-    """Tests for RAGSearchAgent.search covering the structured_response extraction and error paths."""
+class TestRunRagSearch:
+    """Tests for run_agentic_rag_retrieval covering the structured_response extraction and error paths."""
 
     def _patch_agent(self, agent: Any) -> Any:
-        return patch("app.rag.agent.create_agent", return_value=agent)
+        return patch("app.rag.retrieval.agent.create_agent", return_value=agent)
 
     def _patch_build_tools(self) -> Any:
-        return patch("app.rag.agent.build_search_tools", return_value=[])
+        return patch("app.rag.retrieval.agent.build_search_tools", return_value=[])
 
     def _make_agent(self, return_value: dict[str, Any]) -> MagicMock:
         agent = MagicMock()
@@ -44,7 +44,7 @@ class TestRAGSearchAgent:
         agent = self._make_agent({"structured_response": expected})
 
         with self._patch_build_tools(), self._patch_agent(agent):
-            result = await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+            result = await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
         assert result.source_name == "doc.pdf"
         assert len(result.selected_sections) == 1
@@ -55,7 +55,7 @@ class TestRAGSearchAgent:
         agent = self._make_agent({"messages": []})
 
         with self._patch_build_tools(), self._patch_agent(agent):
-            result = await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+            result = await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
         assert result.source_name == ""
         assert result.selected_sections == []
@@ -67,7 +67,7 @@ class TestRAGSearchAgent:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_langchain_exception_raises_retrieval_error(self) -> None:
@@ -76,7 +76,7 @@ class TestRAGSearchAgent:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_graph_recursion_error_raises_retrieval_error(self) -> None:
@@ -85,7 +85,7 @@ class TestRAGSearchAgent:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError, match="maximum steps"):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
 
     @pytest.mark.asyncio
     async def test_value_error_propagates(self) -> None:
@@ -94,4 +94,4 @@ class TestRAGSearchAgent:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(ValueError):
-                await RAGSearchAgent().search(llm=MagicMock(), user_id=1, file_id=2, user_query="intro")
+                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")

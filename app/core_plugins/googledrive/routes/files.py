@@ -28,8 +28,8 @@ from app.core_plugins.googledrive.schemas import (
 )
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
+from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.types import RagStatus
 
 router = APIRouter()
 logger = get_logger(__name__)

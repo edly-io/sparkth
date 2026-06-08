@@ -5,11 +5,12 @@ from typing import Any
 import fitz  # type: ignore[import-untyped]  # PyMuPDF
 import pymupdf4llm  # type: ignore[import-untyped]
 
-from app.core.config import get_settings
 from app.lib.log import get_logger
+from app.rag.config import get_rag_settings
+from app.rag.enums import DocType
 from app.rag.exceptions import ScannedPDFError
-from app.rag.extraction.base import BaseExtractor
-from app.rag.types import DocType, ExtractionResult
+from app.rag.ingestion.extraction.base import BaseExtractor
+from app.rag.types import ExtractionResult
 
 logger = get_logger(__name__)
 
@@ -18,7 +19,7 @@ class PDFExtractor(BaseExtractor):
     """Extracts text from PDF files using PyMuPDF, with scanned-PDF detection."""
 
     def extract(self, data: bytes, source_name: str, *, batch_size: int | None = None) -> ExtractionResult:
-        settings = get_settings()
+        settings = get_rag_settings()
         effective_batch_size = batch_size if batch_size is not None else settings.RAG_PDF_EXTRACTION_BATCH_SIZE
         with fitz.open(stream=data, filetype="pdf") as doc:
             try:

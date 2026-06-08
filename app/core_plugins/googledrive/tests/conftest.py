@@ -17,7 +17,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.config import Settings
+from app.core_plugins.googledrive.config import GoogleDriveSettings
 from app.core_plugins.googledrive.routes import router as drive_router
 from app.lib.db import get_async_session
 from app.main import app
@@ -31,17 +31,12 @@ register_router(
 
 
 @pytest.fixture(autouse=True)
-def _default_rag_settings() -> Generator[None, None, None]:
-    """Patch get_settings in utils so the local .env does not block test files.
-
-    Tests that need a specific RAG_ALLOWED_EXTENSIONS value override this with
-    their own inner patch() context manager.
-    """
-    mock_settings = MagicMock(spec=Settings)
-    mock_settings.RAG_ALLOWED_EXTENSIONS = ""
-    mock_settings.RAG_MAX_FILE_SIZE_MB = 50
-    mock_settings.RAG_CONCURRENCY = 1
-    with patch("app.core_plugins.googledrive.utils.get_settings", return_value=mock_settings):
+def _default_ingestion_settings() -> Generator[None, None, None]:
+    """Patch get_googledrive_settings in utils so the local .env does not affect tests."""
+    mock_settings = MagicMock(spec=GoogleDriveSettings)
+    mock_settings.INGESTION_MAX_FILE_SIZE_MB = 50
+    mock_settings.INGESTION_CONCURRENCY = 1
+    with patch("app.core_plugins.googledrive.utils.get_googledrive_settings", return_value=mock_settings):
         yield
 
 

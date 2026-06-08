@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkInput, ChunkStoreService
+from app.rag.store import ChunkStoreService
+from app.rag.types import ChunkInput
 
 
 def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
@@ -55,7 +56,7 @@ class TestStoreMemory:
         mock_session.flush = AsyncMock()
         mock_session.expunge_all = AsyncMock()
 
-        with patch("app.rag.store.get_settings") as mock_settings:
+        with patch("app.rag.store.get_rag_settings") as mock_settings:
             mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
             await service.store_chunks(mock_session, user_id=1, chunks=chunks)
 

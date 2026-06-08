@@ -7,15 +7,15 @@ import io
 
 import pytest
 
-from app.rag.chunking import chunk_document
-from app.rag.extraction import extract_to_markdown
+from app.rag.ingestion.chunking import DocumentChunker
+from app.rag.ingestion.extraction import extract_to_markdown
 from app.rag.types import Chunk
 
 
 def _run(data: bytes, filename: str) -> list[Chunk]:
     """Run the full Layer 1 → Layer 2 pipeline and return chunks."""
     result = extract_to_markdown(data, filename)
-    return chunk_document(result)
+    return DocumentChunker().chunk(result)
 
 
 def _all_content(chunks: list[Chunk]) -> str:

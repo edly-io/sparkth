@@ -1,6 +1,6 @@
-from app.rag.chunking import DocumentChunker, chunk_document
-from app.rag.extraction import ExtractionResult
-from app.rag.types import Chunk, ChunkMetadata, DocType
+from app.rag.enums import DocType
+from app.rag.ingestion.chunking import DocumentChunker
+from app.rag.types import Chunk, ChunkMetadata, ExtractionResult
 
 STRUCTURED_MD = """\
 # Introduction to Machine Learning
@@ -143,53 +143,53 @@ class TestSplit:
 class TestChunkDocument:
     def test_returns_list_of_chunks(self) -> None:
         result = _make_result(STRUCTURED_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         assert isinstance(chunks, list)
         assert len(chunks) > 0
 
     def test_chapter_metadata_extracted(self) -> None:
         result = _make_result(STRUCTURED_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         chapters = [c.metadata.chapter for c in chunks if c.metadata.chapter]
         assert any("Introduction to Machine Learning" in ch for ch in chapters)
 
     def test_section_metadata_extracted(self) -> None:
         result = _make_result(STRUCTURED_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         sections = [c.metadata.section for c in chunks if c.metadata.section]
         assert any("Supervised Learning" in s for s in sections)
 
     def test_subsection_metadata_extracted(self) -> None:
         result = _make_result(STRUCTURED_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         subsections = [c.metadata.subsection for c in chunks if c.metadata.subsection]
         assert any("Linear Regression" in s for s in subsections)
 
     def test_source_name_preserved(self) -> None:
         result = _make_result(STRUCTURED_MD, source_name="ml_textbook.pdf")
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         assert all(c.metadata.source_name == "ml_textbook.pdf" for c in chunks)
 
     def test_h1_only_document_splits_by_chapter(self) -> None:
         result = _make_result(H1_ONLY_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         chapters = [c.metadata.chapter for c in chunks if c.metadata.chapter]
         assert any("Chapter One" in ch for ch in chapters)
         assert any("Chapter Two" in ch for ch in chapters)
 
     def test_flat_document_does_not_raise(self) -> None:
         result = _make_result(FLAT_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         assert len(chunks) == 1
 
     def test_chunk_content_is_not_empty(self) -> None:
         result = _make_result(STRUCTURED_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         assert all(c.content.strip() for c in chunks)
 
     def test_heading_text_preserved_in_content(self) -> None:
         result = _make_result(STRUCTURED_MD)
-        chunks = chunk_document(result)
+        chunks = DocumentChunker().chunk(result)
         all_content = "\n".join(c.content for c in chunks)
         assert "Supervised Learning" in all_content
 

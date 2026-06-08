@@ -1,0 +1,133 @@
+"""Tests for the app.lib.rag public API surface and ingest_document.
+
+Everything here is imported from app.lib.rag only — this suite exercises the
+public boundary, never the RAG internals behind it.
+"""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+import app.lib.rag as rag_api
+from app.lib.rag import (
+    IngestionResult,
+    ScannedPDFError,
+    UnsupportedFileTypeError,
+    ingest_document,
+)
+
+
+class TestRagPublicApi:
+    def test_exposes_ingest_document(self) -> None:
+        assert callable(rag_api.ingest_document)
+
+    def test_exposes_ingestion_result(self) -> None:
+        assert rag_api.IngestionResult(new_chunks=1, reused_chunks=2).new_chunks == 1
+
+    def test_exposes_rag_status(self) -> None:
+        assert rag_api.RagStatus.READY is rag_api.RagStatus.READY
+
+    def test_exposes_ingestion_exceptions(self) -> None:
+        assert issubclass(rag_api.UnsupportedFileTypeError, Exception)
+        assert issubclass(rag_api.ScannedPDFError, Exception)
+
+
+class TestIngestDocument:
+    @pytest.mark.asyncio
+    async def test_unsupported_type_raises_before_extraction(self) -> None:
+        with pytest.raises(UnsupportedFileTypeError):
+            await ingest_document("img.png", b"x", 10, 1)
+
+    @pytest.mark.asyncio
+    async def test_empty_chunks_returns_zero_counts(self) -> None:
+        extraction = MagicMock(markdown="")
+        chunker = MagicMock()
+        chunker.return_value.chunk.return_value = []
+        with (
+            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
+            patch("app.rag.ingestion.DocumentChunker", chunker),
+        ):
+            result = await ingest_document("a.txt", b"x", 10, 1)
+        assert result == IngestionResult(new_chunks=0, reused_chunks=0)
+
+    @pytest.mark.asyncio
+    async def test_scanned_pdf_propagates(self) -> None:
+        with patch("app.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")):
+            with pytest.raises(ScannedPDFError):
+                await ingest_document("a.pdf", b"x", 10, 1)
+
+    @pytest.mark.asyncio
+    async def test_happy_path_returns_counts(self) -> None:
+        extraction = MagicMock(markdown="# H\ntext")
+        chunker = MagicMock()
+        chunker.return_value.chunk.return_value = [MagicMock()]
+        with (
+            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
+            patch("app.rag.ingestion.DocumentChunker", chunker),
+            patch("app.rag.ingestion.session_scope") as mock_scope,
+            patch("app.rag.ingestion.store_and_link_chunks", return_value=(1, 0)) as mock_store,
+        ):
+            mock_session = AsyncMock()
+            mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await ingest_document("a.txt", b"x", 10, 1)
+        assert result == IngestionResult(new_chunks=1, reused_chunks=0)
+        mock_store.assert_awaited_once()
+        mock_session.commit.assert_awaited_once()
+
+
+class TestRetrieveContextSurface:
+    def test_exposes_agentic_retrieve_context(self) -> None:
+        assert callable(rag_api.agentic_retrieve_context)
+
+    def test_exposes_retrieved_chunk(self) -> None:
+        rc = rag_api.RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="x")
+        assert rc.content == "x"
+
+    def test_exposes_retrieval_exceptions(self) -> None:
+        assert issubclass(rag_api.DriveFileNotFoundError, Exception)
+        assert issubclass(rag_api.RAGNotReadyError, Exception)
+        assert issubclass(rag_api.RAGRetrievalError, Exception)
+
+
+class TestRetrieveContext:
+    @pytest.mark.asyncio
+    async def test_empty_file_ids_returns_empty(self) -> None:
+        result = await rag_api.agentic_retrieve_context("q", [], 1, MagicMock())
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_returns_retrieved_chunks_from_file(self) -> None:
+        from app.rag.models import DocumentChunk
+        from app.rag.types import RAGContext, SimilarityResult
+
+        mock_ctx = RAGContext(
+            file_db_id=10,
+            source_name="a.pdf",
+            chunks=[
+                SimilarityResult(
+                    chunk=DocumentChunk(
+                        user_id=1,
+                        source_name="a.pdf",
+                        content="hello",
+                        chapter="Ch",
+                        section=None,
+                        subsection=None,
+                    ),
+                    similarity=1.0,
+                )
+            ],
+            formatted_text="",
+        )
+        with (
+            patch("app.rag.retrieval.validate_files_ready", new=AsyncMock()),
+            patch(
+                "app.rag.retrieval.get_context_via_agent_with_isolated_session",
+                new=AsyncMock(return_value=mock_ctx),
+            ) as mock_fn,
+        ):
+            result = await rag_api.agentic_retrieve_context("q", [10], 1, MagicMock())
+        assert len(result) == 1
+        assert result[0].content == "hello"
+        assert result[0].source_name == "a.pdf"
+        mock_fn.assert_awaited_once()
