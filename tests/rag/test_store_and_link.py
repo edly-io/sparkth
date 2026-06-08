@@ -1,4 +1,8 @@
 """Tests for app.rag.store.store_and_link_chunks — chunk storage + dedup + linking."""
+# TODO: the unit tests below mock the DB session to control query return values,
+# which couples them to internal query order and makes them brittle. They should
+# be rewritten as integration tests using the real `session` fixture (see
+# test_deleted_file_chunks_not_reused for the pattern). Track as a follow-up PR.
 
 import hashlib
 from datetime import datetime, timezone
