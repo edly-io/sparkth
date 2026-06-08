@@ -30,10 +30,8 @@ Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:
 The `PluginLoader` singleton manages discovery → load → unload. The FastAPI lifespan context manager calls `get_plugin_service().get_or_create_all()` on startup and cleanup on shutdown. Each plugin can contribute:
 
 - **Routes:** `FastAPI.include_router()`
-- **Models:** SQLModel table classes
 - **Middleware:** Starlette middleware
 - **MCP tools:** Via `@tool` decorator
-- **Dependencies:** Callable factories
 
 `PluginAccessMiddleware` (`app/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
 
