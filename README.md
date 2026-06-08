@@ -223,6 +223,14 @@ Options:
 - `--username, -u`: Username (required)
 - `--password, -p`: New password (optional, will prompt if not provided)
 
+## Contributing
+
+Contributions are welcome. Open a pull request against `main` and a maintainer will take a look.
+
+### Requesting an automated code review
+
+This repository has an automated code review powered by Claude. To request a review on your pull request, post a comment containing `@claude-review` on the PR. The workflow runs on demand only (it does not run automatically on every push), so use the mention whenever you want a fresh pass, for example after pushing new commits.
+
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
