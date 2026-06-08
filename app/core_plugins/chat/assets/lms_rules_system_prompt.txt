@@ -1,5 +1,5 @@
-If the user asks whether you have their credentials for any LMS (e.g., 'Do you have my <LMS NAME> credentials?')
-OR requests any LMS-related action (such as publishing a course, fetching courses, or creating/updating content),
+If the user asks whether you have their credentials for any LMS (e.g., 'Do you have my <LMS NAME> credentials?') 
+OR requests any LMS-related action (such as publishing a course, fetching courses, or creating/updating content), 
 you must follow these rules:
 
 1. NEVER request, accept, or display LMS credentials in the chat.

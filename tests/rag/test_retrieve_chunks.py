@@ -31,9 +31,9 @@ class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_maps_chunks_to_retrieved_chunks(self) -> None:
         with (
-            patch("app.lib.rag.validate_files_ready", new=AsyncMock()),
+            patch("app.rag.retrieval.validate_files_ready", new=AsyncMock()),
             patch(
-                "app.lib.rag.get_context_via_agent_with_isolated_session",
+                "app.rag.retrieval.get_context_via_agent_with_isolated_session",
                 new=AsyncMock(side_effect=[_ctx("a.pdf", "alpha"), _ctx("b.pdf", "beta")]),
             ),
         ):
@@ -48,10 +48,10 @@ class TestRetrieveChunks:
         get_ctx = AsyncMock()
         with (
             patch(
-                "app.lib.rag.validate_files_ready",
+                "app.rag.retrieval.validate_files_ready",
                 new=AsyncMock(side_effect=DriveFileNotFoundError("nope")),
             ),
-            patch("app.lib.rag.get_context_via_agent_with_isolated_session", new=get_ctx),
+            patch("app.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
         ):
             with pytest.raises(DriveFileNotFoundError):
                 await retrieve_chunks(1, [10], "q", MagicMock())
@@ -62,10 +62,10 @@ class TestRetrieveChunks:
         get_ctx = AsyncMock()
         with (
             patch(
-                "app.lib.rag.validate_files_ready",
+                "app.rag.retrieval.validate_files_ready",
                 new=AsyncMock(side_effect=RAGNotReadyError(10, str(RagStatus.PROCESSING))),
             ),
-            patch("app.lib.rag.get_context_via_agent_with_isolated_session", new=get_ctx),
+            patch("app.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
         ):
             with pytest.raises(RAGNotReadyError):
                 await retrieve_chunks(1, [10], "q", MagicMock())
@@ -74,9 +74,9 @@ class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_retrieval_error_propagates(self) -> None:
         with (
-            patch("app.lib.rag.validate_files_ready", new=AsyncMock()),
+            patch("app.rag.retrieval.validate_files_ready", new=AsyncMock()),
             patch(
-                "app.lib.rag.get_context_via_agent_with_isolated_session",
+                "app.rag.retrieval.get_context_via_agent_with_isolated_session",
                 new=AsyncMock(side_effect=RAGRetrievalError("agent boom")),
             ),
         ):
