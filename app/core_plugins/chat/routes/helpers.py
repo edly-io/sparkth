@@ -56,7 +56,7 @@ def extract_query_text(messages: list[ChatMessage]) -> str:
     return ""
 
 
-def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
+def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
     lines = [
         f"[DOCUMENT CONTEXT: {source_name}]",
         "The following excerpts were retrieved from the document to inform your response:",
@@ -71,11 +71,27 @@ def _format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
     return "\n".join(lines)
 
 
-def _group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
+def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
     grouped: dict[str, list[RetrievedChunk]] = {}
     for chunk in chunks:
         grouped.setdefault(chunk.source_name, []).append(chunk)
     return grouped
+
+
+def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
+    file_ids: list[int] = []
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if not isinstance(block, dict) or block.get("type") != "drive_file":
+                continue
+            raw_id = block.get("file_id")
+            if raw_id is None:
+                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                continue
+            file_ids.append(int(raw_id))
+    return file_ids
 
 
 async def resolve_drive_file_blocks(
@@ -140,9 +156,9 @@ async def resolve_drive_file_blocks(
                 detail="Failed to retrieve document context. Please try again.",
             ) from exc
 
-        grouped = _group_by_source(chunks)
+        grouped = group_by_source(chunks)
         rag_blocks: list[dict[str, Any]] = [
-            {"type": "text", "text": _format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
+            {"type": "text", "text": format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
         ]
 
         logger.info(

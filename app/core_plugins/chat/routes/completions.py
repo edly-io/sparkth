@@ -19,12 +19,13 @@ from app.core_plugins.chat.intent_router import RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.helpers import (
-    _format_source_block,
-    _group_by_source,
     attach_request_drive_files,
     classify_in_scope,
+    collect_drive_file_ids,
     extract_query_text,
+    format_source_block,
     get_or_create_conversation,
+    group_by_source,
     persist_incoming_messages,
     persist_pre_stream_error,
     resolve_drive_file_blocks,
@@ -53,22 +54,6 @@ from app.models.user import User
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-def _collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
-    file_ids: list[int] = []
-    for msg in messages:
-        if not isinstance(msg.content, list):
-            continue
-        for block in msg.content:
-            if not isinstance(block, dict) or block.get("type") != "drive_file":
-                continue
-            raw_id = block.get("file_id")
-            if raw_id is None:
-                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
-                continue
-            file_ids.append(int(raw_id))
-    return file_ids
 
 
 @router.post("/completions", response_model=ChatCompletionResponse)
@@ -416,7 +401,7 @@ async def stream_chat_response(
 
     async def _run(bg_session: AsyncSession) -> None:
         confirmed_rag_sections: list[dict[str, str | None]] = []
-        file_ids = _collect_drive_file_ids(unresolved_messages) if unresolved_messages else []
+        file_ids = collect_drive_file_ids(unresolved_messages) if unresolved_messages else []
 
         # --- Phase 1: RAG resolution ---
         if should_run_rag and unresolved_messages and user_id is not None:
@@ -471,9 +456,9 @@ async def stream_chat_response(
                 await _put(json.dumps({"error": error_text, "done": True}))
                 return
 
-            grouped = _group_by_source(all_chunks)
+            grouped = group_by_source(all_chunks)
             rag_block_list = [
-                {"type": "text", "text": _format_source_block(source, chunks)} for source, chunks in grouped.items()
+                {"type": "text", "text": format_source_block(source, chunks)} for source, chunks in grouped.items()
             ]
 
             seen_section_keys: set[str] = set()
