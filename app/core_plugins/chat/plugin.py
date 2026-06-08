@@ -1,5 +1,8 @@
 from app.core_plugins.chat.config import ChatUserConfig
-from app.core_plugins.chat.models import Conversation, Message
+from app.core_plugins.chat.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
+    Conversation,
+    Message,
+)
 from app.core_plugins.chat.routes import chat_router
 from app.lib.log import get_logger
 from app.plugins.base import SparkthPlugin
@@ -17,9 +20,6 @@ class ChatPlugin(SparkthPlugin):
             description="Multi-provider chat support with LangChain",
             author="Sparkth Team",
         )
-
-        self.add_model(Conversation)
-        self.add_model(Message)
 
         self.add_route(chat_router)
 

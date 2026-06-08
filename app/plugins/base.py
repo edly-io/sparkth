@@ -3,18 +3,14 @@ SparkthPlugin Base Class
 
 Provides the foundation for all Sparkth plugins with support for:
 - Route registration
-- Database models and migrations
 - MCP tools
-- Dependencies
 - Configuration management
-- Lifecycle hooks
 """
 
 import inspect
 from typing import Any, Callable, Type, TypeVar, get_type_hints
 
 from fastapi import APIRouter
-from sqlmodel import SQLModel
 
 from app.lib.log import get_logger
 from app.plugins.config_base import PluginConfig
@@ -105,36 +101,37 @@ class PluginMeta(type):
 
 class SparkthPlugin(metaclass=PluginMeta):
     """
-        Base class for Sparkth plugins.
+    Base class for Sparkth plugins.
 
-        All plugins should inherit from this class and override the relevant methods
-        to add custom functionality. Unlike abstract base classes, this provides
-        default implementations for all methods, making it easy to create simple
-        plugins that only override what they need.
+    All plugins should inherit from this class and override the relevant methods
+    to add custom functionality. Unlike abstract base classes, this provides
+    default implementations for all methods, making it easy to create simple
+    plugins that only override what they need.
 
-        The manager constructs every plugin as ``plugin_class(plugin_name)``,
-        so ``__init__`` must accept the derived ``plugin_name`` as its first
-        positional argument and pass it through to ``super().__init__()``.
-        Register routes, models, and tools from within ``__init__``.
+    The manager constructs every plugin as ``plugin_class(plugin_name)``,
+    so ``__init__`` must accept the derived ``plugin_name`` as its first
+    positional argument and pass it through to ``super().__init__()``.
+    Register routes and tools from within ``__init__``.
 
-        Example:
+    Example:
+
     ```python
-            router = APIRouter(prefix="/my-app")
+    router = APIRouter(prefix="/my-app")
 
-            @router.get("/")
-            def my_endpoint():
-                return {"message": "Hello from plugin!"}
+    @router.get("/")
+    def my_endpoint():
+        return {"message": "Hello from plugin!"}
 
-            class MyAppPlugin(SparkthPlugin):
-                def __init__(self, plugin_name: str) -> None:
-                    super().__init__(
-                        plugin_name,
-                        MyAppPluginConfig,
-                        version="1.0.0",
-                        description="My awesome plugin",
-                        author="Your Name",
-                    )
-                    self.add_route(router)
+    class MyAppPlugin(SparkthPlugin):
+        def __init__(self, plugin_name: str) -> None:
+            super().__init__(
+                plugin_name,
+                MyAppPluginConfig,
+                version="1.0.0",
+                description="My awesome plugin",
+                author="Your Name",
+            )
+            self.add_route(router)
     ```
     """
 
@@ -166,7 +163,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         self.author = author
         self.config_schema = config_schema
         self._routes: list[APIRouter] = []
-        self._models: list[Type[SQLModel]] = []
         self._mcp_tools: list[dict[str, Any]] = []
 
         self._register_tools_from_metaclass()
@@ -277,40 +273,6 @@ class SparkthPlugin(metaclass=PluginMeta):
             List of tag strings for route categorization
         """
         return [self.name]
-
-    def add_model(self, model: Type[SQLModel]) -> None:
-        """
-                Add a SQLModel class to this plugin.
-
-                Args:
-                    model: SQLModel class to add
-
-                Example:
-        ```python
-                    class Task(SQLModel, table=True):
-                        id: int | None = Field(primary_key=True)
-                        title: str
-                        completed: bool = False
-
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
-                            self.add_model(Task)
-        ```
-        """
-        self._models.append(model)
-
-    def get_models(self) -> list[Type[SQLModel]]:
-        """
-        Return SQLModel classes to be registered with the application.
-
-        Override this method to provide database models, or use add_model()
-        to register models dynamically.
-
-        Returns:
-            List of SQLModel class types
-        """
-        return self._models.copy()
 
     def add_mcp_tool(
         self,
