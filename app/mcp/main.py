@@ -1,10 +1,8 @@
 import argparse
 import asyncio
-from typing import Any, Callable
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.lib.log import configure_logging, get_logger
+from app.lib.mcp.hooks import MCP_TOOLS, Tool
 from app.mcp.mode import TransportMode
 from app.mcp.server import mcp
 from app.plugins import get_plugin_loader
@@ -12,64 +10,28 @@ from app.plugins import get_plugin_loader
 logger = get_logger(__name__)
 
 
-class MCPToolDefinition(BaseModel):
-    """Pydantic model for validating MCP tool definitions from plugins."""
-
-    name: str = Field(..., description="Unique name of the tool")
-    handler: Callable[..., Any] = Field(..., description="Callable function that implements the tool")
-    description: str = Field(default="", description="Description of what the tool does")
-    category: str | None = Field(default=None, description="Category for organizing tools")
-    version: str = Field(default="1.0.0", description="Version of the tool")
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate that the tool name is not empty."""
-        if not v or not v.strip():
-            raise ValueError("Tool name cannot be empty")
-        return v.strip()
-
-    @field_validator("handler")
-    @classmethod
-    def validate_handler(cls, v: Any) -> Callable[..., Any]:
-        """Validate that the handler is callable."""
-        if not callable(v):
-            raise ValueError("Tool handler must be callable")
-        handler: Callable[..., Any] = v
-        return handler
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
 def register_plugin_tools() -> None:
     """
-    Register MCP tools from already-loaded plugins.
+    Register MCP tools contributed by plugins with the FastMCP server.
 
-    This function:
-    1. Gets already loaded plugins from the plugin manager
-    2. Retrieves MCP tools from each plugin
-    3. Validates tool definitions
-    4. Checks for naming conflicts
-    5. Registers tools with the FastMCP server
-
-    Note: Assumes plugins are already loaded by the plugin lifespan manager.
+    Instantiates plugins (so they populate the MCP_TOOLS hook), then registers each
+    tool, skipping name conflicts.
     """
     try:
         # Instantiate plugins so their tools are contributed to the MCP_TOOLS hook.
         get_plugin_loader()
-        from app.lib.mcp.hooks import MCP_TOOLS
 
         registered_tools: dict[str, str] = {}
         total_tools = 0
         total_failed = 0
 
-        for plugin, tool_def in MCP_TOOLS.iter_items():
+        for plugin, tool in MCP_TOOLS.iter_items():
             try:
-                if _validate_and_register_tool(tool_def, plugin.name, registered_tools):
+                if _register_tool(tool, plugin.name, registered_tools):
                     total_tools += 1
                 else:
                     total_failed += 1
-            except (ValidationError, ValueError, TypeError) as e:
+            except (ValueError, TypeError) as e:
                 logger.error(f"Failed to register tool from plugin '{plugin.name}': {e}")
                 total_failed += 1
 
@@ -82,45 +44,36 @@ def register_plugin_tools() -> None:
         logger.error(f"Failed to initialize plugin system for MCP: {e}")
 
 
-def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, registered_tools: dict[str, str]) -> bool:
+def _register_tool(tool: Tool, plugin_name: str, registered_tools: dict[str, str]) -> bool:
     """
-    Validate and register a single MCP tool using Pydantic validation.
+    Register a single MCP tool with the FastMCP server.
 
     Args:
-        tool_def: Tool definition dictionary
+        tool: The tool contributed by the plugin
         plugin_name: Name of the plugin providing this tool
         registered_tools: Dictionary tracking already registered tools
 
     Returns:
         True if tool was successfully registered, False otherwise
     """
-    try:
-        validated_tool = MCPToolDefinition(**tool_def)
-    except ValidationError as e:
-        logger.warning(f"Invalid tool definition from plugin '{plugin_name}': {e}")
-        return False
-
-    if validated_tool.name in registered_tools:
+    if tool.name in registered_tools:
         logger.warning(
-            f"Tool name conflict: '{validated_tool.name}' already registered by plugin "
-            f"'{registered_tools[validated_tool.name]}'. Skipping registration from '{plugin_name}'."
+            f"Tool name conflict: '{tool.name}' already registered by plugin "
+            f"'{registered_tools[tool.name]}'. Skipping registration from '{plugin_name}'."
         )
         return False
     try:
-        mcp.tool(name=validated_tool.name, description=validated_tool.description)(validated_tool.handler)
+        mcp.tool(name=tool.name, description=tool.description)(tool.handler)
 
-        registered_tools[validated_tool.name] = plugin_name
+        registered_tools[tool.name] = plugin_name
 
-        category_str = f" [{validated_tool.category}]" if validated_tool.category else ""
-        version_str = f" v{validated_tool.version}" if validated_tool.version != "1.0.0" else ""
-        logger.info(
-            f"  ✓ Registered tool '{validated_tool.name}'{category_str}{version_str} from plugin '{plugin_name}'"
-        )
+        category_str = f" [{tool.category}]" if tool.category else ""
+        logger.info(f"  ✓ Registered tool '{tool.name}'{category_str} from plugin '{plugin_name}'")
 
         return True
 
     except (ValueError, TypeError, RuntimeError) as e:
-        logger.error(f"Failed to register tool '{validated_tool.name}' from plugin '{plugin_name}': {e}")
+        logger.error(f"Failed to register tool '{tool.name}' from plugin '{plugin_name}': {e}")
         return False
 
 

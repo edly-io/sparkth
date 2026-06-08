@@ -4,18 +4,26 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ---
 
-## 1. Plugin System: Metaclass-Driven Tool Registration
+## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `app/plugins/base.py`, `app/core_plugins/*/plugin.py`
+**Files:** `app/lib/hooks.py`, `app/lib/mcp/hooks.py`, `app/lib/routes/hooks.py`, `app/lib/config/hooks.py`, `app/core_plugins/*/plugin.py`
 
-`PluginMeta` metaclass collects `@tool`-decorated methods at class definition time into `_tool_registry`. On instantiation, these are automatically registered as MCP tools — no manual wiring required.
+A plugin contributes its capabilities by calling `<HOOK>.add_item(self, …)` from its
+own `__init__` — one consistent pattern across all hook types (a `PluginCollectionHook`
+holds many items per plugin, a `PluginHook` holds one):
 
 ```
-SparkthPlugin (metaclass=PluginMeta)
-  └── @tool(description="...", category="...")
-      → auto-registered in _tool_registry at class definition
-      → registered as MCP tool on plugin enable
+SparkthPlugin.__init__
+  ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # app/lib/mcp/hooks.py
+  ├── ROUTES.add_item(self, (router, "/prefix", ["Tag"]))            # app/lib/routes/hooks.py
+  └── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # app/lib/config/hooks.py
 ```
+
+A `Tool` (`app/lib/mcp/hooks.py`) derives its name from the handler method, its
+description from the handler docstring, and its input schema from the signature.
+Consumers iterate the hooks: `app/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
+server, the chat tool registry converts them to LangChain tools, and `app/main.py`
+mounts `ROUTES`.
 
 Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `app/plugins/config_base.py` for the base class.
 
@@ -29,9 +37,9 @@ Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:
 
 The `PluginLoader` singleton manages discovery → load → unload. The FastAPI lifespan context manager calls `get_plugin_service().get_or_create_all()` on startup and cleanup on shutdown. Each plugin can contribute:
 
-- **Routes:** `FastAPI.include_router()`
+- **Routes:** via the `ROUTES` hook (mounted with `FastAPI.include_router()`)
 - **Middleware:** Starlette middleware
-- **MCP tools:** Via `@tool` decorator
+- **MCP tools:** via the `MCP_TOOLS` hook (see §1)
 
 `PluginAccessMiddleware` (`app/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
 

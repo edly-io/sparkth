@@ -129,10 +129,7 @@ class _FakePlugin:
 
     def __init__(self, name: str, schema: dict[str, Any]) -> None:
         self.name = name
-        self._schema = schema
-
-    def get_config_schema(self) -> dict[str, Any]:
-        return self._schema
+        self.schema = schema
 
 
 class _FakeLoader:
@@ -143,13 +140,27 @@ class _FakeLoader:
         return [(p.name, p) for p in self._plugins]
 
 
-def _patch_bootstrap(session: AsyncSession, plugins: list[_FakePlugin]) -> Any:
-    """Patch get_or_create_all's loader and session so it runs against the test DB.
+def _fake_config_class(schema: dict[str, Any]) -> type:
+    """Build a stand-in config class whose ``model_json_schema()`` returns ``schema``."""
 
-    ``session_scope`` is replaced with a context manager yielding the test
-    session, and that session's ``commit`` is aliased to ``flush`` so the test
-    fixture's outer transaction can still roll the writes back.
+    class _FakeConfig:
+        @classmethod
+        def model_json_schema(cls) -> dict[str, Any]:
+            return schema
+
+    return _FakeConfig
+
+
+def _patch_bootstrap(session: AsyncSession, plugins: list[_FakePlugin]) -> Any:
+    """Patch get_or_create_all's loader, config resolver, and session for the test DB.
+
+    ``get_plugin_config_schema`` is patched to resolve each fake plugin's schema by
+    name (mirroring the real ``CONFIG_SCHEMAS`` hook lookup). ``session_scope`` is
+    replaced with a context manager yielding the test session, and that session's
+    ``commit`` is aliased to ``flush`` so the test fixture's outer transaction can
+    still roll the writes back.
     """
+    schemas_by_name = {p.name: _fake_config_class(p.schema) for p in plugins}
 
     @asynccontextmanager
     async def _scope(*_args: Any, **_kwargs: Any) -> AsyncGenerator[AsyncSession, None]:
@@ -158,6 +169,7 @@ def _patch_bootstrap(session: AsyncSession, plugins: list[_FakePlugin]) -> Any:
 
     return (
         patch("app.services.plugin.get_plugin_loader", return_value=_FakeLoader(plugins)),
+        patch("app.services.plugin.get_plugin_config_schema", side_effect=schemas_by_name.get),
         patch("app.services.plugin.session_scope", _scope),
     )
 
@@ -165,9 +177,9 @@ def _patch_bootstrap(session: AsyncSession, plugins: list[_FakePlugin]) -> Any:
 @pytest.mark.asyncio
 async def test_get_or_create_all_inserts_missing_plugins(session: AsyncSession) -> None:
     plugins = [_FakePlugin("alpha", {"type": "object"}), _FakePlugin("beta", {})]
-    loader_patch, scope_patch = _patch_bootstrap(session, plugins)
+    loader_patch, config_patch, scope_patch = _patch_bootstrap(session, plugins)
 
-    with loader_patch, scope_patch:
+    with loader_patch, config_patch, scope_patch:
         await PluginService().get_or_create_all()
 
     rows = (await session.exec(select(Plugin).order_by(Plugin.name))).all()
@@ -179,9 +191,9 @@ async def test_get_or_create_all_inserts_missing_plugins(session: AsyncSession) 
 @pytest.mark.asyncio
 async def test_get_or_create_all_is_idempotent(session: AsyncSession) -> None:
     plugins = [_FakePlugin("alpha", {"type": "object"})]
-    loader_patch, scope_patch = _patch_bootstrap(session, plugins)
+    loader_patch, config_patch, scope_patch = _patch_bootstrap(session, plugins)
 
-    with loader_patch, scope_patch:
+    with loader_patch, config_patch, scope_patch:
         await PluginService().get_or_create_all()
         await PluginService().get_or_create_all()
 
@@ -196,9 +208,9 @@ async def test_get_or_create_all_updates_schema_but_preserves_enabled(session: A
     await session.flush()
 
     plugins = [_FakePlugin("alpha", {"new": True})]
-    loader_patch, scope_patch = _patch_bootstrap(session, plugins)
+    loader_patch, config_patch, scope_patch = _patch_bootstrap(session, plugins)
 
-    with loader_patch, scope_patch:
+    with loader_patch, config_patch, scope_patch:
         await PluginService().get_or_create_all()
 
     rows = (await session.exec(select(Plugin).where(Plugin.name == "alpha"))).all()
