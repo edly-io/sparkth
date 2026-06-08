@@ -13,11 +13,7 @@ class GoogleDrivePlugin(SparkthPlugin):
     """
 
     def __init__(self, name: str = "google-drive"):
-        super().__init__(
-            name=name,
-            config_schema=GoogleDriveConfig,
-            is_core=True,
-        )
+        super().__init__(name=name, config_schema=GoogleDriveConfig)
         self.add_route(router)
 
     def get_route_prefix(self) -> str:

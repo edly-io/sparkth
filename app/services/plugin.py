@@ -147,7 +147,6 @@ class PluginService:
                     await self.get_or_create(
                         session,
                         plugin_instance.name,
-                        plugin_instance.is_core,
                         plugin_instance.get_config_schema(),
                     )
 
@@ -158,9 +157,7 @@ class PluginService:
         self,
         session: AsyncSession,
         name: str,
-        is_core: bool,
         schema: dict[str, Any],
-        enabled: bool = True,
     ) -> Plugin:
         plugin = await self.get_by_name(session, name)
 
@@ -174,9 +171,10 @@ class PluginService:
 
         plugin = Plugin(
             name=name,
-            is_core=is_core,
             config_schema=schema,
-            enabled=enabled,
+            # For now all plugins are enabled by default and considered as belonging to the core
+            is_core=True,
+            enabled=True,
         )
 
         session.add(plugin)

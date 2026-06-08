@@ -12,11 +12,7 @@ logger = get_logger(__name__)
 
 class ChatPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(
-            plugin_name,
-            config_schema=ChatUserConfig,
-            is_core=True,
-        )
+        super().__init__(plugin_name, config_schema=ChatUserConfig)
 
         self.add_route(chat_router)
 
