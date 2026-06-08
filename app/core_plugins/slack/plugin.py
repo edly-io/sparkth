@@ -10,11 +10,7 @@ class Slack(SparkthPlugin):
     """Slack TA Bot — OAuth-connected RAG assistant for Slack workspaces."""
 
     def __init__(self, name: str = "slack") -> None:
-        super().__init__(
-            name=name,
-            config_schema=SlackConfig,
-            is_core=True,
-        )
+        super().__init__(name=name, config_schema=SlackConfig)
 
         self.add_route(router)
 

@@ -131,24 +131,15 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     _tool_registry: dict[str, dict[str, Any]]
 
-    def __init__(
-        self,
-        name: str,
-        config_schema: Type[PluginConfig] | None = None,
-        is_core: bool = False,
-    ):
+    def __init__(self, name: str, config_schema: Type[PluginConfig] | None = None):
         """
         Initialize the plugin with metadata.
 
         Args:
             name: Unique identifier for the plugin (e.g., "tasks-plugin")
             config_schema: Plugin-specific configuration (inherits from app.plugins.config_base:PluginConfig)
-            version: Semantic version string (e.g., "1.0.0")
-            description: Brief description of plugin functionality
-            author: Plugin author name or organization
         """
         self.name = name
-        self.is_core = is_core
         self.config_schema = config_schema
         self._routes: list[APIRouter] = []
         self._mcp_tools: list[dict[str, Any]] = []
