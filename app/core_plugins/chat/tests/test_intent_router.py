@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.exceptions import LangChainException
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
@@ -90,8 +90,6 @@ class TestRAGIntentRouterDecide:
     @pytest.mark.asyncio
     async def test_raises_router_error_on_validation_error(self) -> None:
         """When _chain.ainvoke raises ValidationError, decide() raises RAGIntentRouterError."""
-        from pydantic import BaseModel
-
         llm = MagicMock()
         mock_chain = MagicMock()
         # Create a simple ValidationError instance

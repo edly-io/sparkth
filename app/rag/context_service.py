@@ -1,5 +1,6 @@
 """RAG context retrieval for chat course generation."""
 
+from functools import lru_cache
 from typing import Any
 
 from sqlmodel import col, select
@@ -158,3 +159,9 @@ class RAGContextService:
 
 # Backward-compatibility alias
 format_chunks_as_context = RAGContextService.format_chunks_as_context
+
+
+@lru_cache(maxsize=1)
+def get_rag_context_service() -> RAGContextService:
+    """Return the shared RAGContextService singleton, creating it on first call."""
+    return RAGContextService()

@@ -1,14 +1,18 @@
 """Tests for SSE status events during RAG retrieval."""
 
 import asyncio
+import inspect
 import json
+import uuid
+from datetime import datetime
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core_plugins.chat.routes import stream_chat_response
-from app.core_plugins.chat.schemas import ChatMessage
+from app.core_plugins.chat.routes.completions import stream_chat_response
+from app.core_plugins.chat.routes.helpers import parse_metadata_list
+from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
 from app.rag.context_service import RAGContext, RAGContextService
 from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError, RAGRetrievalError
 
@@ -41,8 +45,6 @@ def _make_service() -> MagicMock:
 def _make_conversation() -> MagicMock:
     conv = MagicMock()
     conv.id = 1
-    import uuid
-
     conv.uuid = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
     return conv
 
@@ -303,10 +305,6 @@ async def test_no_rag_sections_metadata_without_drive_files() -> None:
 
 class TestMessageResponseRagSections:
     def test_message_response_accepts_rag_sections(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -324,10 +322,6 @@ class TestMessageResponseRagSections:
         assert response.rag_sections[0]["name"] == "Introduction"
 
     def test_message_response_rag_sections_defaults_to_none(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -586,56 +580,34 @@ async def test_unexpected_error_persists_error_to_db() -> None:
 
 class TestParseMetadataList:
     def test_returns_none_for_no_metadata(self) -> None:
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
-        assert _parse_metadata_list(None, "tool_calls") is None
+        assert parse_metadata_list(None, "tool_calls") is None
 
     def test_returns_none_for_empty_metadata(self) -> None:
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
-        assert _parse_metadata_list("{}", "tool_calls") is None
+        assert parse_metadata_list("{}", "tool_calls") is None
 
     def test_returns_none_for_invalid_json(self) -> None:
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
-        assert _parse_metadata_list("not-json", "tool_calls") is None
+        assert parse_metadata_list("not-json", "tool_calls") is None
 
     def test_returns_none_when_value_not_list(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
-        assert _parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
+        assert parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
 
     def test_returns_list_for_tool_calls_key(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
         meta = json.dumps({"tool_calls": [{"name": "search_web"}, {"name": "search_web"}]})
-        result = _parse_metadata_list(meta, "tool_calls")
+        result = parse_metadata_list(meta, "tool_calls")
         assert result is not None
         assert len(result) == 2
         assert result[0]["name"] == "search_web"
 
     def test_returns_list_for_rag_sections_key(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
-        result = _parse_metadata_list(meta, "rag_sections")
+        result = parse_metadata_list(meta, "rag_sections")
         assert result is not None
         assert len(result) == 1
         assert result[0]["name"] == "Intro"
 
     def test_ignores_other_keys(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes import _parse_metadata_list
-
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
-        assert _parse_metadata_list(meta, "tool_calls") is None
+        assert parse_metadata_list(meta, "tool_calls") is None
 
 
 # ---------------------------------------------------------------------------
@@ -742,10 +714,6 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
 
 class TestMessageResponseToolCalls:
     def test_message_response_accepts_tool_calls(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -763,10 +731,6 @@ class TestMessageResponseToolCalls:
         assert response.tool_calls[0]["name"] == "search_web"
 
     def test_message_response_tool_calls_defaults_to_none(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -784,15 +748,11 @@ class TestMessageResponseToolCalls:
 class TestSimilarityThresholdRemoved:
     def test_chat_completion_request_has_no_similarity_threshold(self) -> None:
         """similarity_threshold field must be removed from ChatCompletionRequest."""
-        from app.core_plugins.chat.schemas import ChatCompletionRequest
-
         # The field must not be present in the model's fields
         assert "similarity_threshold" not in ChatCompletionRequest.model_fields
 
     def test_chat_completion_request_accepts_valid_fields(self) -> None:
         """ChatCompletionRequest still works without similarity_threshold."""
-        from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
-
         req = ChatCompletionRequest(
             llm_config_id=1,
             messages=[ChatMessage(role="user", content="hello")],
@@ -801,9 +761,5 @@ class TestSimilarityThresholdRemoved:
 
     def test_stream_chat_response_has_no_similarity_threshold_param(self) -> None:
         """stream_chat_response must not have a similarity_threshold parameter."""
-        import inspect
-
-        from app.core_plugins.chat.routes import stream_chat_response
-
         sig = inspect.signature(stream_chat_response)
         assert "similarity_threshold" not in sig.parameters

@@ -148,7 +148,7 @@ async def test_fan_out_empty_file_ids_returns_empty() -> None:
         )
 
     assert results == []
-    mock_svc.get_context_via_agent.assert_not_awaited()
+    mock_svc.assert_not_called()
 
 
 def _make_chunk(content: str, source_name: str = "docs.pdf") -> MagicMock:

@@ -26,28 +26,25 @@ from app.core_plugins.slack.service import encrypt_token
 from app.lib.db import get_session
 from app.main import app
 from app.models.user import User
+from tests.lib.routes import register_router
 
-# Register Slack routes once (mirrors the googledrive pattern)
-_SLACK_PREFIX = "/api/v1/slack"
-_slack_routes_registered = False
+try:
+    from app.core_plugins.slack.routes import router as slack_router
 
-
-def _ensure_slack_routes() -> None:
-    global _slack_routes_registered
-    if _slack_routes_registered:
-        return
-    try:
-        from app.core_plugins.slack.routes import router as slack_router
-
-        existing = {getattr(r, "path", None) for r in app.routes}
-        if f"{_SLACK_PREFIX}/oauth/authorize" not in existing:
-            app.include_router(slack_router, prefix=_SLACK_PREFIX, tags=["Slack TA Bot"])
-        _slack_routes_registered = True
-    except ImportError:
-        pass  # routes not yet implemented; model/config tests still run
+    register_router(
+        app, slack_router, sentinel_path="/api/v1/slack/oauth/authorize", prefix="/api/v1/slack", tags=["Slack TA Bot"]
+    )
+except ImportError:
+    pass  # routes not yet implemented; model/config tests still run
 
 
-_ensure_slack_routes()
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> Generator[None, None, None]:
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
