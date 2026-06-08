@@ -124,13 +124,7 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     class MyAppPlugin(SparkthPlugin):
         def __init__(self, plugin_name: str) -> None:
-            super().__init__(
-                plugin_name,
-                MyAppPluginConfig,
-                version="1.0.0",
-                description="My awesome plugin",
-                author="Your Name",
-            )
+            super().__init__(plugin_name, MyAppPluginConfig)
             self.add_route(router)
     ```
     """
@@ -142,9 +136,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         name: str,
         config_schema: Type[PluginConfig] | None = None,
         is_core: bool = False,
-        version: str = "1.0.0",
-        description: str = "",
-        author: str = "",
     ):
         """
         Initialize the plugin with metadata.
@@ -157,10 +148,7 @@ class SparkthPlugin(metaclass=PluginMeta):
             author: Plugin author name or organization
         """
         self.name = name
-        self.version = version
-        self.description = description
         self.is_core = is_core
-        self.author = author
         self.config_schema = config_schema
         self._routes: list[APIRouter] = []
         self._mcp_tools: list[dict[str, Any]] = []
@@ -194,23 +182,23 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def add_route(self, router: APIRouter) -> None:
         """
-                Add a FastAPI router to this plugin.
+        Add a FastAPI router to this plugin.
 
-                Args:
-                    router: APIRouter instance to add
+        Args:
+            router: APIRouter instance to add
 
-                Example:
+        Example:
         ```python
-                    router = APIRouter(prefix="/tasks", tags=["Tasks"])
+        router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
-                    @router.get("/")
-                    def list_tasks():
-                        return {"tasks": []}
+        @router.get("/")
+        def list_tasks():
+            return {"tasks": []}
 
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
-                            self.add_route(router)
+        class TasksPlugin(SparkthPlugin):
+            def __init__(self, plugin_name: str) -> None:
+                super().__init__(plugin_name)
+                self.add_route(router)
         ```
         """
         self._routes.append(router)
@@ -284,37 +272,37 @@ class SparkthPlugin(metaclass=PluginMeta):
         version: str = "1.0.0",
     ) -> None:
         """
-                Add an MCP tool to this plugin.
+        Add an MCP tool to this plugin.
 
-                Args:
-                    name: Tool name
-                    handler: Callable that handles the tool invocation
-                    description: Tool description
-                    input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
-                    category: Tool category (e.g., "database", "api", "utilities")
-                    version: Tool version
+        Args:
+            name: Tool name
+            handler: Callable that handles the tool invocation
+            description: Tool description
+            input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
+            category: Tool category (e.g., "database", "api", "utilities")
+            version: Tool version
 
-                Note:
-                    Most plugins should prefer the ``@tool`` decorator on a method
-                    instead — decorated methods are collected and registered
-                    automatically. Use ``add_mcp_tool`` for dynamically built tools.
+        Note:
+            Most plugins should prefer the ``@tool`` decorator on a method
+            instead — decorated methods are collected and registered
+            automatically. Use ``add_mcp_tool`` for dynamically built tools.
 
-                Example:
+        Example:
         ```python
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
+        class TasksPlugin(SparkthPlugin):
+            def __init__(self, plugin_name: str) -> None:
+                super().__init__(plugin_name)
 
-                            async def create_task_handler(title: str) -> str:
-                                return f"Created task: {title}"
+                async def create_task_handler(title: str) -> str:
+                    return f"Created task: {title}"
 
-                            self.add_mcp_tool(
-                                name="create_task",
-                                handler=create_task_handler,
-                                description="Create a new task",
-                                category="tasks",
-                                version="1.0.0",
-                            )
+                self.add_mcp_tool(
+                    name="create_task",
+                    handler=create_task_handler,
+                    description="Create a new task",
+                    category="tasks",
+                    version="1.0.0",
+                )
         ```
         """
         if input_schema is None:
@@ -474,4 +462,4 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def __repr__(self) -> str:
         """Return string representation of the plugin."""
-        return f"<SparkthPlugin: {self.name} v{self.version}>"
+        return f"<SparkthPlugin: {self.name}>"

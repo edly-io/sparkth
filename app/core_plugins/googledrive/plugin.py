@@ -17,9 +17,6 @@ class GoogleDrivePlugin(SparkthPlugin):
             name=name,
             config_schema=GoogleDriveConfig,
             is_core=True,
-            version="1.0.0",
-            description="Google Drive integration for folder sync and file management",
-            author="Sparkth Team",
         )
         self.add_route(router)
 
