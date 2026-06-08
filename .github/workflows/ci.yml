@@ -33,9 +33,9 @@ jobs:
 
       # Single high-level target so a CI failure reproduces locally with
       # exactly `make test.frontend` (lint + react-doctor + vitest + format check).
-      # Override the react-doctor base to the PR's actual base and emit inline annotations.
+      # Override the react-doctor base to the PR's actual base.
       - name: Run frontend tests
-        run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }} RD_ARGS=--annotations
+        run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }}
 
   backend:
     name: Backend Lint, Type Check, Test & Format
