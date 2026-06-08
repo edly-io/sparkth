@@ -31,7 +31,7 @@ class TestResolveBlocksUsesAgent:
     """Test that _resolve_drive_file_blocks delegates to agentic_retrieve_context."""
 
     @pytest.mark.asyncio
-    async def test_calls_retrieve_context(self) -> None:
+    async def test_calls_agentic_retrieve_context(self) -> None:
         """Test that _resolve_drive_file_blocks calls agentic_retrieve_context with correct args."""
         from app.core_plugins.chat.routes import _resolve_drive_file_blocks
 
@@ -57,7 +57,7 @@ class TestResolveBlocksUsesAgent:
 
             mock_retrieve.assert_called_once()
 
-            assert mock_retrieve.call_args.args[0] == 1  # user_id
+            assert mock_retrieve.call_args.args[0] == "What is in this file?"  # query
             assert 1 in mock_retrieve.call_args.args[1]  # file_ids
             assert mock_retrieve.call_args.args[3] is not None  # llm
 

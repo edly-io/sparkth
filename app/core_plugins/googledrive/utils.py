@@ -23,7 +23,7 @@ from app.lib.rag import (
     ingest_document,
 )
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.models import DriveFileChunkLink  # duplicate-file path (residual; see #398)
+from app.rag.models import DriveFileChunkLink  # duplicate-file path (duplicate-file residual)
 
 logger = get_logger(__name__)
 
@@ -172,7 +172,7 @@ async def _ingest_drive_file(
         )
         return
 
-    result = await ingest_document(user_id, file_id, file_bytes, filename)
+    result = await ingest_document(filename, file_bytes, file_id, user_id)
     await _set_rag_status(session, drive_file, RagStatus.READY)
     logger.info(
         "RAG processing complete for '%s': %d new chunks stored, %d reused.",
@@ -191,8 +191,8 @@ async def _process_single_file(
     """Process one Drive file: run the ingestion pipeline and map failures to RagStatus.
 
     Owns Drive concerns only (status lifecycle + error translation). The actual
-    download/ingest pipeline lives in _ingest_drive_file; chunking/storage is
-    delegated to app.lib.rag.ingest_document.
+    download/ingest pipeline lives in _ingest_drive_file and uses
+    app.lib.rag.ingest_document for chunking and storage.
     """
     filename = _resolve_filename(drive_file)
     log_name = drive_file.name or filename

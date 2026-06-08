@@ -407,7 +407,7 @@ class TestProcessSingleFile:
 
         # ingest_document should be called with .pdf filename
         mock_ingest.assert_awaited_once()
-        assert mock_ingest.call_args.args[3] == "My Doc.pdf"
+        assert mock_ingest.call_args.args[0] == "My Doc.pdf"
 
     @patch("app.core_plugins.googledrive.utils._download_file")
     async def test_integrity_error_rollback_refresh_mark_failed(self, mock_download: AsyncMock) -> None:

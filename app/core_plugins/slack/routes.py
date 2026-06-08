@@ -54,7 +54,7 @@ from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
 from app.models.user import User
-from app.rag.store import ChunkStoreService  # residual; see #398
+from app.rag.store import ChunkStoreService
 from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
