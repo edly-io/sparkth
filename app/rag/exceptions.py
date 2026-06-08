@@ -1,21 +1,25 @@
-"""RAG-specific exceptions for chat integration."""
+"""RAG-specific exceptions."""
 
 
 class RAGError(Exception):
     """Base exception for RAG retrieval errors."""
 
 
-class DriveFileNotFoundError(RAGError):
-    """Raised when a file does not exist or is not accessible to the user."""
+class DocumentNotFoundError(RAGError):
+    """Raised when a document does not exist or is not accessible to the user."""
+
+
+# Backward-compatibility alias — remove once all callsites use DocumentNotFoundError.
+DriveFileNotFoundError = DocumentNotFoundError
 
 
 class RAGNotReadyError(RAGError):
-    """Raised when the file exists but rag_status is not READY."""
+    """Raised when the document exists but status is not READY."""
 
-    def __init__(self, file_db_id: int, rag_status: str) -> None:
-        self.file_db_id = file_db_id
-        self.rag_status = rag_status
-        super().__init__(f"File id={file_db_id} is not ready for retrieval (status: {rag_status})")
+    def __init__(self, document_id: int, status: str) -> None:
+        self.document_id = document_id
+        self.status = status
+        super().__init__(f"Document id={document_id} is not ready for retrieval (status: {status})")
 
 
 class RAGRetrievalError(RAGError):
@@ -23,13 +27,7 @@ class RAGRetrievalError(RAGError):
 
 
 class ScannedPDFError(RAGError):
-    """Raised when a PDF appears to be scanned/image-only and cannot be text-extracted.
-
-    The user-facing message is intentionally generic — `source_name` is kept
-    as a structured attribute for logging but never interpolated into the
-    exception text, so internal paths (if any caller ever passes one) cannot
-    leak through to the UI.
-    """
+    """Raised when a PDF appears to be scanned/image-only."""
 
     USER_MESSAGE = (
         "This PDF appears to be scanned (image-only pages with no extractable text). "
@@ -46,8 +44,4 @@ class RAGIngestionError(RAGError):
 
 
 class UnsupportedFileTypeError(RAGIngestionError):
-    """Raised when a file's type cannot be handled by the RAG extractors.
-
-    Callers typically treat this as a benign skip (the file is fine, it just
-    isn't RAG-ingestible).
-    """
+    """Raised when a file's type cannot be handled by the RAG extractors."""

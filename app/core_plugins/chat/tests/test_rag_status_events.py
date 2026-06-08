@@ -396,7 +396,7 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
 @pytest.mark.asyncio
 async def test_rag_not_ready_emits_friendly_error() -> None:
     with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
-        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
+        mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         events = await _collect_events(
             stream_chat_response(
                 provider=_make_provider(),
@@ -514,7 +514,7 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
     with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
-        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
+        mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         gen = stream_chat_response(
             provider=_make_provider(),
             messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],

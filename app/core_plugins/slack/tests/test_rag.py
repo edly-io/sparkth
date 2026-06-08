@@ -148,7 +148,7 @@ async def test_answer_question_returns_not_ready_on_rag_not_ready_error() -> Non
         patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
-        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=10, rag_status="processing")
+        mock_retrieve.side_effect = RAGNotReadyError(10, "processing")
         answer, response_type = await answer_question(
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )

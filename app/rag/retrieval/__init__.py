@@ -1,4 +1,4 @@
-"""RAG retrieval module — agentic context retrieval for one or more files."""
+"""RAG retrieval module — agentic context retrieval for one or more documents."""
 
 from __future__ import annotations
 
@@ -14,24 +14,24 @@ if TYPE_CHECKING:
 
 async def get_context_via_agent_with_isolated_session(
     user_id: int,
-    file_id: int,
+    document_id: int,
     query: str,
     llm: BaseChatModel,
 ) -> RAGContext:
-    """Retrieve context for a single file using agentic section retrieval.
+    """Retrieve context for a single document using agentic section retrieval.
 
     Opens its own DB session so concurrent callers (asyncio.gather fan-out)
     do not share a session — AsyncSession is not concurrency-safe.
 
     Args:
-        user_id: Owner of the file (row-level scope).
-        file_id: File to retrieve context from.
+        user_id: Owner of the document (row-level scope).
+        document_id: Document.id to retrieve context from.
         query: The user's natural-language query.
         llm: LangChain chat model used by the retrieval agent.
 
     Raises:
-        DriveFileNotFoundError / RAGNotReadyError: file access/readiness failure.
+        DocumentNotFoundError / RAGNotReadyError: document access/readiness failure.
         RAGRetrievalError: retrieval failed.
     """
     async with session_scope() as file_session:
-        return await get_context_via_agent(file_session, user_id, file_id, query, llm)
+        return await get_context_via_agent(file_session, user_id, document_id, query, llm)

@@ -228,7 +228,7 @@ async def _resolve_drive_file_blocks(
         except RAGNotReadyError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=(f"A file is still being processed (status: {exc.rag_status}). Please wait and try again."),
+                detail=(f"A file is still being processed (status: {exc.status}). Please wait and try again."),
             ) from exc
         except RAGRetrievalError as exc:
             logger.error("RAG retrieval error for file_ids=%s: %s", file_ids, exc)

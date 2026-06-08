@@ -18,11 +18,11 @@ from app.lib.log import get_logger
 from app.rag.config import get_rag_settings
 from app.rag.constants import AGENT_CONTEXT_KEYS
 from app.rag.exceptions import RAGRetrievalError
-from app.rag.retrieval.utils import _lookup_drive_file, format_chunks_as_context
+from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context
 from app.rag.schemas import RAGSearchAgentResponse
 from app.rag.store import ChunkStoreService
 from app.rag.types import RAGContext
-from app.rag.utils import get_asset, resolve_source_name
+from app.rag.utils import get_asset
 
 logger = get_logger(__name__)
 
@@ -158,13 +158,13 @@ async def get_context_via_agent(
     All chunks in those sections are fetched directly — no similarity search.
 
     Raises:
-        DriveFileNotFoundError: File not found or not owned by user.
-        RAGNotReadyError: File exists but rag_status is not READY.
+        DocumentNotFoundError: Document not found or not owned by user.
+        RAGNotReadyError: Document exists but status is not READY.
         RAGRetrievalError: Agent invocation or section fetch failed.
     """
     store = ChunkStoreService()
-    drive_file = await _lookup_drive_file(session, user_id, file_db_id)
-    source_name = resolve_source_name(drive_file)
+    document = await _lookup_document(session, user_id, file_db_id)
+    source_name = document.name
 
     if not query.strip():
         query = source_name
