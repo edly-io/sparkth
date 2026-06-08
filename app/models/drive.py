@@ -62,11 +62,12 @@ class DriveFile(TimestampedModel, SoftDeleteModel, table=True):
 
     last_synced_at: Optional[datetime] = Field(default=None)
 
-    # RAG processing status: queued, processing, ready, failed (None = not processed)
     rag_status: Optional[RagStatus] = Field(default=None)
     # Error message when rag_status is FAILED
     rag_error: Optional[str] = Field(default=None)
     # SHA-256 hash of downloaded file contents
     content_hash: Optional[str] = Field(default=None, max_length=64, index=True)
+
+    document_id: Optional[int] = Field(default=None, foreign_key="documents.id", index=True)
 
     folder: "DriveFolder" = Relationship(back_populates="files")
