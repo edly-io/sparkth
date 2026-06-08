@@ -209,7 +209,7 @@ class TestLinkChunksFromDuplicate:
 
         session.scalars = AsyncMock(side_effect=[source_result, target_result])
 
-        await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
+        await _link_chunks_from_duplicate(session, document_id=10, source_document_id=20)
 
         # Should add links for chunks 2 and 3 only
         session.add_all.assert_called_once()
@@ -229,7 +229,7 @@ class TestLinkChunksFromDuplicate:
 
         session.scalars = AsyncMock(side_effect=[source_result, target_result])
 
-        await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
+        await _link_chunks_from_duplicate(session, document_id=10, source_document_id=20)
 
         session.add_all.assert_not_called()
         session.flush.assert_not_awaited()
@@ -245,7 +245,7 @@ class TestLinkChunksFromDuplicate:
 
         session.scalars = AsyncMock(side_effect=[source_result, target_result])
 
-        await _link_chunks_from_duplicate(session, drive_file_id=10, source_file_id=20)
+        await _link_chunks_from_duplicate(session, document_id=10, source_document_id=20)
 
         session.add_all.assert_called_once()
         added_links = session.add_all.call_args[0][0]

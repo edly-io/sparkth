@@ -23,7 +23,7 @@ from app.lib.rag import (
     ingest_document,
 )
 from app.models.drive import DriveFile, DriveFolder
-from app.rag.models import DriveFileChunkLink  # duplicate-file path (residual; see #398)
+from app.rag.models import DocumentChunkLink  # duplicate-file path (residual; see #398)
 
 logger = get_logger(__name__)
 
@@ -77,29 +77,29 @@ async def _find_duplicate_file(
     return result.first()
 
 
-async def _create_missing_links(session: AsyncSession, drive_file_id: int, chunk_ids: set[int]) -> None:
-    """Insert bridge-table links for chunk_ids not already linked to drive_file_id."""
+async def _create_missing_links(session: AsyncSession, document_id: int, chunk_ids: set[int]) -> None:
+    """Insert bridge-table links for chunk_ids not already linked to document_id."""
     already_linked = await session.scalars(
-        select(DriveFileChunkLink.chunk_id).where(
-            DriveFileChunkLink.drive_file_id == drive_file_id,
+        select(DocumentChunkLink.chunk_id).where(
+            DocumentChunkLink.document_id == document_id,
         )
     )
     existing_ids = set(already_linked.all())
-    new_links = [DriveFileChunkLink(drive_file_id=drive_file_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
+    new_links = [DocumentChunkLink(document_id=document_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
     if new_links:
         session.add_all(new_links)
         await session.flush()
 
 
-async def _link_chunks_from_duplicate(session: AsyncSession, drive_file_id: int, source_file_id: int) -> None:
-    """Copy bridge-table links from an existing duplicate file, skipping any that already exist."""
+async def _link_chunks_from_duplicate(session: AsyncSession, document_id: int, source_document_id: int) -> None:
+    """Copy bridge-table links from an existing duplicate document, skipping any that already exist."""
     source_links = await session.scalars(
-        select(DriveFileChunkLink.chunk_id).where(
-            DriveFileChunkLink.drive_file_id == source_file_id,
+        select(DocumentChunkLink.chunk_id).where(
+            DocumentChunkLink.document_id == source_document_id,
         )
     )
     wanted_ids = set(source_links.all())
-    await _create_missing_links(session, drive_file_id, wanted_ids)
+    await _create_missing_links(session, document_id, wanted_ids)
 
 
 async def _reject_if_oversized(

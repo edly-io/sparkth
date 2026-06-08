@@ -8,7 +8,7 @@ from sqlmodel import col, select
 from app.lib.db import session_scope
 from app.lib.log import configure_logging, get_logger
 from app.models.drive import DriveFile  # noqa: TCH001
-from app.rag.models import DocumentChunk, DriveFileChunkLink
+from app.rag.models import DocumentChunk, DocumentChunkLink
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,7 @@ async def cleanup_deleted_files() -> None:
 
         # Chunks linked to deleted files
         candidate_result = await session.scalars(
-            select(DriveFileChunkLink.chunk_id).where(col(DriveFileChunkLink.drive_file_id).in_(deleted_file_ids))
+            select(DocumentChunkLink.chunk_id).where(col(DocumentChunkLink.document_id).in_(deleted_file_ids))
         )
         candidate_chunk_ids = set(candidate_result.all())
 
@@ -48,10 +48,10 @@ async def cleanup_deleted_files() -> None:
         if candidate_chunk_ids:
             # Chunks still referenced by at least one live file
             alive_result = await session.scalars(
-                select(DriveFileChunkLink.chunk_id)
-                .join(DriveFile, col(DriveFileChunkLink.drive_file_id) == col(DriveFile.id))
+                select(DocumentChunkLink.chunk_id)
+                .join(DriveFile, col(DocumentChunkLink.document_id) == col(DriveFile.id))
                 .where(
-                    col(DriveFileChunkLink.chunk_id).in_(candidate_chunk_ids),
+                    col(DocumentChunkLink.chunk_id).in_(candidate_chunk_ids),
                     col(DriveFile.is_deleted) == False,  # noqa: E712
                 )
             )
@@ -66,9 +66,7 @@ async def cleanup_deleted_files() -> None:
 
         # Remove ALL bridge-table links for deleted files (not just orphan links)
         # so the FK constraint on DriveFile.id is satisfied before hard-deletion.
-        await session.execute(
-            delete(DriveFileChunkLink).where(col(DriveFileChunkLink.drive_file_id).in_(deleted_file_ids))
-        )
+        await session.execute(delete(DocumentChunkLink).where(col(DocumentChunkLink.document_id).in_(deleted_file_ids)))
 
         # Delete orphaned chunks
         if orphan_chunk_ids:
