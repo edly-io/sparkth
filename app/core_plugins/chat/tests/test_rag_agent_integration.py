@@ -45,20 +45,26 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
+        mock_session = MagicMock()
         mock_llm = MagicMock()
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        ):
+            mock_to_doc_ids.return_value = [1]
             mock_retrieve.return_value = [_make_chunk()]
             await _resolve_drive_file_blocks(
-                messages=messages,
-                user_id=1,
-                query_text="What is in this file?",
-                llm=mock_llm,
+                mock_session,
+                messages,
+                1,
+                "What is in this file?",
+                mock_llm,
             )
 
             mock_retrieve.assert_called_once()
 
             assert mock_retrieve.call_args.args[0] == 1  # user_id
-            assert 1 in mock_retrieve.call_args.args[1]  # file_ids
+            assert 1 in mock_retrieve.call_args.args[1]  # document_ids
             assert mock_retrieve.call_args.args[3] is not None  # llm
 
     @pytest.mark.asyncio
@@ -76,14 +82,20 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        mock_session = MagicMock()
+        with (
+            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        ):
+            mock_to_doc_ids.return_value = [999]
             mock_retrieve.side_effect = DriveFileNotFoundError("Not found")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
-                    messages=messages,
-                    user_id=1,
-                    query_text="Query",
-                    llm=MagicMock(),
+                    mock_session,
+                    messages,
+                    1,
+                    "Query",
+                    MagicMock(),
                 )
 
         assert exc_info.value.status_code == 422
@@ -103,14 +115,20 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        mock_session = MagicMock()
+        with (
+            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        ):
+            mock_to_doc_ids.return_value = [1]
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
-                    messages=messages,
-                    user_id=1,
-                    query_text="Query",
-                    llm=MagicMock(),
+                    mock_session,
+                    messages,
+                    1,
+                    "Query",
+                    MagicMock(),
                 )
 
         assert exc_info.value.status_code == 422
@@ -130,14 +148,20 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        mock_session = MagicMock()
+        with (
+            patch("app.core_plugins.chat.routes._to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+            patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
+        ):
+            mock_to_doc_ids.return_value = [1]
             mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
             with pytest.raises(HTTPException) as exc_info:
                 await _resolve_drive_file_blocks(
-                    messages=messages,
-                    user_id=1,
-                    query_text="Query",
-                    llm=MagicMock(),
+                    mock_session,
+                    messages,
+                    1,
+                    "Query",
+                    MagicMock(),
                 )
 
         assert exc_info.value.status_code == 500

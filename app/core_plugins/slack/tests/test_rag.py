@@ -28,15 +28,15 @@ from app.lib.rag import (
 
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Returns only DriveFile IDs whose source_name is in allowed_sources."""
+    """Returns only Document IDs whose source_name is in allowed_sources."""
     mock_session = AsyncMock()
     # Note: MagicMock's `name` kwarg is reserved (sets the mock's repr name, not the .name attribute).
     # We assign .name explicitly after construction so resolve_source_name() reads the intended value.
-    f1 = MagicMock(id=10, mime_type="application/pdf")
+    f1 = MagicMock(id=10, document_id=100, mime_type="application/pdf")
     f1.name = "python.pdf"
-    f2 = MagicMock(id=11, mime_type="application/pdf")
+    f2 = MagicMock(id=11, document_id=101, mime_type="application/pdf")
     f2.name = "ai.pdf"
-    f3 = MagicMock(id=12, mime_type="application/pdf")
+    f3 = MagicMock(id=12, document_id=102, mime_type="application/pdf")
     f3.name = "biology.pdf"
     mock_files = [f1, f2, f3]
     exec_result = MagicMock()
@@ -44,20 +44,22 @@ async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch:
     mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=["python.pdf", "ai.pdf"])
-    assert sorted(result) == [10, 11]
+    assert sorted(result) == [100, 101]
 
 
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> None:
-    """When allowed_sources is empty, returns up to SLACK_MAX_AGENT_FILES owner files ordered by id ASC."""
+    """When allowed_sources is empty, returns up to SLACK_MAX_AGENT_FILES owner document_ids ordered by id ASC."""
     mock_session = AsyncMock()
-    mock_files = [MagicMock(id=i, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)]
+    mock_files = [
+        MagicMock(id=i, document_id=i * 10, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)
+    ]
     exec_result = MagicMock()
     exec_result.all.return_value = mock_files
     mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=[])
-    assert result == [1, 2, 3, 4, 5]
+    assert result == [10, 20, 30, 40, 50]
     assert len(result) == SLACK_MAX_AGENT_FILES
 
 

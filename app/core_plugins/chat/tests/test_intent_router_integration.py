@@ -15,7 +15,6 @@ from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.intent_router import RAGIntentRouterError
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import RAGRoutingDecision
-from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder
 from app.models.llm import LLMConfig
 from app.models.user import User
@@ -464,7 +463,6 @@ async def _seed_file(session: AsyncSession, folder_id: int, user_id: int, name: 
         user_id=user_id,
         drive_file_id=f"df_{name}",
         name=name,
-        rag_status=RagStatus.READY,
     )
     session.add(file)
     await session.flush()

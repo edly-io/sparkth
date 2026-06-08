@@ -7,6 +7,8 @@ from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.documents.enums import DocumentStatus
+from app.core.documents.models import Document
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
@@ -22,7 +24,6 @@ from app.lib.rag import (
     DriveFileNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
-    RagStatus,
     RetrievedChunk,
     agentic_retrieve_context,
 )
@@ -61,17 +62,18 @@ async def _resolve_files_for_sources(
     user_id: int,
     allowed_sources: list[str],
 ) -> list[int]:
-    """Resolve a list of source names to RAG-ready DriveFile IDs for *user_id*.
+    """Resolve a list of source names to RAG-ready Document IDs for *user_id*.
 
-    Returns matching DriveFile IDs filtered to rag_status=READY and is_deleted=False.
-    When *allowed_sources* is empty, returns all ready owner files ordered by
+    Returns Document IDs filtered to DocumentStatus.READY and is_deleted=False.
+    When *allowed_sources* is empty, returns all ready owner document IDs ordered by
     DriveFile.id ASC, capped at SLACK_MAX_AGENT_FILES.
     """
     stmt = (
         select(DriveFile)
+        .join(Document, col(DriveFile.document_id) == col(Document.id))
         .where(
             col(DriveFile.user_id) == user_id,
-            col(DriveFile.rag_status) == RagStatus.READY,
+            col(Document.status) == DocumentStatus.READY,
             col(DriveFile.is_deleted) == False,  # noqa: E712
         )
         .order_by(col(DriveFile.id).asc())
@@ -94,7 +96,7 @@ async def _resolve_files_for_sources(
 
     if allowed_sources:
         allowed_set = set(allowed_sources)
-        matched = [f.id for f in files if f.id is not None and resolve_source_name(f) in allowed_set]
+        matched = [f.document_id for f in files if f.document_id is not None and resolve_source_name(f) in allowed_set]
         if len(matched) > SLACK_MAX_AGENT_FILES:
             logger.warning(
                 "Slack agentic RAG: %d sources resolved for user=%d, capping at SLACK_MAX_AGENT_FILES=%d",
@@ -105,7 +107,7 @@ async def _resolve_files_for_sources(
             matched = matched[:SLACK_MAX_AGENT_FILES]
         return matched
 
-    return [f.id for f in files[:SLACK_MAX_AGENT_FILES] if f.id is not None]
+    return [f.document_id for f in files[:SLACK_MAX_AGENT_FILES] if f.document_id is not None]
 
 
 async def answer_question(
@@ -145,9 +147,7 @@ async def answer_question(
             returns formatted raw chunks. Built from the instructor's llm_config_id
             by the caller.
     """
-    file_ids = await _resolve_files_for_sources(
-        session=session, user_id=user_id, allowed_sources=config.allowed_sources
-    )
+    file_ids = await _resolve_files_for_sources(session, user_id, config.allowed_sources)
 
     logger.info(
         "Slack agentic RAG: user=%d files=%d sources=%s",

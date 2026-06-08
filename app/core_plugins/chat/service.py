@@ -6,9 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.documents.enums import DocumentStatus
+from app.core.documents.models import Document
 from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
 from app.lib.log import get_logger
-from app.lib.rag import RagStatus
 from app.models.drive import DriveFile
 
 logger = get_logger(__name__)
@@ -261,16 +262,22 @@ class ChatService:
         session: AsyncSession,
         conversation_id: int,
     ) -> list[DriveFile]:
-        """List ready drive files attached to a conversation."""
+        """List ready drive files attached to a conversation.
+
+        Only files with a linked Document in READY status are returned.
+        Files not yet ingested (no document_id) are excluded automatically
+        via the INNER JOIN on Document.
+        """
         stmt = (
             select(DriveFile)
             .join(
                 ConversationAttachment,
                 ConversationAttachment.drive_file_id == DriveFile.id,  # type: ignore
             )
+            .join(Document, col(DriveFile.document_id) == col(Document.id))
             .where(
                 ConversationAttachment.conversation_id == conversation_id,
-                DriveFile.rag_status == RagStatus.READY,
+                col(Document.status) == DocumentStatus.READY,
                 DriveFile.is_deleted == False,  # noqa: E712
             )
         )
