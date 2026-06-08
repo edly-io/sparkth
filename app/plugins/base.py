@@ -1,146 +1,49 @@
 """
 SparkthPlugin Base Class
 
-Provides the foundation for all Sparkth plugins with support for:
-- Route registration
-- MCP tools
-- Configuration management
+Provides the foundation for all Sparkth plugins. A plugin contributes its
+capabilities to the relevant hooks from its ``__init__``:
+
+- routes via ``ROUTES`` (``app.lib.routes.hooks``)
+- MCP tools via ``MCP_TOOLS`` (``app.lib.mcp.hooks``)
+- a config schema via ``CONFIG_SCHEMAS`` (``app.lib.config.hooks``)
 """
 
-from typing import Any, Callable, Type, TypeVar
 
-from app.lib.log import get_logger
-from app.lib.mcp.hooks import collect_plugin_tools
-
-logger = get_logger(__name__)
-
-F = TypeVar("F", bound=Callable[..., Any])
-
-
-def tool(
-    name: str | None = None,
-    description: str = "",
-    category: str | None = None,
-    version: str = "1.0.0",
-) -> Callable[[F], F]:
-    """
-        Decorator to mark a method as an MCP tool in a plugin.
-
-        This decorator marks methods for registration as MCP tools.
-        The actual registration happens automatically when the plugin is instantiated.
-
-        Args:
-            name: Tool name (uses method name if not provided)
-            description: Tool description (uses docstring if not provided)
-            category: Tool category (e.g., "database", "api", "utilities")
-            version: Tool version
-
-        Returns:
-            Decorator function
-
-        Example:
-    ```python
-            from app.plugins.base import SparkthPlugin, tool
-
-            class CanvasPlugin(SparkthPlugin):
-                @tool(description="Authenticate Canvas API", category="auth")
-                async def canvas_authenticate(self, auth: AuthPayload) -> dict:
-                    return await CanvasClient.authenticate(auth.api_url, auth.api_token)
-
-                @tool(description="Get courses", category="courses")
-                async def canvas_get_courses(self, auth: AuthPayload, page: int) -> dict:
-                    async with CanvasClient(auth.api_url, auth.api_token) as client:
-                        return await client.get(f"courses?page={page}")
-    ```
-    """
-
-    def decorator(func: F) -> F:
-        setattr(func, "_is_mcp_tool", True)
-        setattr(func, "_mcp_tool_name", name if name else func.__name__)
-        setattr(func, "_mcp_tool_description", description or (func.__doc__ or "").strip())
-        setattr(func, "_mcp_tool_category", category)
-        setattr(func, "_mcp_tool_version", version)
-        return func
-
-    return decorator
-
-
-class PluginMeta(type):
-    """
-    Metaclass for SparkthPlugin that automatically collects @tool decorated methods.
-
-    This metaclass scans the class definition for methods marked with the @tool
-    decorator and stores them in a class-level registry. When the plugin is
-    instantiated, these tools are automatically registered.
-    """
-
-    _tool_registry: dict[str, dict[str, Any]]
-
-    def __new__(
-        mcs: Type["PluginMeta"], name: str, bases: tuple[Type[Any], ...], namespace: dict[str, Any]
-    ) -> "PluginMeta":
-        cls = super().__new__(mcs, name, bases, namespace)
-
-        cls._tool_registry = {}
-
-        for attr_name, attr_value in namespace.items():
-            if callable(attr_value) and getattr(attr_value, "_is_mcp_tool", False):
-                cls._tool_registry[attr_name] = {
-                    "name": getattr(attr_value, "_mcp_tool_name", attr_name),
-                    "description": getattr(attr_value, "_mcp_tool_description", ""),
-                    "category": getattr(attr_value, "_mcp_tool_category", None),
-                    "version": getattr(attr_value, "_mcp_tool_version", "1.0.0"),
-                }
-                logger.debug(f"Collected tool '{getattr(attr_value, '_mcp_tool_name', attr_name)}' from class '{name}'")
-
-        return cls
-
-
-class SparkthPlugin(metaclass=PluginMeta):
+class SparkthPlugin:
     """
     Base class for Sparkth plugins.
 
-    All plugins should inherit from this class and override the relevant methods
-    to add custom functionality. Unlike abstract base classes, this provides
-    default implementations for all methods, making it easy to create simple
-    plugins that only override what they need.
-
-    The manager constructs every plugin as ``plugin_class(plugin_name)``,
-    so ``__init__`` must accept the derived ``plugin_name`` as its first
-    positional argument and pass it through to ``super().__init__()``.
-    Register routes and tools from within ``__init__``.
+    All plugins should inherit from this class. The loader constructs every plugin
+    as ``plugin_class(plugin_name)``, so ``__init__`` must accept the derived
+    ``plugin_name`` as its first positional argument and pass it through to
+    ``super().__init__()``. Register routes, tools, and the config schema from
+    within ``__init__``.
 
     Example:
 
     ```python
-    router = APIRouter(prefix="/my-app")
-
-    @router.get("/")
-    def my_endpoint():
-        return {"message": "Hello from plugin!"}
+    from app.lib.mcp.hooks import MCP_TOOLS, Tool
 
     class MyAppPlugin(SparkthPlugin):
         def __init__(self, plugin_name: str) -> None:
-            super().__init__(plugin_name, MyAppPluginConfig)
-            self.add_route(router)
+            super().__init__(plugin_name)
+            MCP_TOOLS.add_item(self, Tool(self.my_tool, category="utilities"))
+
+        async def my_tool(self, payload: MyPayload) -> dict:
+            \"\"\"Describe what the tool does (becomes the MCP tool description).\"\"\"
+            ...
     ```
     """
 
-    _tool_registry: dict[str, dict[str, Any]]
-
     def __init__(self, name: str):
         """
-        Initialize the plugin with metadata.
+        Initialize the plugin with its derived name.
 
         Args:
-            name: Unique identifier for the plugin (e.g., "tasks-plugin")
-
-        # Collect @tool-decorated methods into the MCP_TOOLS hook. Imported lazily
-        # to avoid an import cycle (the hook module imports SparkthPlugin).
-        from app.lib.mcp.hooks import collect_plugin_tools
+            name: Unique identifier for the plugin (e.g., "canvas")
         """
         self.name = name
-        collect_plugin_tools(self)
 
     def __repr__(self) -> str:
         """Return string representation of the plugin."""
