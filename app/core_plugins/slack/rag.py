@@ -33,6 +33,8 @@ from app.rag.utils import resolve_source_name  # internal helper for source-name
 logger = get_logger(__name__)
 
 
+# TODO: this function is almost similar to app.core_plugins.chat.routes.helpers.format_source_block
+# we need to figure out how to remove this duplication.
 def _format_context(chunks: list[RetrievedChunk]) -> str:
     """Render retrieved chunks as per-document context blocks for synthesis."""
     by_source: dict[str, list[RetrievedChunk]] = {}
@@ -67,6 +69,7 @@ async def _resolve_files_for_sources(
     When *allowed_sources* is empty, returns all ready owner document IDs ordered by
     DriveFile.id ASC, capped at SlackSettings.max_agent_files.
     """
+    max_agent_files = get_slack_settings().max_agent_files
     stmt = (
         select(DriveFile)
         .join(Document, col(DriveFile.document_id) == col(Document.id))
@@ -92,22 +95,21 @@ async def _resolve_files_for_sources(
 
     result = await session.exec(stmt)
     files: list[DriveFile] = list(result.all())
-    max_files = get_slack_settings().max_agent_files
 
     if allowed_sources:
         allowed_set = set(allowed_sources)
         matched = [f.document_id for f in files if f.document_id is not None and resolve_source_name(f) in allowed_set]
-        if len(matched) > max_files:
+        if len(matched) > max_agent_files:
             logger.warning(
-                "Slack agentic RAG: %d sources resolved for user=%d, capping at MAX_AGENT_FILES=%d",
+                "Slack agentic RAG: %d sources resolved for user=%d, capping at max_agent_files=%d",
                 len(matched),
                 user_id,
-                max_files,
+                max_agent_files,
             )
-            matched = matched[:max_files]
+            matched = matched[:max_agent_files]
         return matched
 
-    return [f.document_id for f in files[:max_files] if f.document_id is not None]
+    return [f.document_id for f in files[:max_agent_files] if f.document_id is not None]
 
 
 async def answer_question(

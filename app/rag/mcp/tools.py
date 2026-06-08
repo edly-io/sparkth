@@ -1,5 +1,7 @@
 """Metadata-only tools for the RAG search agent."""
 
+from __future__ import annotations
+
 from typing import cast
 
 from sqlmodel import col, func, select
@@ -10,8 +12,8 @@ from app.core.documents.models import Document
 from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.models.drive import DriveFile
+from app.rag.mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 from app.rag.models import DocumentChunk, DocumentChunkLink
-from app.rag_mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 
 logger = get_logger(__name__)
 
@@ -26,6 +28,7 @@ async def _fetch_document_for_file(session: AsyncSession, drive_file: DriveFile)
 
 async def list_user_files(user_id: int) -> list[FileInfo]:
     """List all RAG-ready files owned by a user."""
+
     async with session_scope() as session:
         result = await session.exec(
             select(DriveFile)
@@ -60,6 +63,7 @@ async def list_user_files(user_id: int) -> list[FileInfo]:
 
 async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
     """Get metadata for a specific file owned by a user."""
+
     async with session_scope() as session:
         result = await session.exec(
             select(DriveFile).where(
@@ -85,6 +89,7 @@ async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
 
 async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
     """List all distinct sections in a file."""
+
     async with session_scope() as session:
         file_result = await session.exec(
             select(DriveFile).where(
@@ -118,6 +123,7 @@ async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
 
 async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
     """Get statistics about chunks in a file (count and average token count)."""
+
     async with session_scope() as session:
         file_result = await session.exec(
             select(DriveFile).where(
@@ -162,6 +168,7 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
     chunk counts and a zero-based position_index so the agent can reason about
     positional references like 'second half', 'last chapter', etc.
     """
+
     async with session_scope() as session:
         file_result = await session.exec(
             select(DriveFile).where(

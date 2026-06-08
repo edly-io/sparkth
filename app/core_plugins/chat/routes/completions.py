@@ -21,6 +21,7 @@ from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.helpers import (
     attach_request_drive_files,
     classify_in_scope,
+    collect_drive_file_ids,
     extract_query_text,
     format_source_block,
     get_or_create_conversation,
@@ -54,23 +55,6 @@ from app.models.user import User
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-def _collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
-    """Extract all drive_file block file_ids from a list of messages, preserving order."""
-    file_ids: list[int] = []
-    for msg in messages:
-        if not isinstance(msg.content, list):
-            continue
-        for block in msg.content:
-            if not isinstance(block, dict) or block.get("type") != "drive_file":
-                continue
-            raw_id = block.get("file_id")
-            if raw_id is None:
-                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
-                continue
-            file_ids.append(int(raw_id))
-    return file_ids
 
 
 @router.post("/completions", response_model=ChatCompletionResponse)
@@ -421,10 +405,9 @@ async def stream_chat_response(
 
     async def _run(bg_session: AsyncSession) -> None:
         confirmed_rag_sections: list[dict[str, str | None]] = []
+        file_ids = collect_drive_file_ids(unresolved_messages) if unresolved_messages else []
 
         # --- Phase 1: RAG resolution ---
-        file_ids: list[int] = _collect_drive_file_ids(unresolved_messages) if unresolved_messages else []
-
         if should_run_rag and unresolved_messages and user_id is not None:
             await _put(json.dumps({"status": "scanning_attachments", "file_count": len(file_ids), "done": False}))
 
@@ -438,7 +421,8 @@ async def stream_chat_response(
             await _put(json.dumps({"status": "searching_documents", "file_count": len(file_ids), "done": False}))
 
             logger.info("Agentic RAG search for file_ids=%s query_len=%d", file_ids, len(query_text))
-            assert llm is not None, "llm must be provided when RAG resolution is active"
+            if llm is None:
+                raise AssertionError("llm must be provided when RAG resolution is active")
             try:
                 document_ids = await to_document_ids(bg_session, file_ids)
                 all_chunks = await agentic_retrieve_context(user_id, document_ids, query_text, llm)

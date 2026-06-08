@@ -10,9 +10,9 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.log import get_logger
-from app.rag.agent_tools import build_search_tools
 from app.rag.config import get_rag_settings
 from app.rag.exceptions import RAGRetrievalError
+from app.rag.mcp.agent_tools import build_search_tools
 from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context
 from app.rag.schemas import RAGSearchAgentResponse
 from app.rag.store import ChunkStoreService

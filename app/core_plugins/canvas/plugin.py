@@ -54,14 +54,7 @@ class CanvasPlugin(SparkthPlugin):
     """
 
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(
-            plugin_name,
-            CanvasConfig,
-            is_core=True,
-            version="1.0.0",
-            description="Canvas LMS integration with 30+ MCP tools",
-            author="Sparkth Team",
-        )
+        super().__init__(plugin_name, CanvasConfig)
 
     @tool(description="Authenticate Canvas API URL and token", category="canvas-auth")
     async def canvas_authenticate(self, auth: AuthenticationPayload) -> dict[str, Any]:

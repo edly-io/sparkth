@@ -63,11 +63,11 @@ def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
         "The following excerpts were retrieved from the document to inform your response:",
         "",
     ]
-    for i, c in enumerate(chunks, 1):
-        parts = [p for p in [c.chapter, c.section, c.subsection] if p]
+    for i, chunk in enumerate(chunks, 1):
+        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
         label = " / ".join(parts) if parts else "General"
         lines.append(f"--- Excerpt {i} (Section: {label}) ---")
-        lines.append(c.content.strip())
+        lines.append(chunk.content.strip())
         lines.append("")
     return "\n".join(lines)
 
@@ -75,9 +75,26 @@ def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
 def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
     """Group retrieved chunks by source_name, preserving first-seen order."""
     grouped: dict[str, list[RetrievedChunk]] = {}
-    for c in chunks:
-        grouped.setdefault(c.source_name, []).append(c)
+    for chunk in chunks:
+        grouped.setdefault(chunk.source_name, []).append(chunk)
     return grouped
+
+
+def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
+    """Extract all drive_file block file_ids from a list of messages, preserving order."""
+    file_ids: list[int] = []
+    for msg in messages:
+        if not isinstance(msg.content, list):
+            continue
+        for block in msg.content:
+            if not isinstance(block, dict) or block.get("type") != "drive_file":
+                continue
+            raw_id = block.get("file_id")
+            if raw_id is None:
+                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                continue
+            file_ids.append(int(raw_id))
+    return file_ids
 
 
 async def to_document_ids(session: AsyncSession, drive_file_ids: list[int]) -> list[int]:

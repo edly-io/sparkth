@@ -108,14 +108,7 @@ class OpenEdxPlugin(SparkthPlugin):
     """
 
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(
-            plugin_name,
-            OpenEdxConfig,
-            is_core=True,
-            version="1.0.0",
-            description="Open edX integration with MCP tools",
-            author="Sparkth Team",
-        )
+        super().__init__(plugin_name, OpenEdxConfig)
 
     @tool(description="Authenticate the Openedx credentials", category="openedx-auth")
     async def openedx_authenticate(self, payload: Auth) -> dict[str, Any]:

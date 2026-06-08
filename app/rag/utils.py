@@ -9,13 +9,14 @@ from typing import TYPE_CHECKING, Any
 from app.rag import constants
 
 if TYPE_CHECKING:
+    # Type-only import: keep app.rag free of a runtime dependency on the drive plugin model.
     from app.models.drive import DriveFile
 
 
 def resolve_source_name(drive_file: DriveFile) -> str:
     """Return the source_name as stored in DocumentChunk.
 
-    Temporary bridge until Tasks 14-15 migrate rag_mcp and slack to Document.
+    Residual bridge for source-name resolution (see #398).
     """
     filename = drive_file.name
     mime_type = drive_file.mime_type or ""

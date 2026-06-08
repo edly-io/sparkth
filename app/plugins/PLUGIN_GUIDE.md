@@ -254,9 +254,7 @@ class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(
             plugin_name,                  # name is supplied by the plugin loader
-            MyAppPluginConfig,               # config_schema (positional)
-            version="1.0.0",
-            description="My plugin description",
+            MyAppPluginConfig             # config_schema
         )
         # Add the router
         self.add_route(router)
@@ -287,18 +285,19 @@ Format: `"path.to.module:ClassName"`
 
 ## Adding Database Models (Optional)
 
-```python
-from sqlmodel import SQLModel, Field
+Define your models as `table=True` SQLModel classes and import them at the top
+of your plugin module. Importing the module registers the tables in
+`SQLModel.metadata`, which is all Alembic autogenerate needs — there is no
+separate registration step.
 
-class MyModel(SQLModel, table=True):
-    __tablename__ = "my_plugin_items"
-    id: int = Field(primary_key=True)
-    title: str
+```python
+# Importing the model registers its table in SQLModel.metadata for Alembic.
+from app.core_plugins.my_app.models import MyModel  # noqa: F401
+
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(plugin_name, MyAppPluginConfig)
-        self.add_model(MyModel)  # Register model
         self.add_route(router)   # Register router
 ```
 
@@ -344,7 +343,7 @@ async def get_weather(city: str):
 # Plugin (class name WeatherPlugin → derived name "weather")
 class WeatherPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name, version="1.0.0")
+        super().__init__(plugin_name)
         self.add_route(router)
 
     @tool(description="Get weather for a city", category="weather")

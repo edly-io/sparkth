@@ -220,6 +220,10 @@ __marimo__/
 !.claude/docs/
 !.claude/skills/
 
+# Codex
+.codex/*
+AGENTS.md
+
 # Lefthook
 lefthook.local.yml
 
