@@ -5,13 +5,12 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.db import get_async_session
+from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
 from app.plugins import PLUGIN_CONFIG_CLASSES, get_plugin_loader
 from app.plugins.adapters import PLUGIN_ADAPTERS
 from app.plugins.config_base import PluginConfig
-from app.plugins.exceptions import PluginLoadError
 
 logger = get_logger(__name__)
 
@@ -134,54 +133,28 @@ class PluginService:
 
     async def get_or_create_all(self) -> None:
         """
-        Load and instantiate all plugins. This must be called at startup time to make
-        sure that all plugins exist in the database.
+        Ensure every loaded plugin has a row in the database.
 
-        Raises:
-            PluginLoadError: If plugin fails to load
+        Called once at startup. Fetches existing plugins in a single query and
+        upserts all loaded plugins in one transaction. Only ``config_schema`` is
+        refreshed on existing rows — ``enabled`` is left untouched so a plugin a
+        user disabled stays disabled across restarts.
         """
-        plugin_loader = get_plugin_loader()
-        for plugin_name, plugin_instance in plugin_loader.get_loaded_plugins():
-            try:
-                async for session in get_async_session():
-                    await self.get_or_create(
-                        session,
-                        plugin_instance.name,
-                        plugin_instance.get_config_schema(),
-                    )
+        loaded = get_plugin_loader().get_loaded_plugins()
+        async with session_scope() as session:
+            result = await session.exec(select(Plugin).where(Plugin.deleted_at == None))
+            existing = {plugin.name: plugin for plugin in result.all()}
 
-            except (TypeError, AttributeError, RuntimeError) as e:
-                raise PluginLoadError(f"Failed to load plugin {plugin_instance.name}") from e
+            for _name, plugin_instance in loaded:
+                schema = plugin_instance.get_config_schema()
+                current = existing.get(plugin_instance.name)
+                if current is None:
+                    # New plugins are enabled by default and considered core.
+                    session.add(Plugin(name=plugin_instance.name, config_schema=schema, is_core=True, enabled=True))
+                elif current.config_schema != schema:
+                    current.config_schema = schema
 
-    async def get_or_create(
-        self,
-        session: AsyncSession,
-        name: str,
-        schema: dict[str, Any],
-    ) -> Plugin:
-        plugin = await self.get_by_name(session, name)
-
-        if plugin is not None:
-            if plugin.config_schema != schema:
-                plugin.config_schema = schema
-                session.add(plugin)
-                await session.commit()
-                await session.refresh(plugin)
-            return plugin
-
-        plugin = Plugin(
-            name=name,
-            config_schema=schema,
-            # For now all plugins are enabled by default and considered as belonging to the core
-            is_core=True,
-            enabled=True,
-        )
-
-        session.add(plugin)
-        await session.commit()
-        await session.refresh(plugin)
-
-        return plugin
+            await session.commit()
 
     async def get_all(
         self,
