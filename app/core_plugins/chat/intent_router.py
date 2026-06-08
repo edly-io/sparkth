@@ -57,7 +57,7 @@ class RAGIntentRouter:
         attachment_summary = ""
         if attached_files:
             # Lazy import to avoid initializing DB at module level
-            from app.rag_mcp.tools import get_document_structure
+            from app.rag.mcp.tools import get_document_structure
 
             results = await asyncio.gather(
                 *[get_document_structure(user_id=user_id, file_id=cast(int, f.id)) for f in attached_files],

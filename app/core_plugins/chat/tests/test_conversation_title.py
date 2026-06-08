@@ -77,13 +77,13 @@ class TestGetFirstUserText:
 
 class TestExtractTitleFromMessages:
     def test_returns_none_for_empty_list(self) -> None:
-        assert extract_title_from_messages([]) is None
+        assert extract_title_from_messages([], max_length=60) is None
 
     def test_returns_none_when_no_user_message(self) -> None:
-        assert extract_title_from_messages([_assistant_msg("hi")]) is None
+        assert extract_title_from_messages([_assistant_msg("hi")], max_length=60) is None
 
     def test_returns_short_message_unchanged(self) -> None:
-        assert extract_title_from_messages([_user_msg("Short message")]) == "Short message"
+        assert extract_title_from_messages([_user_msg("Short message")], max_length=60) == "Short message"
 
     def test_returns_message_at_exact_limit_unchanged(self) -> None:
         text = "a" * 60
@@ -99,24 +99,24 @@ class TestExtractTitleFromMessages:
 
     def test_truncated_title_ends_with_ellipsis(self) -> None:
         text = "a" * 80
-        result = extract_title_from_messages([_user_msg(text)])
+        result = extract_title_from_messages([_user_msg(text)], max_length=60)
         assert result is not None
         assert result.endswith("...")
 
     def test_no_trailing_space_before_ellipsis(self) -> None:
         text = "hello world this is a long sentence that goes well past sixty characters total"
-        result = extract_title_from_messages([_user_msg(text)])
+        result = extract_title_from_messages([_user_msg(text)], max_length=60)
         assert result is not None
         assert not result.startswith(" ")
         assert "  " not in result
 
     def test_works_with_content_blocks(self) -> None:
-        result = extract_title_from_messages([_block_msg("Short block text")])
+        result = extract_title_from_messages([_block_msg("Short block text")], max_length=60)
         assert result == "Short block text"
 
     def test_uses_first_user_message(self) -> None:
         msgs = [_assistant_msg("hi"), _user_msg("first user"), _user_msg("second user")]
-        assert extract_title_from_messages(msgs) == "first user"
+        assert extract_title_from_messages(msgs, max_length=60) == "first user"
 
 
 class TestGenerateConversationTitle:

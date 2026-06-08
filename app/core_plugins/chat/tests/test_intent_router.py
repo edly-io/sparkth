@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.exceptions import LangChainException
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
@@ -36,7 +36,7 @@ class TestRAGIntentRouterDecide:
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag_mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             result = await router.decide(
@@ -55,7 +55,7 @@ class TestRAGIntentRouterDecide:
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag_mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             result = await router.decide(
@@ -77,7 +77,7 @@ class TestRAGIntentRouterDecide:
 
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag_mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             with pytest.raises(RAGIntentRouterError):
@@ -90,8 +90,6 @@ class TestRAGIntentRouterDecide:
     @pytest.mark.asyncio
     async def test_raises_router_error_on_validation_error(self) -> None:
         """When _chain.ainvoke raises ValidationError, decide() raises RAGIntentRouterError."""
-        from pydantic import BaseModel
-
         llm = MagicMock()
         mock_chain = MagicMock()
         # Create a simple ValidationError instance
@@ -109,7 +107,7 @@ class TestRAGIntentRouterDecide:
 
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag_mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             with pytest.raises(RAGIntentRouterError):
@@ -127,7 +125,7 @@ class TestRAGIntentRouterDecide:
         router = RAGIntentRouter(llm=llm)
         query_text = "summarize chapter 3"
 
-        with patch("app.rag_mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(
@@ -155,7 +153,7 @@ class TestRAGIntentRouterDecide:
         router = RAGIntentRouter(llm=llm)
         file_name = "textbook.pdf"
 
-        with patch("app.rag_mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(

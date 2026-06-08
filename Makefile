@@ -22,82 +22,62 @@ help: ## Show this help
 uv: ## Install uv if missing
 	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 
-##@ Docker Setup/Operations
-.PHONY: base
-base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
-	docker build -f Dockerfile.base -t sparkth-base:local .
-
-.PHONY: up
-up: ## Build and start the sparkth app along with all services
-	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build app
+##@ Backing Services (Docker)
+# In development the backend and frontend run natively; Docker only provides the
+# Postgres, Redis, and Mailpit services they connect to (see docker-compose.yml).
+.PHONY: services.up
+services.up: ## Start backing services (Postgres, Redis, Mailpit) in the background
 	docker compose up -d
 
-.PHONY: up.dev
-up.dev: ## Build and start app in dev mode (hot reload)
-	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build app
-	APP_COMMAND="fastapi dev --host 0.0.0.0 app/main.py" docker compose up -d
+.PHONY: services.down
+services.down: ## Stop and remove service containers
+	docker compose down
 
-.PHONY: down
-down: ## Stop and remove containers
-	docker compose down $(ARGS)
+.PHONY: services.clean
+services.clean: ## Stop services and wipe data volumes (fresh start)
+	docker compose down -v
 
-.PHONY: clean
-clean: ## Stop and wipe database volume (fresh start)
-	docker compose down -v db
-
-.PHONY: restart
-restart: ## Restart all containers
+.PHONY: services.restart
+services.restart: ## Restart backing services
 	docker compose restart
 
-.PHONY: logs
-logs: ## Tail logs (make logs [service] — omit service to tail all)
+.PHONY: services.logs
+services.logs: ## Tail logs (make services.logs [service] — omit service to tail all)
 	docker compose logs -f $(ARGS)
-
-.PHONY: shell
-shell: ## Open shell inside a container (make shell [service] — defaults to app)
-	docker compose exec $(or $(ARGS),app) /bin/bash
 
 .PHONY: db-shell
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}
 
 .PHONY: migrations
-migrations: ## Run Alembic migrations in Docker
-	docker compose up migrations
+migrations: ## Apply Alembic migrations (native)
+	uv run alembic upgrade head
 
 .PHONY: rag-cleanup
-rag-cleanup: ## Run RAG cleanup task in Docker
-	docker compose run --rm rag-cleanup 2>&1 | tail -1
+rag-cleanup: ## Run the RAG cleanup task (native)
+	uv run python -m app.rag.cleanup
 
-.PHONY: app-restart
-app-restart: ## Restart the app container for fast iteration
-	docker compose down app
-	docker compose up app -d
-
-##@ User Management (Runs inside Docker)
-# These run inside the container so they can access the DB network
+##@ User Management
 .PHONY: create-user
 create-user: ## Create user (make create-user -- --username john)
-	docker compose exec app python -m app.cli.main users create-user $(ARGS)
+	uv run python -m app.cli.main users create-user $(ARGS)
 
 .PHONY: reset-password
 reset-password: ## Reset password (make reset-password -- username)
-	docker compose exec app python -m app.cli.main users reset-password $(ARGS)
+	uv run python -m app.cli.main users reset-password $(ARGS)
 
 ##@ Frontend
 .PHONY: frontend.build
 frontend.build: ## Build frontend (static export to frontend/out)
 	cd frontend && bun run build
 
-.PHONY: frontend.install
-frontend.install: ## Install exact frontend dependencies from lockfile
+.PHONY: frontend.install.dev
+frontend.install.dev: ## Install exact frontend dependencies from lockfile
 	cd frontend && bun install --frozen-lockfile
 
-.PHONY: frontend
-frontend: ## Run frontend dev server (hot reload)
-	cd frontend && bun install && bun run dev
+.PHONY: frontend.up.dev
+frontend.up.dev: ## Run frontend dev server (hot reload)
+	cd frontend && bun run dev
 
 ##@ Backend
 .PHONY: backend.build
@@ -119,13 +99,14 @@ backend.install.dev.requirements: ## Install exact backend dev dependencies from
 backend.install.dev.githooks: ## Install git hooks
 	uv run lefthook install
 
-.PHONY: lock
-lock: ## Update lockfile
-	uv lock
 
-.PHONY: api
-api: ## Run FastAPI server locally
+.PHONY: backend.up.dev
+backend.up.dev: ## Run FastAPI server locally
 	uv run fastapi dev app/main.py --host 0.0.0.0 --port 7727
+
+.PHONY: lock
+lock: ## Update uv lockfile
+	uv lock
 
 .PHONY: mcp
 mcp: ## Run MCP server locally (HTTP mode)
@@ -138,6 +119,11 @@ cli: ## Run CLI tool (make cli -- users --help)
 .PHONY: mypy
 mypy: ## Run mypy type checking
 	uv run mypy --strict app/ tests/
+
+##@ Docker
+.PHONY: docker.build
+docker.build: ## Build the Docker image
+	docker build -t ghcr.io/edly-io/sparkth:latest .
 
 ##@ Testing
 .PHONY: test
@@ -157,7 +143,7 @@ test.backend.format: ## Run backend formatting tests
 	$(MAKE) lint.format.backend check=1
 
 .PHONY: test.frontend
-test.frontend: lint.frontend test.frontend.vitest test.frontend.format ## Run frontend linting, unit and formatting tests
+test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, unit and formatting tests
 
 .PHONY: test.frontend.vitest
 test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [path] [with-coverage=1])
@@ -190,6 +176,12 @@ lint.frontend: ## Check frontend lint errors (oxlint)
 .PHONY: lint.backend
 lint.backend: ## Check backend lint errors (ruff)
 	uv run ruff check
+
+# Base branch react-doctor diffs against; override in CI (e.g. origin/main).
+REACT_DOCTOR_BASE ?= main
+.PHONY: lint.frontend.react-doctor
+lint.frontend.react-doctor: ## Run react-doctor on files changed vs REACT_DOCTOR_BASE (default main)
+	cd frontend && bunx react-doctor@0.2.16 . --diff $(REACT_DOCTOR_BASE) --annotations --yes
 
 .PHONY: lint.fix.frontend
 lint.fix.frontend: ## Auto-fix frontend lint errors (oxlint)

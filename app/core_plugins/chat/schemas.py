@@ -60,12 +60,6 @@ class ToolCall(BaseModel):
     arguments: dict[str, Any]
 
 
-class ToolResult(BaseModel):
-    tool_call_id: str
-    name: str
-    content: str
-
-
 class ChatCompletionRequest(BaseModel):
     llm_config_id: int = Field(..., description="ID of the LLMConfig to use for this completion")
     model_override: str | None = Field(
@@ -105,13 +99,6 @@ class ChatCompletionResponse(BaseModel):
     cost: float | None = None
     tool_calls: list[ToolCall] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ConversationCreate(BaseModel):
-    provider: str
-    model: str
-    title: str | None = Field(default=None, max_length=255)
-    system_prompt: str | None = Field(default=None)
 
 
 class MessageResponse(BaseModel):
@@ -189,21 +176,3 @@ class ToolSchema(BaseModel):
 class ToolListResponse(BaseModel):
     tools: list[ToolSchema]
     total: int
-
-
-class ErrorResponse(BaseModel):
-    detail: str
-    error_code: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ProviderInfo(BaseModel):
-    id: str
-    label: str
-    models: list[str]
-
-
-class ProviderCatalogResponse(BaseModel):
-    providers: list[ProviderInfo]
-    default_provider: str
-    default_model: str

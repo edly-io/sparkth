@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.chat.routes import stream_chat_response
+from app.core_plugins.chat.routes.completions import stream_chat_response
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
     DriveFileNotFoundError,
@@ -83,7 +83,10 @@ async def test_status_events_emitted_before_tokens() -> None:
         )
     ]
 
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.return_value = chunks
         events = []
         async for chunk in stream_chat_response(
@@ -135,7 +138,10 @@ async def test_searching_documents_event_includes_file_count() -> None:
         )
     ]
 
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.return_value = chunks
         events = []
         async for chunk in stream_chat_response(
@@ -165,7 +171,10 @@ async def test_agent_context_injected_into_messages() -> None:
     original_messages = [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}]
     unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
 
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -208,7 +217,10 @@ async def test_multi_file_rag_context_preserved() -> None:
         )
     ]
 
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -265,7 +277,10 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
     unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
     service = _make_service()
 
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -370,7 +385,10 @@ class TestMessageResponseRagSections:
 
 @pytest.mark.asyncio
 async def test_drive_file_not_found_emits_friendly_error() -> None:
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.side_effect = DriveFileNotFoundError()
         events = await _collect_events(
             stream_chat_response(
@@ -395,7 +413,10 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
 
 @pytest.mark.asyncio
 async def test_rag_not_ready_emits_friendly_error() -> None:
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
         events = await _collect_events(
             stream_chat_response(
@@ -420,7 +441,10 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
 
 @pytest.mark.asyncio
 async def test_rag_retrieval_error_emits_friendly_error() -> None:
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.side_effect = RAGRetrievalError()
         events = await _collect_events(
             stream_chat_response(
@@ -484,7 +508,10 @@ async def test_drive_file_not_found_persists_error_to_db() -> None:
     """DriveFileNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.side_effect = DriveFileNotFoundError()
         gen = stream_chat_response(
             provider=_make_provider(),
@@ -513,7 +540,10 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
     """RAGNotReadyError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
         gen = stream_chat_response(
             provider=_make_provider(),
@@ -540,7 +570,10 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
     """RAGRetrievalError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+    with patch(
+        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+        new_callable=AsyncMock,
+    ) as mock_retrieve:
         mock_retrieve.side_effect = RAGRetrievalError()
         gen = stream_chat_response(
             provider=_make_provider(),
@@ -818,7 +851,7 @@ class TestSimilarityThresholdRemoved:
         """stream_chat_response must not have a similarity_threshold parameter."""
         import inspect
 
-        from app.core_plugins.chat.routes import stream_chat_response
+        from app.core_plugins.chat.routes.completions import stream_chat_response
 
         sig = inspect.signature(stream_chat_response)
         assert "similarity_threshold" not in sig.parameters

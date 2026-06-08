@@ -1,4 +1,4 @@
-"""Metadata-only tools for RAG MCP server."""
+"""Metadata-only tools for the RAG search agent."""
 
 from typing import cast
 
@@ -8,9 +8,9 @@ from app.lib.db import session_scope
 from app.lib.log import get_logger
 from app.lib.rag import RagStatus
 from app.models.drive import DriveFile
+from app.rag.mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 from app.rag.models import DocumentChunk
 from app.rag.utils import resolve_source_name
-from app.rag_mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 
 logger = get_logger(__name__)
 

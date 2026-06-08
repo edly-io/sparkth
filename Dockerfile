@@ -6,6 +6,8 @@ FROM oven/bun:1 AS frontend-builder
 WORKDIR /frontend
 
 COPY frontend/package.json frontend/bun.lock ./
+# TODO we should install non-dev dependencies with `--production` but right now this is
+# failing with missing typescript dependency.
 RUN bun install --frozen-lockfile
 
 COPY frontend/ ./

@@ -38,7 +38,7 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, rag_mcp/, services/
+tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, services/
                  # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
                  # Shared fixtures: app/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
@@ -68,15 +68,14 @@ Current modules (see the source for the full API — do not duplicate it here):
 ## Essential Commands
 
 ```bash
-# Docker (recommended for full stack)
-make up              # Build + start all services
-make up.dev          # Dev mode with hot reload
-make down            # Stop containers
-make clean           # Stop + wipe database volume
+# Backing services (Docker): Postgres, Redis, Mailpit — the backend/frontend run natively
+make services.up     # Start backing services in the background
+make services.down   # Stop service containers
+make services.clean  # Stop services + wipe data volumes
 
-# Local backend (requires uv)
+# Local backend (requires uv) — connects to the backing services above
 make backend.install.dev    # Install dev dependencies
-make api                    # FastAPI on http://0.0.0.0:7727
+make backend.up.dev         # FastAPI on http://0.0.0.0:7727 (hot reload)
 make mcp                    # MCP server (HTTP mode)
 make test                   # Run all tests (frontend + backend)
 make test.backend           # Run all backend tests
@@ -98,22 +97,22 @@ make lint.fix.frontend       # Auto-fix frontend lint errors (oxlint)
 make lint.fix.backend        # Auto-fix backend lint errors (ruff)
 make lint.format.frontend    # Format frontend code (oxfmt)
 make lint.format.backend     # Format backend code (ruff)
+make lint.frontend.react-doctor  # React health check on files changed vs main (CI gate)
 
 # Local frontend
-make frontend        # Next.js dev server on :3000
-make frontend.build  # Static export → frontend/out/
+make frontend.up.dev # Next.js dev server on :3000 (proxies /api to the backend; needs `make backend.up.dev` running)
+make frontend.build  # Static export → frontend/out/ (served by the backend in production)
 
 # Database
-make migrations      # Run pending Alembic migrations
-make shell           # Shell inside a container, defaults to app (make shell [service])
-make logs            # Tail logs for all containers (make logs [service])
-make db-shell        # PostgreSQL shell
-make create-user     # Create user (pass args after --)
+make migrations         # Apply Alembic migrations (native)
+make services.logs      # Tail logs for the service containers (make services.logs [service])
+make db-shell           # PostgreSQL shell
+make create-user        # Create user (pass args after --)
 ```
 
 ## Environment Setup
 
-`.env` is committed with working dev defaults — `make up` works out of the box. For sensitive credentials (Google OAuth, Slack), create a `.env.local` file (git-ignored). See the production checklist at the top of `.env` for values that must change before deploying.
+`.env` is committed with working dev defaults (localhost-first: it points at the backing services published by `docker-compose.yml`). For sensitive credentials (Google OAuth, Slack) and local overrides, create a `.env.local` file (git-ignored) — it takes precedence over `.env` and is read by both the native backend and `docker compose`. See the production checklist at the top of `.env` for values that must change before deploying.
 
 | Variable | Purpose |
 |---|---|
@@ -127,6 +126,12 @@ make create-user     # Create user (pass args after --)
 | `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |
 | `FRONTEND_BASE_URL` | Base URL used in verification email links |
+| `CHAT_MAX_TOOL_EXECUTIONS` | Max tool-call iterations the LLM may perform per request (default 50) |
+| `CHAT_TITLE_MAX_LENGTH` | Max characters for the auto-extracted conversation title (default 60) |
+| `CHAT_TITLE_PROMPT_MAX_CHARS` | Max characters from first user message sent to title-generation LLM (default 500) |
+| `CHAT_TITLE_LLM_MAX_TOKENS` | Max tokens the title-generation LLM may produce (default 20) |
+| `CHAT_TITLE_DB_MAX_LENGTH` | Max characters stored in the conversation title column (default 255) |
+| `CHAT_TITLE_LLM_TEMPERATURE` | Temperature for title-generation LLM calls (default 0.3) |
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
 
@@ -173,15 +178,16 @@ The rule applies to both new work and incidental changes. If you touch a file an
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
 - **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
-- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, rag_mcp, services)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, services)
 
-  RAG is core, so its tests live at `tests/rag/` (not co-located under `app/rag/`).
+  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`); the
+  RAG MCP tooling under `app/rag/mcp/` is mirrored by `tests/rag/mcp/`.
 
 How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
 - Shared fixtures (`engine`, `session`, `client`, `setup_plugins_and_user`, …) and the generic test environment live in [`app/testing.py`](app/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["app.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
-- The four required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `RAG_MCP_URL`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 ## Database Migrations

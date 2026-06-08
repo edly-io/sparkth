@@ -3,19 +3,14 @@ SparkthPlugin Base Class
 
 Provides the foundation for all Sparkth plugins with support for:
 - Route registration
-- Database models and migrations
 - MCP tools
-- Dependencies
 - Configuration management
-- Lifecycle hooks
 """
 
 import inspect
-from pathlib import Path
 from typing import Any, Callable, Type, TypeVar, get_type_hints
 
 from fastapi import APIRouter
-from sqlmodel import SQLModel
 
 from app.lib.log import get_logger
 from app.plugins.config_base import PluginConfig
@@ -106,71 +101,47 @@ class PluginMeta(type):
 
 class SparkthPlugin(metaclass=PluginMeta):
     """
-        Base class for Sparkth plugins.
+    Base class for Sparkth plugins.
 
-        All plugins should inherit from this class and override the relevant methods
-        to add custom functionality. Unlike abstract base classes, this provides
-        default implementations for all methods, making it easy to create simple
-        plugins that only override what they need.
+    All plugins should inherit from this class and override the relevant methods
+    to add custom functionality. Unlike abstract base classes, this provides
+    default implementations for all methods, making it easy to create simple
+    plugins that only override what they need.
 
-        The manager constructs every plugin as ``plugin_class(plugin_name)``,
-        so ``__init__`` must accept the derived ``plugin_name`` as its first
-        positional argument and pass it through to ``super().__init__()``.
-        Register routes, models, and tools from within ``__init__``.
+    The manager constructs every plugin as ``plugin_class(plugin_name)``,
+    so ``__init__`` must accept the derived ``plugin_name`` as its first
+    positional argument and pass it through to ``super().__init__()``.
+    Register routes and tools from within ``__init__``.
 
-        Example:
+    Example:
+
     ```python
-            router = APIRouter(prefix="/my-app")
+    router = APIRouter(prefix="/my-app")
 
-            @router.get("/")
-            def my_endpoint():
-                return {"message": "Hello from plugin!"}
+    @router.get("/")
+    def my_endpoint():
+        return {"message": "Hello from plugin!"}
 
-            class MyAppPlugin(SparkthPlugin):
-                def __init__(self, plugin_name: str) -> None:
-                    super().__init__(
-                        plugin_name,
-                        MyAppPluginConfig,
-                        version="1.0.0",
-                        description="My awesome plugin",
-                        author="Your Name",
-                    )
-                    self.add_route(router)
+    class MyAppPlugin(SparkthPlugin):
+        def __init__(self, plugin_name: str) -> None:
+            super().__init__(plugin_name, MyAppPluginConfig)
+            self.add_route(router)
     ```
     """
 
     _tool_registry: dict[str, dict[str, Any]]
 
-    def __init__(
-        self,
-        name: str,
-        config_schema: Type[PluginConfig] | None = None,
-        is_core: bool = False,
-        version: str = "1.0.0",
-        description: str = "",
-        author: str = "",
-        dependencies: list[str] | None = None,
-    ):
+    def __init__(self, name: str, config_schema: Type[PluginConfig] | None = None):
         """
         Initialize the plugin with metadata.
 
         Args:
             name: Unique identifier for the plugin (e.g., "tasks-plugin")
             config_schema: Plugin-specific configuration (inherits from app.plugins.config_base:PluginConfig)
-            version: Semantic version string (e.g., "1.0.0")
-            description: Brief description of plugin functionality
-            author: Plugin author name or organization
-            dependencies: List of other plugin names this plugin depends on
         """
         self.name = name
-        self.version = version
-        self.description = description
-        self.is_core = is_core
-        self.author = author
-        self.dependencies = dependencies or []
         self.config_schema = config_schema
         self._routes: list[APIRouter] = []
-        self._models: list[Type[SQLModel]] = []
         self._mcp_tools: list[dict[str, Any]] = []
 
         self._register_tools_from_metaclass()
@@ -202,23 +173,23 @@ class SparkthPlugin(metaclass=PluginMeta):
 
     def add_route(self, router: APIRouter) -> None:
         """
-                Add a FastAPI router to this plugin.
+        Add a FastAPI router to this plugin.
 
-                Args:
-                    router: APIRouter instance to add
+        Args:
+            router: APIRouter instance to add
 
-                Example:
+        Example:
         ```python
-                    router = APIRouter(prefix="/tasks", tags=["Tasks"])
+        router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
-                    @router.get("/")
-                    def list_tasks():
-                        return {"tasks": []}
+        @router.get("/")
+        def list_tasks():
+            return {"tasks": []}
 
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
-                            self.add_route(router)
+        class TasksPlugin(SparkthPlugin):
+            def __init__(self, plugin_name: str) -> None:
+                super().__init__(plugin_name)
+                self.add_route(router)
         ```
         """
         self._routes.append(router)
@@ -282,52 +253,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return [self.name]
 
-    def add_model(self, model: Type[SQLModel]) -> None:
-        """
-                Add a SQLModel class to this plugin.
-
-                Args:
-                    model: SQLModel class to add
-
-                Example:
-        ```python
-                    class Task(SQLModel, table=True):
-                        id: int | None = Field(primary_key=True)
-                        title: str
-                        completed: bool = False
-
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
-                            self.add_model(Task)
-        ```
-        """
-        self._models.append(model)
-
-    def get_models(self) -> list[Type[SQLModel]]:
-        """
-        Return SQLModel classes to be registered with the application.
-
-        Override this method to provide database models, or use add_model()
-        to register models dynamically.
-
-        Returns:
-            List of SQLModel class types
-        """
-        return self._models.copy()
-
-    def get_migrations_path(self) -> Path | None:
-        """
-        Return the path to Alembic migration files for this plugin.
-
-        If your plugin includes database schema changes, provide the
-        directory containing migration version files.
-
-        Returns:
-            Path to migrations directory, or None if no migrations
-        """
-        return None
-
     def add_mcp_tool(
         self,
         name: str,
@@ -338,37 +263,37 @@ class SparkthPlugin(metaclass=PluginMeta):
         version: str = "1.0.0",
     ) -> None:
         """
-                Add an MCP tool to this plugin.
+        Add an MCP tool to this plugin.
 
-                Args:
-                    name: Tool name
-                    handler: Callable that handles the tool invocation
-                    description: Tool description
-                    input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
-                    category: Tool category (e.g., "database", "api", "utilities")
-                    version: Tool version
+        Args:
+            name: Tool name
+            handler: Callable that handles the tool invocation
+            description: Tool description
+            input_schema: JSON Schema for tool input parameters (auto-generated if not provided)
+            category: Tool category (e.g., "database", "api", "utilities")
+            version: Tool version
 
-                Note:
-                    Most plugins should prefer the ``@tool`` decorator on a method
-                    instead — decorated methods are collected and registered
-                    automatically. Use ``add_mcp_tool`` for dynamically built tools.
+        Note:
+            Most plugins should prefer the ``@tool`` decorator on a method
+            instead — decorated methods are collected and registered
+            automatically. Use ``add_mcp_tool`` for dynamically built tools.
 
-                Example:
+        Example:
         ```python
-                    class TasksPlugin(SparkthPlugin):
-                        def __init__(self, plugin_name: str) -> None:
-                            super().__init__(plugin_name)
+        class TasksPlugin(SparkthPlugin):
+            def __init__(self, plugin_name: str) -> None:
+                super().__init__(plugin_name)
 
-                            async def create_task_handler(title: str) -> str:
-                                return f"Created task: {title}"
+                async def create_task_handler(title: str) -> str:
+                    return f"Created task: {title}"
 
-                            self.add_mcp_tool(
-                                name="create_task",
-                                handler=create_task_handler,
-                                description="Create a new task",
-                                category="tasks",
-                                version="1.0.0",
-                            )
+                self.add_mcp_tool(
+                    name="create_task",
+                    handler=create_task_handler,
+                    description="Create a new task",
+                    category="tasks",
+                    version="1.0.0",
+                )
         ```
         """
         if input_schema is None:
@@ -526,30 +451,6 @@ class SparkthPlugin(metaclass=PluginMeta):
         """
         return self.config_schema.model_json_schema() if self.config_schema else {}
 
-    def get_default_config(self) -> dict[str, Any]:
-        """
-        Return default configuration values for the plugin.
-
-        Override this method to provide sensible defaults.
-
-        Returns:
-            Dictionary of default configuration values
-        """
-        return {}
-
-    def get_config_value(self, key: str, default: Any = None) -> Any:
-        """
-        Get a configuration value by key.
-
-        Args:
-            key: Configuration key
-            default: Default value if key not found
-
-        Returns:
-            Configuration value or default
-        """
-        return getattr(self.config_schema, key, default)
-
     def __repr__(self) -> str:
         """Return string representation of the plugin."""
-        return f"<SparkthPlugin: {self.name} v{self.version}>"
+        return f"<SparkthPlugin: {self.name}>"

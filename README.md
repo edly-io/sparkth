@@ -3,14 +3,6 @@
 Sparkth is a free, open source, extensible, science-driven, AI-first learning platform. It is under active development by
 [Edly](https://edly.io).
 
-This repository is organized with the following main components:
-
-- `app/mcp/` - MCP server implementation
-- `app/api/` - REST API endpoints
-- `app/core_plugins/` - Core plugins (OpenEdX, Canvas)
-- `app/plugins/` - Plugin system
-- `frontend/` - Next.js frontend application
-
 ## Public Endpoints
 
 Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) with the following endpoints:
@@ -45,7 +37,7 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
 2. Install backend and frontend dependencies:
    ```bash
    make backend.install.dev
-   make frontend.install
+   make frontend.install.dev
    ```
 
 3. Install git hooks:
@@ -53,18 +45,29 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
    make backend.install.dev.githooks
    ```
 
-## Running the MCP Server (Docker)
+### Running the app
+
+Start dependent services:
+
+    make services.up
+
+Apply migrations:
+
+    make migrations
+
+Start backend service:
+
+    make backend.up.dev
+
+In a separate terminal, start the frontend service (with hot-reload):
+
+    make frontend.up.dev
+
+Access the app at http://localhost:3000.
 
 `.env` is committed with working dev defaults and works out of the box.
-For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there.
+For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there. `.env.local` takes precedence over `.env`.
 
-Run in development mode with hot reload:
-
-    make up.dev
-
-Or without hot reload:
-
-    make up
 
 ### Transport mode: http / stdio
 
@@ -97,62 +100,7 @@ Once the server is running, you can access the interactive API documentation loc
 * **ReDoc:** [http://127.0.0.1:7727/redoc](http://127.0.0.1:7727/redoc)
     * *Best for reading documentation structure.*
 
-## Accessing the frontend
-Frontend files are being served by FastAPI via static files. Go to [http://127.0.0.1:7727/login](http://127.0.0.1:7727/login) to go to the login page for Sparkth.
-
-## Developing/Running the Frontend
-
-The frontend is a [Next.js](https://nextjs.org) application located in the `frontend/` directory.
-
-### Development (with hot reload)
-
-```bash
-make frontend
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Production Build
-
-Build the frontend as static files (exported to `frontend/out/`):
-
-```bash
-make frontend.build
-```
-
-The static files are automatically served by FastAPI when you run `make up` or `make up.dev`.
-
-### Feature Flags
-`REGISTRATION_ENABLED`
-
-- Type: `boolean (true / false)`
-
-- Default: `false`
-
-- Location: `.env` file
-
-**Description**:
-
-Controls whether new user registration is enabled on the frontend.
-
-- If `REGISTRATION_ENABLED=true`, users can sign up via the frontend.
-
-- If `REGISTRATION_ENABLED=false`, the registration form is disabled, preventing new user creation.
-
-Example `.env` entry:
-
-```
-# Enable new user registration
-REGISTRATION_ENABLED=true
-```
-
-**Notes**:
-
-Changing this flag does not affect existing users.
-
-Make sure to run `make up` or `make up.dev` after changing the `.env` variable to apply the new setting.
-
-## Integrating with Claude Desktop
+### Integrating with Claude Desktop
 
 Add the Sparkth MCP server to Claude Desktop by editing the Claude configuration file:
 
@@ -192,50 +140,88 @@ Restart Claude Desktop. Ensure that the "Sparkth stdio" tools appear in the "Sea
 
 Sparkth will generate a prompt that will help Claude generate this course.
 
-## Makefile
+## Production
 
-All common tasks are wrapped in a `Makefile` for convenience. Run `make` to see the full list of commands.
+Build the Docker image:
 
-## User Management Commands
-### Create User
+```bash
+make docker.build
+```
 
-Create a new user account. If password is not provided via flag, you'll be prompted to enter it securely.
+Convert the development services from docker-compose.yml to a production setup and add the Sparkth application to the list of services:
+
+    sparkth:
+        image: ghcr.io/edly-io/sparkth:latest
+        restart: unless-stopped
+        env_file:
+            - .env
+            - .env.local
+        depends_on:
+            db:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+
+## Configuration
+
+### Feature flags
+
+The application is configured via environment variables that are defined in the `.env` file. This file contains values that are suitable for development. In production, create a `.env.local` file to override these values.
+
+Make sure to restart the backend (`make backend.up.dev`) after changing the configuration to apply the new settings.
+
+#### `REGISTRATION_ENABLED`
+
+- Type: `boolean (true / false)`
+- Default: `false`
+
+Controls whether new user registration is enabled on the frontend.
+
+- If `REGISTRATION_ENABLED=true`, users can sign up via the frontend.
+- If `REGISTRATION_ENABLED=false`, the registration form is disabled, preventing new user creation.
+
+Note that changing this flag does not affect existing users.
+
+### User Management
+
+Create a new user account:
+
 
     make create-user -- --username john --email john@example.com --name "John Doe"
-
-#### Using short flags
+    # Using short flags
     make create-user -- -u john -e john@example.com -n "John Doe"
 
-#### Create superuser
+If password is not provided via flag, you'll be prompted to enter it securely.
+
+Create superuser:
+
     make create-user -- --username admin --email admin@example.com --name "Admin User" --superuser
 
-#### Provide password directly
+Provide password directly:
+
     make create-user -- -u john -e john@example.com -n "John Doe" --password "SecurePass123"
 
-##### Options:
+Options:
+
 - `--username, -u`: Username (required)
 - `--email, -e`: Email address (required)
 - `--name, -n`: Full name (required)
 - `--password, -p`: Password (optional, will prompt if not provided)
 - `--superuser, -s`: Create as superuser (optional, default: false)
 
-
-### Reset Password
-Reset a user's password.
+Reset a user's password:
 
     make reset-password -- --username john
-
-#### Using short flag
+    # Using short flag
     make reset-password -- -u john
-
-#### Provide password directly
+    # Provide password directly
     make reset-password -- -u john -p "NewSecurePass123"
     make reset-password -- --username john --password "NewSecurePass123"
 
-##### Options:
+Options:
+
 - `--username, -u`: Username (required)
 - `--password, -p`: New password (optional, will prompt if not provided)
-
 
 ## License
 

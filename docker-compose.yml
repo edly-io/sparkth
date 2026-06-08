@@ -1,47 +1,11 @@
+# Backing services for local development.
+#
+# In development the backend (make backend.up.dev) and frontend (make frontend.up.dev)
+# run natively on the host; this file only provides the Postgres, Redis, and Mailpit
+# services they talk to. Ports are published on 127.0.0.1 so the native processes can
+# reach them. The application image itself is built only for production (see Dockerfile,
+# published to GHCR by CI and orchestrated by Kubernetes).
 services:
-  # Sparkth App
-  # The main sparkth app container.
-  app:
-    # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
-    build:
-      context: .
-      dockerfile: Dockerfile.local
-    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
-    # to GitHub Container Registry by CI
-    image: sparkth:local
-    # In production we should always pull the remote image, the below `pull_policy` is only for local development
-    pull_policy: never
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:7727:7727"
-    # Below is the default command `fastapi run ...` which runs fastapi without hot-reload.
-    # The "make up" command starts the container using the `command` below (without hot-reload).
-    # The "make up.dev" command sets the `APP_COMMAND` env to `fastapi dev ...` and then runs the container
-    # this causes the container to run with hot-reload (i.e in development mode)
-    #
-    # For production environment, this docker-compose file is not used so the following `command` is not used at all.
-    # The production containers are orchestrated by kubernetes and the command used for running the container is
-    # dictated by the CMD statement in the Dockerfile.
-    command: ${APP_COMMAND:-fastapi run --host 0.0.0.0 app/main.py}
-    env_file:
-      - .env
-      - path: .env.local
-        required: false
-    volumes:
-      - ./app:/app/app
-      - ./frontend/out:/app/frontend/out
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrations:
-        condition: service_completed_successfully
-      rag-mcp:
-        condition: service_started
-      mailpit:
-        condition: service_started
-
   # Mailpit (local SMTP for development)
   # For production we should use a managed email services e.g AWS SES SMTP interface
   mailpit:
@@ -60,6 +24,8 @@ services:
   db:
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
     env_file:
       - .env
     volumes:
@@ -75,6 +41,8 @@ services:
   redis:
     image: docker.io/redis:7-alpine
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -82,67 +50,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-
-  # RAG Cleanup Job
-  # In production this container is meant to be run as a k8s 'CronJob'.
-  rag-cleanup:
-    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
-    # to GitHub Container Registry by CI
-    image: sparkth:local
-    # In production we should always pull the remote image, the below `pull_policy` is only for local development
-    pull_policy: never
-    env_file:
-      - .env
-      - path: .env.local
-        required: false
-    command: python -m app.rag.cleanup
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
-  # RAG Metadata MCP Server
-  # In production this should be run as a separate container than the 'app' container.
-  rag-mcp:
-    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
-    # to GitHub Container Registry by CI
-    image: sparkth:local
-    # In production we should always pull the remote image, the below `pull_policy` is only for local development
-    pull_policy: never
-    # For production we should keep the restart policy the same.
-    restart: unless-stopped
-    env_file:
-      - .env
-      - path: .env.local
-        required: false
-    volumes:
-      - ./app:/app/app
-    command: python -m app.rag_mcp.main
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # Alembic Migrations
-  # In production this is meant to be run as a k8s 'Job'. It could be an 'initContainer' for the above 'app' container
-  # or it could be a standalone job that is run by a CI-pipeline before the 'app' container is deployed.
-  migrations:
-    # 'sparkth:local' is the local dev image built from Dockerfile.local. In production, use the image published
-    # to GitHub Container Registry by CI
-    image: sparkth:local
-    # In production we should always pull the remote image, the below `pull_policy` is only for local development
-    pull_policy: never
-    env_file:
-      - .env
-      - path: .env.local
-        required: false
-    volumes:
-      - ./app:/app/app
-    command: alembic upgrade head
-    # For production we should set the restart policy to 'no', since the only purpose of this job is to apply migrations and exit.
-    restart: "no"
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   postgres_data:

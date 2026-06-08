@@ -1,4 +1,4 @@
-"""Tests for RAG agent integration in chat routes."""
+"""Tests for RAG agent integration in chat route helpers."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,12 +28,12 @@ def _make_chunk(
 
 
 class TestResolveBlocksUsesAgent:
-    """Test that _resolve_drive_file_blocks delegates to agentic_retrieve_context."""
+    """Test that resolve_drive_file_blocks delegates to agentic_retrieve_context."""
 
     @pytest.mark.asyncio
     async def test_calls_agentic_retrieve_context(self) -> None:
-        """Test that _resolve_drive_file_blocks calls agentic_retrieve_context with correct args."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        """Test that resolve_drive_file_blocks calls agentic_retrieve_context with correct args."""
+        from app.core_plugins.chat.routes.helpers import resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -46,12 +46,14 @@ class TestResolveBlocksUsesAgent:
         ]
 
         mock_llm = MagicMock()
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
             mock_retrieve.return_value = [_make_chunk()]
-            await _resolve_drive_file_blocks(
+            await resolve_drive_file_blocks(
                 messages=messages,
                 user_id=1,
-                query_text="What is in this file?",
                 llm=mock_llm,
             )
 
@@ -64,7 +66,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_drive_file_not_found_returns_422(self) -> None:
         """Test that DriveFileNotFoundError returns 422."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.helpers import resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -76,13 +78,15 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
             mock_retrieve.side_effect = DriveFileNotFoundError("Not found")
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_drive_file_blocks(
+                await resolve_drive_file_blocks(
                     messages=messages,
                     user_id=1,
-                    query_text="Query",
                     llm=MagicMock(),
                 )
 
@@ -91,7 +95,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_rag_not_ready_returns_422(self) -> None:
         """Test that RAGNotReadyError returns 422."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.helpers import resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -103,13 +107,15 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_drive_file_blocks(
+                await resolve_drive_file_blocks(
                     messages=messages,
                     user_id=1,
-                    query_text="Query",
                     llm=MagicMock(),
                 )
 
@@ -118,7 +124,7 @@ class TestResolveBlocksUsesAgent:
     @pytest.mark.asyncio
     async def test_retrieval_error_returns_500(self) -> None:
         """Test that RAGRetrievalError returns 500."""
-        from app.core_plugins.chat.routes import _resolve_drive_file_blocks
+        from app.core_plugins.chat.routes.helpers import resolve_drive_file_blocks
 
         messages = [
             ChatMessage(
@@ -130,13 +136,15 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with patch("app.core_plugins.chat.routes.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve:
+        with patch(
+            "app.core_plugins.chat.routes.helpers.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
             with pytest.raises(HTTPException) as exc_info:
-                await _resolve_drive_file_blocks(
+                await resolve_drive_file_blocks(
                     messages=messages,
                     user_id=1,
-                    query_text="Query",
                     llm=MagicMock(),
                 )
 
