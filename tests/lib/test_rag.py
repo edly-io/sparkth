@@ -24,8 +24,9 @@ class TestRagPublicApi:
     def test_exposes_ingestion_result(self) -> None:
         assert rag_api.IngestionResult(new_chunks=1, reused_chunks=2).new_chunks == 1
 
-    def test_exposes_rag_status(self) -> None:
-        assert rag_api.RagStatus.READY is rag_api.RagStatus.READY
+    def test_exposes_retrieved_chunk_type(self) -> None:
+        rc = rag_api.RetrievedChunk(source_name="x.pdf", chapter=None, section=None, subsection=None, content="c")
+        assert rc.source_name == "x.pdf"
 
     def test_exposes_ingestion_exceptions(self) -> None:
         assert issubclass(rag_api.UnsupportedFileTypeError, Exception)

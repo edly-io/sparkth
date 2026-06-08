@@ -10,7 +10,6 @@ from langchain_core.language_models import BaseChatModel
 
 from app.lib.db import session_scope
 from app.memory_profiler import profile_memory
-from app.rag.enums import RagStatus as RagStatus  # backward-compat; remove after Tasks 11-15
 from app.rag.exceptions import DocumentNotFoundError as DocumentNotFoundError
 from app.rag.exceptions import DriveFileNotFoundError as DriveFileNotFoundError  # backward-compat alias
 from app.rag.exceptions import RAGNotReadyError as RAGNotReadyError
