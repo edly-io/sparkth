@@ -20,7 +20,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session
 
 from app.api.v1.auth import get_current_user
+from app.core_plugins.slack.config import SlackSettings
 from app.core_plugins.slack.models import SlackWorkspace
+from app.core_plugins.slack.service import encrypt_token
 from app.lib.db import get_session
 from app.main import app
 from app.models.user import User
@@ -64,8 +66,6 @@ def test_user(sync_session: Session) -> User:
 
 @pytest.fixture
 def test_workspace(sync_session: Session, test_user: User) -> SlackWorkspace:
-    from app.core_plugins.slack.oauth import encrypt_token
-
     workspace = SlackWorkspace(
         user_id=cast(int, test_user.id),
         team_id="T123ABC",
@@ -82,14 +82,15 @@ def test_workspace(sync_session: Session, test_user: User) -> SlackWorkspace:
 
 @pytest.fixture
 def mock_slack_credentials() -> Generator[None, None, None]:
+    fake = SlackSettings(
+        client_id="fake_client_id",
+        client_secret="fake_client_secret",
+        redirect_uri="http://localhost/callback",
+        signing_secret="fake_signing_secret",
+    )
     with patch(
-        "app.core_plugins.slack.routes.get_slack_credentials",
-        return_value=(
-            "fake_client_id",
-            "fake_client_secret",
-            "http://localhost/callback",
-            "fake_signing_secret",
-        ),
+        "app.core_plugins.slack.routes.oauth.get_slack_credentials",
+        return_value=fake,
     ):
         yield
 

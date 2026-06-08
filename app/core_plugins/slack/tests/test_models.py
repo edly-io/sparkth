@@ -1,9 +1,8 @@
 """Unit tests for Slack plugin models."""
 
+from app.core_plugins.slack.enums import ConnectionEventType, ResponseType
 from app.core_plugins.slack.models import (
     BotResponseLog,
-    ConnectionEventType,
-    ResponseType,
     SlackConnectionLog,
 )
 
@@ -11,32 +10,32 @@ from app.core_plugins.slack.models import (
 class TestResponseType:
     def test_has_all_expected_values(self) -> None:
         assert set(ResponseType) == {
-            ResponseType.rag_match,
-            ResponseType.fallback,
-            ResponseType.greeting,
-            ResponseType.config_incomplete,
-            ResponseType.plugin_disabled,
-            ResponseType.legacy,
-            ResponseType.no_files_resolved,
-            ResponseType.rag_not_ready,
-            ResponseType.drive_file_not_found,
-            ResponseType.retrieval_error,
+            ResponseType.RAG_MATCH,
+            ResponseType.FALLBACK,
+            ResponseType.GREETING,
+            ResponseType.CONFIG_INCOMPLETE,
+            ResponseType.PLUGIN_DISABLED,
+            ResponseType.LEGACY,
+            ResponseType.NO_FILES_RESOLVED,
+            ResponseType.RAG_NOT_READY,
+            ResponseType.DRIVE_FILE_NOT_FOUND,
+            ResponseType.RETRIEVAL_ERROR,
         }
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(ResponseType.rag_match, str)
-        assert ResponseType.rag_match == "rag_match"
+        assert isinstance(ResponseType.RAG_MATCH, str)
+        assert ResponseType.RAG_MATCH.value == "rag_match"
 
 
 class TestConnectionEventType:
     def test_has_connected_and_disconnected(self) -> None:
         assert set(ConnectionEventType) == {
-            ConnectionEventType.connected,
-            ConnectionEventType.disconnected,
+            ConnectionEventType.CONNECTED,
+            ConnectionEventType.DISCONNECTED,
         }
 
     def test_is_str_enum(self) -> None:
-        assert isinstance(ConnectionEventType.connected, str)
+        assert isinstance(ConnectionEventType.CONNECTED, str)
 
 
 class TestBotResponseLogFields:
@@ -57,7 +56,7 @@ class TestBotResponseLogFields:
             slack_ts="123.0",
             question="q",
             rag_matched=False,
-            response_type=ResponseType.fallback,
+            response_type=ResponseType.FALLBACK,
         )
         assert log.slack_user_name is None
         assert log.slack_channel_name is None
@@ -67,12 +66,12 @@ class TestSlackConnectionLog:
     def test_can_instantiate(self) -> None:
         log = SlackConnectionLog(
             workspace_id=1,
-            event_type=ConnectionEventType.connected,
+            event_type=ConnectionEventType.CONNECTED,
             team_name="Acme Inc",
         )
-        assert log.event_type == ConnectionEventType.connected
+        assert log.event_type == ConnectionEventType.CONNECTED
         assert log.team_name == "Acme Inc"
 
     def test_team_name_is_optional(self) -> None:
-        log = SlackConnectionLog(workspace_id=1, event_type=ConnectionEventType.disconnected)
+        log = SlackConnectionLog(workspace_id=1, event_type=ConnectionEventType.DISCONNECTED)
         assert log.team_name is None

@@ -7,6 +7,7 @@ import pytest
 from app.core_plugins.slack.adapter import SlackConfigAdapter
 from app.llm.adapter import LLMConfigAdapter
 from app.models import LLMConfig
+from app.plugins.adapters import PLUGIN_ADAPTERS
 
 
 @pytest.fixture
@@ -111,7 +112,5 @@ async def test_preprocess_no_override_passes_through() -> None:
 
 @pytest.mark.asyncio
 async def test_preprocess_registered_in_plugin_adapters() -> None:
-    from app.plugins.adapters import PLUGIN_ADAPTERS
-
     assert "slack" in PLUGIN_ADAPTERS
     assert isinstance(PLUGIN_ADAPTERS["slack"], SlackConfigAdapter)
