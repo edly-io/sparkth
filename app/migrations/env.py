@@ -1,43 +1,18 @@
-import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from asyncpg.exceptions import UndefinedTableError
 from sqlalchemy import engine_from_config, pool
-from sqlalchemy.exc import ProgrammingError
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
-from app.lib.log import get_logger
 from app.models import *  # noqa: F403
-from app.services.plugin import get_plugin_service
-
-logger = get_logger(__name__)
+from app.plugins import get_plugin_loader
 
 settings = get_settings()
 
 config = context.config
 db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 config.set_main_option("sqlalchemy.url", db_url)
-
-
-# Import plugin models for Alembic autogenerate
-def import_plugin_models():
-    """Load all enabled plugins so their SQLModel tables register for Alembic.
-
-    ``get_or_create_all`` instantiates the plugin loader, which imports each
-    plugin module; their table classes register into ``SQLModel.metadata`` at
-    import time, making them visible to autogenerate.
-    """
-    plugin_service = get_plugin_service()
-    try:
-        # Create all plugin objects in database
-        asyncio.run(plugin_service.get_or_create_all())
-    except (ProgrammingError, UndefinedTableError) as e:
-        if 'relation "plugins" does not exist' in str(e):
-            logger.warning("plugins table not yet created — skipping plugin model import")
-            return
-        raise
 
 
 # this is the Alembic Config object, which provides
@@ -74,7 +49,7 @@ def run_migrations_offline() -> None:
 
     """
     # Load plugin models before running migrations
-    import_plugin_models()
+    get_plugin_loader()
 
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -96,7 +71,7 @@ def run_migrations_online() -> None:
 
     """
     # Load plugin models before running migrations
-    import_plugin_models()
+    get_plugin_loader()
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
