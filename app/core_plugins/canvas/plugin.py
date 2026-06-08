@@ -58,9 +58,6 @@ class CanvasPlugin(SparkthPlugin):
             plugin_name,
             CanvasConfig,
             is_core=True,
-            version="1.0.0",
-            description="Canvas LMS integration with 30+ MCP tools",
-            author="Sparkth Team",
         )
 
     @tool(description="Authenticate Canvas API URL and token", category="canvas-auth")

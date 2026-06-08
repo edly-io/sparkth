@@ -16,9 +16,6 @@ class ChatPlugin(SparkthPlugin):
             plugin_name,
             config_schema=ChatUserConfig,
             is_core=True,
-            version="1.0.0",
-            description="Multi-provider chat support with LangChain",
-            author="Sparkth Team",
         )
 
         self.add_route(chat_router)

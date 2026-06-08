@@ -14,9 +14,6 @@ class Slack(SparkthPlugin):
             name=name,
             config_schema=SlackConfig,
             is_core=True,
-            version="1.0.0",
-            description="Slack TA Bot — RAG-powered course assistant for Slack workspaces",
-            author="Sparkth Team",
         )
 
         self.add_route(router)
