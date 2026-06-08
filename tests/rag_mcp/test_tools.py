@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.rag import RagStatus
+from app.core.documents.enums import DocumentStatus
 from app.rag_mcp.tools import (
     get_chunk_stats,
     get_document_structure,
@@ -30,14 +30,23 @@ class TestListUserFiles:
         mock_file.mime_type = "application/pdf"
         mock_file.size = 1024
         mock_file.modified_time = datetime(2024, 1, 1)
-        mock_file.rag_status = RagStatus.READY
+        mock_file.document_id = 10
         mock_file.is_deleted = False
+
+        mock_doc = MagicMock()
+        mock_doc.id = 10
+        mock_doc.status = DocumentStatus.READY
 
         with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
-            mock_result = MagicMock()
-            mock_result.all.return_value = [mock_file]
-            mock_session.exec = AsyncMock(return_value=mock_result)
+
+            mock_files_result = MagicMock()
+            mock_files_result.all.return_value = [mock_file]
+
+            mock_docs_result = MagicMock()
+            mock_docs_result.all.return_value = [mock_doc]
+
+            mock_session.exec = AsyncMock(side_effect=[mock_files_result, mock_docs_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await list_user_files(user_id=1)
@@ -95,15 +104,23 @@ class TestGetFileMetadata:
         mock_file = MagicMock()
         mock_file.id = 1
         mock_file.name = "example.pdf"
-        mock_file.rag_status = RagStatus.READY
+        mock_file.document_id = 10
         mock_file.size = 1024
         mock_file.modified_time = datetime(2024, 1, 1)
 
+        mock_doc = MagicMock()
+        mock_doc.status = DocumentStatus.READY
+
         with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
-            mock_result = MagicMock()
-            mock_result.first.return_value = mock_file
-            mock_session.exec = AsyncMock(return_value=mock_result)
+
+            mock_file_result = MagicMock()
+            mock_file_result.first.return_value = mock_file
+
+            mock_doc_result = MagicMock()
+            mock_doc_result.first.return_value = mock_doc
+
+            mock_session.exec = AsyncMock(side_effect=[mock_file_result, mock_doc_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             result = await get_file_metadata(user_id=1, file_id=1)
@@ -195,6 +212,7 @@ class TestGetChunkStats:
         mock_file = MagicMock()
         mock_file.id = 1
         mock_file.name = "test.pdf"
+        mock_file.document_id = 10
 
         with patch("app.rag_mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)

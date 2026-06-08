@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.oauth import get_valid_access_token
 from app.core_plugins.googledrive.routes.dependencies import require_user_id
-from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
+from app.core_plugins.googledrive.routes.route_utils import batch_fetch_documents, get_drive_credentials
 from app.core_plugins.googledrive.schemas import (
     CreateFolderRequest,
     DriveFileResponse,
@@ -24,7 +24,6 @@ from app.core_plugins.googledrive.schemas import (
 from app.core_plugins.googledrive.utils import process_folder_rag
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
-from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder
 
 router = APIRouter()
@@ -203,6 +202,9 @@ async def get_folder(
     )
     folder_files = files_result.all()
 
+    folder_doc_ids = [f.document_id for f in folder_files if f.document_id is not None]
+    folder_docs = await batch_fetch_documents(session, folder_doc_ids)
+
     files = [
         DriveFileResponse(
             id=cast(int, f.id),
@@ -212,8 +214,8 @@ async def get_folder(
             size=f.size,
             modified_time=f.modified_time,
             last_synced_at=f.last_synced_at,
-            rag_status=f.rag_status,
-            rag_error=f.rag_error,
+            rag_status=folder_docs[f.document_id].status if f.document_id and f.document_id in folder_docs else None,
+            rag_error=folder_docs[f.document_id].error if f.document_id and f.document_id in folder_docs else None,
         )
         for f in folder_files
     ]
@@ -366,7 +368,6 @@ async def _sync_folder_files(session: AsyncSession, folder: DriveFolder, user_id
                 md5_checksum=df.get("md5Checksum"),
                 modified_time=modified_time,
                 last_synced_at=now,
-                rag_status=RagStatus.QUEUED,
             )
             session.add(new_file)
 

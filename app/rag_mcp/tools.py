@@ -3,29 +3,48 @@
 from typing import cast
 
 from sqlmodel import col, func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.documents.enums import DocumentStatus
+from app.core.documents.models import Document
 from app.lib.db import session_scope
 from app.lib.log import get_logger
-from app.lib.rag import RagStatus
 from app.models.drive import DriveFile
-from app.rag.models import DocumentChunk
-from app.rag.utils import resolve_source_name
+from app.rag.models import DocumentChunk, DocumentChunkLink
 from app.rag_mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 
 logger = get_logger(__name__)
+
+
+async def _fetch_document_for_file(session: AsyncSession, drive_file: DriveFile) -> Document | None:
+    """Return the Document associated with drive_file, or None if not linked."""
+    if drive_file.document_id is None:
+        return None
+    result = await session.exec(select(Document).where(Document.id == drive_file.document_id))
+    return result.first()
 
 
 async def list_user_files(user_id: int) -> list[FileInfo]:
     """List all RAG-ready files owned by a user."""
     async with session_scope() as session:
         result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-                DriveFile.rag_status == RagStatus.READY,
+            select(DriveFile)
+            .join(Document, col(DriveFile.document_id) == col(Document.id))
+            .where(
+                col(DriveFile.user_id) == user_id,
+                col(DriveFile.is_deleted) == False,  # noqa: E712
+                col(Document.status) == DocumentStatus.READY,
             )
         )
         files = result.all()
+
+        doc_ids = [f.document_id for f in files if f.document_id is not None]
+        if not doc_ids:
+            return []
+
+        docs_result = await session.exec(select(Document).where(col(Document.id).in_(doc_ids)))
+        docs = {cast(int, d.id): d for d in docs_result.all()}
+
         return [
             FileInfo(
                 id=cast(int, f.id),
@@ -33,7 +52,7 @@ async def list_user_files(user_id: int) -> list[FileInfo]:
                 mime_type=f.mime_type,
                 size=f.size,
                 modified_time=f.modified_time.isoformat() if f.modified_time else None,
-                rag_status=cast(RagStatus, f.rag_status),
+                rag_status=docs[f.document_id].status if f.document_id and f.document_id in docs else "unknown",
             )
             for f in files
         ]
@@ -52,10 +71,13 @@ async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
         file = result.first()
         if not file:
             return None
+
+        doc = await _fetch_document_for_file(session, file)
+
         return FileMetadata(
             id=cast(int, file.id),
             name=file.name,
-            rag_status=cast(RagStatus, file.rag_status),
+            rag_status=doc.status if doc else "unknown",
             size=file.size,
             modified_time=file.modified_time.isoformat() if file.modified_time else None,
         )
@@ -75,16 +97,19 @@ async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
         if not file:
             return []
 
-        source_name = resolve_source_name(file)
+        if file.document_id is None:
+            return []
+
         sections_result = await session.exec(
             select(
                 DocumentChunk.chapter,
                 DocumentChunk.section,
                 DocumentChunk.subsection,
             )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == file.document_id,
             )
             .distinct()
         )
@@ -105,15 +130,20 @@ async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
         if not file:
             return None
 
-        source_name = resolve_source_name(file)
+        if file.document_id is None:
+            return None
+
+        source_name = file.name
 
         stats_result = await session.exec(
             select(
                 func.count().label("chunk_count"),
                 func.avg(DocumentChunk.token_count).label("avg_token_count"),
-            ).where(
+            )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
+            .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == file.document_id,
             )
         )
         row = stats_result.first()
@@ -144,7 +174,10 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
         if not file:
             return []
 
-        source_name = resolve_source_name(file)
+        if file.document_id is None:
+            return []
+
+        source_name = file.name
 
         structure_result = await session.exec(
             select(
@@ -153,9 +186,10 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
                 col(DocumentChunk.subsection),
                 func.count().label("chunk_count"),
             )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == file.document_id,
             )
             .group_by(
                 col(DocumentChunk.chapter),
@@ -195,7 +229,9 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
         if not file:
             return []
 
-        source_name = resolve_source_name(file)
+        if file.document_id is None:
+            return []
+
         keyword_safe = keyword.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         keyword_pattern = f"%{keyword_safe}%"
 
@@ -205,9 +241,10 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
                 DocumentChunk.section,
                 DocumentChunk.subsection,
             )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == file.document_id,
                 (
                     col(DocumentChunk.chapter).ilike(keyword_pattern, escape="\\")
                     | col(DocumentChunk.section).ilike(keyword_pattern, escape="\\")

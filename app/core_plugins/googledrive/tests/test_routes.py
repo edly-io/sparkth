@@ -11,7 +11,8 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.rag import RagStatus
+from app.core.documents.enums import DocumentStatus
+from app.core.documents.models import Document
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
 
@@ -384,11 +385,16 @@ class TestListFiles:
         test_folder: DriveFolder,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /folders/{id}/files should include rag_status for each file."""
-        test_file.rag_status = RagStatus.READY
-        session.add(test_file)
+        doc = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.READY)
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/files")
 
@@ -427,11 +433,16 @@ class TestGetFile:
         drive_client: AsyncClient,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /files/{id} should include rag_status and rag_error fields."""
-        test_file.rag_status = RagStatus.PROCESSING
-        session.add(test_file)
+        doc = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.PROCESSING)
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
 
@@ -688,11 +699,16 @@ class TestGetFileRagStatus:
         drive_client: AsyncClient,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /files/{id}/rag-status should return 'processing' while pipeline runs."""
-        test_file.rag_status = RagStatus.PROCESSING
-        session.add(test_file)
+        doc = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.PROCESSING)
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -705,11 +721,16 @@ class TestGetFileRagStatus:
         drive_client: AsyncClient,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /files/{id}/rag-status should return 'ready' when processing is complete."""
-        test_file.rag_status = RagStatus.READY
-        session.add(test_file)
+        doc = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.READY)
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -722,11 +743,16 @@ class TestGetFileRagStatus:
         drive_client: AsyncClient,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /files/{id}/rag-status should return 'failed' when processing errored."""
-        test_file.rag_status = RagStatus.FAILED
-        session.add(test_file)
+        doc = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.FAILED)
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
 
@@ -768,7 +794,14 @@ class TestGetFolderRagStatus:
         test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should return rag_status for every file."""
-        test_file.rag_status = RagStatus.READY
+        doc1 = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.READY)
+        doc2 = Document(user_id=cast(int, test_user.id), name="slides.pdf", status=DocumentStatus.PROCESSING)
+        session.add(doc1)
+        session.add(doc2)
+        await session.flush()
+        await session.refresh(doc1)
+        await session.refresh(doc2)
+        test_file.document_id = doc1.id
         second_file = DriveFile(
             folder_id=cast(int, test_folder.id),
             user_id=cast(int, test_user.id),
@@ -776,12 +809,12 @@ class TestGetFolderRagStatus:
             name="slides.pdf",
             mime_type="application/pdf",
             size=512,
-            rag_status=RagStatus.PROCESSING,
             last_synced_at=test_file.last_synced_at,
+            document_id=doc2.id,
         )
         session.add(test_file)
         session.add(second_file)
-        await session.flush()
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -823,8 +856,14 @@ class TestGetFolderRagStatus:
         test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should exclude soft-deleted files."""
-        # Create two files, one active and one deleted
-        test_file.rag_status = RagStatus.READY
+        doc1 = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.READY)
+        doc2 = Document(user_id=cast(int, test_user.id), name="deleted_doc.pdf", status=DocumentStatus.READY)
+        session.add(doc1)
+        session.add(doc2)
+        await session.flush()
+        await session.refresh(doc1)
+        await session.refresh(doc2)
+        test_file.document_id = doc1.id
         deleted_file = DriveFile(
             folder_id=cast(int, test_folder.id),
             user_id=cast(int, test_user.id),
@@ -832,13 +871,13 @@ class TestGetFolderRagStatus:
             name="deleted_doc.pdf",
             mime_type="application/pdf",
             size=1024,
-            rag_status=RagStatus.READY,
             last_synced_at=test_file.last_synced_at,
+            document_id=doc2.id,
         )
         deleted_file.soft_delete()
         session.add(test_file)
         session.add(deleted_file)
-        await session.flush()
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -856,12 +895,21 @@ class TestRagErrorInResponse:
         test_folder: DriveFolder,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should include rag_error for failed files."""
-        test_file.rag_status = RagStatus.FAILED
-        test_file.rag_error = "Download failed: 403 Forbidden"
-        session.add(test_file)
+        doc = Document(
+            user_id=cast(int, test_user.id),
+            name="test_document.pdf",
+            status=DocumentStatus.FAILED,
+            error="Download failed: 403 Forbidden",
+        )
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
@@ -877,11 +925,16 @@ class TestRagErrorInResponse:
         test_folder: DriveFolder,
         test_file: DriveFile,
         session: AsyncSession,
+        test_user: User,
     ) -> None:
         """GET /folders/{id}/rag-status should return null rag_error for non-failed files."""
-        test_file.rag_status = RagStatus.READY
-        session.add(test_file)
+        doc = Document(user_id=cast(int, test_user.id), name="test_document.pdf", status=DocumentStatus.READY)
+        session.add(doc)
         await session.flush()
+        await session.refresh(doc)
+        test_file.document_id = doc.id
+        session.add(test_file)
+        await session.commit()
 
         response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
 
