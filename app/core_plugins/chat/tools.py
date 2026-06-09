@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.lib.log import get_logger
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
-from app.plugins import get_plugin_loader
 
 logger = get_logger(__name__)
 
@@ -57,12 +56,14 @@ class ToolRegistry:
         ]
 
     def discover_plugin_tools(self) -> None:
-        """Discover and register tools from all loaded plugins."""
+        """Discover and register tools from all loaded plugins.
+
+        Plugins are instantiated once at the process entrypoint (which populates
+        the MCP_TOOLS hook); this only runs during request handling, well after
+        startup, so it just reads the hook.
+        """
         if self._initialized:
             return
-
-        # Instantiate plugins so their tools are contributed to the MCP_TOOLS hook.
-        get_plugin_loader()
 
         for plugin, mcp_tool in MCP_TOOLS.iter_items():
             if plugin.name == "chat":
