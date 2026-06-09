@@ -260,7 +260,7 @@ class MyAppPlugin(SparkthPlugin):
         ROUTES.add_item(self, (router, "/my-app", ["My Plugin"]))
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
 
-async def process_data(self, input: str) -> str:
+async def process_data(input: str) -> str:
     """Process some input and return the result."""
     return f"Processed: {input}"
 ```
