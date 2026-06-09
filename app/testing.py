@@ -89,7 +89,7 @@ def sync_session(sync_engine: Any) -> Generator[Session, None, None]:
 async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     async with engine.connect() as conn:
         tx = await conn.begin()
-        s = AsyncSession(bind=conn, expire_on_commit=False)
+        s = AsyncSession(bind=conn)
         try:
             yield s
         finally:

@@ -4,25 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-from app.rag import constants
-
-if TYPE_CHECKING:
-    # Type-only import: keep app.rag free of a runtime dependency on the drive plugin model.
-    from app.models.drive import DriveFile
-
-
-def resolve_source_name(drive_file: DriveFile) -> str:
-    """Return the source_name as stored in DocumentChunk.
-
-    Residual bridge for source-name resolution (see #398).
-    """
-    filename = drive_file.name
-    mime_type = drive_file.mime_type or ""
-    if mime_type in constants.GOOGLE_NATIVE_MIMES and not filename.lower().endswith(".pdf"):
-        filename = f"{filename}.pdf"
-    return filename
+from typing import Any
 
 
 def get_asset(file_name: str, file_extension: str) -> str | dict[str, Any]:

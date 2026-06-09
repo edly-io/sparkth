@@ -57,6 +57,7 @@ async def _seed_document(
     status: DocumentStatus = DocumentStatus.READY,
 ) -> Document:
     """Helper: create a Document and link it to a DriveFile. Returns the Document."""
+    await session.refresh(drive_file)
     doc = Document(user_id=user_id, name=drive_file.name, status=status)
     session.add(doc)
     await session.flush()

@@ -42,15 +42,17 @@ class TestDocumentModel:
 class TestRegisterDocument:
     async def test_creates_with_queued_status(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="report.pdf", mime_type="application/pdf")
-        await session.commit()
-
         assert doc.id is not None
+        await session.commit()
+        await session.refresh(doc)
+
         assert doc.status == DocumentStatus.QUEUED
         assert doc.name == "report.pdf"
 
     async def test_mime_type_none_accepted(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="notes.txt", mime_type=None)
         await session.commit()
+        await session.refresh(doc)
 
         assert doc.mime_type is None
 
@@ -58,10 +60,11 @@ class TestRegisterDocument:
 class TestUpdateDocumentStatus:
     async def test_sets_status(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
-        await session.commit()
         assert doc.id is not None
+        document_id = doc.id
+        await session.commit()
 
-        await update_document_status(session, doc.id, DocumentStatus.READY)
+        await update_document_status(session, document_id, DocumentStatus.READY)
         await session.commit()
         await session.refresh(doc)
 
@@ -70,10 +73,11 @@ class TestUpdateDocumentStatus:
 
     async def test_stores_error_on_failed(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
-        await session.commit()
         assert doc.id is not None
+        document_id = doc.id
+        await session.commit()
 
-        await update_document_status(session, doc.id, DocumentStatus.FAILED, error="Too large")
+        await update_document_status(session, document_id, DocumentStatus.FAILED, error="Too large")
         await session.commit()
         await session.refresh(doc)
 
@@ -84,39 +88,43 @@ class TestUpdateDocumentStatus:
 class TestGetDocument:
     async def test_returns_document_for_owner(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
-        await session.commit()
         assert doc.id is not None
+        document_id = doc.id
+        await session.commit()
 
-        found = await get_document(session, doc.id, user_id=1)
+        found = await get_document(session, document_id, user_id=1)
         assert found is not None
-        assert found.id == doc.id
+        assert found.id == document_id
 
     async def test_returns_none_for_wrong_user(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
-        await session.commit()
         assert doc.id is not None
+        document_id = doc.id
+        await session.commit()
 
-        found = await get_document(session, doc.id, user_id=999)
+        found = await get_document(session, document_id, user_id=999)
         assert found is None
 
     async def test_returns_none_for_deleted(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
-        await session.commit()
         assert doc.id is not None
-        await soft_delete_document(session, doc.id)
+        document_id = doc.id
+        await session.commit()
+        await soft_delete_document(session, document_id)
         await session.commit()
 
-        found = await get_document(session, doc.id, user_id=1)
+        found = await get_document(session, document_id, user_id=1)
         assert found is None
 
 
 class TestSoftDeleteDocument:
     async def test_sets_is_deleted(self, session: AsyncSession) -> None:
         doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
-        await session.commit()
         assert doc.id is not None
+        document_id = doc.id
+        await session.commit()
 
-        await soft_delete_document(session, doc.id)
+        await soft_delete_document(session, document_id)
         await session.commit()
         await session.refresh(doc)
 

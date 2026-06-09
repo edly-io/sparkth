@@ -18,6 +18,7 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
+from app.core_plugins.slack.utils import resolve_source_name
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -28,7 +29,6 @@ from app.lib.rag import (
 )
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
-from app.rag.utils import resolve_source_name
 
 logger = get_logger(__name__)
 

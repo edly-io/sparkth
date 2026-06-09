@@ -17,12 +17,30 @@ from app.core_plugins.slack.rag import (
     _resolve_files_for_sources,
     answer_question,
 )
+from app.core_plugins.slack.utils import resolve_source_name
 from app.lib.rag import (
     DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
 )
+
+
+def _make_drive_file(
+    *,
+    id: int = 1,
+    user_id: int = 1,
+    name: str = "doc.pdf",
+    mime_type: str | None = "application/pdf",
+    is_deleted: bool = False,
+) -> MagicMock:
+    drive_file = MagicMock()
+    drive_file.id = id
+    drive_file.user_id = user_id
+    drive_file.name = name
+    drive_file.mime_type = mime_type
+    drive_file.is_deleted = is_deleted
+    return drive_file
 
 
 @pytest.mark.asyncio
@@ -44,6 +62,37 @@ async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch:
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=["python.pdf", "ai.pdf"])
     assert sorted(result) == [100, 101]
+
+
+def test_resolve_source_name_regular_pdf_unchanged() -> None:
+    drive_file = _make_drive_file(name="course.pdf", mime_type="application/pdf")
+    assert resolve_source_name(drive_file) == "course.pdf"
+
+
+def test_resolve_source_name_google_doc_gets_pdf_suffix() -> None:
+    drive_file = _make_drive_file(
+        name="My Course Outline",
+        mime_type="application/vnd.google-apps.document",
+    )
+    assert resolve_source_name(drive_file) == "My Course Outline.pdf"
+
+
+def test_resolve_source_name_google_doc_keeps_existing_pdf_suffix() -> None:
+    drive_file = _make_drive_file(name="doc.pdf", mime_type="application/vnd.google-apps.document")
+    assert resolve_source_name(drive_file) == "doc.pdf"
+
+
+def test_resolve_source_name_none_mime_type_unchanged() -> None:
+    drive_file = _make_drive_file(name="notes.txt", mime_type=None)
+    assert resolve_source_name(drive_file) == "notes.txt"
+
+
+def test_resolve_source_name_google_drawing_gets_pdf_suffix() -> None:
+    drive_file = _make_drive_file(
+        name="diagram",
+        mime_type="application/vnd.google-apps.drawing",
+    )
+    assert resolve_source_name(drive_file) == "diagram.pdf"
 
 
 @pytest.mark.asyncio

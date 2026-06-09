@@ -1,4 +1,4 @@
-"""Tests for RAG retrieval utils — lookup, validation, chunk formatting, and source name resolution."""
+"""Tests for RAG retrieval utils — lookup, validation, chunk formatting, and context typing."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -9,7 +9,6 @@ from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.models import DocumentChunk
 from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready
 from app.rag.types import SimilarityResult
-from app.rag.utils import resolve_source_name as _resolve_source_name
 
 
 def _make_session() -> AsyncMock:
@@ -25,23 +24,6 @@ def _make_doc(doc_id: int, user_id: int, status: DocumentStatus, is_deleted: boo
     doc.status = status
     doc.is_deleted = is_deleted
     return doc
-
-
-def _make_drive_file(
-    *,
-    id: int = 1,
-    user_id: int = 1,
-    name: str = "doc.pdf",
-    mime_type: str | None = "application/pdf",
-    is_deleted: bool = False,
-) -> MagicMock:
-    df = MagicMock()
-    df.id = id
-    df.user_id = user_id
-    df.name = name
-    df.mime_type = mime_type
-    df.is_deleted = is_deleted
-    return df
 
 
 def _make_chunk(
@@ -161,34 +143,6 @@ class TestFormatChunksAsContext:
         chunk = _make_chunk(content="Text", chapter=None, section=None, subsection=None)
         result = format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
         assert "General" in result
-
-
-class TestResolveSourceName:
-    def test_regular_pdf_unchanged(self) -> None:
-        df = _make_drive_file(name="course.pdf", mime_type="application/pdf")
-        assert _resolve_source_name(df) == "course.pdf"
-
-    def test_google_doc_gets_pdf_suffix(self) -> None:
-        df = _make_drive_file(
-            name="My Course Outline",
-            mime_type="application/vnd.google-apps.document",
-        )
-        assert _resolve_source_name(df) == "My Course Outline.pdf"
-
-    def test_google_doc_already_has_pdf_suffix(self) -> None:
-        df = _make_drive_file(name="doc.pdf", mime_type="application/vnd.google-apps.document")
-        assert _resolve_source_name(df) == "doc.pdf"
-
-    def test_none_mime_type_unchanged(self) -> None:
-        df = _make_drive_file(name="notes.txt", mime_type=None)
-        assert _resolve_source_name(df) == "notes.txt"
-
-    def test_google_drawing_gets_pdf_suffix(self) -> None:
-        df = _make_drive_file(
-            name="diagram",
-            mime_type="application/vnd.google-apps.drawing",
-        )
-        assert _resolve_source_name(df) == "diagram.pdf"
 
 
 class TestRAGContextType:
