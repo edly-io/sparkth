@@ -10,7 +10,6 @@ import pytest
 
 import app.lib.rag as rag_api
 from app.lib.rag import (
-    IngestionResult,
     ScannedPDFError,
     UnsupportedFileTypeError,
     agentic_retrieve_context,
@@ -21,9 +20,6 @@ from app.lib.rag import (
 class TestRagPublicApi:
     def test_exposes_ingest_document(self) -> None:
         assert callable(rag_api.ingest_document)
-
-    def test_exposes_ingestion_result(self) -> None:
-        assert rag_api.IngestionResult(new_chunks=1, reused_chunks=2).new_chunks == 1
 
     def test_exposes_retrieved_chunk_type(self) -> None:
         rc = rag_api.RetrievedChunk(source_name="x.pdf", chapter=None, section=None, subsection=None, content="c")
@@ -50,7 +46,8 @@ class TestIngestDocument:
             patch("app.rag.ingestion.DocumentChunker", chunker),
         ):
             result = await ingest_document(1, 10, b"x", "a.txt")
-        assert result == IngestionResult(new_chunks=0, reused_chunks=0)
+        assert result.new_chunks == 0
+        assert result.reused_chunks == 0
 
     @pytest.mark.asyncio
     async def test_scanned_pdf_propagates(self) -> None:
@@ -73,7 +70,8 @@ class TestIngestDocument:
             mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
             result = await ingest_document(1, 10, b"x", "a.txt")
-        assert result == IngestionResult(new_chunks=1, reused_chunks=0)
+        assert result.new_chunks == 1
+        assert result.reused_chunks == 0
         mock_store.assert_awaited_once()
         mock_session.commit.assert_awaited_once()
 

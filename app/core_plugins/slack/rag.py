@@ -28,7 +28,7 @@ from app.lib.rag import (
 )
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
-from app.rag.utils import resolve_source_name  # internal helper for source-name resolution (residual; see #398)
+from app.rag.utils import resolve_source_name
 
 logger = get_logger(__name__)
 

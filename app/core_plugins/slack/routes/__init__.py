@@ -44,7 +44,7 @@ from app.lib.db import get_async_session, get_session, session_scope
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
-from app.rag.store import ChunkStoreService  # residual; see #398
+from app.rag.store import ChunkStoreService
 
 router: APIRouter = APIRouter()
 router.include_router(oauth_router)

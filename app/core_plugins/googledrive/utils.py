@@ -22,7 +22,7 @@ from app.lib.log import get_logger
 from app.lib.rag import (
     ScannedPDFError,
     UnsupportedFileTypeError,
-    copy_chunk_links,
+    copy_document_chunk_links,
     ingest_document,
 )
 from app.models.drive import DriveFile, DriveFolder
@@ -136,7 +136,7 @@ async def _ingest_drive_file(
 
     duplicate_document_id = await _find_ready_duplicate_document_id(session, user_id, drive_file, content_hash)
     if duplicate_document_id is not None:
-        await copy_chunk_links(duplicate_document_id, document_id)
+        await copy_document_chunk_links(session, duplicate_document_id, document_id)
         await update_document_status(session, document_id, DocumentStatus.READY)
         await session.commit()
         logger.info(

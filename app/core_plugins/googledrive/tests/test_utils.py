@@ -267,10 +267,10 @@ class TestProcessSingleFile:
                 "app.core_plugins.googledrive.utils._find_ready_duplicate_document_id",
                 new=AsyncMock(return_value=99),
             ),
-            patch("app.core_plugins.googledrive.utils.copy_chunk_links", new=AsyncMock()) as mock_copy,
+            patch("app.core_plugins.googledrive.utils.copy_document_chunk_links", new=AsyncMock()) as mock_copy,
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        mock_copy.assert_awaited_once_with(99, 10)
+        mock_copy.assert_awaited_once_with(session, 99, 10)
         from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]

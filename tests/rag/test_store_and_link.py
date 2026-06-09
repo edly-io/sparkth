@@ -7,7 +7,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.rag.models import DocumentChunk, DocumentChunkLink
-from app.rag.store import ChunkStoreService, _copy_document_chunk_links, store_and_link_chunks
+from app.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks
 from app.rag.types import Chunk, ChunkInput, ChunkMetadata
 
 
@@ -238,7 +238,7 @@ class TestCopyDocumentChunkLinks:
 
         session.scalars = AsyncMock(side_effect=[source_links_result, already_linked_result])
 
-        await _copy_document_chunk_links(session, 1, 2)
+        await copy_document_chunk_links(session, 1, 2)
 
         session.add_all.assert_called_once()
         links = session.add_all.call_args[0][0]

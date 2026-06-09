@@ -181,7 +181,7 @@ async def _create_missing_links(session: AsyncSession, document_id: int, chunk_i
         await session.flush()
 
 
-async def _copy_document_chunk_links(
+async def copy_document_chunk_links(
     session: AsyncSession,
     source_document_id: int,
     target_document_id: int,
