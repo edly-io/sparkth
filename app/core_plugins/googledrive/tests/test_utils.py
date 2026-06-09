@@ -219,8 +219,6 @@ class TestProcessSingleFile:
         assert last_call.args[2] == DocumentStatus.FAILED
 
     async def test_new_file_full_pipeline_marks_document_ready(self) -> None:
-        from app.lib.rag import IngestionResult
-
         drive_file = _make_drive_file(document_id=10)
         session = _make_async_session()
         with (
@@ -235,7 +233,7 @@ class TestProcessSingleFile:
             ),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
-                new=AsyncMock(return_value=IngestionResult(new_chunks=3, reused_chunks=1)),
+                new=AsyncMock(return_value=MagicMock(new_chunks=3, reused_chunks=1)),
             ) as mock_ingest,
         ):
             await _process_single_file(drive_file, 1, "tok", session)
@@ -317,8 +315,6 @@ class TestProcessSingleFile:
         assert last_call.args[2] == DocumentStatus.FAILED
 
     async def test_google_doc_filename_resolved(self) -> None:
-        from app.lib.rag import IngestionResult
-
         drive_file = _make_drive_file(
             name="My Doc",
             mime_type="application/vnd.google-apps.document",
@@ -337,7 +333,7 @@ class TestProcessSingleFile:
             ),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
-                new=AsyncMock(return_value=IngestionResult(new_chunks=1, reused_chunks=0)),
+                new=AsyncMock(return_value=MagicMock(new_chunks=1, reused_chunks=0)),
             ) as mock_ingest,
         ):
             await _process_single_file(drive_file, 1, "tok", session)
