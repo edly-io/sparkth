@@ -57,7 +57,6 @@ def extract_query_text(messages: list[ChatMessage]) -> str:
 
 
 def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
-    """Render one document's retrieved chunks as a prompt text block."""
     lines = [
         f"[DOCUMENT CONTEXT: {source_name}]",
         "The following excerpts were retrieved from the document to inform your response:",
@@ -73,7 +72,6 @@ def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
 
 
 def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
-    """Group retrieved chunks by source_name, preserving first-seen order."""
     grouped: dict[str, list[RetrievedChunk]] = {}
     for chunk in chunks:
         grouped.setdefault(chunk.source_name, []).append(chunk)
@@ -81,7 +79,6 @@ def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChu
 
 
 def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
-    """Extract all drive_file block file_ids from a list of messages, preserving order."""
     file_ids: list[int] = []
     for msg in messages:
         if not isinstance(msg.content, list):

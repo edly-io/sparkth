@@ -11,3 +11,4 @@ you must follow these rules:
     - Inform the user that their credentials are already configured.
     - Direct them to the 'My Plugins' page if they want to view or manage them.
 4. These rules apply to ALL LMS platforms without exception.
+
