@@ -7,7 +7,6 @@ from app.lib.log import get_logger
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
 from app.mcp.prompts.prompt import get_course_generation_prompt
 from app.mcp.types import CourseGenerationPromptRequest
-from app.plugins import get_plugin_loader
 
 logger = get_logger(__name__)
 
@@ -68,23 +67,16 @@ class MCPToolDefinition(BaseModel):
 
 def register_plugin_tools() -> None:
     """
-    Register MCP tools from already-loaded plugins.
+    Register MCP tools contributed by plugins with the FastMCP server.
 
-    This function:
-    1. Gets already loaded plugins from the plugin manager
-    2. Retrieves MCP tools from each plugin
-    3. Validates tool definitions
-    4. Checks for naming conflicts
-    5. Registers tools with the FastMCP server
+    Reads the MCP_TOOLS hook and registers each tool, skipping name conflicts.
+    Plugins must already be instantiated (which populates the hook); callers are
+    responsible for that — the FastAPI lifespan and the standalone ``main`` below
+    both load plugins before calling this.
 
     Any failure to load or register a tool is fatal: the exception propagates
     and crashes application startup.
-
-    Note: Assumes plugins are already loaded by the plugin lifespan manager.
     """
-    # Instantiate plugins so their tools are contributed to the MCP_TOOLS hook.
-    get_plugin_loader()
-
     registered_tools: dict[str, str] = {}
     total_tools = 0
     total_failed = 0

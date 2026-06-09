@@ -5,11 +5,12 @@ from app.plugins.config_base import PluginConfig
 
 
 def iter_plugin_config_schemas() -> Iterator[tuple[str, type[PluginConfig]]]:
-    """Yield (plugin_name, config_class) for every plugin that contributed a config."""
-    # Ensure plugins are instantiated so CONFIG_SCHEMAS is populated.
-    from app.plugins import get_plugin_loader
+    """Yield (plugin_name, config_class) for every plugin that contributed a config.
 
-    get_plugin_loader()
+    Plugins are instantiated once per process at the entrypoint (the FastAPI
+    lifespan, the standalone MCP server, or the migration runner), which is what
+    populates CONFIG_SCHEMAS; this iterator assumes that has already happened.
+    """
     for plugin, config_schema in CONFIG_SCHEMAS.iter_items():
         yield plugin.name, config_schema
 

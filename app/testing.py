@@ -44,6 +44,21 @@ from app.services.plugin import PluginService, get_plugin_service
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def load_plugins() -> None:
+    """Instantiate plugins once for the whole test session.
+
+    In production this happens at the process entrypoint (the FastAPI lifespan,
+    the standalone MCP server, or the migration runner); httpx's ASGITransport
+    does not run lifespan events, so tests load plugins here instead. This is
+    what populates the contribution hooks (MCP_TOOLS, ROUTES, CONFIG_SCHEMAS)
+    that hook consumers read.
+    """
+    from app.plugins import get_plugin_loader
+
+    get_plugin_loader()
+
+
 @pytest.fixture(scope="session")
 async def engine() -> AsyncGenerator[AsyncEngine, None]:
     engine = create_async_engine(
