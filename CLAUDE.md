@@ -304,17 +304,33 @@ except Exception as exc:
 
 ## Commit Messages
 
-Every commit must follow Conventional Commits. No exceptions.
+Every commit must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
+enforced by [`commitlint`](.github/workflows/commitlint.yml) on every PR.
 
 ```
-<type>(<scope>): <short description>
+<type>[(<scope>)]: <short description>
 
 [optional body — explain WHY, not what]
 ```
 
-**Types:** `feat` | `fix` | `refactor` | `test` | `docs` | `chore`
+**Types** (all conventional-commits types are accepted):
 
-**Scopes:** `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are acceptable when none of these fit (e.g. `auth`, `docker`, `deps`)
+| Type | Use for |
+|---|---|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `test` | Adding or correcting tests |
+| `docs` | Documentation only |
+| `chore` | Maintenance tasks (dependency bumps, tooling config, …) |
+| `build` | Changes to the build system or external dependencies |
+| `ci` | Changes to CI configuration files and scripts |
+| `perf` | Performance improvement |
+| `revert` | Reverts a previous commit |
+| `style` | Formatting changes that do not affect meaning |
+
+**Scope** (optional, but recommended for clarity):
+Common scopes: `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are fine when none of these fit (e.g. `auth`, `docker`, `deps`).
 
 **Rules:**
 - Subject line: max 72 chars, lowercase, no trailing period
@@ -334,6 +350,8 @@ refactor(rag): extract vectorstore into separate service
 test(mcp): add integration tests for tool registration
 
 chore(ci): pin uv version in GitHub Actions
+
+docs: update environment variable reference table
 ```
 
 ## Pull Request Descriptions
@@ -341,7 +359,7 @@ chore(ci): pin uv version in GitHub Actions
 Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). It auto-populates on GitHub.
 
 **Rules:**
-- Title: `<type>(<scope>): short description` — max 70 chars, lowercase
+- Title: `<type>[(<scope>)]: short description` — max 70 chars, lowercase
 - "What" must name the problem solved, not just the mechanism
 - Every non-trivial code path needs a test step
 - Flag breaking changes and migration requirements explicitly — never bury them
