@@ -38,7 +38,7 @@ class PluginCollectionHook(BasePluginHook[list[T]]):
     def add_items(self, plugin: SparkthPlugin, items: list[T]) -> None:
         if plugin not in self._items:
             self._items[plugin] = []
-        self._items[plugin] += items
+        self._items[plugin].extend(items)
 
     def iter_items(self) -> Iterator[tuple[SparkthPlugin, T]]:
         for plugin, plugin_items in self._iter_plugin_items():
