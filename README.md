@@ -69,24 +69,13 @@ Access the app at http://localhost:3000.
 For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there. `.env.local` takes precedence over `.env`.
 
 
-### Transport mode: http / stdio
-
-Sparkth MCP server can run in two modes, selectable via the `--transport` flag:
-
-| Mode     | Description                                          |
-| -------- | ---------------------------------------------------- |
-| `stdio`  | Communicates via standard input/output streams.      |
-| `http`   | Starts an HTTP server.       |
-
-The default is `http` on host http://0.0.0.0:7727.
-
-
 ### Local MCP Endpoint
 
-When running the API server locally, the MCP server is available at:
+The MCP server is served over HTTP by the running backend. When running the API server
+locally, it is available at:
 
 ```
-http://127.0.0.1:8000/ai/mcp
+http://127.0.0.1:7727/ai/mcp
 ```
 
 This allows Claude and other MCP-compatible clients to connect to the MCP server via HTTP.
@@ -102,7 +91,11 @@ Once the server is running, you can access the interactive API documentation loc
 
 ### Integrating with Claude Desktop
 
-Add the Sparkth MCP server to Claude Desktop by editing the Claude configuration file:
+The Sparkth MCP server is served over HTTP by the running backend at `/ai/mcp`
+(e.g. `http://127.0.0.1:7727/ai/mcp`). Start the backend first (`make backend.up.dev`),
+then bridge Claude Desktop to it with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote).
+
+Edit the Claude configuration file:
 
 ```
 # macOS
@@ -117,24 +110,20 @@ Add the Sparkth MCP server configuration:
 ```json
 {
   "mcpServers": {
-    "Sparkth stdio": {
-      "command": "uv",
+    "Sparkth": {
+      "command": "npx",
       "args": [
-        "--directory",
-        "/<PATH TO SPARKTH REPOSITORY>/sparkth",
-        "run",
-        "-m",
-        "app.mcp.main",
-        "--transport=stdio"
+        "mcp-remote",
+        "http://127.0.0.1:7727/ai/mcp"
       ]
     }
   }
 }
 ```
 
-> Note: You may need to put the full path to the `uv` executable in the command field. You can get this by running `which uv` on macOS/Linux or `where uv` on Windows.
+> Note: You may need to put the full path to the `npx` executable in the command field. You can get this by running `which npx` on macOS/Linux or `where npx` on Windows.
 
-Restart Claude Desktop. Ensure that the "Sparkth stdio" tools appear in the "Search and tools" menu. Then start a new chat and generate a course:
+Restart Claude Desktop. Ensure that the "Sparkth" tools appear in the "Search and tools" menu. Then start a new chat and generate a course:
 
 > Use Sparkth to generate a very short course (~1 hour) on the literary merits of Hamlet, by Shakespeare.
 

@@ -21,7 +21,7 @@ SparkthPlugin.__init__
 
 A `Tool` (`app/lib/mcp/hooks.py`) derives its name from the handler method, its
 description from the handler docstring, and its input schema from the signature.
-Consumers iterate the hooks: `app/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
+Consumers iterate the hooks: `app/mcp/server.py` registers `MCP_TOOLS` with the FastMCP
 server, the chat tool registry converts them to LangChain tools, and `app/main.py`
 mounts `ROUTES`.
 
@@ -142,6 +142,6 @@ Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => imp
 
 ## 11. MCP Tool Registration Pipeline
 
-**Files:** `app/mcp/main.py`, `app/mcp/server.py`
+**Files:** `app/mcp/server.py`
 
-`register_plugin_tools()` iterates all enabled plugins, validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. Transport is configurable: HTTP (default, port 7727) for network clients; stdio for local AI agent integrations.
+`register_plugin_tools()` (in `app/mcp/server.py`) iterates all enabled plugins, validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`app/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.
