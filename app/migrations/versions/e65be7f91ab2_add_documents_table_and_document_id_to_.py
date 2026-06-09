@@ -18,6 +18,48 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+drive_files = sa.table(
+    "drive_files",
+    sa.column("id", sa.Integer),
+    sa.column("user_id", sa.Integer),
+    sa.column("name", sa.String),
+    sa.column("mime_type", sa.String),
+    sa.column("rag_status", sa.String),
+    sa.column("rag_error", sa.String),
+    sa.column("is_deleted", sa.Boolean),
+    sa.column("deleted_at", sa.DateTime(timezone=True)),
+    sa.column("created_at", sa.DateTime(timezone=True)),
+    sa.column("updated_at", sa.DateTime(timezone=True)),
+    sa.column("document_id", sa.Integer),
+)
+
+documents = sa.table(
+    "documents",
+    sa.column("id", sa.Integer),
+    sa.column("user_id", sa.Integer),
+    sa.column("name", sa.String),
+    sa.column("mime_type", sa.String),
+    sa.column("status", sa.String),
+    sa.column("error", sa.String),
+    sa.column("is_deleted", sa.Boolean),
+    sa.column("deleted_at", sa.DateTime(timezone=True)),
+    sa.column("created_at", sa.DateTime(timezone=True)),
+    sa.column("updated_at", sa.DateTime(timezone=True)),
+)
+
+rag_drive_file_chunk_links = sa.table(
+    "rag_drive_file_chunk_links",
+    sa.column("drive_file_id", sa.Integer),
+    sa.column("chunk_id", sa.Integer),
+)
+
+rag_document_chunk_links = sa.table(
+    "rag_document_chunk_links",
+    sa.column("document_id", sa.Integer),
+    sa.column("chunk_id", sa.Integer),
+)
+
+
 def upgrade() -> None:
     """Upgrade schema."""
     # 1. Create documents table
@@ -41,20 +83,32 @@ def upgrade() -> None:
 
     # 2. Backfill: one Document row per DriveFile with a non-null rag_status.
     # Cast rag_status enum to text so it stores cleanly into documents.status (varchar).
-    op.execute(
-        """
-        INSERT INTO documents (user_id, name, mime_type, status, error, is_deleted,
-                               deleted_at, created_at, updated_at)
-        SELECT user_id, name, mime_type,
-               LOWER(rag_status::text),
-               rag_error,
-               is_deleted,
-               deleted_at,
-               created_at,
-               updated_at
-        FROM drive_files
-        WHERE rag_status IS NOT NULL
-        """
+    connection = op.get_bind()
+    connection.execute(
+        sa.insert(documents).from_select(
+            [
+                "user_id",
+                "name",
+                "mime_type",
+                "status",
+                "error",
+                "is_deleted",
+                "deleted_at",
+                "created_at",
+                "updated_at",
+            ],
+            sa.select(
+                drive_files.c.user_id,
+                drive_files.c.name,
+                drive_files.c.mime_type,
+                sa.func.lower(sa.cast(drive_files.c.rag_status, sa.String())),
+                drive_files.c.rag_error,
+                drive_files.c.is_deleted,
+                drive_files.c.deleted_at,
+                drive_files.c.created_at,
+                drive_files.c.updated_at,
+            ).where(drive_files.c.rag_status.is_not(None)),
+        )
     )
 
     # 3. Add document_id to drive_files, populate from backfill
@@ -70,24 +124,22 @@ def upgrade() -> None:
 
     # Populate document_id on drive_files by matching the backfill.
     # Uses subquery form for SQLite compatibility (tests run on SQLite).
-    op.execute(
-        """
-        UPDATE drive_files
-        SET document_id = (
-            SELECT d.id FROM documents d
-            WHERE d.user_id = drive_files.user_id
-              AND d.name = drive_files.name
-              AND d.created_at = drive_files.created_at
-            LIMIT 1
+    matching_document_id = (
+        sa.select(documents.c.id)
+        .where(
+            documents.c.user_id == drive_files.c.user_id,
+            documents.c.name == drive_files.c.name,
+            documents.c.created_at == drive_files.c.created_at,
         )
-        WHERE EXISTS (
-            SELECT 1 FROM documents d
-            WHERE d.user_id = drive_files.user_id
-              AND d.name = drive_files.name
-              AND d.created_at = drive_files.created_at
-        )
-        """
+        .limit(1)
+        .scalar_subquery()
     )
+    matching_document_exists = sa.exists().where(
+        documents.c.user_id == drive_files.c.user_id,
+        documents.c.name == drive_files.c.name,
+        documents.c.created_at == drive_files.c.created_at,
+    )
+    connection.execute(sa.update(drive_files).where(matching_document_exists).values(document_id=matching_document_id))
 
     # 4. Create new rag_document_chunk_links table (FK -> documents.id)
     op.create_table(
@@ -100,15 +152,17 @@ def upgrade() -> None:
     )
 
     # 5. Backfill rag_document_chunk_links from rag_drive_file_chunk_links
-    op.execute(
-        """
-        INSERT INTO rag_document_chunk_links (document_id, chunk_id)
-        SELECT df.document_id, old.chunk_id
-        FROM rag_drive_file_chunk_links old
-        JOIN drive_files df ON df.id = old.drive_file_id
-        WHERE df.document_id IS NOT NULL
-        ON CONFLICT DO NOTHING
-        """
+    connection.execute(
+        sa.insert(rag_document_chunk_links).from_select(
+            ["document_id", "chunk_id"],
+            sa.select(
+                drive_files.c.document_id,
+                rag_drive_file_chunk_links.c.chunk_id,
+            )
+            .join(rag_drive_file_chunk_links, drive_files.c.id == rag_drive_file_chunk_links.c.drive_file_id)
+            .where(drive_files.c.document_id.is_not(None))
+            .distinct(),
+        )
     )
 
 

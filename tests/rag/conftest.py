@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import app.models  # noqa: F401
 from app.models.user import User
 from app.testing import DATABASE_URL
 
