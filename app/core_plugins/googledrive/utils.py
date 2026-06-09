@@ -146,7 +146,7 @@ async def _ingest_drive_file(
         )
         return
 
-    result = await ingest_document(user_id, document_id, file_bytes, filename)
+    result = await ingest_document(filename, file_bytes, document_id, user_id)
     await update_document_status(session, document_id, DocumentStatus.READY)
     await session.commit()
     logger.info(

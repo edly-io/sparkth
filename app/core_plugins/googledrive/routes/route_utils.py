@@ -15,11 +15,11 @@ from app.core.documents.models import Document
 from app.core_plugins.googledrive.config import get_googledrive_settings
 
 
-async def batch_fetch_documents(session: AsyncSession, doc_ids: list[int]) -> dict[int, Document]:
+async def batch_fetch_documents(session: AsyncSession, document_ids: list[int]) -> dict[int, Document]:
     """Fetch Documents by ID. Returns mapping from document_id to Document."""
-    if not doc_ids:
+    if not document_ids:
         return {}
-    result = await session.exec(select(Document).where(col(Document.id).in_(doc_ids)))
+    result = await session.exec(select(Document).where(col(Document.id).in_(document_ids)))
     return {cast(int, d.id): d for d in result.all()}
 
 

@@ -62,8 +62,9 @@ class TestResolveBlocksUsesAgent:
         mock_retrieve.assert_awaited_once()
         await_args = mock_retrieve.await_args
         assert await_args is not None
-        assert await_args.args[0] == 1
+        assert isinstance(await_args.args[0], str)
         assert 1 in await_args.args[1]
+        assert await_args.args[2] == 1
         assert await_args.args[3] is not None
 
     @pytest.mark.asyncio

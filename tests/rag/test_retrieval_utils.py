@@ -7,7 +7,7 @@ import pytest
 from app.core.documents.enums import DocumentStatus
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.models import DocumentChunk
-from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_files_ready
+from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready
 from app.rag.types import SimilarityResult
 from app.rag.utils import resolve_source_name as _resolve_source_name
 
@@ -111,7 +111,7 @@ class TestValidateFilesReady:
         result_mock.all.return_value = docs
         session.exec.return_value = result_mock
 
-        await validate_files_ready(session, 1, [1, 2])
+        await validate_documents_ready(session, 1, [1, 2])
 
     async def test_raises_not_found_for_missing_id(self) -> None:
         session = _make_session()
@@ -120,7 +120,7 @@ class TestValidateFilesReady:
         session.exec.return_value = result_mock
 
         with pytest.raises(DocumentNotFoundError):
-            await validate_files_ready(session, 1, [99])
+            await validate_documents_ready(session, 1, [99])
 
     async def test_raises_not_ready_for_non_ready_doc(self) -> None:
         doc = _make_doc(1, 1, DocumentStatus.PROCESSING)
@@ -130,7 +130,7 @@ class TestValidateFilesReady:
         session.exec.return_value = result_mock
 
         with pytest.raises(RAGNotReadyError):
-            await validate_files_ready(session, 1, [1])
+            await validate_documents_ready(session, 1, [1])
 
 
 class TestFormatChunksAsContext:

@@ -62,8 +62,8 @@ async def list_files(
     total = (await session.exec(select(func.count()).select_from(base_query.subquery()))).one()
     page_files: Sequence[DriveFile] = (await session.exec(base_query.offset(skip).limit(limit))).all()
 
-    doc_ids = [f.document_id for f in page_files if f.document_id is not None]
-    docs = await batch_fetch_documents(session, doc_ids)
+    document_ids = [f.document_id for f in page_files if f.document_id is not None]
+    docs = await batch_fetch_documents(session, document_ids)
 
     return PaginatedResponse(
         items=[
@@ -153,8 +153,6 @@ async def upload_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
-        rag_status=None,
-        rag_error=None,
     )
 
 
@@ -251,8 +249,8 @@ async def get_folder_rag_status(
     )
     files = files_result.all()
 
-    folder_doc_ids = [f.document_id for f in files if f.document_id is not None]
-    folder_docs = await batch_fetch_documents(session, folder_doc_ids)
+    folder_document_ids = [f.document_id for f in files if f.document_id is not None]
+    folder_docs = await batch_fetch_documents(session, folder_document_ids)
 
     return FolderRagStatusResponse(
         folder_id=folder_id,

@@ -73,10 +73,6 @@ async def cleanup_deleted_documents() -> None:
         )
 
 
-# Keep old name as alias so any scheduled-job references don't break immediately.
-cleanup_deleted_files = cleanup_deleted_documents
-
-
 if __name__ == "__main__":
     configure_logging()
     asyncio.run(cleanup_deleted_documents())

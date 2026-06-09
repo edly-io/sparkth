@@ -190,7 +190,7 @@ async def _retrieve_rag_chunks(
     """
     document_ids = await to_document_ids(session, file_ids)
     try:
-        return await agentic_retrieve_context(user_id, document_ids, query_text, llm)
+        return await agentic_retrieve_context(query_text, document_ids, user_id, llm)
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

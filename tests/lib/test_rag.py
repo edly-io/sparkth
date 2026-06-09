@@ -34,7 +34,7 @@ class TestIngestDocument:
     @pytest.mark.asyncio
     async def test_unsupported_type_raises_before_extraction(self) -> None:
         with pytest.raises(UnsupportedFileTypeError):
-            await ingest_document(1, 10, b"x", "img.png")
+            await ingest_document("img.png", b"x", 10, 1)
 
     @pytest.mark.asyncio
     async def test_empty_chunks_returns_zero_counts(self) -> None:
@@ -45,7 +45,7 @@ class TestIngestDocument:
             patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
             patch("app.rag.ingestion.DocumentChunker", chunker),
         ):
-            result = await ingest_document(1, 10, b"x", "a.txt")
+            result = await ingest_document("a.txt", b"x", 10, 1)
         assert result.new_chunks == 0
         assert result.reused_chunks == 0
 
@@ -53,7 +53,7 @@ class TestIngestDocument:
     async def test_scanned_pdf_propagates(self) -> None:
         with patch("app.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")):
             with pytest.raises(ScannedPDFError):
-                await ingest_document(1, 10, b"x", "a.pdf")
+                await ingest_document("a.pdf", b"x", 10, 1)
 
     @pytest.mark.asyncio
     async def test_happy_path_returns_counts(self) -> None:
@@ -69,7 +69,7 @@ class TestIngestDocument:
             mock_session = AsyncMock()
             mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = await ingest_document(1, 10, b"x", "a.txt")
+            result = await ingest_document("a.txt", b"x", 10, 1)
         assert result.new_chunks == 1
         assert result.reused_chunks == 0
         mock_store.assert_awaited_once()
@@ -93,7 +93,7 @@ class TestRetrieveContextSurface:
 class TestRetrieveContext:
     @pytest.mark.asyncio
     async def test_empty_file_ids_returns_empty(self) -> None:
-        result = await agentic_retrieve_context(1, [], "q", MagicMock())
+        result = await agentic_retrieve_context("q", [], 1, MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
@@ -120,12 +120,12 @@ class TestRetrieveContext:
             formatted_text="",
         )
         with (
-            patch("app.rag.retrieval.validate_files_ready", new=AsyncMock()),
+            patch("app.rag.retrieval.validate_documents_ready", new=AsyncMock()),
             patch(
                 "app.rag.retrieval.get_context_via_agent_with_isolated_session", new=AsyncMock(return_value=mock_ctx)
             ) as mock_fn,
         ):
-            result = await agentic_retrieve_context(1, [10], "q", MagicMock())
+            result = await agentic_retrieve_context("q", [10], 1, MagicMock())
         assert len(result) == 1
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"

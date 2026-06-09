@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from app.core.documents.enums import DocumentStatus
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
@@ -10,6 +11,7 @@ from app.core_plugins.googledrive.utils import (
     _resolve_filename,
     process_folder_rag,
 )
+from app.lib.rag import ScannedPDFError, UnsupportedFileTypeError
 from app.models.drive import DriveFile, DriveFolder
 
 
@@ -44,11 +46,7 @@ def _make_drive_file(
     return f
 
 
-# ---------------------------------------------------------------------------
 # _resolve_filename
-# ---------------------------------------------------------------------------
-
-
 class TestResolveFilename:
     def test_regular_pdf(self) -> None:
         f = _make_drive_file(name="report.pdf", mime_type="application/pdf")
@@ -85,11 +83,7 @@ class TestResolveFilename:
         assert _resolve_filename(f) == "mystery.bin"
 
 
-# ---------------------------------------------------------------------------
 # _download_file
-# ---------------------------------------------------------------------------
-
-
 class TestDownloadFile:
     async def test_downloads_with_correct_params(self) -> None:
         drive_file = _make_drive_file(mime_type="application/pdf")
@@ -110,11 +104,7 @@ class TestDownloadFile:
         )
 
 
-# ---------------------------------------------------------------------------
 # _find_ready_duplicate_document_id
-# ---------------------------------------------------------------------------
-
-
 class TestFindReadyDuplicateDocumentId:
     async def test_returns_none_when_no_duplicate(self) -> None:
         session = _make_async_session()
@@ -135,11 +125,7 @@ class TestFindReadyDuplicateDocumentId:
         assert result == 99
 
 
-# ---------------------------------------------------------------------------
 # _process_single_file
-# ---------------------------------------------------------------------------
-
-
 class TestProcessSingleFile:
     async def test_registers_document_when_none(self) -> None:
         """If drive_file.document_id is None, create_document is called."""
@@ -167,8 +153,6 @@ class TestProcessSingleFile:
         assert drive_file.document_id == 42
 
     async def test_unsupported_file_marks_document_ready(self) -> None:
-        from app.lib.rag import UnsupportedFileTypeError
-
         drive_file = _make_drive_file(document_id=10)
         session = _make_async_session()
         with (
@@ -187,14 +171,11 @@ class TestProcessSingleFile:
             ),
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.READY
 
     async def test_scanned_pdf_marks_document_failed(self) -> None:
-        from app.lib.rag import ScannedPDFError
-
         drive_file = _make_drive_file(document_id=10)
         session = _make_async_session()
         with (
@@ -213,7 +194,6 @@ class TestProcessSingleFile:
             ),
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.FAILED
@@ -238,7 +218,6 @@ class TestProcessSingleFile:
         ):
             await _process_single_file(drive_file, 1, "tok", session)
         mock_ingest.assert_awaited_once()
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.READY
@@ -271,7 +250,6 @@ class TestProcessSingleFile:
         ):
             await _process_single_file(drive_file, 1, "tok", session)
         mock_copy.assert_awaited_once_with(session, 99, 10)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.READY
@@ -290,7 +268,6 @@ class TestProcessSingleFile:
             ),
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.FAILED
@@ -309,7 +286,6 @@ class TestProcessSingleFile:
             ),
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.FAILED
@@ -337,7 +313,7 @@ class TestProcessSingleFile:
             ) as mock_ingest,
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        assert mock_ingest.call_args.args[3] == "My Doc.pdf"
+        assert mock_ingest.call_args.args[0] == "My Doc.pdf"
 
     async def test_size_guard_drive_reported_marks_document_failed(self) -> None:
         drive_file = _make_drive_file(document_id=10)
@@ -351,7 +327,6 @@ class TestProcessSingleFile:
             patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock()) as mock_dl,
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.FAILED
@@ -374,7 +349,6 @@ class TestProcessSingleFile:
             ),
         ):
             await _process_single_file(drive_file, 1, "tok", session)
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.FAILED
@@ -397,17 +371,12 @@ class TestProcessSingleFile:
         ):
             await _process_single_file(drive_file, 1, "tok", session)
         session.rollback.assert_awaited_once()
-        from app.core.documents.enums import DocumentStatus
 
         last_call = mock_update.call_args_list[-1]
         assert last_call.args[2] == DocumentStatus.FAILED
 
 
-# ---------------------------------------------------------------------------
 # process_folder_rag
-# ---------------------------------------------------------------------------
-
-
 class TestProcessFolderRag:
     @patch("app.core_plugins.googledrive.utils.session_scope")
     async def test_skips_when_no_files(self, mock_session_cls: MagicMock) -> None:

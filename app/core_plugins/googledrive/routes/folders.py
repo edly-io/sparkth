@@ -202,8 +202,8 @@ async def get_folder(
     )
     folder_files = files_result.all()
 
-    folder_doc_ids = [f.document_id for f in folder_files if f.document_id is not None]
-    folder_docs = await batch_fetch_documents(session, folder_doc_ids)
+    folder_document_ids = [f.document_id for f in folder_files if f.document_id is not None]
+    folder_docs = await batch_fetch_documents(session, folder_document_ids)
 
     files = [
         DriveFileResponse(

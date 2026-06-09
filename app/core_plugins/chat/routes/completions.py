@@ -425,7 +425,7 @@ async def stream_chat_response(
                 raise AssertionError("llm must be provided when RAG resolution is active")
             try:
                 document_ids = await to_document_ids(bg_session, file_ids)
-                all_chunks = await agentic_retrieve_context(user_id, document_ids, query_text, llm)
+                all_chunks = await agentic_retrieve_context(query_text, document_ids, user_id, llm)
             except DocumentNotFoundError as exc:
                 logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
                 error_text = "The attached file could not be found or is no longer accessible."

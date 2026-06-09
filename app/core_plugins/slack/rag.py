@@ -134,10 +134,6 @@ async def answer_question(
     ResponseType. config.fallback_message is reserved ONLY for the case where the
     agent ran successfully but found no relevant chunks.
 
-    Note: unlike the previous fan-out implementation, a single per-file agent failure
-    now fails the entire answer with RETRIEVAL_ERROR_MESSAGE (strict mode via
-    agentic_retrieve_context).
-
     Args:
         session: Async SQLModel session.
         user_id: Bot owner (RLS scope).
@@ -167,7 +163,7 @@ async def answer_question(
         return NO_FILES_RESOLVED_MESSAGE, ResponseType.NO_FILES_RESOLVED
 
     try:
-        chunks = await agentic_retrieve_context(user_id, file_ids, question, agent_llm)
+        chunks = await agentic_retrieve_context(question, file_ids, user_id, agent_llm)
     except DocumentNotFoundError as exc:
         logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
         return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND

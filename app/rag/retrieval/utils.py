@@ -67,7 +67,7 @@ def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) 
     return "\n".join(lines)
 
 
-async def validate_files_ready(session: AsyncSession, user_id: int, document_ids: list[int]) -> None:
+async def validate_documents_ready(session: AsyncSession, user_id: int, document_ids: list[int]) -> None:
     """Verify every document is owned by user_id and in READY state.
 
     Raises:

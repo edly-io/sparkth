@@ -11,10 +11,10 @@ from app.rag.types import IngestionResult
 
 
 async def ingest_document(
-    user_id: int,
-    document_id: int,
-    file_bytes: bytes,
     filename: str,
+    file_bytes: bytes,
+    document_id: int,
+    user_id: int,
 ) -> IngestionResult:
     """Ingest a document's bytes into the RAG store.
 

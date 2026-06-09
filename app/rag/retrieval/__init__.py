@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from app.lib.db import session_scope
 from app.rag.retrieval.agent import get_context_via_agent
-from app.rag.retrieval.utils import validate_files_ready
+from app.rag.retrieval.utils import validate_documents_ready
 from app.rag.types import RAGContext, RetrievedChunk
 
 if TYPE_CHECKING:
@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 
 
 async def agentic_retrieve_context(
-    user_id: int,
-    document_ids: list[int],
     query: str,
+    document_ids: list[int],
+    user_id: int,
     llm: BaseChatModel,
 ) -> list[RetrievedChunk]:
     """Retrieve relevant document chunks for a query across the given documents.
@@ -44,7 +44,7 @@ async def agentic_retrieve_context(
         return []
 
     async with session_scope() as session:
-        await validate_files_ready(session, user_id, document_ids)
+        await validate_documents_ready(session, user_id, document_ids)
 
     tasks = [get_context_via_agent_with_isolated_session(user_id, did, query, llm) for did in document_ids]
     contexts = await asyncio.gather(*tasks)
