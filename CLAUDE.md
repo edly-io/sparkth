@@ -80,8 +80,7 @@ make services.clean  # Stop services + wipe data volumes
 
 # Local backend (requires uv) — connects to the backing services above
 make backend.install.dev    # Install dev dependencies
-make backend.up.dev         # FastAPI on http://0.0.0.0:7727 (hot reload)
-make mcp                    # MCP server (HTTP mode)
+make backend.up.dev         # FastAPI on http://0.0.0.0:7727 (MCP server mounted at /ai/mcp; hot reload)
 make test                   # Run all tests (frontend + backend)
 make test.backend           # Run all backend tests
 make test.backend.pytest    # Run unit tests with pytest

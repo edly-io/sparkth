@@ -108,10 +108,6 @@ backend.up.dev: ## Run FastAPI server locally
 lock: ## Update uv lockfile
 	uv lock
 
-.PHONY: mcp
-mcp: ## Run MCP server locally (HTTP mode)
-	uv run python -m app.mcp.main --transport http
-
 .PHONY: cli
 cli: ## Run CLI tool (make cli -- users --help)
 	uv run python -m app.cli.main $(ARGS)
