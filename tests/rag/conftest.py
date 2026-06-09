@@ -15,6 +15,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.models  # noqa: F401
+from app.models.user import User
 from app.testing import DATABASE_URL
 
 
@@ -35,9 +36,6 @@ async def rag_engine() -> AsyncGenerator[AsyncEngine, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-
-    from app.models.base import TimestampedModel  # noqa: F401
-    from app.models.user import User  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(lambda sync_conn: User.metadata.create_all(sync_conn, tables=[User.__table__]))  # type: ignore[attr-defined]

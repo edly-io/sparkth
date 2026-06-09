@@ -392,11 +392,13 @@ class TestListFiles:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_folder.id is not None
+        folder_id = test_folder.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/files")
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/files")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -440,11 +442,13 @@ class TestGetFile:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_file.id is not None
+        file_id = test_file.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
+        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -706,11 +710,13 @@ class TestGetFileRagStatus:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_file.id is not None
+        file_id = test_file.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["rag_status"] == "processing"
@@ -728,11 +734,13 @@ class TestGetFileRagStatus:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_file.id is not None
+        file_id = test_file.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["rag_status"] == "ready"
@@ -750,11 +758,13 @@ class TestGetFileRagStatus:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_file.id is not None
+        file_id = test_file.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["rag_status"] == "failed"
@@ -801,9 +811,11 @@ class TestGetFolderRagStatus:
         await session.flush()
         await session.refresh(doc1)
         await session.refresh(doc2)
+        assert test_folder.id is not None
+        folder_id = test_folder.id
         test_file.document_id = doc1.id
         second_file = DriveFile(
-            folder_id=cast(int, test_folder.id),
+            folder_id=folder_id,
             user_id=cast(int, test_user.id),
             drive_file_id="drive_file_second",
             name="slides.pdf",
@@ -816,11 +828,11 @@ class TestGetFolderRagStatus:
         session.add(second_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["folder_id"] == test_folder.id
+        assert data["folder_id"] == folder_id
         statuses = {f["name"]: f["rag_status"] for f in data["files"]}
         assert statuses["test_document.pdf"] == "ready"
         assert statuses["slides.pdf"] == "processing"
@@ -863,9 +875,11 @@ class TestGetFolderRagStatus:
         await session.flush()
         await session.refresh(doc1)
         await session.refresh(doc2)
+        assert test_folder.id is not None
+        folder_id = test_folder.id
         test_file.document_id = doc1.id
         deleted_file = DriveFile(
-            folder_id=cast(int, test_folder.id),
+            folder_id=folder_id,
             user_id=cast(int, test_user.id),
             drive_file_id="drive_file_deleted",
             name="deleted_doc.pdf",
@@ -879,7 +893,7 @@ class TestGetFolderRagStatus:
         session.add(deleted_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -907,11 +921,13 @@ class TestRagErrorInResponse:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_folder.id is not None
+        folder_id = test_folder.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -932,11 +948,13 @@ class TestRagErrorInResponse:
         session.add(doc)
         await session.flush()
         await session.refresh(doc)
+        assert test_folder.id is not None
+        folder_id = test_folder.id
         test_file.document_id = doc.id
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

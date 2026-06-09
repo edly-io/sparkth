@@ -6,6 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.documents.enums import DocumentStatus
+from app.core.documents.models import Document
+from app.models.user import User
 from app.rag.models import DocumentChunk, DocumentChunkLink
 from app.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks
 from app.rag.types import Chunk, ChunkInput, ChunkMetadata
@@ -167,10 +170,6 @@ class TestStoreAndLinkChunks:
     @pytest.mark.asyncio
     async def test_deleted_file_chunks_not_reused(self, session: AsyncSession) -> None:
         """Chunks linked only to deleted Documents must never be reused."""
-        from app.core.documents.enums import DocumentStatus
-        from app.core.documents.models import Document
-        from app.models.user import User
-
         async_session: AsyncSession = session
 
         user = User(name="ReuseTest", username="reusetest", email="reuse@test.com", hashed_password="x")

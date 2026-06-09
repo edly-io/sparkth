@@ -23,6 +23,7 @@ os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0
 
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -33,6 +34,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.core.cache import get_cache_service
 from app.lib.db import get_async_session
 from app.main import app
 from app.models.plugin import Plugin, UserPlugin
@@ -200,7 +202,6 @@ def reset_cache_service() -> Generator[None, None, None]:
     every test so the connection is always made in the current loop.
     """
     yield
-    from app.core.cache import get_cache_service
 
     get_cache_service.cache_clear()
 
@@ -212,7 +213,5 @@ def stub_send_verification_email() -> Generator[Any, None, None]:
     Tests that need to assert on send arguments use their own `with patch(...)`
     inside the test body — the inner patch supersedes this autouse stub.
     """
-    from unittest.mock import AsyncMock, patch
-
     with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock) as stub:
         yield stub

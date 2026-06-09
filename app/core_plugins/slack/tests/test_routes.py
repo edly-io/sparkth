@@ -626,7 +626,7 @@ class TestDispatchEvent:
         mock_session_cls, mock_plugin_svc = self._base_patches(None, slack_client)
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -648,7 +648,7 @@ class TestDispatchEvent:
         mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -670,7 +670,7 @@ class TestDispatchEvent:
         mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -692,7 +692,7 @@ class TestDispatchEvent:
         mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -723,7 +723,7 @@ class TestDispatchEvent:
         mock_llm_provider.create_llm = MagicMock(return_value=MagicMock())
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -762,7 +762,7 @@ class TestDispatchEvent:
         mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -796,7 +796,7 @@ class TestDispatchEvent:
         mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
-            patch("app.services.plugin.PluginService", return_value=mock_plugin_svc),
+            patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
             patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
@@ -888,7 +888,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
     mock_slack_client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
 
     with (
-        patch("app.services.plugin.PluginService") as mock_plugin_svc,
+        patch("app.core_plugins.slack.routes.PluginService") as mock_plugin_svc,
         patch("app.core_plugins.slack.routes.answer_question", new_callable=AsyncMock) as mock_aq,
         patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
         patch("app.core_plugins.slack.routes.SlackClient", return_value=mock_slack_client),
@@ -966,7 +966,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
     mock_slack_client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
 
     with (
-        patch("app.services.plugin.PluginService") as mock_plugin_svc,
+        patch("app.core_plugins.slack.routes.PluginService") as mock_plugin_svc,
         patch("app.core_plugins.slack.routes.answer_question", new_callable=AsyncMock) as mock_aq,
         patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
         patch("app.core_plugins.slack.routes.SlackClient", return_value=mock_slack_client),
@@ -1038,7 +1038,7 @@ class TestDispatchEventLogging:
 
         with (
             patch(
-                "app.services.plugin.PluginService",
+                "app.core_plugins.slack.routes.PluginService",
                 return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={})),
             ),
             patch(
@@ -1076,7 +1076,7 @@ class TestDispatchEventLogging:
 
         with (
             patch(
-                "app.services.plugin.PluginService",
+                "app.core_plugins.slack.routes.PluginService",
                 return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
             ),
             patch(
@@ -1112,7 +1112,7 @@ class TestDispatchEventLogging:
 
         with (
             patch(
-                "app.services.plugin.PluginService",
+                "app.core_plugins.slack.routes.PluginService",
                 return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
             ),
             patch(
@@ -1151,7 +1151,7 @@ class TestDispatchEventLogging:
 
         with (
             patch(
-                "app.services.plugin.PluginService",
+                "app.core_plugins.slack.routes.PluginService",
                 return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
             ),
             patch(
@@ -1187,7 +1187,7 @@ class TestDispatchEventLogging:
 
         with (
             patch(
-                "app.services.plugin.PluginService",
+                "app.core_plugins.slack.routes.PluginService",
                 return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={})),
             ),
             patch(

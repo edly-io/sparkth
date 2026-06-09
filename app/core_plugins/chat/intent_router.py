@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
 from app.lib.log import get_logger
 from app.models.drive import DriveFile
+from app.rag.mcp.tools import get_document_structure
 
 logger = get_logger(__name__)
 
@@ -56,9 +57,6 @@ class RAGIntentRouter:
         # Build attachment summary with section metadata
         attachment_summary = ""
         if attached_files:
-            # Lazy import to avoid initializing DB at module level
-            from app.rag.mcp.tools import get_document_structure
-
             files_with_documents = [f for f in attached_files if f.document_id is not None]
             for file in attached_files:
                 if file.document_id is None:
