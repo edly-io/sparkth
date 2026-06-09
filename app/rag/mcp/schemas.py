@@ -11,17 +11,14 @@ class FileInfo(BaseModel):
     id: int
     name: str
     mime_type: str | None
-    size: int | None
-    modified_time: str | None
     rag_status: str
 
 
 class FileMetadata(BaseModel):
     id: int
     name: str
+    mime_type: str | None
     rag_status: str
-    size: int | None
-    modified_time: str | None
 
 
 class SectionKey(BaseModel):

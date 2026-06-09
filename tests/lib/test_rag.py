@@ -102,7 +102,7 @@ class TestRetrieveContext:
         from app.rag.types import RAGContext, SimilarityResult
 
         mock_ctx = RAGContext(
-            file_db_id=10,
+            document_id=10,
             source_name="a.pdf",
             chunks=[
                 SimilarityResult(

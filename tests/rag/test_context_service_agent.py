@@ -49,7 +49,7 @@ class TestGetContextViaAgent:
             result = await get_context_via_agent(
                 session=mock_session,
                 user_id=1,
-                file_db_id=1,
+                document_id=1,
                 query="test",
                 llm=MagicMock(),
             )
@@ -84,7 +84,7 @@ class TestGetContextViaAgent:
             result = await get_context_via_agent(
                 session=mock_session,
                 user_id=1,
-                file_db_id=1,
+                document_id=1,
                 query="test",
                 llm=MagicMock(),
             )
@@ -105,7 +105,7 @@ class TestGetContextViaAgent:
                 await get_context_via_agent(
                     session=mock_session,
                     user_id=1,
-                    file_db_id=999,
+                    document_id=999,
                     query="test",
                     llm=MagicMock(),
                 )
@@ -122,7 +122,7 @@ class TestGetContextViaAgent:
                 await get_context_via_agent(
                     session=mock_session,
                     user_id=1,
-                    file_db_id=1,
+                    document_id=1,
                     query="test",
                     llm=MagicMock(),
                 )
@@ -145,7 +145,7 @@ class TestGetContextViaAgent:
                 await get_context_via_agent(
                     session=mock_session,
                     user_id=1,
-                    file_db_id=1,
+                    document_id=1,
                     query="test",
                     llm=MagicMock(),
                 )
@@ -175,7 +175,7 @@ class TestGetContextViaAgent:
                 await get_context_via_agent(
                     session=mock_session,
                     user_id=1,
-                    file_db_id=1,
+                    document_id=1,
                     query="test",
                     llm=MagicMock(),
                 )
@@ -204,7 +204,7 @@ class TestGetContextViaAgent:
             await get_context_via_agent(
                 session=mock_session,
                 user_id=1,
-                file_db_id=1,
+                document_id=1,
                 query="",
                 llm=MagicMock(),
             )

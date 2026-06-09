@@ -19,7 +19,7 @@ def _ctx(source: str, *contents: str) -> RAGContext:
         )
         for c in contents
     ]
-    return RAGContext(file_db_id=0, source_name=source, chunks=chunks, formatted_text="")
+    return RAGContext(document_id=0, source_name=source, chunks=chunks, formatted_text="")
 
 
 class TestRetrieveChunks:

@@ -59,26 +59,35 @@ class RAGIntentRouter:
             # Lazy import to avoid initializing DB at module level
             from app.rag.mcp.tools import get_document_structure
 
+            files_with_documents = [f for f in attached_files if f.document_id is not None]
+            for file in attached_files:
+                if file.document_id is None:
+                    logger.warning("Skipping attached file %d with no linked document_id", cast(int, file.id))
+
             results = await asyncio.gather(
-                *[get_document_structure(user_id=user_id, file_id=cast(int, f.id)) for f in attached_files],
+                *[
+                    get_document_structure(user_id=user_id, document_id=cast(int, f.document_id))
+                    for f in files_with_documents
+                ],
                 return_exceptions=True,
             )
 
-            attachment_summary = "The user has attached the following files:\n"
-            for file, sections_or_exc in zip(attached_files, results):
-                attachment_summary += f"\n- {file.name}:\n"
-                if isinstance(sections_or_exc, BaseException):
-                    logger.warning(
-                        "Failed to get document structure for file %d: %s",
-                        file.id,
-                        sections_or_exc,
-                    )
-                    continue
-                for section in sections_or_exc:
-                    path_parts = [section.chapter, section.section, section.subsection]
-                    path = " / ".join(p for p in path_parts if p is not None)
-                    if path:
-                        attachment_summary += f"  - {path}\n"
+            if files_with_documents:
+                attachment_summary = "The user has attached the following files:\n"
+                for file, sections_or_exc in zip(files_with_documents, results):
+                    attachment_summary += f"\n- {file.name}:\n"
+                    if isinstance(sections_or_exc, BaseException):
+                        logger.warning(
+                            "Failed to get document structure for document %d: %s",
+                            cast(int, file.document_id),
+                            sections_or_exc,
+                        )
+                        continue
+                    for section in sections_or_exc:
+                        path_parts = [section.chapter, section.section, section.subsection]
+                        path = " / ".join(p for p in path_parts if p is not None)
+                        if path:
+                            attachment_summary += f"  - {path}\n"
 
         # Build messages for the router chain
         human_text = query

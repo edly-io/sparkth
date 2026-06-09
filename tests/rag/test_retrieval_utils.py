@@ -196,5 +196,5 @@ class TestRAGContextType:
         """RAGContext can be constructed with just the required fields."""
         from app.rag.types import RAGContext
 
-        ctx = RAGContext(file_db_id=1, source_name="doc.pdf", chunks=[], formatted_text="")
-        assert ctx.file_db_id == 1
+        ctx = RAGContext(document_id=1, source_name="doc.pdf", chunks=[], formatted_text="")
+        assert ctx.document_id == 1
