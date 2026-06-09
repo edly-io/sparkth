@@ -1,7 +1,7 @@
 import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Type, get_type_hints
+from typing import Any, get_type_hints
 
 from app.lib.hooks import PluginCollectionHook
 from app.lib.log import get_logger
@@ -69,7 +69,7 @@ def generate_input_schema(func: Callable[..., Any]) -> dict[str, Any]:
         return {"type": "object", "properties": {}}
 
 
-def type_to_json_schema(py_type: Type[Any]) -> dict[str, Any]:
+def type_to_json_schema(py_type: type[Any]) -> dict[str, Any]:
     """Convert a Python type to a JSON Schema type definition."""
     # Check if it's a Pydantic BaseModel
     try:
@@ -89,7 +89,7 @@ def type_to_json_schema(py_type: Type[Any]) -> dict[str, Any]:
     except (ImportError, TypeError):
         pass
 
-    type_map: dict[Type[Any], dict[str, str]] = {
+    type_map: dict[type[Any], dict[str, str]] = {
         int: {"type": "integer"},
         float: {"type": "number"},
         str: {"type": "string"},
