@@ -65,7 +65,7 @@ def generate_input_schema(func: Callable[..., Any]) -> dict[str, Any]:
         return schema
 
     except (TypeError, NameError, AttributeError) as e:
-        logger.warning(f"Failed to generate input schema for {func.__name__}: {e}. Using empty schema.")
+        logger.warning("Failed to generate input schema for %s: %s. Using empty schema.", func.__name__, e)
         return {"type": "object", "properties": {}}
 
 
