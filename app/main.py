@@ -11,8 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.lib.log import configure_logging, get_logger
-from app.mcp.main import register_plugin_tools
-from app.mcp.server import mcp
+from app.mcp.server import mcp, register_plugin_tools
 from app.plugins import get_plugin_loader
 from app.plugins.middleware import PluginAccessMiddleware
 from app.services.plugin import get_plugin_service

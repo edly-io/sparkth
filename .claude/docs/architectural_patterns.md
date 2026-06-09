@@ -134,6 +134,6 @@ Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => imp
 
 ## 11. MCP Tool Registration Pipeline
 
-**Files:** `app/mcp/main.py`, `app/mcp/server.py`
+**Files:** `app/mcp/server.py`
 
-`register_plugin_tools()` iterates all enabled plugins, validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. Transport is configurable: HTTP (default, port 7727) for network clients; stdio for local AI agent integrations.
+`register_plugin_tools()` (in `app/mcp/server.py`) iterates all enabled plugins, validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`app/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.
