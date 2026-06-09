@@ -21,7 +21,7 @@ from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
 from app.lib.log import get_logger
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -194,7 +194,7 @@ async def _retrieve_rag_chunks(
     document_ids = await to_document_ids(session, file_ids)
     try:
         return await agentic_retrieve_context(user_id, document_ids, query_text, llm)
-    except DriveFileNotFoundError as exc:
+    except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="One or more files not found or not accessible.",

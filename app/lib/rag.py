@@ -6,7 +6,6 @@ outside ``app/rag/`` should import from ``app.rag.*`` directly (see issue #398).
 
 from app.lib.db import session_scope
 from app.rag.exceptions import DocumentNotFoundError as DocumentNotFoundError
-from app.rag.exceptions import DriveFileNotFoundError as DriveFileNotFoundError  # backward-compat alias
 from app.rag.exceptions import RAGNotReadyError as RAGNotReadyError
 from app.rag.exceptions import RAGRetrievalError as RAGRetrievalError
 from app.rag.exceptions import ScannedPDFError as ScannedPDFError

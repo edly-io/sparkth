@@ -40,7 +40,7 @@ from app.core_plugins.chat.tools import get_tool_registry
 from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     agentic_retrieve_context,
@@ -426,7 +426,7 @@ async def stream_chat_response(
             try:
                 document_ids = await to_document_ids(bg_session, file_ids)
                 all_chunks = await agentic_retrieve_context(user_id, document_ids, query_text, llm)
-            except DriveFileNotFoundError as exc:
+            except DocumentNotFoundError as exc:
                 logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
                 error_text = "The attached file could not be found or is no longer accessible."
                 await service.add_message(

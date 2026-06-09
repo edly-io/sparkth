@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -198,7 +198,7 @@ class TestResolveDriveFileBlocks:
             patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
         ):
             mock_to_doc_ids.return_value = [999]
-            mock_retrieve.side_effect = DriveFileNotFoundError("not found")
+            mock_retrieve.side_effect = DocumentNotFoundError("not found")
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_drive_file_blocks(
                     messages=messages,

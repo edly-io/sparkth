@@ -87,7 +87,7 @@ class TestRetrieveContextSurface:
         assert rc.content == "x"
 
     def test_exposes_retrieval_exceptions(self) -> None:
-        assert issubclass(rag_api.DriveFileNotFoundError, Exception)
+        assert issubclass(rag_api.DocumentNotFoundError, Exception)
         assert issubclass(rag_api.RAGNotReadyError, Exception)
         assert issubclass(rag_api.RAGRetrievalError, Exception)
 

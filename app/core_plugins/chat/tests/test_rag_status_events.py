@@ -14,7 +14,7 @@ from app.core_plugins.chat.routes.completions import stream_chat_response
 from app.core_plugins.chat.routes.helpers import parse_metadata_list
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -401,7 +401,7 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
         patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
         mock_to_doc_ids.return_value = [1]
-        mock_retrieve.side_effect = DriveFileNotFoundError()
+        mock_retrieve.side_effect = DocumentNotFoundError()
         events = await _collect_events(
             stream_chat_response(
                 provider=_make_provider(),
@@ -523,7 +523,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
 
 @pytest.mark.asyncio
 async def test_drive_file_not_found_persists_error_to_db() -> None:
-    """DriveFileNotFoundError must write an is_error=True message to DB."""
+    """DocumentNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
     with (
@@ -533,7 +533,7 @@ async def test_drive_file_not_found_persists_error_to_db() -> None:
         patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
         mock_to_doc_ids.return_value = [1]
-        mock_retrieve.side_effect = DriveFileNotFoundError()
+        mock_retrieve.side_effect = DocumentNotFoundError()
         gen = stream_chat_response(
             provider=_make_provider(),
             messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],

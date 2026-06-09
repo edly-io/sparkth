@@ -145,7 +145,3 @@ class TestCleanupDeletedDocuments:
 
         assert "rag_document_chunk_links" in compiled_links
         assert "rag_document_chunks" in compiled_chunks
-
-
-# Keep backward-compat import alias for any existing test references
-TestCleanupDeletedFiles = TestCleanupDeletedDocuments

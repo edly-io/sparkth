@@ -20,7 +20,7 @@ from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
 from app.lib.log import get_logger
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -168,7 +168,7 @@ async def answer_question(
 
     try:
         chunks = await agentic_retrieve_context(user_id, file_ids, question, agent_llm)
-    except DriveFileNotFoundError as exc:
+    except DocumentNotFoundError as exc:
         logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
         return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND
     except RAGNotReadyError as exc:

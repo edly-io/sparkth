@@ -9,10 +9,6 @@ class DocumentNotFoundError(RAGError):
     """Raised when a document does not exist or is not accessible to the user."""
 
 
-# Backward-compatibility alias — remove once all callsites use DocumentNotFoundError.
-DriveFileNotFoundError = DocumentNotFoundError
-
-
 class RAGNotReadyError(RAGError):
     """Raised when the document exists but status is not READY."""
 

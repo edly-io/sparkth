@@ -18,7 +18,7 @@ from app.core_plugins.slack.rag import (
     answer_question,
 )
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -129,7 +129,7 @@ async def test_answer_question_returns_file_not_found_on_drive_file_not_found_er
         patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
-        mock_retrieve.side_effect = DriveFileNotFoundError("missing")
+        mock_retrieve.side_effect = DocumentNotFoundError("missing")
         answer, response_type = await answer_question(
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
