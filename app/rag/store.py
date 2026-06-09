@@ -13,7 +13,7 @@ from sqlalchemy.engine import CursorResult
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.models import Document
+from app.lib.documents import Document
 from app.lib.log import get_logger
 from app.memory_profiler import profile_memory
 from app.rag.config import get_rag_settings

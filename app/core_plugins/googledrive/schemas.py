@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-from app.core.documents.enums import DocumentStatus
+from app.lib.documents import DocumentStatus
 
 T = TypeVar("T")
 

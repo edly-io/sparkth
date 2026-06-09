@@ -11,13 +11,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
-from app.core.documents.service import create_document, update_document_status
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.lib.db import session_scope
+from app.lib.documents import Document, DocumentStatus, create_document, update_document_status
 from app.lib.log import get_logger
 from app.lib.rag import (
     ScannedPDFError,

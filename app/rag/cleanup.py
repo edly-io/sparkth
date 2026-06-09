@@ -5,8 +5,8 @@ import asyncio
 from sqlalchemy import delete
 from sqlmodel import col, select
 
-from app.core.documents.models import Document
 from app.lib.db import session_scope
+from app.lib.documents import Document
 from app.lib.log import configure_logging, get_logger
 from app.rag.models import DocumentChunk, DocumentChunkLink
 

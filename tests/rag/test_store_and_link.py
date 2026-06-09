@@ -6,8 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
+from app.lib.documents import Document, DocumentStatus
 from app.models.user import User
 from app.rag.models import DocumentChunk, DocumentChunkLink
 from app.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks

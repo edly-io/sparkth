@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.core.documents.enums import DocumentStatus
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.core_plugins.googledrive.utils import (
     _download_file,
@@ -11,6 +10,7 @@ from app.core_plugins.googledrive.utils import (
     _resolve_filename,
     process_folder_rag,
 )
+from app.lib.documents import DocumentStatus
 from app.lib.rag import ScannedPDFError, UnsupportedFileTypeError
 from app.models.drive import DriveFile, DriveFolder
 

@@ -7,8 +7,6 @@ from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
 from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
@@ -19,6 +17,7 @@ from app.core_plugins.slack.constants import (
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
 from app.core_plugins.slack.utils import resolve_source_name
+from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,

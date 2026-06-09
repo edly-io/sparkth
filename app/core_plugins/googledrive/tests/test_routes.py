@@ -11,8 +11,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
+from app.lib.documents import Document, DocumentStatus
 from app.models.drive import DriveFile, DriveFolder, DriveOAuthToken
 from app.models.user import User
 

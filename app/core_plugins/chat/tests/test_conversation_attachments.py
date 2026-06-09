@@ -8,10 +8,9 @@ from httpx import AsyncClient
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
 from app.core_plugins.chat.models import Conversation, ConversationAttachment
 from app.core_plugins.chat.service import ChatService
+from app.lib.documents import Document, DocumentStatus
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 

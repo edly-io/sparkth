@@ -11,8 +11,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
-from app.core.documents.models import Document
 from app.core_plugins.googledrive.config import get_googledrive_settings
+from app.lib.documents import Document
 
 
 async def batch_fetch_documents(session: AsyncSession, document_ids: list[int]) -> dict[int, Document]:

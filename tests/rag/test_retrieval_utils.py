@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.documents.enums import DocumentStatus
+from app.lib.documents import DocumentStatus
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.models import DocumentChunk
 from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready

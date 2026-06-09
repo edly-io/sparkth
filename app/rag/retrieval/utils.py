@@ -5,8 +5,7 @@ from __future__ import annotations
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
+from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.types import SimilarityResult

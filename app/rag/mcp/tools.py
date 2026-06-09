@@ -7,9 +7,8 @@ from typing import cast
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
 from app.lib.db import session_scope
+from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 from app.rag.mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
 from app.rag.models import DocumentChunk, DocumentChunkLink

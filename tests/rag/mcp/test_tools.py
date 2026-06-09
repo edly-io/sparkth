@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
+from app.lib.documents import DocumentStatus
 from app.rag.mcp.tools import (
     get_chunk_stats,
     get_document_structure,

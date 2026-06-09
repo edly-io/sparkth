@@ -6,9 +6,8 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
 from app.core_plugins.googledrive.utils import _process_single_file
+from app.lib.documents import Document, DocumentStatus
 from app.models.drive import DriveFile
 
 
