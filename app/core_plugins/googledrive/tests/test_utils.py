@@ -142,14 +142,14 @@ class TestFindReadyDuplicateDocumentId:
 
 class TestProcessSingleFile:
     async def test_registers_document_when_none(self) -> None:
-        """If drive_file.document_id is None, register_document is called."""
+        """If drive_file.document_id is None, create_document is called."""
         drive_file = _make_drive_file(document_id=None)
         session = _make_async_session()
         mock_doc = MagicMock()
         mock_doc.id = 42
         with (
             patch(
-                "app.core_plugins.googledrive.utils.register_document",
+                "app.core_plugins.googledrive.utils.create_document",
                 new=AsyncMock(return_value=mock_doc),
             ),
             patch("app.core_plugins.googledrive.utils.update_document_status", new=AsyncMock()),

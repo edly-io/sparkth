@@ -12,7 +12,7 @@ from app.lib.log import get_logger
 logger = get_logger(__name__)
 
 
-async def register_document(
+async def create_document(
     session: AsyncSession,
     user_id: int,
     name: str,

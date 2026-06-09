@@ -34,7 +34,7 @@ class TestProcessFileMemory:
                 "app.core_plugins.googledrive.utils._find_ready_duplicate_document_id",
                 new=AsyncMock(return_value=None),
             ),
-            patch("app.core_plugins.googledrive.utils.register_document", new=AsyncMock(return_value=MagicMock(id=1))),
+            patch("app.core_plugins.googledrive.utils.create_document", new=AsyncMock(return_value=MagicMock(id=1))),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
                 new=AsyncMock(return_value=MagicMock(new_chunks=0, reused_chunks=0)),

@@ -5,8 +5,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.documents.enums import DocumentStatus
 from app.core.documents.models import Document
 from app.core.documents.service import (
+    create_document,
     get_document,
-    register_document,
     soft_delete_document,
     update_document_status,
 )
@@ -41,7 +41,7 @@ class TestDocumentModel:
 
 class TestRegisterDocument:
     async def test_creates_with_queued_status(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="report.pdf", mime_type="application/pdf")
+        doc = await create_document(session, user_id=1, name="report.pdf", mime_type="application/pdf")
         await session.commit()
 
         assert doc.id is not None
@@ -49,7 +49,7 @@ class TestRegisterDocument:
         assert doc.name == "report.pdf"
 
     async def test_mime_type_none_accepted(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="notes.txt", mime_type=None)
+        doc = await create_document(session, user_id=1, name="notes.txt", mime_type=None)
         await session.commit()
 
         assert doc.mime_type is None
@@ -57,7 +57,7 @@ class TestRegisterDocument:
 
 class TestUpdateDocumentStatus:
     async def test_sets_status(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
         await session.commit()
         assert doc.id is not None
 
@@ -69,7 +69,7 @@ class TestUpdateDocumentStatus:
         assert doc.error is None
 
     async def test_stores_error_on_failed(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
         await session.commit()
         assert doc.id is not None
 
@@ -83,7 +83,7 @@ class TestUpdateDocumentStatus:
 
 class TestGetDocument:
     async def test_returns_document_for_owner(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
         await session.commit()
         assert doc.id is not None
 
@@ -92,7 +92,7 @@ class TestGetDocument:
         assert found.id == doc.id
 
     async def test_returns_none_for_wrong_user(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
         await session.commit()
         assert doc.id is not None
 
@@ -100,7 +100,7 @@ class TestGetDocument:
         assert found is None
 
     async def test_returns_none_for_deleted(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
         await session.commit()
         assert doc.id is not None
         await soft_delete_document(session, doc.id)
@@ -112,7 +112,7 @@ class TestGetDocument:
 
 class TestSoftDeleteDocument:
     async def test_sets_is_deleted(self, session: AsyncSession) -> None:
-        doc = await register_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
         await session.commit()
         assert doc.id is not None
 
