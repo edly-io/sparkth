@@ -142,6 +142,6 @@ Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => imp
 
 ## 11. MCP Tool Registration Pipeline
 
-**Files:** `app/mcp/server.py`
+**Files:** `app/mcp/server.py`, `app/lib/mcp/hooks.py`
 
-`register_plugin_tools()` (in `app/mcp/server.py`) iterates all enabled plugins, validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`app/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.
+`register_plugin_tools()` iterates the `MCP_TOOLS` hook (each entry a `Tool` contributed by a plugin from its `__init__`), validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`app/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.

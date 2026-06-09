@@ -21,9 +21,6 @@ class OptionalFieldModel(BaseModel):
     tag: str | None = None
 
 
-# ======================================================================
-# resolve_schema_refs
-# ======================================================================
 class TestResolveSchemaRefs:
     def test_resolves_ref(self) -> None:
         defs = {
@@ -116,9 +113,6 @@ class TestResolveSchemaRefs:
         assert result == schema
 
 
-# ======================================================================
-# type_to_json_schema
-# ======================================================================
 class TestTypeToJsonSchema:
     def test_nested_pydantic_model_resolves_refs_inline(self) -> None:
         """OuterModel has auth: InnerModel — the $ref must be resolved inline."""
