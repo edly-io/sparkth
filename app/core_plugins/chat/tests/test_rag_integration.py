@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_drive_file_blocks
 from app.core_plugins.chat.schemas import ChatMessage
@@ -15,11 +16,6 @@ from app.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-
-
-def _make_session(drive_file_ids: list[int] | None = None) -> AsyncMock:
-    """Create a mock async session for resolve_drive_file_blocks tests."""
-    return AsyncMock()
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
@@ -126,7 +122,7 @@ class TestResolveDriveFileBlocks:
             mock_to_doc_ids.return_value = []
             result = await resolve_drive_file_blocks(
                 messages=messages,
-                session=_make_session(),
+                session=MagicMock(spec=AsyncSession),
                 user_id=1,
                 llm=MagicMock(),
             )
@@ -148,7 +144,7 @@ class TestResolveDriveFileBlocks:
             mock_retrieve.return_value = chunks
             result = await resolve_drive_file_blocks(
                 messages=messages,
-                session=_make_session(),
+                session=MagicMock(spec=AsyncSession),
                 user_id=1,
                 llm=MagicMock(),
             )
@@ -179,7 +175,7 @@ class TestResolveDriveFileBlocks:
             mock_retrieve.return_value = []
             result = await resolve_drive_file_blocks(
                 messages=messages,
-                session=_make_session(),
+                session=MagicMock(spec=AsyncSession),
                 user_id=1,
                 llm=MagicMock(),
             )
@@ -202,7 +198,7 @@ class TestResolveDriveFileBlocks:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_drive_file_blocks(
                     messages=messages,
-                    session=_make_session(),
+                    session=MagicMock(spec=AsyncSession),
                     user_id=1,
                     llm=MagicMock(),
                 )
@@ -223,7 +219,7 @@ class TestResolveDriveFileBlocks:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_drive_file_blocks(
                     messages=messages,
-                    session=_make_session(),
+                    session=MagicMock(spec=AsyncSession),
                     user_id=1,
                     llm=MagicMock(),
                 )
@@ -245,7 +241,7 @@ class TestResolveDriveFileBlocks:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_drive_file_blocks(
                     messages=messages,
-                    session=_make_session(),
+                    session=MagicMock(spec=AsyncSession),
                     user_id=1,
                     llm=MagicMock(),
                 )
@@ -265,7 +261,7 @@ class TestResolveDriveFileBlocks:
             mock_retrieve.return_value = []
             result = await resolve_drive_file_blocks(
                 messages=messages,
-                session=_make_session(),
+                session=MagicMock(spec=AsyncSession),
                 user_id=1,
                 llm=MagicMock(),
             )
@@ -290,7 +286,7 @@ class TestResolveDriveFileBlocks:
             mock_to_doc_ids.return_value = []
             result = await resolve_drive_file_blocks(
                 messages=messages,
-                session=_make_session(),
+                session=MagicMock(spec=AsyncSession),
                 user_id=1,
                 llm=MagicMock(),
             )
