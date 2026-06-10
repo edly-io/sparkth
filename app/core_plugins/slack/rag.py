@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core_plugins.googledrive.models import DriveFile
 from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
@@ -17,7 +16,6 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
-from app.core_plugins.slack.utils import resolve_source_name
 from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 from app.lib.rag import (
@@ -57,58 +55,45 @@ def _format_context(chunks: list[RetrievedChunk]) -> str:
     return "\n\n".join(blocks)
 
 
-async def _resolve_files_for_sources(
+async def _resolve_document_ids_for_sources(
     session: AsyncSession,
     user_id: int,
     allowed_sources: list[str],
 ) -> list[int]:
     """Resolve a list of source names to RAG-ready Document IDs for *user_id*.
 
-    Returns Document IDs filtered to DocumentStatus.READY and is_deleted=False.
-    When *allowed_sources* is empty, returns all ready owner document IDs ordered by
-    DriveFile.id ASC, capped at SlackSettings.max_agent_files.
+    Returns Document IDs filtered to DocumentStatus.READY and is_deleted=False. When
+    *allowed_sources* is empty, returns all ready owner document IDs ordered by
+    Document.id ASC, capped at SlackSettings.max_agent_files.
     """
     max_agent_files = get_slack_settings().max_agent_files
     stmt = (
-        select(DriveFile)
-        .join(Document, col(DriveFile.document_id) == col(Document.id))
+        select(Document)
         .where(
-            col(DriveFile.user_id) == user_id,
+            col(Document.user_id) == user_id,
             col(Document.status) == DocumentStatus.READY,
-            col(DriveFile.is_deleted) == False,  # noqa: E712
+            col(Document.is_deleted) == False,  # noqa: E712
         )
-        .order_by(col(DriveFile.id).asc())
+        .order_by(col(Document.id).asc())
     )
 
     if allowed_sources:
-        # resolve_source_name appends .pdf for Google-native MIME types whose
-        # DriveFile.name has no .pdf suffix. Build a candidate set covering both
-        # the resolved name (regular files) and the stripped name (Google-native
-        # docs) so the SQL scan stays bounded even for large file libraries.
-        candidate_names: set[str] = set()
-        for s in allowed_sources:
-            candidate_names.add(s)
-            if s.lower().endswith(".pdf"):
-                candidate_names.add(s[:-4])
-        stmt = stmt.where(col(DriveFile.name).in_(candidate_names))
+        stmt = stmt.where(col(Document.name).in_(allowed_sources))
 
     result = await session.exec(stmt)
-    files: list[DriveFile] = list(result.all())
+    documents: list[Document] = list(result.all())
+    document_ids = [document.id for document in documents if document.id is not None]
 
-    if allowed_sources:
-        allowed_set = set(allowed_sources)
-        matched = [f.document_id for f in files if f.document_id is not None and resolve_source_name(f) in allowed_set]
-        if len(matched) > max_agent_files:
-            logger.warning(
-                "Slack agentic RAG: %d sources resolved for user=%d, capping at max_agent_files=%d",
-                len(matched),
-                user_id,
-                max_agent_files,
-            )
-            matched = matched[:max_agent_files]
-        return matched
+    if len(document_ids) > max_agent_files:
+        logger.warning(
+            "Slack agentic RAG: %d documents resolved for user=%d, capping at max_agent_files=%d",
+            len(document_ids),
+            user_id,
+            max_agent_files,
+        )
+        document_ids = document_ids[:max_agent_files]
 
-    return [f.document_id for f in files[:max_agent_files] if f.document_id is not None]
+    return document_ids
 
 
 async def answer_question(
@@ -122,10 +107,10 @@ async def answer_question(
     """Run agentic RAG for the bot's allowed_sources and return (answer, response_type).
 
     Steps:
-      1. Resolve allowed_sources to RAG-ready DriveFile IDs (or top-N owner files
+      1. Resolve allowed_sources to RAG-ready Document IDs (or top-N owner documents
          when allowed_sources is empty).
-      2. Retrieve relevant chunks via agentic_retrieve_context (validates all files READY,
-         fans out internally across all file_ids).
+      2. Retrieve relevant chunks via agentic_retrieve_context (validates all documents READY,
+         fans out internally across all document_ids).
       3. If no chunks are returned, reply with the configured fallback_message.
       4. Optionally synthesize via LLM; otherwise return formatted raw chunks.
 
@@ -144,33 +129,33 @@ async def answer_question(
             returns formatted raw chunks. Built from the instructor's llm_config_id
             by the caller.
     """
-    file_ids = await _resolve_files_for_sources(session, user_id, config.allowed_sources)
+    document_ids = await _resolve_document_ids_for_sources(session, user_id, config.allowed_sources)
 
     logger.info(
-        "Slack agentic RAG: user=%d files=%d sources=%s",
+        "Slack agentic RAG: user=%d documents=%d sources=%s",
         user_id,
-        len(file_ids),
+        len(document_ids),
         config.allowed_sources or "all",
     )
 
-    if not file_ids:
+    if not document_ids:
         logger.warning(
-            "Slack agentic RAG: no files resolved for user=%d sources=%s",
+            "Slack agentic RAG: no documents resolved for user=%d sources=%s",
             user_id,
             config.allowed_sources or "all",
         )
         return NO_FILES_RESOLVED_MESSAGE, ResponseType.NO_FILES_RESOLVED
 
     try:
-        chunks = await agentic_retrieve_context(question, file_ids, user_id, agent_llm)
+        chunks = await agentic_retrieve_context(question, document_ids, user_id, agent_llm)
     except DocumentNotFoundError as exc:
-        logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
+        logger.error("Slack agentic RAG: document not found user=%d documents=%s: %s", user_id, document_ids, exc)
         return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND
     except RAGNotReadyError as exc:
-        logger.warning("Slack agentic RAG: file not ready user=%d files=%s: %s", user_id, file_ids, exc)
+        logger.warning("Slack agentic RAG: document not ready user=%d documents=%s: %s", user_id, document_ids, exc)
         return RAG_NOT_READY_MESSAGE, ResponseType.RAG_NOT_READY
     except RAGRetrievalError as exc:
-        logger.error("Slack agentic RAG: retrieval error user=%d files=%s: %s", user_id, file_ids, exc)
+        logger.error("Slack agentic RAG: retrieval error user=%d documents=%s: %s", user_id, document_ids, exc)
         return RETRIEVAL_ERROR_MESSAGE, ResponseType.RETRIEVAL_ERROR
 
     logger.info("Slack agentic RAG: %d chunks for user=%d", len(chunks), user_id)
