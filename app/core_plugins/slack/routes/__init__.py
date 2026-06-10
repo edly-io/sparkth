@@ -42,7 +42,6 @@ from app.core_plugins.slack.types import (
 )
 from app.lib.db import get_async_session, session_scope
 from app.lib.documents import list_ready_documents
-from app.lib.log import get_logger
 from app.lib.llm import BaseChatProvider, LLMConfigService, get_provider
 from app.lib.log import get_logger
 from app.services.plugin import PluginService

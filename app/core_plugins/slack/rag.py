@@ -26,7 +26,6 @@ from app.lib.rag import (
     RetrievedChunk,
     agentic_retrieve_context,
 )
-from app.llm.providers import BaseChatProvider
 
 logger = get_logger(__name__)
 

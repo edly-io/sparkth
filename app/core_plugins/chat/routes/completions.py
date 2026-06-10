@@ -13,11 +13,13 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.core_plugins.chat.classifier import HistoryTurn
 from app.core_plugins.chat.config import ChatSettings, get_chat_settings
 from app.core_plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
 from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation
+from app.core_plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from app.core_plugins.chat.routes.helpers import (
     attach_request_documents,
     classify_in_scope,
@@ -53,8 +55,6 @@ from app.lib.rag import (
     RAGRetrievalError,
     agentic_retrieve_context,
 )
-from app.llm.classifier import HistoryTurn
-from app.llm.prompt import REFUSAL_MESSAGE
 from app.models.user import User
 
 logger = get_logger(__name__)
@@ -194,6 +194,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
+            system_prompt=get_learning_design_system_prompt(),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )

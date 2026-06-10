@@ -13,9 +13,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.models import Conversation
+from app.core_plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.core_plugins.chat.routes.helpers import stream_out_of_scope_refusal
 from app.core_plugins.chat.schemas import ChatCompletionResponse, ChatMessage
-from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.models.llm import LLMConfig
 from app.models.user import User
 

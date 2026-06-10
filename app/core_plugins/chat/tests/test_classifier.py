@@ -1,4 +1,4 @@
-"""Unit tests for LLM-based scope classifier."""
+"""Unit tests for the chat scope classifier."""
 
 from typing import Literal, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.exceptions import LangChainException
 
-from app.llm.classifier import HistoryTurn, ScopeClassifier, _ScopeResult
+from app.core_plugins.chat.classifier import HistoryTurn, ScopeClassifier, _ScopeResult
 
 
 def _build_classifier(provider: str = "anthropic") -> tuple["ScopeClassifier", AsyncMock]:
@@ -15,9 +15,9 @@ def _build_classifier(provider: str = "anthropic") -> tuple["ScopeClassifier", A
     Returns (classifier, mock_chain) where mock_chain.ainvoke controls responses.
     """
     chat_cls = {
-        "anthropic": "app.llm.classifier.ChatAnthropic",
-        "openai": "app.llm.classifier.ChatOpenAI",
-        "google": "app.llm.classifier.ChatGoogleGenerativeAI",
+        "anthropic": "app.core_plugins.chat.classifier.ChatAnthropic",
+        "openai": "app.core_plugins.chat.classifier.ChatOpenAI",
+        "google": "app.core_plugins.chat.classifier.ChatGoogleGenerativeAI",
     }[provider]
 
     with patch(chat_cls) as MockChat:
@@ -38,7 +38,7 @@ class TestScopeClassifierInit:
             ScopeClassifier(provider_name="unknownprovider", api_key="key")
 
     def test_anthropic_uses_haiku_model(self) -> None:
-        with patch("app.llm.classifier.ChatAnthropic") as MockChat:
+        with patch("app.core_plugins.chat.classifier.ChatAnthropic") as MockChat:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
@@ -47,7 +47,7 @@ class TestScopeClassifierInit:
         assert kwargs.get("model") == "claude-haiku-4-5"
 
     def test_openai_uses_mini_model(self) -> None:
-        with patch("app.llm.classifier.ChatOpenAI") as MockChat:
+        with patch("app.core_plugins.chat.classifier.ChatOpenAI") as MockChat:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
@@ -56,7 +56,7 @@ class TestScopeClassifierInit:
         assert kwargs.get("model") == "gpt-4o-mini"
 
     def test_google_uses_flash_model(self) -> None:
-        with patch("app.llm.classifier.ChatGoogleGenerativeAI") as MockChat:
+        with patch("app.core_plugins.chat.classifier.ChatGoogleGenerativeAI") as MockChat:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
@@ -65,7 +65,7 @@ class TestScopeClassifierInit:
         assert kwargs.get("model") == "gemini-2.0-flash"
 
     def test_temperature_is_zero_for_determinism(self) -> None:
-        with patch("app.llm.classifier.ChatAnthropic") as MockChat:
+        with patch("app.core_plugins.chat.classifier.ChatAnthropic") as MockChat:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
@@ -74,7 +74,7 @@ class TestScopeClassifierInit:
         assert kwargs.get("temperature") == 0
 
     def test_temperature_is_zero_for_openai(self) -> None:
-        with patch("app.llm.classifier.ChatOpenAI") as MockChat:
+        with patch("app.core_plugins.chat.classifier.ChatOpenAI") as MockChat:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
@@ -83,7 +83,7 @@ class TestScopeClassifierInit:
         assert kwargs.get("temperature") == 0
 
     def test_temperature_is_zero_for_google(self) -> None:
-        with patch("app.llm.classifier.ChatGoogleGenerativeAI") as MockChat:
+        with patch("app.core_plugins.chat.classifier.ChatGoogleGenerativeAI") as MockChat:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock()
             MockChat.return_value = mock_llm
