@@ -22,6 +22,8 @@ async function llmFetch(url: string, init: RequestInit, errorAction: string): Pr
   try {
     response = await fetch(url, init);
   } catch (error) {
+    // Aborts are flow control, not failures: let callers see them as-is.
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     const message = error instanceof Error ? error.message : "Unknown error";
     throw new ApiRequestError({
       message: `Unable to connect to server: ${message}`,
@@ -167,11 +169,14 @@ export async function deleteLLMConfig(token: string, configId: number): Promise<
   );
 }
 
-export async function fetchProviderCatalog(token: string): Promise<ProviderCatalogResponse> {
+export async function fetchProviderCatalog(
+  token: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ProviderCatalogResponse> {
   return (
     await llmFetch(
       `${API_BASE}/providers`,
-      { headers: readHeaders(token) },
+      { headers: readHeaders(token), signal: options.signal },
       "Failed to fetch providers",
     )
   ).json();
