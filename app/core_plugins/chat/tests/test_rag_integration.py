@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_drive_file_blocks
+from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_document_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -28,8 +28,8 @@ def _assistant_msg(text: str) -> ChatMessage:
     return ChatMessage(role="assistant", content=text)
 
 
-def _drive_block(file_id: int) -> dict[str, Any]:
-    return {"type": "drive_file", "file_id": file_id}
+def _legacy_document_block(document_id: int) -> dict[str, Any]:
+    return {"type": "drive_file", "file_id": document_id}
 
 
 def _text_block(text: str) -> dict[str, Any]:
@@ -53,26 +53,26 @@ def _make_chunk(
 
 
 class TestSchemaValidation:
-    def test_valid_drive_file_block_accepted(self) -> None:
+    def test_valid_legacy_document_block_accepted(self) -> None:
         msg = ChatMessage(
             role="user",
-            content=[_drive_block(42), _text_block("Generate a course")],
+            content=[_legacy_document_block(42), _text_block("Generate a course")],
         )
         assert msg.content[0]["type"] == "drive_file"  # type: ignore[index]
 
-    def test_drive_file_block_missing_file_id_rejected(self) -> None:
+    def test_legacy_document_block_missing_file_id_rejected(self) -> None:
         with pytest.raises(ValueError, match="file_id"):
             ChatMessage(role="user", content=[{"type": "drive_file"}])
 
-    def test_drive_file_block_zero_file_id_rejected(self) -> None:
+    def test_legacy_document_block_zero_file_id_rejected(self) -> None:
         with pytest.raises(ValueError, match="file_id"):
             ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 0}])
 
-    def test_drive_file_block_negative_file_id_rejected(self) -> None:
+    def test_legacy_document_block_negative_file_id_rejected(self) -> None:
         with pytest.raises(ValueError, match="file_id"):
             ChatMessage(role="user", content=[{"type": "drive_file", "file_id": -1}])
 
-    def test_drive_file_block_string_file_id_rejected(self) -> None:
+    def test_legacy_document_block_string_file_id_rejected(self) -> None:
         with pytest.raises(ValueError, match="file_id"):
             ChatMessage(role="user", content=[{"type": "drive_file", "file_id": "abc"}])
 
@@ -91,7 +91,7 @@ class TestExtractQueryText:
         assert extract_query_text(messages) == "Create a course on photosynthesis"
 
     def test_list_content_extracts_text_blocks(self) -> None:
-        messages = [_user_msg([_drive_block(1), _text_block("Create a course on plants")])]
+        messages = [_user_msg([_legacy_document_block(1), _text_block("Create a course on plants")])]
         assert extract_query_text(messages) == "Create a course on plants"
 
     def test_uses_last_user_message(self) -> None:
@@ -107,16 +107,16 @@ class TestExtractQueryText:
         assert extract_query_text(messages) == ""
 
     def test_list_with_no_text_blocks_returns_empty(self) -> None:
-        messages = [_user_msg([_drive_block(1)])]
+        messages = [_user_msg([_legacy_document_block(1)])]
         assert extract_query_text(messages) == ""
 
 
-class TestResolveDriveFileBlocks:
+class TestResolveDocumentBlocks:
     @pytest.mark.asyncio
-    async def test_no_drive_file_blocks_returns_messages_unchanged(self) -> None:
+    async def test_no_document_blocks_returns_messages_unchanged(self) -> None:
         messages = [_user_msg("Just text"), _assistant_msg("Response")]
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
-            result = await resolve_drive_file_blocks(
+            result = await resolve_document_blocks(
                 messages=messages,
                 session=MagicMock(spec=AsyncSession),
                 user_id=1,
@@ -126,13 +126,13 @@ class TestResolveDriveFileBlocks:
         assert result == messages
 
     @pytest.mark.asyncio
-    async def test_drive_file_block_replaced_with_text_block(self) -> None:
-        messages = [_user_msg([_drive_block(42), _text_block("Generate a course")])]
+    async def test_document_block_replaced_with_text_block(self) -> None:
+        messages = [_user_msg([_legacy_document_block(42), _text_block("Generate a course")])]
         chunks = [_make_chunk("Content here.", source_name="doc.pdf")]
 
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = chunks
-            result = await resolve_drive_file_blocks(
+            result = await resolve_document_blocks(
                 messages=messages,
                 session=MagicMock(spec=AsyncSession),
                 user_id=1,
@@ -157,7 +157,7 @@ class TestResolveDriveFileBlocks:
 
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = []
-            result = await resolve_drive_file_blocks(
+            result = await resolve_document_blocks(
                 messages=messages,
                 session=MagicMock(spec=AsyncSession),
                 user_id=1,
@@ -168,13 +168,13 @@ class TestResolveDriveFileBlocks:
         assert content[0] == base64_block
 
     @pytest.mark.asyncio
-    async def test_file_not_found_raises_http_422(self) -> None:
-        messages = [_user_msg([_drive_block(999)])]
+    async def test_document_not_found_raises_http_422(self) -> None:
+        messages = [_user_msg([_legacy_document_block(999)])]
 
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = DocumentNotFoundError("not found")
             with pytest.raises(HTTPException) as exc_info:
-                await resolve_drive_file_blocks(
+                await resolve_document_blocks(
                     messages=messages,
                     session=MagicMock(spec=AsyncSession),
                     user_id=1,
@@ -184,12 +184,12 @@ class TestResolveDriveFileBlocks:
 
     @pytest.mark.asyncio
     async def test_rag_not_ready_raises_http_422_with_status_in_detail(self) -> None:
-        messages = [_user_msg([_drive_block(1)])]
+        messages = [_user_msg([_legacy_document_block(1)])]
 
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
-                await resolve_drive_file_blocks(
+                await resolve_document_blocks(
                     messages=messages,
                     session=MagicMock(spec=AsyncSession),
                     user_id=1,
@@ -200,12 +200,12 @@ class TestResolveDriveFileBlocks:
 
     @pytest.mark.asyncio
     async def test_retrieval_error_raises_http_500(self) -> None:
-        messages = [_user_msg([_drive_block(1)])]
+        messages = [_user_msg([_legacy_document_block(1)])]
 
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError("db down")
             with pytest.raises(HTTPException) as exc_info:
-                await resolve_drive_file_blocks(
+                await resolve_document_blocks(
                     messages=messages,
                     session=MagicMock(spec=AsyncSession),
                     user_id=1,
@@ -214,12 +214,12 @@ class TestResolveDriveFileBlocks:
         assert exc_info.value.status_code == 500
 
     @pytest.mark.asyncio
-    async def test_empty_rag_results_drops_drive_file_block_silently(self) -> None:
-        messages = [_user_msg([_drive_block(7), _text_block("Summarize this")])]
+    async def test_empty_rag_results_drops_document_block_silently(self) -> None:
+        messages = [_user_msg([_legacy_document_block(7), _text_block("Summarize this")])]
 
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = []
-            result = await resolve_drive_file_blocks(
+            result = await resolve_document_blocks(
                 messages=messages,
                 session=MagicMock(spec=AsyncSession),
                 user_id=1,
@@ -238,7 +238,7 @@ class TestResolveDriveFileBlocks:
     async def test_string_content_message_passed_through(self) -> None:
         messages = [_user_msg("plain text message")]
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
-            result = await resolve_drive_file_blocks(
+            result = await resolve_document_blocks(
                 messages=messages,
                 session=MagicMock(spec=AsyncSession),
                 user_id=1,

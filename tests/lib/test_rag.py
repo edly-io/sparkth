@@ -92,12 +92,12 @@ class TestRetrieveContextSurface:
 
 class TestRetrieveContext:
     @pytest.mark.asyncio
-    async def test_empty_file_ids_returns_empty(self) -> None:
+    async def test_empty_document_ids_returns_empty(self) -> None:
         result = await agentic_retrieve_context("q", [], 1, MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_returns_retrieved_chunks_from_file(self) -> None:
+    async def test_returns_retrieved_chunks_from_document(self) -> None:
         from app.rag.models import DocumentChunk
         from app.rag.types import RAGContext
 

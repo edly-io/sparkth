@@ -22,14 +22,14 @@ def build_search_tools(user_id: int, document_id: int) -> list[StructuredTool]:
         LangChain tools exposing only the arguments the agent should choose.
     """
 
-    async def list_user_files() -> list[schemas.FileInfo]:
-        return await tools.list_user_files(user_id=user_id)
+    async def list_user_documents() -> list[schemas.DocumentInfo]:
+        return await tools.list_user_documents(user_id=user_id)
 
-    async def get_file_metadata() -> schemas.FileMetadata | None:
-        return await tools.get_file_metadata(user_id=user_id, document_id=document_id)
+    async def get_document_metadata() -> schemas.DocumentMetadata | None:
+        return await tools.get_document_metadata(user_id=user_id, document_id=document_id)
 
-    async def list_file_sections() -> list[schemas.SectionKey]:
-        return await tools.list_file_sections(user_id=user_id, document_id=document_id)
+    async def list_document_sections() -> list[schemas.SectionKey]:
+        return await tools.list_document_sections(user_id=user_id, document_id=document_id)
 
     async def get_chunk_stats() -> schemas.ChunkStats | None:
         return await tools.get_chunk_stats(user_id=user_id, document_id=document_id)
@@ -42,18 +42,18 @@ def build_search_tools(user_id: int, document_id: int) -> list[StructuredTool]:
 
     return [
         StructuredTool.from_function(
-            coroutine=list_user_files,
-            name="list_user_files",
-            description="List all RAG-ready files owned by a user.",
+            coroutine=list_user_documents,
+            name="list_user_documents",
+            description="List all RAG-ready documents owned by a user.",
         ),
         StructuredTool.from_function(
-            coroutine=get_file_metadata,
-            name="get_file_metadata",
-            description="Get metadata for a specific file owned by a user.",
+            coroutine=get_document_metadata,
+            name="get_document_metadata",
+            description="Get metadata for a specific document owned by a user.",
         ),
         StructuredTool.from_function(
-            coroutine=list_file_sections,
-            name="list_file_sections",
+            coroutine=list_document_sections,
+            name="list_document_sections",
             description="List all distinct sections in a document.",
         ),
         StructuredTool.from_function(

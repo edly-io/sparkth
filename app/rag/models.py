@@ -33,7 +33,7 @@ class DocumentChunk(TimestampedModel, table=True):
     # Chunk content
     content: str = Field(sa_column=Column(Text, nullable=False))
 
-    # SHA-256 hash of the chunk content (for deduplication across files)
+    # SHA-256 hash of the chunk content (for deduplication across documents)
     chunk_content_hash: str | None = Field(default=None, max_length=64, index=True)
 
     # Structured metadata (flattened from ChunkMetadata for SQL filtering)

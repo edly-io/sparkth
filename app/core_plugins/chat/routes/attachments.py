@@ -46,7 +46,7 @@ async def list_conversation_attachments(
     status_code=status.HTTP_201_CREATED,
     response_model=ConversationAttachmentResponse,
 )
-async def attach_file_to_conversation(
+async def attach_document_to_conversation(
     body: ConversationAttachmentCreate,
     conversation: Conversation = Depends(get_owned_conversation),
     current_user: User = Depends(get_current_user),
@@ -80,7 +80,7 @@ async def attach_file_to_conversation(
     "/conversations/{conversation_id}/attachments/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def detach_file_from_conversation(
+async def detach_document_from_conversation(
     document_id: int,
     conversation: Conversation = Depends(get_owned_conversation),
     current_user: User = Depends(get_current_user),

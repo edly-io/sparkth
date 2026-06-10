@@ -11,7 +11,7 @@ from app.models.base import SoftDeleteModel, TimestampedModel
 class Document(TimestampedModel, SoftDeleteModel, table=True):
     """Plugin-agnostic registry of documents submitted for RAG ingestion.
 
-    Plugins create one row per file they want to ingest. RAG uses document_id
+    Plugins create one row per source document they want to ingest. RAG uses document_id
     as its primary reference — it never imports from any plugin model.
     """
 

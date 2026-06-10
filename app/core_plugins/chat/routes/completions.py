@@ -28,7 +28,7 @@ from app.core_plugins.chat.routes.helpers import (
     group_by_source,
     persist_incoming_messages,
     persist_pre_stream_error,
-    resolve_drive_file_blocks,
+    resolve_document_blocks,
     resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
@@ -150,7 +150,7 @@ async def chat_completion(
             session=session,
             conversation_id=cast(int, conversation.id),
         )
-        attached_file_names = [document.name for document in attached_documents]
+        attached_document_names = [document.name for document in attached_documents]
 
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
@@ -159,7 +159,7 @@ async def chat_completion(
                 if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
             ]
             _in_scope = await classify_in_scope(
-                query_text, llm_config.provider, api_key, prior_history, attached_file_names or None
+                query_text, llm_config.provider, api_key, prior_history, attached_document_names or None
             )
         else:
             _in_scope = True
@@ -197,7 +197,7 @@ async def chat_completion(
         should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, user_id, provider)
 
         # Use DB messages for history, but replace the current batch with original
-        # request content to preserve content blocks (e.g. base64 file attachments).
+        # request content to preserve content blocks (e.g. base64 document attachments).
         num_current = len(request.messages)
         history: list[dict[str, Any]] = (
             [{"role": m.role, "content": m.content} for m in db_messages[:-num_current]]
@@ -210,15 +210,15 @@ async def chat_completion(
             # Synthetic message: document blocks (for RAG resolution) + user's query text
             # so that extract_query_text finds the question and the user's question is
             # preserved in current after resolution.
-            file_blocks: list[dict[str, Any]] = [
+            document_blocks: list[dict[str, Any]] = [
                 {"type": "drive_file", "file_id": document.id} for document in attached_documents
             ]
             text_block: list[dict[str, Any]] = [{"type": "text", "text": query_text}] if query_text else []
-            unresolved_messages = [ChatMessage(role="user", content=file_blocks + text_block)]
+            unresolved_messages = [ChatMessage(role="user", content=document_blocks + text_block)]
 
         if request.stream and should_run_rag:
             # Pass synthetic messages as current so the in-stream assembly pass finds the
-            # drive_file blocks to replace. The query text block travels with them so the
+            # legacy document blocks to replace. The query text block travels with them so the
             # LLM sees both the RAG context and the user's question after replacement.
             if unresolved_messages is None:
                 raise HTTPException(
@@ -228,9 +228,9 @@ async def chat_completion(
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]
         else:
             if should_run_rag and unresolved_messages:
-                # resolve_drive_file_blocks replaces drive_file blocks with RAG context;
+                # resolve_document_blocks replaces legacy document blocks with RAG context;
                 # the query text block is preserved alongside it.
-                resolved_messages = await resolve_drive_file_blocks(
+                resolved_messages = await resolve_document_blocks(
                     messages=unresolved_messages,
                     session=session,
                     user_id=user_id,
@@ -480,22 +480,22 @@ async def stream_chat_response(
                     seen_section_keys.add(key)
                     confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
 
-            # Single assembly pass: replace all drive_file blocks with resolved RAG context.
+            # Single assembly pass: replace all legacy document blocks with resolved RAG context.
             rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
             for m in messages:
                 if not isinstance(m.get("content"), list):
                     continue
                 user_text_blocks: list[dict[str, Any]] = []
                 other_blocks: list[dict[str, Any]] = []
-                has_drive_file = False
+                has_document_block = False
                 for b in m["content"]:
                     if isinstance(b, dict) and b.get("type") == "drive_file":
-                        has_drive_file = True
+                        has_document_block = True
                     elif isinstance(b, dict) and b.get("type") == "text":
                         user_text_blocks.append(b)
                     else:
                         other_blocks.append(b)
-                if not has_drive_file:
+                if not has_document_block:
                     continue
                 if rag_block_list:
                     m["content"] = (
@@ -530,7 +530,7 @@ async def stream_chat_response(
                 await _put(json.dumps({"status": "section_confirmed", "section": section, "done": False}))
             await _put(json.dumps({"status": "generating", "done": False}))
 
-        # Safety strip: remove unresolved drive_file blocks before hitting the LLM.
+        # Safety strip: remove unresolved legacy document blocks before hitting the LLM.
         for m in messages:
             if isinstance(m.get("content"), list):
                 m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]

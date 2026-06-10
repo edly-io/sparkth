@@ -98,7 +98,7 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_list_attachments,
             patch(
-                "app.core_plugins.chat.routes.completions.resolve_drive_file_blocks",
+                "app.core_plugins.chat.routes.completions.resolve_document_blocks",
                 new_callable=AsyncMock,
             ) as mock_resolve,
             patch(
@@ -508,8 +508,8 @@ class TestDocumentIdsOwnershipCheck:
     ) -> None:
         """document_ids all owned by the current user → attach_document called for each."""
         seed = await _seed(session, current_user.id or 1)
-        file1_id = await _seed_document(session, current_user.id or 1, "doc1.pdf")
-        file2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
+        document1_id = await _seed_document(session, current_user.id or 1, "doc1.pdf")
+        document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
@@ -542,13 +542,13 @@ class TestDocumentIdsOwnershipCheck:
                     "conversation_id": seed.conv_uuid,
                     "stream": False,
                     "tools": "none",
-                    "document_ids": [file1_id, file2_id],
+                    "document_ids": [document1_id, document2_id],
                 },
             )
 
         assert response.status_code == 200
         attached_ids = {call.args[2] for call in mock_attach.call_args_list}
-        assert attached_ids == {file1_id, file2_id}
+        assert attached_ids == {document1_id, document2_id}
 
     @pytest.mark.asyncio
     async def test_mixed_owned_unowned_attaches_only_owned(

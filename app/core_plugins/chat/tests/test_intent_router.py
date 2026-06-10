@@ -146,35 +146,35 @@ class TestRAGIntentRouterDecide:
         )
 
     @pytest.mark.asyncio
-    async def test_file_name_present_in_prompt(self) -> None:
-        """The prompt includes attachment file names."""
+    async def test_document_name_present_in_prompt(self) -> None:
+        """The prompt includes attachment document names."""
         decision = RAGRoutingDecision(should_retrieve=True, reason="test")
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
-        file_name = "textbook.pdf"
+        document_name = "textbook.pdf"
 
         with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(
                 query="tell me about this",
-                attached_documents=[_make_document(id=1, name=file_name)],
+                attached_documents=[_make_document(id=1, name=document_name)],
                 user_id=1,
             )
 
-        # Verify the file name appears in the messages
+        # Verify the document name appears in the messages.
         call_args = llm.with_structured_output.return_value.ainvoke.call_args
         messages = call_args[0][0] if call_args[0] else call_args[1].get("messages", [])
 
         message_contents = [msg.content for msg in messages]
-        assert any(file_name in str(content) for content in message_contents), (
-            f"File name '{file_name}' not found in messages: {message_contents}"
+        assert any(document_name in str(content) for content in message_contents), (
+            f"Document name '{document_name}' not found in messages: {message_contents}"
         )
 
     @pytest.mark.asyncio
-    async def test_empty_attached_files_still_returns_decision(self) -> None:
-        """When attached_files is empty, decide() still returns a valid RAGRoutingDecision."""
-        decision = RAGRoutingDecision(should_retrieve=False, reason="no files")
+    async def test_empty_attached_documents_still_returns_decision(self) -> None:
+        """When attached_documents is empty, decide() still returns a valid RAGRoutingDecision."""
+        decision = RAGRoutingDecision(should_retrieve=False, reason="no documents")
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
@@ -186,7 +186,7 @@ class TestRAGIntentRouterDecide:
 
         assert isinstance(result, RAGRoutingDecision)
         assert result.should_retrieve is False
-        # Verify get_document_structure was not called when no files attached
+        # Verify get_document_structure was not called when no documents are attached.
         # (the function is only imported inside decide() so we can't directly check)
 
 
