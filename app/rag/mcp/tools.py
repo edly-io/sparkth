@@ -5,161 +5,132 @@ from __future__ import annotations
 from typing import cast
 
 from sqlmodel import col, func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.db import session_scope
+from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
-from app.lib.rag import RagStatus
 from app.rag.mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
-from app.rag.models import DocumentChunk
-from app.rag.utils import resolve_source_name
-
-# DriveFile is imported lazily inside each function body to avoid a runtime cycle:
-# app.models.drive imports RagStatus from app.lib.rag, which transitively imports
-# this module. Lazy imports break the cycle without losing type safety.
+from app.rag.models import DocumentChunk, DocumentChunkLink
 
 logger = get_logger(__name__)
 
 
+async def _fetch_document(session: AsyncSession, document_id: int, user_id: int) -> Document | None:
+    """Return the Document if it exists and is owned by user_id, else None."""
+    result = await session.exec(
+        select(Document).where(
+            Document.id == document_id,
+            Document.user_id == user_id,
+        )
+    )
+    return result.first()
+
+
 async def list_user_files(user_id: int) -> list[FileInfo]:
-    """List all RAG-ready files owned by a user."""
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+    """List all RAG-ready documents owned by a user."""
 
     async with session_scope() as session:
         result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-                DriveFile.rag_status == RagStatus.READY,
+            select(Document).where(
+                col(Document.user_id) == user_id,
+                col(Document.is_deleted) == False,  # noqa: E712
+                col(Document.status) == DocumentStatus.READY,
             )
         )
-        files = result.all()
+        documents = result.all()
+
         return [
             FileInfo(
-                id=cast(int, f.id),
-                name=f.name,
-                mime_type=f.mime_type,
-                size=f.size,
-                modified_time=f.modified_time.isoformat() if f.modified_time else None,
-                rag_status=cast(RagStatus, f.rag_status),
+                id=cast(int, doc.id),
+                name=doc.name,
+                mime_type=doc.mime_type,
+                rag_status=doc.status,
             )
-            for f in files
+            for doc in documents
         ]
 
 
-async def get_file_metadata(user_id: int, file_id: int) -> FileMetadata | None:
-    """Get metadata for a specific file owned by a user."""
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+async def get_file_metadata(user_id: int, document_id: int) -> FileMetadata | None:
+    """Get metadata for a specific document owned by a user."""
 
     async with session_scope() as session:
-        result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.id == file_id,
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-            )
-        )
-        file = result.first()
-        if not file:
+        doc = await _fetch_document(session, document_id, user_id)
+        if doc is None:
             return None
+
         return FileMetadata(
-            id=cast(int, file.id),
-            name=file.name,
-            rag_status=cast(RagStatus, file.rag_status),
-            size=file.size,
-            modified_time=file.modified_time.isoformat() if file.modified_time else None,
+            id=cast(int, doc.id),
+            name=doc.name,
+            mime_type=doc.mime_type,
+            rag_status=doc.status,
         )
 
 
-async def list_file_sections(user_id: int, file_id: int) -> list[SectionKey]:
-    """List all distinct sections in a file."""
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+async def list_file_sections(user_id: int, document_id: int) -> list[SectionKey]:
+    """List all distinct sections in a document."""
 
     async with session_scope() as session:
-        file_result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.id == file_id,
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-            )
-        )
-        file = file_result.first()
-        if not file:
+        doc = await _fetch_document(session, document_id, user_id)
+        if doc is None:
             return []
 
-        source_name = resolve_source_name(file)
         sections_result = await session.exec(
             select(
                 DocumentChunk.chapter,
                 DocumentChunk.section,
                 DocumentChunk.subsection,
             )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == document_id,
             )
             .distinct()
         )
         return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in sections_result.all()]
 
 
-async def get_chunk_stats(user_id: int, file_id: int) -> ChunkStats | None:
-    """Get statistics about chunks in a file (count and average token count)."""
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+async def get_chunk_stats(user_id: int, document_id: int) -> ChunkStats | None:
+    """Get statistics about chunks in a document (count and average token count)."""
 
     async with session_scope() as session:
-        file_result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.id == file_id,
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-            )
-        )
-        file = file_result.first()
-        if not file:
+        doc = await _fetch_document(session, document_id, user_id)
+        if doc is None:
             return None
-
-        source_name = resolve_source_name(file)
 
         stats_result = await session.exec(
             select(
                 func.count().label("chunk_count"),
                 func.avg(DocumentChunk.token_count).label("avg_token_count"),
-            ).where(
+            )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
+            .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == document_id,
             )
         )
         row = stats_result.first()
 
         return ChunkStats(
-            source_name=source_name,
+            source_name=doc.name,
             chunk_count=row[0] if row else 0,
             avg_token_count=float(row[1]) if row and row[1] else None,
         )
 
 
-async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSection]:
+async def get_document_structure(user_id: int, document_id: int) -> list[DocumentSection]:
     """Get the full ordered structure of a document with chunk positions.
 
     Returns sections in document order (ordered by minimum chunk id), with
     chunk counts and a zero-based position_index so the agent can reason about
     positional references like 'second half', 'last chapter', etc.
     """
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
 
     async with session_scope() as session:
-        file_result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.id == file_id,
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-            )
-        )
-        file = file_result.first()
-        if not file:
+        doc = await _fetch_document(session, document_id, user_id)
+        if doc is None:
             return []
-
-        source_name = resolve_source_name(file)
 
         structure_result = await session.exec(
             select(
@@ -168,9 +139,10 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
                 col(DocumentChunk.subsection),
                 func.count().label("chunk_count"),
             )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == document_id,
             )
             .group_by(
                 col(DocumentChunk.chapter),
@@ -182,7 +154,7 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
 
         return [
             DocumentSection(
-                source_name=source_name,
+                source_name=doc.name,
                 chapter=row[0],
                 section=row[1],
                 subsection=row[2],
@@ -193,26 +165,16 @@ async def get_document_structure(user_id: int, file_id: int) -> list[DocumentSec
         ]
 
 
-async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) -> list[SectionKey]:
-    """Search for sections matching a keyword within a file."""
+async def search_section_by_keyword(user_id: int, document_id: int, keyword: str) -> list[SectionKey]:
+    """Search for sections matching a keyword within a document."""
     if not keyword.strip():
         return []
 
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
-
     async with session_scope() as session:
-        file_result = await session.exec(
-            select(DriveFile).where(
-                DriveFile.id == file_id,
-                DriveFile.user_id == user_id,
-                DriveFile.is_deleted == False,  # noqa: E712
-            )
-        )
-        file = file_result.first()
-        if not file:
+        doc = await _fetch_document(session, document_id, user_id)
+        if doc is None:
             return []
 
-        source_name = resolve_source_name(file)
         keyword_safe = keyword.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         keyword_pattern = f"%{keyword_safe}%"
 
@@ -222,9 +184,10 @@ async def search_section_by_keyword(user_id: int, file_id: int, keyword: str) ->
                 DocumentChunk.section,
                 DocumentChunk.subsection,
             )
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
                 DocumentChunk.user_id == user_id,
-                DocumentChunk.source_name == source_name,
+                col(DocumentChunkLink.document_id) == document_id,
                 (
                     col(DocumentChunk.chapter).ilike(keyword_pattern, escape="\\")
                     | col(DocumentChunk.section).ilike(keyword_pattern, escape="\\")

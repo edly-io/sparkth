@@ -10,9 +10,9 @@ import pytest
 
 import app.lib.rag as rag_api
 from app.lib.rag import (
-    IngestionResult,
     ScannedPDFError,
     UnsupportedFileTypeError,
+    agentic_retrieve_context,
     ingest_document,
 )
 
@@ -21,11 +21,9 @@ class TestRagPublicApi:
     def test_exposes_ingest_document(self) -> None:
         assert callable(rag_api.ingest_document)
 
-    def test_exposes_ingestion_result(self) -> None:
-        assert rag_api.IngestionResult(new_chunks=1, reused_chunks=2).new_chunks == 1
-
-    def test_exposes_rag_status(self) -> None:
-        assert rag_api.RagStatus.READY is rag_api.RagStatus.READY
+    def test_exposes_retrieved_chunk_type(self) -> None:
+        rc = rag_api.RetrievedChunk(source_name="x.pdf", chapter=None, section=None, subsection=None, content="c")
+        assert rc.source_name == "x.pdf"
 
     def test_exposes_ingestion_exceptions(self) -> None:
         assert issubclass(rag_api.UnsupportedFileTypeError, Exception)
@@ -48,7 +46,8 @@ class TestIngestDocument:
             patch("app.rag.ingestion.DocumentChunker", chunker),
         ):
             result = await ingest_document("a.txt", b"x", 10, 1)
-        assert result == IngestionResult(new_chunks=0, reused_chunks=0)
+        assert result.new_chunks == 0
+        assert result.reused_chunks == 0
 
     @pytest.mark.asyncio
     async def test_scanned_pdf_propagates(self) -> None:
@@ -71,13 +70,14 @@ class TestIngestDocument:
             mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
             result = await ingest_document("a.txt", b"x", 10, 1)
-        assert result == IngestionResult(new_chunks=1, reused_chunks=0)
+        assert result.new_chunks == 1
+        assert result.reused_chunks == 0
         mock_store.assert_awaited_once()
         mock_session.commit.assert_awaited_once()
 
 
 class TestRetrieveContextSurface:
-    def test_exposes_agentic_retrieve_context(self) -> None:
+    def test_exposes_retrieve_context(self) -> None:
         assert callable(rag_api.agentic_retrieve_context)
 
     def test_exposes_retrieved_chunk(self) -> None:
@@ -85,7 +85,7 @@ class TestRetrieveContextSurface:
         assert rc.content == "x"
 
     def test_exposes_retrieval_exceptions(self) -> None:
-        assert issubclass(rag_api.DriveFileNotFoundError, Exception)
+        assert issubclass(rag_api.DocumentNotFoundError, Exception)
         assert issubclass(rag_api.RAGNotReadyError, Exception)
         assert issubclass(rag_api.RAGRetrievalError, Exception)
 
@@ -93,7 +93,7 @@ class TestRetrieveContextSurface:
 class TestRetrieveContext:
     @pytest.mark.asyncio
     async def test_empty_file_ids_returns_empty(self) -> None:
-        result = await rag_api.agentic_retrieve_context("q", [], 1, MagicMock())
+        result = await agentic_retrieve_context("q", [], 1, MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
@@ -102,7 +102,7 @@ class TestRetrieveContext:
         from app.rag.types import RAGContext, SimilarityResult
 
         mock_ctx = RAGContext(
-            file_db_id=10,
+            document_id=10,
             source_name="a.pdf",
             chunks=[
                 SimilarityResult(
@@ -120,13 +120,12 @@ class TestRetrieveContext:
             formatted_text="",
         )
         with (
-            patch("app.rag.retrieval.validate_files_ready", new=AsyncMock()),
+            patch("app.rag.retrieval.validate_documents_ready", new=AsyncMock()),
             patch(
-                "app.rag.retrieval.get_context_via_agent_with_isolated_session",
-                new=AsyncMock(return_value=mock_ctx),
+                "app.rag.retrieval.get_context_via_agent_with_isolated_session", new=AsyncMock(return_value=mock_ctx)
             ) as mock_fn,
         ):
-            result = await rag_api.agentic_retrieve_context("q", [10], 1, MagicMock())
+            result = await agentic_retrieve_context("q", [10], 1, MagicMock())
         assert len(result) == 1
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"

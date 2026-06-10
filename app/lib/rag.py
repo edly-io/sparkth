@@ -1,12 +1,10 @@
 """Public API for the RAG library.
 
-All plugins and external modules import RAG functionality from here. Nothing
-outside ``app/rag/`` should import from ``app.rag.*`` directly.
+All plugins and external modules import RAG functionality from here.
 """
 
-from app.rag.enums import RagStatus  # noqa: F401 — re-exported in __all__
-from app.rag.exceptions import (  # noqa: F401 — re-exported in __all__
-    DriveFileNotFoundError,
+from app.rag.exceptions import (
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     ScannedPDFError,
@@ -14,17 +12,17 @@ from app.rag.exceptions import (  # noqa: F401 — re-exported in __all__
 )
 from app.rag.ingestion import ingest_document
 from app.rag.retrieval import agentic_retrieve_context
-from app.rag.types import IngestionResult, RetrievedChunk  # noqa: F401 — re-exported in __all__
+from app.rag.store import copy_document_chunk_links
+from app.rag.types import RetrievedChunk
 
 __all__ = [
-    "DriveFileNotFoundError",
-    "IngestionResult",
+    "DocumentNotFoundError",
     "RAGNotReadyError",
     "RAGRetrievalError",
-    "RagStatus",
-    "RetrievedChunk",
     "ScannedPDFError",
     "UnsupportedFileTypeError",
-    "agentic_retrieve_context",
     "ingest_document",
+    "agentic_retrieve_context",
+    "copy_document_chunk_links",
+    "RetrievedChunk",
 ]

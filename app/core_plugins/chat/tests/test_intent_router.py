@@ -18,11 +18,12 @@ def _make_llm(return_value: Any) -> MagicMock:
     return mock_llm
 
 
-def _make_drive_file(id: int = 1, name: str = "doc.pdf") -> MagicMock:
+def _make_drive_file(id: int = 1, name: str = "doc.pdf", document_id: int | None = None) -> MagicMock:
     """Helper: returns a MagicMock that simulates a DriveFile."""
     mock_file = MagicMock()
     mock_file.id = id
     mock_file.name = name
+    mock_file.document_id = document_id if document_id is not None else id
     return mock_file
 
 
@@ -36,7 +37,7 @@ class TestRAGIntentRouterDecide:
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             result = await router.decide(
@@ -47,6 +48,7 @@ class TestRAGIntentRouterDecide:
 
         assert result.should_retrieve is True
         assert result.reason == "on topic"
+        mock_struct.assert_awaited_once_with(user_id=1, document_id=1)
 
     @pytest.mark.asyncio
     async def test_returns_decision_when_should_retrieve_false(self) -> None:
@@ -55,7 +57,7 @@ class TestRAGIntentRouterDecide:
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             result = await router.decide(
@@ -77,7 +79,7 @@ class TestRAGIntentRouterDecide:
 
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             with pytest.raises(RAGIntentRouterError):
@@ -107,7 +109,7 @@ class TestRAGIntentRouterDecide:
 
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             with pytest.raises(RAGIntentRouterError):
@@ -125,7 +127,7 @@ class TestRAGIntentRouterDecide:
         router = RAGIntentRouter(llm=llm)
         query_text = "summarize chapter 3"
 
-        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(
@@ -153,7 +155,7 @@ class TestRAGIntentRouterDecide:
         router = RAGIntentRouter(llm=llm)
         file_name = "textbook.pdf"
 
-        with patch("app.rag.mcp.tools.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(

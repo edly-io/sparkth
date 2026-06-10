@@ -32,6 +32,7 @@ from app.core_plugins.chat.routes.helpers import (
     resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
+    to_document_ids,
 )
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService, get_chat_service
@@ -39,7 +40,7 @@ from app.core_plugins.chat.tools import get_tool_registry
 from app.lib.db import get_async_session, session_scope
 from app.lib.log import get_logger
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     agentic_retrieve_context,
@@ -226,8 +227,11 @@ async def chat_completion(
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]
         else:
             if should_run_rag and unresolved_messages:
+                # resolve_drive_file_blocks replaces drive_file blocks with RAG context;
+                # the query text block is preserved alongside it.
                 resolved_messages = await resolve_drive_file_blocks(
                     messages=unresolved_messages,
+                    session=session,
                     user_id=user_id,
                     llm=provider.create_llm(),
                 )
@@ -412,14 +416,17 @@ async def stream_chat_response(
 
         if should_run_rag and unresolved_messages and user_id is not None:
             query_text = extract_query_text(unresolved_messages)
+            any_results_found = False
+
             await _put(json.dumps({"status": "searching_documents", "file_count": len(file_ids), "done": False}))
 
             logger.info("Agentic RAG search for file_ids=%s query_len=%d", file_ids, len(query_text))
             if llm is None:
                 raise AssertionError("llm must be provided when RAG resolution is active")
             try:
-                all_chunks = await agentic_retrieve_context(query_text, file_ids, user_id, llm)
-            except DriveFileNotFoundError as exc:
+                document_ids = await to_document_ids(bg_session, file_ids)
+                all_chunks = await agentic_retrieve_context(query_text, document_ids, user_id, llm)
+            except DocumentNotFoundError as exc:
                 logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
                 error_text = "The attached file could not be found or is no longer accessible."
                 await service.add_message(
@@ -457,10 +464,12 @@ async def stream_chat_response(
                 return
 
             grouped = group_by_source(all_chunks)
-            rag_block_list = [
-                {"type": "text", "text": format_source_block(source, chunks)} for source, chunks in grouped.items()
-            ]
+            source_blocks: dict[str, str] = {
+                source: format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
+            }
+            any_results_found = bool(source_blocks)
 
+            # Build confirmed_rag_sections from each chunk's hierarchy
             seen_section_keys: set[str] = set()
             for chunk in all_chunks:
                 label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
@@ -472,6 +481,7 @@ async def stream_chat_response(
                     confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
 
             # Single assembly pass: replace all drive_file blocks with resolved RAG context.
+            rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
             for m in messages:
                 if not isinstance(m.get("content"), list):
                     continue
@@ -497,9 +507,10 @@ async def stream_chat_response(
                 else:
                     m["content"] = other_blocks + user_text_blocks
 
-            if not rag_block_list:
+            if not any_results_found:
                 no_chunks_msg = (
-                    "I searched your documents but couldn't find content closely matching your query.\n\n"
+                    "I searched your documents but couldn't find content closely "
+                    "matching your query.\n\n"
                     "Please try rephrasing your question, or check that your documents "
                     "contain information about this topic."
                 )

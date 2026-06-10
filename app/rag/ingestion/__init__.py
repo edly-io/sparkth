@@ -9,30 +9,27 @@ from app.rag.ingestion.extraction import check_extraction_eligibility, extract_t
 from app.rag.store import ChunkStoreService, store_and_link_chunks
 from app.rag.types import IngestionResult
 
-__all__ = ["ingest_document"]
-
 
 async def ingest_document(
     filename: str,
     file_bytes: bytes,
-    owner_file_id: int,
+    document_id: int,
     user_id: int,
 ) -> IngestionResult:
     """Ingest a document's bytes into the RAG store.
 
-    Pipeline: eligibility check -> extract -> chunk -> store (with cross-file
-    content-hash dedup) -> link chunks to *owner_file_id*. Opens and commits its
+    Pipeline: eligibility check -> extract -> chunk -> store (with cross-document
+    content-hash dedup) -> link chunks to *document_id*. Opens and commits its
     own database session.
 
     Args:
-        filename: Original filename (drives extension dispatch).
-        file_bytes: Raw file content.
-        owner_file_id: File id recorded in the chunk-link table.
         user_id: Owner of the chunks (row-level scope).
+        document_id: Document.id recorded in the chunk-link table.
+        file_bytes: Raw file content.
+        filename: Original filename (drives extension dispatch).
 
     Returns:
-        IngestionResult with new/reused chunk counts. A file that yields no
-        chunks returns (0, 0).
+        IngestionResult with new/reused chunk counts.
 
     Raises:
         UnsupportedFileTypeError: type the extractors cannot handle.
@@ -53,7 +50,7 @@ async def ingest_document(
         store = ChunkStoreService()
         async with session_scope() as session:
             async with profile_memory("store_and_link", file=filename, chunks=len(chunks)):
-                new_count, reused_count = await store_and_link_chunks(session, user_id, owner_file_id, chunks, store)
+                new_count, reused_count = await store_and_link_chunks(session, user_id, document_id, chunks, store)
             await session.commit()
 
     return IngestionResult(new_chunks=new_count, reused_chunks=reused_count)

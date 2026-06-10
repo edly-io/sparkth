@@ -17,25 +17,43 @@ from app.core_plugins.slack.rag import (
     _resolve_files_for_sources,
     answer_question,
 )
+from app.core_plugins.slack.utils import resolve_source_name
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
 )
 
 
+def _make_drive_file(
+    *,
+    id: int = 1,
+    user_id: int = 1,
+    name: str = "doc.pdf",
+    mime_type: str | None = "application/pdf",
+    is_deleted: bool = False,
+) -> MagicMock:
+    drive_file = MagicMock()
+    drive_file.id = id
+    drive_file.user_id = user_id
+    drive_file.name = name
+    drive_file.mime_type = mime_type
+    drive_file.is_deleted = is_deleted
+    return drive_file
+
+
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Returns only DriveFile IDs whose source_name is in allowed_sources."""
+    """Returns only Document IDs whose source_name is in allowed_sources."""
     mock_session = AsyncMock()
     # Note: MagicMock's `name` kwarg is reserved (sets the mock's repr name, not the .name attribute).
     # We assign .name explicitly after construction so resolve_source_name() reads the intended value.
-    f1 = MagicMock(id=10, mime_type="application/pdf")
+    f1 = MagicMock(id=10, document_id=100, mime_type="application/pdf")
     f1.name = "python.pdf"
-    f2 = MagicMock(id=11, mime_type="application/pdf")
+    f2 = MagicMock(id=11, document_id=101, mime_type="application/pdf")
     f2.name = "ai.pdf"
-    f3 = MagicMock(id=12, mime_type="application/pdf")
+    f3 = MagicMock(id=12, document_id=102, mime_type="application/pdf")
     f3.name = "biology.pdf"
     mock_files = [f1, f2, f3]
     exec_result = MagicMock()
@@ -43,20 +61,53 @@ async def test_resolve_files_for_sources_filters_by_allowed_sources(monkeypatch:
     mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=["python.pdf", "ai.pdf"])
-    assert sorted(result) == [10, 11]
+    assert sorted(result) == [100, 101]
+
+
+def test_resolve_source_name_regular_pdf_unchanged() -> None:
+    drive_file = _make_drive_file(name="course.pdf", mime_type="application/pdf")
+    assert resolve_source_name(drive_file) == "course.pdf"
+
+
+def test_resolve_source_name_google_doc_gets_pdf_suffix() -> None:
+    drive_file = _make_drive_file(
+        name="My Course Outline",
+        mime_type="application/vnd.google-apps.document",
+    )
+    assert resolve_source_name(drive_file) == "My Course Outline.pdf"
+
+
+def test_resolve_source_name_google_doc_keeps_existing_pdf_suffix() -> None:
+    drive_file = _make_drive_file(name="doc.pdf", mime_type="application/vnd.google-apps.document")
+    assert resolve_source_name(drive_file) == "doc.pdf"
+
+
+def test_resolve_source_name_none_mime_type_unchanged() -> None:
+    drive_file = _make_drive_file(name="notes.txt", mime_type=None)
+    assert resolve_source_name(drive_file) == "notes.txt"
+
+
+def test_resolve_source_name_google_drawing_gets_pdf_suffix() -> None:
+    drive_file = _make_drive_file(
+        name="diagram",
+        mime_type="application/vnd.google-apps.drawing",
+    )
+    assert resolve_source_name(drive_file) == "diagram.pdf"
 
 
 @pytest.mark.asyncio
 async def test_resolve_files_for_sources_empty_returns_capped_owner_files() -> None:
-    """When allowed_sources is empty, returns up to the configured owner-file cap ordered by id ASC."""
+    """When allowed_sources is empty, returns up to max_agent_files owner document_ids ordered by id ASC."""
     mock_session = AsyncMock()
-    mock_files = [MagicMock(id=i, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)]
+    mock_files = [
+        MagicMock(id=i, document_id=i * 10, name=f"doc-{i}.pdf", mime_type="application/pdf") for i in range(1, 9)
+    ]
     exec_result = MagicMock()
     exec_result.all.return_value = mock_files
     mock_session.exec = AsyncMock(return_value=exec_result)
 
     result = await _resolve_files_for_sources(session=mock_session, user_id=1, allowed_sources=[])
-    assert result == [1, 2, 3, 4, 5]
+    assert result == [10, 20, 30, 40, 50]
     assert len(result) == get_slack_settings().max_agent_files
 
 
@@ -127,7 +178,7 @@ async def test_answer_question_returns_file_not_found_on_drive_file_not_found_er
         patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
-        mock_retrieve.side_effect = DriveFileNotFoundError("missing")
+        mock_retrieve.side_effect = DocumentNotFoundError("missing")
         answer, response_type = await answer_question(
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
@@ -147,7 +198,7 @@ async def test_answer_question_returns_not_ready_on_rag_not_ready_error() -> Non
         patch("app.core_plugins.slack.rag.agentic_retrieve_context", new_callable=AsyncMock) as mock_retrieve,
     ):
         resolver.return_value = [10]
-        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=10, rag_status="processing")
+        mock_retrieve.side_effect = RAGNotReadyError(10, "processing")
         answer, response_type = await answer_question(
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )

@@ -1,16 +1,20 @@
 """Tests for SSE status events during RAG retrieval."""
 
 import asyncio
+import inspect
 import json
+import uuid
+from datetime import datetime
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core_plugins.chat.routes.completions import stream_chat_response
-from app.core_plugins.chat.schemas import ChatMessage
+from app.core_plugins.chat.routes.helpers import parse_metadata_list
+from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -55,8 +59,6 @@ def _make_service() -> MagicMock:
 def _make_conversation() -> MagicMock:
     conv = MagicMock()
     conv.id = 1
-    import uuid
-
     conv.uuid = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
     return conv
 
@@ -83,10 +85,13 @@ async def test_status_events_emitted_before_tokens() -> None:
         )
     ]
 
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [42]
         mock_retrieve.return_value = chunks
         events = []
         async for chunk in stream_chat_response(
@@ -138,10 +143,13 @@ async def test_searching_documents_event_includes_file_count() -> None:
         )
     ]
 
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1, 2]
         mock_retrieve.return_value = chunks
         events = []
         async for chunk in stream_chat_response(
@@ -171,10 +179,13 @@ async def test_agent_context_injected_into_messages() -> None:
     original_messages = [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}]
     unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
 
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -217,10 +228,13 @@ async def test_multi_file_rag_context_preserved() -> None:
         )
     ]
 
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1, 2]
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -277,10 +291,13 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
     unresolved = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
     service = _make_service()
 
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -339,10 +356,6 @@ async def test_no_rag_sections_metadata_without_drive_files() -> None:
 
 class TestMessageResponseRagSections:
     def test_message_response_accepts_rag_sections(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -360,10 +373,6 @@ class TestMessageResponseRagSections:
         assert response.rag_sections[0]["name"] == "Introduction"
 
     def test_message_response_rag_sections_defaults_to_none(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -385,11 +394,14 @@ class TestMessageResponseRagSections:
 
 @pytest.mark.asyncio
 async def test_drive_file_not_found_emits_friendly_error() -> None:
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
-        mock_retrieve.side_effect = DriveFileNotFoundError()
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
+        mock_retrieve.side_effect = DocumentNotFoundError()
         events = await _collect_events(
             stream_chat_response(
                 provider=_make_provider(),
@@ -413,11 +425,14 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
 
 @pytest.mark.asyncio
 async def test_rag_not_ready_emits_friendly_error() -> None:
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
-        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
+        mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         events = await _collect_events(
             stream_chat_response(
                 provider=_make_provider(),
@@ -441,10 +456,13 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
 
 @pytest.mark.asyncio
 async def test_rag_retrieval_error_emits_friendly_error() -> None:
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = RAGRetrievalError()
         events = await _collect_events(
             stream_chat_response(
@@ -505,14 +523,17 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
 
 @pytest.mark.asyncio
 async def test_drive_file_not_found_persists_error_to_db() -> None:
-    """DriveFileNotFoundError must write an is_error=True message to DB."""
+    """DocumentNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
-        mock_retrieve.side_effect = DriveFileNotFoundError()
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
+        mock_retrieve.side_effect = DocumentNotFoundError()
         gen = stream_chat_response(
             provider=_make_provider(),
             messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
@@ -540,11 +561,14 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
     """RAGNotReadyError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
-        mock_retrieve.side_effect = RAGNotReadyError(file_db_id=1, rag_status="PENDING")
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
+        mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         gen = stream_chat_response(
             provider=_make_provider(),
             messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
@@ -570,10 +594,13 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
     """RAGRetrievalError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
-    with patch(
-        "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
-        new_callable=AsyncMock,
-    ) as mock_retrieve:
+    with (
+        patch(
+            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+        ) as mock_retrieve,
+        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
+    ):
+        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = RAGRetrievalError()
         gen = stream_chat_response(
             provider=_make_provider(),
@@ -634,32 +661,18 @@ async def test_unexpected_error_persists_error_to_db() -> None:
 
 class TestParseMetadataList:
     def test_returns_none_for_no_metadata(self) -> None:
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         assert parse_metadata_list(None, "tool_calls") is None
 
     def test_returns_none_for_empty_metadata(self) -> None:
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         assert parse_metadata_list("{}", "tool_calls") is None
 
     def test_returns_none_for_invalid_json(self) -> None:
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         assert parse_metadata_list("not-json", "tool_calls") is None
 
     def test_returns_none_when_value_not_list(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         assert parse_metadata_list(json.dumps({"tool_calls": "bad"}), "tool_calls") is None
 
     def test_returns_list_for_tool_calls_key(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         meta = json.dumps({"tool_calls": [{"name": "search_web"}, {"name": "search_web"}]})
         result = parse_metadata_list(meta, "tool_calls")
         assert result is not None
@@ -667,10 +680,6 @@ class TestParseMetadataList:
         assert result[0]["name"] == "search_web"
 
     def test_returns_list_for_rag_sections_key(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
         result = parse_metadata_list(meta, "rag_sections")
         assert result is not None
@@ -678,10 +687,6 @@ class TestParseMetadataList:
         assert result[0]["name"] == "Intro"
 
     def test_ignores_other_keys(self) -> None:
-        import json
-
-        from app.core_plugins.chat.routes.helpers import parse_metadata_list
-
         meta = json.dumps({"rag_sections": [{"type": "section", "name": "Intro"}]})
         assert parse_metadata_list(meta, "tool_calls") is None
 
@@ -790,10 +795,6 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
 
 class TestMessageResponseToolCalls:
     def test_message_response_accepts_tool_calls(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -811,10 +812,6 @@ class TestMessageResponseToolCalls:
         assert response.tool_calls[0]["name"] == "search_web"
 
     def test_message_response_tool_calls_defaults_to_none(self) -> None:
-        from datetime import datetime
-
-        from app.core_plugins.chat.schemas import MessageResponse
-
         response = MessageResponse(
             id=1,
             role="assistant",
@@ -832,15 +829,11 @@ class TestMessageResponseToolCalls:
 class TestSimilarityThresholdRemoved:
     def test_chat_completion_request_has_no_similarity_threshold(self) -> None:
         """similarity_threshold field must be removed from ChatCompletionRequest."""
-        from app.core_plugins.chat.schemas import ChatCompletionRequest
-
         # The field must not be present in the model's fields
         assert "similarity_threshold" not in ChatCompletionRequest.model_fields
 
     def test_chat_completion_request_accepts_valid_fields(self) -> None:
         """ChatCompletionRequest still works without similarity_threshold."""
-        from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
-
         req = ChatCompletionRequest(
             llm_config_id=1,
             messages=[ChatMessage(role="user", content="hello")],
@@ -849,9 +842,5 @@ class TestSimilarityThresholdRemoved:
 
     def test_stream_chat_response_has_no_similarity_threshold_param(self) -> None:
         """stream_chat_response must not have a similarity_threshold parameter."""
-        import inspect
-
-        from app.core_plugins.chat.routes.completions import stream_chat_response
-
         sig = inspect.signature(stream_chat_response)
         assert "similarity_threshold" not in sig.parameters

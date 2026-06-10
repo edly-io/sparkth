@@ -45,6 +45,7 @@ from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
 from app.rag.store import ChunkStoreService
+from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
 router.include_router(oauth_router)
@@ -228,8 +229,6 @@ async def _dispatch_event(
     )
 
     async with session_scope() as session:
-        from app.services.plugin import PluginService  # deferred to avoid circular import
-
         plugin_map = await PluginService().get_user_plugin_map(session, user_id)
 
         user_plugin = plugin_map.get("slack")

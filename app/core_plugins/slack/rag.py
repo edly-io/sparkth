@@ -16,23 +16,23 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
+from app.core_plugins.slack.utils import resolve_source_name
+from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
-    RagStatus,
     RetrievedChunk,
     agentic_retrieve_context,
 )
 from app.llm.providers import BaseChatProvider
 from app.models.drive import DriveFile
-from app.rag.utils import resolve_source_name
 
 logger = get_logger(__name__)
 
 
-# TODO: this function is almost similar to app.core_plugins.chat.routes.helper.format_source_block
+# TODO: this function is almost similar to app.core_plugins.chat.routes.helpers.format_source_block
 # we need to figure out how to remove this duplication.
 def _format_context(chunks: list[RetrievedChunk]) -> str:
     """Render retrieved chunks as per-document context blocks for synthesis."""
@@ -62,18 +62,19 @@ async def _resolve_files_for_sources(
     user_id: int,
     allowed_sources: list[str],
 ) -> list[int]:
-    """Resolve a list of source names to RAG-ready DriveFile IDs for *user_id*.
+    """Resolve a list of source names to RAG-ready Document IDs for *user_id*.
 
-    Returns matching DriveFile IDs filtered to rag_status=READY and is_deleted=False.
-    When *allowed_sources* is empty, returns all ready owner files ordered by
-    DriveFile.id ASC, capped at the configured Slack max-agent-files limit.
+    Returns Document IDs filtered to DocumentStatus.READY and is_deleted=False.
+    When *allowed_sources* is empty, returns all ready owner document IDs ordered by
+    DriveFile.id ASC, capped at SlackSettings.max_agent_files.
     """
     max_agent_files = get_slack_settings().max_agent_files
     stmt = (
         select(DriveFile)
+        .join(Document, col(DriveFile.document_id) == col(Document.id))
         .where(
             col(DriveFile.user_id) == user_id,
-            col(DriveFile.rag_status) == RagStatus.READY,
+            col(Document.status) == DocumentStatus.READY,
             col(DriveFile.is_deleted) == False,  # noqa: E712
         )
         .order_by(col(DriveFile.id).asc())
@@ -96,7 +97,7 @@ async def _resolve_files_for_sources(
 
     if allowed_sources:
         allowed_set = set(allowed_sources)
-        matched = [f.id for f in files if f.id is not None and resolve_source_name(f) in allowed_set]
+        matched = [f.document_id for f in files if f.document_id is not None and resolve_source_name(f) in allowed_set]
         if len(matched) > max_agent_files:
             logger.warning(
                 "Slack agentic RAG: %d sources resolved for user=%d, capping at max_agent_files=%d",
@@ -107,7 +108,7 @@ async def _resolve_files_for_sources(
             matched = matched[:max_agent_files]
         return matched
 
-    return [f.id for f in files[:max_agent_files] if f.id is not None]
+    return [f.document_id for f in files[:max_agent_files] if f.document_id is not None]
 
 
 async def answer_question(
@@ -143,9 +144,7 @@ async def answer_question(
             returns formatted raw chunks. Built from the instructor's llm_config_id
             by the caller.
     """
-    file_ids = await _resolve_files_for_sources(
-        session=session, user_id=user_id, allowed_sources=config.allowed_sources
-    )
+    file_ids = await _resolve_files_for_sources(session, user_id, config.allowed_sources)
 
     logger.info(
         "Slack agentic RAG: user=%d files=%d sources=%s",
@@ -164,7 +163,7 @@ async def answer_question(
 
     try:
         chunks = await agentic_retrieve_context(question, file_ids, user_id, agent_llm)
-    except DriveFileNotFoundError as exc:
+    except DocumentNotFoundError as exc:
         logger.error("Slack agentic RAG: file not found user=%d files=%s: %s", user_id, file_ids, exc)
         return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND
     except RAGNotReadyError as exc:

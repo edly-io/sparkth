@@ -1,4 +1,4 @@
-"""Tests for RAG agent."""
+"""Tests for RAG agent retrieval orchestration."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -22,7 +22,7 @@ def _make_validation_error() -> ValidationError:
 
 
 class TestRunRagSearch:
-    """Tests for run_agentic_rag_retrieval covering the structured_response extraction and error paths."""
+    """Tests for run_agentic_rag_retrieval covering structured response and error paths."""
 
     def _patch_agent(self, agent: Any) -> Any:
         return patch("app.rag.retrieval.agent.create_agent", return_value=agent)

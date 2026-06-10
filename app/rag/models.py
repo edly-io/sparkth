@@ -6,15 +6,15 @@ from sqlmodel import Field, SQLModel
 from app.models.base import TimestampedModel
 
 
-class DriveFileChunkLink(SQLModel, table=True):
-    """Many-to-many bridge between drive_files and rag_document_chunks.
+class DocumentChunkLink(SQLModel, table=True):
+    """Many-to-many bridge between documents and rag_document_chunks.
 
     Rows are immutable once inserted — no timestamps needed.
     """
 
-    __tablename__ = "rag_drive_file_chunk_links"
+    __tablename__ = "rag_document_chunk_links"
 
-    drive_file_id: int = Field(foreign_key="drive_files.id", primary_key=True)
+    document_id: int = Field(foreign_key="documents.id", primary_key=True)
     chunk_id: int = Field(foreign_key="rag_document_chunks.id", primary_key=True)
 
 

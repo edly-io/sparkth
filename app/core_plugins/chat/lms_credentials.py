@@ -3,11 +3,11 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.constants import LMS_RULES
+from app.plugins import PLUGIN_CONFIG_CLASSES
+from app.services.plugin import PluginService
 
 
 def _lms_tool_prefixes() -> tuple[str, ...]:
-    from app.plugins import PLUGIN_CONFIG_CLASSES  # lazy import — avoids circular dep
-
     return tuple(prefix for cls in PLUGIN_CONFIG_CLASSES.values() if (prefix := cls.lms_tool_prefix()) is not None)
 
 
@@ -38,9 +38,6 @@ async def build_lms_credentials_message(
     # active tools to inspect, so no credentials hint is needed.
     if not tools or not _has_lms_tools(tools):
         return None
-
-    from app.plugins import PLUGIN_CONFIG_CLASSES  # lazy import — avoids circular dep
-    from app.services.plugin import PluginService  # lazy import — avoids circular dep
 
     plugin_service = PluginService()
     user_plugin_map = await plugin_service.get_user_plugin_map(session, user_id)

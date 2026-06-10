@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment
 from app.core_plugins.chat.service import ChatService
-from app.lib.rag import RagStatus
+from app.lib.documents import Document, DocumentStatus
 from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 
@@ -34,7 +34,6 @@ async def _seed_drive_file(
     folder_id: int,
     user_id: int = 1,
     name: str = "test.pdf",
-    rag_status: RagStatus = RagStatus.READY,
 ) -> tuple[DriveFile, int]:
     """Helper: create a DriveFile in the test DB. Returns (file, file_id)."""
     file = DriveFile(
@@ -42,13 +41,30 @@ async def _seed_drive_file(
         user_id=user_id,
         drive_file_id=f"df_{name}",
         name=name,
-        rag_status=rag_status,
     )
     session.add(file)
     await session.flush()
     file_id = cast(int, file.id)
     await session.commit()
     return file, file_id
+
+
+async def _seed_document(
+    session: AsyncSession,
+    drive_file: DriveFile,
+    user_id: int = 1,
+    status: DocumentStatus = DocumentStatus.READY,
+) -> Document:
+    """Helper: create a Document and link it to a DriveFile. Returns the Document."""
+    await session.refresh(drive_file)
+    doc = Document(user_id=user_id, name=drive_file.name, status=status)
+    session.add(doc)
+    await session.flush()
+    await session.refresh(doc)
+    drive_file.document_id = doc.id
+    session.add(drive_file)
+    await session.commit()
+    return doc
 
 
 async def _seed_conversation(session: AsyncSession, user_id: int = 1) -> tuple[int, str]:
@@ -188,16 +204,15 @@ class TestChatServiceAttach:
 
     @pytest.mark.asyncio
     async def test_list_conversation_attachments_returns_only_ready_files(self, session: AsyncSession) -> None:
-        """list_conversation_attachments filters to READY rag_status only."""
+        """list_conversation_attachments filters to files with a READY linked Document only."""
         # Setup
         conv_id, _ = await _seed_conversation(session)
         folder, folder_id = await _seed_drive_folder(session)
-        ready_file, ready_file_id = await _seed_drive_file(
-            session, folder_id, name="ready.pdf", rag_status=RagStatus.READY
-        )
-        failed_file, failed_file_id = await _seed_drive_file(
-            session, folder_id, name="failed.pdf", rag_status=RagStatus.FAILED
-        )
+        ready_file, ready_file_id = await _seed_drive_file(session, folder_id, name="ready.pdf")
+        failed_file, failed_file_id = await _seed_drive_file(session, folder_id, name="failed.pdf")
+        # Link Documents: ready_file gets READY document, failed_file gets FAILED document
+        await _seed_document(session, ready_file, status=DocumentStatus.READY)
+        await _seed_document(session, failed_file, status=DocumentStatus.FAILED)
         service = ChatService()
 
         # Act - attach both
@@ -393,6 +408,7 @@ class TestAttachmentEndpoints:
         conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
         folder, folder_id = await _seed_drive_folder(session, user_id=cast(int, current_user.id))
         file, file_id = await _seed_drive_file(session, folder_id, user_id=cast(int, current_user.id), name="doc.pdf")
+        await _seed_document(session, file, user_id=cast(int, current_user.id), status=DocumentStatus.READY)
         service = ChatService()
         await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=file_id)
 
@@ -412,15 +428,17 @@ class TestAttachmentEndpoints:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        """GET only returns READY files, not pending/failed ones."""
+        """GET only returns files with a READY linked Document, not failed/processing ones."""
         conv_id, conv_uuid = await _seed_conversation(session, user_id=cast(int, current_user.id))
         folder, folder_id = await _seed_drive_folder(session, user_id=cast(int, current_user.id))
         ready_file, ready_id = await _seed_drive_file(
-            session, folder_id, user_id=cast(int, current_user.id), name="ready.pdf", rag_status=RagStatus.READY
+            session, folder_id, user_id=cast(int, current_user.id), name="ready.pdf"
         )
         failed_file, failed_id = await _seed_drive_file(
-            session, folder_id, user_id=cast(int, current_user.id), name="failed.pdf", rag_status=RagStatus.FAILED
+            session, folder_id, user_id=cast(int, current_user.id), name="failed.pdf"
         )
+        await _seed_document(session, ready_file, user_id=cast(int, current_user.id), status=DocumentStatus.READY)
+        await _seed_document(session, failed_file, user_id=cast(int, current_user.id), status=DocumentStatus.FAILED)
         service = ChatService()
         await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=ready_id)
         await service.attach_drive_file(session, conversation_id=conv_id, drive_file_id=failed_id)

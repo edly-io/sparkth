@@ -76,7 +76,7 @@ class SimilarityResult:
 class RAGContext:
     """Retrieved context ready for injection into an LLM prompt."""
 
-    file_db_id: int
+    document_id: int
     source_name: str
     chunks: list[SimilarityResult]
     formatted_text: str

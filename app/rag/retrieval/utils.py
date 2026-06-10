@@ -1,55 +1,48 @@
-"""Shared utilities for RAG retrieval — file lookup, chunk formatting, and batch validation."""
+"""Shared utilities for RAG retrieval — document lookup, chunk formatting, and batch validation."""
 
 from __future__ import annotations
-
-from typing import TYPE_CHECKING
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
-
-if TYPE_CHECKING:
-    # Imported under TYPE_CHECKING only to avoid a runtime cycle: app.models.drive
-    # imports RagStatus from app.lib.rag, which imports this module.
-    # TODO: this circular dependency will be resolved once the Document API gets implemented
-    from app.models.drive import DriveFile
-
-from app.rag.enums import RagStatus
-from app.rag.exceptions import DriveFileNotFoundError, RAGNotReadyError
+from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.types import SimilarityResult
 
 logger = get_logger(__name__)
 
 
-async def _lookup_drive_file(
+async def _lookup_document(
     session: AsyncSession,
     user_id: int,
-    file_db_id: int,
-) -> DriveFile:
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
+    document_id: int,
+) -> Document:
+    """Return the Document if owned by user_id, not deleted, and READY.
 
+    Raises:
+        DocumentNotFoundError: document missing, wrong owner, or soft-deleted.
+        RAGNotReadyError: document exists but status is not READY.
+    """
     result = await session.exec(
-        select(DriveFile).where(
-            col(DriveFile.id) == file_db_id,
-            col(DriveFile.user_id) == user_id,
-            col(DriveFile.is_deleted) == False,  # noqa: E712
+        select(Document).where(
+            col(Document.id) == document_id,
+            col(Document.user_id) == user_id,
+            col(Document.is_deleted) == False,  # noqa: E712
         )
     )
-    drive_file_raw: DriveFile | None = result.first()
+    doc = result.first()
 
-    if drive_file_raw is None:
-        logger.warning("DriveFile not found: id=%d user_id=%d", file_db_id, user_id)
-        raise DriveFileNotFoundError(f"File with id={file_db_id} not found or not accessible.")
+    if doc is None:
+        logger.warning("Document not found: id=%d user_id=%d", document_id, user_id)
+        raise DocumentNotFoundError(f"Document with id={document_id} not found or not accessible.")
 
-    drive_file = drive_file_raw
+    if doc.status != DocumentStatus.READY:
+        status_str = str(doc.status)
+        logger.warning("RAG not ready: document_id=%d status=%s", document_id, status_str)
+        raise RAGNotReadyError(document_id, status_str)
 
-    if drive_file.rag_status != RagStatus.READY:
-        status_str = str(drive_file.rag_status or "None")
-        logger.warning("RAG not ready: file_db_id=%d status=%s", file_db_id, status_str)
-        raise RAGNotReadyError(file_db_id, status_str)
-
-    return drive_file
+    return doc
 
 
 def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
@@ -73,29 +66,27 @@ def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) 
     return "\n".join(lines)
 
 
-async def validate_files_ready(session: AsyncSession, user_id: int, file_ids: list[int]) -> None:
-    """Verify every file is owned by user_id and in READY state.
+async def validate_documents_ready(session: AsyncSession, user_id: int, document_ids: list[int]) -> None:
+    """Verify every document is owned by user_id and in READY state.
 
     Raises:
-        DriveFileNotFoundError: a file id is missing or not owned by the user.
-        RAGNotReadyError: a file exists but its rag_status is not READY.
+        DocumentNotFoundError: a document id is missing or not owned by the user.
+        RAGNotReadyError: a document exists but its status is not READY.
     """
-    from app.models.drive import DriveFile  # lazy — see TYPE_CHECKING note on the cycle
-
     result = await session.exec(
-        select(DriveFile).where(
-            col(DriveFile.id).in_(file_ids),
-            col(DriveFile.user_id) == user_id,
-            col(DriveFile.is_deleted) == False,  # noqa: E712
+        select(Document).where(
+            col(Document.id).in_(document_ids),
+            col(Document.user_id) == user_id,
+            col(Document.is_deleted) == False,  # noqa: E712
         )
     )
-    found = {f.id: f for f in result.all()}
-    for file_id in file_ids:
-        drive_file = found.get(file_id)
-        if drive_file is None:
-            logger.warning("DriveFile not found: id=%d user_id=%d", file_id, user_id)
-            raise DriveFileNotFoundError(f"File with id={file_id} not found or not accessible.")
-        if drive_file.rag_status != RagStatus.READY:
-            status_str = str(drive_file.rag_status or "None")
-            logger.warning("RAG not ready: file_db_id=%d status=%s", file_id, status_str)
-            raise RAGNotReadyError(file_id, status_str)
+    found = {d.id: d for d in result.all()}
+    for doc_id in document_ids:
+        doc = found.get(doc_id)
+        if doc is None:
+            logger.warning("Document not found: id=%d user_id=%d", doc_id, user_id)
+            raise DocumentNotFoundError(f"Document with id={doc_id} not found or not accessible.")
+        if doc.status != DocumentStatus.READY:
+            status_str = str(doc.status)
+            logger.warning("RAG not ready: document_id=%d status=%s", doc_id, status_str)
+            raise RAGNotReadyError(doc_id, status_str)

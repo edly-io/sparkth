@@ -6,28 +6,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.googledrive.utils import _process_single_file, process_folder_rag
+from app.core_plugins.googledrive.utils import _process_single_file, _process_with_semaphore
 
 
 class TestProcessFileMemory:
     """Tests for malloc_trim and OS memory release."""
 
     @pytest.mark.asyncio
-    async def test_process_with_own_session_calls_gc_collect(self) -> None:
-        """Verify that after session close, gc.collect() is called in _process_with_own_session."""
-        # Since _process_with_own_session is a nested function, we verify the behavior
-        # indirectly by checking that the function has the correct cleanup code structure.
-        # The actual malloc_trim behavior is verified through integration testing.
-        source = inspect.getsource(process_folder_rag)
-        # Verify that _process_with_own_session includes gc.collect() after session close
+    async def test_process_with_semaphore_calls_gc_collect(self) -> None:
+        """Verify that gc.collect() and malloc_trim logic live in _process_with_semaphore."""
+        source = inspect.getsource(_process_with_semaphore)
         assert "gc.collect()" in source
-        # Verify that malloc_trim code exists in the function
         assert "malloc_trim" in source
 
     @pytest.mark.asyncio
     async def test_malloc_trim_not_called_on_darwin(self) -> None:
         """Verify malloc_trim is NOT called on macOS (darwin)."""
-        mock_drive_file = MagicMock(id=1, name="test.pdf", rag_status=None, size=None)
+        mock_drive_file = MagicMock(id=1, name="test.pdf", size=None, document_id=None, mime_type="application/pdf")
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
 
@@ -35,11 +30,16 @@ class TestProcessFileMemory:
             patch("ctypes.CDLL") as mock_cdll,
             patch("app.core_plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"%PDF-1.4\n")),
             patch("app.core_plugins.googledrive.utils.get_googledrive_settings") as mock_settings,
-            patch("app.core_plugins.googledrive.utils._find_duplicate_file", new=AsyncMock(return_value=None)),
+            patch(
+                "app.core_plugins.googledrive.utils._find_ready_duplicate_document_id",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("app.core_plugins.googledrive.utils.create_document", new=AsyncMock(return_value=MagicMock(id=1))),
             patch(
                 "app.core_plugins.googledrive.utils.ingest_document",
                 new=AsyncMock(return_value=MagicMock(new_chunks=0, reused_chunks=0)),
             ),
+            patch("app.core_plugins.googledrive.utils.update_document_status", new=AsyncMock()),
             patch.object(sys, "platform", "darwin"),
         ):
             mock_settings.return_value.INGESTION_MAX_FILE_SIZE_MB = 50
@@ -60,7 +60,6 @@ class TestProcessFileMemory:
         mock_drive_file = MagicMock()
         mock_drive_file.id = 1
         mock_drive_file.name = "test.pdf"
-        mock_drive_file.rag_status = None
         mock_drive_file.size = None
         mock_drive_file.mime_type = "application/pdf"
 

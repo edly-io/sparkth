@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-from app.lib.rag import RagStatus
+from app.lib.documents import DocumentStatus
 
 T = TypeVar("T")
 
@@ -67,7 +67,7 @@ class DriveFileResponse(BaseModel):
     size: int | None = None
     modified_time: datetime | None = None
     last_synced_at: datetime | None = None
-    rag_status: RagStatus | None = None
+    rag_status: DocumentStatus | None = None
     rag_error: str | None = None
 
 
@@ -109,7 +109,7 @@ class FileRagStatusResponse(BaseModel):
 
     file_id: int
     name: str
-    rag_status: RagStatus | None = None
+    rag_status: DocumentStatus | None = None
     rag_error: str | None = None
 
 

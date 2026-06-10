@@ -149,8 +149,20 @@ async def drive_client(
     async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
+    assert test_user.id is not None
+    auth_user = User(
+        id=test_user.id,
+        name=test_user.name,
+        username=test_user.username,
+        email=test_user.email,
+        hashed_password=test_user.hashed_password,
+        is_superuser=test_user.is_superuser,
+        email_verified=test_user.email_verified,
+        email_verified_at=test_user.email_verified_at,
+    )
+
     async def get_user_override() -> User:
-        return test_user
+        return auth_user
 
     app.dependency_overrides[get_async_session] = get_async_session_override
     app.dependency_overrides[get_current_user] = get_user_override

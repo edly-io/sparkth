@@ -16,7 +16,7 @@ from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.core_plugins.googledrive.oauth import get_valid_access_token
 from app.core_plugins.googledrive.routes.dependencies import require_user_id
-from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
+from app.core_plugins.googledrive.routes.route_utils import batch_fetch_documents, get_drive_credentials
 from app.core_plugins.googledrive.schemas import (
     DriveBrowseItem,
     DriveBrowseResponse,
@@ -28,7 +28,6 @@ from app.core_plugins.googledrive.schemas import (
 )
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
-from app.lib.rag import RagStatus
 from app.models.drive import DriveFile, DriveFolder
 
 router = APIRouter()
@@ -61,7 +60,10 @@ async def list_files(
     )
 
     total = (await session.exec(select(func.count()).select_from(base_query.subquery()))).one()
-    files: Sequence[DriveFile] = (await session.exec(base_query.offset(skip).limit(limit))).all()
+    page_files: Sequence[DriveFile] = (await session.exec(base_query.offset(skip).limit(limit))).all()
+
+    document_ids = [f.document_id for f in page_files if f.document_id is not None]
+    docs = await batch_fetch_documents(session, document_ids)
 
     return PaginatedResponse(
         items=[
@@ -73,10 +75,10 @@ async def list_files(
                 size=f.size,
                 modified_time=f.modified_time,
                 last_synced_at=f.last_synced_at,
-                rag_status=f.rag_status,
-                rag_error=f.rag_error,
+                rag_status=docs[f.document_id].status if f.document_id and f.document_id in docs else None,
+                rag_error=docs[f.document_id].error if f.document_id and f.document_id in docs else None,
             )
-            for f in files
+            for f in page_files
         ],
         total=total,
         skip=skip,
@@ -138,7 +140,6 @@ async def upload_file(
         md5_checksum=file_metadata.get("md5Checksum"),
         modified_time=modified_time,
         last_synced_at=now,
-        rag_status=RagStatus.QUEUED,
     )
     session.add(drive_file)
     await session.commit()
@@ -152,8 +153,6 @@ async def upload_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
-        rag_status=drive_file.rag_status,
-        rag_error=drive_file.rag_error,
     )
 
 
@@ -175,6 +174,11 @@ async def get_file(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
+    doc = None
+    if drive_file.document_id is not None:
+        docs = await batch_fetch_documents(session, [drive_file.document_id])
+        doc = docs.get(drive_file.document_id)
+
     return DriveFileResponse(
         id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
@@ -183,8 +187,8 @@ async def get_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
-        rag_status=drive_file.rag_status,
-        rag_error=drive_file.rag_error,
+        rag_status=doc.status if doc else None,
+        rag_error=doc.error if doc else None,
     )
 
 
@@ -206,11 +210,16 @@ async def get_file_rag_status(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
+    doc = None
+    if drive_file.document_id is not None:
+        docs = await batch_fetch_documents(session, [drive_file.document_id])
+        doc = docs.get(drive_file.document_id)
+
     return FileRagStatusResponse(
         file_id=cast(int, drive_file.id),
         name=drive_file.name,
-        rag_status=drive_file.rag_status,
-        rag_error=drive_file.rag_error,
+        rag_status=doc.status if doc else None,
+        rag_error=doc.error if doc else None,
     )
 
 
@@ -240,14 +249,21 @@ async def get_folder_rag_status(
     )
     files = files_result.all()
 
+    folder_document_ids = [f.document_id for f in files if f.document_id is not None]
+    folder_docs = await batch_fetch_documents(session, folder_document_ids)
+
     return FolderRagStatusResponse(
         folder_id=folder_id,
         files=[
             FileRagStatusResponse(
                 file_id=cast(int, f.id),
                 name=f.name,
-                rag_status=f.rag_status,
-                rag_error=f.rag_error,
+                rag_status=(
+                    folder_docs[f.document_id].status if f.document_id and f.document_id in folder_docs else None
+                ),
+                rag_error=(
+                    folder_docs[f.document_id].error if f.document_id and f.document_id in folder_docs else None
+                ),
             )
             for f in files
         ],
@@ -337,6 +353,11 @@ async def rename_file(
     await session.commit()
     await session.refresh(drive_file)
 
+    doc = None
+    if drive_file.document_id is not None:
+        docs = await batch_fetch_documents(session, [drive_file.document_id])
+        doc = docs.get(drive_file.document_id)
+
     return DriveFileResponse(
         id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
@@ -345,8 +366,8 @@ async def rename_file(
         size=drive_file.size,
         modified_time=drive_file.modified_time,
         last_synced_at=drive_file.last_synced_at,
-        rag_status=drive_file.rag_status,
-        rag_error=drive_file.rag_error,
+        rag_status=doc.status if doc else None,
+        rag_error=doc.error if doc else None,
     )
 
 

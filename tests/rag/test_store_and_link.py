@@ -1,18 +1,15 @@
 """Tests for app.rag.store.store_and_link_chunks — chunk storage + dedup + linking."""
-# TODO: the unit tests below mock the DB session to control query return values,
-# which couples them to internal query order and makes them brittle. They should
-# be rewritten as integration tests using the real `session` fixture (see
-# test_deleted_file_chunks_not_reused for the pattern). Track as a follow-up PR.
 
 import hashlib
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.models import DocumentChunk, DriveFileChunkLink
-from app.rag.store import ChunkStoreService, store_and_link_chunks
+from app.lib.documents import Document, DocumentStatus
+from app.models.user import User
+from app.rag.models import DocumentChunk, DocumentChunkLink
+from app.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks
 from app.rag.types import Chunk, ChunkInput, ChunkMetadata
 
 
@@ -55,7 +52,7 @@ class TestStoreAndLinkChunks:
         new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
-            drive_file_id=10,
+            document_id=10,
             chunks=chunks,
             store=store,
         )
@@ -90,7 +87,7 @@ class TestStoreAndLinkChunks:
         new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
-            drive_file_id=10,
+            document_id=10,
             chunks=chunks,
             store=store,
         )
@@ -123,7 +120,7 @@ class TestStoreAndLinkChunks:
         new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
-            drive_file_id=10,
+            document_id=10,
             chunks=chunks,
             store=store,
         )
@@ -157,7 +154,7 @@ class TestStoreAndLinkChunks:
         new_count, reused_count = await store_and_link_chunks(
             session,
             user_id=1,
-            drive_file_id=5,
+            document_id=5,
             chunks=chunks,
             store=store,
         )
@@ -171,48 +168,27 @@ class TestStoreAndLinkChunks:
 
     @pytest.mark.asyncio
     async def test_deleted_file_chunks_not_reused(self, session: AsyncSession) -> None:
-        """Chunks linked only to deleted DriveFiles must never be reused."""
-        from app.models.drive import DriveFile, DriveFolder
-        from app.models.user import User
-
+        """Chunks linked only to deleted Documents must never be reused."""
         async_session: AsyncSession = session
 
         user = User(name="ReuseTest", username="reusetest", email="reuse@test.com", hashed_password="x")
         async_session.add(user)
         await async_session.flush()
-
         assert user.id is not None
-        folder = DriveFolder(
-            user_id=user.id,
-            drive_folder_id="folder_reuse",
-            drive_folder_name="Reuse Folder",
-            last_synced_at=datetime.now(timezone.utc),
-            sync_status="synced",
-        )
-        async_session.add(folder)
-        await async_session.flush()
 
-        assert folder.id is not None
-        new_drive_file = DriveFile(
-            folder_id=folder.id,
+        new_doc = Document(user_id=user.id, name="new.pdf", mime_type="application/pdf", status=DocumentStatus.QUEUED)
+        deleted_doc = Document(
             user_id=user.id,
-            drive_file_id="new_file_id",
-            name="new.pdf",
-            last_synced_at=datetime.now(timezone.utc),
-        )
-        async_session.add(new_drive_file)
-        await async_session.flush()
-
-        deleted_drive_file = DriveFile(
-            folder_id=folder.id,
-            user_id=user.id,
-            drive_file_id="deleted_file_id",
             name="deleted.pdf",
-            last_synced_at=datetime.now(timezone.utc),
+            mime_type="application/pdf",
+            status=DocumentStatus.READY,
             is_deleted=True,
         )
-        async_session.add(deleted_drive_file)
+        async_session.add(new_doc)
+        async_session.add(deleted_doc)
         await async_session.flush()
+        assert new_doc.id is not None
+        assert deleted_doc.id is not None
 
         chunk_content = "some shared chunk content"
         chunk_hash = hashlib.sha256(chunk_content.encode()).hexdigest()
@@ -225,24 +201,44 @@ class TestStoreAndLinkChunks:
         )
         async_session.add(existing_chunk)
         await async_session.flush()
-
-        assert deleted_drive_file.id is not None
         assert existing_chunk.id is not None
-        link = DriveFileChunkLink(drive_file_id=deleted_drive_file.id, chunk_id=existing_chunk.id)
+
+        link = DocumentChunkLink(document_id=deleted_doc.id, chunk_id=existing_chunk.id)
         async_session.add(link)
         await async_session.flush()
 
         store = AsyncMock(spec=ChunkStoreService)
-        store.store_chunks = AsyncMock(return_value=[999])  # fake new chunk ID
+        store.store_chunks = AsyncMock(return_value=[999])
+        assert new_doc.id is not None
 
-        assert new_drive_file.id is not None
         new_count, reused_count = await store_and_link_chunks(
             async_session,
             user_id=user.id,
-            drive_file_id=new_drive_file.id,
+            document_id=new_doc.id,
             chunks=[Chunk(content=chunk_content, metadata=ChunkMetadata(source_name="new.pdf"))],
             store=store,
         )
 
-        assert reused_count == 0, "chunk linked only to a deleted file must not be reused"
+        assert reused_count == 0, "chunk linked only to a deleted document must not be reused"
         assert new_count == 1, "chunk must be re-stored since its only source is deleted"
+
+
+class TestCopyDocumentChunkLinks:
+    async def test_copies_chunk_ids_from_source(self) -> None:
+        """Chunk links from source document are copied to target document."""
+        session = _make_async_session()
+
+        source_links_result = MagicMock()
+        source_links_result.all.return_value = [10, 11]
+
+        already_linked_result = MagicMock()
+        already_linked_result.all.return_value = []
+
+        session.scalars = AsyncMock(side_effect=[source_links_result, already_linked_result])
+
+        await copy_document_chunk_links(session, 1, 2)
+
+        session.add_all.assert_called_once()
+        links = session.add_all.call_args[0][0]
+        chunk_ids = {lnk.chunk_id for lnk in links}
+        assert chunk_ids == {10, 11}

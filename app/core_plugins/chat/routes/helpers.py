@@ -21,7 +21,7 @@ from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
 from app.lib.log import get_logger
 from app.lib.rag import (
-    DriveFileNotFoundError,
+    DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
@@ -94,13 +94,31 @@ def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
     return file_ids
 
 
+async def to_document_ids(session: AsyncSession, drive_file_ids: list[int]) -> list[int]:
+    """Resolve DriveFile IDs to their linked Document IDs for RAG retrieval."""
+    if not drive_file_ids:
+        return []
+    result = await session.exec(
+        select(DriveFileModel.document_id).where(
+            col(DriveFileModel.id).in_(drive_file_ids),
+            col(DriveFileModel.document_id).isnot(None),
+            DriveFileModel.is_deleted == False,  # noqa: E712
+        )
+    )
+    return [doc_id for doc_id in result.all() if doc_id is not None]
+
+
 async def resolve_drive_file_blocks(
     messages: list[ChatMessage],
+    session: AsyncSession,
     user_id: int,
     llm: Any,
 ) -> list[ChatMessage]:
     """Replace drive_file content blocks with RAG context text blocks.
 
+    Collects all drive_file IDs in each message, resolves them to Document IDs,
+    calls agentic_retrieve_context once per message, groups results by source,
+    and injects one text block per source.
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
 
@@ -116,13 +134,8 @@ async def resolve_drive_file_blocks(
             resolved.append(msg)
             continue
 
-        has_drive_file = any(isinstance(b, dict) and b.get("type") == "drive_file" for b in msg.content)
-        if not has_drive_file:
-            resolved.append(msg)
-            continue
-
-        non_file_blocks: list[dict[str, Any]] = []
         file_ids: list[int] = []
+        non_file_blocks: list[dict[str, Any]] = []
         for block in msg.content:
             if isinstance(block, dict) and block.get("type") == "drive_file":
                 raw_id = block.get("file_id")
@@ -137,30 +150,12 @@ async def resolve_drive_file_blocks(
             resolved.append(msg)
             continue
 
-        try:
-            chunks = await agentic_retrieve_context(query_text, file_ids, user_id, llm)
-        except DriveFileNotFoundError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="One or more files not found or not accessible.",
-            ) from exc
-        except RAGNotReadyError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=(f"A file is still being processed (status: {exc.rag_status}). Please wait and try again."),
-            ) from exc
-        except RAGRetrievalError as exc:
-            logger.error("RAG retrieval error for file_ids=%s: %s", file_ids, exc)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve document context. Please try again.",
-            ) from exc
+        chunks = await _retrieve_rag_chunks(session, user_id, file_ids, query_text, llm)
 
         grouped = group_by_source(chunks)
         rag_blocks: list[dict[str, Any]] = [
             {"type": "text", "text": format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
         ]
-
         logger.info(
             "Replaced drive_file blocks file_ids=%s with %d RAG chunks across %d source(s)",
             file_ids,
@@ -179,6 +174,39 @@ async def resolve_drive_file_blocks(
         resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
 
     return resolved
+
+
+async def _retrieve_rag_chunks(
+    session: AsyncSession,
+    user_id: int,
+    file_ids: list[int],
+    query_text: str,
+    llm: Any,
+) -> list[RetrievedChunk]:
+    """Resolve DriveFile IDs to Document IDs and retrieve RAG chunks.
+
+    Raises:
+        HTTPException: if files are missing, not ready, or retrieval fails.
+    """
+    document_ids = await to_document_ids(session, file_ids)
+    try:
+        return await agentic_retrieve_context(query_text, document_ids, user_id, llm)
+    except DocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="One or more files not found or not accessible.",
+        ) from exc
+    except RAGNotReadyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"A file is still being processed (status: {exc.status}). Please wait and try again.",
+        ) from exc
+    except RAGRetrievalError as exc:
+        logger.error("RAG retrieval error for file_ids=%s: %s", file_ids, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve document context. Please try again.",
+        ) from exc
 
 
 async def persist_pre_stream_error(
