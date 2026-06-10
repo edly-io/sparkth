@@ -79,6 +79,11 @@ frontend.install.dev: ## Install exact frontend dependencies from lockfile
 frontend.up.dev: ## Run frontend dev server (hot reload)
 	cd frontend && bun run dev
 
+.PHONY: gen.api
+gen.api: ## Regenerate frontend API types from the backend OpenAPI schema
+	uv run python scripts/dump_openapi.py > openapi.json
+	cd frontend && bun run gen:api
+
 ##@ Backend
 .PHONY: backend.build
 backend.build: ## Build Python package (sdist + wheel)
