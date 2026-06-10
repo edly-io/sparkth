@@ -60,25 +60,12 @@ class ChunkInput:
 
 
 @dataclass
-class SimilarityResult:
-    """A document chunk paired with a relevance score.
-
-    The agentic retrieval path selects chunks by section rather than vector
-    similarity, so `similarity` is always 1.0. The field is retained as the
-    common chunk container shape used by the internal retrieval path.
-    """
-
-    chunk: DocumentChunk
-    similarity: float
-
-
-@dataclass
 class RAGContext:
     """Retrieved context ready for injection into an LLM prompt."""
 
     document_id: int
     source_name: str
-    chunks: list[SimilarityResult]
+    chunks: list[DocumentChunk]
     formatted_text: str
 
 

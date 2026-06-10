@@ -8,7 +8,6 @@ from app.lib.documents import DocumentStatus
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.models import DocumentChunk
 from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready
-from app.rag.types import SimilarityResult
 
 
 def _make_session() -> AsyncMock:
@@ -31,17 +30,15 @@ def _make_chunk(
     chapter: str | None = "Chapter 1",
     section: str | None = "Section 1",
     subsection: str | None = None,
-) -> MagicMock:
-    chunk = MagicMock(spec=DocumentChunk)
-    chunk.content = content
-    chunk.chapter = chapter
-    chunk.section = section
-    chunk.subsection = subsection
-    return chunk
-
-
-def _make_sr(content: str = "Content", sim: float = 0.9) -> SimilarityResult:
-    return SimilarityResult(chunk=_make_chunk(content), similarity=sim)
+) -> DocumentChunk:
+    return DocumentChunk(
+        user_id=1,
+        source_name="doc.pdf",
+        content=content,
+        chapter=chapter,
+        section=section,
+        subsection=subsection,
+    )
 
 
 class TestLookupDocument:
@@ -122,13 +119,13 @@ class TestFormatChunksAsContext:
         assert "No relevant excerpts found" in result
 
     def test_single_result_formatted(self) -> None:
-        result = format_chunks_as_context("bio.pdf", [_make_sr("Chlorophyll content")])
+        result = format_chunks_as_context("bio.pdf", [_make_chunk("Chlorophyll content")])
         assert "[DOCUMENT CONTEXT: bio.pdf]" in result
         assert "Chlorophyll content" in result
         assert "Excerpt 1" in result
 
     def test_multiple_results_numbered(self) -> None:
-        results = [_make_sr(f"Content {i}") for i in range(3)]
+        results = [_make_chunk(f"Content {i}") for i in range(3)]
         result = format_chunks_as_context("doc.pdf", results)
         assert "Excerpt 1" in result
         assert "Excerpt 2" in result
@@ -136,12 +133,12 @@ class TestFormatChunksAsContext:
 
     def test_section_label_uses_metadata(self) -> None:
         chunk = _make_chunk(content="Text", chapter="Ch1", section="Sec2", subsection=None)
-        result = format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
+        result = format_chunks_as_context("doc.pdf", [chunk])
         assert "Ch1 / Sec2" in result
 
     def test_no_metadata_uses_general(self) -> None:
         chunk = _make_chunk(content="Text", chapter=None, section=None, subsection=None)
-        result = format_chunks_as_context("doc.pdf", [SimilarityResult(chunk=chunk, similarity=0.8)])
+        result = format_chunks_as_context("doc.pdf", [chunk])
         assert "General" in result
 
 

@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError
+from app.rag.models import DocumentChunk
 from app.rag.retrieval.agent import get_context_via_agent
 from app.rag.schemas import RAGSearchAgentResponse, SectionRef
 from app.rag.types import RAGContext
@@ -25,16 +26,18 @@ class TestGetContextViaAgent:
 
         selected = [SectionRef(chapter=None, section="Photosynthesis", subsection=None)]
 
-        mock_result = MagicMock()
-        mock_result.chunk.id = 1
-        mock_result.chunk.content = "Test content"
-        mock_result.chunk.chapter = None
-        mock_result.chunk.section = "Photosynthesis"
-        mock_result.chunk.subsection = None
-        mock_result.similarity = 1.0
+        mock_chunk = DocumentChunk(
+            id=1,
+            user_id=1,
+            source_name="bio.pdf",
+            content="Test content",
+            chapter=None,
+            section="Photosynthesis",
+            subsection=None,
+        )
 
         mock_store = MagicMock()
-        mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[mock_result])
+        mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[mock_chunk])
 
         with (
             patch("app.rag.retrieval.agent._lookup_document", return_value=mock_doc),

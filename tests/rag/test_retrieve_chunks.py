@@ -8,14 +8,18 @@ from app.lib.rag import agentic_retrieve_context as retrieve_chunks
 from app.rag.enums import RagStatus
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError
 from app.rag.models import DocumentChunk
-from app.rag.types import RAGContext, RetrievedChunk, SimilarityResult
+from app.rag.types import RAGContext, RetrievedChunk
 
 
 def _ctx(source: str, *contents: str) -> RAGContext:
     chunks = [
-        SimilarityResult(
-            chunk=DocumentChunk(user_id=1, source_name=source, content=c, chapter="Ch", section=None, subsection=None),
-            similarity=1.0,
+        DocumentChunk(
+            user_id=1,
+            source_name=source,
+            content=c,
+            chapter="Ch",
+            section=None,
+            subsection=None,
         )
         for c in contents
     ]
