@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-
-interface Conversation {
-  id: string;
-  title: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
+import { listConversations, type ConversationSummary } from "@/lib/chat-api";
 
 interface UseConversationsResult {
-  conversations: Conversation[];
+  conversations: ConversationSummary[];
   loading: boolean;
   error: string | null;
   clearError: () => void;
@@ -19,7 +12,7 @@ export function useConversations(
   token: string | null,
   activeId: string | null,
 ): UseConversationsResult {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,13 +22,7 @@ export function useConversations(
       setLoading(true);
       setError(null);
       try {
-        const r = await fetch("/api/v1/chat/conversations", {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        });
-        if (!r.ok) throw new Error(`Failed to load conversations: HTTP ${r.status}`);
-        const data = await r.json();
-        setConversations(data.conversations ?? []);
+        setConversations(await listConversations(token, signal));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(err);

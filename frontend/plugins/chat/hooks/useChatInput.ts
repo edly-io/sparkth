@@ -2,6 +2,7 @@
 
 import { Dispatch, SetStateAction, useState } from "react";
 import { TextAttachment } from "@/plugins/chat/types";
+import { attachDriveFile, detachDriveFile } from "@/lib/chat-api";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
 import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 
@@ -84,39 +85,21 @@ export function useChatInput({
       const existingIds = new Set(prevDriveAttachments.map((a) => a.driveFileDbId));
       const addedFiles = driveFiles.filter((f) => !existingIds.has(f.id));
       for (const file of addedFiles) {
-        fetch(`/api/v1/chat/conversations/${conversationId}/attachments`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ drive_file_id: file.id }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          })
-          .catch((err) => {
-            console.warn("Failed to persist drive file attachment:", err);
-            setUploadError(`Failed to attach "${file.name}". Please try again.`);
-            setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== file.id));
-          });
+        attachDriveFile(token, conversationId, file.id).catch((err) => {
+          console.warn("Failed to persist drive file attachment:", err);
+          setUploadError(`Failed to attach "${file.name}". Please try again.`);
+          setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== file.id));
+        });
       }
 
       const newIds = new Set(driveFiles.map((f) => f.id));
       const removedAttachments = prevDriveAttachments.filter((a) => !newIds.has(a.driveFileDbId!));
       for (const att of removedAttachments) {
-        fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          })
-          .catch((err) => {
-            console.warn("Failed to detach drive file:", err);
-            setUploadError(`Failed to detach "${att.name}". Please try again.`);
-            setAttachments((prev) => [...prev, att]);
-          });
+        detachDriveFile(token, conversationId, att.driveFileDbId!).catch((err) => {
+          console.warn("Failed to detach drive file:", err);
+          setUploadError(`Failed to detach "${att.name}". Please try again.`);
+          setAttachments((prev) => [...prev, att]);
+        });
       }
     }
   };
@@ -126,36 +109,22 @@ export function useChatInput({
       const removed = attachments.find((a) => a.driveFileDbId === driveFileDbId);
       setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== driveFileDbId));
       if (conversationId && removed) {
-        fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${driveFileDbId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          })
-          .catch((err) => {
-            console.warn("Failed to detach drive file:", err);
-            setUploadError(`Failed to detach "${removed.name}". Please try again.`);
-            setAttachments((prev) => [...prev, removed]);
-          });
+        detachDriveFile(token, conversationId, driveFileDbId).catch((err) => {
+          console.warn("Failed to detach drive file:", err);
+          setUploadError(`Failed to detach "${removed.name}". Please try again.`);
+          setAttachments((prev) => [...prev, removed]);
+        });
       }
     } else {
       const driveAtts = attachments.filter((a) => a.driveFileDbId !== undefined);
       setAttachments([]);
       if (conversationId) {
         for (const att of driveAtts) {
-          fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((res) => {
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            })
-            .catch((err) => {
-              console.warn("Failed to detach drive file:", err);
-              setUploadError("Some files could not be detached. Please try again.");
-              setAttachments((prev) => [...prev, att]);
-            });
+          detachDriveFile(token, conversationId, att.driveFileDbId!).catch((err) => {
+            console.warn("Failed to detach drive file:", err);
+            setUploadError("Some files could not be detached. Please try again.");
+            setAttachments((prev) => [...prev, att]);
+          });
         }
       }
     }

@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { requestChatCompletionStream } from "@/lib/chat-api";
 import { ChatMessage, TextAttachment } from "../types";
 
 interface SendPayload {
@@ -403,24 +404,17 @@ export function useChatStream({
       ]);
 
       try {
-        const res = await fetch("/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            llm_config_id: llmConfigId,
-            ...(modelOverride && { model_override: modelOverride }),
-            messages: newUserMessages,
-            stream: true,
-            tools: "*",
-            tool_choice: "auto",
-            include_system_tools_message: true,
-            similarity_threshold: similarityThreshold,
-            ...(conversationId && { conversation_id: conversationId }),
-            ...(driveFileIds && driveFileIds.length > 0 && { drive_file_ids: driveFileIds }),
-          }),
+        const res = await requestChatCompletionStream(token, {
+          llm_config_id: llmConfigId,
+          ...(modelOverride && { model_override: modelOverride }),
+          messages: newUserMessages,
+          stream: true,
+          tools: "*",
+          tool_choice: "auto",
+          include_system_tools_message: true,
+          similarity_threshold: similarityThreshold,
+          ...(conversationId && { conversation_id: conversationId }),
+          ...(driveFileIds && driveFileIds.length > 0 && { drive_file_ids: driveFileIds }),
         });
 
         if (!res.ok) {
