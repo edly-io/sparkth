@@ -3,7 +3,7 @@
 Shared fixtures (``session``, ``engine``, the generic test environment, the
 autouse cache/email stubs, …) come from :mod:`app.testing`, registered globally
 as a pytest plugin by the root ``conftest.py``. This file only adds Google
-Drive-specific pieces: route registration, test data, and mocks. All handlers
+Drive-specific pieces: test data and mocks. All handlers
 are async, so tests use the shared async ``session`` fixture throughout.
 """
 
@@ -19,15 +19,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.core_plugins.googledrive.config import GoogleDriveSettings
 from app.core_plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
-from app.core_plugins.googledrive.routes import router as drive_router
 from app.lib.db import get_async_session
 from app.main import app
 from app.models.user import User
-from tests.lib.routes import register_router
-
-register_router(
-    app, drive_router, sentinel_path="/api/v1/googledrive/folders", prefix="/api/v1/googledrive", tags=["Google Drive"]
-)
 
 
 @pytest.fixture(autouse=True)
