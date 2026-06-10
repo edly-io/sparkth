@@ -148,7 +148,11 @@ test.backend.format: ## Run backend formatting tests
 	$(MAKE) lint.format.backend check=1
 
 .PHONY: test.frontend
-test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, unit and formatting tests
+test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, typecheck, unit and formatting tests
+
+.PHONY: test.frontend.typecheck
+test.frontend.typecheck: ## Type-check the frontend (tsc --noEmit)
+	cd frontend && bun run typecheck
 
 .PHONY: test.frontend.vitest
 test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [path] [with-coverage=1])
