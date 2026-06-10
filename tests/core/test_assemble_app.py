@@ -40,6 +40,9 @@ def test_assemble_app_is_db_free(monkeypatch: pytest.MonkeyPatch) -> None:
     def _explode(*args: Any, **kwargs: Any) -> None:
         raise AssertionError("assemble_app must not touch the database")
 
+    # Patch the consumer binding (app.main imports it by value) plus the
+    # defining modules, so both existing references and future lazy imports trip.
+    monkeypatch.setattr("app.main.get_plugin_service", _explode)
     monkeypatch.setattr("app.lib.db.get_async_session", _explode)
     monkeypatch.setattr("app.lib.db.session_scope", _explode)
     monkeypatch.setattr("app.services.plugin.get_plugin_service", _explode)
