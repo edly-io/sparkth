@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.config import get_googledrive_settings
+from app.core_plugins.googledrive.models import DriveFile, DriveFolder
 from app.core_plugins.googledrive.oauth import get_valid_access_token
 from app.core_plugins.googledrive.routes.dependencies import require_user_id
 from app.core_plugins.googledrive.routes.route_utils import batch_fetch_documents, get_drive_credentials
@@ -28,7 +29,6 @@ from app.core_plugins.googledrive.schemas import (
 )
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
-from app.models.drive import DriveFile, DriveFolder
 
 router = APIRouter()
 logger = get_logger(__name__)

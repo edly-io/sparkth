@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
+from app.core_plugins.googledrive.models import DriveFile, DriveFolder
 from app.core_plugins.googledrive.utils import (
     _download_file,
     _find_ready_duplicate_document_id,
@@ -12,7 +13,6 @@ from app.core_plugins.googledrive.utils import (
 )
 from app.lib.documents import DocumentStatus
 from app.lib.rag import ScannedPDFError, UnsupportedFileTypeError
-from app.models.drive import DriveFile, DriveFolder
 
 
 def _make_async_session() -> AsyncMock:

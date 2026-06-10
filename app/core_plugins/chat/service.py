@@ -7,9 +7,9 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
+from app.core_plugins.googledrive.models import DriveFile
 from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
-from app.models.drive import DriveFile
 
 logger = get_logger(__name__)
 

@@ -19,6 +19,7 @@ from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
+from app.core_plugins.googledrive.models import DriveFile as DriveFileModel
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -30,7 +31,6 @@ from app.lib.rag import (
 from app.llm.classifier import HistoryTurn, ScopeClassifier
 from app.llm.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.llm.providers import BaseChatProvider, get_provider
-from app.models.drive import DriveFile as DriveFileModel
 
 logger = get_logger(__name__)
 
