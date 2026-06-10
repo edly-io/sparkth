@@ -257,8 +257,7 @@ export default function DriveFilePicker({
                 {files.map((file) => {
                   const ragStatus = ragStatuses[file.id]?.status ?? null;
                   const ragError = ragStatuses[file.id]?.error ?? null;
-                  const isReady = ragStatus === RagStatus.Ready;
-                  const canAttach = isReady && file.document_id != null;
+                  const canAttach = ragStatus === RagStatus.Ready && file.document_id != null;
                   const isSelected = selectedFileIds.has(file.id);
                   return (
                     <li
