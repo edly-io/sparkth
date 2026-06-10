@@ -94,6 +94,21 @@ describe("getConversation", () => {
       "Load conversation failed with status 404",
     );
   });
+
+  it("sends a literal Bearer null header when the token is null (legacy behavior)", async () => {
+    const fetchSpy = mockFetch(
+      new Response(JSON.stringify({ id: "abc", messages: [] }), { status: 200 }),
+    );
+
+    await getConversation(null, "abc");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/chat/conversations/abc",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer null" }),
+      }),
+    );
+  });
 });
 
 describe("getConversationAttachments", () => {
@@ -104,13 +119,15 @@ describe("getConversationAttachments", () => {
   it("GETs the attachments list", async () => {
     const files = [{ id: 1, name: "doc.pdf", size: 10 }];
     const fetchSpy = mockFetch(new Response(JSON.stringify(files), { status: 200 }));
+    const controller = new AbortController();
 
-    const result = await getConversationAttachments(TOKEN, "abc");
+    const result = await getConversationAttachments(TOKEN, "abc", controller.signal);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/chat/conversations/abc/attachments",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer test-token" }),
+        signal: controller.signal,
       }),
     );
     expect(result).toEqual(files);
@@ -131,13 +148,15 @@ describe("getLastMessage", () => {
   it("GETs the last message", async () => {
     const message = { id: 5, role: "assistant", content: "done" };
     const fetchSpy = mockFetch(new Response(JSON.stringify(message), { status: 200 }));
+    const controller = new AbortController();
 
-    const result = await getLastMessage(TOKEN, "abc");
+    const result = await getLastMessage(TOKEN, "abc", controller.signal);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/chat/conversations/abc/last-message",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer test-token" }),
+        signal: controller.signal,
       }),
     );
     expect(result).toEqual(message);
@@ -158,13 +177,15 @@ describe("listConversations", () => {
   it("GETs the conversations list and unwraps the envelope", async () => {
     const conversations = [{ id: "abc", title: "T", message_count: 1 }];
     const fetchSpy = mockFetch(new Response(JSON.stringify({ conversations }), { status: 200 }));
+    const controller = new AbortController();
 
-    const result = await listConversations(TOKEN);
+    const result = await listConversations(TOKEN, controller.signal);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/chat/conversations",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer test-token" }),
+        signal: controller.signal,
       }),
     );
     expect(result).toEqual(conversations);
