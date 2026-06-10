@@ -89,9 +89,7 @@ async def test_status_events_emitted_before_tokens() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [42]
         mock_retrieve.return_value = chunks
         events = []
         async for chunk in stream_chat_response(
@@ -147,9 +145,7 @@ async def test_searching_documents_event_includes_file_count() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1, 2]
         mock_retrieve.return_value = chunks
         events = []
         async for chunk in stream_chat_response(
@@ -183,9 +179,7 @@ async def test_agent_context_injected_into_messages() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -232,9 +226,7 @@ async def test_multi_file_rag_context_preserved() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1, 2]
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -295,9 +287,7 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.return_value = chunks
         async for _ in stream_chat_response(
             provider=_make_provider(),
@@ -398,9 +388,7 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = DocumentNotFoundError()
         events = await _collect_events(
             stream_chat_response(
@@ -429,9 +417,7 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         events = await _collect_events(
             stream_chat_response(
@@ -460,9 +446,7 @@ async def test_rag_retrieval_error_emits_friendly_error() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = RAGRetrievalError()
         events = await _collect_events(
             stream_chat_response(
@@ -530,9 +514,7 @@ async def test_drive_file_not_found_persists_error_to_db() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = DocumentNotFoundError()
         gen = stream_chat_response(
             provider=_make_provider(),
@@ -565,9 +547,7 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         gen = stream_chat_response(
             provider=_make_provider(),
@@ -598,9 +578,7 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
-        patch("app.core_plugins.chat.routes.completions.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
     ):
-        mock_to_doc_ids.return_value = [1]
         mock_retrieve.side_effect = RAGRetrievalError()
         gen = stream_chat_response(
             provider=_make_provider(),

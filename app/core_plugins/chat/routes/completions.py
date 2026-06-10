@@ -15,13 +15,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.config import ChatSettings, get_chat_settings
 from app.core_plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
-from app.core_plugins.chat.intent_router import RAGIntentRouterError
+from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.lms_credentials import build_lms_credentials_message
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.helpers import (
-    attach_request_drive_files,
+    attach_request_documents,
     classify_in_scope,
-    collect_drive_file_ids,
+    collect_document_ids,
     extract_query_text,
     format_source_block,
     get_or_create_conversation,
@@ -32,7 +32,6 @@ from app.core_plugins.chat.routes.helpers import (
     resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
-    to_document_ids,
 )
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService, get_chat_service
@@ -129,11 +128,11 @@ async def chat_completion(
         background_tasks=background_tasks,
     )
 
-    if request.drive_file_ids:
-        await attach_request_drive_files(
+    if request.document_ids:
+        await attach_request_documents(
             session,
             service,
-            request.drive_file_ids,
+            request.document_ids,
             user_id,
             cast(int, conversation.id),
         )
@@ -146,12 +145,12 @@ async def chat_completion(
 
     try:
         # Fetch conversation attachments early — needed by both the scope classifier
-        # (to know files are in play) and the RAG intent router.
-        attached_files = await service.list_conversation_attachments(
+        # (to know documents are in play) and the RAG intent router.
+        attached_documents = await service.list_conversation_attachments(
             session=session,
             conversation_id=cast(int, conversation.id),
         )
-        attached_file_names = [f.name for f in attached_files]
+        attached_file_names = [document.name for document in attached_documents]
 
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
@@ -194,8 +193,8 @@ async def chat_completion(
         )
 
         # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
-        # attached_files already fetched above for the scope check
-        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_files, query_text, user_id, provider)
+        # attached_documents already fetched above for the scope check
+        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, user_id, provider)
 
         # Use DB messages for history, but replace the current batch with original
         # request content to preserve content blocks (e.g. base64 file attachments).
@@ -207,11 +206,13 @@ async def chat_completion(
         )
 
         unresolved_messages: list[ChatMessage] | None = None
-        if should_run_rag and attached_files:
-            # Synthetic message: drive_file blocks (for RAG resolution) + user's query text
+        if should_run_rag and attached_documents:
+            # Synthetic message: document blocks (for RAG resolution) + user's query text
             # so that extract_query_text finds the question and the user's question is
             # preserved in current after resolution.
-            file_blocks: list[dict[str, Any]] = [{"type": "drive_file", "file_id": f.id} for f in attached_files]
+            file_blocks: list[dict[str, Any]] = [
+                {"type": "drive_file", "file_id": document.id} for document in attached_documents
+            ]
             text_block: list[dict[str, Any]] = [{"type": "text", "text": query_text}] if query_text else []
             unresolved_messages = [ChatMessage(role="user", content=file_blocks + text_block)]
 
@@ -264,7 +265,7 @@ async def chat_completion(
                     "llm": provider.create_llm(),
                     "should_run_rag": True,
                 }
-            elif attached_files:
+            elif attached_documents:
                 # Attachments exist but router said skip RAG
                 stream_kwargs = {
                     "should_run_rag": False,
@@ -405,11 +406,11 @@ async def stream_chat_response(
 
     async def _run(bg_session: AsyncSession) -> None:
         confirmed_rag_sections: list[dict[str, str | None]] = []
-        file_ids = collect_drive_file_ids(unresolved_messages) if unresolved_messages else []
+        document_ids = collect_document_ids(unresolved_messages) if unresolved_messages else []
 
         # --- Phase 1: RAG resolution ---
         if should_run_rag and unresolved_messages and user_id is not None:
-            await _put(json.dumps({"status": "scanning_attachments", "file_count": len(file_ids), "done": False}))
+            await _put(json.dumps({"status": "scanning_attachments", "file_count": len(document_ids), "done": False}))
 
         if not should_run_rag and rag_routing_reason is not None:
             await _put(json.dumps({"status": "skipping_rag", "reason": rag_routing_reason, "done": False}))
@@ -418,17 +419,16 @@ async def stream_chat_response(
             query_text = extract_query_text(unresolved_messages)
             any_results_found = False
 
-            await _put(json.dumps({"status": "searching_documents", "file_count": len(file_ids), "done": False}))
+            await _put(json.dumps({"status": "searching_documents", "file_count": len(document_ids), "done": False}))
 
-            logger.info("Agentic RAG search for file_ids=%s query_len=%d", file_ids, len(query_text))
+            logger.info("Agentic RAG search for document_ids=%s query_len=%d", document_ids, len(query_text))
             if llm is None:
                 raise AssertionError("llm must be provided when RAG resolution is active")
             try:
-                document_ids = await to_document_ids(bg_session, file_ids)
                 all_chunks = await agentic_retrieve_context(query_text, document_ids, user_id, llm)
             except DocumentNotFoundError as exc:
-                logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
-                error_text = "The attached file could not be found or is no longer accessible."
+                logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
+                error_text = "The attached document could not be found or is no longer accessible."
                 await service.add_message(
                     session=bg_session,
                     conversation_id=conversation_id,
@@ -439,8 +439,8 @@ async def stream_chat_response(
                 await _put(json.dumps({"error": error_text, "done": True}))
                 return
             except RAGNotReadyError as exc:
-                logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
-                error_text = "The attached file is still being processed. Please wait a moment and try again."
+                logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
+                error_text = "The attached document is still being processed. Please wait a moment and try again."
                 await service.add_message(
                     session=bg_session,
                     conversation_id=conversation_id,
@@ -451,8 +451,8 @@ async def stream_chat_response(
                 await _put(json.dumps({"error": error_text, "done": True}))
                 return
             except RAGRetrievalError as exc:
-                logger.error("Agentic RAG failed for file_ids=%s: %s", file_ids, exc)
-                error_text = "Failed to search the attached file. Please try again."
+                logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
+                error_text = "Failed to search the attached document. Please try again."
                 await service.add_message(
                     session=bg_session,
                     conversation_id=conversation_id,

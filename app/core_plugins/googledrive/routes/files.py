@@ -70,6 +70,7 @@ async def list_files(
             DriveFileResponse(
                 id=cast(int, f.id),
                 drive_file_id=f.drive_file_id,
+                document_id=f.document_id,
                 name=f.name,
                 mime_type=f.mime_type,
                 size=f.size,
@@ -148,6 +149,7 @@ async def upload_file(
     return DriveFileResponse(
         id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
+        document_id=drive_file.document_id,
         name=drive_file.name,
         mime_type=drive_file.mime_type,
         size=drive_file.size,
@@ -182,6 +184,7 @@ async def get_file(
     return DriveFileResponse(
         id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
+        document_id=drive_file.document_id,
         name=drive_file.name,
         mime_type=drive_file.mime_type,
         size=drive_file.size,
@@ -361,6 +364,7 @@ async def rename_file(
     return DriveFileResponse(
         id=cast(int, drive_file.id),
         drive_file_id=drive_file.drive_file_id,
+        document_id=drive_file.document_id,
         name=drive_file.name,
         mime_type=drive_file.mime_type,
         size=drive_file.size,

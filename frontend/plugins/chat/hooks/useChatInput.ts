@@ -15,7 +15,7 @@ interface UseChatInputProps {
   onSend: (payload: {
     message: string;
     attachments: TextAttachment[];
-    driveFileIds?: number[];
+    documentIds?: number[];
   }) => void;
 }
 
@@ -67,22 +67,23 @@ export function useChatInput({
 
     // Snapshot the previous drive attachments before enqueueing the state
     // update so both diff computations read a consistent pre-update view.
-    const prevDriveAttachments = attachments.filter((a) => a.driveFileDbId !== undefined);
+    const prevDocumentAttachments = attachments.filter((a) => a.documentId !== undefined);
 
     const newDriveAttachments = driveFiles.map((file) => ({
       name: file.name,
       size: file.size ?? 0,
       text: `[File: ${file.name}]`,
       driveFileDbId: file.id,
+      documentId: file.document_id,
     }));
     setAttachments((prev) => {
-      const nonDrive = prev.filter((a) => a.driveFileDbId === undefined);
+      const nonDrive = prev.filter((a) => a.documentId === undefined);
       return [...nonDrive, ...newDriveAttachments];
     });
 
     if (conversationId) {
-      const existingIds = new Set(prevDriveAttachments.map((a) => a.driveFileDbId));
-      const addedFiles = driveFiles.filter((f) => !existingIds.has(f.id));
+      const existingIds = new Set(prevDocumentAttachments.map((a) => a.documentId));
+      const addedFiles = driveFiles.filter((f) => !existingIds.has(f.document_id));
       for (const file of addedFiles) {
         fetch(`/api/v1/chat/conversations/${conversationId}/attachments`, {
           method: "POST",
@@ -90,7 +91,7 @@ export function useChatInput({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ drive_file_id: file.id }),
+          body: JSON.stringify({ document_id: file.document_id }),
         })
           .then((res) => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -98,14 +99,14 @@ export function useChatInput({
           .catch((err) => {
             console.warn("Failed to persist drive file attachment:", err);
             setUploadError(`Failed to attach "${file.name}". Please try again.`);
-            setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== file.id));
+            setAttachments((prev) => prev.filter((a) => a.documentId !== file.document_id));
           });
       }
 
-      const newIds = new Set(driveFiles.map((f) => f.id));
-      const removedAttachments = prevDriveAttachments.filter((a) => !newIds.has(a.driveFileDbId!));
+      const newIds = new Set(driveFiles.map((f) => f.document_id));
+      const removedAttachments = prevDocumentAttachments.filter((a) => !newIds.has(a.documentId!));
       for (const att of removedAttachments) {
-        fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
+        fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.documentId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -121,12 +122,12 @@ export function useChatInput({
     }
   };
 
-  const handleRemoveAttachment = (driveFileDbId?: number) => {
-    if (driveFileDbId !== undefined) {
-      const removed = attachments.find((a) => a.driveFileDbId === driveFileDbId);
-      setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== driveFileDbId));
+  const handleRemoveAttachment = (documentId?: number) => {
+    if (documentId !== undefined) {
+      const removed = attachments.find((a) => a.documentId === documentId);
+      setAttachments((prev) => prev.filter((a) => a.documentId !== documentId));
       if (conversationId && removed) {
-        fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${driveFileDbId}`, {
+        fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${documentId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -140,11 +141,11 @@ export function useChatInput({
           });
       }
     } else {
-      const driveAtts = attachments.filter((a) => a.driveFileDbId !== undefined);
+      const driveAtts = attachments.filter((a) => a.documentId !== undefined);
       setAttachments([]);
       if (conversationId) {
         for (const att of driveAtts) {
-          fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.driveFileDbId}`, {
+          fetch(`/api/v1/chat/conversations/${conversationId}/attachments/${att.documentId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
           })
@@ -162,23 +163,23 @@ export function useChatInput({
   };
 
   const handleSend = () => {
-    const sendableAttachments = attachments.filter((a) => a.driveFileDbId === undefined);
+    const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
     if (!message.trim() && sendableAttachments.length === 0) return;
 
-    const driveFileAttachments = attachments.filter((a) => a.driveFileDbId !== undefined);
-    const driveFileIds = driveFileAttachments.map((a) => a.driveFileDbId!);
+    const documentAttachments = attachments.filter((a) => a.documentId !== undefined);
+    const documentIds = documentAttachments.map((a) => a.documentId!);
 
     onSend({
       message: message.trim(),
       attachments: sendableAttachments,
-      // Always send drive file IDs so the backend can attach them before processing
+      // Always send document IDs so the backend can attach them before processing
       // (critical for new conversations where they haven't been persisted yet)
-      ...(driveFileIds.length > 0 && { driveFileIds }),
+      ...(documentIds.length > 0 && { documentIds }),
     });
 
     setMessage("");
-    // Keep drive file attachments in state — they remain attached to the conversation
-    setAttachments(driveFileAttachments);
+    // Keep document attachments in state — they remain attached to the conversation
+    setAttachments(documentAttachments);
   };
 
   return {

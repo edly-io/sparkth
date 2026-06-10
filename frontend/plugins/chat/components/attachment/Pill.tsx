@@ -7,7 +7,7 @@ import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 interface PillProps {
   attachments: TextAttachment[];
   onPreview: (attachment: TextAttachment) => void;
-  onRemove?: (driveFileDbId?: number) => void;
+  onRemove?: (documentId?: number) => void;
 }
 
 export function Pill({ attachments, onPreview, onRemove }: PillProps) {
@@ -37,7 +37,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onRemove(firstAttachment.driveFileDbId)}
+              onClick={() => onRemove(firstAttachment.documentId)}
               className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
               title="Remove attachment"
             >
@@ -71,13 +71,13 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                 <div className="space-y-1">
                   {attachments.slice(1).map((attachment, index) => (
                     <div
-                      key={attachment.driveFileDbId ?? `${attachment.name}-${index}`}
+                      key={attachment.documentId ?? `${attachment.name}-${index}`}
                       className="flex items-center justify-between gap-2"
                     >
                       <span>{truncate(attachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
                       {onRemove && (
                         <button
-                          onClick={() => onRemove(attachment.driveFileDbId)}
+                          onClick={() => onRemove(attachment.documentId)}
                           className="ml-2 text-muted-foreground hover:text-foreground"
                           title="Remove attachment"
                         >

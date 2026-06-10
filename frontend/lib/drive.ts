@@ -19,6 +19,7 @@ export interface DriveFolder {
 export interface DriveFile {
   id: number;
   drive_file_id: string;
+  document_id?: number | null;
   name: string;
   mime_type?: string;
   size?: number;

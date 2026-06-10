@@ -10,7 +10,7 @@ interface ChatMessagesProps {
   onSend: (payload: {
     message: string;
     attachments: TextAttachment[];
-    driveFileIds?: number[];
+    documentIds?: number[];
   }) => void;
   onOptionClick?: (text: string) => void;
 }

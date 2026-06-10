@@ -62,6 +62,7 @@ class DriveFileResponse(BaseModel):
 
     id: int
     drive_file_id: str
+    document_id: int | None = None
     name: str
     mime_type: str | None = None
     size: int | None = None

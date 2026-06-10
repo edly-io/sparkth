@@ -42,11 +42,11 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       router.replace(`/dashboard/chat?id=${id}`);
       // Sync any drive files that were selected before the conversation existed
       for (const att of inputAttachments) {
-        if (att.driveFileDbId !== undefined) {
+        if (att.documentId !== undefined) {
           fetch(`/api/v1/chat/conversations/${id}/attachments`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ drive_file_id: att.driveFileDbId }),
+            body: JSON.stringify({ document_id: att.documentId }),
           })
             .then((res) => {
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
