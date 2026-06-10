@@ -19,7 +19,7 @@ from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
-from app.core_plugins.googledrive.models import DriveFile as DriveFileModel
+from app.lib.documents import Document
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -78,8 +78,8 @@ def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChu
     return grouped
 
 
-def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
-    file_ids: list[int] = []
+def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
+    document_ids: list[int] = []
     for msg in messages:
         if not isinstance(msg.content, list):
             continue
@@ -88,24 +88,10 @@ def collect_drive_file_ids(messages: list[ChatMessage]) -> list[int]:
                 continue
             raw_id = block.get("file_id")
             if raw_id is None:
-                logger.warning("Skipping drive_file block missing file_id in stream: %s", block)
+                logger.warning("Skipping document attachment block missing file_id in stream: %s", block)
                 continue
-            file_ids.append(int(raw_id))
-    return file_ids
-
-
-async def to_document_ids(session: AsyncSession, drive_file_ids: list[int]) -> list[int]:
-    """Resolve DriveFile IDs to their linked Document IDs for RAG retrieval."""
-    if not drive_file_ids:
-        return []
-    result = await session.exec(
-        select(DriveFileModel.document_id).where(
-            col(DriveFileModel.id).in_(drive_file_ids),
-            col(DriveFileModel.document_id).isnot(None),
-            DriveFileModel.is_deleted == False,  # noqa: E712
-        )
-    )
-    return [doc_id for doc_id in result.all() if doc_id is not None]
+            document_ids.append(int(raw_id))
+    return document_ids
 
 
 async def resolve_drive_file_blocks(
@@ -114,11 +100,10 @@ async def resolve_drive_file_blocks(
     user_id: int,
     llm: Any,
 ) -> list[ChatMessage]:
-    """Replace drive_file content blocks with RAG context text blocks.
+    """Replace document attachment content blocks with RAG context text blocks.
 
-    Collects all drive_file IDs in each message, resolves them to Document IDs,
-    calls agentic_retrieve_context once per message, groups results by source,
-    and injects one text block per source.
+    Collects all Document IDs in each message, calls agentic_retrieve_context
+    once per message, groups results by source, and injects one text block per source.
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
 
@@ -134,31 +119,31 @@ async def resolve_drive_file_blocks(
             resolved.append(msg)
             continue
 
-        file_ids: list[int] = []
+        document_ids: list[int] = []
         non_file_blocks: list[dict[str, Any]] = []
         for block in msg.content:
             if isinstance(block, dict) and block.get("type") == "drive_file":
                 raw_id = block.get("file_id")
                 if raw_id is None:
-                    logger.warning("Skipping drive_file block missing file_id: %s", block)
+                    logger.warning("Skipping document attachment block missing file_id: %s", block)
                     continue
-                file_ids.append(int(raw_id))
+                document_ids.append(int(raw_id))
             else:
                 non_file_blocks.append(block)
 
-        if not file_ids:
+        if not document_ids:
             resolved.append(msg)
             continue
 
-        chunks = await _retrieve_rag_chunks(session, user_id, file_ids, query_text, llm)
+        chunks = await _retrieve_rag_chunks(user_id, document_ids, query_text, llm)
 
         grouped = group_by_source(chunks)
         rag_blocks: list[dict[str, Any]] = [
             {"type": "text", "text": format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
         ]
         logger.info(
-            "Replaced drive_file blocks file_ids=%s with %d RAG chunks across %d source(s)",
-            file_ids,
+            "Replaced document attachment blocks document_ids=%s with %d RAG chunks across %d source(s)",
+            document_ids,
             len(chunks),
             len(grouped),
         )
@@ -177,18 +162,15 @@ async def resolve_drive_file_blocks(
 
 
 async def _retrieve_rag_chunks(
-    session: AsyncSession,
     user_id: int,
-    file_ids: list[int],
+    document_ids: list[int],
     query_text: str,
     llm: Any,
 ) -> list[RetrievedChunk]:
-    """Resolve DriveFile IDs to Document IDs and retrieve RAG chunks.
+    """Retrieve RAG chunks for Document IDs.
 
-    Raises:
-        HTTPException: if files are missing, not ready, or retrieval fails.
+    Raises HTTPException if documents are missing, not ready, or retrieval fails.
     """
-    document_ids = await to_document_ids(session, file_ids)
     try:
         return await agentic_retrieve_context(query_text, document_ids, user_id, llm)
     except DocumentNotFoundError as exc:
@@ -202,7 +184,7 @@ async def _retrieve_rag_chunks(
             detail=f"A file is still being processed (status: {exc.status}). Please wait and try again.",
         ) from exc
     except RAGRetrievalError as exc:
-        logger.error("RAG retrieval error for file_ids=%s: %s", file_ids, exc)
+        logger.error("RAG retrieval error for document_ids=%s: %s", document_ids, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve document context. Please try again.",
@@ -297,32 +279,32 @@ async def get_or_create_conversation(
     return conversation
 
 
-async def attach_request_drive_files(
+async def attach_request_documents(
     session: AsyncSession,
     service: ChatService,
-    drive_file_ids: list[int],
+    document_ids: list[int],
     user_id: int,
     conversation_id: int,
 ) -> None:
-    """Attach owned drive files to the conversation, silently skipping any unowned IDs."""
+    """Attach owned documents to the conversation, silently skipping any unowned IDs."""
     owned_result = await session.exec(
-        select(DriveFileModel.id).where(
-            col(DriveFileModel.id).in_(drive_file_ids),
-            DriveFileModel.user_id == user_id,
-            DriveFileModel.is_deleted == False,  # noqa: E712
+        select(Document.id).where(
+            col(Document.id).in_(document_ids),
+            Document.user_id == user_id,
+            Document.is_deleted == False,  # noqa: E712
         )
     )
-    owned_ids = {file_id for file_id in owned_result.all() if file_id is not None}
-    skipped = set(drive_file_ids) - owned_ids
+    owned_ids = {document_id for document_id in owned_result.all() if document_id is not None}
+    skipped = set(document_ids) - owned_ids
     if skipped:
         logger.warning(
-            "Skipped %d unowned/deleted drive file IDs for user %s: %s",
+            "Skipped %d unowned/deleted document IDs for user %s: %s",
             len(skipped),
             user_id,
             skipped,
         )
-    for file_id in owned_ids:
-        await service.attach_drive_file(session, conversation_id=conversation_id, drive_file_id=file_id)
+    for document_id in owned_ids:
+        await service.attach_document(session, conversation_id, document_id)
 
 
 async def persist_incoming_messages(
@@ -390,7 +372,7 @@ async def resolve_tools(
 
 
 async def resolve_rag_intent(
-    attached_files: list[DriveFileModel],
+    attached_documents: list[Document],
     query_text: str,
     user_id: int,
     provider: BaseChatProvider,
@@ -398,14 +380,14 @@ async def resolve_rag_intent(
     """Decide whether to run RAG retrieval for the current request.
 
     Returns (should_run_rag, routing_reason). Always False when there are no
-    attached files or no query text.
+    attached documents or no query text.
     """
-    if not attached_files or not query_text:
+    if not attached_documents or not query_text:
         return False, None
     rag_router = RAGIntentRouter(llm=provider.create_llm())
     decision = await rag_router.decide(
         query=query_text,
-        attached_files=attached_files,
+        attached_documents=attached_documents,
         user_id=user_id,
     )
     return decision.should_retrieve, decision.reason

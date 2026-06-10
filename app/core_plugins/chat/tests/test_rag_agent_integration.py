@@ -14,6 +14,8 @@ from app.lib.rag import (
     RetrievedChunk,
 )
 
+RETRIEVE_CONTEXT_PATH = "app.core_plugins.chat.routes.helpers.agentic_retrieve_context"
+
 
 def _make_chunk(
     content: str = "Some content",
@@ -43,13 +45,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
-            patch(
-                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
-            ) as mock_retrieve,
-        ):
-            mock_to_doc_ids.return_value = [1]
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = [_make_chunk()]
 
             await resolve_drive_file_blocks(
@@ -79,13 +75,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
-            patch(
-                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
-            ) as mock_retrieve,
-        ):
-            mock_to_doc_ids.return_value = [999]
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = DocumentNotFoundError("Not found")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -110,13 +100,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
-            patch(
-                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
-            ) as mock_retrieve,
-        ):
-            mock_to_doc_ids.return_value = [1]
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -141,13 +125,7 @@ class TestResolveBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch("app.core_plugins.chat.routes.helpers.to_document_ids", new_callable=AsyncMock) as mock_to_doc_ids,
-            patch(
-                "app.core_plugins.chat.routes.helpers.agentic_retrieve_context", new_callable=AsyncMock
-            ) as mock_retrieve,
-        ):
-            mock_to_doc_ids.return_value = [1]
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
 
             with pytest.raises(HTTPException) as exc_info:

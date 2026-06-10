@@ -17,7 +17,7 @@ interface ChatInputProps {
   onSend: (payload: {
     message: string;
     attachments: TextAttachment[];
-    driveFileIds?: number[];
+    documentIds?: number[];
   }) => void;
   conversationId: string | null;
 }
@@ -105,9 +105,7 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
                 variant="primary"
                 size="icon"
                 onClick={handleSend}
-                disabled={
-                  !message.trim() && attachments.every((a) => a.driveFileDbId !== undefined)
-                }
+                disabled={!message.trim() && attachments.every((a) => a.documentId !== undefined)}
                 className="rounded-full bg-foreground text-background"
               >
                 <ArrowUp className="w-5 h-5" />
@@ -123,7 +121,12 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
           onFileSelected={handleDriveFileSelected}
           initialSelectedFiles={attachments
             .filter((a) => a.driveFileDbId !== undefined)
-            .map((a) => ({ id: a.driveFileDbId!, name: a.name, size: a.size }))}
+            .map((a) => ({
+              id: a.driveFileDbId!,
+              document_id: a.documentId!,
+              name: a.name,
+              size: a.size,
+            }))}
         />
       )}
     </div>

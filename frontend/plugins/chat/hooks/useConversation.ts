@@ -219,7 +219,7 @@ export function useConversation(
             name: f.name,
             size: f.size ?? 0,
             text: `[File: ${f.name}]`,
-            driveFileDbId: f.id,
+            documentId: f.id,
           })),
         );
       } catch (err) {

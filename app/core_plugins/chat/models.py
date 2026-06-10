@@ -84,13 +84,13 @@ class Message(TimestampedModel, SQLModel, table=True):
 
 
 class ConversationAttachment(SQLModel, table=True):
-    """Join table linking conversations to attached Drive files."""
+    """Join table linking conversations to attached core documents."""
 
     __tablename__ = "chat_conversation_attachments"
     __table_args__ = (
-        UniqueConstraint("conversation_id", "drive_file_id", name="uq_conv_attachment"),
+        UniqueConstraint("conversation_id", "document_id", name="uq_conv_document_attachment"),
         Index("idx_conv_attach_conversation", "conversation_id"),
-        Index("idx_conv_attach_drive_file", "drive_file_id"),
+        Index("idx_conv_attach_document", "document_id"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -101,10 +101,10 @@ class ConversationAttachment(SQLModel, table=True):
             nullable=False,
         )
     )
-    drive_file_id: int = Field(
+    document_id: int = Field(
         sa_column=Column(
             Integer,
-            ForeignKey("drive_files.id", ondelete="CASCADE"),
+            ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
         )
     )

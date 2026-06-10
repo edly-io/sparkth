@@ -8,8 +8,9 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
+from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
-from app.core_plugins.googledrive.models import DriveFile
+from app.lib.documents import Document
 from app.lib.log import get_logger
 from app.rag.mcp.tools import get_document_structure
 
@@ -17,10 +18,6 @@ logger = get_logger(__name__)
 
 # Load system prompt at module import time
 _SYSTEM_PROMPT = (Path(__file__).parent / "assets" / "rag_intent_router_system_prompt.txt").read_text()
-
-
-class RAGIntentRouterError(Exception):
-    """Raised when the router's LLM call fails."""
 
 
 class RAGIntentRouter:
@@ -38,14 +35,14 @@ class RAGIntentRouter:
         self,
         *,
         query: str,
-        attached_files: list[DriveFile],
+        attached_documents: list[Document],
         user_id: int,
     ) -> RAGRoutingDecision:
         """Decide whether to run RAG retrieval for this turn.
 
         Args:
             query: The user's query text.
-            attached_files: List of DriveFile objects attached to the conversation.
+            attached_documents: Documents attached to the conversation.
             user_id: The user ID passed to get_document_structure.
 
         Returns:
@@ -56,28 +53,21 @@ class RAGIntentRouter:
         """
         # Build attachment summary with section metadata
         attachment_summary = ""
-        if attached_files:
-            files_with_documents = [f for f in attached_files if f.document_id is not None]
-            for file in attached_files:
-                if file.document_id is None:
-                    logger.warning("Skipping attached file %d with no linked document_id", cast(int, file.id))
-
+        if attached_documents:
+            documents = [doc for doc in attached_documents if doc.id is not None]
             results = await asyncio.gather(
-                *[
-                    get_document_structure(user_id=user_id, document_id=cast(int, f.document_id))
-                    for f in files_with_documents
-                ],
+                *[get_document_structure(user_id=user_id, document_id=cast(int, doc.id)) for doc in documents],
                 return_exceptions=True,
             )
 
-            if files_with_documents:
-                attachment_summary = "The user has attached the following files:\n"
-                for file, sections_or_exc in zip(files_with_documents, results):
-                    attachment_summary += f"\n- {file.name}:\n"
+            if documents:
+                attachment_summary = "The user has attached the following documents:\n"
+                for document, sections_or_exc in zip(documents, results):
+                    attachment_summary += f"\n- {document.name}:\n"
                     if isinstance(sections_or_exc, BaseException):
                         logger.warning(
                             "Failed to get document structure for document %d: %s",
-                            cast(int, file.document_id),
+                            cast(int, document.id),
                             sections_or_exc,
                         )
                         continue

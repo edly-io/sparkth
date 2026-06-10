@@ -7,7 +7,6 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
-from app.core_plugins.googledrive.models import DriveFile
 from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 
@@ -181,24 +180,24 @@ class ChatService:
         else:
             logger.warning("Conversation %s not found for title update", conversation_id)
 
-    async def attach_drive_file(
+    async def attach_document(
         self,
         session: AsyncSession,
         conversation_id: int,
-        drive_file_id: int,
+        document_id: int,
     ) -> ConversationAttachment:
-        """Attach a drive file to a conversation (upsert-safe)."""
+        """Attach a document to a conversation (upsert-safe)."""
         # Check if already exists
         stmt = select(ConversationAttachment).where(
             ConversationAttachment.conversation_id == conversation_id,
-            ConversationAttachment.drive_file_id == drive_file_id,
+            ConversationAttachment.document_id == document_id,
         )
         result = await session.exec(stmt)
         existing = result.first()
         if existing is not None:
             logger.info(
-                "Drive file %s already attached to conversation %s",
-                drive_file_id,
+                "Document %s already attached to conversation %s",
+                document_id,
                 conversation_id,
             )
             return existing
@@ -206,7 +205,7 @@ class ChatService:
         # Try to insert new
         attachment = ConversationAttachment(
             conversation_id=conversation_id,
-            drive_file_id=drive_file_id,
+            document_id=document_id,
         )
         session.add(attachment)
         try:
@@ -214,8 +213,8 @@ class ChatService:
             await session.commit()
             await session.refresh(attachment)
             logger.info(
-                "Drive file %s attached to conversation %s",
-                drive_file_id,
+                "Document %s attached to conversation %s",
+                document_id,
                 conversation_id,
             )
             return attachment
@@ -227,23 +226,23 @@ class ChatService:
             existing = result.first()
             if existing is None:
                 logger.error(
-                    "IntegrityError but row not found after rollback for conversation_id=%s, drive_file_id=%s",
+                    "IntegrityError but row not found after rollback for conversation_id=%s, document_id=%s",
                     conversation_id,
-                    drive_file_id,
+                    document_id,
                 )
                 raise
             return existing
 
-    async def detach_drive_file(
+    async def detach_document(
         self,
         session: AsyncSession,
         conversation_id: int,
-        drive_file_id: int,
+        document_id: int,
     ) -> None:
-        """Detach a drive file from a conversation."""
+        """Detach a document from a conversation."""
         stmt = select(ConversationAttachment).where(
             ConversationAttachment.conversation_id == conversation_id,
-            ConversationAttachment.drive_file_id == drive_file_id,
+            ConversationAttachment.document_id == document_id,
         )
         result = await session.exec(stmt)
         attachment = result.first()
@@ -251,22 +250,22 @@ class ChatService:
             await session.delete(attachment)
             await session.commit()
             logger.info(
-                "Drive file %s detached from conversation %s",
-                drive_file_id,
+                "Document %s detached from conversation %s",
+                document_id,
                 conversation_id,
             )
 
-    async def get_user_owned_drive_file(
+    async def get_user_owned_document(
         self,
         session: AsyncSession,
-        drive_file_id: int,
+        document_id: int,
         user_id: int,
-    ) -> DriveFile | None:
-        """Return the drive file if it belongs to user, else None."""
-        stmt = select(DriveFile).where(
-            DriveFile.id == drive_file_id,
-            DriveFile.user_id == user_id,
-            DriveFile.is_deleted == False,  # noqa: E712
+    ) -> Document | None:
+        """Return the document if it belongs to user, else None."""
+        stmt = select(Document).where(
+            Document.id == document_id,
+            Document.user_id == user_id,
+            Document.is_deleted == False,  # noqa: E712
         )
         result = await session.exec(stmt)
         return result.first()
@@ -275,24 +274,18 @@ class ChatService:
         self,
         session: AsyncSession,
         conversation_id: int,
-    ) -> list[DriveFile]:
-        """List ready drive files attached to a conversation.
-
-        Only files with a linked Document in READY status are returned.
-        Files not yet ingested (no document_id) are excluded automatically
-        via the INNER JOIN on Document.
-        """
+    ) -> list[Document]:
+        """List READY documents attached to a conversation."""
         stmt = (
-            select(DriveFile)
+            select(Document)
             .join(
                 ConversationAttachment,
-                ConversationAttachment.drive_file_id == DriveFile.id,  # type: ignore
+                ConversationAttachment.document_id == Document.id,  # type: ignore[arg-type]
             )
-            .join(Document, col(DriveFile.document_id) == col(Document.id))
             .where(
                 ConversationAttachment.conversation_id == conversation_id,
                 col(Document.status) == DocumentStatus.READY,
-                DriveFile.is_deleted == False,  # noqa: E712
+                Document.is_deleted == False,  # noqa: E712
             )
         )
         result = await session.exec(stmt)

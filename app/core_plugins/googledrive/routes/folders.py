@@ -209,6 +209,7 @@ async def get_folder(
         DriveFileResponse(
             id=cast(int, f.id),
             drive_file_id=f.drive_file_id,
+            document_id=f.document_id,
             name=f.name,
             mime_type=f.mime_type,
             size=f.size,
