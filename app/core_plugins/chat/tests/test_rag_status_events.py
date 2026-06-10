@@ -377,9 +377,7 @@ class TestMessageResponseRagSections:
         assert response.rag_sections is None
 
 
-# ---------------------------------------------------------------------------
 # RAG exception → user-friendly SSE error (non-empty string)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -469,9 +467,7 @@ async def test_rag_retrieval_error_emits_friendly_error() -> None:
     assert error_events[0]["done"] is True
 
 
-# ---------------------------------------------------------------------------
 # Background task: add_message is called even when consumer stops early
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -500,9 +496,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
     assert assistant_call is not None, "add_message must be called even when the consumer exits early"
 
 
-# ---------------------------------------------------------------------------
 # RAG exception → error message persisted to DB (is_error=True)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -632,9 +626,7 @@ async def test_unexpected_error_persists_error_to_db() -> None:
     assert "unexpected" in error_calls[0].kwargs["content"].lower()
 
 
-# ---------------------------------------------------------------------------
 # Metadata parsing helper
-# ---------------------------------------------------------------------------
 
 
 class TestParseMetadataList:
@@ -669,9 +661,7 @@ class TestParseMetadataList:
         assert parse_metadata_list(meta, "tool_calls") is None
 
 
-# ---------------------------------------------------------------------------
 # Tool-call streaming → metadata persistence + done payload
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

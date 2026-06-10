@@ -436,9 +436,7 @@ class TestIntentRouterIntegration:
         assert response.status_code == 502
 
 
-# ---------------------------------------------------------------------------
 # Helpers for document seeding
-# ---------------------------------------------------------------------------
 
 
 async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.pdf") -> int:
