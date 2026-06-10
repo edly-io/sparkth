@@ -1,7 +1,3 @@
-// Written with LLM assistance (Claude).
-// Central home for every chat-plugin backend call. Hooks own UI state; this
-// module owns paths, methods, and response unwrapping (see issue #403).
-
 const API_BASE = "/api/v1/chat";
 
 export interface ApiMessage {
