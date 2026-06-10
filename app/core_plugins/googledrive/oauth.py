@@ -12,8 +12,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core_plugins.googledrive.models import DriveOAuthToken
 from app.models.base import utc_now
-from app.models.drive import DriveOAuthToken
 
 # Google OAuth endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"

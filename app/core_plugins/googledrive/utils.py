@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core_plugins.googledrive.client import GoogleDriveClient
 from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
+from app.core_plugins.googledrive.models import DriveFile, DriveFolder
 from app.lib.db import session_scope
 from app.lib.documents import Document, DocumentStatus, create_document, update_document_status
 from app.lib.log import get_logger
@@ -23,7 +24,6 @@ from app.lib.rag import (
     copy_document_chunk_links,
     ingest_document,
 )
-from app.models.drive import DriveFile, DriveFolder
 
 logger = get_logger(__name__)
 

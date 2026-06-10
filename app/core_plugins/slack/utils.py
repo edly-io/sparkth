@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from app.core_plugins.googledrive.models import DriveFile
 from app.rag import constants
-
-if TYPE_CHECKING:
-    from app.models.drive import DriveFile
 
 
 def resolve_source_name(drive_file: DriveFile) -> str:

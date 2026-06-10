@@ -1,5 +1,6 @@
 """Google Drive plugin for Sparkth."""
 
+import app.core_plugins.googledrive.models  # noqa: F401 - registers tables in SQLModel metadata
 from app.core_plugins.googledrive.config import GoogleDriveConfig
 from app.core_plugins.googledrive.routes import router
 from app.plugins.base import SparkthPlugin

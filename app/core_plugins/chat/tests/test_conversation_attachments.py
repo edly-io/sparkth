@@ -10,8 +10,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.models import Conversation, ConversationAttachment
 from app.core_plugins.chat.service import ChatService
+from app.core_plugins.googledrive.models import DriveFile, DriveFolder
 from app.lib.documents import Document, DocumentStatus
-from app.models.drive import DriveFile, DriveFolder
 from app.models.user import User
 
 

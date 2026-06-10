@@ -44,7 +44,7 @@ class DriveFolder(TimestampedModel, SoftDeleteModel, table=True):
 
 
 class DriveFile(TimestampedModel, SoftDeleteModel, table=True):
-    """Tracks file metadata (files are stored only in Google Drive)."""
+    """Tracks file metadata for synced Google Drive files."""
 
     __tablename__ = "drive_files"
 

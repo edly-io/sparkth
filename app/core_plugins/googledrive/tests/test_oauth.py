@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core_plugins.googledrive.models import DriveOAuthToken
 from app.core_plugins.googledrive.oauth import (
     decode_state,
     decrypt_token,
@@ -17,7 +18,6 @@ from app.core_plugins.googledrive.oauth import (
     get_valid_access_token,
     save_tokens,
 )
-from app.models.drive import DriveOAuthToken
 from app.models.user import User
 
 

@@ -9,8 +9,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
 from app.core_plugins.chat.schemas import RAGRoutingDecision
+from app.core_plugins.googledrive.models import DriveFile
 from app.lib.log import get_logger
-from app.models.drive import DriveFile
 from app.rag.mcp.tools import get_document_structure
 
 logger = get_logger(__name__)

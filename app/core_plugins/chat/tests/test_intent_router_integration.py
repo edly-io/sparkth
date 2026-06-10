@@ -15,7 +15,7 @@ from app.core.encryption import get_encryption_service
 from app.core_plugins.chat.intent_router import RAGIntentRouterError
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import RAGRoutingDecision
-from app.models.drive import DriveFile, DriveFolder
+from app.core_plugins.googledrive.models import DriveFile, DriveFolder
 from app.models.llm import LLMConfig
 from app.models.user import User
 

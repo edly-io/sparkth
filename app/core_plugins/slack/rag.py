@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core_plugins.googledrive.models import DriveFile
 from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
     DRIVE_FILE_NOT_FOUND_MESSAGE,
@@ -27,7 +28,6 @@ from app.lib.rag import (
     agentic_retrieve_context,
 )
 from app.llm.providers import BaseChatProvider
-from app.models.drive import DriveFile
 
 logger = get_logger(__name__)
 
