@@ -12,10 +12,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.encryption import get_encryption_service
-from app.core_plugins.chat.intent_router import RAGIntentRouterError
+from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import RAGRoutingDecision
-from app.core_plugins.googledrive.models import DriveFile, DriveFolder
+from app.lib.documents import Document, DocumentStatus
 from app.models.llm import LLMConfig
 from app.models.user import User
 
@@ -68,11 +68,8 @@ async def _seed(session: AsyncSession, user_id: int) -> _SeededData:
     return _SeededData(conv_id=conv_id, conv_uuid=conv_uuid, llm_config_id=llm_config_id)
 
 
-def _mock_drive_file(file_id: int = 1, name: str = "lecture.pdf") -> MagicMock:
-    f = MagicMock()
-    f.id = file_id
-    f.name = name
-    return f
+def _mock_document(document_id: int = 1, name: str = "lecture.pdf") -> Document:
+    return Document(id=document_id, user_id=1, name=name, status=DocumentStatus.READY)
 
 
 class TestIntentRouterIntegration:
@@ -120,7 +117,7 @@ class TestIntentRouterIntegration:
             mock_router_cls.return_value = mock_router
 
             # One READY attachment exists
-            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_list_attachments.return_value = [_mock_document()]
 
             # RAG resolution returns the original messages unchanged
             mock_resolve.return_value = [MagicMock(role="user", content="Summarize the document")]
@@ -201,7 +198,7 @@ class TestIntentRouterIntegration:
             mock_router.decide = AsyncMock(return_value=mock_decision)
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_list_attachments.return_value = [_mock_document()]
             mock_get_msgs.return_value = []
 
             mock_provider = MagicMock()
@@ -284,7 +281,7 @@ class TestIntentRouterIntegration:
             mock_router.decide = AsyncMock(return_value=mock_decision)
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_list_attachments.return_value = [_mock_document()]
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
@@ -417,7 +414,7 @@ class TestIntentRouterIntegration:
             mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("LLM call failed"))
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_list_attachments.return_value = [_mock_document()]
             mock_get_msgs.return_value = []
 
             mock_provider = MagicMock()
@@ -439,36 +436,16 @@ class TestIntentRouterIntegration:
         assert response.status_code == 502
 
 
-# ---------------------------------------------------------------------------
-# Helpers for drive file seeding
-# ---------------------------------------------------------------------------
+# Helpers for document seeding
 
 
-async def _seed_folder(session: AsyncSession, user_id: int) -> int:
-    folder = DriveFolder(
-        user_id=user_id,
-        drive_folder_id="test_folder",
-        drive_folder_name="Test Folder",
-    )
-    session.add(folder)
+async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.pdf") -> int:
+    document = Document(user_id=user_id, name=name, status=DocumentStatus.READY)
+    session.add(document)
     await session.flush()
-    folder_id = cast(int, folder.id)
+    document_id = cast(int, document.id)
     await session.commit()
-    return folder_id
-
-
-async def _seed_file(session: AsyncSession, folder_id: int, user_id: int, name: str = "test.pdf") -> int:
-    file = DriveFile(
-        folder_id=folder_id,
-        user_id=user_id,
-        drive_file_id=f"df_{name}",
-        name=name,
-    )
-    session.add(file)
-    await session.flush()
-    file_id = cast(int, file.id)
-    await session.commit()
-    return file_id
+    return document_id
 
 
 def _base_patches() -> tuple[Any, ...]:
@@ -477,7 +454,7 @@ def _base_patches() -> tuple[Any, ...]:
         patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
         patch("app.core_plugins.chat.routes.helpers.ScopeClassifier"),
         patch("app.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
-        patch("app.core_plugins.chat.service.ChatService.attach_drive_file", new_callable=AsyncMock),
+        patch("app.core_plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.get_conversation_messages", new_callable=AsyncMock),
         patch("app.core_plugins.chat.routes.completions.get_provider"),
@@ -514,8 +491,8 @@ def _configure_base_mocks(
     mock_get_provider.return_value = mock_provider
 
 
-class TestDriveFileIdsOwnershipCheck:
-    """Tests for the drive_file_ids ownership-filter in chat_completion (routes.py:334-356).
+class TestDocumentIdsOwnershipCheck:
+    """Tests for the document_ids ownership-filter in chat_completion (routes.py:334-356).
 
     Verifies: all-owned IDs are each attached, mixed owned/unowned only attaches
     owned and logs a warning, all-unowned attaches nothing and logs a warning
@@ -529,11 +506,10 @@ class TestDriveFileIdsOwnershipCheck:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        """drive_file_ids all owned by the current user → attach_drive_file called for each."""
+        """document_ids all owned by the current user → attach_document called for each."""
         seed = await _seed(session, current_user.id or 1)
-        folder_id = await _seed_folder(session, current_user.id or 1)
-        file1_id = await _seed_file(session, folder_id, current_user.id or 1, "doc1.pdf")
-        file2_id = await _seed_file(session, folder_id, current_user.id or 1, "doc2.pdf")
+        file1_id = await _seed_document(session, current_user.id or 1, "doc1.pdf")
+        file2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
             patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
@@ -543,7 +519,7 @@ class TestDriveFileIdsOwnershipCheck:
                 new_callable=AsyncMock,
             ) as mock_list,
             patch(
-                "app.core_plugins.chat.service.ChatService.attach_drive_file",
+                "app.core_plugins.chat.service.ChatService.attach_document",
                 new_callable=AsyncMock,
             ) as mock_attach,
             patch(
@@ -566,12 +542,12 @@ class TestDriveFileIdsOwnershipCheck:
                     "conversation_id": seed.conv_uuid,
                     "stream": False,
                     "tools": "none",
-                    "drive_file_ids": [file1_id, file2_id],
+                    "document_ids": [file1_id, file2_id],
                 },
             )
 
         assert response.status_code == 200
-        attached_ids = {call.kwargs["drive_file_id"] for call in mock_attach.call_args_list}
+        attached_ids = {call.args[2] for call in mock_attach.call_args_list}
         assert attached_ids == {file1_id, file2_id}
 
     @pytest.mark.asyncio
@@ -583,8 +559,7 @@ class TestDriveFileIdsOwnershipCheck:
     ) -> None:
         """Owned ID is attached; non-existent ID is skipped — no 4xx, no attach for bad ID."""
         seed = await _seed(session, current_user.id or 1)
-        folder_id = await _seed_folder(session, current_user.id or 1)
-        owned_id = await _seed_file(session, folder_id, current_user.id or 1, "owned.pdf")
+        owned_id = await _seed_document(session, current_user.id or 1, "owned.pdf")
         unowned_id = 9999  # does not exist in the DB
 
         with (
@@ -595,7 +570,7 @@ class TestDriveFileIdsOwnershipCheck:
                 new_callable=AsyncMock,
             ) as mock_list,
             patch(
-                "app.core_plugins.chat.service.ChatService.attach_drive_file",
+                "app.core_plugins.chat.service.ChatService.attach_document",
                 new_callable=AsyncMock,
             ) as mock_attach,
             patch(
@@ -618,12 +593,12 @@ class TestDriveFileIdsOwnershipCheck:
                     "conversation_id": seed.conv_uuid,
                     "stream": False,
                     "tools": "none",
-                    "drive_file_ids": [owned_id, unowned_id],
+                    "document_ids": [owned_id, unowned_id],
                 },
             )
 
         assert response.status_code == 200
-        attached_ids = {call.kwargs["drive_file_id"] for call in mock_attach.call_args_list}
+        attached_ids = {call.args[2] for call in mock_attach.call_args_list}
         assert attached_ids == {owned_id}
         assert unowned_id not in attached_ids
 
@@ -634,7 +609,7 @@ class TestDriveFileIdsOwnershipCheck:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        """All non-existent drive_file_ids: no attach calls, 200 returned (not 4xx)."""
+        """All non-existent document_ids: no attach calls, 200 returned (not 4xx)."""
         seed = await _seed(session, current_user.id or 1)
 
         with (
@@ -645,7 +620,7 @@ class TestDriveFileIdsOwnershipCheck:
                 new_callable=AsyncMock,
             ) as mock_list,
             patch(
-                "app.core_plugins.chat.service.ChatService.attach_drive_file",
+                "app.core_plugins.chat.service.ChatService.attach_document",
                 new_callable=AsyncMock,
             ) as mock_attach,
             patch(
@@ -668,7 +643,7 @@ class TestDriveFileIdsOwnershipCheck:
                     "conversation_id": seed.conv_uuid,
                     "stream": False,
                     "tools": "none",
-                    "drive_file_ids": [9997, 9998],
+                    "document_ids": [9997, 9998],
                 },
             )
 
@@ -725,7 +700,7 @@ class TestProviderApiErrorPersistence:
             mock_router.decide = AsyncMock(side_effect=overloaded_exc)
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_list_attachments.return_value = [_mock_document()]
             mock_get_msgs.return_value = []
             mock_add_msg.return_value = mock_msg
 
@@ -787,7 +762,7 @@ class TestProviderApiErrorPersistence:
             mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("router failed"))
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_drive_file()]
+            mock_list_attachments.return_value = [_mock_document()]
             mock_get_msgs.return_value = []
             mock_add_msg.return_value = mock_msg
 

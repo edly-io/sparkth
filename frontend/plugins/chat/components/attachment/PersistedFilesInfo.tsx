@@ -8,11 +8,11 @@ import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 
 interface PersistedFilesInfoProps {
   attachments: TextAttachment[];
-  onDetachFile: (driveFileDbId: number) => void;
+  onDetachFile: (documentId: number) => void;
 }
 
 export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFilesInfoProps) {
-  const driveAttachments = attachments.filter((a) => a.driveFileDbId !== undefined);
+  const driveAttachments = attachments.filter((a) => a.documentId !== undefined);
 
   if (driveAttachments.length === 0) return null;
 
@@ -28,17 +28,14 @@ export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFiles
         <PopoverContent align="start" className="w-72 p-2">
           <ul className="space-y-1">
             {driveAttachments.map((file) => (
-              <li
-                key={file.driveFileDbId}
-                className="flex items-center justify-between gap-2 text-sm"
-              >
+              <li key={file.documentId} className="flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{truncate(file.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="p-0 h-auto text-muted-foreground hover:text-foreground flex-shrink-0"
                   title="Remove file"
-                  onClick={() => onDetachFile(file.driveFileDbId!)}
+                  onClick={() => onDetachFile(file.documentId!)}
                 >
                   <X className="w-4 h-4" />
                 </Button>

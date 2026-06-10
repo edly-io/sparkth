@@ -4,7 +4,8 @@ export interface TextAttachment {
   size: number;
   base64Data?: string;
   mediaType?: string;
-  driveFileDbId?: number; // Database ID of the DriveFile — triggers RAG retrieval on send
+  driveFileDbId?: number; // Google Drive file DB ID used only by the picker UI.
+  documentId?: number; // Core Document ID used by chat/RAG.
 }
 
 export type ChatRole = "user" | "assistant";

@@ -6,9 +6,7 @@ from pydantic import BaseModel
 from app.plugins.base import SparkthPlugin
 
 
-# ---------------------------------------------------------------------------
 # Test models
-# ---------------------------------------------------------------------------
 class InnerModel(BaseModel):
     token: str
     url: str
@@ -24,9 +22,7 @@ class OptionalFieldModel(BaseModel):
     tag: str | None = None
 
 
-# ---------------------------------------------------------------------------
 # Fixtures
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def plugin() -> SparkthPlugin:
     return SparkthPlugin(name="test-plugin")

@@ -2,7 +2,7 @@
 
 import { Dispatch, SetStateAction, useState } from "react";
 import { TextAttachment } from "@/plugins/chat/types";
-import { attachDriveFile, detachDriveFile } from "@/lib/chat-api";
+import { attachDocument, detachDocument } from "@/lib/chat-api";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
 import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 
@@ -16,7 +16,7 @@ interface UseChatInputProps {
   onSend: (payload: {
     message: string;
     attachments: TextAttachment[];
-    driveFileIds?: number[];
+    documentIds?: number[];
   }) => void;
 }
 
@@ -68,34 +68,35 @@ export function useChatInput({
 
     // Snapshot the previous drive attachments before enqueueing the state
     // update so both diff computations read a consistent pre-update view.
-    const prevDriveAttachments = attachments.filter((a) => a.driveFileDbId !== undefined);
+    const prevDocumentAttachments = attachments.filter((a) => a.documentId !== undefined);
 
     const newDriveAttachments = driveFiles.map((file) => ({
       name: file.name,
       size: file.size ?? 0,
       text: `[File: ${file.name}]`,
       driveFileDbId: file.id,
+      documentId: file.document_id,
     }));
     setAttachments((prev) => {
-      const nonDrive = prev.filter((a) => a.driveFileDbId === undefined);
+      const nonDrive = prev.filter((a) => a.documentId === undefined);
       return [...nonDrive, ...newDriveAttachments];
     });
 
     if (conversationId) {
-      const existingIds = new Set(prevDriveAttachments.map((a) => a.driveFileDbId));
-      const addedFiles = driveFiles.filter((f) => !existingIds.has(f.id));
+      const existingIds = new Set(prevDocumentAttachments.map((a) => a.documentId));
+      const addedFiles = driveFiles.filter((f) => !existingIds.has(f.document_id));
       for (const file of addedFiles) {
-        attachDriveFile(token, conversationId, file.id).catch((err) => {
+        attachDocument(token, conversationId, file.document_id).catch((err) => {
           console.warn("Failed to persist drive file attachment:", err);
           setUploadError(`Failed to attach "${file.name}". Please try again.`);
-          setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== file.id));
+          setAttachments((prev) => prev.filter((a) => a.documentId !== file.document_id));
         });
       }
 
-      const newIds = new Set(driveFiles.map((f) => f.id));
-      const removedAttachments = prevDriveAttachments.filter((a) => !newIds.has(a.driveFileDbId!));
+      const newIds = new Set(driveFiles.map((f) => f.document_id));
+      const removedAttachments = prevDocumentAttachments.filter((a) => !newIds.has(a.documentId!));
       for (const att of removedAttachments) {
-        detachDriveFile(token, conversationId, att.driveFileDbId!).catch((err) => {
+        detachDocument(token, conversationId, att.documentId!).catch((err) => {
           console.warn("Failed to detach drive file:", err);
           setUploadError(`Failed to detach "${att.name}". Please try again.`);
           setAttachments((prev) => [...prev, att]);
@@ -104,23 +105,23 @@ export function useChatInput({
     }
   };
 
-  const handleRemoveAttachment = (driveFileDbId?: number) => {
-    if (driveFileDbId !== undefined) {
-      const removed = attachments.find((a) => a.driveFileDbId === driveFileDbId);
-      setAttachments((prev) => prev.filter((a) => a.driveFileDbId !== driveFileDbId));
+  const handleRemoveAttachment = (documentId?: number) => {
+    if (documentId !== undefined) {
+      const removed = attachments.find((a) => a.documentId === documentId);
+      setAttachments((prev) => prev.filter((a) => a.documentId !== documentId));
       if (conversationId && removed) {
-        detachDriveFile(token, conversationId, driveFileDbId).catch((err) => {
+        detachDocument(token, conversationId, documentId).catch((err) => {
           console.warn("Failed to detach drive file:", err);
           setUploadError(`Failed to detach "${removed.name}". Please try again.`);
           setAttachments((prev) => [...prev, removed]);
         });
       }
     } else {
-      const driveAtts = attachments.filter((a) => a.driveFileDbId !== undefined);
+      const driveAtts = attachments.filter((a) => a.documentId !== undefined);
       setAttachments([]);
       if (conversationId) {
         for (const att of driveAtts) {
-          detachDriveFile(token, conversationId, att.driveFileDbId!).catch((err) => {
+          detachDocument(token, conversationId, att.documentId!).catch((err) => {
             console.warn("Failed to detach drive file:", err);
             setUploadError("Some files could not be detached. Please try again.");
             setAttachments((prev) => [...prev, att]);
@@ -131,23 +132,23 @@ export function useChatInput({
   };
 
   const handleSend = () => {
-    const sendableAttachments = attachments.filter((a) => a.driveFileDbId === undefined);
+    const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
     if (!message.trim() && sendableAttachments.length === 0) return;
 
-    const driveFileAttachments = attachments.filter((a) => a.driveFileDbId !== undefined);
-    const driveFileIds = driveFileAttachments.map((a) => a.driveFileDbId!);
+    const documentAttachments = attachments.filter((a) => a.documentId !== undefined);
+    const documentIds = documentAttachments.map((a) => a.documentId!);
 
     onSend({
       message: message.trim(),
       attachments: sendableAttachments,
-      // Always send drive file IDs so the backend can attach them before processing
+      // Always send document IDs so the backend can attach them before processing
       // (critical for new conversations where they haven't been persisted yet)
-      ...(driveFileIds.length > 0 && { driveFileIds }),
+      ...(documentIds.length > 0 && { documentIds }),
     });
 
     setMessage("");
-    // Keep drive file attachments in state — they remain attached to the conversation
-    setAttachments(driveFileAttachments);
+    // Keep document attachments in state — they remain attached to the conversation
+    setAttachments(documentAttachments);
   };
 
   return {

@@ -1,7 +1,16 @@
 from datetime import datetime
-from enum import Enum
 
 from pydantic import BaseModel, Field
+
+from app.core_plugins.canvas.enums import (
+    CourseFormat,
+    EditingRoles,
+    HideResults,
+    ModuleItemType,
+    QuestionType,
+    QuizType,
+    ScoringPolicy,
+)
 
 
 class AuthenticationPayload(BaseModel):
@@ -16,12 +25,6 @@ class CourseParams(BaseModel):
 
 class PaginationParams(CourseParams):
     page: int
-
-
-class CourseFormat(str, Enum):
-    ON_CAMPUS = "on_campus"
-    ONLINE = "online"
-    BLENDED = "blended"
 
 
 class Course(BaseModel):
@@ -90,11 +93,6 @@ class ModuleItemParams(BaseModel):
     module_item_id: int
 
 
-class ModuleItemType(str, Enum):
-    PAGE = "Page"
-    QUIZ = "Quiz"
-
-
 class ModuleItemCompletionRequirement(BaseModel):
     requirement_type: str
     min_score: float | None = None
@@ -148,13 +146,6 @@ class PageRequest(BaseModel):
     page_url: str
 
 
-class EditingRoles(str, Enum):
-    TEACHERS = "teachers"
-    STUDENTS = "students"
-    MEMBERS = "members"
-    PUBLIC = "public"
-
-
 class Page(BaseModel):
     title: str
     editing_roles: EditingRoles = Field(default=EditingRoles.TEACHERS)
@@ -193,23 +184,6 @@ class QuizParams(BaseModel):
     course_id: int
     quiz_id: int
     page: int
-
-
-class QuizType(str, Enum):
-    ASSIGNMENT = "assignment"
-    PRACTICE_QUIZ = "practice_quiz"
-    GRADED_SURVEY = "graded_survey"
-    SURVEY = "survey"
-
-
-class HideResults(str, Enum):
-    ALWAYS = "always"
-    UNTIL_AFTER_LAST_ATTEMPT = "until_after_last_attempt"
-
-
-class ScoringPolicy(str, Enum):
-    KEEP_HIGHEST = "keep_highest"
-    KEEP_LATEST = "keep_latest"
 
 
 class Quiz(BaseModel):
@@ -274,14 +248,6 @@ class Answer(BaseModel):
     answer_text: str
     answer_weight: int
     answer_comments: str | None = None
-
-
-class QuestionType(str, Enum):
-    CALCULATED = "calculated_question"
-    FILL_IN_MULTIPLE_BLANKS = "fill_in_multiple_blanks_question"
-    MULTIPLE_CHOICE = "multiple_choice_question"
-    TEXT_ONLY = "text_only_question"
-    TRUE_FALSE = "true_false_question"
 
 
 class Question(BaseModel):

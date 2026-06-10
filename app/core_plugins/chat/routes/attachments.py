@@ -7,7 +7,7 @@ from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.dependencies import get_owned_conversation
 from app.core_plugins.chat.schemas import (
-    AttachedDriveFileResponse,
+    AttachedDocumentResponse,
     ConversationAttachmentCreate,
     ConversationAttachmentResponse,
 )
@@ -20,18 +20,25 @@ router = APIRouter()
 
 @router.get(
     "/conversations/{conversation_id}/attachments",
-    response_model=list[AttachedDriveFileResponse],
+    response_model=list[AttachedDocumentResponse],
 )
 async def list_conversation_attachments(
     conversation: Conversation = Depends(get_owned_conversation),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
-) -> list[AttachedDriveFileResponse]:
-    drive_files = await service.list_conversation_attachments(
+) -> list[AttachedDocumentResponse]:
+    documents = await service.list_conversation_attachments(
         session,
         conversation_id=cast(int, conversation.id),
     )
-    return [AttachedDriveFileResponse(id=cast(int, f.id), name=f.name, size=f.size) for f in drive_files]
+    return [
+        AttachedDocumentResponse(
+            id=cast(int, document.id),
+            name=document.name,
+            size=None,
+        )
+        for document in documents
+    ]
 
 
 @router.post(
@@ -46,52 +53,52 @@ async def attach_file_to_conversation(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> ConversationAttachmentResponse:
-    drive_file = await service.get_user_owned_drive_file(
+    document = await service.get_user_owned_document(
         session,
-        drive_file_id=body.drive_file_id,
+        document_id=body.document_id,
         user_id=cast(int, current_user.id),
     )
-    if not drive_file:
+    if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Drive file not found or not accessible",
+            detail="Document not found or not accessible",
         )
-    attachment = await service.attach_drive_file(
+    attachment = await service.attach_document(
         session,
         conversation_id=cast(int, conversation.id),
-        drive_file_id=cast(int, drive_file.id),
+        document_id=cast(int, document.id),
     )
     return ConversationAttachmentResponse(
         id=cast(int, attachment.id),
         conversation_id=attachment.conversation_id,
-        drive_file_id=attachment.drive_file_id,
+        document_id=attachment.document_id,
         attached_at=attachment.attached_at,
     )
 
 
 @router.delete(
-    "/conversations/{conversation_id}/attachments/{drive_file_id}",
+    "/conversations/{conversation_id}/attachments/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def detach_file_from_conversation(
-    drive_file_id: int,
+    document_id: int,
     conversation: Conversation = Depends(get_owned_conversation),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> None:
-    drive_file = await service.get_user_owned_drive_file(
+    document = await service.get_user_owned_document(
         session,
-        drive_file_id=drive_file_id,
+        document_id=document_id,
         user_id=cast(int, current_user.id),
     )
-    if not drive_file:
+    if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Drive file not found or not accessible",
+            detail="Document not found or not accessible",
         )
-    await service.detach_drive_file(
+    await service.detach_document(
         session,
         conversation_id=cast(int, conversation.id),
-        drive_file_id=drive_file_id,
+        document_id=document_id,
     )

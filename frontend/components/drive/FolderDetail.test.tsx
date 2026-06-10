@@ -31,8 +31,22 @@ const mockFolder: DriveFolder = {
 };
 
 const mockFiles = [
-  { id: 10, drive_file_id: "f1", name: "doc.pdf", size: 1024, modified_time: "2026-01-01" },
-  { id: 20, drive_file_id: "f2", name: "notes.txt", size: 512, modified_time: "2026-01-02" },
+  {
+    id: 10,
+    drive_file_id: "f1",
+    document_id: 100,
+    name: "doc.pdf",
+    size: 1024,
+    modified_time: "2026-01-01",
+  },
+  {
+    id: 20,
+    drive_file_id: "f2",
+    document_id: 200,
+    name: "notes.txt",
+    size: 512,
+    modified_time: "2026-01-02",
+  },
 ];
 
 const mockRagStatuses = {

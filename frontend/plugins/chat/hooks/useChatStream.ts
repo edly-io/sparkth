@@ -5,7 +5,7 @@ import { ChatMessage, TextAttachment } from "../types";
 interface SendPayload {
   message: string;
   attachments: TextAttachment[];
-  driveFileIds?: number[];
+  documentIds?: number[];
   similarityThreshold?: number;
 }
 
@@ -373,7 +373,7 @@ export function useChatStream({
   );
 
   const handleSend = useCallback(
-    async ({ message, attachments, driveFileIds, similarityThreshold = 0.45 }: SendPayload) => {
+    async ({ message, attachments, documentIds, similarityThreshold = 0.45 }: SendPayload) => {
       lastSentRef.current = { message, attachments };
       lastSentThresholdRef.current = similarityThreshold;
 
@@ -414,7 +414,7 @@ export function useChatStream({
           include_system_tools_message: true,
           similarity_threshold: similarityThreshold,
           ...(conversationId && { conversation_id: conversationId }),
-          ...(driveFileIds && driveFileIds.length > 0 && { drive_file_ids: driveFileIds }),
+          ...(documentIds && documentIds.length > 0 && { document_ids: documentIds }),
         });
 
         if (!res.ok) {

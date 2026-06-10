@@ -4,11 +4,11 @@ from urllib.parse import quote
 
 from app.core_plugins.openedx.client import OpenEdxClient
 from app.core_plugins.openedx.config import OpenEdxConfig
-from app.core_plugins.openedx.types import (
+from app.core_plugins.openedx.enums import Component
+from app.core_plugins.openedx.schemas import (
     AccessTokenPayload,
     Auth,
     BlockContentArgs,
-    Component,
     CourseTreeRequest,
     CreateCourseArgs,
     ListCourseRunsArgs,
@@ -19,8 +19,25 @@ from app.core_plugins.openedx.types import (
     UpdateXBlockPayload,
     XBlockPayload,
 )
-from app.mcp.types import AuthenticationError, JsonParseError, LMSError
+from app.lib.enums import Method
+from app.lib.exceptions import AuthenticationError, LMSRequestError
 from app.plugins.base import SparkthPlugin, tool
+
+
+def _lms_error(
+    err: LMSRequestError | AuthenticationError,
+    *,
+    method: str | None = None,
+    endpoint: str | None = None,
+    prefix: str | None = None,
+) -> dict[str, Any]:
+    message = f"{prefix}: {err.message}" if prefix else err.message
+    error: dict[str, Any] = {"status_code": err.status_code, "message": message}
+    if method is not None:
+        error["method"] = method
+    if endpoint is not None:
+        error["endpoint"] = endpoint
+    return {"error": error}
 
 
 async def openedx_create_basic_component(
@@ -42,8 +59,8 @@ async def openedx_create_basic_component(
     async with OpenEdxClient(auth.lms_url, auth.access_token) as client:
         try:
             created = await client.post(studio, create_url, payload)
-        except (AuthenticationError, JsonParseError) as e:
-            raise LMSError("POST", create_url, e.status_code, e.message) from e
+        except AuthenticationError as e:
+            raise LMSRequestError(Method.POST, create_url, e.status_code, e.message) from e
 
         if isinstance(created, dict):
             locator = created.get("locator") or created.get("usage_key") or created.get("id")
@@ -56,7 +73,7 @@ async def openedx_create_basic_component(
             if isinstance(locator, str):
                 return locator
 
-        raise LMSError("POST", create_url, 500, "Invalid response format: missing locator")
+        raise LMSRequestError(Method.POST, create_url, 500, "Invalid response format: missing locator")
 
 
 async def openedx_update_xblock_content(
@@ -70,7 +87,7 @@ async def openedx_update_xblock_content(
     endpoint = f"api/contentstore/v0/xblock/{course_id}/{encoded}"
 
     if data is None and metadata is None:
-        raise LMSError("PATCH", endpoint, 400, "Nothing to update: provide `data` and/or `metadata`")
+        raise LMSRequestError(Method.PATCH, endpoint, 400, "Nothing to update: provide `data` and/or `metadata`")
 
     studio = auth.studio_url.rstrip("/")
 
@@ -83,9 +100,9 @@ async def openedx_update_xblock_content(
     async with OpenEdxClient(auth.lms_url, auth.access_token) as client:
         try:
             response = await client.patch(studio, endpoint, body)
-        except (JsonParseError, AuthenticationError) as err:
-            raise LMSError(
-                "PATCH",
+        except AuthenticationError as err:
+            raise LMSRequestError(
+                Method.PATCH,
                 endpoint,
                 err.status_code,
                 f"Updating XBlock {locator} for course ({course_id}) failed: {err.message}",
@@ -136,13 +153,8 @@ class OpenEdxPlugin(SparkthPlugin):
                     "message": f"Successfully authenticated as {who}",
                 }
 
-            except AuthenticationError as err:
-                return {
-                    "error": {
-                        "status_code": err.status_code,
-                        "message": f"Open edX authentication failed: {err.message}",
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err, prefix="Open edX authentication failed")
 
     @tool(description="Refresh the Open edX access token using the provided refresh token.", category="openedx-auth")
     async def openedx_refresh_access_token(self, payload: RefreshTokenPayload) -> dict[str, Any]:
@@ -193,8 +205,8 @@ class OpenEdxPlugin(SparkthPlugin):
 
                 return {"response": response}
 
-            except (JsonParseError, AuthenticationError) as err:
-                return {"error": {"status_code": err.status_code, "message": f"Refresh token failed: {err.message}"}}
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err, prefix="Refresh token failed")
 
     @tool(description="Retrieve authenticated user information from an Open edX LMS instance.", category="openedx-user")
     async def openedx_get_user_info(self, payload: LMSAccess) -> dict[str, Any]:
@@ -229,13 +241,10 @@ class OpenEdxPlugin(SparkthPlugin):
                 res = await client.authenticate()
                 return {"response": res}
 
-            except (JsonParseError, AuthenticationError) as err:
-                return {
-                    "error": {
-                        "status_code": err.status_code,
-                        "message": err.message,
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err)
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
     @tool(description="Create a new course run in an Open edX Studio instance.", category="openedx-course")
     async def openedx_create_course_run(self, payload: CreateCourseArgs) -> dict[str, Any]:
@@ -284,15 +293,10 @@ class OpenEdxPlugin(SparkthPlugin):
             try:
                 res = await client.post(payload.auth.studio_url, endpoint, course_data)
                 return {"response": res}
-            except (JsonParseError, AuthenticationError) as err:
-                return {
-                    "error": {
-                        "method": "POST",
-                        "endpoint": endpoint,
-                        "status_code": err.status_code,
-                        "message": f"Course runs creation failed: {err.message}",
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err, method="POST", endpoint=endpoint, prefix="Course runs creation failed")
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
     @tool(description="Retrieve a paginated list of course runs from open edX studio.", category="openedx-course")
     async def openedx_list_course_runs(self, payload: ListCourseRunsArgs) -> dict[str, Any]:
@@ -336,15 +340,10 @@ class OpenEdxPlugin(SparkthPlugin):
                 res = await client.get(base_url, endpoint)
                 return {"courses": res}
 
-            except (JsonParseError, AuthenticationError) as err:
-                return {
-                    "error": {
-                        "method": "GET",
-                        "endpoint": endpoint,
-                        "status_code": err.status_code,
-                        "message": f"List course runs failed: {err.message}",
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err, method="GET", endpoint=endpoint, prefix="List course runs failed")
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
     @tool(description="Create a new XBlock within an Open edX course.", category="openedx-course")
     async def openedx_create_xblock(self, payload: XBlockPayload) -> dict[str, Any]:
@@ -396,15 +395,10 @@ class OpenEdxPlugin(SparkthPlugin):
 
                 return {"response": res}
 
-            except (JsonParseError, AuthenticationError) as err:
-                return {
-                    "error": {
-                        "method": "POST",
-                        "endpoint": endpoint,
-                        "status_code": err.status_code,
-                        "message": f"XBlock creation failed: {err.message}",
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err, method="POST", endpoint=endpoint, prefix="XBlock creation failed")
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
     @tool(description="Create a Problem or HTML XBlock component in a course.", category="openedx-course")
     async def openedx_create_problem_or_html(self, payload: ProblemOrHtmlArgs) -> dict[str, Any]:
@@ -477,15 +471,10 @@ class OpenEdxPlugin(SparkthPlugin):
             locator = await openedx_create_basic_component(
                 payload.auth, payload.course_id, payload.unit_locator, component, name
             )
-        except LMSError as err:
-            return {
-                "error": {
-                    "method": err.method,
-                    "endpoint": err.url,
-                    "status_code": err.status_code,
-                    "message": err.message,
-                }
-            }
+        except LMSRequestError as err:
+            return _lms_error(err, method=err.method, endpoint=err.url)
+        except ValueError as err:
+            return {"error": {"message": str(err)}}
 
         if payload.data is not None:
             final_data = payload.data
@@ -511,15 +500,10 @@ class OpenEdxPlugin(SparkthPlugin):
                     final_data,
                     payload.metadata,
                 )
-            except LMSError as err:
-                return {
-                    "error": {
-                        "method": err.method,
-                        "endpoint": err.url,
-                        "status_code": err.status_code,
-                        "message": err.message,
-                    }
-                }
+            except LMSRequestError as err:
+                return _lms_error(err, method=err.method, endpoint=err.url)
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
             result_value = updated
 
@@ -574,15 +558,10 @@ class OpenEdxPlugin(SparkthPlugin):
             )
             return {"response": response}
 
-        except LMSError as err:
-            return {
-                "error": {
-                    "method": err.method,
-                    "endpoint": err.url,
-                    "status_code": err.status_code,
-                    "message": err.message,
-                }
-            }
+        except (LMSRequestError, AuthenticationError) as err:
+            return _lms_error(err)
+        except ValueError as err:
+            return {"error": {"message": str(err)}}
 
     @tool(description="Fetch the full block graph (course tree) for a course.", category="openedx-course-tree")
     async def openedx_get_course_tree_raw(self, payload: CourseTreeRequest) -> dict[str, Any]:
@@ -632,15 +611,12 @@ class OpenEdxPlugin(SparkthPlugin):
 
                 return {"response": response}
 
-            except LMSError as err:
-                return {
-                    "error": {
-                        "method": err.method,
-                        "endpoint": err.url,
-                        "status_code": err.status_code,
-                        "message": f"Failed to get course tree: {err.message}",
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(
+                    err, method="GET", endpoint="api/courses/v1/blocks/", prefix="Failed to get course tree"
+                )
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
     @tool(
         description="Read the content of a specific XBlock directly from the **Studio ContentStore**.",
@@ -689,12 +665,7 @@ class OpenEdxPlugin(SparkthPlugin):
 
                 return {"response": response}
 
-            except LMSError as err:
-                return {
-                    "error": {
-                        "method": err.method,
-                        "endpoint": err.url,
-                        "status_code": err.status_code,
-                        "message": err.message,
-                    }
-                }
+            except (LMSRequestError, AuthenticationError) as err:
+                return _lms_error(err, method="GET", endpoint=endpoint)
+            except ValueError as err:
+                return {"error": {"message": str(err)}}

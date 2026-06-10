@@ -7,9 +7,7 @@ from pydantic import BaseModel
 from app.core_plugins.chat.tools import ToolRegistry
 
 
-# ---------------------------------------------------------------------------
 # Test models (mimic the OpenEdX nested-model pattern)
-# ---------------------------------------------------------------------------
 class AuthPayload(BaseModel):
     access_token: str
     lms_url: str
@@ -28,9 +26,7 @@ class SimplePayload(BaseModel):
     value: int
 
 
-# ---------------------------------------------------------------------------
 # Helpers – tiny handler functions with known signatures
-# ---------------------------------------------------------------------------
 async def _handler_single_model(payload: CreateCoursePayload) -> dict[str, Any]:
     return {}
 
@@ -51,9 +47,7 @@ async def _handler_plain_types(name: str, count: int) -> dict[str, Any]:
     return {}
 
 
-# ---------------------------------------------------------------------------
 # Fixtures
-# ---------------------------------------------------------------------------
 @pytest.fixture
 def registry() -> ToolRegistry:
     return ToolRegistry()

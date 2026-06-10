@@ -8,7 +8,7 @@ import { ChatInput } from "./input/ChatInput";
 import { TextAttachment } from "../types";
 import { Preview } from "./attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
-import { attachDriveFile } from "@/lib/chat-api";
+import { attachDocument } from "@/lib/chat-api";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
 import { useConversation } from "../hooks/useConversation";
@@ -43,8 +43,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       router.replace(`/dashboard/chat?id=${id}`);
       // Sync any drive files that were selected before the conversation existed
       for (const att of inputAttachments) {
-        if (att.driveFileDbId !== undefined) {
-          attachDriveFile(token, id, att.driveFileDbId).catch((err) => {
+        if (att.documentId !== undefined) {
+          attachDocument(token, id, att.documentId).catch((err) => {
             console.warn("Failed to persist drive file attachment on new conversation:", err);
             setError(
               `Failed to attach "${att.name}". It may not be available for this conversation.`,

@@ -91,8 +91,20 @@ describe("Pill", () => {
 
     it("calls onRemove with driveFileDbId for per-file removal", async () => {
       const attachments: TextAttachment[] = [
-        { name: "first.pdf", size: 1024, text: "content", driveFileDbId: 100 },
-        { name: "second.pdf", size: 2048, text: "content", driveFileDbId: 123 },
+        {
+          name: "first.pdf",
+          size: 1024,
+          text: "content",
+          driveFileDbId: 100,
+          documentId: 200,
+        },
+        {
+          name: "second.pdf",
+          size: 2048,
+          text: "content",
+          driveFileDbId: 123,
+          documentId: 223,
+        },
       ];
 
       render(
@@ -107,7 +119,7 @@ describe("Pill", () => {
       const firstRemoveButton = (await screen.findAllByTitle("Remove attachment"))[0];
       await userEvent.click(firstRemoveButton);
 
-      expect(mockOnRemove).toHaveBeenCalledWith(123);
+      expect(mockOnRemove).toHaveBeenCalledWith(223);
     });
   });
 

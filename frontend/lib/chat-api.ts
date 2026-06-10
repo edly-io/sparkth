@@ -48,7 +48,7 @@ export interface ChatCompletionRequestBody {
   include_system_tools_message: boolean;
   similarity_threshold: number;
   conversation_id?: string;
-  drive_file_ids?: number[];
+  document_ids?: number[];
 }
 
 // Token may be null pre-login; the backend rejects "Bearer null" with 401,
@@ -124,30 +124,27 @@ export async function listConversations(
   return data.conversations ?? [];
 }
 
-export async function attachDriveFile(
+export async function attachDocument(
   token: string | null,
   conversationId: string,
-  driveFileId: number,
+  documentId: number,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/conversations/${conversationId}/attachments`, {
     method: "POST",
     headers: jsonAuthHeaders(token),
-    body: JSON.stringify({ drive_file_id: driveFileId }),
+    body: JSON.stringify({ document_id: documentId }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
-export async function detachDriveFile(
+export async function detachDocument(
   token: string | null,
   conversationId: string,
-  driveFileDbId: number,
+  documentId: number,
 ): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/conversations/${conversationId}/attachments/${driveFileDbId}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(token),
-    },
-  );
+  const res = await fetch(`${API_BASE}/conversations/${conversationId}/attachments/${documentId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import {
-  attachDriveFile,
-  detachDriveFile,
+  attachDocument,
+  detachDocument,
   getConversation,
   getConversationAttachments,
   getLastMessage,
@@ -206,15 +206,15 @@ describe("listConversations", () => {
   });
 });
 
-describe("attachDriveFile", () => {
+describe("attachDocument", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("POSTs the drive file id", async () => {
+  it("POSTs the document id", async () => {
     const fetchSpy = mockFetch(new Response("", { status: 200 }));
 
-    await attachDriveFile(TOKEN, "abc", 42);
+    await attachDocument(TOKEN, "abc", 42);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/chat/conversations/abc/attachments",
@@ -224,7 +224,7 @@ describe("attachDriveFile", () => {
           "Content-Type": "application/json",
           Authorization: "Bearer test-token",
         }),
-        body: JSON.stringify({ drive_file_id: 42 }),
+        body: JSON.stringify({ document_id: 42 }),
       }),
     );
   });
@@ -232,11 +232,11 @@ describe("attachDriveFile", () => {
   it("throws on non-ok response", async () => {
     mockFetch(new Response("", { status: 500 }));
 
-    await expect(attachDriveFile(TOKEN, "abc", 42)).rejects.toThrow("HTTP 500");
+    await expect(attachDocument(TOKEN, "abc", 42)).rejects.toThrow("HTTP 500");
   });
 });
 
-describe("detachDriveFile", () => {
+describe("detachDocument", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -244,7 +244,7 @@ describe("detachDriveFile", () => {
   it("DELETEs the attachment", async () => {
     const fetchSpy = mockFetch(new Response("", { status: 200 }));
 
-    await detachDriveFile(TOKEN, "abc", 42);
+    await detachDocument(TOKEN, "abc", 42);
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/chat/conversations/abc/attachments/42",
@@ -258,6 +258,6 @@ describe("detachDriveFile", () => {
   it("throws on non-ok response", async () => {
     mockFetch(new Response("", { status: 404 }));
 
-    await expect(detachDriveFile(TOKEN, "abc", 42)).rejects.toThrow("HTTP 404");
+    await expect(detachDocument(TOKEN, "abc", 42)).rejects.toThrow("HTTP 404");
   });
 });

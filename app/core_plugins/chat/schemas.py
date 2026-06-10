@@ -80,12 +80,12 @@ class ChatCompletionRequest(BaseModel):
     include_system_tools_message: bool = Field(
         default=True, description="Automatically prepend a system message listing available tools"
     )
-    drive_file_ids: list[int] | None = Field(
+    document_ids: list[int] | None = Field(
         default=None,
         max_length=20,
         description=(
-            "Drive file IDs to attach to the conversation before processing "
-            "(used when attaching files on a new conversation)."
+            "Document IDs to attach to the conversation before processing "
+            "(used when attaching documents on a new conversation)."
         ),
     )
 
@@ -140,9 +140,9 @@ class RAGRoutingDecision(BaseModel):
 
 
 class ConversationAttachmentCreate(BaseModel):
-    """Request body for attaching a drive file to a conversation."""
+    """Request body for attaching a document to a conversation."""
 
-    drive_file_id: int
+    document_id: int
 
 
 class ConversationAttachmentResponse(BaseModel):
@@ -150,12 +150,12 @@ class ConversationAttachmentResponse(BaseModel):
 
     id: int
     conversation_id: int
-    drive_file_id: int
+    document_id: int
     attached_at: datetime
 
 
-class AttachedDriveFileResponse(BaseModel):
-    """Drive file info returned by the list-attachments endpoint."""
+class AttachedDocumentResponse(BaseModel):
+    """Document info returned by the list-attachments endpoint."""
 
     id: int
     name: str

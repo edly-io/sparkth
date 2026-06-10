@@ -5,8 +5,10 @@ import pytest
 from langchain_core.exceptions import LangChainException
 from pydantic import BaseModel, ValidationError
 
-from app.core_plugins.chat.intent_router import RAGIntentRouter, RAGIntentRouterError
+from app.core_plugins.chat.exceptions import RAGIntentRouterError
+from app.core_plugins.chat.intent_router import RAGIntentRouter
 from app.core_plugins.chat.schemas import RAGRoutingDecision
+from app.lib.documents import Document, DocumentStatus
 
 
 def _make_llm(return_value: Any) -> MagicMock:
@@ -18,13 +20,9 @@ def _make_llm(return_value: Any) -> MagicMock:
     return mock_llm
 
 
-def _make_drive_file(id: int = 1, name: str = "doc.pdf", document_id: int | None = None) -> MagicMock:
-    """Helper: returns a MagicMock that simulates a DriveFile."""
-    mock_file = MagicMock()
-    mock_file.id = id
-    mock_file.name = name
-    mock_file.document_id = document_id if document_id is not None else id
-    return mock_file
+def _make_document(id: int = 1, name: str = "doc.pdf") -> Document:
+    """Helper: returns a Document."""
+    return Document(id=id, user_id=1, name=name, status=DocumentStatus.READY)
 
 
 class TestRAGIntentRouterDecide:
@@ -42,7 +40,7 @@ class TestRAGIntentRouterDecide:
 
             result = await router.decide(
                 query="tell me about chapter 2",
-                attached_files=[_make_drive_file(id=1, name="textbook.pdf")],
+                attached_documents=[_make_document(id=1, name="textbook.pdf")],
                 user_id=1,
             )
 
@@ -62,7 +60,7 @@ class TestRAGIntentRouterDecide:
 
             result = await router.decide(
                 query="make that title punchier",
-                attached_files=[_make_drive_file()],
+                attached_documents=[_make_document()],
                 user_id=1,
             )
 
@@ -85,7 +83,7 @@ class TestRAGIntentRouterDecide:
             with pytest.raises(RAGIntentRouterError):
                 await router.decide(
                     query="test",
-                    attached_files=[_make_drive_file()],
+                    attached_documents=[_make_document()],
                     user_id=1,
                 )
 
@@ -115,7 +113,7 @@ class TestRAGIntentRouterDecide:
             with pytest.raises(RAGIntentRouterError):
                 await router.decide(
                     query="test",
-                    attached_files=[_make_drive_file()],
+                    attached_documents=[_make_document()],
                     user_id=1,
                 )
 
@@ -132,7 +130,7 @@ class TestRAGIntentRouterDecide:
 
             await router.decide(
                 query=query_text,
-                attached_files=[_make_drive_file()],
+                attached_documents=[_make_document()],
                 user_id=1,
             )
 
@@ -160,7 +158,7 @@ class TestRAGIntentRouterDecide:
 
             await router.decide(
                 query="tell me about this",
-                attached_files=[_make_drive_file(id=1, name=file_name)],
+                attached_documents=[_make_document(id=1, name=file_name)],
                 user_id=1,
             )
 
@@ -182,7 +180,7 @@ class TestRAGIntentRouterDecide:
 
         result = await router.decide(
             query="test",
-            attached_files=[],
+            attached_documents=[],
             user_id=1,
         )
 

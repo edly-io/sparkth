@@ -4,12 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core_plugins.openedx.client import OpenEdxClient
+from app.core_plugins.openedx.enums import Component
 from app.core_plugins.openedx.plugin import OpenEdxPlugin
-from app.core_plugins.openedx.types import (
+from app.core_plugins.openedx.schemas import (
     AccessTokenPayload,
     Auth,
     BlockContentArgs,
-    Component,
     CourseTreeRequest,
     CreateCourseArgs,
     ListCourseRunsArgs,
@@ -19,7 +19,8 @@ from app.core_plugins.openedx.types import (
     UpdateXBlockPayload,
     XBlockPayload,
 )
-from app.mcp.types import AuthenticationError, LMSError
+from app.lib.enums import Method
+from app.lib.exceptions import AuthenticationError, LMSRequestError
 
 LMS_URL = "https://lms.example.com"
 STUDIO_URL = "https://studio.example.com"
@@ -67,22 +68,22 @@ class TestOpenEdxClient:
         mock_session = MagicMock()
         mock_session.request.return_value = mock_cm
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch("app.lib.http.ClientSession", return_value=mock_session):
             client = OpenEdxClient(lms_url, access_token)
             result = await client.authenticate()
 
         assert result == {"user": "test_user"}
 
-    async def test_request_jwt_no_token(self) -> None:
+    async def test_request_no_token(self) -> None:
         lms_url = "https://openedx.example.com"
         mock_session = MagicMock()
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch("app.lib.http.ClientSession", return_value=mock_session):
             client = OpenEdxClient(lms_url)
 
         with pytest.raises(AuthenticationError) as exc_info:
-            await client.request_jwt("GET", lms_url, "api/user/v1/me")
+            await client._request(Method.GET, "api/user/v1/me", base_url=lms_url)
 
-        assert exc_info.value.args[0] == "Access token not set (status_code=401)"
+        assert exc_info.value.args[0] == "Not authenticated (status_code=401)"
 
     async def test_get_token_success(self) -> None:
         lms_url = "https://openedx.example.com"
@@ -91,12 +92,7 @@ class TestOpenEdxClient:
 
         mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "access_token": "new_token",
-                "refresh_token": "refresh_token",
-            }
-        )
+        mock_response.text = AsyncMock(return_value='{"access_token": "new_token", "refresh_token": "refresh_token"}')
         mock_response.__aenter__.return_value = mock_response
         mock_response.__aexit__.return_value = None
 
@@ -105,7 +101,7 @@ class TestOpenEdxClient:
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch("app.lib.http.ClientSession", return_value=mock_session):
             client = OpenEdxClient(lms_url)
             token_data = await client.get_token(username, password)
 
@@ -119,7 +115,9 @@ class TestOpenEdxClient:
 
         mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.json = AsyncMock(return_value={"access_token": "refreshed_token", "refresh_token": "new_refresh"})
+        mock_response.text = AsyncMock(
+            return_value='{"access_token": "refreshed_token", "refresh_token": "new_refresh"}'
+        )
         mock_response.__aenter__.return_value = mock_response
         mock_response.__aexit__.return_value = None
 
@@ -128,7 +126,7 @@ class TestOpenEdxClient:
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch("app.lib.http.ClientSession", return_value=mock_session):
             client = OpenEdxClient(lms_url)
             token_data = await client.refresh_access_token(old_refresh_token)
 
@@ -373,7 +371,7 @@ class TestOpenEdxPluginGetCourseTree:
         self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
-        client.get.side_effect = LMSError("GET", "/api/courses/v1/blocks/", 404, "Not found")
+        client.get.side_effect = LMSRequestError(Method.GET, "/api/courses/v1/blocks/", 404, "Not found")
 
         payload = CourseTreeRequest(auth=auth_payload, course_id="course-v1:Org+101+2024")
         result = await plugin.openedx_get_course_tree_raw(payload)
@@ -403,7 +401,7 @@ class TestOpenEdxPluginGetBlockContentstore:
         self, plugin: OpenEdxPlugin, auth_payload: AccessTokenPayload, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
         _, client = mock_openedx_client
-        client.get.side_effect = LMSError("GET", "/api/contentstore/", 404, "Not found")
+        client.get.side_effect = LMSRequestError(Method.GET, "/api/contentstore/", 404, "Not found")
 
         payload = BlockContentArgs(
             auth=auth_payload,
