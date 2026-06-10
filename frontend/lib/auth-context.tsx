@@ -2,20 +2,11 @@
 
 import { createContext, use, useState, useEffect, useMemo, ReactNode, useCallback } from "react";
 import { setAuthTokens, clearAuthTokens, getStoredToken } from "@/lib/auth-tokens";
-
-interface User {
-  id?: string;
-  username?: string;
-  name?: string;
-  email?: string;
-  avatar?: string;
-  plan?: string;
-  is_superuser?: boolean;
-}
+import { ApiRequestError, getCurrentUser, type CurrentUser } from "@/lib/api";
 
 interface AuthContextType {
   token: string | null;
-  user: User | null;
+  user: CurrentUser | null;
   isAuthenticated: boolean;
   loading: boolean;
   login: (token: string, expiresAt: string) => void;
@@ -29,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Start with no token and loading=true ("still checking"). localStorage can't be
   // read during the server render, so we defer the auth decision to the effect below.
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const logout = useCallback(() => {
@@ -41,21 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = useCallback(
     async (authToken: string) => {
       try {
-        const response = await fetch("/api/v1/user/me", {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            Accept: "application/json",
-          },
-        });
-
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else if (response.status === 401) {
-          logout();
-        }
+        const userData = await getCurrentUser(authToken);
+        setUser(userData);
       } catch (error) {
-        console.error("Failed to fetch user:", error);
+        if (error instanceof ApiRequestError && error.status === 401) {
+          logout();
+        } else {
+          console.error("Failed to fetch user:", error);
+        }
       } finally {
         setLoading(false);
       }
