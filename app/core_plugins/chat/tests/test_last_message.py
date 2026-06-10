@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core_plugins.chat.config import get_chat_settings
 from app.core_plugins.chat.models import Conversation, Message
 from app.core_plugins.chat.service import ChatService, get_chat_service
-from app.llm.service import get_llm_service
+from app.lib.llm import get_llm_service
 from app.main import app
 
 

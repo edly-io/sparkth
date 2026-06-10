@@ -26,7 +26,7 @@ from app.core_plugins.chat.schemas import (
     ConversationResponse,
 )
 from app.core_plugins.chat.service import ChatService, get_chat_service
-from app.llm.service import get_llm_service
+from app.lib.llm import get_llm_service
 from app.main import app
 
 # ===========================================================================

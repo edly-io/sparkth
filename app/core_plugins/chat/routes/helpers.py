@@ -20,6 +20,7 @@ from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
 from app.lib.documents import Document
+from app.lib.llm import BaseChatProvider, get_provider
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,

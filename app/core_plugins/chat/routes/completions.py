@@ -37,6 +37,15 @@ from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionR
 from app.core_plugins.chat.service import ChatService, get_chat_service
 from app.core_plugins.chat.tools import get_tool_registry
 from app.lib.db import get_async_session, session_scope
+from app.lib.llm import (
+    BaseChatProvider,
+    LLMConfigInactiveError,
+    LLMConfigModelNotSetError,
+    LLMConfigNotFoundError,
+    LLMConfigService,
+    get_llm_service,
+    get_provider,
+)
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -45,10 +54,7 @@ from app.lib.rag import (
     agentic_retrieve_context,
 )
 from app.llm.classifier import HistoryTurn
-from app.llm.exceptions import LLMConfigInactiveError, LLMConfigModelNotSetError, LLMConfigNotFoundError
 from app.llm.prompt import REFUSAL_MESSAGE
-from app.llm.providers import BaseChatProvider, get_provider
-from app.llm.service import LLMConfigService, get_llm_service
 from app.models.user import User
 
 logger = get_logger(__name__)
