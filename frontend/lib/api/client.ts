@@ -3,12 +3,15 @@ import { getStoredToken } from "@/lib/auth-tokens";
 import { ApiRequestError, formatApiError, type ApiError } from "@/lib/api";
 import type { components, paths } from "./generated";
 
-const middleware: Middleware = {
+const authMiddleware: Middleware = {
   async onRequest({ request }) {
     const token = getStoredToken();
     if (token) request.headers.set("Authorization", `Bearer ${token}`);
     return request;
   },
+};
+
+const errorMiddleware: Middleware = {
   async onResponse({ response }) {
     if (response.ok) return response;
     let formatted = {
@@ -34,6 +37,6 @@ const baseUrl = typeof window !== "undefined" ? window.location.origin : "http:/
 const fetchDelegate: typeof fetch = (...args) => globalThis.fetch(...args);
 
 export const api = createClient<paths>({ baseUrl, fetch: fetchDelegate });
-api.use(middleware);
+api.use(authMiddleware, errorMiddleware);
 
 export type Schema<K extends keyof components["schemas"]> = components["schemas"][K];
