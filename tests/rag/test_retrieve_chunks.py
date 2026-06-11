@@ -1,4 +1,4 @@
-"""Tests for agentic_retrieve_context — multi-file readiness validation + concurrent retrieval."""
+"""Tests for agentic_retrieve_context — multi-document readiness validation + concurrent retrieval."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,7 +28,7 @@ def _ctx(source: str, *contents: str) -> RAGContext:
 
 class TestRetrieveChunks:
     @pytest.mark.asyncio
-    async def test_empty_file_ids_returns_empty(self) -> None:
+    async def test_empty_document_ids_returns_empty(self) -> None:
         result = await retrieve_chunks("q", [], 1, MagicMock())
         assert result == []
 

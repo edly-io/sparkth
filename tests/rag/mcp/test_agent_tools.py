@@ -18,9 +18,9 @@ class TestBuildSearchTools:
     def test_builds_all_six_tools_with_expected_names(self) -> None:
         tools = build_search_tools(user_id=1, document_id=2)
         assert set(_by_name(tools)) == {
-            "list_user_files",
-            "get_file_metadata",
-            "list_file_sections",
+            "list_user_documents",
+            "get_document_metadata",
+            "list_document_sections",
             "get_chunk_stats",
             "get_document_structure",
             "search_section_by_keyword",
@@ -34,9 +34,9 @@ class TestBuildSearchTools:
     def test_context_only_tools_expose_no_llm_args(self) -> None:
         tools = _by_name(build_search_tools(user_id=1, document_id=2))
         for name in (
-            "list_user_files",
-            "get_file_metadata",
-            "list_file_sections",
+            "list_user_documents",
+            "get_document_metadata",
+            "list_document_sections",
             "get_chunk_stats",
             "get_document_structure",
         ):
@@ -63,9 +63,9 @@ class TestBuildSearchTools:
         mock_fn.assert_awaited_once_with(user_id=5, document_id=7, keyword="intro")
 
     @pytest.mark.asyncio
-    async def test_list_user_files_injects_only_user_id(self) -> None:
-        tool = _by_name(build_search_tools(user_id=9, document_id=99))["list_user_files"]
-        with patch("app.rag.mcp.agent_tools.tools.list_user_files", new_callable=AsyncMock) as mock_fn:
+    async def test_list_user_documents_injects_only_user_id(self) -> None:
+        tool = _by_name(build_search_tools(user_id=9, document_id=99))["list_user_documents"]
+        with patch("app.rag.mcp.agent_tools.tools.list_user_documents", new_callable=AsyncMock) as mock_fn:
             mock_fn.return_value = []
             await tool.ainvoke({})
         mock_fn.assert_awaited_once_with(user_id=9)

@@ -63,8 +63,8 @@ def _make_conversation() -> MagicMock:
     return conv
 
 
-def _unresolved_with_file(file_id: int = 1) -> list[ChatMessage]:
-    return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": file_id}])]
+def _unresolved_with_document(document_id: int = 1) -> list[ChatMessage]:
+    return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": document_id}])]
 
 
 async def _collect_events(gen: AsyncGenerator[str, None]) -> list[dict]:  # type: ignore[type-arg]
@@ -114,7 +114,7 @@ async def test_status_events_emitted_before_tokens() -> None:
     statuses = [e for e in parsed if "status" in e]
     status_names = [e["status"] for e in statuses]
 
-    # Single searching_documents event (not per-file searching_document)
+    # Single searching_documents event (not per-document searching_document)
     assert "searching_documents" in status_names
     assert "searching_document" not in status_names
     assert "generating" in status_names
@@ -126,8 +126,8 @@ async def test_status_events_emitted_before_tokens() -> None:
 
 
 @pytest.mark.asyncio
-async def test_searching_documents_event_includes_file_count() -> None:
-    """The searching_documents status event includes a file_count field."""
+async def test_searching_documents_event_includes_legacy_file_count() -> None:
+    """The searching_documents status event preserves the legacy file_count field."""
     chunks = [_make_chunk("Content.", source_name="doc.pdf")]
 
     unresolved = [
@@ -194,7 +194,7 @@ async def test_agent_context_injected_into_messages() -> None:
         ):
             pass
 
-    # The drive_file block should be gone; two text blocks remain:
+    # The legacy document block should be gone; two text blocks remain:
     # [0] context-retention prompt, [1] the RAG context
     content = original_messages[0]["content"]
     assert isinstance(content, list)
@@ -205,11 +205,11 @@ async def test_agent_context_injected_into_messages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_multi_file_rag_context_preserved() -> None:
-    """RAG context from file₁ is not dropped when file₂ is processed in the same message."""
+async def test_multi_document_rag_context_preserved() -> None:
+    """RAG context from one document is not dropped when another is processed in the same message."""
     chunks = [
-        _make_chunk("Context from file 1.", source_name="file1.pdf", section="Section"),
-        _make_chunk("Context from file 2.", source_name="file2.pdf", section="Section"),
+        _make_chunk("Context from document 1.", source_name="document1.pdf", section="Section"),
+        _make_chunk("Context from document 2.", source_name="document2.pdf", section="Section"),
     ]
 
     original_messages = [
@@ -244,14 +244,14 @@ async def test_multi_file_rag_context_preserved() -> None:
     content = original_messages[0]["content"]
     assert isinstance(content, list)
     text_blocks = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
-    # context prompt + two RAG context blocks (one per source) — neither file's context is lost
+    # context prompt + two RAG context blocks (one per source) — neither document's context is lost
     assert len(text_blocks) == 3
-    assert any("Context from file 1." in t for t in text_blocks)
-    assert any("Context from file 2." in t for t in text_blocks)
+    assert any("Context from document 1." in t for t in text_blocks)
+    assert any("Context from document 2." in t for t in text_blocks)
 
 
 @pytest.mark.asyncio
-async def test_no_status_events_without_drive_file_blocks() -> None:
+async def test_no_status_events_without_document_blocks() -> None:
     """When no unresolved_messages passed, no status events are emitted."""
     events = []
     async for chunk in stream_chat_response(
@@ -320,8 +320,8 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_no_rag_sections_metadata_without_drive_files() -> None:
-    """When no drive files are processed, add_message is called without rag_sections metadata."""
+async def test_no_rag_sections_metadata_without_document_blocks() -> None:
+    """When no document blocks are processed, add_message is called without rag_sections metadata."""
     service = _make_service()
 
     async for _ in stream_chat_response(
@@ -340,7 +340,7 @@ async def test_no_rag_sections_metadata_without_drive_files() -> None:
     )
     assert assistant_call is not None
     metadata = assistant_call.kwargs.get("metadata")
-    # No drive files → metadata should be absent or have no rag_sections
+    # No document blocks -> metadata should be absent or have no rag_sections.
     assert metadata is None or metadata.get("rag_sections") is None
 
 
@@ -381,7 +381,7 @@ class TestMessageResponseRagSections:
 
 
 @pytest.mark.asyncio
-async def test_drive_file_not_found_emits_friendly_error() -> None:
+async def test_document_not_found_emits_friendly_error() -> None:
     with (
         patch(
             "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
@@ -395,7 +395,7 @@ async def test_drive_file_not_found_emits_friendly_error() -> None:
                 conversation=_make_conversation(),
                 service=_make_service(),
                 tools=None,
-                unresolved_messages=_unresolved_with_file(),
+                unresolved_messages=_unresolved_with_document(),
                 user_id=1,
                 llm=MagicMock(),
                 should_run_rag=True,
@@ -424,7 +424,7 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
                 conversation=_make_conversation(),
                 service=_make_service(),
                 tools=None,
-                unresolved_messages=_unresolved_with_file(),
+                unresolved_messages=_unresolved_with_document(),
                 user_id=1,
                 llm=MagicMock(),
                 should_run_rag=True,
@@ -453,7 +453,7 @@ async def test_rag_retrieval_error_emits_friendly_error() -> None:
                 conversation=_make_conversation(),
                 service=_make_service(),
                 tools=None,
-                unresolved_messages=_unresolved_with_file(),
+                unresolved_messages=_unresolved_with_document(),
                 user_id=1,
                 llm=MagicMock(),
                 should_run_rag=True,
@@ -500,7 +500,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_drive_file_not_found_persists_error_to_db() -> None:
+async def test_document_not_found_persists_error_to_db() -> None:
     """DocumentNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
     task_holder: list[asyncio.Task[None]] = []
@@ -516,7 +516,7 @@ async def test_drive_file_not_found_persists_error_to_db() -> None:
             conversation=_make_conversation(),
             service=service,
             tools=None,
-            unresolved_messages=_unresolved_with_file(),
+            unresolved_messages=_unresolved_with_document(),
             user_id=1,
             llm=MagicMock(),
             should_run_rag=True,
@@ -549,7 +549,7 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
             conversation=_make_conversation(),
             service=service,
             tools=None,
-            unresolved_messages=_unresolved_with_file(),
+            unresolved_messages=_unresolved_with_document(),
             user_id=1,
             llm=MagicMock(),
             should_run_rag=True,
@@ -580,7 +580,7 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
             conversation=_make_conversation(),
             service=service,
             tools=None,
-            unresolved_messages=_unresolved_with_file(),
+            unresolved_messages=_unresolved_with_document(),
             user_id=1,
             llm=MagicMock(),
             should_run_rag=True,

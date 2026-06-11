@@ -167,7 +167,7 @@ class TestStoreAndLinkChunks:
         assert added_links[0].chunk_id == 11
 
     @pytest.mark.asyncio
-    async def test_deleted_file_chunks_not_reused(self, session: AsyncSession) -> None:
+    async def test_deleted_document_chunks_not_reused(self, session: AsyncSession) -> None:
         """Chunks linked only to deleted Documents must never be reused."""
         async_session: AsyncSession = session
 

@@ -83,5 +83,5 @@ async def get_context_via_agent_with_isolated_session(
         DocumentNotFoundError / RAGNotReadyError: document access/readiness failure.
         RAGRetrievalError: retrieval failed.
     """
-    async with session_scope() as file_session:
-        return await get_context_via_agent(file_session, user_id, document_id, query, llm)
+    async with session_scope() as document_session:
+        return await get_context_via_agent(document_session, user_id, document_id, query, llm)

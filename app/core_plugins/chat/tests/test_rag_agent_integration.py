@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.core_plugins.chat.routes.helpers import resolve_drive_file_blocks
+from app.core_plugins.chat.routes.helpers import resolve_document_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -30,8 +30,8 @@ def _make_chunk(
     )
 
 
-class TestResolveBlocksUsesAgent:
-    """Test that resolve_drive_file_blocks delegates to agentic_retrieve_context."""
+class TestResolveDocumentBlocksUsesAgent:
+    """Test that resolve_document_blocks delegates to agentic_retrieve_context."""
 
     @pytest.mark.asyncio
     async def test_calls_retrieve_context(self) -> None:
@@ -39,7 +39,7 @@ class TestResolveBlocksUsesAgent:
             ChatMessage(
                 role="user",
                 content=[
-                    {"type": "text", "text": "What is in this file?"},
+                    {"type": "text", "text": "What is in this document?"},
                     {"type": "drive_file", "file_id": 1},
                 ],
             )
@@ -48,7 +48,7 @@ class TestResolveBlocksUsesAgent:
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = [_make_chunk()]
 
-            await resolve_drive_file_blocks(
+            await resolve_document_blocks(
                 messages=messages,
                 session=AsyncMock(),
                 user_id=1,
@@ -64,7 +64,7 @@ class TestResolveBlocksUsesAgent:
         assert await_args.args[3] is not None
 
     @pytest.mark.asyncio
-    async def test_drive_file_not_found_returns_422(self) -> None:
+    async def test_document_not_found_returns_422(self) -> None:
         messages = [
             ChatMessage(
                 role="user",
@@ -79,7 +79,7 @@ class TestResolveBlocksUsesAgent:
             mock_retrieve.side_effect = DocumentNotFoundError("Not found")
 
             with pytest.raises(HTTPException) as exc_info:
-                await resolve_drive_file_blocks(
+                await resolve_document_blocks(
                     messages=messages,
                     session=AsyncMock(),
                     user_id=1,
@@ -104,7 +104,7 @@ class TestResolveBlocksUsesAgent:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
 
             with pytest.raises(HTTPException) as exc_info:
-                await resolve_drive_file_blocks(
+                await resolve_document_blocks(
                     messages=messages,
                     session=AsyncMock(),
                     user_id=1,
@@ -129,7 +129,7 @@ class TestResolveBlocksUsesAgent:
             mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
 
             with pytest.raises(HTTPException) as exc_info:
-                await resolve_drive_file_blocks(
+                await resolve_document_blocks(
                     messages=messages,
                     session=AsyncMock(),
                     user_id=1,

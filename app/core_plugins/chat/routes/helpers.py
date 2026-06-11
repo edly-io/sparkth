@@ -94,7 +94,7 @@ def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
     return document_ids
 
 
-async def resolve_drive_file_blocks(
+async def resolve_document_blocks(
     messages: list[ChatMessage],
     session: AsyncSession,
     user_id: int,
@@ -108,7 +108,7 @@ async def resolve_drive_file_blocks(
     Base64 and plain text blocks pass through unchanged.
 
     Raises:
-        HTTPException(422): file not found, not owned, or RAG not ready.
+        HTTPException(422): document not found, not owned, or RAG not ready.
         HTTPException(500): agent retrieval or section-chunk fetch failure.
     """
     query_text = extract_query_text(messages)
@@ -120,7 +120,7 @@ async def resolve_drive_file_blocks(
             continue
 
         document_ids: list[int] = []
-        non_file_blocks: list[dict[str, Any]] = []
+        non_document_blocks: list[dict[str, Any]] = []
         for block in msg.content:
             if isinstance(block, dict) and block.get("type") == "drive_file":
                 raw_id = block.get("file_id")
@@ -129,7 +129,7 @@ async def resolve_drive_file_blocks(
                     continue
                 document_ids.append(int(raw_id))
             else:
-                non_file_blocks.append(block)
+                non_document_blocks.append(block)
 
         if not document_ids:
             resolved.append(msg)
@@ -142,20 +142,20 @@ async def resolve_drive_file_blocks(
             {"type": "text", "text": format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
         ]
         logger.info(
-            "Replaced document attachment blocks document_ids=%s with %d RAG chunks across %d source(s)",
+            "Replaced legacy document attachment blocks document_ids=%s with %d RAG chunks across %d source(s)",
             document_ids,
             len(chunks),
             len(grouped),
         )
 
         if rag_blocks:
-            user_text_blocks = [b for b in non_file_blocks if isinstance(b, dict) and b.get("type") == "text"]
-            other_blocks = [b for b in non_file_blocks if not (isinstance(b, dict) and b.get("type") == "text")]
+            user_text_blocks = [b for b in non_document_blocks if isinstance(b, dict) and b.get("type") == "text"]
+            other_blocks = [b for b in non_document_blocks if not (isinstance(b, dict) and b.get("type") == "text")]
             new_blocks: list[dict[str, Any]] = (
                 [{"type": "text", "text": RAG_CONTEXT_PROMPT}] + other_blocks + rag_blocks + user_text_blocks
             )
         else:
-            new_blocks = non_file_blocks
+            new_blocks = non_document_blocks
         resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
 
     return resolved
@@ -176,12 +176,12 @@ async def _retrieve_rag_chunks(
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="One or more files not found or not accessible.",
+            detail="One or more documents not found or not accessible.",
         ) from exc
     except RAGNotReadyError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"A file is still being processed (status: {exc.status}). Please wait and try again.",
+            detail=f"A document is still being processed (status: {exc.status}). Please wait and try again.",
         ) from exc
     except RAGRetrievalError as exc:
         logger.error("RAG retrieval error for document_ids=%s: %s", document_ids, exc)
@@ -321,7 +321,7 @@ async def persist_incoming_messages(
                 for block in msg.content
                 if isinstance(block, dict) and block.get("type") == "text"
             ]
-            stored_content = " ".join(text_parts) if text_parts else "[File attachment]"
+            stored_content = " ".join(text_parts) if text_parts else "[Document attachment]"
         else:
             stored_content = msg.content
         await service.add_message(
@@ -340,7 +340,7 @@ async def classify_in_scope(
     provider_name: str,
     api_key: str,
     history: list[HistoryTurn],
-    attached_file_names: list[str] | None,
+    attached_document_names: list[str] | None,
 ) -> bool:
     """Tiered scope check: fast keyword pre-filter, then LLM classifier. Empty query is always in scope."""
     if not query_text:
@@ -348,7 +348,7 @@ async def classify_in_scope(
     if not is_query_in_scope(query_text):
         return False
     classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
-    return await classifier.classify(query_text, history=history, attached_file_names=attached_file_names)
+    return await classifier.classify(query_text, history=history, attached_document_names=attached_document_names)
 
 
 async def resolve_tools(

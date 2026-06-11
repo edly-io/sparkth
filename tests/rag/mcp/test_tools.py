@@ -9,10 +9,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.lib.documents import DocumentStatus
 from app.rag.mcp.tools import (
     get_chunk_stats,
+    get_document_metadata,
     get_document_structure,
-    get_file_metadata,
-    list_file_sections,
-    list_user_files,
+    list_document_sections,
+    list_user_documents,
     search_section_by_keyword,
 )
 
@@ -31,8 +31,8 @@ def _mock_document(
     return doc
 
 
-class TestListUserFiles:
-    """Test list_user_files tool."""
+class TestListUserDocuments:
+    """Test list_user_documents tool."""
 
     @pytest.mark.asyncio
     async def test_returns_ready_documents_only(self) -> None:
@@ -43,7 +43,7 @@ class TestListUserFiles:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await list_user_files(user_id=1)
+            result = await list_user_documents(user_id=1)
 
         assert len(result) == 1
         assert result[0].id == 10
@@ -60,7 +60,7 @@ class TestListUserFiles:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await list_user_files(user_id=1)
+            result = await list_user_documents(user_id=1)
 
         assert result == []
 
@@ -72,11 +72,11 @@ class TestListUserFiles:
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
             with pytest.raises(SQLAlchemyError):
-                await list_user_files(user_id=1)
+                await list_user_documents(user_id=1)
 
 
-class TestGetFileMetadata:
-    """Test get_file_metadata tool."""
+class TestGetDocumentMetadata:
+    """Test get_document_metadata tool."""
 
     @pytest.mark.asyncio
     async def test_returns_metadata_for_owned_document(self) -> None:
@@ -87,7 +87,7 @@ class TestGetFileMetadata:
             mock_session.exec = AsyncMock(return_value=mock_doc_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await get_file_metadata(user_id=1, document_id=10)
+            result = await get_document_metadata(user_id=1, document_id=10)
 
         assert result is not None
         assert result.id == 10
@@ -104,7 +104,7 @@ class TestGetFileMetadata:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await get_file_metadata(user_id=1, document_id=999)
+            result = await get_document_metadata(user_id=1, document_id=999)
 
         assert result is None
 
@@ -117,13 +117,13 @@ class TestGetFileMetadata:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            await get_file_metadata(user_id=5, document_id=1)
+            await get_document_metadata(user_id=5, document_id=1)
 
         assert mock_session.exec.called
 
 
-class TestListFileSections:
-    """Test list_file_sections tool."""
+class TestListDocumentSections:
+    """Test list_document_sections tool."""
 
     @pytest.mark.asyncio
     async def test_returns_distinct_tuples(self) -> None:
@@ -139,7 +139,7 @@ class TestListFileSections:
             mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_sections_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await list_file_sections(user_id=1, document_id=10)
+            result = await list_document_sections(user_id=1, document_id=10)
 
         assert len(result) == 1
         assert result[0].chapter == "Ch1"
@@ -154,7 +154,7 @@ class TestListFileSections:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await list_file_sections(user_id=1, document_id=999)
+            result = await list_document_sections(user_id=1, document_id=999)
 
         assert result == []
 

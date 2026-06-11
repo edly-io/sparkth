@@ -7,14 +7,14 @@ from pydantic import BaseModel
 # Using str avoids the cycle — RagStatus is a StrEnum so values are already plain strings.
 
 
-class FileInfo(BaseModel):
+class DocumentInfo(BaseModel):
     id: int
     name: str
     mime_type: str | None
     rag_status: str
 
 
-class FileMetadata(BaseModel):
+class DocumentMetadata(BaseModel):
     id: int
     name: str
     mime_type: str | None

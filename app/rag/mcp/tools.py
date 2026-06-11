@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.lib.db import session_scope
 from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
-from app.rag.mcp.schemas import ChunkStats, DocumentSection, FileInfo, FileMetadata, SectionKey
+from app.rag.mcp.schemas import ChunkStats, DocumentInfo, DocumentMetadata, DocumentSection, SectionKey
 from app.rag.models import DocumentChunk, DocumentChunkLink
 
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ async def _fetch_document(session: AsyncSession, document_id: int, user_id: int)
     return result.first()
 
 
-async def list_user_files(user_id: int) -> list[FileInfo]:
+async def list_user_documents(user_id: int) -> list[DocumentInfo]:
     """List all RAG-ready documents owned by a user."""
 
     async with session_scope() as session:
@@ -41,7 +41,7 @@ async def list_user_files(user_id: int) -> list[FileInfo]:
         documents = result.all()
 
         return [
-            FileInfo(
+            DocumentInfo(
                 id=cast(int, doc.id),
                 name=doc.name,
                 mime_type=doc.mime_type,
@@ -51,7 +51,7 @@ async def list_user_files(user_id: int) -> list[FileInfo]:
         ]
 
 
-async def get_file_metadata(user_id: int, document_id: int) -> FileMetadata | None:
+async def get_document_metadata(user_id: int, document_id: int) -> DocumentMetadata | None:
     """Get metadata for a specific document owned by a user."""
 
     async with session_scope() as session:
@@ -59,7 +59,7 @@ async def get_file_metadata(user_id: int, document_id: int) -> FileMetadata | No
         if doc is None:
             return None
 
-        return FileMetadata(
+        return DocumentMetadata(
             id=cast(int, doc.id),
             name=doc.name,
             mime_type=doc.mime_type,
@@ -67,7 +67,7 @@ async def get_file_metadata(user_id: int, document_id: int) -> FileMetadata | No
         )
 
 
-async def list_file_sections(user_id: int, document_id: int) -> list[SectionKey]:
+async def list_document_sections(user_id: int, document_id: int) -> list[SectionKey]:
     """List all distinct sections in a document."""
 
     async with session_scope() as session:

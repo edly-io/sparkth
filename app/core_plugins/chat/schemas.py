@@ -48,9 +48,9 @@ class ChatMessage(BaseModel):
                     if size > MAX_FILE_SIZE:
                         raise ValueError("File size exceeds 30MB limit")
                 if block.get("type") == "drive_file":
-                    file_id = block.get("file_id")
-                    if not isinstance(file_id, int) or file_id <= 0:
-                        raise ValueError("drive_file content block must have a positive integer 'file_id'")
+                    document_id = block.get("file_id")
+                    if not isinstance(document_id, int) or document_id <= 0:
+                        raise ValueError("legacy document content block must have a positive integer 'file_id'")
         return v
 
 
