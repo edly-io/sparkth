@@ -12,7 +12,7 @@ from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
 from app.lib.documents import Document
 from app.lib.log import get_logger
-from app.rag.mcp.tools import get_document_structure
+from app.lib.rag import get_rag_ingested_document_structure
 
 logger = get_logger(__name__)
 
@@ -43,7 +43,7 @@ class RAGIntentRouter:
         Args:
             query: The user's query text.
             attached_documents: Documents attached to the conversation.
-            user_id: The user ID passed to get_document_structure.
+            user_id: The user ID passed to the public RAG ingested-document structure API.
 
         Returns:
             RAGRoutingDecision with should_retrieve and reason.
@@ -56,7 +56,10 @@ class RAGIntentRouter:
         if attached_documents:
             documents = [doc for doc in attached_documents if doc.id is not None]
             results = await asyncio.gather(
-                *[get_document_structure(user_id=user_id, document_id=cast(int, doc.id)) for doc in documents],
+                *[
+                    get_rag_ingested_document_structure(user_id=user_id, document_id=cast(int, doc.id))
+                    for doc in documents
+                ],
                 return_exceptions=True,
             )
 

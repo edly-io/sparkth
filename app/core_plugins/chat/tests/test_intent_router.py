@@ -35,7 +35,9 @@ class TestRAGIntentRouterDecide:
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch(
+            "app.core_plugins.chat.intent_router.get_rag_ingested_document_structure", new_callable=AsyncMock
+        ) as mock_struct:
             mock_struct.return_value = []
 
             result = await router.decide(
@@ -55,7 +57,9 @@ class TestRAGIntentRouterDecide:
         llm = _make_llm(decision)
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch(
+            "app.core_plugins.chat.intent_router.get_rag_ingested_document_structure", new_callable=AsyncMock
+        ) as mock_struct:
             mock_struct.return_value = []
 
             result = await router.decide(
@@ -77,7 +81,9 @@ class TestRAGIntentRouterDecide:
 
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch(
+            "app.core_plugins.chat.intent_router.get_rag_ingested_document_structure", new_callable=AsyncMock
+        ) as mock_struct:
             mock_struct.return_value = []
 
             with pytest.raises(RAGIntentRouterError):
@@ -107,7 +113,9 @@ class TestRAGIntentRouterDecide:
 
         router = RAGIntentRouter(llm=llm)
 
-        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch(
+            "app.core_plugins.chat.intent_router.get_rag_ingested_document_structure", new_callable=AsyncMock
+        ) as mock_struct:
             mock_struct.return_value = []
 
             with pytest.raises(RAGIntentRouterError):
@@ -125,7 +133,9 @@ class TestRAGIntentRouterDecide:
         router = RAGIntentRouter(llm=llm)
         query_text = "summarize chapter 3"
 
-        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch(
+            "app.core_plugins.chat.intent_router.get_rag_ingested_document_structure", new_callable=AsyncMock
+        ) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(
@@ -153,7 +163,9 @@ class TestRAGIntentRouterDecide:
         router = RAGIntentRouter(llm=llm)
         document_name = "textbook.pdf"
 
-        with patch("app.core_plugins.chat.intent_router.get_document_structure", new_callable=AsyncMock) as mock_struct:
+        with patch(
+            "app.core_plugins.chat.intent_router.get_rag_ingested_document_structure", new_callable=AsyncMock
+        ) as mock_struct:
             mock_struct.return_value = []
 
             await router.decide(
@@ -186,7 +198,7 @@ class TestRAGIntentRouterDecide:
 
         assert isinstance(result, RAGRoutingDecision)
         assert result.should_retrieve is False
-        # Verify get_document_structure was not called when no documents are attached.
+        # Verify get_rag_ingested_document_structure was not called when no documents are attached.
         # (the function is only imported inside decide() so we can't directly check)
 
 

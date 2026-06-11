@@ -31,12 +31,3 @@ class ChunkStats(BaseModel):
     source_name: str
     chunk_count: int
     avg_token_count: float | None
-
-
-class DocumentSection(BaseModel):
-    source_name: str
-    chapter: str | None
-    section: str | None
-    subsection: str | None
-    chunk_count: int
-    position_index: int

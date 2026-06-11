@@ -9,7 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import app.lib.rag as rag_api
+import app.rag.utils as rag_utils
 from app.lib.rag import (
+    DocumentSection,
     ScannedPDFError,
     UnsupportedFileTypeError,
     agentic_retrieve_context,
@@ -24,6 +26,20 @@ class TestRagPublicApi:
     def test_exposes_retrieved_chunk_type(self) -> None:
         rc = rag_api.RetrievedChunk(source_name="x.pdf", chapter=None, section=None, subsection=None, content="c")
         assert rc.source_name == "x.pdf"
+
+    def test_exposes_document_section_type(self) -> None:
+        section = DocumentSection(
+            source_name="x.pdf",
+            chapter="Chapter",
+            section=None,
+            subsection=None,
+            chunk_count=2,
+            position_index=0,
+        )
+        assert section.source_name == "x.pdf"
+
+    def test_exposes_rag_ingested_document_structure_lookup(self) -> None:
+        assert callable(rag_api.get_rag_ingested_document_structure)
 
     def test_exposes_ingestion_exceptions(self) -> None:
         assert issubclass(rag_api.UnsupportedFileTypeError, Exception)
@@ -127,3 +143,8 @@ class TestRetrieveContext:
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"
         mock_fn.assert_awaited_once()
+
+
+class TestRagIngestedDocumentStructureSurface:
+    def test_get_rag_ingested_document_structure_is_reexported(self) -> None:
+        assert rag_api.get_rag_ingested_document_structure is rag_utils.get_rag_ingested_document_structure

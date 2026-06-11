@@ -15,6 +15,7 @@ from app.rag.mcp.tools import (
     list_user_documents,
     search_section_by_keyword,
 )
+from app.rag.types import DocumentSection
 
 
 def _mock_document(
@@ -187,73 +188,27 @@ class TestGetChunkStats:
 class TestGetDocumentStructure:
     """Test get_document_structure tool."""
 
-    def _make_session(self, document: MagicMock | None, rows: list[tuple]) -> AsyncMock:  # type: ignore[type-arg]
-        mock_session = AsyncMock(spec=AsyncSession)
-
-        mock_doc_result = MagicMock()
-        mock_doc_result.first.return_value = document
-
-        mock_structure_result = MagicMock()
-        mock_structure_result.all.return_value = rows
-
-        if document is None:
-            mock_session.exec = AsyncMock(return_value=mock_doc_result)
-        else:
-            mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_structure_result])
-
-        return mock_session
-
     @pytest.mark.asyncio
-    async def test_position_index_assigned_in_order(self) -> None:
-        rows = [
-            ("Chapter 1", "Introduction", None, 3),
-            ("Chapter 1", "Background", None, 5),
-            ("Chapter 2", None, None, 2),
+    async def test_delegates_to_rag_ingested_document_structure(self) -> None:
+        expected = [
+            DocumentSection(
+                source_name="test.pdf",
+                chapter="Ch1",
+                section="Sec1",
+                subsection=None,
+                chunk_count=7,
+                position_index=0,
+            )
         ]
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_get_session.return_value.__aenter__.return_value = self._make_session(
-                _mock_document(document_id=10, name="test.pdf"), rows
-            )
+        with patch(
+            "app.rag.mcp.tools.get_rag_ingested_document_structure",
+            new_callable=AsyncMock,
+            return_value=expected,
+        ) as mock_get_rag_ingested_structure:
             result = await get_document_structure(user_id=1, document_id=10)
 
-        assert len(result) == 3
-        assert [s.position_index for s in result] == [0, 1, 2]
-
-    @pytest.mark.asyncio
-    async def test_chunk_count_and_fields_populated(self) -> None:
-        rows = [("Ch1", "Sec1", "Sub1", 7)]
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_get_session.return_value.__aenter__.return_value = self._make_session(
-                _mock_document(document_id=10, name="test.pdf"), rows
-            )
-            result = await get_document_structure(user_id=1, document_id=10)
-
-        assert len(result) == 1
-        section = result[0]
-        assert section.chapter == "Ch1"
-        assert section.section == "Sec1"
-        assert section.subsection == "Sub1"
-        assert section.chunk_count == 7
-        assert section.position_index == 0
-        assert section.source_name == "test.pdf"
-
-    @pytest.mark.asyncio
-    async def test_document_not_found_returns_empty(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_get_session.return_value.__aenter__.return_value = self._make_session(None, [])
-            result = await get_document_structure(user_id=1, document_id=999)
-
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_sqlalchemy_error_raises(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            with pytest.raises(SQLAlchemyError):
-                await get_document_structure(user_id=1, document_id=1)
+        assert result == expected
+        mock_get_rag_ingested_structure.assert_awaited_once_with(1, 10)
 
 
 class TestSearchSectionByKeyword:

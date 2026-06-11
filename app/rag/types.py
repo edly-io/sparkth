@@ -86,3 +86,30 @@ class RetrievedChunk:
     section: str | None
     subsection: str | None
     content: str
+
+
+@dataclass
+class DocumentSection:
+    """A structural section in a document, with chunk count and document order."""
+
+    source_name: str
+    chapter: str | None
+    section: str | None
+    subsection: str | None
+    chunk_count: int
+    position_index: int
+
+    def __repr__(self) -> str:
+        """Match the previous Pydantic-style repr used in RAG agent tool output."""
+        return (
+            f"source_name={self.source_name!r} "
+            f"chapter={self.chapter!r} "
+            f"section={self.section!r} "
+            f"subsection={self.subsection!r} "
+            f"chunk_count={self.chunk_count!r} "
+            f"position_index={self.position_index!r}"
+        )
+
+    def __str__(self) -> str:
+        """Use the stable agent-facing representation for string conversion."""
+        return repr(self)

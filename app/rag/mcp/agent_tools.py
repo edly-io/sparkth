@@ -9,6 +9,7 @@ out-of-process FastMCP server: the tools now run as direct Python calls.
 from langchain_core.tools import StructuredTool
 
 from app.rag.mcp import schemas, tools
+from app.rag.types import DocumentSection
 
 
 def build_search_tools(user_id: int, document_id: int) -> list[StructuredTool]:
@@ -34,7 +35,7 @@ def build_search_tools(user_id: int, document_id: int) -> list[StructuredTool]:
     async def get_chunk_stats() -> schemas.ChunkStats | None:
         return await tools.get_chunk_stats(user_id=user_id, document_id=document_id)
 
-    async def get_document_structure() -> list[schemas.DocumentSection]:
+    async def get_document_structure() -> list[DocumentSection]:
         return await tools.get_document_structure(user_id=user_id, document_id=document_id)
 
     async def search_section_by_keyword(keyword: str) -> list[schemas.SectionKey]:
