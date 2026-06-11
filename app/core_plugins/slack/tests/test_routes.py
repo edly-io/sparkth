@@ -824,12 +824,10 @@ class TestRagSources:
         test_user: User,
     ) -> None:
         with patch(
-            "app.core_plugins.slack.routes.ChunkStoreService",
-        ) as mock_store_cls:
-            mock_store = AsyncMock()
-            mock_store.get_sources = AsyncMock(return_value=[])
-            mock_store_cls.return_value = mock_store
-
+            "app.core_plugins.slack.routes.list_ready_documents",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
             response = await slack_client.get("/api/v1/slack/rag/sources")
 
         assert response.status_code == status.HTTP_200_OK
@@ -842,13 +840,16 @@ class TestRagSources:
         slack_client: AsyncClient,
         test_user: User,
     ) -> None:
-        with patch(
-            "app.core_plugins.slack.routes.ChunkStoreService",
-        ) as mock_store_cls:
-            mock_store = AsyncMock()
-            mock_store.get_sources = AsyncMock(return_value=["doc_a", "doc_b"])
-            mock_store_cls.return_value = mock_store
+        first = MagicMock()
+        first.name = "doc_a"
+        second = MagicMock()
+        second.name = "doc_b"
 
+        with patch(
+            "app.core_plugins.slack.routes.list_ready_documents",
+            new_callable=AsyncMock,
+            return_value=[first, second],
+        ):
             response = await slack_client.get("/api/v1/slack/rag/sources")
 
         assert response.status_code == status.HTTP_200_OK

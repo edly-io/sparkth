@@ -61,6 +61,23 @@ async def get_document(
     return result.first()
 
 
+async def list_ready_documents(
+    session: AsyncSession,
+    user_id: int,
+) -> list[Document]:
+    """Return non-deleted READY documents owned by user_id, ordered for display."""
+    result = await session.exec(
+        select(Document)
+        .where(
+            col(Document.user_id) == user_id,
+            col(Document.status) == DocumentStatus.READY,
+            col(Document.is_deleted) == False,  # noqa: E712
+        )
+        .order_by(col(Document.name), col(Document.id))
+    )
+    return list(result.all())
+
+
 async def soft_delete_document(
     session: AsyncSession,
     document_id: int,
