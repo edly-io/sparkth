@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchProviderCatalog } from "@/lib/llm-api";
+import { fetchProviderCatalog } from "@/lib/llm";
 
 interface CatalogDefaults {
   provider: string;

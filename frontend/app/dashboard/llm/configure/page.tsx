@@ -29,7 +29,7 @@ import {
   updateLLMConfig,
   type LLMConfig,
   type ProviderInfo,
-} from "@/lib/llm-api";
+} from "@/lib/llm";
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 

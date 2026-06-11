@@ -1,4 +1,11 @@
-import { ApiRequestError, type ApiError, formatApiError } from "./api";
+import { ApiRequestError, type ApiError, formatApiError } from "@/lib/api";
+import type {
+  CreateLLMConfigPayload,
+  LLMConfig,
+  LLMConfigListResponse,
+  ProviderCatalogResponse,
+  UpdateLLMConfigPayload,
+} from "@/lib/llm/types";
 
 const API_BASE = "/api/v1/llm";
 
@@ -44,50 +51,6 @@ async function llmFetch(url: string, init: RequestInit, errorAction: string): Pr
   }
   return response;
 }
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export interface LLMConfig {
-  id: number;
-  name: string;
-  provider: string;
-  model: string;
-  masked_key: string;
-  is_active: boolean;
-  created_at: string;
-  last_used_at: string | null;
-}
-
-export interface LLMConfigListResponse {
-  configs: LLMConfig[];
-  total: number;
-}
-
-export interface ProviderInfo {
-  id: string;
-  label: string;
-  models: string[];
-}
-
-export interface ProviderCatalogResponse {
-  providers: ProviderInfo[];
-  default_provider: string | null;
-  default_model: string | null;
-}
-
-export interface CreateLLMConfigPayload {
-  name: string;
-  provider: string;
-  model: string;
-  api_key: string;
-}
-
-export interface UpdateLLMConfigPayload {
-  name?: string;
-  model?: string;
-}
-
-// ─── API Functions ───────────────────────────────────────────────────────────
 
 export async function fetchLLMConfigs(
   token: string,
