@@ -10,9 +10,11 @@ import pytest
 
 import app.lib.rag as rag_api
 from app.lib.rag import (
+    DocumentSection,
     ScannedPDFError,
     UnsupportedFileTypeError,
     agentic_retrieve_context,
+    get_document_structure,
     ingest_document,
 )
 
@@ -24,6 +26,20 @@ class TestRagPublicApi:
     def test_exposes_retrieved_chunk_type(self) -> None:
         rc = rag_api.RetrievedChunk(source_name="x.pdf", chapter=None, section=None, subsection=None, content="c")
         assert rc.source_name == "x.pdf"
+
+    def test_exposes_document_section_type(self) -> None:
+        section = DocumentSection(
+            source_name="x.pdf",
+            chapter="Chapter",
+            section=None,
+            subsection=None,
+            chunk_count=2,
+            position_index=0,
+        )
+        assert section.source_name == "x.pdf"
+
+    def test_exposes_document_structure_lookup(self) -> None:
+        assert callable(rag_api.get_document_structure)
 
     def test_exposes_ingestion_exceptions(self) -> None:
         assert issubclass(rag_api.UnsupportedFileTypeError, Exception)
@@ -127,3 +143,21 @@ class TestRetrieveContext:
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"
         mock_fn.assert_awaited_once()
+
+
+class TestDocumentStructureSurface:
+    @pytest.mark.asyncio
+    async def test_get_document_structure_delegates_to_rag_service(self) -> None:
+        section = DocumentSection(
+            source_name="a.pdf",
+            chapter="Ch",
+            section=None,
+            subsection=None,
+            chunk_count=1,
+            position_index=0,
+        )
+        with patch("app.rag.structure.get_document_structure", new=AsyncMock(return_value=[section])) as mock_fn:
+            result = await get_document_structure(1, 10)
+
+        assert result == [section]
+        mock_fn.assert_awaited_once_with(1, 10)

@@ -12,7 +12,7 @@ from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
 from app.lib.documents import Document
 from app.lib.log import get_logger
-from app.rag.mcp.tools import get_document_structure
+from app.lib.rag import get_document_structure
 
 logger = get_logger(__name__)
 
@@ -43,7 +43,7 @@ class RAGIntentRouter:
         Args:
             query: The user's query text.
             attached_documents: Documents attached to the conversation.
-            user_id: The user ID passed to get_document_structure.
+            user_id: The user ID passed to the public RAG document-structure API.
 
         Returns:
             RAGRoutingDecision with should_retrieve and reason.

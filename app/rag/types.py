@@ -86,3 +86,15 @@ class RetrievedChunk:
     section: str | None
     subsection: str | None
     content: str
+
+
+@dataclass
+class DocumentSection:
+    """A structural section in a document, with chunk count and document order."""
+
+    source_name: str
+    chapter: str | None
+    section: str | None
+    subsection: str | None
+    chunk_count: int
+    position_index: int
