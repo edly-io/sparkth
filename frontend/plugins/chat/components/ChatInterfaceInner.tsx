@@ -8,7 +8,7 @@ import { ChatInput } from "./input/ChatInput";
 import { TextAttachment } from "../types";
 import { Preview } from "./attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
-import { attachDocument } from "@/lib/chat-api";
+import { attachDocument } from "@/lib/chat";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
 import { useConversation } from "../hooks/useConversation";

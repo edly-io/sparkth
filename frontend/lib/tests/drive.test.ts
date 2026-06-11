@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { getFolderRagStatus } from "./drive";
+import { getFolderRagStatus } from "@/lib/drive";
 
 describe("getFolderRagStatus", () => {
   beforeEach(() => {

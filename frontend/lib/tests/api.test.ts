@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { ApiRequestError, getCurrentUser } from "./api";
+import { ApiRequestError, getCurrentUser } from "@/lib/api";
 
 describe("getCurrentUser", () => {
   beforeEach(() => {

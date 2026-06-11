@@ -2,7 +2,7 @@
 
 import { Dispatch, SetStateAction, useState } from "react";
 import { TextAttachment } from "@/plugins/chat/types";
-import { attachDocument, detachDocument } from "@/lib/chat-api";
+import { attachDocument, detachDocument } from "@/lib/chat";
 import { uploadFile, UploadResponse } from "@/lib/file_upload";
 import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 

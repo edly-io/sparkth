@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { requestChatCompletionStream } from "@/lib/chat-api";
+import { requestChatCompletionStream } from "@/lib/chat";
 import { ChatMessage, TextAttachment } from "../types";
 
 interface SendPayload {

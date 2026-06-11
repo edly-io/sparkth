@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import { getConversation, getConversationAttachments, getLastMessage } from "@/lib/chat-api";
+import { getConversation, getConversationAttachments, getLastMessage } from "@/lib/chat";
 import { ChatMessage, TextAttachment } from "../types";
 import {
   clearStreamProgress,

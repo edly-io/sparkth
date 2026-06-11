@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { listConversations, type ConversationSummary } from "@/lib/chat-api";
+import { listConversations, type ConversationSummary } from "@/lib/chat";
 
 interface UseConversationsResult {
   conversations: ConversationSummary[];

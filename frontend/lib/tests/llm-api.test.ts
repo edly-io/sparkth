@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { fetchProviderCatalog } from "./llm-api";
+import { fetchProviderCatalog } from "@/lib/llm-api";
 
 describe("fetchProviderCatalog", () => {
   beforeEach(() => {

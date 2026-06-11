@@ -8,7 +8,7 @@ import {
   getLastMessage,
   listConversations,
   requestChatCompletionStream,
-} from "./chat-api";
+} from "@/lib/chat";
 
 const TOKEN = "test-token";
 
