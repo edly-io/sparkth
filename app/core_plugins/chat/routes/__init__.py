@@ -8,7 +8,7 @@ from app.core_plugins.chat.routes.conversations import (
     router as _conversations_router,
 )
 
-chat_router = APIRouter(prefix="/chat", tags=["Chat"])
+chat_router = APIRouter()
 chat_router.include_router(_completions_router)
 chat_router.include_router(_conversations_router)
 chat_router.include_router(_attachments_router)

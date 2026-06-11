@@ -4,7 +4,7 @@ SparkthPlugin Base Class
 Provides the foundation for all Sparkth plugins. A plugin contributes its
 capabilities to the relevant hooks from its ``__init__``:
 
-- routes via ``ROUTES`` (``app.lib.routes.hooks``)
+- routes via ``register_router`` (``app.lib.routes``)
 - MCP tools via ``MCP_TOOLS`` (``app.lib.mcp.hooks``)
 - a config schema via ``CONFIG_SCHEMAS`` (``app.lib.config.hooks``)
 """

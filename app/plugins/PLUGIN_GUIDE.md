@@ -230,8 +230,8 @@ This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEM
 
 The loader constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
-A plugin contributes its capabilities to the relevant hooks from its `__init__`:
-routes to `ROUTES`, MCP tools to `MCP_TOOLS`, and a config schema to `CONFIG_SCHEMAS`.
+A plugin contributes its capabilities from its `__init__`:
+routes via `register_router`, MCP tools to `MCP_TOOLS`, and a config schema to `CONFIG_SCHEMAS`.
 
 ```python
 # app/core_plugins/myappplugin/plugin.py
@@ -240,11 +240,11 @@ from fastapi import APIRouter
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
-from app.lib.routes.hooks import ROUTES
+from app.lib.routes import register_router
 from app.plugins.base import SparkthPlugin
 
 # Create router outside the class
-router = APIRouter(prefix="/my-app", tags=["My Plugin"])
+router = APIRouter()
 
 @router.get("/")
 async def get_data():
@@ -256,8 +256,7 @@ class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(plugin_name)  # name is supplied by the plugin loader
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
-        # (router, mount-prefix, OpenAPI tags)
-        ROUTES.add_item(self, (router, "/my-app", ["My Plugin"]))
+        register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
 
 async def process_data(input: str) -> str:
@@ -267,11 +266,9 @@ async def process_data(input: str) -> str:
 
 ### Where do plugin routes get mounted?
 
-The second element of the `ROUTES` tuple is the mount prefix. The router above is
-contributed as `(router, "/my-app", ["My Plugin"])`, so it is reachable at
-`http://localhost:7727/my-app/`. Use `""` to mount at the application root, or e.g.
-`"/api/v1"` to land routes under that base (the built-in `chat` plugin uses
-`(chat_router, "/api/v1", ["chat"])`).
+`register_router` mounts the router at `/api/v1/<plugin-name>` automatically, derived
+from the plugin instance. The router above is reachable at
+`http://localhost:7727/api/v1/my-app/`.
 
 ## Register in core/config.py
 ```python
@@ -300,7 +297,7 @@ class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(plugin_name)
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
-        ROUTES.add_item(self, (router, "/my-app", ["My Plugin"]))
+        register_router(self, router)
 ```
 
 Then create migration:
@@ -349,11 +346,11 @@ for handler, category in tools:
 from fastapi import APIRouter
 
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
-from app.lib.routes.hooks import ROUTES
+from app.lib.routes import register_router
 from app.plugins.base import SparkthPlugin
 
 # Router
-router = APIRouter(prefix="/weather", tags=["Weather"])
+router = APIRouter()
 
 @router.get("/{city}")
 async def get_weather_route(city: str):
@@ -363,7 +360,7 @@ async def get_weather_route(city: str):
 class WeatherPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(plugin_name)
-        ROUTES.add_item(self, (router, "/weather", ["Weather"]))
+        register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(self.get_weather, category="weather"))
 
     async def get_weather(self, city: str) -> dict:
@@ -377,8 +374,8 @@ class WeatherPlugin(SparkthPlugin):
 # Start the FastAPI server locally (http://0.0.0.0:7727)
 make backend.up.dev
 
-# Test API (routes mount at the router's own prefix by default — see below)
-curl http://localhost:7727/my-app/
+# Test API (routes mount at /api/v1/<plugin-name>)
+curl http://localhost:7727/api/v1/my-app/
 ```
 
 For real-world examples, see `core_plugins/canvas/` directory.
