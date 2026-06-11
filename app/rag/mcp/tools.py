@@ -10,10 +10,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.lib.db import session_scope
 from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
-from app.rag import structure as structure_service
 from app.rag.mcp.schemas import ChunkStats, DocumentInfo, DocumentMetadata, SectionKey
 from app.rag.models import DocumentChunk, DocumentChunkLink
 from app.rag.types import DocumentSection
+from app.rag.utils import get_rag_ingested_document_structure
 
 logger = get_logger(__name__)
 
@@ -123,7 +123,7 @@ async def get_chunk_stats(user_id: int, document_id: int) -> ChunkStats | None:
 
 async def get_document_structure(user_id: int, document_id: int) -> list[DocumentSection]:
     """Get the full ordered structure of a document with chunk positions."""
-    return await structure_service.get_document_structure(user_id, document_id)
+    return await get_rag_ingested_document_structure(user_id, document_id)
 
 
 async def search_section_by_keyword(user_id: int, document_id: int, keyword: str) -> list[SectionKey]:

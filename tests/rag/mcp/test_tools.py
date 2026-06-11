@@ -189,7 +189,7 @@ class TestGetDocumentStructure:
     """Test get_document_structure tool."""
 
     @pytest.mark.asyncio
-    async def test_delegates_to_structure_service(self) -> None:
+    async def test_delegates_to_rag_ingested_document_structure(self) -> None:
         expected = [
             DocumentSection(
                 source_name="test.pdf",
@@ -201,14 +201,14 @@ class TestGetDocumentStructure:
             )
         ]
         with patch(
-            "app.rag.mcp.tools.structure_service.get_document_structure",
+            "app.rag.mcp.tools.get_rag_ingested_document_structure",
             new_callable=AsyncMock,
             return_value=expected,
-        ) as mock_get_structure:
+        ) as mock_get_rag_ingested_structure:
             result = await get_document_structure(user_id=1, document_id=10)
 
         assert result == expected
-        mock_get_structure.assert_awaited_once_with(1, 10)
+        mock_get_rag_ingested_structure.assert_awaited_once_with(1, 10)
 
 
 class TestSearchSectionByKeyword:

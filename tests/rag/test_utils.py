@@ -1,4 +1,4 @@
-"""Tests for RAG document structure lookup."""
+"""Tests for RAG utility functions."""
 
 from collections.abc import Sequence
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.structure import get_document_structure
+from app.rag.utils import get_rag_ingested_document_structure
 
 
 def _mock_document(document_id: int, name: str) -> MagicMock:
@@ -37,7 +37,7 @@ def _make_session(
     return session
 
 
-class TestGetDocumentStructure:
+class TestGetRagIngestedDocumentStructure:
     @pytest.mark.asyncio
     async def test_position_index_assigned_in_document_order(self) -> None:
         rows = [
@@ -45,24 +45,24 @@ class TestGetDocumentStructure:
             ("Chapter 1", "Background", None, 5),
             ("Chapter 2", None, None, 2),
         ]
-        with patch("app.rag.structure.session_scope") as mock_scope:
+        with patch("app.rag.utils.session_scope") as mock_scope:
             mock_scope.return_value.__aenter__.return_value = _make_session(
                 _mock_document(document_id=10, name="test.pdf"), rows
             )
 
-            result = await get_document_structure(1, 10)
+            result = await get_rag_ingested_document_structure(1, 10)
 
         assert [section.position_index for section in result] == [0, 1, 2]
 
     @pytest.mark.asyncio
     async def test_chunk_count_and_section_fields_populated(self) -> None:
-        with patch("app.rag.structure.session_scope") as mock_scope:
+        with patch("app.rag.utils.session_scope") as mock_scope:
             mock_scope.return_value.__aenter__.return_value = _make_session(
                 _mock_document(document_id=10, name="test.pdf"),
                 [("Ch1", "Sec1", "Sub1", 7)],
             )
 
-            result = await get_document_structure(1, 10)
+            result = await get_rag_ingested_document_structure(1, 10)
 
         assert len(result) == 1
         section = result[0]
@@ -75,19 +75,19 @@ class TestGetDocumentStructure:
 
     @pytest.mark.asyncio
     async def test_document_not_found_returns_empty(self) -> None:
-        with patch("app.rag.structure.session_scope") as mock_scope:
+        with patch("app.rag.utils.session_scope") as mock_scope:
             mock_scope.return_value.__aenter__.return_value = _make_session(None, [])
 
-            result = await get_document_structure(1, 999)
+            result = await get_rag_ingested_document_structure(1, 999)
 
         assert result == []
 
     @pytest.mark.asyncio
     async def test_sqlalchemy_error_raises(self) -> None:
-        with patch("app.rag.structure.session_scope") as mock_scope:
+        with patch("app.rag.utils.session_scope") as mock_scope:
             session = AsyncMock(spec=AsyncSession)
             session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
             mock_scope.return_value.__aenter__.return_value = session
 
             with pytest.raises(SQLAlchemyError):
-                await get_document_structure(1, 1)
+                await get_rag_ingested_document_structure(1, 1)
