@@ -48,6 +48,10 @@ async def _fetch_document(session: AsyncSession, user_id: int, document_id: int)
 async def get_rag_ingested_document_structure(user_id: int, document_id: int) -> list[DocumentSection]:
     """Return ordered section metadata generated from the ingested RAG chunks.
 
+    Sections are ordered by the minimum chunk id within each (chapter, section,
+    subsection) group. This preserves document insertion order, so position_index
+    reliably reflects the section's position in the original document.
+
     Returns an empty list when the document does not exist for the user.
     """
     async with session_scope() as session:

@@ -1,6 +1,29 @@
 """Tests for RAG public data types."""
 
-from app.rag.types import RetrievedChunk
+from app.rag.types import DocumentSection, RetrievedChunk
+
+
+class TestDocumentSection:
+    def test_repr_matches_agent_tool_output_format(self) -> None:
+        section = DocumentSection(
+            source_name="notes.pdf",
+            chapter="Chapter 1",
+            section="Introduction",
+            subsection=None,
+            chunk_count=3,
+            position_index=0,
+        )
+
+        expected = (
+            "source_name='notes.pdf' "
+            "chapter='Chapter 1' "
+            "section='Introduction' "
+            "subsection=None "
+            "chunk_count=3 "
+            "position_index=0"
+        )
+        assert repr(section) == expected
+        assert str(section) == expected
 
 
 class TestRetrievedChunk:
