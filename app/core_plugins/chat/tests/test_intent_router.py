@@ -48,7 +48,7 @@ class TestRAGIntentRouterDecide:
 
         assert result.should_retrieve is True
         assert result.reason == "on topic"
-        mock_struct.assert_awaited_once_with(user_id=1, document_id=1)
+        mock_struct.assert_awaited_once_with(document_id=1)
 
     @pytest.mark.asyncio
     async def test_returns_decision_when_should_retrieve_false(self) -> None:

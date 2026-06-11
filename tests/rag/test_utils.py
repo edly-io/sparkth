@@ -50,7 +50,7 @@ class TestGetRagIngestedDocumentStructure:
                 _mock_document(document_id=10, name="test.pdf"), rows
             )
 
-            result = await get_rag_ingested_document_structure(1, 10)
+            result = await get_rag_ingested_document_structure(10)
 
         assert [section.position_index for section in result] == [0, 1, 2]
 
@@ -62,7 +62,7 @@ class TestGetRagIngestedDocumentStructure:
                 [("Ch1", "Sec1", "Sub1", 7)],
             )
 
-            result = await get_rag_ingested_document_structure(1, 10)
+            result = await get_rag_ingested_document_structure(10)
 
         assert len(result) == 1
         section = result[0]
@@ -78,7 +78,7 @@ class TestGetRagIngestedDocumentStructure:
         with patch("app.rag.utils.session_scope") as mock_scope:
             mock_scope.return_value.__aenter__.return_value = _make_session(None, [])
 
-            result = await get_rag_ingested_document_structure(1, 999)
+            result = await get_rag_ingested_document_structure(999)
 
         assert result == []
 
@@ -90,4 +90,4 @@ class TestGetRagIngestedDocumentStructure:
             mock_scope.return_value.__aenter__.return_value = session
 
             with pytest.raises(SQLAlchemyError):
-                await get_rag_ingested_document_structure(1, 1)
+                await get_rag_ingested_document_structure(1)

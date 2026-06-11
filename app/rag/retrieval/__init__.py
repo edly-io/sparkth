@@ -17,17 +17,15 @@ if TYPE_CHECKING:
 async def agentic_retrieve_context(
     query: str,
     document_ids: list[int],
-    user_id: int,
     llm: BaseChatModel,
 ) -> list[RetrievedChunk]:
     """Retrieve relevant document chunks for a query across the given documents.
 
-    Validates that every document is owned by the user and READY (raising
-    otherwise), then uses agentic section retrieval per document and returns a
-    flat list of RetrievedChunk. Opens its own database sessions.
+    Validates that every document exists and is READY (raising otherwise), then
+    uses agentic section retrieval per document and returns a flat list of
+    RetrievedChunk. Opens its own database sessions.
 
     Args:
-        user_id: Owner of the documents (row-level scope).
         document_ids: Documents to search. All must exist and be READY.
         query: The user's natural-language query.
         llm: LangChain chat model used by the retrieval agent.
@@ -36,7 +34,7 @@ async def agentic_retrieve_context(
         Flat list of RetrievedChunk across all documents (empty if no matches).
 
     Raises:
-        DocumentNotFoundError: a document is missing or not owned by the user.
+        DocumentNotFoundError: a document is missing or soft-deleted.
         RAGNotReadyError: a document exists but is not READY.
         RAGRetrievalError: retrieval failed.
     """
@@ -44,9 +42,9 @@ async def agentic_retrieve_context(
         return []
 
     async with session_scope() as session:
-        await validate_documents_ready(session, user_id, document_ids)
+        await validate_documents_ready(session, document_ids)
 
-    tasks = [get_context_via_agent_with_isolated_session(user_id, did, query, llm) for did in document_ids]
+    tasks = [get_context_via_agent_with_isolated_session(did, query, llm) for did in document_ids]
     contexts = await asyncio.gather(*tasks)
 
     return [
@@ -63,7 +61,6 @@ async def agentic_retrieve_context(
 
 
 async def get_context_via_agent_with_isolated_session(
-    user_id: int,
     document_id: int,
     query: str,
     llm: BaseChatModel,
@@ -74,14 +71,13 @@ async def get_context_via_agent_with_isolated_session(
     do not share a session — AsyncSession is not concurrency-safe.
 
     Args:
-        user_id: Owner of the document (row-level scope).
         document_id: Document.id to retrieve context from.
         query: The user's natural-language query.
         llm: LangChain chat model used by the retrieval agent.
 
     Raises:
-        DocumentNotFoundError / RAGNotReadyError: document access/readiness failure.
+        DocumentNotFoundError / RAGNotReadyError: document lookup/readiness failure.
         RAGRetrievalError: retrieval failed.
     """
     async with session_scope() as document_session:
-        return await get_context_via_agent(document_session, user_id, document_id, query, llm)
+        return await get_context_via_agent(document_session, document_id, query, llm)

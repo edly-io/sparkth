@@ -34,6 +34,7 @@ from app.core_plugins.chat.routes.helpers import (
     resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
+    validate_ready_user_documents,
 )
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService, get_chat_service
@@ -432,7 +433,8 @@ async def stream_chat_response(
             if llm is None:
                 raise AssertionError("llm must be provided when RAG resolution is active")
             try:
-                all_chunks = await agentic_retrieve_context(query_text, document_ids, user_id, llm)
+                await validate_ready_user_documents(bg_session, user_id, document_ids)
+                all_chunks = await agentic_retrieve_context(query_text, document_ids, llm)
             except DocumentNotFoundError as exc:
                 logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
                 error_text = "The attached document could not be found or is no longer accessible."

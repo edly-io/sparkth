@@ -109,8 +109,8 @@ async def answer_question(
     Steps:
       1. Resolve allowed_sources to RAG-ready Document IDs (or top-N owner documents
          when allowed_sources is empty).
-      2. Retrieve relevant chunks via agentic_retrieve_context (validates all documents READY,
-         fans out internally across all document_ids).
+      2. Retrieve relevant chunks via agentic_retrieve_context, which fans out
+         internally across all already-validated document_ids.
       3. If no chunks are returned, reply with the configured fallback_message.
       4. Optionally synthesize via LLM; otherwise return formatted raw chunks.
 
@@ -147,7 +147,7 @@ async def answer_question(
         return NO_FILES_RESOLVED_MESSAGE, ResponseType.NO_FILES_RESOLVED
 
     try:
-        chunks = await agentic_retrieve_context(question, document_ids, user_id, agent_llm)
+        chunks = await agentic_retrieve_context(question, document_ids, agent_llm)
     except DocumentNotFoundError as exc:
         logger.error("Slack agentic RAG: document not found user=%d documents=%s: %s", user_id, document_ids, exc)
         return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND

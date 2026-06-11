@@ -21,7 +21,7 @@ from app.core_plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
-from app.lib.documents import Document
+from app.lib.documents import Document, DocumentStatus
 from app.lib.llm import BaseChatProvider, get_provider
 from app.lib.log import get_logger
 from app.lib.rag import (
@@ -135,7 +135,7 @@ async def resolve_document_blocks(
             resolved.append(msg)
             continue
 
-        chunks = await _retrieve_rag_chunks(user_id, document_ids, query_text, llm)
+        chunks = await _retrieve_rag_chunks(session, user_id, document_ids, query_text, llm)
 
         grouped = group_by_source(chunks)
         rag_blocks: list[dict[str, Any]] = [
@@ -162,6 +162,7 @@ async def resolve_document_blocks(
 
 
 async def _retrieve_rag_chunks(
+    session: AsyncSession,
     user_id: int,
     document_ids: list[int],
     query_text: str,
@@ -172,7 +173,8 @@ async def _retrieve_rag_chunks(
     Raises HTTPException if documents are missing, not ready, or retrieval fails.
     """
     try:
-        return await agentic_retrieve_context(query_text, document_ids, user_id, llm)
+        await validate_ready_user_documents(session, user_id, document_ids)
+        return await agentic_retrieve_context(query_text, document_ids, llm)
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -189,6 +191,29 @@ async def _retrieve_rag_chunks(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve document context. Please try again.",
         ) from exc
+
+
+async def validate_ready_user_documents(
+    session: AsyncSession,
+    user_id: int,
+    document_ids: list[int],
+) -> None:
+    """Validate that all documents belong to user_id and are ready for RAG."""
+    result = await session.exec(
+        select(Document).where(
+            col(Document.id).in_(document_ids),
+            col(Document.user_id) == user_id,
+            col(Document.is_deleted) == False,  # noqa: E712
+        )
+    )
+    found = {document.id: document for document in result.all()}
+
+    for document_id in document_ids:
+        document = found.get(document_id)
+        if document is None:
+            raise DocumentNotFoundError(f"Document with id={document_id} not found or not accessible.")
+        if document.status != DocumentStatus.READY:
+            raise RAGNotReadyError(document_id, str(document.status))
 
 
 async def persist_pre_stream_error(

@@ -18,12 +18,12 @@ from app.rag.utils import get_rag_ingested_document_structure
 logger = get_logger(__name__)
 
 
-async def _fetch_document(session: AsyncSession, document_id: int, user_id: int) -> Document | None:
-    """Return the Document if it exists and is owned by user_id, else None."""
+async def _fetch_document(session: AsyncSession, document_id: int) -> Document | None:
+    """Return the Document if it exists and is not deleted, else None."""
     result = await session.exec(
         select(Document).where(
-            Document.id == document_id,
-            Document.user_id == user_id,
+            col(Document.id) == document_id,
+            col(Document.is_deleted) == False,  # noqa: E712
         )
     )
     return result.first()
@@ -53,11 +53,11 @@ async def list_user_documents(user_id: int) -> list[DocumentInfo]:
         ]
 
 
-async def get_document_metadata(user_id: int, document_id: int) -> DocumentMetadata | None:
-    """Get metadata for a specific document owned by a user."""
+async def get_document_metadata(document_id: int) -> DocumentMetadata | None:
+    """Get metadata for a specific document."""
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id, user_id)
+        doc = await _fetch_document(session, document_id)
         if doc is None:
             return None
 
@@ -69,11 +69,11 @@ async def get_document_metadata(user_id: int, document_id: int) -> DocumentMetad
         )
 
 
-async def list_document_sections(user_id: int, document_id: int) -> list[SectionKey]:
+async def list_document_sections(document_id: int) -> list[SectionKey]:
     """List all distinct sections in a document."""
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id, user_id)
+        doc = await _fetch_document(session, document_id)
         if doc is None:
             return []
 
@@ -85,7 +85,6 @@ async def list_document_sections(user_id: int, document_id: int) -> list[Section
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                DocumentChunk.user_id == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
             )
             .distinct()
@@ -93,11 +92,11 @@ async def list_document_sections(user_id: int, document_id: int) -> list[Section
         return [SectionKey(chapter=row[0], section=row[1], subsection=row[2]) for row in sections_result.all()]
 
 
-async def get_chunk_stats(user_id: int, document_id: int) -> ChunkStats | None:
+async def get_chunk_stats(document_id: int) -> ChunkStats | None:
     """Get statistics about chunks in a document (count and average token count)."""
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id, user_id)
+        doc = await _fetch_document(session, document_id)
         if doc is None:
             return None
 
@@ -108,7 +107,6 @@ async def get_chunk_stats(user_id: int, document_id: int) -> ChunkStats | None:
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                DocumentChunk.user_id == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
             )
         )
@@ -121,18 +119,18 @@ async def get_chunk_stats(user_id: int, document_id: int) -> ChunkStats | None:
         )
 
 
-async def get_document_structure(user_id: int, document_id: int) -> list[DocumentSection]:
+async def get_document_structure(document_id: int) -> list[DocumentSection]:
     """Get the full ordered structure of a document with chunk positions."""
-    return await get_rag_ingested_document_structure(user_id, document_id)
+    return await get_rag_ingested_document_structure(document_id)
 
 
-async def search_section_by_keyword(user_id: int, document_id: int, keyword: str) -> list[SectionKey]:
+async def search_section_by_keyword(document_id: int, keyword: str) -> list[SectionKey]:
     """Search for sections matching a keyword within a document."""
     if not keyword.strip():
         return []
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id, user_id)
+        doc = await _fetch_document(session, document_id)
         if doc is None:
             return []
 
@@ -147,7 +145,6 @@ async def search_section_by_keyword(user_id: int, document_id: int, keyword: str
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                DocumentChunk.user_id == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
                 (
                     col(DocumentChunk.chapter).ilike(keyword_pattern, escape="\\")

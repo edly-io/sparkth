@@ -18,6 +18,7 @@ from app.lib.rag import (
 )
 
 RETRIEVE_CONTEXT_PATH = "app.core_plugins.chat.routes.helpers.agentic_retrieve_context"
+VALIDATE_DOCUMENTS_PATH = "app.core_plugins.chat.routes.helpers.validate_ready_user_documents"
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
@@ -130,7 +131,10 @@ class TestResolveDocumentBlocks:
         messages = [_user_msg([_legacy_document_block(42), _text_block("Generate a course")])]
         chunks = [_make_chunk("Content here.", source_name="doc.pdf")]
 
-        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
+            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
+        ):
             mock_retrieve.return_value = chunks
             result = await resolve_document_blocks(
                 messages=messages,
@@ -155,7 +159,10 @@ class TestResolveDocumentBlocks:
         base64_block = {"type": "document", "source": {"type": "base64", "data": data}}
         messages = [_user_msg([base64_block])]
 
-        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
+            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
+        ):
             mock_retrieve.return_value = []
             result = await resolve_document_blocks(
                 messages=messages,
@@ -171,7 +178,10 @@ class TestResolveDocumentBlocks:
     async def test_document_not_found_raises_http_422(self) -> None:
         messages = [_user_msg([_legacy_document_block(999)])]
 
-        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
+            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
+        ):
             mock_retrieve.side_effect = DocumentNotFoundError("not found")
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
@@ -186,7 +196,10 @@ class TestResolveDocumentBlocks:
     async def test_rag_not_ready_raises_http_422_with_status_in_detail(self) -> None:
         messages = [_user_msg([_legacy_document_block(1)])]
 
-        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
+            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
+        ):
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
@@ -202,7 +215,10 @@ class TestResolveDocumentBlocks:
     async def test_retrieval_error_raises_http_500(self) -> None:
         messages = [_user_msg([_legacy_document_block(1)])]
 
-        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
+            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
+        ):
             mock_retrieve.side_effect = RAGRetrievalError("db down")
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
@@ -217,7 +233,10 @@ class TestResolveDocumentBlocks:
     async def test_empty_rag_results_drops_document_block_silently(self) -> None:
         messages = [_user_msg([_legacy_document_block(7), _text_block("Summarize this")])]
 
-        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
+        with (
+            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
+            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
+        ):
             mock_retrieve.return_value = []
             result = await resolve_document_blocks(
                 messages=messages,
