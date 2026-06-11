@@ -10,6 +10,7 @@ from app.core.documents.service import (
     soft_delete_document,
     update_document_status,
 )
+from app.lib.documents import list_ready_documents
 
 
 class TestDocumentModel:
@@ -115,6 +116,24 @@ class TestGetDocument:
 
         found = await get_document(session, document_id, user_id=1)
         assert found is None
+
+
+class TestListReadyDocuments:
+    async def test_returns_ready_documents_for_user_ordered_by_name_and_id(self, session: AsyncSession) -> None:
+        first = Document(user_id=1, name="Beta.pdf", mime_type=None, status=DocumentStatus.READY)
+        second = Document(user_id=1, name="Alpha.pdf", mime_type=None, status=DocumentStatus.READY)
+        same_name_later = Document(user_id=1, name="Beta.pdf", mime_type=None, status=DocumentStatus.READY)
+        queued = Document(user_id=1, name="Queued.pdf", mime_type=None, status=DocumentStatus.QUEUED)
+        other_user = Document(user_id=2, name="Other.pdf", mime_type=None, status=DocumentStatus.READY)
+        deleted = Document(user_id=1, name="Deleted.pdf", mime_type=None, status=DocumentStatus.READY)
+        deleted.soft_delete()
+        session.add_all([first, second, same_name_later, queued, other_user, deleted])
+        await session.commit()
+
+        documents = await list_ready_documents(session, user_id=1)
+
+        assert [document.name for document in documents] == ["Alpha.pdf", "Beta.pdf", "Beta.pdf"]
+        assert [document.id for document in documents] == [second.id, first.id, same_name_later.id]
 
 
 class TestSoftDeleteDocument:

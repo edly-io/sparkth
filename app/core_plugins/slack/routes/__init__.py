@@ -41,10 +41,10 @@ from app.core_plugins.slack.types import (
     RagSourcesResponse,
 )
 from app.lib.db import get_async_session, session_scope
+from app.lib.documents import list_ready_documents
 from app.lib.log import get_logger
 from app.llm.providers import BaseChatProvider, get_provider
 from app.llm.service import LLMConfigService
-from app.rag.store import ChunkStoreService
 from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
@@ -559,8 +559,6 @@ async def list_rag_sources(
     user_id: int = Depends(require_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> RagSourcesResponse:
-    """Return the distinct RAG source names available to the current user."""
-    store = ChunkStoreService()
-    # TODO: The following is still calling a function from RAG's internal implementation, need to fix this
-    sources = await store.get_sources(session=session, user_id=user_id)
-    return RagSourcesResponse(sources=sources)
+    """Return ready document names available to configure Slack RAG."""
+    documents = await list_ready_documents(session, user_id)
+    return RagSourcesResponse(sources=[document.name for document in documents])
