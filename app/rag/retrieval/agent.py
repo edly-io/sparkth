@@ -136,7 +136,7 @@ async def get_context_via_agent(
     logger.info(
         "RAG chunk IDs in context for document_id=%d: %s",
         document_id,
-        [r.chunk.id for r in results],
+        [chunk.id for chunk in results],
     )
 
     return RAGContext(

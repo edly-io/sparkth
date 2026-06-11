@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.lib.documents import Document, DocumentStatus
 from app.lib.log import get_logger
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
-from app.rag.types import SimilarityResult
+from app.rag.models import DocumentChunk
 
 logger = get_logger(__name__)
 
@@ -45,9 +45,9 @@ async def _lookup_document(
     return doc
 
 
-def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) -> str:
+def format_chunks_as_context(source_name: str, chunks: list[DocumentChunk]) -> str:
     """Format retrieved chunks as a structured text block for the LLM."""
-    if not results:
+    if not chunks:
         return f"[DOCUMENT CONTEXT: {source_name}]\nNo relevant excerpts found."
 
     lines: list[str] = [
@@ -55,8 +55,7 @@ def format_chunks_as_context(source_name: str, results: list[SimilarityResult]) 
         "The following excerpts were retrieved from the document to inform your response:",
         "",
     ]
-    for i, sr in enumerate(results, 1):
-        chunk = sr.chunk
+    for i, chunk in enumerate(chunks, 1):
         header_parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
         section_label = " / ".join(header_parts) if header_parts else "General"
         lines.append(f"--- Excerpt {i} (Section: {section_label}) ---")

@@ -51,14 +51,14 @@ async def agentic_retrieve_context(
 
     return [
         RetrievedChunk(
-            source_name=sr.chunk.source_name,
-            chapter=sr.chunk.chapter,
-            section=sr.chunk.section,
-            subsection=sr.chunk.subsection,
-            content=sr.chunk.content,
+            source_name=chunk.source_name,
+            chapter=chunk.chapter,
+            section=chunk.section,
+            subsection=chunk.subsection,
+            content=chunk.content,
         )
         for ctx in contexts
-        for sr in ctx.chunks
+        for chunk in ctx.chunks
     ]
 
 

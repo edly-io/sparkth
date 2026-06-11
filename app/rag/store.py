@@ -18,7 +18,7 @@ from app.lib.log import get_logger
 from app.memory_profiler import profile_memory
 from app.rag.config import get_rag_settings
 from app.rag.models import DocumentChunk, DocumentChunkLink
-from app.rag.types import Chunk, ChunkInput, SimilarityResult
+from app.rag.types import Chunk, ChunkInput
 
 logger = get_logger(__name__)
 
@@ -89,11 +89,10 @@ class ChunkStoreService:
         source_name: str,
         section_keys: list[dict[str, str | None]],
         limit: int = 50,
-    ) -> list[SimilarityResult]:
+    ) -> list[DocumentChunk]:
         """Fetch chunks for specific section keys in document order (by id).
 
         Matches exact (chapter, section, subsection) tuples — NULL-safe.
-        Returns SimilarityResult with similarity=1.0 (no vector scoring).
         """
         if not section_keys:
             return []
@@ -126,8 +125,7 @@ class ChunkStoreService:
         )
 
         result = await session.exec(stmt)
-        chunks = result.all()
-        return [SimilarityResult(chunk=chunk, similarity=1.0) for chunk in chunks]
+        return list(result.all())
 
     async def delete_by_source(
         self,
