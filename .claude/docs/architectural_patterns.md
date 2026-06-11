@@ -6,24 +6,27 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `app/lib/hooks.py`, `app/lib/mcp/hooks.py`, `app/lib/routes/hooks.py`, `app/lib/config/hooks.py`, `app/core_plugins/*/plugin.py`
+**Files:** `app/lib/hooks.py`, `app/lib/mcp/hooks.py`, `app/lib/routes.py`, `app/lib/config/hooks.py`, `app/core_plugins/*/plugin.py`
 
-A plugin contributes its capabilities by calling `<HOOK>.add_item(self, …)` from its
-own `__init__` — one consistent pattern across all hook types (a `PluginCollectionHook`
-holds many items per plugin, a `PluginHook` holds one):
+A plugin contributes its capabilities from its `__init__` — one consistent pattern
+across all contribution types (a `PluginCollectionHook` holds many items per plugin,
+a `PluginHook` holds one):
 
 ```
 SparkthPlugin.__init__
+  ├── register_router(self, router)                                   # app/lib/routes.py
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # app/lib/mcp/hooks.py
-  ├── ROUTES.add_item(self, (router, "/prefix", ["Tag"]))            # app/lib/routes/hooks.py
   └── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # app/lib/config/hooks.py
 ```
+
+`register_router` (`app/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
+deriving both the prefix and OpenAPI tags from the plugin instance automatically.
 
 A `Tool` (`app/lib/mcp/hooks.py`) derives its name from the handler method, its
 description from the handler docstring, and its input schema from the signature.
 Consumers iterate the hooks: `app/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
 server, the chat tool registry converts them to LangChain tools, and `app/main.py`
-mounts `ROUTES`.
+mounts plugin routes.
 
 Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `app/plugins/config_base.py` for the base class.
 
@@ -37,7 +40,7 @@ Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:
 
 The `PluginLoader` singleton manages discovery → load → unload. Route registration is DB-free and happens in `assemble_app()` at import time, so the full route map (and OpenAPI schema) exists without a running server. The FastAPI lifespan context manager owns the stateful side: it calls `get_plugin_service().get_or_create_all()` on startup and unloads plugins on shutdown. Each plugin can contribute:
 
-- **Routes:** via the `ROUTES` hook (mounted with `FastAPI.include_router()`)
+- **Routes:** via `register_router` (`app/lib/routes.py`), mounted with `FastAPI.include_router()`
 - **Middleware:** Starlette middleware
 - **MCP tools:** via the `MCP_TOOLS` hook (see §1)
 

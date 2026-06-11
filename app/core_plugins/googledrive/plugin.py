@@ -4,7 +4,7 @@ import app.core_plugins.googledrive.models  # noqa: F401 - registers tables in S
 from app.core_plugins.googledrive.config import GoogleDriveConfig
 from app.core_plugins.googledrive.routes import router
 from app.lib.config.hooks import CONFIG_SCHEMAS
-from app.lib.routes.hooks import ROUTES
+from app.lib.routes import register_router
 from app.plugins.base import SparkthPlugin
 
 
@@ -17,5 +17,5 @@ class GoogleDrivePlugin(SparkthPlugin):
 
     def __init__(self, name: str = "google-drive"):
         super().__init__(name)
-        ROUTES.add_item(self, (router, "/api/v1/googledrive", ["Google Drive"]))
+        register_router(self, router)
         CONFIG_SCHEMAS.add_item(self, GoogleDriveConfig)

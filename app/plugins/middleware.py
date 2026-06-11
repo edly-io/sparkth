@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
+from app.core.routes import get_route_plugin_name
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
@@ -67,17 +68,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
         for route in request.app.routes:
             match, _ = route.matches(request.scope)
             if match == Match.FULL:
-                if hasattr(route, "endpoint"):
-                    endpoint = route.endpoint
-                    if hasattr(endpoint, "__plugin_name__"):
-                        plugin_name = getattr(endpoint, "__plugin_name__")
-                        if isinstance(plugin_name, str):
-                            return plugin_name
-                    if hasattr(route, "tags") and route.tags:
-                        for tag in route.tags:
-                            if isinstance(tag, str) and tag.startswith("plugin:"):
-                                return tag.replace("plugin:", "")
-                break
+                return get_route_plugin_name(route)
         return None
 
     async def _check_plugin_access(self, user_id: int, plugin_name: str) -> bool:

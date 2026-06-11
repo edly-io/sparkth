@@ -1,9 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from enum import Enum
 from importlib.metadata import PackageNotFoundError, version
-from typing import Union, cast
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -11,8 +9,8 @@ from starlette.types import Lifespan
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
+from app.core.routes.hooks import PLUGIN_ROUTERS
 from app.lib.log import configure_logging, get_logger
-from app.lib.routes.hooks import ROUTES
 from app.mcp.server import mcp, register_plugin_tools
 from app.plugins import get_plugin_loader
 from app.plugins.middleware import PluginAccessMiddleware
@@ -82,26 +80,12 @@ def _register_plugin_routes(application: FastAPI) -> None:
     """Register every loaded plugin's routers. DB-free: only imports and include_router."""
     plugin_loader = get_plugin_loader()
     loaded_plugins = plugin_loader.get_loaded_plugins()
+    if loaded_plugins:
+        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
+        logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
 
-    loaded_plugin_names = [name for name, _plugin in loaded_plugins]
-    logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
-
-    for plugin, (router, route_prefix, route_tags) in ROUTES.iter_items():
-        # Tag every route with the owning plugin for PluginAccessMiddleware.
-        plugin_tag = f"plugin:{plugin.name}"
-        if router.tags:
-            if plugin_tag not in router.tags:
-                router.tags.append(plugin_tag)
-        else:
-            router.tags = [plugin_tag]
-        for route in router.routes:
-            if hasattr(route, "endpoint"):
-                setattr(route.endpoint, "__plugin_name__", plugin.name)
-
-        tags_param: Union[list[Union[str, Enum]], None] = (
-            cast(Union[list[Union[str, Enum]], None], route_tags) if route_tags else None
-        )
-        application.include_router(router, prefix=route_prefix, tags=tags_param)
+    for _plugin, router in PLUGIN_ROUTERS.iter_items():
+        application.include_router(router)
 
 
 def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:

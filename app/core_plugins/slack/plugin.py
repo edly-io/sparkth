@@ -4,7 +4,7 @@ import app.core_plugins.slack.models  # noqa: F401 — registers tables in SQLMo
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.routes import router
 from app.lib.config.hooks import CONFIG_SCHEMAS
-from app.lib.routes.hooks import ROUTES
+from app.lib.routes import register_router
 from app.plugins.base import SparkthPlugin
 
 
@@ -14,4 +14,4 @@ class Slack(SparkthPlugin):
     def __init__(self, name: str = "slack") -> None:
         super().__init__(name)
         CONFIG_SCHEMAS.add_item(self, SlackConfig)
-        ROUTES.add_item(self, (router, "/api/v1/slack", ["Slack TA Bot"]))
+        register_router(self, router)
