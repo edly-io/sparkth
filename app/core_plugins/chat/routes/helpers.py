@@ -30,6 +30,8 @@ from app.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
     agentic_retrieve_context,
+    format_source_block,
+    group_by_source,
 )
 
 logger = get_logger(__name__)
@@ -54,28 +56,6 @@ def extract_query_text(messages: list[ChatMessage]) -> str:
         if joined:
             return joined
     return ""
-
-
-def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
-    lines = [
-        f"[DOCUMENT CONTEXT: {source_name}]",
-        "The following excerpts were retrieved from the document to inform your response:",
-        "",
-    ]
-    for i, chunk in enumerate(chunks, 1):
-        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-        label = " / ".join(parts) if parts else "General"
-        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
-        lines.append(chunk.content.strip())
-        lines.append("")
-    return "\n".join(lines)
-
-
-def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
-    grouped: dict[str, list[RetrievedChunk]] = {}
-    for chunk in chunks:
-        grouped.setdefault(chunk.source_name, []).append(chunk)
-    return grouped
 
 
 def collect_document_ids(messages: list[ChatMessage]) -> list[int]:

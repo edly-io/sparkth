@@ -25,9 +25,7 @@ from app.core_plugins.chat.routes.helpers import (
     classify_in_scope,
     collect_document_ids,
     extract_query_text,
-    format_source_block,
     get_or_create_conversation,
-    group_by_source,
     persist_incoming_messages,
     persist_pre_stream_error,
     resolve_document_blocks,
@@ -54,6 +52,8 @@ from app.lib.rag import (
     RAGNotReadyError,
     RAGRetrievalError,
     agentic_retrieve_context,
+    format_source_block,
+    group_by_source,
 )
 from app.models.user import User
 
