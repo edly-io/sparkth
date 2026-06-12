@@ -68,8 +68,14 @@ reset-password: ## Reset password (make reset-password -- username)
 
 ##@ Frontend
 .PHONY: frontend.build
-frontend.build: ## Build frontend (static export to frontend/out)
+frontend.build: frontend.build.api ## Build frontend (static export to frontend/out)
 	cd frontend && bun run build
+
+.PHONY: frontend.build.api
+frontend.build.api: ## Regenerate frontend API types from the backend OpenAPI schema
+	uv run python scripts/dump_openapi.py > openapi.json
+	cd frontend && bunx openapi-typescript ../openapi.json -o ./lib/api/generated.ts
+	cd frontend && bunx oxfmt --write ./lib/api/generated.ts
 
 .PHONY: frontend.install.dev
 frontend.install.dev: ## Install exact frontend dependencies from lockfile
@@ -78,11 +84,6 @@ frontend.install.dev: ## Install exact frontend dependencies from lockfile
 .PHONY: frontend.up.dev
 frontend.up.dev: ## Run frontend dev server (hot reload)
 	cd frontend && bun run dev
-
-.PHONY: gen.api
-gen.api: ## Regenerate frontend API types from the backend OpenAPI schema
-	uv run python scripts/dump_openapi.py > openapi.json
-	cd frontend && bun run gen:api
 
 ##@ Backend
 .PHONY: backend.build
@@ -148,7 +149,12 @@ test.backend.format: ## Run backend formatting tests
 	$(MAKE) lint.format.backend check=1
 
 .PHONY: test.frontend
-test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, typecheck, unit and formatting tests
+test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, api drift, typecheck, unit and formatting tests
+
+.PHONY: test.frontend.api
+test.frontend.api: frontend.build.api ## Fail when generated.ts is stale vs the current backend OpenAPI schema
+	@git diff --exit-code frontend/lib/api/generated.ts \
+		|| (echo "Error: frontend/lib/api/generated.ts is stale. Run 'make frontend.build.api' and commit the result." && exit 1)
 
 .PHONY: test.frontend.typecheck
 test.frontend.typecheck: ## Type-check the frontend (tsc --noEmit)

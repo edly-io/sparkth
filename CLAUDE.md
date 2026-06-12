@@ -103,7 +103,7 @@ make lint.frontend.react-doctor  # React health check on files changed vs main (
 # Local frontend
 make frontend.up.dev # Next.js dev server on :3000 (proxies /api to the backend; needs `make backend.up.dev` running)
 make frontend.build  # Static export → frontend/out/ (served by the backend in production)
-make gen.api         # Regenerate frontend/lib/api/generated.ts from the backend OpenAPI schema (run after backend API changes)
+make frontend.build.api  # Regenerate frontend/lib/api/generated.ts from the backend OpenAPI schema (run after backend API changes; called automatically by make frontend.build)
 
 # Database
 make migrations         # Apply Alembic migrations (native)
