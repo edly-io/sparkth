@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { ApiRequestError } from "@/lib/api";
 import { requestChatCompletionStream } from "@/lib/chat";
 import { ChatMessage, TextAttachment } from "../types";
 
@@ -18,30 +19,19 @@ interface UseChatStreamOptions {
   onNewConversation: (id: string) => void;
 }
 
-interface ValidationErrorItem {
-  type: string;
-  loc: (string | number)[];
-  msg: string;
-}
-
 const FIELD_MESSAGES: Record<string, string> = {
   llm_config_id: "No AI Key selected. Go to chat settings to configure one.",
 };
 
-function extractValidationError(detail: ValidationErrorItem[]): string {
-  for (const item of detail) {
-    const field = item.loc.find((part) => typeof part === "string" && part !== "body");
-    if (field && typeof field === "string" && FIELD_MESSAGES[field]) {
-      return FIELD_MESSAGES[field];
-    }
-  }
-  return "Something went wrong. Try again.";
+function friendlyFieldMessage(error: ApiRequestError): string | undefined {
+  const field = Object.keys(error.fieldErrors).find((name) => FIELD_MESSAGES[name]);
+  return field ? FIELD_MESSAGES[field] : undefined;
 }
 
 function buildUserMessages(message: string, attachments: TextAttachment[]) {
   const out: Array<{
     role: string;
-    content: string | object[];
+    content: string | Record<string, unknown>[];
     attachment?: { name: string; size: number };
   }> = [];
 
@@ -49,7 +39,7 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
     const attachment = attachments[i];
     const isLast = i === attachments.length - 1;
     if (attachment.base64Data) {
-      const contentBlocks: object[] = [
+      const contentBlocks: Record<string, unknown>[] = [
         {
           type: "document",
           source: {
@@ -405,33 +395,20 @@ export function useChatStream({
 
       try {
         const res = await requestChatCompletionStream(token, {
-          llm_config_id: llmConfigId,
+          // May be undefined at runtime; the backend then 422s and the catch
+          // below maps the validation error to the friendly FIELD_MESSAGES text.
+          llm_config_id: llmConfigId as number,
           ...(modelOverride && { model_override: modelOverride }),
           messages: newUserMessages,
           stream: true,
+          temperature: 0.7,
           tools: "*",
           tool_choice: "auto",
           include_system_tools_message: true,
-          similarity_threshold: similarityThreshold,
           ...(conversationId && { conversation_id: conversationId }),
           ...(documentIds && documentIds.length > 0 && { document_ids: documentIds }),
         });
 
-        if (!res.ok) {
-          let errorMsg = "Something went wrong. Try again.";
-          try {
-            const errData = await res.json();
-            if (errData?.detail && typeof errData.detail === "string") {
-              errorMsg = errData.detail;
-            } else if (Array.isArray(errData?.detail)) {
-              errorMsg = extractValidationError(errData.detail);
-            }
-          } catch {
-            // ignore parse errors, fall back to generic message
-          }
-          failAssistantMessage(assistantId, errorMsg);
-          return;
-        }
         if (!res.body) {
           failAssistantMessage(assistantId, "No response body received.");
           return;
@@ -479,7 +456,10 @@ export function useChatStream({
         }
       } catch (err) {
         clearStreamProgress(conversationId);
-        const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
+        let errorMsg = err instanceof Error ? err.message : "Something went wrong.";
+        if (err instanceof ApiRequestError) {
+          errorMsg = friendlyFieldMessage(err) ?? err.message;
+        }
         failAssistantMessage(assistantId, errorMsg);
       }
     },
