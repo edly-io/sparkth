@@ -240,3 +240,6 @@ pr-comments/
 .superpowers
 docs/superpowers/
 CLAUDE.local.md
+
+# OpenAPI schema dump (build artifact, regenerate with `make gen.api`)
+/openapi.json

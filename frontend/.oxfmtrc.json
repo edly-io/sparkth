@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": ["lib/api/generated.ts"]
+}

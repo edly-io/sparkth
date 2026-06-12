@@ -51,7 +51,7 @@ export interface FormattedError {
   fieldErrors: Record<string, string>;
 }
 
-function isStructuredDetail(value: unknown): value is StructuredErrorDetail {
+export function isStructuredDetail(value: unknown): value is StructuredErrorDetail {
   return (
     typeof value === "object" &&
     value !== null &&
