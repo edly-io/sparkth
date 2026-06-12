@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useRagStatusPolling } from "./useRagStatusPolling";
+import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 
-vi.mock("./drive", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./drive")>();
+vi.mock("@/lib/drive", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/drive")>();
   return {
     ...actual,
     getFolderRagStatus: vi.fn(),
   };
 });
 
-import { getFolderRagStatus } from "./drive";
+import { getFolderRagStatus } from "@/lib/drive";
 
 beforeEach(() => {
   vi.mocked(getFolderRagStatus).mockReset();

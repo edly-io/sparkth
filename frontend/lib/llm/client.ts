@@ -1,4 +1,11 @@
-import { ApiRequestError, type ApiError, formatApiError } from "./api";
+import { ApiRequestError, type ApiError, formatApiError } from "@/lib/api";
+import type {
+  CreateLLMConfigPayload,
+  LLMConfig,
+  LLMConfigListResponse,
+  ProviderCatalogResponse,
+  UpdateLLMConfigPayload,
+} from "@/lib/llm/types";
 
 const API_BASE = "/api/v1/llm";
 
@@ -22,6 +29,8 @@ async function llmFetch(url: string, init: RequestInit, errorAction: string): Pr
   try {
     response = await fetch(url, init);
   } catch (error) {
+    // Aborts are flow control, not failures: let callers see them as-is.
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     const message = error instanceof Error ? error.message : "Unknown error";
     throw new ApiRequestError({
       message: `Unable to connect to server: ${message}`,
@@ -42,50 +51,6 @@ async function llmFetch(url: string, init: RequestInit, errorAction: string): Pr
   }
   return response;
 }
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export interface LLMConfig {
-  id: number;
-  name: string;
-  provider: string;
-  model: string;
-  masked_key: string;
-  is_active: boolean;
-  created_at: string;
-  last_used_at: string | null;
-}
-
-export interface LLMConfigListResponse {
-  configs: LLMConfig[];
-  total: number;
-}
-
-export interface ProviderInfo {
-  id: string;
-  label: string;
-  models: string[];
-}
-
-export interface ProviderCatalogResponse {
-  providers: ProviderInfo[];
-  default_provider: string | null;
-  default_model: string | null;
-}
-
-export interface CreateLLMConfigPayload {
-  name: string;
-  provider: string;
-  model: string;
-  api_key: string;
-}
-
-export interface UpdateLLMConfigPayload {
-  name?: string;
-  model?: string;
-}
-
-// ─── API Functions ───────────────────────────────────────────────────────────
 
 export async function fetchLLMConfigs(
   token: string,
@@ -167,11 +132,14 @@ export async function deleteLLMConfig(token: string, configId: number): Promise<
   );
 }
 
-export async function fetchProviderCatalog(token: string): Promise<ProviderCatalogResponse> {
+export async function fetchProviderCatalog(
+  token: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ProviderCatalogResponse> {
   return (
     await llmFetch(
       `${API_BASE}/providers`,
-      { headers: readHeaders(token) },
+      { headers: readHeaders(token), signal: options.signal },
       "Failed to fetch providers",
     )
   ).json();

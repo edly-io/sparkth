@@ -8,7 +8,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Select } from "@/components/ui/Select";
 import { LLMConfigSelect } from "@/components/LLMConfigSelect";
 import { useAuth } from "@/lib/auth-context";
-import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm-api";
+import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm";
 import {
   Dialog,
   DialogContent,

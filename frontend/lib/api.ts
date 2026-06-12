@@ -385,3 +385,47 @@ export async function resendVerificationEmail(email: string): Promise<void> {
     );
   }
 }
+
+export interface CurrentUser {
+  id?: string;
+  username?: string;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  plan?: string;
+  is_superuser?: boolean;
+}
+
+export async function getCurrentUser(token: string): Promise<CurrentUser> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/user/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new ApiRequestError({
+      message: `Unable to connect to server: ${errorMessage}`,
+      fieldErrors: {},
+    });
+  }
+
+  if (!response.ok) {
+    try {
+      const error: ApiError = await response.json();
+      throw new ApiRequestError(formatApiError(error), response.status);
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      throw new ApiRequestError(
+        { message: "Failed to load user. Please try again.", fieldErrors: {} },
+        response.status,
+      );
+    }
+  }
+
+  return response.json();
+}

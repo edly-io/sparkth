@@ -1,4 +1,5 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { getConversation, getConversationAttachments, getLastMessage } from "@/lib/chat";
 import { ChatMessage, TextAttachment } from "../types";
 import {
   clearStreamProgress,
@@ -41,24 +42,6 @@ const WELCOME_MESSAGE: ChatMessage = {
   role: "assistant",
   content: "Hi! Upload a document or tell me what you'd like to create.",
 };
-
-interface ApiMessage {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  message_type: "text" | "attachment";
-  attachment_name: string | null;
-  attachment_size: number | null;
-  created_at: string;
-  rag_sections: { type: string; name: string; source?: string }[] | null;
-  tool_calls: { name: string }[] | null;
-  is_error: boolean;
-}
-
-interface ApiConversation {
-  id: string;
-  messages: ApiMessage[];
-}
 
 interface UseConversationResult {
   loading: boolean;
@@ -116,25 +99,12 @@ export function useConversation(
 
       setHistoryState({ loading: true, messages: [] });
       try {
-        // Fetch messages and attachments in parallel — we need both before
+        // Fetch messages and attachments in parallel; we need both before
         // picking the right placeholder text for a pending response.
-        const [r, attachmentsRes] = await Promise.all([
-          fetch(`/api/v1/chat/conversations/${conversationId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-          }),
-          fetch(`/api/v1/chat/conversations/${conversationId}/attachments`, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-          }),
+        const [data, persistedFiles] = await Promise.all([
+          getConversation(token, conversationId, signal),
+          getConversationAttachments(token, conversationId, signal),
         ]);
-        if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
-        const data: ApiConversation = await r.json();
-        const persistedFiles: {
-          id: number;
-          name: string;
-          size: number | null;
-        }[] = attachmentsRes.ok ? await attachmentsRes.json() : [];
 
         const loaded: ChatMessage[] = mergeConsecutiveAttachmentMessages(
           data.messages.map((m) => ({
@@ -272,12 +242,7 @@ export function useConversation(
         return;
       }
       try {
-        const r = await fetch(`/api/v1/chat/conversations/${conversationId}/last-message`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: controller.signal,
-        });
-        if (!r.ok) return;
-        const lastApiMsg: ApiMessage | null = await r.json();
+        const lastApiMsg = await getLastMessage(token, conversationId, controller.signal);
         if (!lastApiMsg || lastApiMsg.role !== "assistant") return;
 
         // Response landed in DB — replace placeholder with the real message.

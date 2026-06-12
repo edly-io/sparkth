@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
 import { LLMConfigSelect } from "@/components/LLMConfigSelect";
-import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm-api";
+import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm";
 import type { UserPluginState } from "@/lib/plugins";
 import DocSourcePicker from "./DocSourcePicker";
 
