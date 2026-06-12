@@ -51,7 +51,7 @@ def test_assemble_app_is_db_free(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_openapi_schema_contains_plugin_endpoints() -> None:
-    """PR-3's dump script relies on the full schema being derivable offline."""
+    """The OpenAPI dump script relies on the full schema being derivable offline."""
     schema = assemble_app().openapi()
     for path in PLUGIN_SENTINEL_PATHS:
         assert path in schema["paths"]
