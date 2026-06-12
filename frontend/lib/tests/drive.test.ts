@@ -23,7 +23,7 @@ describe("getFolderRagStatus", () => {
     const result = await getFolderRagStatus(42, "test-token");
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/googledrive/folders/42/rag-status",
+      "/api/v1/google-drive/folders/42/rag-status",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
