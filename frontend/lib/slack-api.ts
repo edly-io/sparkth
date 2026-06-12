@@ -1,65 +1,11 @@
-const API_BASE = "/api/v1/slack";
+import { api, ApiRequestError, type Schema } from "@/lib/api";
 
-function authHeaders(token: string): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-    Accept: "application/json",
-  };
-}
-
-async function parseDetail(response: Response): Promise<string> {
-  const text = await response.text();
-  try {
-    const json = JSON.parse(text);
-    return typeof json.detail === "string" ? json.detail : text;
-  } catch {
-    return text;
-  }
-}
-
-export interface ConnectionStatus {
-  connected: boolean;
-  team_name: string | null;
-  team_id: string | null;
-  bot_user_id: string | null;
-  connected_at: string | null;
-}
-
-export interface BotResponseLogItem {
-  type: "message";
-  id: number;
-  slack_channel: string;
-  slack_user: string;
-  slack_user_name: string | null;
-  slack_channel_name: string | null;
-  question: string;
-  answer: string | null;
-  rag_matched: boolean;
-  response_type: string;
-  created_at: string;
-}
-
-export interface ConnectionLogItem {
-  type: "connection";
-  id: number;
-  event_type: string;
-  team_name: string | null;
-  created_at: string;
-}
-
+export type ConnectionStatus = Schema<"app__core_plugins__slack__types__ConnectionStatusResponse">;
+export type BotResponseLogItem = Schema<"BotResponseLogItem">;
+export type ConnectionLogItem = Schema<"ConnectionLogItem">;
 export type LogItem = BotResponseLogItem | ConnectionLogItem;
-
-export interface LogsResponse {
-  items: LogItem[];
-  total: number;
-  next_cursor: string | null;
-  has_more: boolean;
-}
-
-export interface RagSourcesResponse {
-  sources: string[];
-}
+export type LogsResponse = Schema<"LogsResponse">;
+export type RagSourcesResponse = Schema<"RagSourcesResponse">;
 
 export interface FetchLogsOptions {
   limit?: number;
@@ -67,51 +13,60 @@ export interface FetchLogsOptions {
   sinceId?: number;
 }
 
+function bearer(token: string): { Authorization: string } {
+  return { Authorization: `Bearer ${token}` };
+}
+
+// This module's public contract is plain Error objects with action-prefixed
+// messages; network failures propagate untouched.
+function toError(prefix: string, error: unknown): never {
+  if (error instanceof ApiRequestError) throw new Error(`${prefix}: ${error.message}`);
+  throw error;
+}
+
 export async function getConnectionStatus(token: string): Promise<ConnectionStatus> {
-  const res = await fetch(`${API_BASE}/oauth/status`, {
-    method: "GET",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error(`Failed to fetch connection status: ${await parseDetail(res)}`);
-  return res.json();
+  try {
+    const { data } = await api.GET("/api/v1/slack/oauth/status", { headers: bearer(token) });
+    return data as ConnectionStatus;
+  } catch (error) {
+    toError("Failed to fetch connection status", error);
+  }
 }
 
 export async function getAuthorizationUrl(token: string): Promise<string> {
-  const res = await fetch(`${API_BASE}/oauth/authorize`, {
-    method: "GET",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error(`Failed to get authorization URL: ${await parseDetail(res)}`);
-  const data = await res.json();
-  return data.url as string;
+  try {
+    const { data } = await api.GET("/api/v1/slack/oauth/authorize", { headers: bearer(token) });
+    return (data as Schema<"app__core_plugins__slack__types__AuthorizationUrlResponse">).url;
+  } catch (error) {
+    toError("Failed to get authorization URL", error);
+  }
 }
 
 export async function disconnectSlack(token: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/oauth/disconnect`, {
-    method: "DELETE",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error(`Failed to disconnect Slack: ${await parseDetail(res)}`);
+  try {
+    await api.DELETE("/api/v1/slack/oauth/disconnect", { headers: bearer(token) });
+  } catch (error) {
+    toError("Failed to disconnect Slack", error);
+  }
 }
 
 export async function fetchLogs(token: string, opts: FetchLogsOptions): Promise<LogsResponse> {
-  const params = new URLSearchParams();
-  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
-  if (opts.cursor !== undefined) params.set("cursor", opts.cursor);
-  if (opts.sinceId !== undefined) params.set("since_id", String(opts.sinceId));
-
-  const qs = params.toString();
-  const url = qs ? `${API_BASE}/logs?${qs}` : `${API_BASE}/logs`;
-  const res = await fetch(url, { method: "GET", headers: authHeaders(token) });
-  if (!res.ok) throw new Error(`Failed to fetch logs: ${await parseDetail(res)}`);
-  return res.json();
+  try {
+    const { data } = await api.GET("/api/v1/slack/logs", {
+      params: { query: { limit: opts.limit, cursor: opts.cursor, since_id: opts.sinceId } },
+      headers: bearer(token),
+    });
+    return data as LogsResponse;
+  } catch (error) {
+    toError("Failed to fetch logs", error);
+  }
 }
 
 export async function fetchRagSources(token: string): Promise<RagSourcesResponse> {
-  const res = await fetch(`${API_BASE}/rag/sources`, {
-    method: "GET",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) throw new Error(`Failed to fetch RAG sources: ${await parseDetail(res)}`);
-  return res.json();
+  try {
+    const { data } = await api.GET("/api/v1/slack/rag/sources", { headers: bearer(token) });
+    return data as RagSourcesResponse;
+  } catch (error) {
+    toError("Failed to fetch RAG sources", error);
+  }
 }
