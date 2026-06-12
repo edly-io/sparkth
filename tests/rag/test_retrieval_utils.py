@@ -8,6 +8,7 @@ from app.lib.documents import DocumentStatus
 from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
 from app.rag.models import DocumentChunk
 from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready
+from app.rag.types import RAGContext
 
 
 def _make_session() -> AsyncMock:
@@ -49,7 +50,7 @@ class TestLookupDocument:
         result_mock.first.return_value = doc
         session.exec.return_value = result_mock
 
-        found = await _lookup_document(session, 1, 1)
+        found = await _lookup_document(session, 1)
         assert found is doc
 
     async def test_raises_not_found_when_missing(self) -> None:
@@ -59,7 +60,7 @@ class TestLookupDocument:
         session.exec.return_value = result_mock
 
         with pytest.raises(DocumentNotFoundError):
-            await _lookup_document(session, 1, 99)
+            await _lookup_document(session, 99)
 
     async def test_raises_not_ready_when_processing(self) -> None:
         doc = _make_doc(1, 1, DocumentStatus.PROCESSING)
@@ -69,7 +70,7 @@ class TestLookupDocument:
         session.exec.return_value = result_mock
 
         with pytest.raises(RAGNotReadyError):
-            await _lookup_document(session, 1, 1)
+            await _lookup_document(session, 1)
 
     async def test_raises_not_ready_when_queued(self) -> None:
         doc = _make_doc(1, 1, DocumentStatus.QUEUED)
@@ -79,10 +80,10 @@ class TestLookupDocument:
         session.exec.return_value = result_mock
 
         with pytest.raises(RAGNotReadyError):
-            await _lookup_document(session, 1, 1)
+            await _lookup_document(session, 1)
 
 
-class TestValidateFilesReady:
+class TestValidateDocumentsReady:
     async def test_passes_when_all_ready(self) -> None:
         docs = [_make_doc(1, 1, DocumentStatus.READY), _make_doc(2, 1, DocumentStatus.READY)]
         session = _make_session()
@@ -90,7 +91,7 @@ class TestValidateFilesReady:
         result_mock.all.return_value = docs
         session.exec.return_value = result_mock
 
-        await validate_documents_ready(session, 1, [1, 2])
+        await validate_documents_ready(session, [1, 2])
 
     async def test_raises_not_found_for_missing_id(self) -> None:
         session = _make_session()
@@ -99,7 +100,7 @@ class TestValidateFilesReady:
         session.exec.return_value = result_mock
 
         with pytest.raises(DocumentNotFoundError):
-            await validate_documents_ready(session, 1, [99])
+            await validate_documents_ready(session, [99])
 
     async def test_raises_not_ready_for_non_ready_doc(self) -> None:
         doc = _make_doc(1, 1, DocumentStatus.PROCESSING)
@@ -109,7 +110,7 @@ class TestValidateFilesReady:
         session.exec.return_value = result_mock
 
         with pytest.raises(RAGNotReadyError):
-            await validate_documents_ready(session, 1, [1])
+            await validate_documents_ready(session, [1])
 
 
 class TestFormatChunksAsContext:
@@ -145,7 +146,5 @@ class TestFormatChunksAsContext:
 class TestRAGContextType:
     def test_rag_context_constructs_without_ranked_sections(self) -> None:
         """RAGContext can be constructed with just the required fields."""
-        from app.rag.types import RAGContext
-
         ctx = RAGContext(document_id=1, source_name="doc.pdf", chunks=[], formatted_text="")
         assert ctx.document_id == 1

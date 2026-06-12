@@ -43,12 +43,11 @@ class TestRAGIntentRouterDecide:
             result = await router.decide(
                 query="tell me about chapter 2",
                 attached_documents=[_make_document(id=1, name="textbook.pdf")],
-                user_id=1,
             )
 
         assert result.should_retrieve is True
         assert result.reason == "on topic"
-        mock_struct.assert_awaited_once_with(user_id=1, document_id=1)
+        mock_struct.assert_awaited_once_with(document_id=1)
 
     @pytest.mark.asyncio
     async def test_returns_decision_when_should_retrieve_false(self) -> None:
@@ -65,7 +64,6 @@ class TestRAGIntentRouterDecide:
             result = await router.decide(
                 query="make that title punchier",
                 attached_documents=[_make_document()],
-                user_id=1,
             )
 
         assert result.should_retrieve is False
@@ -90,7 +88,6 @@ class TestRAGIntentRouterDecide:
                 await router.decide(
                     query="test",
                     attached_documents=[_make_document()],
-                    user_id=1,
                 )
 
     @pytest.mark.asyncio
@@ -122,7 +119,6 @@ class TestRAGIntentRouterDecide:
                 await router.decide(
                     query="test",
                     attached_documents=[_make_document()],
-                    user_id=1,
                 )
 
     @pytest.mark.asyncio
@@ -141,7 +137,6 @@ class TestRAGIntentRouterDecide:
             await router.decide(
                 query=query_text,
                 attached_documents=[_make_document()],
-                user_id=1,
             )
 
         # Verify ainvoke was called with messages containing the query
@@ -171,7 +166,6 @@ class TestRAGIntentRouterDecide:
             await router.decide(
                 query="tell me about this",
                 attached_documents=[_make_document(id=1, name=document_name)],
-                user_id=1,
             )
 
         # Verify the document name appears in the messages.
@@ -193,7 +187,6 @@ class TestRAGIntentRouterDecide:
         result = await router.decide(
             query="test",
             attached_documents=[],
-            user_id=1,
         )
 
         assert isinstance(result, RAGRoutingDecision)

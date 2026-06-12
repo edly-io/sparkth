@@ -213,7 +213,7 @@ async def chat_completion(
 
         # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
         # attached_documents already fetched above for the scope check
-        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, user_id, provider)
+        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, provider)
 
         # Use DB messages for history, but replace the current batch with original
         # request content to preserve content blocks (e.g. base64 document attachments).
@@ -251,8 +251,6 @@ async def chat_completion(
                 # the query text block is preserved alongside it.
                 resolved_messages = await resolve_document_blocks(
                     messages=unresolved_messages,
-                    session=session,
-                    user_id=user_id,
                     llm=provider.create_llm(),
                 )
             else:
@@ -444,7 +442,7 @@ async def stream_chat_response(
             if llm is None:
                 raise AssertionError("llm must be provided when RAG resolution is active")
             try:
-                all_chunks = await agentic_retrieve_context(query_text, document_ids, user_id, llm)
+                all_chunks = await agentic_retrieve_context(query_text, document_ids, llm)
             except DocumentNotFoundError as exc:
                 logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
                 error_text = "The attached document could not be found or is no longer accessible."
