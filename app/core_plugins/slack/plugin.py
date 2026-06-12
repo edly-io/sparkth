@@ -4,8 +4,8 @@ import app.core_plugins.slack.models  # noqa: F401 — registers tables in SQLMo
 from app.core_plugins.slack.config import SlackConfig
 from app.core_plugins.slack.routes import router
 from app.lib.config.hooks import CONFIG_SCHEMAS
+from app.lib.plugins import SparkthPlugin
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
 
 
 class Slack(SparkthPlugin):

@@ -4,12 +4,12 @@ Quick guide for creating Sparkth plugins with API routes and MCP tools.
 
 
 ## Plugin Config Definition
-Define a config class for the plugin that must inherit from `app.plugins.config_base:PluginConfig`
+Define a config class for the plugin that must inherit from `app.lib.plugins:PluginConfig`
 
 ```python
 # app/core_plugins/myappplugin/config.py
 from pydantic import Field
-from app.plugins.config_base import PluginConfig
+from app.lib.plugins import PluginConfig
 
 class MyAppPluginConfig(PluginConfig):
     config_field: str = Field(..., description="...")
@@ -24,7 +24,7 @@ If your plugin lets users pick an AI model to power some feature (e.g. answer sy
 ```python
 # app/core_plugins/myappplugin/config.py
 from pydantic import Field
-from app.plugins.config_base import PluginConfig
+from app.lib.plugins import PluginConfig
 
 class MyAppPluginConfig(PluginConfig):
     llm_config_id: int | None = Field(
@@ -96,7 +96,7 @@ When you do register one, contribute your config class to the `CONFIG_SCHEMAS` h
 
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 
 class MyAppPlugin(SparkthPlugin):
@@ -241,7 +241,7 @@ from app.core_plugins.myappplugin.config import MyAppPluginConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 # Create router outside the class
 router = APIRouter()
@@ -347,7 +347,7 @@ from fastapi import APIRouter
 
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 # Router
 router = APIRouter()

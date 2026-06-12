@@ -1,6 +1,6 @@
 from pydantic import Field, HttpUrl
 
-from app.plugins.config_base import PluginConfig
+from app.lib.plugins import PluginConfig
 
 
 class CanvasConfig(PluginConfig):

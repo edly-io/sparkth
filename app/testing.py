@@ -53,7 +53,7 @@ def load_plugins() -> None:
     does not run lifespan events, so tests load plugins here instead. This is
     what populates the contribution hooks that hook consumers read.
     """
-    from app.plugins import get_plugin_loader
+    from app.lib.plugins import get_plugin_loader
 
     get_plugin_loader()
 

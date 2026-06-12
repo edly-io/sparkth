@@ -5,8 +5,8 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
+from app.lib.plugins import get_plugin_loader
 from app.models import *  # noqa: F403
-from app.plugins import get_plugin_loader
 
 settings = get_settings()
 
