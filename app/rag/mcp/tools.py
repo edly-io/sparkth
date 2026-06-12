@@ -8,9 +8,9 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.db import session_scope
-from app.lib.documents import Document, DocumentStatus
+from app.lib.documents import Document
 from app.lib.log import get_logger
-from app.rag.mcp.schemas import ChunkStats, DocumentInfo, DocumentMetadata, SectionKey
+from app.rag.mcp.schemas import ChunkStats, DocumentMetadata, SectionKey
 from app.rag.models import DocumentChunk, DocumentChunkLink
 from app.rag.types import DocumentSection
 from app.rag.utils import get_rag_ingested_document_structure
@@ -27,30 +27,6 @@ async def _fetch_document(session: AsyncSession, document_id: int) -> Document |
         )
     )
     return result.first()
-
-
-async def list_user_documents(user_id: int) -> list[DocumentInfo]:
-    """List all RAG-ready documents owned by a user."""
-
-    async with session_scope() as session:
-        result = await session.exec(
-            select(Document).where(
-                col(Document.user_id) == user_id,
-                col(Document.is_deleted) == False,  # noqa: E712
-                col(Document.status) == DocumentStatus.READY,
-            )
-        )
-        documents = result.all()
-
-        return [
-            DocumentInfo(
-                id=cast(int, doc.id),
-                name=doc.name,
-                mime_type=doc.mime_type,
-                rag_status=doc.status,
-            )
-            for doc in documents
-        ]
 
 
 async def get_document_metadata(document_id: int) -> DocumentMetadata | None:

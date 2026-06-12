@@ -21,9 +21,10 @@ async def agentic_retrieve_context(
 ) -> list[RetrievedChunk]:
     """Retrieve relevant document chunks for a query across the given documents.
 
-    Validates that every document exists and is READY (raising otherwise), then
-    uses agentic section retrieval per document and returns a flat list of
-    RetrievedChunk. Opens its own database sessions.
+    Validates that every document exists and is READY before retrieval — callers
+    do not need to perform this check themselves. Uses agentic section retrieval
+    per document and returns a flat list of RetrievedChunk. Opens its own database
+    sessions.
 
     Args:
         document_ids: Documents to search. All must exist and be READY.

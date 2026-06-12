@@ -21,7 +21,7 @@ from app.core_plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.core_plugins.chat.tools import ToolRegistry
-from app.lib.documents import Document, DocumentStatus
+from app.lib.documents import Document
 from app.lib.llm import BaseChatProvider, get_provider
 from app.lib.log import get_logger
 from app.lib.rag import (
@@ -96,8 +96,6 @@ def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
 
 async def resolve_document_blocks(
     messages: list[ChatMessage],
-    session: AsyncSession,
-    user_id: int,
     llm: Any,
 ) -> list[ChatMessage]:
     """Replace document attachment content blocks with RAG context text blocks.
@@ -108,7 +106,7 @@ async def resolve_document_blocks(
     Base64 and plain text blocks pass through unchanged.
 
     Raises:
-        HTTPException(422): document not found, not owned, or RAG not ready.
+        HTTPException(422): document not found or RAG not ready.
         HTTPException(500): agent retrieval or section-chunk fetch failure.
     """
     query_text = extract_query_text(messages)
@@ -135,7 +133,7 @@ async def resolve_document_blocks(
             resolved.append(msg)
             continue
 
-        chunks = await _retrieve_rag_chunks(session, user_id, document_ids, query_text, llm)
+        chunks = await _retrieve_rag_chunks(document_ids, query_text, llm)
 
         grouped = group_by_source(chunks)
         rag_blocks: list[dict[str, Any]] = [
@@ -162,18 +160,16 @@ async def resolve_document_blocks(
 
 
 async def _retrieve_rag_chunks(
-    session: AsyncSession,
-    user_id: int,
     document_ids: list[int],
     query_text: str,
     llm: Any,
 ) -> list[RetrievedChunk]:
     """Retrieve RAG chunks for Document IDs.
 
+    Document existence and readiness are validated inside agentic_retrieve_context.
     Raises HTTPException if documents are missing, not ready, or retrieval fails.
     """
     try:
-        await validate_ready_user_documents(session, user_id, document_ids)
         return await agentic_retrieve_context(query_text, document_ids, llm)
     except DocumentNotFoundError as exc:
         raise HTTPException(
@@ -191,29 +187,6 @@ async def _retrieve_rag_chunks(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve document context. Please try again.",
         ) from exc
-
-
-async def validate_ready_user_documents(
-    session: AsyncSession,
-    user_id: int,
-    document_ids: list[int],
-) -> None:
-    """Validate that all documents belong to user_id and are ready for RAG."""
-    result = await session.exec(
-        select(Document).where(
-            col(Document.id).in_(document_ids),
-            col(Document.user_id) == user_id,
-            col(Document.is_deleted) == False,  # noqa: E712
-        )
-    )
-    found = {document.id: document for document in result.all()}
-
-    for document_id in document_ids:
-        document = found.get(document_id)
-        if document is None:
-            raise DocumentNotFoundError(f"Document with id={document_id} not found or not accessible.")
-        if document.status != DocumentStatus.READY:
-            raise RAGNotReadyError(document_id, str(document.status))
 
 
 async def persist_pre_stream_error(
@@ -399,7 +372,6 @@ async def resolve_tools(
 async def resolve_rag_intent(
     attached_documents: list[Document],
     query_text: str,
-    user_id: int,
     provider: BaseChatProvider,
 ) -> tuple[bool, str | None]:
     """Decide whether to run RAG retrieval for the current request.
@@ -413,7 +385,6 @@ async def resolve_rag_intent(
     decision = await rag_router.decide(
         query=query_text,
         attached_documents=attached_documents,
-        user_id=user_id,
     )
     return decision.should_retrieve, decision.reason
 

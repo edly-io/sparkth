@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.documents import DocumentStatus
@@ -12,7 +11,6 @@ from app.rag.mcp.tools import (
     get_document_metadata,
     get_document_structure,
     list_document_sections,
-    list_user_documents,
     search_section_by_keyword,
 )
 from app.rag.types import DocumentSection
@@ -30,50 +28,6 @@ def _mock_document(
     doc.mime_type = mime_type
     doc.status = status
     return doc
-
-
-class TestListUserDocuments:
-    """Test list_user_documents tool."""
-
-    @pytest.mark.asyncio
-    async def test_returns_ready_documents_only(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_result = MagicMock()
-            mock_result.all.return_value = [_mock_document(document_id=10)]
-            mock_session.exec = AsyncMock(return_value=mock_result)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            result = await list_user_documents(user_id=1)
-
-        assert len(result) == 1
-        assert result[0].id == 10
-        assert result[0].name == "example.pdf"
-        assert result[0].mime_type == "application/pdf"
-        assert result[0].rag_status == DocumentStatus.READY
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_when_no_ready_documents(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_result = MagicMock()
-            mock_result.all.return_value = []
-            mock_session.exec = AsyncMock(return_value=mock_result)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            result = await list_user_documents(user_id=1)
-
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_sqlalchemy_error_raises(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            with pytest.raises(SQLAlchemyError):
-                await list_user_documents(user_id=1)
 
 
 class TestGetDocumentMetadata:

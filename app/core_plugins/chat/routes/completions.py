@@ -34,7 +34,6 @@ from app.core_plugins.chat.routes.helpers import (
     resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
-    validate_ready_user_documents,
 )
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService, get_chat_service
@@ -214,7 +213,7 @@ async def chat_completion(
 
         # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
         # attached_documents already fetched above for the scope check
-        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, user_id, provider)
+        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, provider)
 
         # Use DB messages for history, but replace the current batch with original
         # request content to preserve content blocks (e.g. base64 document attachments).
@@ -252,8 +251,6 @@ async def chat_completion(
                 # the query text block is preserved alongside it.
                 resolved_messages = await resolve_document_blocks(
                     messages=unresolved_messages,
-                    session=session,
-                    user_id=user_id,
                     llm=provider.create_llm(),
                 )
             else:
@@ -445,7 +442,6 @@ async def stream_chat_response(
             if llm is None:
                 raise AssertionError("llm must be provided when RAG resolution is active")
             try:
-                await validate_ready_user_documents(bg_session, user_id, document_ids)
                 all_chunks = await agentic_retrieve_context(query_text, document_ids, llm)
             except DocumentNotFoundError as exc:
                 logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)

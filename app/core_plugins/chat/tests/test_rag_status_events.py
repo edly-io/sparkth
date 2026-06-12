@@ -5,7 +5,7 @@ import inspect
 import json
 import uuid
 from datetime import datetime
-from typing import AsyncGenerator, Iterator
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -65,12 +65,6 @@ def _make_conversation() -> MagicMock:
 
 def _unresolved_with_document(document_id: int = 1) -> list[ChatMessage]:
     return [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": document_id}])]
-
-
-@pytest.fixture(autouse=True)
-def mock_ready_document_validation() -> Iterator[None]:
-    with patch("app.core_plugins.chat.routes.completions.validate_ready_user_documents", new_callable=AsyncMock):
-        yield
 
 
 async def _collect_events(gen: AsyncGenerator[str, None]) -> list[dict]:  # type: ignore[type-arg]

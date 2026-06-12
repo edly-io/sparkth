@@ -15,7 +15,6 @@ from app.lib.rag import (
 )
 
 RETRIEVE_CONTEXT_PATH = "app.core_plugins.chat.routes.helpers.agentic_retrieve_context"
-VALIDATE_DOCUMENTS_PATH = "app.core_plugins.chat.routes.helpers.validate_ready_user_documents"
 
 
 def _make_chunk(
@@ -46,16 +45,11 @@ class TestResolveDocumentBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
-            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
-        ):
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = [_make_chunk()]
 
             await resolve_document_blocks(
                 messages=messages,
-                session=AsyncMock(),
-                user_id=1,
                 llm=MagicMock(),
             )
 
@@ -78,17 +72,12 @@ class TestResolveDocumentBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
-            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
-        ):
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = DocumentNotFoundError("Not found")
 
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=AsyncMock(),
-                    user_id=1,
                     llm=MagicMock(),
                 )
 
@@ -106,17 +95,12 @@ class TestResolveDocumentBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
-            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
-        ):
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "processing")
 
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=AsyncMock(),
-                    user_id=1,
                     llm=MagicMock(),
                 )
 
@@ -134,17 +118,12 @@ class TestResolveDocumentBlocksUsesAgent:
             )
         ]
 
-        with (
-            patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve,
-            patch(VALIDATE_DOCUMENTS_PATH, new_callable=AsyncMock),
-        ):
+        with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError("Retrieval failed")
 
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=AsyncMock(),
-                    user_id=1,
                     llm=MagicMock(),
                 )
 
