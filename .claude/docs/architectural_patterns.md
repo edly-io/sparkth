@@ -25,9 +25,9 @@ Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:
 
 ## 2. Plugin Lifecycle Management
 
-**Files:** `app/plugins/loader.py`, `app/main.py` (lifespan handler)
+**Files:** `app/plugins/loader.py`, `app/main.py` (`assemble_app()` + lifespan handler)
 
-The `PluginLoader` singleton manages discovery → load → unload. The FastAPI lifespan context manager calls `get_plugin_service().get_or_create_all()` on startup and cleanup on shutdown. Each plugin can contribute:
+The `PluginLoader` singleton manages discovery → load → unload. Route registration is DB-free and happens in `assemble_app()` at import time, so the full route map (and OpenAPI schema) exists without a running server. The FastAPI lifespan context manager owns the stateful side: it calls `get_plugin_service().get_or_create_all()` on startup and unloads plugins on shutdown. Each plugin can contribute:
 
 - **Routes:** `FastAPI.include_router()`
 - **Middleware:** Starlette middleware

@@ -26,16 +26,6 @@ from app.core_plugins.slack.service import encrypt_token
 from app.lib.db import get_async_session
 from app.main import app
 from app.models.user import User
-from tests.lib.routes import register_router
-
-try:
-    from app.core_plugins.slack.routes import router as slack_router
-
-    register_router(
-        app, slack_router, sentinel_path="/api/v1/slack/oauth/authorize", prefix="/api/v1/slack", tags=["Slack TA Bot"]
-    )
-except ImportError:
-    pass  # routes not yet implemented; model/config tests still run
 
 
 @pytest.fixture(autouse=True)

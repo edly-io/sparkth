@@ -7,6 +7,7 @@ from typing import Union, cast
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Lifespan
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
@@ -27,40 +28,18 @@ settings = get_settings()
 async def plugin_lifespan(application: FastAPI) -> AsyncIterator[None]:
     """
     Plugin lifespan context manager.
-    Handles plugin loading on startup and cleanup on shutdown.
+
+    Owns the stateful side of plugins: ensures every plugin has a DB row on
+    startup and unloads plugins on shutdown. Route registration is DB-free and
+    happens in assemble_app(), not here.
     """
-    # Make sure all plugins exist in database
     plugin_service = get_plugin_service()
     await plugin_service.get_or_create_all()
-
-    plugin_loader = get_plugin_loader()
-    try:
-        loaded_plugins = plugin_loader.get_loaded_plugins()
-        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
-        if loaded_plugins:
-            logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
-
-        for plugin_name, plugin in loaded_plugins:
-            try:
-                routes = plugin.get_routes()
-                if routes:
-                    for router in routes:
-                        prefix = plugin.get_route_prefix()
-                        tags = plugin.get_route_tags()
-                        tags_param: Union[list[Union[str, Enum]], None] = (
-                            cast(Union[list[Union[str, Enum]], None], tags) if tags else None
-                        )
-                        application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
-            except (AttributeError, TypeError, ValueError) as e:
-                logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
-
-    except (ImportError, RuntimeError, OSError) as e:
-        logger.error(f"Plugin initialization failed: {e}")
 
     yield
 
     try:
-        plugin_loader.unload_all()
+        get_plugin_loader().unload_all()
     except (RuntimeError, AttributeError) as e:
         logger.error(f"Plugin cleanup failed: {e}")
 
@@ -98,18 +77,56 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             yield
 
 
-app = FastAPI(lifespan=lifespan)
-app.mount("/ai", mcp_app)
+def _register_plugin_routes(application: FastAPI) -> None:
+    """Register every loaded plugin's routers. DB-free: only imports and include_router."""
+    plugin_loader = get_plugin_loader()
+    try:
+        loaded_plugins = plugin_loader.get_loaded_plugins()
+    except (ImportError, RuntimeError, OSError) as e:
+        logger.error(f"Plugin initialization failed: {e}")
+        return
 
-app.add_middleware(
-    PluginAccessMiddleware,
-    exclude_paths=[
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-        "/plugins",
-        "/api/v1/auth",
-    ],
-)
+    if loaded_plugins:
+        names = ", ".join(name for name, _plugin in loaded_plugins)
+        logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {names}")
 
-app.include_router(api_router, prefix="/api/v1")
+    for plugin_name, plugin in loaded_plugins:
+        try:
+            routes = plugin.get_routes()
+            if routes:
+                for router in routes:
+                    prefix = plugin.get_route_prefix()
+                    tags = plugin.get_route_tags()
+                    tags_param: Union[list[Union[str, Enum]], None] = (
+                        cast(Union[list[Union[str, Enum]], None], tags) if tags else None
+                    )
+                    application.include_router(router, prefix=prefix if prefix else "", tags=tags_param)
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.error(f"Failed to register routes for plugin '{plugin_name}': {e}")
+
+
+def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
+    """
+    Build the fully-routed FastAPI app. DB-free: no I/O and no event loop required.
+
+    Pass lifespan=None (the default) for codegen and tests that only need the
+    route map; production startup passes the real lifespan below.
+    """
+    application = FastAPI(lifespan=lifespan)
+    application.mount("/ai", mcp_app)
+    application.add_middleware(
+        PluginAccessMiddleware,
+        exclude_paths=[
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+            "/plugins",
+            "/api/v1/auth",
+        ],
+    )
+    application.include_router(api_router, prefix="/api/v1")
+    _register_plugin_routes(application)
+    return application
+
+
+app = assemble_app(lifespan=lifespan)
