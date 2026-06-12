@@ -18,12 +18,19 @@ export interface PaginatedResponse<T> {
   limit: number;
 }
 
+// TODO: rename the frontend's RagStatus terminology to match the backend's
+// Document API naming (DocumentStatus) in a follow-up, separate from this
+// mechanical client conversion.
+//
+// The generated client only emits types (erased at runtime), so the runtime
+// values live here; `satisfies` checks them against the generated union, so
+// any backend enum change fails the type check after regeneration.
 export const RagStatus = {
   Queued: "queued",
   Processing: "processing",
   Ready: "ready",
   Failed: "failed",
-} as const;
+} as const satisfies Record<string, Schema<"DocumentStatus">>;
 export type RagStatus = Schema<"DocumentStatus">;
 
 function bearer(token: string): { Authorization: string } {
