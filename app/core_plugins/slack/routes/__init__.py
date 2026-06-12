@@ -42,9 +42,8 @@ from app.core_plugins.slack.types import (
 )
 from app.lib.db import get_async_session, session_scope
 from app.lib.documents import list_ready_documents
+from app.lib.llm import BaseChatProvider, LLMConfigService, get_provider
 from app.lib.log import get_logger
-from app.llm.providers import BaseChatProvider, get_provider
-from app.llm.service import LLMConfigService
 from app.services.plugin import PluginService
 
 router: APIRouter = APIRouter()

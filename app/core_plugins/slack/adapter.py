@@ -1,4 +1,4 @@
-from app.llm.adapter import LLMConfigAdapter
+from app.lib.llm import LLMConfigAdapter
 
 
 class SlackConfigAdapter(LLMConfigAdapter):

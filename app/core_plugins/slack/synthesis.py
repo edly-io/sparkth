@@ -3,8 +3,8 @@
 from typing import Any
 
 from app.core_plugins.slack.config import get_slack_settings
+from app.lib.llm import BaseChatProvider
 from app.lib.log import get_logger
-from app.llm.providers import BaseChatProvider
 
 logger = get_logger(__name__)
 

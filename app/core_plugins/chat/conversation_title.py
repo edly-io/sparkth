@@ -2,8 +2,8 @@ from app.core_plugins.chat.config import get_chat_settings
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
 from app.lib.db import session_scope
+from app.lib.llm import BaseChatProvider
 from app.lib.log import get_logger
-from app.llm.providers import BaseChatProvider
 
 logger = get_logger(__name__)
 

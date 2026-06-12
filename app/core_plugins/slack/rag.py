@@ -17,6 +17,7 @@ from app.core_plugins.slack.constants import (
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
 from app.lib.documents import Document, DocumentStatus
+from app.lib.llm import BaseChatProvider
 from app.lib.log import get_logger
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -25,7 +26,6 @@ from app.lib.rag import (
     RetrievedChunk,
     agentic_retrieve_context,
 )
-from app.llm.providers import BaseChatProvider
 
 logger = get_logger(__name__)
 

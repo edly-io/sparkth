@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core_plugins.slack.adapter import SlackConfigAdapter
-from app.llm.adapter import LLMConfigAdapter
+from app.lib.llm import LLMConfigAdapter
 from app.models import LLMConfig
 from app.plugins.adapters import PLUGIN_ADAPTERS
 

@@ -62,9 +62,13 @@ Current modules (see the source for the full API — do not duplicate it here):
   dependencies.
 - [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. Import RAG functionality
   from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
-  RAG exceptions); **never import from `app.rag.*` directly**.
-  Implementations live in `app/rag/ingestion/` and `app/rag/retrieval/` but are
-  only accessed through this facade.
+  `IngestionResult`, `RagStatus`, RAG exceptions); never import from `app.rag.*`
+  directly. Implementation lives in `app/rag/` (see issue #398).
+- [`app/lib/llm.py`](app/lib/llm.py) — LLM public API. Import LLM functionality
+  from here (`BaseChatProvider`, `get_provider`, `LLMConfigService`,
+  `get_llm_service`, `LLMConfigAdapter`, and the `LLMConfig*` exceptions); never
+  import from `app.llm.*` directly. Implementation lives in `app/llm/` (see
+  issue #379).
 
 ## Essential Commands
 
