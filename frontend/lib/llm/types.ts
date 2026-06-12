@@ -1,39 +1,8 @@
-export interface LLMConfig {
-  id: number;
-  name: string;
-  provider: string;
-  model: string;
-  masked_key: string;
-  is_active: boolean;
-  created_at: string;
-  last_used_at: string | null;
-}
+import type { Schema } from "@/lib/api";
 
-export interface LLMConfigListResponse {
-  configs: LLMConfig[];
-  total: number;
-}
-
-export interface ProviderInfo {
-  id: string;
-  label: string;
-  models: string[];
-}
-
-export interface ProviderCatalogResponse {
-  providers: ProviderInfo[];
-  default_provider: string | null;
-  default_model: string | null;
-}
-
-export interface CreateLLMConfigPayload {
-  name: string;
-  provider: string;
-  model: string;
-  api_key: string;
-}
-
-export interface UpdateLLMConfigPayload {
-  name?: string;
-  model?: string;
-}
+export type LLMConfig = Schema<"LLMConfigResponse">;
+export type LLMConfigListResponse = Schema<"LLMConfigListResponse">;
+export type ProviderInfo = Schema<"ProviderInfo">;
+export type ProviderCatalogResponse = Schema<"ProviderCatalogResponse">;
+export type CreateLLMConfigPayload = Schema<"LLMConfigCreate">;
+export type UpdateLLMConfigPayload = Schema<"LLMConfigUpdate">;
