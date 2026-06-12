@@ -2001,6 +2001,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatCompletionResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
