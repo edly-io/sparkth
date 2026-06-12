@@ -109,7 +109,6 @@ class ChunkStoreService:
         stmt = (
             select(DocumentChunk)
             .where(
-                col(DocumentChunk.user_id) == user_id,
                 col(DocumentChunk.source_name) == source_name,
                 or_(*[_key_condition(k) for k in section_keys]),
             )

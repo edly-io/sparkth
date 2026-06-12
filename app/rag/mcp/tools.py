@@ -85,7 +85,6 @@ async def list_document_sections(user_id: int, document_id: int) -> list[Section
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                DocumentChunk.user_id == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
             )
             .distinct()
@@ -108,7 +107,6 @@ async def get_chunk_stats(user_id: int, document_id: int) -> ChunkStats | None:
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                DocumentChunk.user_id == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
             )
         )
@@ -147,7 +145,6 @@ async def search_section_by_keyword(user_id: int, document_id: int, keyword: str
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                DocumentChunk.user_id == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
                 (
                     col(DocumentChunk.chapter).ilike(keyword_pattern, escape="\\")

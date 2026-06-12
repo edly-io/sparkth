@@ -68,7 +68,6 @@ async def get_rag_ingested_document_structure(user_id: int, document_id: int) ->
             )
             .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                col(DocumentChunk.user_id) == user_id,
                 col(DocumentChunkLink.document_id) == document_id,
             )
             .group_by(
