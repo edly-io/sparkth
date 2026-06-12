@@ -62,7 +62,19 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/completions", response_model=ChatCompletionResponse)
+# The handler returns ChatCompletionResponse (stream=false) or an SSE
+# StreamingResponse (stream=true); response_model alone cannot express that
+# union, so the 200 response declares both content types explicitly.
+@router.post(
+    "/completions",
+    response_model=None,
+    responses={
+        200: {
+            "model": ChatCompletionResponse,
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+        }
+    },
+)
 async def chat_completion(
     request: ChatCompletionRequest,
     background_tasks: BackgroundTasks,
