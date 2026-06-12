@@ -261,3 +261,22 @@ describe("detachDocument", () => {
     await expect(detachDocument(TOKEN, "abc", 42)).rejects.toThrow("HTTP 404");
   });
 });
+
+describe("network error handling", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("wraps a network failure into a readable Error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(getConversation(TOKEN, "abc")).rejects.toThrow(/Network error.*Failed to fetch/);
+  });
+
+  it("lets AbortError pass through unchanged", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(abortError);
+
+    await expect(listConversations(TOKEN)).rejects.toBe(abortError);
+  });
+});

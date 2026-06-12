@@ -32,12 +32,14 @@ export interface PersistedAttachment {
 
 export interface OutgoingChatMessage {
   role: string;
-  content: string | object[];
+  // `unknown[]` for multipart content (e.g. image/text blocks): callers must
+  // narrow before use until we share a typed content-parts schema with the backend.
+  content: string | unknown[];
   attachment?: { name: string; size: number };
 }
 
 export interface ChatCompletionRequestBody {
-  llm_config_id: number | undefined;
+  llm_config_id?: number;
   model_override?: string;
   messages: OutgoingChatMessage[];
   stream: boolean;
