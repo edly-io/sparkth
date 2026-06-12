@@ -32,7 +32,6 @@ def _make_chunk(
     subsection: str | None = None,
 ) -> DocumentChunk:
     return DocumentChunk(
-        user_id=1,
         source_name="doc.pdf",
         content=content,
         chapter=chapter,

@@ -50,7 +50,7 @@ class TestIngestDocument:
     @pytest.mark.asyncio
     async def test_unsupported_type_raises_before_extraction(self) -> None:
         with pytest.raises(UnsupportedFileTypeError):
-            await ingest_document("img.png", b"x", 10, 1)
+            await ingest_document("img.png", b"x", 10)
 
     @pytest.mark.asyncio
     async def test_empty_chunks_returns_zero_counts(self) -> None:
@@ -61,7 +61,7 @@ class TestIngestDocument:
             patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
             patch("app.rag.ingestion.DocumentChunker", chunker),
         ):
-            result = await ingest_document("a.txt", b"x", 10, 1)
+            result = await ingest_document("a.txt", b"x", 10)
         assert result.new_chunks == 0
         assert result.reused_chunks == 0
 
@@ -69,7 +69,7 @@ class TestIngestDocument:
     async def test_scanned_pdf_propagates(self) -> None:
         with patch("app.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")):
             with pytest.raises(ScannedPDFError):
-                await ingest_document("a.pdf", b"x", 10, 1)
+                await ingest_document("a.pdf", b"x", 10)
 
     @pytest.mark.asyncio
     async def test_happy_path_returns_counts(self) -> None:
@@ -85,7 +85,7 @@ class TestIngestDocument:
             mock_session = AsyncMock()
             mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = await ingest_document("a.txt", b"x", 10, 1)
+            result = await ingest_document("a.txt", b"x", 10)
         assert result.new_chunks == 1
         assert result.reused_chunks == 0
         mock_store.assert_awaited_once()
@@ -122,7 +122,6 @@ class TestRetrieveContext:
             source_name="a.pdf",
             chunks=[
                 DocumentChunk(
-                    user_id=1,
                     source_name="a.pdf",
                     content="hello",
                     chapter="Ch",

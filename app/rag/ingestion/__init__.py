@@ -14,7 +14,6 @@ async def ingest_document(
     filename: str,
     file_bytes: bytes,
     document_id: int,
-    user_id: int,
 ) -> IngestionResult:
     """Ingest a document's bytes into the RAG store.
 
@@ -23,7 +22,6 @@ async def ingest_document(
     own database session.
 
     Args:
-        user_id: Owner of the chunks (row-level scope).
         document_id: Document.id recorded in the chunk-link table.
         file_bytes: Raw file content.
         filename: Original filename (drives extension dispatch).
@@ -50,7 +48,7 @@ async def ingest_document(
         store = ChunkStoreService()
         async with session_scope() as session:
             async with profile_memory("store_and_link", file=filename, chunks=len(chunks)):
-                new_count, reused_count = await store_and_link_chunks(session, user_id, document_id, chunks, store)
+                new_count, reused_count = await store_and_link_chunks(session, document_id, chunks, store)
             await session.commit()
 
     return IngestionResult(new_chunks=new_count, reused_chunks=reused_count)

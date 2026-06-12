@@ -14,7 +14,6 @@ from app.rag.types import RAGContext, RetrievedChunk
 def _ctx(source: str, *contents: str) -> RAGContext:
     chunks = [
         DocumentChunk(
-            user_id=1,
             source_name=source,
             content=c,
             chapter="Ch",

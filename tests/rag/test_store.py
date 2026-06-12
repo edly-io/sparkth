@@ -39,18 +39,19 @@ class TestChunkInput:
 
 
 class TestStoreChunksNoProvider:
-    """store_chunks no longer accepts a provider parameter."""
+    """store_chunks no longer accepts provider or user_id parameters."""
 
     async def test_store_chunks_signature_has_no_provider(self) -> None:
-        """store_chunks must not have a 'provider' parameter."""
+        """store_chunks must not have a 'provider' or 'user_id' parameter."""
         sig = inspect.signature(ChunkStoreService.store_chunks)
         assert "provider" not in sig.parameters
+        assert "user_id" not in sig.parameters
 
     async def test_store_chunks_empty_list_no_provider(self) -> None:
         """Calling store_chunks with no provider succeeds."""
         service = ChunkStoreService()
         mock_session = AsyncMock()
-        result = await service.store_chunks(mock_session, user_id=1, chunks=[])
+        result = await service.store_chunks(mock_session, [])
         assert result == []
 
 
@@ -64,7 +65,7 @@ class TestChunkStoreService:
         service: ChunkStoreService,
     ) -> None:
         mock_session = AsyncMock()
-        result = await service.store_chunks(mock_session, user_id=1, chunks=[])
+        result = await service.store_chunks(mock_session, [])
         assert result == []
 
     async def test_store_chunks_flushes_session(
@@ -87,7 +88,7 @@ class TestChunkStoreService:
             mock_chunk2.id = 2
             mock_chunk_class.side_effect = [mock_chunk1, mock_chunk2]
 
-            result = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
+            result = await service.store_chunks(mock_session, chunks)
 
         assert len(result) == 2
         assert result == [1, 2]
@@ -116,7 +117,6 @@ class TestChunkStoreService:
         with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
             mock_chunk = MagicMock()
             mock_chunk.id = 123
-            mock_chunk.user_id = 42
             mock_chunk.source_name = "lecture.pdf"
             mock_chunk.content = "test content"
             mock_chunk.chapter = "Chapter 1"
@@ -125,14 +125,13 @@ class TestChunkStoreService:
             mock_chunk.token_count = 100
             mock_chunk_class.return_value = mock_chunk
 
-            result = await service.store_chunks(mock_session, user_id=42, chunks=chunks)
+            result = await service.store_chunks(mock_session, chunks)
 
         assert len(result) == 1
         assert isinstance(result[0], int)
         assert result[0] == 123
 
         call_args = mock_session.add.call_args_list[0][0][0]
-        assert call_args.user_id == 42
         assert call_args.source_name == "lecture.pdf"
         assert call_args.content == "test content"
         assert call_args.chapter == "Chapter 1"
@@ -147,7 +146,7 @@ class TestChunkStoreService:
         mock_result.rowcount = 5
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        count = await service.delete_by_source(mock_session, user_id=1, source_name="old.pdf")
+        count = await service.delete_by_source(mock_session, "old.pdf")
 
         assert count == 5
         mock_session.execute.assert_awaited_once()
@@ -159,7 +158,7 @@ class TestChunkStoreService:
         mock_result.all.return_value = ["doc1.pdf", "doc2.pdf"]
         mock_session.scalars = AsyncMock(return_value=mock_result)
 
-        sources = await service.get_sources(mock_session, user_id=1)
+        sources = await service.get_sources(mock_session)
 
         assert sources == ["doc1.pdf", "doc2.pdf"]
         mock_session.scalars.assert_awaited_once()

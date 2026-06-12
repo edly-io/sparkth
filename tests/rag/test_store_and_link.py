@@ -51,17 +51,16 @@ class TestStoreAndLinkChunks:
 
         new_count, reused_count = await store_and_link_chunks(
             session,
-            user_id=1,
-            document_id=10,
-            chunks=chunks,
-            store=store,
+            10,
+            chunks,
+            store,
         )
 
         assert new_count == 2
         assert reused_count == 0
         store.store_chunks.assert_awaited_once()
         call_args = store.store_chunks.call_args
-        chunk_inputs = call_args[0][2]  # third positional arg
+        chunk_inputs = call_args[0][1]  # second positional arg
         assert len(chunk_inputs) == 2
         assert all(isinstance(ci, ChunkInput) for ci in chunk_inputs)
         assert all(ci.chunk_content_hash is not None for ci in chunk_inputs)
@@ -86,17 +85,16 @@ class TestStoreAndLinkChunks:
 
         new_count, reused_count = await store_and_link_chunks(
             session,
-            user_id=1,
-            document_id=10,
-            chunks=chunks,
-            store=store,
+            10,
+            chunks,
+            store,
         )
 
         assert new_count == 0
         assert reused_count == 1
         store.store_chunks.assert_awaited_once()
         call_args = store.store_chunks.call_args
-        assert call_args[0][2] == []
+        assert call_args[0][1] == []
 
     async def test_mixed_new_and_reused(self) -> None:
         """When some chunks exist and some don't."""
@@ -119,10 +117,9 @@ class TestStoreAndLinkChunks:
 
         new_count, reused_count = await store_and_link_chunks(
             session,
-            user_id=1,
-            document_id=10,
-            chunks=chunks,
-            store=store,
+            10,
+            chunks,
+            store,
         )
 
         assert new_count == 1
@@ -153,10 +150,9 @@ class TestStoreAndLinkChunks:
 
         new_count, reused_count = await store_and_link_chunks(
             session,
-            user_id=1,
-            document_id=5,
-            chunks=chunks,
-            store=store,
+            5,
+            chunks,
+            store,
         )
 
         assert new_count == 0
@@ -194,7 +190,6 @@ class TestStoreAndLinkChunks:
         chunk_hash = hashlib.sha256(chunk_content.encode()).hexdigest()
 
         existing_chunk = DocumentChunk(
-            user_id=user.id,
             source_name="deleted.pdf",
             content=chunk_content,
             chunk_content_hash=chunk_hash,
@@ -213,10 +208,9 @@ class TestStoreAndLinkChunks:
 
         new_count, reused_count = await store_and_link_chunks(
             async_session,
-            user_id=user.id,
-            document_id=new_doc.id,
-            chunks=[Chunk(content=chunk_content, metadata=ChunkMetadata(source_name="new.pdf"))],
-            store=store,
+            new_doc.id,
+            [Chunk(content=chunk_content, metadata=ChunkMetadata(source_name="new.pdf"))],
+            store,
         )
 
         assert reused_count == 0, "chunk linked only to a deleted document must not be reused"
