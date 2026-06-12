@@ -50,8 +50,6 @@ class TestResolveDocumentBlocksUsesAgent:
 
             await resolve_document_blocks(
                 messages=messages,
-                session=AsyncMock(),
-                user_id=1,
                 llm=MagicMock(),
             )
 
@@ -60,8 +58,7 @@ class TestResolveDocumentBlocksUsesAgent:
         assert await_args is not None
         assert isinstance(await_args.args[0], str)
         assert 1 in await_args.args[1]
-        assert await_args.args[2] == 1
-        assert await_args.args[3] is not None
+        assert await_args.args[2] is not None
 
     @pytest.mark.asyncio
     async def test_document_not_found_returns_422(self) -> None:
@@ -81,8 +78,6 @@ class TestResolveDocumentBlocksUsesAgent:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=AsyncMock(),
-                    user_id=1,
                     llm=MagicMock(),
                 )
 
@@ -106,8 +101,6 @@ class TestResolveDocumentBlocksUsesAgent:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=AsyncMock(),
-                    user_id=1,
                     llm=MagicMock(),
                 )
 
@@ -131,8 +124,6 @@ class TestResolveDocumentBlocksUsesAgent:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=AsyncMock(),
-                    user_id=1,
                     llm=MagicMock(),
                 )
 

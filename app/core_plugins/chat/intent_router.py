@@ -36,14 +36,12 @@ class RAGIntentRouter:
         *,
         query: str,
         attached_documents: list[Document],
-        user_id: int,
     ) -> RAGRoutingDecision:
         """Decide whether to run RAG retrieval for this turn.
 
         Args:
             query: The user's query text.
             attached_documents: Documents attached to the conversation.
-            user_id: The user ID passed to the public RAG ingested-document structure API.
 
         Returns:
             RAGRoutingDecision with should_retrieve and reason.
@@ -55,11 +53,9 @@ class RAGIntentRouter:
         attachment_summary = ""
         if attached_documents:
             documents = [doc for doc in attached_documents if doc.id is not None]
+            # TODO: batch-lookup document structures in a single query instead of one coroutine per document
             results = await asyncio.gather(
-                *[
-                    get_rag_ingested_document_structure(user_id=user_id, document_id=cast(int, doc.id))
-                    for doc in documents
-                ],
+                *[get_rag_ingested_document_structure(document_id=cast(int, doc.id)) for doc in documents],
                 return_exceptions=True,
             )
 

@@ -28,7 +28,7 @@ def _ctx(source: str, *contents: str) -> RAGContext:
 class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_empty_document_ids_returns_empty(self) -> None:
-        result = await retrieve_chunks("q", [], 1, MagicMock())
+        result = await retrieve_chunks("q", [], MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
@@ -40,7 +40,7 @@ class TestRetrieveChunks:
                 new=AsyncMock(side_effect=[_ctx("a.pdf", "alpha"), _ctx("b.pdf", "beta")]),
             ),
         ):
-            result = await retrieve_chunks("q", [10, 11], 1, MagicMock())
+            result = await retrieve_chunks("q", [10, 11], MagicMock())
         assert result == [
             RetrievedChunk(source_name="a.pdf", chapter="Ch", section=None, subsection=None, content="alpha"),
             RetrievedChunk(source_name="b.pdf", chapter="Ch", section=None, subsection=None, content="beta"),
@@ -57,7 +57,7 @@ class TestRetrieveChunks:
             patch("app.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
         ):
             with pytest.raises(DocumentNotFoundError):
-                await retrieve_chunks("q", [10], 1, MagicMock())
+                await retrieve_chunks("q", [10], MagicMock())
         get_ctx.assert_not_awaited()  # nothing searched
 
     @pytest.mark.asyncio
@@ -71,7 +71,7 @@ class TestRetrieveChunks:
             patch("app.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
         ):
             with pytest.raises(RAGNotReadyError):
-                await retrieve_chunks("q", [10], 1, MagicMock())
+                await retrieve_chunks("q", [10], MagicMock())
         get_ctx.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -84,4 +84,4 @@ class TestRetrieveChunks:
             ),
         ):
             with pytest.raises(RAGRetrievalError):
-                await retrieve_chunks("q", [10], 1, MagicMock())
+                await retrieve_chunks("q", [10], MagicMock())

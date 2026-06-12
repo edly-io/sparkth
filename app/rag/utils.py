@@ -34,28 +34,28 @@ def get_asset(file_name: str, file_extension: str) -> str | dict[str, Any]:
     return content
 
 
-async def _fetch_document(session: AsyncSession, user_id: int, document_id: int) -> Document | None:
-    """Return the Document if it exists and belongs to user_id."""
+async def _fetch_document(session: AsyncSession, document_id: int) -> Document | None:
+    """Return the Document if it exists and is not deleted."""
     result = await session.exec(
         select(Document).where(
-            col(Document.user_id) == user_id,
             col(Document.id) == document_id,
+            col(Document.is_deleted) == False,  # noqa: E712
         )
     )
     return result.first()
 
 
-async def get_rag_ingested_document_structure(user_id: int, document_id: int) -> list[DocumentSection]:
+async def get_rag_ingested_document_structure(document_id: int) -> list[DocumentSection]:
     """Return ordered section metadata generated from the ingested RAG chunks.
 
     Sections are ordered by the minimum chunk id within each (chapter, section,
     subsection) group. This preserves document insertion order, so position_index
     reliably reflects the section's position in the original document.
 
-    Returns an empty list when the document does not exist for the user.
+    Returns an empty list when the document does not exist.
     """
     async with session_scope() as session:
-        document = await _fetch_document(session, user_id, document_id)
+        document = await _fetch_document(session, document_id)
         if document is None:
             return []
 

@@ -96,8 +96,6 @@ def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
 
 async def resolve_document_blocks(
     messages: list[ChatMessage],
-    session: AsyncSession,
-    user_id: int,
     llm: Any,
 ) -> list[ChatMessage]:
     """Replace document attachment content blocks with RAG context text blocks.
@@ -108,7 +106,7 @@ async def resolve_document_blocks(
     Base64 and plain text blocks pass through unchanged.
 
     Raises:
-        HTTPException(422): document not found, not owned, or RAG not ready.
+        HTTPException(422): document not found or RAG not ready.
         HTTPException(500): agent retrieval or section-chunk fetch failure.
     """
     query_text = extract_query_text(messages)
@@ -135,7 +133,7 @@ async def resolve_document_blocks(
             resolved.append(msg)
             continue
 
-        chunks = await _retrieve_rag_chunks(user_id, document_ids, query_text, llm)
+        chunks = await _retrieve_rag_chunks(document_ids, query_text, llm)
 
         grouped = group_by_source(chunks)
         rag_blocks: list[dict[str, Any]] = [
@@ -162,17 +160,17 @@ async def resolve_document_blocks(
 
 
 async def _retrieve_rag_chunks(
-    user_id: int,
     document_ids: list[int],
     query_text: str,
     llm: Any,
 ) -> list[RetrievedChunk]:
     """Retrieve RAG chunks for Document IDs.
 
+    Document existence and readiness are validated inside agentic_retrieve_context.
     Raises HTTPException if documents are missing, not ready, or retrieval fails.
     """
     try:
-        return await agentic_retrieve_context(query_text, document_ids, user_id, llm)
+        return await agentic_retrieve_context(query_text, document_ids, llm)
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -374,7 +372,6 @@ async def resolve_tools(
 async def resolve_rag_intent(
     attached_documents: list[Document],
     query_text: str,
-    user_id: int,
     provider: BaseChatProvider,
 ) -> tuple[bool, str | None]:
     """Decide whether to run RAG retrieval for the current request.
@@ -388,7 +385,6 @@ async def resolve_rag_intent(
     decision = await rag_router.decide(
         query=query_text,
         attached_documents=attached_documents,
-        user_id=user_id,
     )
     return decision.should_retrieve, decision.reason
 

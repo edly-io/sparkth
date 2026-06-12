@@ -78,8 +78,7 @@ class ChunkStoreService:
     async def fetch_chunks_by_sections(
         self,
         session: AsyncSession,
-        user_id: int,
-        source_name: str,
+        document_id: int,
         section_keys: list[dict[str, str | None]],
         limit: int = 50,
     ) -> list[DocumentChunk]:
@@ -108,8 +107,9 @@ class ChunkStoreService:
 
         stmt = (
             select(DocumentChunk)
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                col(DocumentChunk.source_name) == source_name,
+                col(DocumentChunkLink.document_id) == document_id,
                 or_(*[_key_condition(k) for k in section_keys]),
             )
             .order_by(col(DocumentChunk.id))

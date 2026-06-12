@@ -7,7 +7,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from app.lib.log import get_logger
-from app.plugins import get_plugin_loader
+from app.lib.mcp.hooks import MCP_TOOLS, Tool
 
 logger = get_logger(__name__)
 
@@ -56,28 +56,29 @@ class ToolRegistry:
         ]
 
     def discover_plugin_tools(self) -> None:
-        """Discover and register tools from all loaded plugins."""
+        """Discover and register tools from all loaded plugins.
+
+        Plugins are instantiated once at the process entrypoint (which populates
+        the MCP_TOOLS hook); this only runs during request handling, well after
+        startup, so it just reads the hook.
+        """
         if self._initialized:
             return
 
-        plugin_loader = get_plugin_loader()
-        loaded_plugins = plugin_loader.get_loaded_plugins()
-        for plugin_name, plugin in loaded_plugins:
-            if plugin_name == "chat":
+        for plugin, mcp_tool in MCP_TOOLS.iter_items():
+            if plugin.name == "chat":
                 continue
 
-            mcp_tools = plugin.get_mcp_tools()
-            for mcp_tool in mcp_tools:
-                try:
-                    langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
-                    self.register_tool(langchain_tool)
-                except (KeyError, TypeError, ValueError, ValidationError) as e:
-                    logger.error(
-                        "Failed to convert MCP tool '%s' to LangChain tool: %s",
-                        mcp_tool.get("name"),
-                        e,
-                        exc_info=True,
-                    )
+            try:
+                langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
+                self.register_tool(langchain_tool)
+            except (KeyError, TypeError, ValueError, ValidationError) as e:
+                logger.error(
+                    "Failed to convert MCP tool '%s' to LangChain tool: %s",
+                    mcp_tool.name,
+                    e,
+                    exc_info=True,
+                )
 
         self._initialized = True
         logger.info("Discovered %d tools from plugins", len(self._tools))
@@ -153,12 +154,12 @@ class ToolRegistry:
             logger.debug("Could not build args_schema from handler hints for '%s': %s", name, e)
             return None
 
-    def _convert_mcp_to_langchain_tool(self, mcp_tool: dict[str, Any]) -> BaseTool:
+    def _convert_mcp_to_langchain_tool(self, mcp_tool: Tool) -> BaseTool:
         """Convert an MCP tool definition to a LangChain tool."""
-        name = mcp_tool["name"]
-        description = mcp_tool.get("description", "")
-        handler = mcp_tool["handler"]
-        input_schema = mcp_tool.get("inputSchema", {})
+        name = mcp_tool.name
+        description = mcp_tool.description
+        handler = mcp_tool.handler
+        input_schema = mcp_tool.input_schema
 
         logger.debug("Tool '%s' input schema: %s", name, json.dumps(input_schema, indent=2))
 

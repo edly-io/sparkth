@@ -1,8 +1,8 @@
 """Build in-process LangChain tools for the RAG search agent.
 
 Wraps the metadata functions in :mod:`app.rag.mcp.tools` as LangChain
-``StructuredTool`` instances, binding ``user_id``/``document_id`` via closure so the
-agent only ever sees query-relevant arguments. This replaces the previous
+``StructuredTool`` instances, binding ``document_id`` via closure so the agent
+only ever sees query-relevant arguments. This replaces the previous
 out-of-process FastMCP server: the tools now run as direct Python calls.
 """
 
@@ -12,45 +12,36 @@ from app.rag.mcp import schemas, tools
 from app.rag.types import DocumentSection
 
 
-def build_search_tools(user_id: int, document_id: int) -> list[StructuredTool]:
-    """Build the RAG search agent's tools with user/document context pre-bound.
+def build_search_tools(document_id: int) -> list[StructuredTool]:
+    """Build the RAG search agent's tools with document context pre-bound.
 
     Args:
-        user_id: User ID for row-level scoping, injected into every tool call.
         document_id: Document ID the search is scoped to, injected where relevant.
 
     Returns:
         LangChain tools exposing only the arguments the agent should choose.
     """
 
-    async def list_user_documents() -> list[schemas.DocumentInfo]:
-        return await tools.list_user_documents(user_id=user_id)
-
     async def get_document_metadata() -> schemas.DocumentMetadata | None:
-        return await tools.get_document_metadata(user_id=user_id, document_id=document_id)
+        return await tools.get_document_metadata(document_id=document_id)
 
     async def list_document_sections() -> list[schemas.SectionKey]:
-        return await tools.list_document_sections(user_id=user_id, document_id=document_id)
+        return await tools.list_document_sections(document_id=document_id)
 
     async def get_chunk_stats() -> schemas.ChunkStats | None:
-        return await tools.get_chunk_stats(user_id=user_id, document_id=document_id)
+        return await tools.get_chunk_stats(document_id=document_id)
 
     async def get_document_structure() -> list[DocumentSection]:
-        return await tools.get_document_structure(user_id=user_id, document_id=document_id)
+        return await tools.get_document_structure(document_id=document_id)
 
     async def search_section_by_keyword(keyword: str) -> list[schemas.SectionKey]:
-        return await tools.search_section_by_keyword(user_id=user_id, document_id=document_id, keyword=keyword)
+        return await tools.search_section_by_keyword(document_id=document_id, keyword=keyword)
 
     return [
         StructuredTool.from_function(
-            coroutine=list_user_documents,
-            name="list_user_documents",
-            description="List all RAG-ready documents owned by a user.",
-        ),
-        StructuredTool.from_function(
             coroutine=get_document_metadata,
             name="get_document_metadata",
-            description="Get metadata for a specific document owned by a user.",
+            description="Get metadata for a specific document.",
         ),
         StructuredTool.from_function(
             coroutine=list_document_sections,

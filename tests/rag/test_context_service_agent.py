@@ -50,7 +50,6 @@ class TestGetContextViaAgent:
 
             result = await get_context_via_agent(
                 session=mock_session,
-                user_id=1,
                 document_id=1,
                 query="test",
                 llm=MagicMock(),
@@ -60,7 +59,7 @@ class TestGetContextViaAgent:
         assert result.source_name == "bio.pdf"
         assert len(result.chunks) == 1
         mock_store.fetch_chunks_by_sections.assert_awaited_once()
-        assert mock_store.fetch_chunks_by_sections.call_args.args[3] == [s.model_dump() for s in selected]
+        assert mock_store.fetch_chunks_by_sections.call_args.args[2] == [s.model_dump() for s in selected]
 
     @pytest.mark.asyncio
     async def test_empty_sections_returns_no_chunks(self) -> None:
@@ -85,7 +84,6 @@ class TestGetContextViaAgent:
 
             result = await get_context_via_agent(
                 session=mock_session,
-                user_id=1,
                 document_id=1,
                 query="test",
                 llm=MagicMock(),
@@ -93,7 +91,7 @@ class TestGetContextViaAgent:
 
         assert result.chunks == []
         mock_store.fetch_chunks_by_sections.assert_awaited_once()
-        assert mock_store.fetch_chunks_by_sections.call_args.args[3] == []
+        assert mock_store.fetch_chunks_by_sections.call_args.args[2] == []
 
     @pytest.mark.asyncio
     async def test_document_not_found_raises_error(self) -> None:
@@ -106,7 +104,6 @@ class TestGetContextViaAgent:
             with pytest.raises(DocumentNotFoundError):
                 await get_context_via_agent(
                     session=mock_session,
-                    user_id=1,
                     document_id=999,
                     query="test",
                     llm=MagicMock(),
@@ -123,7 +120,6 @@ class TestGetContextViaAgent:
             with pytest.raises(RAGNotReadyError):
                 await get_context_via_agent(
                     session=mock_session,
-                    user_id=1,
                     document_id=1,
                     query="test",
                     llm=MagicMock(),
@@ -146,7 +142,6 @@ class TestGetContextViaAgent:
             with pytest.raises(RAGRetrievalError):
                 await get_context_via_agent(
                     session=mock_session,
-                    user_id=1,
                     document_id=1,
                     query="test",
                     llm=MagicMock(),
@@ -176,7 +171,6 @@ class TestGetContextViaAgent:
             with pytest.raises(RAGRetrievalError):
                 await get_context_via_agent(
                     session=mock_session,
-                    user_id=1,
                     document_id=1,
                     query="test",
                     llm=MagicMock(),
@@ -205,11 +199,10 @@ class TestGetContextViaAgent:
 
             await get_context_via_agent(
                 session=mock_session,
-                user_id=1,
                 document_id=1,
                 query="",
                 llm=MagicMock(),
             )
 
             mock_agent.assert_called_once()
-            assert mock_agent.call_args.args[3] == "test.pdf"
+            assert mock_agent.call_args.args[2] == "test.pdf"

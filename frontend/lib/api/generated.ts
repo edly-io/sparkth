@@ -221,7 +221,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/browse": {
+    "/api/v1/google-drive/browse": {
         parameters: {
             query?: never;
             header?: never;
@@ -232,7 +232,7 @@ export interface paths {
          * Browse Drive
          * @description Browse Google Drive contents.
          */
-        get: operations["browse_drive_api_v1_googledrive_browse_get"];
+        get: operations["browse_drive_api_v1_google_drive_browse_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -241,7 +241,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/files/{file_id}": {
+    "/api/v1/google-drive/files/{file_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -252,24 +252,24 @@ export interface paths {
          * Get File
          * @description Get file metadata.
          */
-        get: operations["get_file_api_v1_googledrive_files__file_id__get"];
+        get: operations["get_file_api_v1_google_drive_files__file_id__get"];
         put?: never;
         post?: never;
         /**
          * Delete File
          * @description Soft-delete a file from Sparkth (does not delete from Drive).
          */
-        delete: operations["delete_file_api_v1_googledrive_files__file_id__delete"];
+        delete: operations["delete_file_api_v1_google_drive_files__file_id__delete"];
         options?: never;
         head?: never;
         /**
          * Rename File
          * @description Rename a file in Google Drive.
          */
-        patch: operations["rename_file_api_v1_googledrive_files__file_id__patch"];
+        patch: operations["rename_file_api_v1_google_drive_files__file_id__patch"];
         trace?: never;
     };
-    "/api/v1/googledrive/files/{file_id}/download": {
+    "/api/v1/google-drive/files/{file_id}/download": {
         parameters: {
             query?: never;
             header?: never;
@@ -280,7 +280,7 @@ export interface paths {
          * Download File
          * @description Download a file from Google Drive.
          */
-        get: operations["download_file_api_v1_googledrive_files__file_id__download_get"];
+        get: operations["download_file_api_v1_google_drive_files__file_id__download_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -289,7 +289,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/files/{file_id}/rag-status": {
+    "/api/v1/google-drive/files/{file_id}/rag-status": {
         parameters: {
             query?: never;
             header?: never;
@@ -300,7 +300,7 @@ export interface paths {
          * Get File Rag Status
          * @description Get the RAG processing status for a single file.
          */
-        get: operations["get_file_rag_status_api_v1_googledrive_files__file_id__rag_status_get"];
+        get: operations["get_file_rag_status_api_v1_google_drive_files__file_id__rag_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -309,7 +309,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/folders": {
+    "/api/v1/google-drive/folders": {
         parameters: {
             query?: never;
             header?: never;
@@ -320,20 +320,20 @@ export interface paths {
          * List Folders
          * @description List synced Google Drive folders for the current user with pagination.
          */
-        get: operations["list_folders_api_v1_googledrive_folders_get"];
+        get: operations["list_folders_api_v1_google_drive_folders_get"];
         put?: never;
         /**
          * Create Folder
          * @description Create a new folder in Google Drive and sync it.
          */
-        post: operations["create_folder_api_v1_googledrive_folders_post"];
+        post: operations["create_folder_api_v1_google_drive_folders_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/folders/sync": {
+    "/api/v1/google-drive/folders/sync": {
         parameters: {
             query?: never;
             header?: never;
@@ -346,14 +346,14 @@ export interface paths {
          * Sync Folder
          * @description Sync an existing Google Drive folder.
          */
-        post: operations["sync_folder_api_v1_googledrive_folders_sync_post"];
+        post: operations["sync_folder_api_v1_google_drive_folders_sync_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/folders/{folder_id}": {
+    "/api/v1/google-drive/folders/{folder_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -364,20 +364,20 @@ export interface paths {
          * Get Folder
          * @description Get a synced folder with its files.
          */
-        get: operations["get_folder_api_v1_googledrive_folders__folder_id__get"];
+        get: operations["get_folder_api_v1_google_drive_folders__folder_id__get"];
         put?: never;
         post?: never;
         /**
          * Delete Folder
          * @description Remove a folder and all its files from Sparkth tracking.
          */
-        delete: operations["delete_folder_api_v1_googledrive_folders__folder_id__delete"];
+        delete: operations["delete_folder_api_v1_google_drive_folders__folder_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/folders/{folder_id}/files": {
+    "/api/v1/google-drive/folders/{folder_id}/files": {
         parameters: {
             query?: never;
             header?: never;
@@ -388,20 +388,20 @@ export interface paths {
          * List Files
          * @description List files in a synced folder with pagination.
          */
-        get: operations["list_files_api_v1_googledrive_folders__folder_id__files_get"];
+        get: operations["list_files_api_v1_google_drive_folders__folder_id__files_get"];
         put?: never;
         /**
          * Upload File
          * @description Upload a file to a Google Drive folder.
          */
-        post: operations["upload_file_api_v1_googledrive_folders__folder_id__files_post"];
+        post: operations["upload_file_api_v1_google_drive_folders__folder_id__files_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/folders/{folder_id}/rag-status": {
+    "/api/v1/google-drive/folders/{folder_id}/rag-status": {
         parameters: {
             query?: never;
             header?: never;
@@ -412,7 +412,7 @@ export interface paths {
          * Get Folder Rag Status
          * @description Get the RAG processing status for all files in a folder.
          */
-        get: operations["get_folder_rag_status_api_v1_googledrive_folders__folder_id__rag_status_get"];
+        get: operations["get_folder_rag_status_api_v1_google_drive_folders__folder_id__rag_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -421,7 +421,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/folders/{folder_id}/refresh": {
+    "/api/v1/google-drive/folders/{folder_id}/refresh": {
         parameters: {
             query?: never;
             header?: never;
@@ -434,14 +434,14 @@ export interface paths {
          * Refresh Folder
          * @description Refresh folder contents from Google Drive.
          */
-        post: operations["refresh_folder_api_v1_googledrive_folders__folder_id__refresh_post"];
+        post: operations["refresh_folder_api_v1_google_drive_folders__folder_id__refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/oauth/authorize": {
+    "/api/v1/google-drive/oauth/authorize": {
         parameters: {
             query?: never;
             header?: never;
@@ -452,7 +452,7 @@ export interface paths {
          * Get Authorization Url
          * @description Generate Google OAuth authorization URL.
          */
-        get: operations["get_authorization_url_api_v1_googledrive_oauth_authorize_get"];
+        get: operations["get_authorization_url_api_v1_google_drive_oauth_authorize_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -461,7 +461,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/oauth/callback": {
+    "/api/v1/google-drive/oauth/callback": {
         parameters: {
             query?: never;
             header?: never;
@@ -472,7 +472,7 @@ export interface paths {
          * Oauth Callback
          * @description Handle OAuth callback from Google.
          */
-        get: operations["oauth_callback_api_v1_googledrive_oauth_callback_get"];
+        get: operations["oauth_callback_api_v1_google_drive_oauth_callback_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -481,7 +481,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/oauth/disconnect": {
+    "/api/v1/google-drive/oauth/disconnect": {
         parameters: {
             query?: never;
             header?: never;
@@ -495,13 +495,13 @@ export interface paths {
          * Disconnect Drive
          * @description Disconnect Google Drive by revoking and deleting tokens.
          */
-        delete: operations["disconnect_drive_api_v1_googledrive_oauth_disconnect_delete"];
+        delete: operations["disconnect_drive_api_v1_google_drive_oauth_disconnect_delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/googledrive/oauth/status": {
+    "/api/v1/google-drive/oauth/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -512,7 +512,7 @@ export interface paths {
          * Get Connection Status
          * @description Get Google Drive connection status.
          */
-        get: operations["get_connection_status_api_v1_googledrive_oauth_status_get"];
+        get: operations["get_connection_status_api_v1_google_drive_oauth_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -985,8 +985,8 @@ export interface components {
             /** Size */
             size: number;
         };
-        /** Body_upload_file_api_v1_googledrive_folders__folder_id__files_post */
-        Body_upload_file_api_v1_googledrive_folders__folder_id__files_post: {
+        /** Body_upload_file_api_v1_google_drive_folders__folder_id__files_post */
+        Body_upload_file_api_v1_google_drive_folders__folder_id__files_post: {
             /**
              * File
              * Format: binary
@@ -2208,7 +2208,7 @@ export interface operations {
             };
         };
     };
-    browse_drive_api_v1_googledrive_browse_get: {
+    browse_drive_api_v1_google_drive_browse_get: {
         parameters: {
             query?: {
                 /** @description Drive folder ID to browse (root if omitted) */
@@ -2242,7 +2242,7 @@ export interface operations {
             };
         };
     };
-    get_file_api_v1_googledrive_files__file_id__get: {
+    get_file_api_v1_google_drive_files__file_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2273,7 +2273,7 @@ export interface operations {
             };
         };
     };
-    delete_file_api_v1_googledrive_files__file_id__delete: {
+    delete_file_api_v1_google_drive_files__file_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -2306,7 +2306,7 @@ export interface operations {
             };
         };
     };
-    rename_file_api_v1_googledrive_files__file_id__patch: {
+    rename_file_api_v1_google_drive_files__file_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -2341,7 +2341,7 @@ export interface operations {
             };
         };
     };
-    download_file_api_v1_googledrive_files__file_id__download_get: {
+    download_file_api_v1_google_drive_files__file_id__download_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2372,7 +2372,7 @@ export interface operations {
             };
         };
     };
-    get_file_rag_status_api_v1_googledrive_files__file_id__rag_status_get: {
+    get_file_rag_status_api_v1_google_drive_files__file_id__rag_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2403,7 +2403,7 @@ export interface operations {
             };
         };
     };
-    list_folders_api_v1_googledrive_folders_get: {
+    list_folders_api_v1_google_drive_folders_get: {
         parameters: {
             query?: {
                 /** @description Number of items to skip */
@@ -2437,7 +2437,7 @@ export interface operations {
             };
         };
     };
-    create_folder_api_v1_googledrive_folders_post: {
+    create_folder_api_v1_google_drive_folders_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2470,7 +2470,7 @@ export interface operations {
             };
         };
     };
-    sync_folder_api_v1_googledrive_folders_sync_post: {
+    sync_folder_api_v1_google_drive_folders_sync_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2503,7 +2503,7 @@ export interface operations {
             };
         };
     };
-    get_folder_api_v1_googledrive_folders__folder_id__get: {
+    get_folder_api_v1_google_drive_folders__folder_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2534,7 +2534,7 @@ export interface operations {
             };
         };
     };
-    delete_folder_api_v1_googledrive_folders__folder_id__delete: {
+    delete_folder_api_v1_google_drive_folders__folder_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -2567,7 +2567,7 @@ export interface operations {
             };
         };
     };
-    list_files_api_v1_googledrive_folders__folder_id__files_get: {
+    list_files_api_v1_google_drive_folders__folder_id__files_get: {
         parameters: {
             query?: {
                 /** @description Number of items to skip */
@@ -2603,7 +2603,7 @@ export interface operations {
             };
         };
     };
-    upload_file_api_v1_googledrive_folders__folder_id__files_post: {
+    upload_file_api_v1_google_drive_folders__folder_id__files_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2614,7 +2614,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_file_api_v1_googledrive_folders__folder_id__files_post"];
+                "multipart/form-data": components["schemas"]["Body_upload_file_api_v1_google_drive_folders__folder_id__files_post"];
             };
         };
         responses: {
@@ -2638,7 +2638,7 @@ export interface operations {
             };
         };
     };
-    get_folder_rag_status_api_v1_googledrive_folders__folder_id__rag_status_get: {
+    get_folder_rag_status_api_v1_google_drive_folders__folder_id__rag_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2669,7 +2669,7 @@ export interface operations {
             };
         };
     };
-    refresh_folder_api_v1_googledrive_folders__folder_id__refresh_post: {
+    refresh_folder_api_v1_google_drive_folders__folder_id__refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2700,7 +2700,7 @@ export interface operations {
             };
         };
     };
-    get_authorization_url_api_v1_googledrive_oauth_authorize_get: {
+    get_authorization_url_api_v1_google_drive_oauth_authorize_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2720,7 +2720,7 @@ export interface operations {
             };
         };
     };
-    oauth_callback_api_v1_googledrive_oauth_callback_get: {
+    oauth_callback_api_v1_google_drive_oauth_callback_get: {
         parameters: {
             query: {
                 code: string;
@@ -2752,7 +2752,7 @@ export interface operations {
             };
         };
     };
-    disconnect_drive_api_v1_googledrive_oauth_disconnect_delete: {
+    disconnect_drive_api_v1_google_drive_oauth_disconnect_delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -2774,7 +2774,7 @@ export interface operations {
             };
         };
     };
-    get_connection_status_api_v1_googledrive_oauth_status_get: {
+    get_connection_status_api_v1_google_drive_oauth_status_get: {
         parameters: {
             query?: never;
             header?: never;

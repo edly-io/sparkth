@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.lib.documents import DocumentStatus
@@ -12,7 +11,6 @@ from app.rag.mcp.tools import (
     get_document_metadata,
     get_document_structure,
     list_document_sections,
-    list_user_documents,
     search_section_by_keyword,
 )
 from app.rag.types import DocumentSection
@@ -32,55 +30,11 @@ def _mock_document(
     return doc
 
 
-class TestListUserDocuments:
-    """Test list_user_documents tool."""
-
-    @pytest.mark.asyncio
-    async def test_returns_ready_documents_only(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_result = MagicMock()
-            mock_result.all.return_value = [_mock_document(document_id=10)]
-            mock_session.exec = AsyncMock(return_value=mock_result)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            result = await list_user_documents(user_id=1)
-
-        assert len(result) == 1
-        assert result[0].id == 10
-        assert result[0].name == "example.pdf"
-        assert result[0].mime_type == "application/pdf"
-        assert result[0].rag_status == DocumentStatus.READY
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_when_no_ready_documents(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_result = MagicMock()
-            mock_result.all.return_value = []
-            mock_session.exec = AsyncMock(return_value=mock_result)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            result = await list_user_documents(user_id=1)
-
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_sqlalchemy_error_raises(self) -> None:
-        with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            with pytest.raises(SQLAlchemyError):
-                await list_user_documents(user_id=1)
-
-
 class TestGetDocumentMetadata:
     """Test get_document_metadata tool."""
 
     @pytest.mark.asyncio
-    async def test_returns_metadata_for_owned_document(self) -> None:
+    async def test_returns_metadata_for_document(self) -> None:
         with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_doc_result = MagicMock()
@@ -88,7 +42,7 @@ class TestGetDocumentMetadata:
             mock_session.exec = AsyncMock(return_value=mock_doc_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await get_document_metadata(user_id=1, document_id=10)
+            result = await get_document_metadata(document_id=10)
 
         assert result is not None
         assert result.id == 10
@@ -105,12 +59,12 @@ class TestGetDocumentMetadata:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await get_document_metadata(user_id=1, document_id=999)
+            result = await get_document_metadata(document_id=999)
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_scoped_to_user_id(self) -> None:
+    async def test_executes_document_lookup(self) -> None:
         with patch("app.rag.mcp.tools.session_scope") as mock_get_session:
             mock_session = AsyncMock(spec=AsyncSession)
             mock_result = MagicMock()
@@ -118,7 +72,7 @@ class TestGetDocumentMetadata:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            await get_document_metadata(user_id=5, document_id=1)
+            await get_document_metadata(document_id=1)
 
         assert mock_session.exec.called
 
@@ -140,7 +94,7 @@ class TestListDocumentSections:
             mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_sections_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await list_document_sections(user_id=1, document_id=10)
+            result = await list_document_sections(document_id=10)
 
         assert len(result) == 1
         assert result[0].chapter == "Ch1"
@@ -155,7 +109,7 @@ class TestListDocumentSections:
             mock_session.exec = AsyncMock(return_value=mock_result)
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await list_document_sections(user_id=1, document_id=999)
+            result = await list_document_sections(document_id=999)
 
         assert result == []
 
@@ -177,7 +131,7 @@ class TestGetChunkStats:
             mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_stats_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await get_chunk_stats(user_id=1, document_id=10)
+            result = await get_chunk_stats(document_id=10)
 
         assert result is not None
         assert result.source_name == "test.pdf"
@@ -205,10 +159,10 @@ class TestGetDocumentStructure:
             new_callable=AsyncMock,
             return_value=expected,
         ) as mock_get_rag_ingested_structure:
-            result = await get_document_structure(user_id=1, document_id=10)
+            result = await get_document_structure(document_id=10)
 
         assert result == expected
-        mock_get_rag_ingested_structure.assert_awaited_once_with(1, 10)
+        mock_get_rag_ingested_structure.assert_awaited_once_with(10)
 
 
 class TestSearchSectionByKeyword:
@@ -228,7 +182,7 @@ class TestSearchSectionByKeyword:
             mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_search_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await search_section_by_keyword(user_id=1, document_id=10, keyword="photo")
+            result = await search_section_by_keyword(document_id=10, keyword="photo")
 
         assert len(result) == 1
         assert result[0].section == "Photosynthesis"
@@ -247,13 +201,13 @@ class TestSearchSectionByKeyword:
             mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_search_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            result = await search_section_by_keyword(user_id=1, document_id=10, keyword="nonexistent")
+            result = await search_section_by_keyword(document_id=10, keyword="nonexistent")
 
         assert result == []
 
     @pytest.mark.asyncio
     async def test_empty_keyword_returns_empty(self) -> None:
-        result = await search_section_by_keyword(user_id=1, document_id=1, keyword="")
+        result = await search_section_by_keyword(document_id=1, keyword="")
         assert result == []
 
     @pytest.mark.asyncio
@@ -272,7 +226,7 @@ class TestSearchSectionByKeyword:
             mock_session.exec = AsyncMock(side_effect=[mock_doc_result, mock_search_result])
             mock_get_session.return_value.__aenter__.return_value = mock_session
 
-            await search_section_by_keyword(user_id=1, document_id=10, keyword=r"foo\bar")
+            await search_section_by_keyword(document_id=10, keyword=r"foo\bar")
 
         search_stmt = mock_session.exec.call_args_list[1][0][0]
         compiled = search_stmt.compile(

@@ -82,28 +82,27 @@ class MyLmsConfig(PluginConfig):
         )
 ```
 
-Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is registered in `PLUGIN_CONFIG_CLASSES`.
+Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is contributed to the `CONFIG_SCHEMAS` hook (see below).
 
 
 ## Register the plugin configuration class
 
-Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely (the built-in `google-drive` plugin has no entry in `PLUGIN_CONFIG_CLASSES`).
+Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely.
 
-When you do register one, add your plugin’s config class to the `PLUGIN_CONFIG_CLASSES` mapping. **The dict key must be the plugin's _derived_ name** — see [Plugin Name Derivation](#plugin-name-derivation) below. For a class named `FooBarPlugin` the key is `foo-bar`.
+When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _derived_ name (the value passed to `__init__` — see [Plugin Name Derivation](#plugin-name-derivation) below), so no name string is needed at the call site.
 
 ```python
-# app/plugins/__init__.py
+# app/core_plugins/myappplugin/plugin.py
 
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
+from app.lib.config.hooks import CONFIG_SCHEMAS
+from app.plugins.base import SparkthPlugin
 
-# ...
 
-PLUGIN_CONFIG_CLASSES = {
-    "canvas": CanvasConfig,
-    "open-edx": OpenEdxConfig,
-    "my-app": MyAppPluginConfig  # key = derived plugin name, not an arbitrary label
-}
-
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
 ```
 
 
@@ -224,53 +223,52 @@ You do **not** choose the plugin name freely. The `PluginLoader` instantiates ea
 | `MyAppPlugin` | `my-app` |
 | `Slack` (no suffix) | `slack` |
 
-This derived name is what gets passed to your `__init__` and is the key you must use in `PLUGIN_CONFIG_CLASSES` and `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
+This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and the key you must use in `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
 
 
 ## Basic Plugin Structure
 
 The loader constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
+A plugin contributes its capabilities from its `__init__`:
+routes via `register_router`, MCP tools to `MCP_TOOLS`, and a config schema to `CONFIG_SCHEMAS`.
+
 ```python
 # app/core_plugins/myappplugin/plugin.py
-from app.plugins.base import SparkthPlugin, tool
 from fastapi import APIRouter
+
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
+from app.lib.config.hooks import CONFIG_SCHEMAS
+from app.lib.mcp.hooks import MCP_TOOLS, Tool
+from app.lib.routes import register_router
+from app.plugins.base import SparkthPlugin
 
 # Create router outside the class
-router = APIRouter(prefix="/my-app", tags=["My Plugin"])
+router = APIRouter()
 
 @router.get("/")
 async def get_data():
     return {"message": "Hello from my plugin"}
 
-@router.post("/items")
-async def create_item(data: dict):
-    return {"created": True}
-
 
 # Plugin class
 class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(
-            plugin_name,                  # name is supplied by the plugin loader
-            MyAppPluginConfig             # config_schema
-        )
-        # Add the router
-        self.add_route(router)
+        super().__init__(plugin_name)  # name is supplied by the plugin loader
+        CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
+        register_router(self, router)
+        MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
 
-    # MCP Tools using @tool decorator
-    @tool(description="Process some input", category="utilities")
-    async def process_data(self, input: str) -> str:
-        """Process the input and return result."""
-        return f"Processed: {input}"
+async def process_data(input: str) -> str:
+    """Process some input and return the result."""
+    return f"Processed: {input}"
 ```
 
 ### Where do plugin routes get mounted?
 
-By default, plugin routes are served at **the path in the router's own `prefix`**, mounted at the application root — there is no automatic `/api/v1` prefix. The router above (`prefix="/my-app"`) is reachable at `http://localhost:7727/my-app/`.
-
-To mount your routes under a different base, override `get_route_prefix()` on the plugin class (it returns `None` by default, meaning "root"). For example, the built-in `chat` plugin returns `"/api/v1"` so its routes land under `/api/v1/chat`.
+`register_router` mounts the router at `/api/v1/<plugin-name>` automatically, derived
+from the plugin instance. The router above is reachable at
+`http://localhost:7727/api/v1/my-app/`.
 
 ## Register in core/config.py
 ```python
@@ -297,8 +295,9 @@ from app.core_plugins.my_app.models import MyModel  # noqa: F401
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name, MyAppPluginConfig)
-        self.add_route(router)   # Register router
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
+        register_router(self, router)
 ```
 
 Then create migration:
@@ -309,45 +308,63 @@ alembic upgrade head
 
 ## MCP Tools
 
-Tools are defined using the `@tool` decorator on class methods:
+A tool is a plugin method registered with the `MCP_TOOLS` hook via a `Tool`
+(`app/lib/mcp/hooks.py`). The tool's **name** is the method name, its **description**
+is the method's docstring, and its input schema is auto-generated from the signature.
+Register each tool in `__init__`; pass an optional `category` to group it.
 
 ```python
-@tool(description="Tool description", category="category")
-async def my_tool(self, param1: str, param2: int = 0) -> dict:
-    """
-    Tool documentation.
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name)
+        MCP_TOOLS.add_item(self, Tool(my_tool, category="my-category"))
+
+async def my_tool(param1: str, param2: int = 0) -> dict:
+    """One-line summary the LLM sees as the tool description.
 
     Args:
         param1: First parameter
         param2: Optional parameter
-
-    Returns:
-        Result dictionary
     """
     return {"result": f"{param1}-{param2}"}
+```
+
+When a plugin has many tools, register them with a loop:
+
+```python
+tools: list[tuple[Callable[..., Any], str]] = [
+    (my_tool, "my-category"),
+    (other_tool, "my-category"),
+]
+for handler, category in tools:
+    MCP_TOOLS.add_item(self, Tool(handler, category=category))
 ```
 
 ## Complete Example
 
 ```python
-from app.plugins.base import SparkthPlugin, tool
 from fastapi import APIRouter
 
+from app.lib.mcp.hooks import MCP_TOOLS, Tool
+from app.lib.routes import register_router
+from app.plugins.base import SparkthPlugin
+
 # Router
-router = APIRouter(prefix="/weather", tags=["Weather"])
+router = APIRouter()
 
 @router.get("/{city}")
-async def get_weather(city: str):
+async def get_weather_route(city: str):
     return {"city": city, "temp": 20}
 
 # Plugin (class name WeatherPlugin → derived name "weather")
 class WeatherPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
         super().__init__(plugin_name)
-        self.add_route(router)
+        register_router(self, router)
+        MCP_TOOLS.add_item(self, Tool(self.get_weather, category="weather"))
 
-    @tool(description="Get weather for a city", category="weather")
     async def get_weather(self, city: str) -> dict:
+        """Get the current weather for a city."""
         return {"city": city, "temperature": 20, "unit": "celsius"}
 ```
 
@@ -357,8 +374,8 @@ class WeatherPlugin(SparkthPlugin):
 # Start the FastAPI server locally (http://0.0.0.0:7727)
 make backend.up.dev
 
-# Test API (routes mount at the router's own prefix by default — see below)
-curl http://localhost:7727/my-app/
+# Test API (routes mount at /api/v1/<plugin-name>)
+curl http://localhost:7727/api/v1/my-app/
 ```
 
 For real-world examples, see `core_plugins/canvas/` directory.

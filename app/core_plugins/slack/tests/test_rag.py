@@ -14,6 +14,7 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.rag import (
+    _format_context,
     _resolve_document_ids_for_sources,
     answer_question,
 )
@@ -99,8 +100,6 @@ def _make_retrieved_chunk(content: str, source_name: str = "docs.pdf") -> Retrie
 
 
 def test_format_context_groups_by_source_and_labels_sections() -> None:
-    from app.core_plugins.slack.rag import _format_context
-
     chunks = [
         RetrievedChunk(source_name="a.pdf", chapter="Ch1", section="S1", subsection=None, content="text A"),
         RetrievedChunk(source_name="b.pdf", chapter=None, section=None, subsection=None, content="text B"),

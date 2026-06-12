@@ -17,6 +17,8 @@ from app.lib.rag import (
     agentic_retrieve_context,
     ingest_document,
 )
+from app.rag.models import DocumentChunk
+from app.rag.types import RAGContext
 
 
 class TestRagPublicApi:
@@ -109,14 +111,11 @@ class TestRetrieveContextSurface:
 class TestRetrieveContext:
     @pytest.mark.asyncio
     async def test_empty_document_ids_returns_empty(self) -> None:
-        result = await agentic_retrieve_context("q", [], 1, MagicMock())
+        result = await agentic_retrieve_context("q", [], MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
     async def test_returns_retrieved_chunks_from_document(self) -> None:
-        from app.rag.models import DocumentChunk
-        from app.rag.types import RAGContext
-
         mock_ctx = RAGContext(
             document_id=10,
             source_name="a.pdf",
@@ -137,7 +136,7 @@ class TestRetrieveContext:
                 "app.rag.retrieval.get_context_via_agent_with_isolated_session", new=AsyncMock(return_value=mock_ctx)
             ) as mock_fn,
         ):
-            result = await agentic_retrieve_context("q", [10], 1, MagicMock())
+            result = await agentic_retrieve_context("q", [10], MagicMock())
         assert len(result) == 1
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"

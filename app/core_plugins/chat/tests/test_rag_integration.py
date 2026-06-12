@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.routes.helpers import extract_query_text, resolve_document_blocks
 from app.core_plugins.chat.schemas import ChatMessage
@@ -118,8 +117,6 @@ class TestResolveDocumentBlocks:
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             result = await resolve_document_blocks(
                 messages=messages,
-                session=MagicMock(spec=AsyncSession),
-                user_id=1,
                 llm=MagicMock(),
             )
         mock_retrieve.assert_not_called()
@@ -134,8 +131,6 @@ class TestResolveDocumentBlocks:
             mock_retrieve.return_value = chunks
             result = await resolve_document_blocks(
                 messages=messages,
-                session=MagicMock(spec=AsyncSession),
-                user_id=1,
                 llm=MagicMock(),
             )
 
@@ -159,8 +154,6 @@ class TestResolveDocumentBlocks:
             mock_retrieve.return_value = []
             result = await resolve_document_blocks(
                 messages=messages,
-                session=MagicMock(spec=AsyncSession),
-                user_id=1,
                 llm=MagicMock(),
             )
         content = result[0].content
@@ -176,8 +169,6 @@ class TestResolveDocumentBlocks:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=MagicMock(spec=AsyncSession),
-                    user_id=1,
                     llm=MagicMock(),
                 )
         assert exc_info.value.status_code == 422
@@ -191,8 +182,6 @@ class TestResolveDocumentBlocks:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=MagicMock(spec=AsyncSession),
-                    user_id=1,
                     llm=MagicMock(),
                 )
         assert exc_info.value.status_code == 422
@@ -207,8 +196,6 @@ class TestResolveDocumentBlocks:
             with pytest.raises(HTTPException) as exc_info:
                 await resolve_document_blocks(
                     messages=messages,
-                    session=MagicMock(spec=AsyncSession),
-                    user_id=1,
                     llm=MagicMock(),
                 )
         assert exc_info.value.status_code == 500
@@ -221,8 +208,6 @@ class TestResolveDocumentBlocks:
             mock_retrieve.return_value = []
             result = await resolve_document_blocks(
                 messages=messages,
-                session=MagicMock(spec=AsyncSession),
-                user_id=1,
                 llm=MagicMock(),
             )
 
@@ -240,8 +225,6 @@ class TestResolveDocumentBlocks:
         with patch(RETRIEVE_CONTEXT_PATH, new_callable=AsyncMock) as mock_retrieve:
             result = await resolve_document_blocks(
                 messages=messages,
-                session=MagicMock(spec=AsyncSession),
-                user_id=1,
                 llm=MagicMock(),
             )
         mock_retrieve.assert_not_called()

@@ -15,27 +15,25 @@ logger = get_logger(__name__)
 
 async def _lookup_document(
     session: AsyncSession,
-    user_id: int,
     document_id: int,
 ) -> Document:
-    """Return the Document if owned by user_id, not deleted, and READY.
+    """Return the Document if it exists, is not deleted, and is READY.
 
     Raises:
-        DocumentNotFoundError: document missing, wrong owner, or soft-deleted.
+        DocumentNotFoundError: document missing or soft-deleted.
         RAGNotReadyError: document exists but status is not READY.
     """
     result = await session.exec(
         select(Document).where(
             col(Document.id) == document_id,
-            col(Document.user_id) == user_id,
             col(Document.is_deleted) == False,  # noqa: E712
         )
     )
     doc = result.first()
 
     if doc is None:
-        logger.warning("Document not found: id=%d user_id=%d", document_id, user_id)
-        raise DocumentNotFoundError(f"Document with id={document_id} not found or not accessible.")
+        logger.warning("Document not found: id=%d", document_id)
+        raise DocumentNotFoundError(f"Document with id={document_id} not found.")
 
     if doc.status != DocumentStatus.READY:
         status_str = str(doc.status)
@@ -65,17 +63,16 @@ def format_chunks_as_context(source_name: str, chunks: list[DocumentChunk]) -> s
     return "\n".join(lines)
 
 
-async def validate_documents_ready(session: AsyncSession, user_id: int, document_ids: list[int]) -> None:
-    """Verify every document is owned by user_id and in READY state.
+async def validate_documents_ready(session: AsyncSession, document_ids: list[int]) -> None:
+    """Verify every document exists, is not deleted, and is in READY state.
 
     Raises:
-        DocumentNotFoundError: a document id is missing or not owned by the user.
+        DocumentNotFoundError: a document id is missing or soft-deleted.
         RAGNotReadyError: a document exists but its status is not READY.
     """
     result = await session.exec(
         select(Document).where(
             col(Document.id).in_(document_ids),
-            col(Document.user_id) == user_id,
             col(Document.is_deleted) == False,  # noqa: E712
         )
     )
@@ -83,8 +80,8 @@ async def validate_documents_ready(session: AsyncSession, user_id: int, document
     for doc_id in document_ids:
         doc = found.get(doc_id)
         if doc is None:
-            logger.warning("Document not found: id=%d user_id=%d", doc_id, user_id)
-            raise DocumentNotFoundError(f"Document with id={doc_id} not found or not accessible.")
+            logger.warning("Document not found: id=%d", doc_id)
+            raise DocumentNotFoundError(f"Document with id={doc_id} not found.")
         if doc.status != DocumentStatus.READY:
             status_str = str(doc.status)
             logger.warning("RAG not ready: document_id=%d status=%s", doc_id, status_str)

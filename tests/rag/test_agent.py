@@ -44,7 +44,7 @@ class TestRunRagSearch:
         agent = self._make_agent({"structured_response": expected})
 
         with self._patch_build_tools(), self._patch_agent(agent):
-            result = await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
+            result = await run_agentic_rag_retrieval(MagicMock(), 2, "intro")
 
         assert result.source_name == "doc.pdf"
         assert len(result.selected_sections) == 1
@@ -55,7 +55,7 @@ class TestRunRagSearch:
         agent = self._make_agent({"messages": []})
 
         with self._patch_build_tools(), self._patch_agent(agent):
-            result = await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
+            result = await run_agentic_rag_retrieval(MagicMock(), 2, "intro")
 
         assert result.source_name == ""
         assert result.selected_sections == []
@@ -67,7 +67,7 @@ class TestRunRagSearch:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
+                await run_agentic_rag_retrieval(MagicMock(), 2, "intro")
 
     @pytest.mark.asyncio
     async def test_langchain_exception_raises_retrieval_error(self) -> None:
@@ -76,7 +76,7 @@ class TestRunRagSearch:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError):
-                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
+                await run_agentic_rag_retrieval(MagicMock(), 2, "intro")
 
     @pytest.mark.asyncio
     async def test_graph_recursion_error_raises_retrieval_error(self) -> None:
@@ -85,7 +85,7 @@ class TestRunRagSearch:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(RAGRetrievalError, match="maximum steps"):
-                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
+                await run_agentic_rag_retrieval(MagicMock(), 2, "intro")
 
     @pytest.mark.asyncio
     async def test_value_error_propagates(self) -> None:
@@ -94,4 +94,4 @@ class TestRunRagSearch:
 
         with self._patch_build_tools(), self._patch_agent(agent):
             with pytest.raises(ValueError):
-                await run_agentic_rag_retrieval(MagicMock(), 1, 2, "intro")
+                await run_agentic_rag_retrieval(MagicMock(), 2, "intro")

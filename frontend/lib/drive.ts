@@ -1,4 +1,4 @@
-const API_BASE_URL = "/api/v1/googledrive";
+const API_BASE_URL = "/api/v1/google-drive";
 
 export interface ConnectionStatus {
   connected: boolean;

@@ -5,6 +5,7 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
 from app.core_plugins.chat.tools import ToolRegistry
+from app.lib.mcp.hooks import Tool
 
 
 # Test models (mimic the OpenEdX nested-model pattern)
@@ -192,12 +193,7 @@ class TestConvertToPydantic:
 class TestConvertMcpToLangchainTool:
     def test_single_model_param_produces_flat_schema(self, registry: ToolRegistry) -> None:
         """args_schema should expose the model's fields directly, not a 'payload' wrapper."""
-        mcp_tool: dict[str, Any] = {
-            "name": "test_tool",
-            "description": "A test tool",
-            "handler": _handler_single_model,
-            "inputSchema": {},
-        }
+        mcp_tool = Tool(_handler_single_model)
         lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
 
         assert lc_tool.args_schema is not None
@@ -209,12 +205,7 @@ class TestConvertMcpToLangchainTool:
         assert "auth" in props
 
     def test_multi_param_preserves_param_names(self, registry: ToolRegistry) -> None:
-        mcp_tool: dict[str, Any] = {
-            "name": "multi_tool",
-            "description": "Multi param tool",
-            "handler": _handler_multi_params,
-            "inputSchema": {},
-        }
+        mcp_tool = Tool(_handler_multi_params)
         lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
 
         assert lc_tool.args_schema is not None
@@ -232,12 +223,7 @@ class TestConvertMcpToLangchainTool:
             received.append(payload)
             return {"ok": True}
 
-        mcp_tool: dict[str, Any] = {
-            "name": "exec_test",
-            "description": "Exec test",
-            "handler": handler,
-            "inputSchema": {},
-        }
+        mcp_tool = Tool(handler)
         lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
 
         # Simulate what providers.py does: call coroutine with flat kwargs
@@ -259,12 +245,7 @@ class TestConvertMcpToLangchainTool:
             received.append(payload)
             return {"created": True}
 
-        mcp_tool: dict[str, Any] = {
-            "name": "nested_exec",
-            "description": "Nested exec test",
-            "handler": handler,
-            "inputSchema": {},
-        }
+        mcp_tool = Tool(handler)
         lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
 
         assert lc_tool.coroutine is not None
