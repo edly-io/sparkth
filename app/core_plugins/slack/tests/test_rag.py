@@ -14,7 +14,6 @@ from app.core_plugins.slack.constants import (
 )
 from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.rag import (
-    _format_context,
     _resolve_document_ids_for_sources,
     answer_question,
 )
@@ -24,6 +23,8 @@ from app.lib.rag import (
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
+    format_source_block,
+    group_by_source,
 )
 
 
@@ -99,21 +100,29 @@ def _make_retrieved_chunk(content: str, source_name: str = "docs.pdf") -> Retrie
     )
 
 
-def test_format_context_groups_by_source_and_labels_sections() -> None:
+def test_group_by_source_preserves_insertion_order_and_groups() -> None:
     chunks = [
         RetrievedChunk(source_name="a.pdf", chapter="Ch1", section="S1", subsection=None, content="text A"),
         RetrievedChunk(source_name="b.pdf", chapter=None, section=None, subsection=None, content="text B"),
         RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="text A2"),
     ]
-    result = _format_context(chunks)
+    grouped = group_by_source(chunks)
+    assert list(grouped.keys()) == ["a.pdf", "b.pdf"]
+    assert len(grouped["a.pdf"]) == 2
+    assert len(grouped["b.pdf"]) == 1
 
+
+def test_format_source_block_renders_header_and_excerpts() -> None:
+    chunks = [
+        RetrievedChunk(source_name="a.pdf", chapter="Ch1", section="S1", subsection=None, content="text A"),
+        RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="text A2"),
+    ]
+    result = format_source_block("a.pdf", chunks)
     assert "[DOCUMENT CONTEXT: a.pdf]" in result
-    assert "[DOCUMENT CONTEXT: b.pdf]" in result
-    assert "Ch1 / S1" in result  # partial-field section label
-    assert "General" in result  # all-None fallback label
-    assert result.index("a.pdf") < result.index("b.pdf")  # insertion order preserved
+    assert "Ch1 / S1" in result
+    assert "General" in result
     assert "--- Excerpt 1" in result
-    assert "--- Excerpt 2" in result  # a.pdf grouped two chunks
+    assert "--- Excerpt 2" in result
 
 
 @pytest.mark.asyncio

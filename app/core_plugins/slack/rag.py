@@ -23,36 +23,12 @@ from app.lib.rag import (
     DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
-    RetrievedChunk,
     agentic_retrieve_context,
+    format_source_block,
+    group_by_source,
 )
 
 logger = get_logger(__name__)
-
-
-# TODO: this function is almost similar to app.core_plugins.chat.routes.helpers.format_source_block
-# we need to figure out how to remove this duplication.
-def _format_context(chunks: list[RetrievedChunk]) -> str:
-    """Render retrieved chunks as per-document context blocks for synthesis."""
-    by_source: dict[str, list[RetrievedChunk]] = {}
-    order: list[str] = []
-    for c in chunks:
-        if c.source_name not in by_source:
-            order.append(c.source_name)
-            by_source[c.source_name] = []
-        by_source[c.source_name].append(c)
-
-    blocks: list[str] = []
-    for source in order:
-        lines = [f"[DOCUMENT CONTEXT: {source}]", "The following excerpts were retrieved:", ""]
-        for i, c in enumerate(by_source[source], 1):
-            parts = [p for p in [c.chapter, c.section, c.subsection] if p]
-            label = " / ".join(parts) if parts else "General"
-            lines.append(f"--- Excerpt {i} (Section: {label}) ---")
-            lines.append(c.content.strip())
-            lines.append("")
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
 
 
 async def _resolve_document_ids_for_sources(
@@ -163,7 +139,9 @@ async def answer_question(
     if not chunks:
         return config.fallback_message, ResponseType.FALLBACK
 
-    formatted_context = _format_context(chunks)
+    formatted_context = "\n\n".join(
+        format_source_block(src, src_chunks) for src, src_chunks in group_by_source(chunks).items()
+    )
 
     if llm_provider:
         try:
