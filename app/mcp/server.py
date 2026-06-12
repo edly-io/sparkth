@@ -1,7 +1,7 @@
 from typing import Any, Callable
 
 from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.lib.log import get_logger
 from app.mcp.prompts.prompt import get_course_generation_prompt
@@ -76,72 +76,42 @@ def register_plugin_tools() -> None:
     4. Checks for naming conflicts
     5. Registers tools with the FastMCP server
 
+    Any failure to load or register a tool is fatal: the exception propagates
+    and crashes application startup.
+
     Note: Assumes plugins are already loaded by the plugin lifespan manager.
     """
-    try:
-        plugin_loader = get_plugin_loader()
+    plugin_loader = get_plugin_loader()
 
-        loaded_plugins = plugin_loader.get_loaded_plugins()
+    loaded_plugins = plugin_loader.get_loaded_plugins()
 
-        if not loaded_plugins:
-            logger.info("No plugins loaded for MCP tool registration")
-            return
+    if not loaded_plugins:
+        logger.info("No plugins loaded for MCP tool registration")
+        return
 
-        loaded_plugin_names = [name for name, _plugin in loaded_plugins]
-        logger.info(f"Registering MCP tools from {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
+    loaded_plugin_names = [name for name, _plugin in loaded_plugins]
+    logger.info(f"Registering MCP tools from {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
 
-        registered_tools: dict[str, str] = {}
-        total_tools = 0
-        total_failed = 0
+    registered_tools: dict[str, str] = {}
+    total_tools = 0
 
-        for plugin_name, plugin in loaded_plugins:
-            plugin_tool_count = 0
-            plugin_failed_count = 0
+    for plugin_name, plugin in loaded_plugins:
+        mcp_tools = plugin.get_mcp_tools()
 
-            try:
-                mcp_tools = plugin.get_mcp_tools()
+        if not mcp_tools:
+            logger.debug(f"Plugin '{plugin_name}' has no MCP tools to register")
+            continue
 
-                if not mcp_tools:
-                    logger.debug(f"Plugin '{plugin_name}' has no MCP tools to register")
-                    continue
+        for tool_def in mcp_tools:
+            _validate_and_register_tool(tool_def, plugin_name, registered_tools)
+            total_tools += 1
 
-                for tool_def in mcp_tools:
-                    try:
-                        success = _validate_and_register_tool(tool_def, plugin_name, registered_tools)
+        logger.info(f"✓ Plugin '{plugin_name}' registered {len(mcp_tools)} tool(s)")
 
-                        if success:
-                            plugin_tool_count += 1
-                            total_tools += 1
-                        else:
-                            plugin_failed_count += 1
-                            total_failed += 1
-
-                    except (ValidationError, ValueError, TypeError) as e:
-                        logger.error(f"Failed to register tool from plugin '{plugin_name}': {e}")
-                        plugin_failed_count += 1
-                        total_failed += 1
-
-                if plugin_tool_count > 0:
-                    logger.info(
-                        f"✓ Plugin '{plugin_name}' registered {plugin_tool_count} tool(s)"
-                        + (f" ({plugin_failed_count} failed)" if plugin_failed_count > 0 else "")
-                    )
-                elif plugin_failed_count > 0:
-                    logger.warning(f"Plugin '{plugin_name}' failed to register {plugin_failed_count} tool(s)")
-
-            except (AttributeError, RuntimeError) as e:
-                logger.error(f"Failed to process MCP tools from plugin '{plugin_name}': {e}")
-
-        logger.info(
-            f"MCP tool registration complete: {total_tools} tool(s) registered successfully"
-            + (f", {total_failed} failed" if total_failed > 0 else "")
-        )
-
-    except RuntimeError as e:
-        logger.error(f"Failed to initialize plugin system for MCP: {e}")
+    logger.info(f"MCP tool registration complete: {total_tools} tool(s) registered successfully")
 
 
-def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, registered_tools: dict[str, str]) -> bool:
+def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, registered_tools: dict[str, str]) -> None:
     """
     Validate and register a single MCP tool using Pydantic validation.
 
@@ -150,34 +120,21 @@ def _validate_and_register_tool(tool_def: dict[str, Any], plugin_name: str, regi
         plugin_name: Name of the plugin providing this tool
         registered_tools: Dictionary tracking already registered tools
 
-    Returns:
-        True if tool was successfully registered, False otherwise
+    Raises on an invalid tool definition, a tool-name conflict, or a
+    registration failure — tool-loading errors are fatal to startup.
     """
-    try:
-        validated_tool = MCPToolDefinition(**tool_def)
-    except ValidationError as e:
-        logger.warning(f"Invalid tool definition from plugin '{plugin_name}': {e}")
-        return False
+    validated_tool = MCPToolDefinition(**tool_def)
 
     if validated_tool.name in registered_tools:
-        logger.warning(
+        raise ValueError(
             f"Tool name conflict: '{validated_tool.name}' already registered by plugin "
-            f"'{registered_tools[validated_tool.name]}'. Skipping registration from '{plugin_name}'."
-        )
-        return False
-    try:
-        mcp.tool(name=validated_tool.name, description=validated_tool.description)(validated_tool.handler)
-
-        registered_tools[validated_tool.name] = plugin_name
-
-        category_str = f" [{validated_tool.category}]" if validated_tool.category else ""
-        version_str = f" v{validated_tool.version}" if validated_tool.version != "1.0.0" else ""
-        logger.info(
-            f"  ✓ Registered tool '{validated_tool.name}'{category_str}{version_str} from plugin '{plugin_name}'"
+            f"'{registered_tools[validated_tool.name]}' (attempted again by '{plugin_name}')."
         )
 
-        return True
+    mcp.tool(name=validated_tool.name, description=validated_tool.description)(validated_tool.handler)
 
-    except (ValueError, TypeError, RuntimeError) as e:
-        logger.error(f"Failed to register tool '{validated_tool.name}' from plugin '{plugin_name}': {e}")
-        return False
+    registered_tools[validated_tool.name] = plugin_name
+
+    category_str = f" [{validated_tool.category}]" if validated_tool.category else ""
+    version_str = f" v{validated_tool.version}" if validated_tool.version != "1.0.0" else ""
+    logger.info(f"  ✓ Registered tool '{validated_tool.name}'{category_str}{version_str} from plugin '{plugin_name}'")
