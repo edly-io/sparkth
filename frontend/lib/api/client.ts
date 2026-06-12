@@ -11,6 +11,8 @@ import type { components, paths } from "./generated";
 
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
+    // A caller-supplied Authorization header (explicit token param) wins.
+    if (request.headers.has("Authorization")) return request;
     const token = getStoredToken();
     if (token) request.headers.set("Authorization", `Bearer ${token}`);
     return request;
