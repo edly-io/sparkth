@@ -1,53 +1,15 @@
-const API_BASE_URL = "/api/v1/google-drive";
+import { api, ApiRequestError, type Schema } from "@/lib/api";
 
-export interface ConnectionStatus {
-  connected: boolean;
-  email?: string;
-  expires_at?: string;
-}
-
-export interface DriveFolder {
-  id: number;
-  drive_folder_id: string;
-  name: string;
-  parent_id?: string;
-  file_count: number;
-  last_synced_at?: string;
-  sync_status: string;
-}
-
-export interface DriveFile {
-  id: number;
-  drive_file_id: string;
-  document_id?: number | null;
-  name: string;
-  mime_type?: string;
-  size?: number;
-  modified_time?: string;
-  last_synced_at?: string;
-  rag_status?: RagStatus | null;
-  rag_error?: string | null;
-}
-
-export interface DriveFolderWithFiles extends DriveFolder {
-  files: DriveFile[];
-}
-
-export interface DriveBrowseItem {
-  id: string;
-  name: string;
-  mime_type: string;
-  is_folder: boolean;
-  modified_time?: string;
-  size?: number;
-}
-
-export interface SyncStatus {
-  folder_id: number;
-  sync_status: string;
-  last_synced_at?: string;
-  error?: string;
-}
+export type ConnectionStatus =
+  Schema<"app__core_plugins__googledrive__schemas__ConnectionStatusResponse">;
+export type DriveFolder = Schema<"DriveFolderResponse">;
+export type DriveFile = Schema<"DriveFileResponse">;
+export type DriveFolderWithFiles = Schema<"DriveFolderWithFilesResponse">;
+export type DriveBrowseItem = Schema<"DriveBrowseItem">;
+export type DriveBrowseResponse = Schema<"DriveBrowseResponse">;
+export type SyncStatus = Schema<"SyncStatusResponse">;
+export type FileRagStatus = Schema<"FileRagStatusResponse">;
+export type FolderRagStatusResponse = Schema<"FolderRagStatusResponse">;
 
 export interface PaginatedResponse<T> {
   items: T[];
@@ -56,64 +18,58 @@ export interface PaginatedResponse<T> {
   limit: number;
 }
 
-async function handleError(message: string, response: Response) {
-  const text = await response.text();
-  let detail = text;
-  try {
-    const json = JSON.parse(text);
-    if (json.detail) detail = json.detail;
-  } catch {
-    // use raw text
+export const RagStatus = {
+  Queued: "queued",
+  Processing: "processing",
+  Ready: "ready",
+  Failed: "failed",
+} as const;
+export type RagStatus = Schema<"DocumentStatus">;
+
+function bearer(token: string): { Authorization: string } {
+  return { Authorization: `Bearer ${token}` };
+}
+
+// This module's public contract is plain Error objects with action-prefixed
+// messages (logged before throwing); network failures propagate untouched.
+function toError(prefix: string, error: unknown): never {
+  if (error instanceof ApiRequestError) {
+    const message = `${prefix}: ${error.message}`;
+    console.error(message);
+    throw new Error(message);
   }
-  const error = `${message}: ${detail}`;
-  console.error(error);
-  throw new Error(error);
+  throw error;
 }
 
 // OAuth functions
 export async function getConnectionStatus(token: string): Promise<ConnectionStatus> {
-  const response = await fetch(`${API_BASE_URL}/oauth/status`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to get connection status", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/oauth/status", {
+      headers: bearer(token),
+    });
+    return data as ConnectionStatus;
+  } catch (error) {
+    toError("Failed to get connection status", error);
   }
-
-  return response.json();
 }
 
 export async function getAuthorizationUrl(token: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/oauth/authorize`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to get authorization URL", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/oauth/authorize", {
+      headers: bearer(token),
+    });
+    return (data as Schema<"app__core_plugins__googledrive__schemas__AuthorizationUrlResponse">)
+      .url;
+  } catch (error) {
+    toError("Failed to get authorization URL", error);
   }
-
-  const data = await response.json();
-  return data.url;
 }
 
 export async function disconnectGoogle(token: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/oauth/disconnect`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to disconnect Google Drive", response);
+  try {
+    await api.DELETE("/api/v1/google-drive/oauth/disconnect", { headers: bearer(token) });
+  } catch (error) {
+    toError("Failed to disconnect Google Drive", error);
   }
 }
 
@@ -142,38 +98,27 @@ export async function listFolders(
   skip = 0,
   limit = 20,
 ): Promise<PaginatedResponse<DriveFolder>> {
-  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
-  const response = await fetch(`${API_BASE_URL}/folders?${params}`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to list folders", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/folders", {
+      params: { query: { skip, limit } },
+      headers: bearer(token),
+    });
+    return data as PaginatedResponse<DriveFolder>;
+  } catch (error) {
+    toError("Failed to list folders", error);
   }
-
-  return response.json();
 }
 
 export async function syncFolder(driveFolderId: string, token: string): Promise<DriveFolder> {
-  const response = await fetch(`${API_BASE_URL}/folders/sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ drive_folder_id: driveFolderId }),
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to sync folder", response);
+  try {
+    const { data } = await api.POST("/api/v1/google-drive/folders/sync", {
+      body: { drive_folder_id: driveFolderId },
+      headers: bearer(token),
+    });
+    return data as DriveFolder;
+  } catch (error) {
+    toError("Failed to sync folder", error);
   }
-
-  return response.json();
 }
 
 export async function createFolder(
@@ -181,66 +126,50 @@ export async function createFolder(
   parentId: string | undefined,
   token: string,
 ): Promise<DriveFolder> {
-  const response = await fetch(`${API_BASE_URL}/folders`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ name, parent_id: parentId }),
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to create folder", response);
+  try {
+    const { data } = await api.POST("/api/v1/google-drive/folders", {
+      body: { name, parent_id: parentId },
+      headers: bearer(token),
+    });
+    return data as DriveFolder;
+  } catch (error) {
+    toError("Failed to create folder", error);
   }
-
-  return response.json();
 }
 
 export async function getFolder(folderId: number, token: string): Promise<DriveFolderWithFiles> {
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to get folder", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}", {
+      params: { path: { folder_id: folderId } },
+      headers: bearer(token),
+    });
+    return data as DriveFolderWithFiles;
+  } catch (error) {
+    toError("Failed to get folder", error);
   }
-
-  return response.json();
 }
 
 export async function removeFolder(folderId: number, token: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to remove folder", response);
+  try {
+    await api.DELETE("/api/v1/google-drive/folders/{folder_id}", {
+      params: { path: { folder_id: folderId } },
+      headers: bearer(token),
+    });
+  } catch (error) {
+    toError("Failed to remove folder", error);
   }
 }
 
 export async function refreshFolder(folderId: number, token: string): Promise<SyncStatus> {
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/refresh`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to refresh folder", response);
+  try {
+    const { data } = await api.POST("/api/v1/google-drive/folders/{folder_id}/refresh", {
+      params: { path: { folder_id: folderId } },
+      headers: bearer(token),
+    });
+    return data as SyncStatus;
+  } catch (error) {
+    toError("Failed to refresh folder", error);
   }
-
-  return response.json();
 }
 
 // File functions
@@ -250,54 +179,47 @@ export async function listFiles(
   skip = 0,
   limit = 20,
 ): Promise<PaginatedResponse<DriveFile>> {
-  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/files?${params}`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to list files", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/files", {
+      params: { path: { folder_id: folderId }, query: { skip, limit } },
+      headers: bearer(token),
+    });
+    return data as PaginatedResponse<DriveFile>;
+  } catch (error) {
+    toError("Failed to list files", error);
   }
-
-  return response.json();
 }
 
 export async function uploadFile(folderId: number, file: File, token: string): Promise<DriveFile> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/files`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to upload file", response);
+  try {
+    const { data } = await api.POST("/api/v1/google-drive/folders/{folder_id}/files", {
+      params: { path: { folder_id: folderId } },
+      body: { file: "" },
+      bodySerializer: () => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return formData;
+      },
+      // Content-Type must stay unset so fetch adds the multipart boundary.
+      headers: { "Content-Type": null, ...bearer(token) },
+    });
+    return data as DriveFile;
+  } catch (error) {
+    toError("Failed to upload file", error);
   }
-
-  return response.json();
 }
 
 export async function downloadFile(fileId: number, token: string): Promise<Blob> {
-  const response = await fetch(`${API_BASE_URL}/files/${fileId}/download`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to download file", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/files/{file_id}/download", {
+      params: { path: { file_id: fileId } },
+      parseAs: "blob",
+      headers: bearer(token),
+    });
+    return data as Blob;
+  } catch (error) {
+    toError("Failed to download file", error);
   }
-
-  return response.blob();
 }
 
 export async function renameFile(
@@ -305,33 +227,26 @@ export async function renameFile(
   newName: string,
   token: string,
 ): Promise<DriveFile> {
-  const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ name: newName }),
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to rename file", response);
+  try {
+    const { data } = await api.PATCH("/api/v1/google-drive/files/{file_id}", {
+      params: { path: { file_id: fileId } },
+      body: { name: newName },
+      headers: bearer(token),
+    });
+    return data as DriveFile;
+  } catch (error) {
+    toError("Failed to rename file", error);
   }
-
-  return response.json();
 }
 
 export async function deleteFile(fileId: number, token: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to delete file", response);
+  try {
+    await api.DELETE("/api/v1/google-drive/files/{file_id}", {
+      params: { path: { file_id: fileId } },
+      headers: bearer(token),
+    });
+  } catch (error) {
+    toError("Failed to delete file", error);
   }
 }
 
@@ -339,70 +254,35 @@ export async function deleteFile(fileId: number, token: string): Promise<void> {
 export async function browseDrive(
   parentId: string | undefined,
   token: string,
-): Promise<{ items: DriveBrowseItem[]; next_page_token?: string }> {
-  const params = new URLSearchParams();
-  if (parentId) {
-    params.append("folder_id", parentId);
+): Promise<DriveBrowseResponse> {
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/browse", {
+      params: { query: parentId ? { folder_id: parentId } : undefined },
+      headers: bearer(token),
+    });
+    return data as DriveBrowseResponse;
+  } catch (error) {
+    toError("Failed to browse Drive", error);
   }
-
-  const url = `${API_BASE_URL}/browse${params.toString() ? `?${params.toString()}` : ""}`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to browse Drive", response);
-  }
-
-  return response.json();
-}
-
-// RAG status types and functions
-export const RagStatus = {
-  Queued: "queued",
-  Processing: "processing",
-  Ready: "ready",
-  Failed: "failed",
-} as const;
-export type RagStatus = (typeof RagStatus)[keyof typeof RagStatus];
-
-export interface FileRagStatus {
-  file_id: number;
-  name: string;
-  rag_status: RagStatus | null;
-  rag_error: string | null;
-}
-
-export interface FolderRagStatusResponse {
-  folder_id: number;
-  files: FileRagStatus[];
 }
 
 export async function getFolderRagStatus(
   folderId: number,
   token: string,
 ): Promise<FolderRagStatusResponse> {
-  const response = await fetch(`${API_BASE_URL}/folders/${folderId}/rag-status`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    await handleError("Failed to get RAG status", response);
+  try {
+    const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/rag-status", {
+      params: { path: { folder_id: folderId } },
+      headers: bearer(token),
+    });
+    return data as FolderRagStatusResponse;
+  } catch (error) {
+    toError("Failed to get RAG status", error);
   }
-
-  return response.json();
 }
 
 // Helper functions
-export function formatFileSize(bytes?: number): string {
+export function formatFileSize(bytes?: number | null): string {
   if (!bytes) return "-";
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
@@ -414,7 +294,7 @@ export function formatFileSize(bytes?: number): string {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export function formatDate(dateString?: string): string {
+export function formatDate(dateString?: string | null): string {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleDateString();
 }

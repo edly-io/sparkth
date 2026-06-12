@@ -45,7 +45,7 @@ export function useRagStatusPolling(
           const map: RagStatusMap = {};
           for (const data of results) {
             for (const f of data.files) {
-              map[f.file_id] = { status: f.rag_status, error: f.rag_error };
+              map[f.file_id] = { status: f.rag_status ?? null, error: f.rag_error ?? null };
             }
           }
           setRagStatuses(map);
