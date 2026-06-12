@@ -75,7 +75,6 @@ frontend.build: frontend.build.api ## Build frontend (static export to frontend/
 frontend.build.api: ## Regenerate frontend API types from the backend OpenAPI schema
 	uv run python scripts/dump_openapi.py > openapi.json
 	cd frontend && bunx openapi-typescript ../openapi.json -o ./lib/api/generated.ts
-	cd frontend && bunx oxfmt --write ./lib/api/generated.ts
 
 .PHONY: frontend.install.dev
 frontend.install.dev: ## Install exact frontend dependencies from lockfile
@@ -152,9 +151,9 @@ test.backend.format: ## Run backend formatting tests
 test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, api drift, typecheck, unit and formatting tests
 
 .PHONY: test.frontend.api
-test.frontend.api: frontend.build.api ## Fail when generated.ts is stale vs the current backend OpenAPI schema
-	@git diff --exit-code frontend/lib/api/generated.ts \
-		|| (echo "Error: frontend/lib/api/generated.ts is stale. Run 'make frontend.build.api' and commit the result." && exit 1)
+test.frontend.api: ## Fail when generated.ts is stale vs the current backend OpenAPI schema
+	uv run python scripts/dump_openapi.py > openapi.json
+	cd frontend && bunx openapi-typescript ../openapi.json -o ./lib/api/generated.ts --check
 
 .PHONY: test.frontend.typecheck
 test.frontend.typecheck: ## Type-check the frontend (tsc --noEmit)
