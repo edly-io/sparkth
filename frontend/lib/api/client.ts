@@ -1,6 +1,12 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import { getStoredToken } from "@/lib/auth-tokens";
-import { ApiRequestError, formatApiError, type ApiError } from "@/lib/api";
+import {
+  ApiRequestError,
+  formatApiError,
+  isStructuredDetail,
+  type ApiError,
+  type StructuredErrorDetail,
+} from "@/lib/api";
 import type { components, paths } from "./generated";
 
 const authMiddleware: Middleware = {
@@ -18,13 +24,15 @@ const errorMiddleware: Middleware = {
       message: `Request failed (HTTP ${response.status}). Please try again.`,
       fieldErrors: {} as Record<string, string>,
     };
+    let detail: StructuredErrorDetail | undefined;
     try {
       const envelope: ApiError = await response.clone().json();
       formatted = formatApiError(envelope);
+      if (isStructuredDetail(envelope.detail)) detail = envelope.detail;
     } catch {
       // Non-JSON error body: keep the generic message.
     }
-    throw new ApiRequestError(formatted, response.status);
+    throw new ApiRequestError(formatted, response.status, detail);
   },
 };
 

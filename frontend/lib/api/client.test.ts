@@ -51,6 +51,25 @@ describe("api client", () => {
     expect((error as ApiRequestError).message).toBe("Not authenticated");
   });
 
+  it("forwards structured detail (code, data) for callers that branch on it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: { code: "email_not_verified", email: "u@example.com" } }),
+        { status: 403 },
+      ),
+    );
+
+    const error = await api.GET("/api/v1/user/me").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect((error as ApiRequestError).status).toBe(403);
+    expect((error as ApiRequestError).code).toBe("email_not_verified");
+    expect((error as ApiRequestError).data).toEqual({
+      code: "email_not_verified",
+      email: "u@example.com",
+    });
+  });
+
   it("throws a generic ApiRequestError when the error body is not json", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("boom", { status: 502 }));
 
