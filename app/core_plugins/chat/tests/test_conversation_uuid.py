@@ -1,5 +1,5 @@
 """
-Tests for the conversation UUID feature (PR #220 / Issue #190):
+Tests for the conversation UUID feature:
   - Conversation model auto-generates UUIDv7
   - ChatService.get_conversation_by_uuid lookups
   - Schemas expose UUID instead of int IDs
