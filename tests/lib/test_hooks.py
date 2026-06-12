@@ -1,7 +1,7 @@
 import gc
 
 from app.lib.hooks import PluginCollectionHook, PluginHook
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 
 def _plugin(name: str) -> SparkthPlugin:

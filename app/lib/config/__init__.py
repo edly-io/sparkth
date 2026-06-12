@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 
 from app.lib.config.hooks import CONFIG_SCHEMAS
-from app.plugins.config_base import PluginConfig
+from app.lib.plugins import PluginConfig
 
 
 def iter_plugin_config_schemas() -> Iterator[tuple[str, type[PluginConfig]]]:

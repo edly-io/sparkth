@@ -6,8 +6,8 @@ from app.core_plugins.chat.models import (  # noqa: F401 — registers tables in
 from app.core_plugins.chat.routes import chat_router
 from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.log import get_logger
+from app.lib.plugins import SparkthPlugin
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
 
 logger = get_logger(__name__)
 

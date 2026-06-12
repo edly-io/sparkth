@@ -69,6 +69,9 @@ Current modules (see the source for the full API — do not duplicate it here):
   `get_llm_service`, `LLMConfigAdapter`, and the `LLMConfig*` exceptions); never
   import from `app.llm.*` directly. Implementation lives in `app/llm/` (see
   issue #379).
+- [`app/lib/plugins.py`](app/lib/plugins.py) — plugin framework public API.
+  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`, `PLUGIN_ADAPTERS`); never import
+  from `app.plugins`, `app.plugins.adapters`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
 
 ## Essential Commands
 

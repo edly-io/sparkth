@@ -6,8 +6,8 @@ import pytest
 
 from app.core_plugins.slack.adapter import SlackConfigAdapter
 from app.lib.llm import LLMConfigAdapter
+from app.lib.plugins import PLUGIN_ADAPTERS
 from app.models import LLMConfig
-from app.plugins.adapters import PLUGIN_ADAPTERS
 
 
 @pytest.fixture

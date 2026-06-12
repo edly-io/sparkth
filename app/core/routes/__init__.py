@@ -3,7 +3,7 @@ from typing import cast
 from fastapi import APIRouter
 from starlette.routing import BaseRoute
 
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 from . import hooks
 

@@ -8,10 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.lib.config import get_plugin_config_schema
 from app.lib.db import session_scope
 from app.lib.log import get_logger
+from app.lib.plugins import PLUGIN_ADAPTERS, PluginConfig, get_plugin_loader
 from app.models.plugin import Plugin, UserPlugin
-from app.plugins import get_plugin_loader
-from app.plugins.adapters import PLUGIN_ADAPTERS
-from app.plugins.config_base import PluginConfig
 
 logger = get_logger(__name__)
 
