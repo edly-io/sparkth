@@ -28,11 +28,21 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
+      # uv is needed because test.frontend.api shells out to the Python dump
+      # script to detect drift between the backend schema and generated.ts.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install frontend dependencies
         run: make frontend.install.dev
 
+      - name: Install backend dependencies (for OpenAPI dump)
+        run: make backend.install.dev.requirements
+
       # Single high-level target so a CI failure reproduces locally with
-      # exactly `make test.frontend` (lint + react-doctor + vitest + format check).
+      # exactly `make test.frontend` (lint + react-doctor + api drift + typecheck + vitest + format check).
       # Override the react-doctor base to the PR's actual base.
       - name: Run frontend tests
         run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }}
@@ -58,36 +68,3 @@ jobs:
       # exactly `make test.backend` (lint + mypy + pytest + format check).
       - name: Run backend tests
         run: make test.backend
-
-  api-contract:
-    name: API Contract Drift
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Install the project
-        run: make backend.install.dev.requirements
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install frontend dependencies
-        run: make frontend.install.dev
-
-      - name: Regenerate API types
-        run: make gen.api
-
-      - name: Fail on drift
-        run: |
-          git diff --exit-code frontend/lib/api/generated.ts \
-            || (echo "::error::frontend/lib/api/generated.ts is stale. Run 'make gen.api' and commit the result." && exit 1)
