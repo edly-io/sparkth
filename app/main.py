@@ -86,9 +86,9 @@ def _register_plugin_routes(application: FastAPI) -> None:
         logger.error(f"Plugin initialization failed: {e}")
         return
 
-    loaded_plugin_names = [name for name, _plugin in loaded_plugins]
     if loaded_plugins:
-        logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {', '.join(loaded_plugin_names)}")
+        names = ", ".join(name for name, _plugin in loaded_plugins)
+        logger.info(f"Loaded {len(loaded_plugins)} plugin(s): {names}")
 
     for plugin_name, plugin in loaded_plugins:
         try:
