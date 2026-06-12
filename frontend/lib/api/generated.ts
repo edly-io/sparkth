@@ -179,8 +179,8 @@ export interface paths {
         /** List Conversation Attachments */
         get: operations["list_conversation_attachments_api_v1_chat_conversations__conversation_id__attachments_get"];
         put?: never;
-        /** Attach File To Conversation */
-        post: operations["attach_file_to_conversation_api_v1_chat_conversations__conversation_id__attachments_post"];
+        /** Attach Document To Conversation */
+        post: operations["attach_document_to_conversation_api_v1_chat_conversations__conversation_id__attachments_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -197,8 +197,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Detach File From Conversation */
-        delete: operations["detach_file_from_conversation_api_v1_chat_conversations__conversation_id__attachments__document_id__delete"];
+        /** Detach Document From Conversation */
+        delete: operations["detach_document_from_conversation_api_v1_chat_conversations__conversation_id__attachments__document_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -757,7 +757,7 @@ export interface paths {
         };
         /**
          * List Rag Sources
-         * @description Return the distinct RAG source names available to the current user.
+         * @description Return ready document names available to configure Slack RAG.
          */
         get: operations["list_rag_sources_api_v1_slack_rag_sources_get"];
         put?: never;
@@ -2111,7 +2111,7 @@ export interface operations {
             };
         };
     };
-    attach_file_to_conversation_api_v1_chat_conversations__conversation_id__attachments_post: {
+    attach_document_to_conversation_api_v1_chat_conversations__conversation_id__attachments_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2146,7 +2146,7 @@ export interface operations {
             };
         };
     };
-    detach_file_from_conversation_api_v1_chat_conversations__conversation_id__attachments__document_id__delete: {
+    detach_document_from_conversation_api_v1_chat_conversations__conversation_id__attachments__document_id__delete: {
         parameters: {
             query?: never;
             header?: never;
