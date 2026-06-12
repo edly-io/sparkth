@@ -24,7 +24,7 @@ class TestGetAuthorizationUrl:
     @pytest.mark.asyncio
     async def test_returns_url(self, drive_client: AsyncClient) -> None:
         """GET /oauth/authorize should return an authorization URL."""
-        response = await drive_client.get("/api/v1/googledrive/oauth/authorize")
+        response = await drive_client.get("/api/v1/google-drive/oauth/authorize")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -36,7 +36,7 @@ class TestConnectionStatus:
     @pytest.mark.asyncio
     async def test_not_connected(self, drive_client: AsyncClient) -> None:
         """GET /oauth/status should return connected=false when no token."""
-        response = await drive_client.get("/api/v1/googledrive/oauth/status")
+        response = await drive_client.get("/api/v1/google-drive/oauth/status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -55,7 +55,7 @@ class TestConnectionStatus:
             new_callable=AsyncMock,
             return_value={"email": "user@gmail.com"},
         ):
-            response = await drive_client.get("/api/v1/googledrive/oauth/status")
+            response = await drive_client.get("/api/v1/google-drive/oauth/status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -67,7 +67,7 @@ class TestDisconnect:
     @pytest.mark.asyncio
     async def test_disconnect_not_connected(self, drive_client: AsyncClient) -> None:
         """DELETE /oauth/disconnect should return 404 when not connected."""
-        response = await drive_client.delete("/api/v1/googledrive/oauth/disconnect")
+        response = await drive_client.delete("/api/v1/google-drive/oauth/disconnect")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -83,7 +83,7 @@ class TestDisconnect:
             new_callable=AsyncMock,
             return_value=True,
         ):
-            response = await drive_client.delete("/api/v1/googledrive/oauth/disconnect")
+            response = await drive_client.delete("/api/v1/google-drive/oauth/disconnect")
 
         assert response.status_code == status.HTTP_200_OK
         assert "disconnected" in response.json()["detail"]
@@ -98,7 +98,7 @@ class TestListFolders:
     @pytest.mark.asyncio
     async def test_empty_list(self, drive_client: AsyncClient) -> None:
         """GET /folders should return empty list when no folders synced."""
-        response = await drive_client.get("/api/v1/googledrive/folders")
+        response = await drive_client.get("/api/v1/google-drive/folders")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -112,7 +112,7 @@ class TestListFolders:
         test_folder: DriveFolder,
     ) -> None:
         """GET /folders should return synced folders with file count."""
-        response = await drive_client.get("/api/v1/googledrive/folders")
+        response = await drive_client.get("/api/v1/google-drive/folders")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -134,7 +134,7 @@ class TestListFolders:
         session.add(test_folder)
         await session.flush()
 
-        response = await drive_client.get("/api/v1/googledrive/folders")
+        response = await drive_client.get("/api/v1/google-drive/folders")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -151,7 +151,7 @@ class TestGetFolder:
         test_file: DriveFile,
     ) -> None:
         """GET /folders/{id} should return folder with its files."""
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{test_folder.id}")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -163,7 +163,7 @@ class TestGetFolder:
     @pytest.mark.asyncio
     async def test_get_folder_not_found(self, drive_client: AsyncClient) -> None:
         """GET /folders/{id} should return 404 for non-existent folder."""
-        response = await drive_client.get("/api/v1/googledrive/folders/99999")
+        response = await drive_client.get("/api/v1/google-drive/folders/99999")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -180,7 +180,7 @@ class TestGetFolder:
         session.add(test_file)
         await session.flush()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{test_folder.id}")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -197,7 +197,7 @@ class TestDeleteFolder:
         test_file: DriveFile,
     ) -> None:
         """DELETE /folders/{id} should soft-delete folder and its files."""
-        response = await drive_client.delete(f"/api/v1/googledrive/folders/{test_folder.id}")
+        response = await drive_client.delete(f"/api/v1/google-drive/folders/{test_folder.id}")
 
         assert response.status_code == status.HTTP_200_OK
         assert "removed" in response.json()["detail"].lower()
@@ -205,7 +205,7 @@ class TestDeleteFolder:
     @pytest.mark.asyncio
     async def test_delete_nonexistent_folder(self, drive_client: AsyncClient) -> None:
         """DELETE /folders/{id} should return 404 for non-existent folder."""
-        response = await drive_client.delete("/api/v1/googledrive/folders/99999")
+        response = await drive_client.delete("/api/v1/google-drive/folders/99999")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -237,7 +237,7 @@ class TestSyncFolder:
             mock_client_cls.return_value = mock_client
 
             response = await drive_client.post(
-                "/api/v1/googledrive/folders/sync",
+                "/api/v1/google-drive/folders/sync",
                 json={"drive_folder_id": "new_drive_folder_id"},
             )
 
@@ -256,7 +256,7 @@ class TestSyncFolder:
     ) -> None:
         """POST /folders/sync should return 409 if folder already synced."""
         response = await drive_client.post(
-            "/api/v1/googledrive/folders/sync",
+            "/api/v1/google-drive/folders/sync",
             json={"drive_folder_id": "drive_folder_abc123"},
         )
 
@@ -293,7 +293,7 @@ class TestRefreshFolder:
             mock_client_cls.return_value = mock_client
             mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
-            response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
+            response = await drive_client.post(f"/api/v1/google-drive/folders/{test_folder.id}/refresh")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -334,7 +334,7 @@ class TestRefreshFolder:
             mock_client_cls.return_value = mock_client
             mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
-            response = await drive_client.post(f"/api/v1/googledrive/folders/{test_folder.id}/refresh")
+            response = await drive_client.post(f"/api/v1/google-drive/folders/{test_folder.id}/refresh")
 
         assert response.status_code == status.HTTP_200_OK
         stored = (await session.exec(select(DriveFile).where(DriveFile.folder_id == test_folder.id))).all()
@@ -349,7 +349,7 @@ class TestRefreshFolder:
         test_oauth_token: DriveOAuthToken,
     ) -> None:
         """POST /folders/{id}/refresh should return 404 for non-existent folder."""
-        response = await drive_client.post("/api/v1/googledrive/folders/99999/refresh")
+        response = await drive_client.post("/api/v1/google-drive/folders/99999/refresh")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -368,7 +368,7 @@ class TestListFiles:
         test_file: DriveFile,
     ) -> None:
         """GET /folders/{id}/files should return files in the folder."""
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/files")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{test_folder.id}/files")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -397,7 +397,7 @@ class TestListFiles:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/files")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{folder_id}/files")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -407,7 +407,7 @@ class TestListFiles:
     @pytest.mark.asyncio
     async def test_list_files_folder_not_found(self, drive_client: AsyncClient) -> None:
         """GET /folders/{id}/files should return 404 for non-existent folder."""
-        response = await drive_client.get("/api/v1/googledrive/folders/99999/files")
+        response = await drive_client.get("/api/v1/google-drive/folders/99999/files")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -420,7 +420,7 @@ class TestGetFile:
         test_file: DriveFile,
     ) -> None:
         """GET /files/{id} should return file metadata."""
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{test_file.id}")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -447,7 +447,7 @@ class TestGetFile:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{file_id}")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -457,7 +457,7 @@ class TestGetFile:
     @pytest.mark.asyncio
     async def test_get_file_not_found(self, drive_client: AsyncClient) -> None:
         """GET /files/{id} should return 404 for non-existent file."""
-        response = await drive_client.get("/api/v1/googledrive/files/99999")
+        response = await drive_client.get("/api/v1/google-drive/files/99999")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -483,7 +483,7 @@ class TestDownloadFile:
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
 
-            response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/download")
+            response = await drive_client.get(f"/api/v1/google-drive/files/{test_file.id}/download")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.content == b"file content"
@@ -527,7 +527,7 @@ class TestDownloadFile:
             mock_client_cls.return_value = mock_client
             mock_client_cls.EXPORT_MIME_MAP = RealClient.EXPORT_MIME_MAP
 
-            response = await drive_client.get(f"/api/v1/googledrive/files/{doc_file.id}/download")
+            response = await drive_client.get(f"/api/v1/google-drive/files/{doc_file.id}/download")
 
         assert response.status_code == status.HTTP_200_OK
         assert "application/pdf" in response.headers.get("content-type", "")
@@ -539,7 +539,7 @@ class TestDownloadFile:
         drive_client: AsyncClient,
     ) -> None:
         """GET /files/{id}/download should return 404 for non-existent file."""
-        response = await drive_client.get("/api/v1/googledrive/files/99999/download")
+        response = await drive_client.get("/api/v1/google-drive/files/99999/download")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -565,7 +565,7 @@ class TestDownloadFile:
             mock_client_cls.return_value = mock_client
 
             with pytest.raises(RuntimeError, match="Drive API error"):
-                await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/download")
+                await drive_client.get(f"/api/v1/google-drive/files/{test_file.id}/download")
 
 
 class TestRenameFile:
@@ -586,7 +586,7 @@ class TestRenameFile:
             mock_client_cls.return_value = mock_client
 
             response = await drive_client.patch(
-                f"/api/v1/googledrive/files/{test_file.id}",
+                f"/api/v1/google-drive/files/{test_file.id}",
                 json={"name": "renamed.pdf"},
             )
 
@@ -598,7 +598,7 @@ class TestRenameFile:
     async def test_rename_file_not_found(self, drive_client: AsyncClient) -> None:
         """PATCH /files/{id} should return 404 for non-existent file."""
         response = await drive_client.patch(
-            "/api/v1/googledrive/files/99999",
+            "/api/v1/google-drive/files/99999",
             json={"name": "new_name.pdf"},
         )
 
@@ -621,7 +621,7 @@ class TestRenameFile:
             mock_client_cls.return_value = mock_client
 
             response = await drive_client.patch(
-                f"/api/v1/googledrive/files/{test_file.id}",
+                f"/api/v1/google-drive/files/{test_file.id}",
                 json={"name": "renamed.pdf"},
             )
 
@@ -637,7 +637,7 @@ class TestDeleteFile:
         session: AsyncSession,
     ) -> None:
         """DELETE /files/{id} should soft-delete locally; file remains in Google Drive."""
-        response = await drive_client.delete(f"/api/v1/googledrive/files/{test_file.id}")
+        response = await drive_client.delete(f"/api/v1/google-drive/files/{test_file.id}")
 
         assert response.status_code == status.HTTP_200_OK
         assert "removed" in response.json()["detail"].lower()
@@ -664,13 +664,13 @@ class TestDeleteFile:
         await session.flush()
         file_id = test_file.id
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{file_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_delete_file_not_found(self, drive_client: AsyncClient) -> None:
         """DELETE /files/{id} should return 404 for non-existent file."""
-        response = await drive_client.delete("/api/v1/googledrive/files/99999")
+        response = await drive_client.delete("/api/v1/google-drive/files/99999")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -688,7 +688,7 @@ class TestGetFileRagStatus:
         test_file: DriveFile,
     ) -> None:
         """GET /files/{id}/rag-status should return null rag_status for unprocessed files."""
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{test_file.id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -715,7 +715,7 @@ class TestGetFileRagStatus:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{file_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["rag_status"] == "processing"
@@ -739,7 +739,7 @@ class TestGetFileRagStatus:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{file_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["rag_status"] == "ready"
@@ -763,7 +763,7 @@ class TestGetFileRagStatus:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{file_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{file_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["rag_status"] == "failed"
@@ -771,7 +771,7 @@ class TestGetFileRagStatus:
     @pytest.mark.asyncio
     async def test_file_not_found(self, drive_client: AsyncClient) -> None:
         """GET /files/{id}/rag-status should return 404 for non-existent file."""
-        response = await drive_client.get("/api/v1/googledrive/files/99999/rag-status")
+        response = await drive_client.get("/api/v1/google-drive/files/99999/rag-status")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -787,7 +787,7 @@ class TestGetFileRagStatus:
         session.add(test_file)
         await session.flush()
 
-        response = await drive_client.get(f"/api/v1/googledrive/files/{test_file.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/files/{test_file.id}/rag-status")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -827,7 +827,7 @@ class TestGetFolderRagStatus:
         session.add(second_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -843,7 +843,7 @@ class TestGetFolderRagStatus:
         test_folder: DriveFolder,
     ) -> None:
         """GET /folders/{id}/rag-status should return empty files list for a folder with no files."""
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{test_folder.id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{test_folder.id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -853,7 +853,7 @@ class TestGetFolderRagStatus:
     @pytest.mark.asyncio
     async def test_folder_not_found(self, drive_client: AsyncClient) -> None:
         """GET /folders/{id}/rag-status should return 404 for non-existent folder."""
-        response = await drive_client.get("/api/v1/googledrive/folders/99999/rag-status")
+        response = await drive_client.get("/api/v1/google-drive/folders/99999/rag-status")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -892,7 +892,7 @@ class TestGetFolderRagStatus:
         session.add(deleted_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -926,7 +926,7 @@ class TestRagErrorInResponse:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -953,7 +953,7 @@ class TestRagErrorInResponse:
         session.add(test_file)
         await session.commit()
 
-        response = await drive_client.get(f"/api/v1/googledrive/folders/{folder_id}/rag-status")
+        response = await drive_client.get(f"/api/v1/google-drive/folders/{folder_id}/rag-status")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -996,7 +996,7 @@ class TestBrowseDrive:
             # Preserve FOLDER_MIME_TYPE so is_folder check works
             mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
-            response = await drive_client.get("/api/v1/googledrive/browse")
+            response = await drive_client.get("/api/v1/google-drive/browse")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -1021,7 +1021,7 @@ class TestBrowseDrive:
             mock_client.__aexit__.return_value = None
             mock_client_cls.return_value = mock_client
 
-            response = await drive_client.get("/api/v1/googledrive/browse?folder_id=subfolder_123")
+            response = await drive_client.get("/api/v1/google-drive/browse?folder_id=subfolder_123")
 
         assert response.status_code == status.HTTP_200_OK
         mock_client.browse.assert_called_once_with(folder_id="subfolder_123", page_token=None)

@@ -11,7 +11,7 @@ SCRIPT = REPO_ROOT / "scripts" / "dump_openapi.py"
 PLUGIN_SENTINEL_PATHS = [
     "/api/v1/chat/completions",
     "/api/v1/slack/oauth/status",
-    "/api/v1/googledrive/oauth/status",
+    "/api/v1/google-drive/oauth/status",
 ]
 
 
