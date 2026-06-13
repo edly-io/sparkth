@@ -6,11 +6,11 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 
-class AuthorizationUrlResponse(BaseModel):
+class SlackAuthorizationUrlResponse(BaseModel):
     url: str
 
 
-class ConnectionStatusResponse(BaseModel):
+class SlackConnectionStatusResponse(BaseModel):
     connected: bool
     team_name: str | None = None
     team_id: str | None = None

@@ -14,7 +14,7 @@ from app.core_plugins.slack.models import SlackConnectionLog
 from app.core_plugins.slack.oauth import decode_state, exchange_code_for_tokens, generate_authorization_url
 from app.core_plugins.slack.routes.dependencies import require_user_id
 from app.core_plugins.slack.service import WorkspaceService, get_workspace_service
-from app.core_plugins.slack.types import AuthorizationUrlResponse, ConnectionStatusResponse
+from app.core_plugins.slack.types import SlackAuthorizationUrlResponse, SlackConnectionStatusResponse
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 
@@ -37,12 +37,12 @@ def get_slack_credentials() -> SlackSettings:
     return s
 
 
-@oauth_router.get("/oauth/authorize", response_model=AuthorizationUrlResponse)
-def get_authorization_url(user_id: int = Depends(require_user_id)) -> AuthorizationUrlResponse:
+@oauth_router.get("/oauth/authorize", response_model=SlackAuthorizationUrlResponse)
+def get_authorization_url(user_id: int = Depends(require_user_id)) -> SlackAuthorizationUrlResponse:
     """Return the Slack OAuth install URL."""
     creds = get_slack_credentials()
     url = generate_authorization_url(user_id, creds.client_id, creds.redirect_uri)
-    return AuthorizationUrlResponse(url=url)
+    return SlackAuthorizationUrlResponse(url=url)
 
 
 @oauth_router.get("/oauth/callback")
@@ -157,17 +157,17 @@ async def disconnect_workspace(
     return {"detail": "Slack workspace disconnected successfully"}
 
 
-@oauth_router.get("/oauth/status", response_model=ConnectionStatusResponse)
+@oauth_router.get("/oauth/status", response_model=SlackConnectionStatusResponse)
 async def get_connection_status(
     user_id: int = Depends(require_user_id),
     service: WorkspaceService = Depends(get_workspace_service),
     session: AsyncSession = Depends(get_async_session),
-) -> ConnectionStatusResponse:
+) -> SlackConnectionStatusResponse:
     """Return Slack connection status for the current user."""
     workspace = await service.get(session, user_id)
     if not workspace:
-        return ConnectionStatusResponse(connected=False)
-    return ConnectionStatusResponse(
+        return SlackConnectionStatusResponse(connected=False)
+    return SlackConnectionStatusResponse(
         connected=True,
         team_name=workspace.team_name,
         team_id=workspace.team_id,
