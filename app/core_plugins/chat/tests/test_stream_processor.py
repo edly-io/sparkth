@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.chat.routes.completions import ChatStreamProcessor
+from app.core_plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -166,7 +166,7 @@ class TestRetrieveRagChunks:
         processor.llm = MagicMock()
         expected = [_make_chunk()]
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.return_value = expected
@@ -178,7 +178,7 @@ class TestRetrieveRagChunks:
         processor = _make_processor()
         processor.llm = MagicMock()
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = DocumentNotFoundError()
@@ -191,7 +191,7 @@ class TestRetrieveRagChunks:
         processor.llm = MagicMock()
         bg_session = MagicMock()
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = DocumentNotFoundError()
@@ -204,7 +204,7 @@ class TestRetrieveRagChunks:
         processor = _make_processor()
         processor.llm = MagicMock()
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
@@ -216,7 +216,7 @@ class TestRetrieveRagChunks:
         processor = _make_processor()
         processor.llm = MagicMock()
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError()
@@ -229,7 +229,7 @@ class TestRetrieveRagChunks:
         processor.llm = MagicMock()
         bg_session = MagicMock()
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
@@ -243,7 +243,7 @@ class TestRetrieveRagChunks:
         processor.llm = MagicMock()
         bg_session = MagicMock()
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = RAGRetrievalError()
@@ -276,7 +276,7 @@ class TestRunRagPhase:
         processor.llm = MagicMock()
         processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.side_effect = DocumentNotFoundError()
@@ -291,7 +291,7 @@ class TestRunRagPhase:
         processor.llm = MagicMock()
         processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
         with patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context",
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context",
             new_callable=AsyncMock,
         ) as mock_retrieve:
             mock_retrieve.return_value = [_make_chunk(section="Intro")]

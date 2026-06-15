@@ -91,8 +91,8 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -170,9 +170,9 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -187,8 +187,8 @@ class TestIntentRouterIntegration:
             ) as mock_get_msgs,
             # Patch the whole stream so we control the SSE output directly.
             # This test's goal is to verify the router is called with retrieve=False
-            # and the route passes rag_routing_reason to the stream correctly.
-            patch("app.core_plugins.chat.routes.completions.stream_chat_response") as mock_stream_fn,
+            # and the route passes rag_routing_reason to ChatStreamProcessor correctly.
+            patch("app.core_plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
         ):
             mock_scope = AsyncMock()
             mock_scope.classify = AsyncMock(return_value=True)
@@ -208,18 +208,15 @@ class TestIntentRouterIntegration:
             mock_add_msg.return_value = mock_msg
 
             expected_reason = mock_decision.reason
+            mock_instance = MagicMock()
 
-            # Capture the kwargs the route passes to stream_chat_response so we
-            # can assert rag_routing_reason is wired correctly.
-            captured_kwargs: dict[str, Any] = {}
-
-            async def _fake_stream(*args: Any, **kwargs: Any) -> Any:
-                captured_kwargs.update(kwargs)
+            async def _fake_stream_gen() -> Any:
                 yield f"data: {json.dumps({'status': 'skipping_rag', 'reason': expected_reason, 'done': False})}\n\n"
                 yield f"data: {json.dumps({'token': 'Hi!', 'done': False})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
 
-            mock_stream_fn.side_effect = _fake_stream
+            mock_instance.stream.return_value = _fake_stream_gen()
+            mock_processor_cls.return_value = mock_instance
 
             response = await client.post(
                 "/api/v1/chat/completions",
@@ -240,8 +237,8 @@ class TestIntentRouterIntegration:
         # Router was called and decided not to retrieve
         mock_router.decide.assert_called_once()
         assert mock_decision.should_retrieve is False
-        # rag_routing_reason is wired through to stream_chat_response
-        assert captured_kwargs.get("rag_routing_reason") == "chit-chat unrelated to documents"
+        # rag_routing_reason is the 10th positional arg to ChatStreamProcessor
+        assert mock_processor_cls.call_args.args[9] == "chit-chat unrelated to documents"
 
     @pytest.mark.asyncio
     async def test_on_topic_streaming_emits_scanning_attachments_event(
@@ -259,15 +256,15 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
             ) as mock_list_attachments,
             patch(
-                "app.core_plugins.chat.routes.completions.stream_chat_response",
-            ) as mock_stream,
+                "app.core_plugins.chat.routes.completions.ChatStreamProcessor",
+            ) as mock_processor_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.add_message",
                 new_callable=AsyncMock,
@@ -289,13 +286,16 @@ class TestIntentRouterIntegration:
             mock_get_provider.return_value = mock_provider
             mock_add_msg.return_value = mock_msg
 
+            mock_instance = MagicMock()
+
             # Produce a scanning_attachments event from the mocked stream
-            async def _fake_stream(*args: Any, **kwargs: Any) -> Any:
+            async def _fake_stream_gen() -> Any:
                 yield f"data: {json.dumps({'status': 'scanning_attachments', 'file_count': 1, 'done': False})}\n\n"
                 yield f"data: {json.dumps({'token': 'Summary.', 'done': False})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
 
-            mock_stream.return_value = _fake_stream()
+            mock_instance.stream.return_value = _fake_stream_gen()
+            mock_processor_cls.return_value = mock_instance
 
             response = await client.post(
                 "/api/v1/chat/completions",
@@ -331,8 +331,8 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -391,8 +391,8 @@ class TestIntentRouterIntegration:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -451,8 +451,8 @@ async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-        patch("app.core_plugins.chat.routes.helpers.ScopeClassifier"),
+        patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+        patch("app.core_plugins.chat.routes.utils.ScopeClassifier"),
         patch("app.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
         patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
@@ -512,8 +512,8 @@ class TestDocumentIdsOwnershipCheck:
         document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -563,8 +563,8 @@ class TestDocumentIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -613,8 +613,8 @@ class TestDocumentIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -676,9 +676,9 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -738,9 +738,9 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.is_query_in_scope", return_value=True),
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_cls_cls,
-            patch("app.core_plugins.chat.routes.helpers.RAGIntentRouter") as mock_router_cls,
+            patch("app.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("app.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "app.core_plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,

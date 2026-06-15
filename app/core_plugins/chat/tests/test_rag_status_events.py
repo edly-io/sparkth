@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core_plugins.chat.routes.completions import stream_chat_response
-from app.core_plugins.chat.routes.helpers import parse_metadata_list
+from app.core_plugins.chat.routes.utils import parse_metadata_list
+from app.core_plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -87,22 +87,22 @@ async def test_status_events_emitted_before_tokens() -> None:
 
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.return_value = chunks
         events = []
-        async for chunk in stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 42}]}],
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=unresolved,
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-        ):
+        async for chunk in ChatStreamProcessor(
+            _make_provider(),
+            [{"role": "user", "content": [{"type": "drive_file", "file_id": 42}]}],
+            _make_conversation(),
+            _make_service(),
+            None,
+            unresolved,
+            1,
+            MagicMock(),
+            True,
+        ).stream():
             events.append(chunk)
 
     # Parse SSE events
@@ -143,22 +143,22 @@ async def test_searching_documents_event_includes_legacy_file_count() -> None:
 
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.return_value = chunks
         events = []
-        async for chunk in stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=unresolved,
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-        ):
+        async for chunk in ChatStreamProcessor(
+            _make_provider(),
+            [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            _make_conversation(),
+            _make_service(),
+            None,
+            unresolved,
+            1,
+            MagicMock(),
+            True,
+        ).stream():
             events.append(chunk)
 
     parsed = [json.loads(e.replace("data: ", "").strip()) for e in events if e.startswith("data:")]
@@ -177,21 +177,21 @@ async def test_agent_context_injected_into_messages() -> None:
 
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.return_value = chunks
-        async for _ in stream_chat_response(
-            provider=_make_provider(),
-            messages=original_messages,
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=unresolved,
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-        ):
+        async for _ in ChatStreamProcessor(
+            _make_provider(),
+            original_messages,
+            _make_conversation(),
+            _make_service(),
+            None,
+            unresolved,
+            1,
+            MagicMock(),
+            True,
+        ).stream():
             pass
 
     # The legacy document block should be gone; two text blocks remain:
@@ -224,21 +224,21 @@ async def test_multi_document_rag_context_preserved() -> None:
 
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.return_value = chunks
-        async for _ in stream_chat_response(
-            provider=_make_provider(),
-            messages=original_messages,
-            conversation=_make_conversation(),
-            service=_make_service(),
-            tools=None,
-            unresolved_messages=unresolved,
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-        ):
+        async for _ in ChatStreamProcessor(
+            _make_provider(),
+            original_messages,
+            _make_conversation(),
+            _make_service(),
+            None,
+            unresolved,
+            1,
+            MagicMock(),
+            True,
+        ).stream():
             pass
 
     content = original_messages[0]["content"]
@@ -254,13 +254,13 @@ async def test_multi_document_rag_context_preserved() -> None:
 async def test_no_status_events_without_document_blocks() -> None:
     """When no unresolved_messages passed, no status events are emitted."""
     events = []
-    async for chunk in stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": "Hello"}],
-        conversation=_make_conversation(),
-        service=_make_service(),
-        tools=None,
-    ):
+    async for chunk in ChatStreamProcessor(
+        _make_provider(),
+        [{"role": "user", "content": "Hello"}],
+        _make_conversation(),
+        _make_service(),
+        None,
+    ).stream():
         events.append(chunk)
 
     parsed = []
@@ -285,21 +285,21 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
 
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.return_value = chunks
-        async for _ in stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=service,
-            tools=None,
-            unresolved_messages=unresolved,
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-        ):
+        async for _ in ChatStreamProcessor(
+            _make_provider(),
+            [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            _make_conversation(),
+            service,
+            None,
+            unresolved,
+            1,
+            MagicMock(),
+            True,
+        ).stream():
             pass
 
     # The last add_message call (assistant message) should include rag_sections in metadata
@@ -324,13 +324,13 @@ async def test_no_rag_sections_metadata_without_document_blocks() -> None:
     """When no document blocks are processed, add_message is called without rag_sections metadata."""
     service = _make_service()
 
-    async for _ in stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": "Hello"}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-    ):
+    async for _ in ChatStreamProcessor(
+        _make_provider(),
+        [{"role": "user", "content": "Hello"}],
+        _make_conversation(),
+        service,
+        None,
+    ).stream():
         pass
 
     add_message_calls = service.add_message.call_args_list
@@ -384,22 +384,22 @@ class TestMessageResponseRagSections:
 async def test_document_not_found_emits_friendly_error() -> None:
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.side_effect = DocumentNotFoundError()
         events = await _collect_events(
-            stream_chat_response(
-                provider=_make_provider(),
-                messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-                conversation=_make_conversation(),
-                service=_make_service(),
-                tools=None,
-                unresolved_messages=_unresolved_with_document(),
-                user_id=1,
-                llm=MagicMock(),
-                should_run_rag=True,
-            )
+            ChatStreamProcessor(
+                _make_provider(),
+                [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+                _make_conversation(),
+                _make_service(),
+                None,
+                _unresolved_with_document(),
+                1,
+                MagicMock(),
+                True,
+            ).stream()
         )
 
     error_events = [e for e in events if "error" in e]
@@ -413,22 +413,22 @@ async def test_document_not_found_emits_friendly_error() -> None:
 async def test_rag_not_ready_emits_friendly_error() -> None:
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
         events = await _collect_events(
-            stream_chat_response(
-                provider=_make_provider(),
-                messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-                conversation=_make_conversation(),
-                service=_make_service(),
-                tools=None,
-                unresolved_messages=_unresolved_with_document(),
-                user_id=1,
-                llm=MagicMock(),
-                should_run_rag=True,
-            )
+            ChatStreamProcessor(
+                _make_provider(),
+                [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+                _make_conversation(),
+                _make_service(),
+                None,
+                _unresolved_with_document(),
+                1,
+                MagicMock(),
+                True,
+            ).stream()
         )
 
     error_events = [e for e in events if "error" in e]
@@ -442,22 +442,22 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
 async def test_rag_retrieval_error_emits_friendly_error() -> None:
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.side_effect = RAGRetrievalError()
         events = await _collect_events(
-            stream_chat_response(
-                provider=_make_provider(),
-                messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-                conversation=_make_conversation(),
-                service=_make_service(),
-                tools=None,
-                unresolved_messages=_unresolved_with_document(),
-                user_id=1,
-                llm=MagicMock(),
-                should_run_rag=True,
-            )
+            ChatStreamProcessor(
+                _make_provider(),
+                [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+                _make_conversation(),
+                _make_service(),
+                None,
+                _unresolved_with_document(),
+                1,
+                MagicMock(),
+                True,
+            ).stream()
         )
 
     error_events = [e for e in events if "error" in e]
@@ -476,14 +476,13 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
     service = _make_service()
 
     task_holder: list[asyncio.Task[None]] = []
-    gen = stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": "Hello"}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        _task_holder=task_holder,
-    )
+    gen = ChatStreamProcessor(
+        _make_provider(),
+        [{"role": "user", "content": "Hello"}],
+        _make_conversation(),
+        service,
+        None,
+    ).stream(task_holder)
 
     # Consume only the first event then abandon the generator
     async for _ in gen:
@@ -506,22 +505,21 @@ async def test_document_not_found_persists_error_to_db() -> None:
     task_holder: list[asyncio.Task[None]] = []
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.side_effect = DocumentNotFoundError()
-        gen = stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=service,
-            tools=None,
-            unresolved_messages=_unresolved_with_document(),
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-            _task_holder=task_holder,
-        )
+        gen = ChatStreamProcessor(
+            _make_provider(),
+            [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            _make_conversation(),
+            service,
+            None,
+            _unresolved_with_document(),
+            1,
+            MagicMock(),
+            True,
+        ).stream(task_holder)
         async for _ in gen:
             pass
     await task_holder[0]
@@ -539,22 +537,21 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
     task_holder: list[asyncio.Task[None]] = []
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
-        gen = stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=service,
-            tools=None,
-            unresolved_messages=_unresolved_with_document(),
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-            _task_holder=task_holder,
-        )
+        gen = ChatStreamProcessor(
+            _make_provider(),
+            [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            _make_conversation(),
+            service,
+            None,
+            _unresolved_with_document(),
+            1,
+            MagicMock(),
+            True,
+        ).stream(task_holder)
         async for _ in gen:
             pass
     await task_holder[0]
@@ -570,22 +567,21 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
     task_holder: list[asyncio.Task[None]] = []
     with (
         patch(
-            "app.core_plugins.chat.routes.completions.agentic_retrieve_context", new_callable=AsyncMock
+            "app.core_plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
         ) as mock_retrieve,
     ):
         mock_retrieve.side_effect = RAGRetrievalError()
-        gen = stream_chat_response(
-            provider=_make_provider(),
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            conversation=_make_conversation(),
-            service=service,
-            tools=None,
-            unresolved_messages=_unresolved_with_document(),
-            user_id=1,
-            llm=MagicMock(),
-            should_run_rag=True,
-            _task_holder=task_holder,
-        )
+        gen = ChatStreamProcessor(
+            _make_provider(),
+            [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            _make_conversation(),
+            service,
+            None,
+            _unresolved_with_document(),
+            1,
+            MagicMock(),
+            True,
+        ).stream(task_holder)
         async for _ in gen:
             pass
     await task_holder[0]
@@ -609,14 +605,13 @@ async def test_unexpected_error_persists_error_to_db() -> None:
     provider.stream_message = _failing_stream
 
     task_holder: list[asyncio.Task[None]] = []
-    gen = stream_chat_response(
-        provider=provider,
-        messages=[{"role": "user", "content": "Hello"}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        _task_holder=task_holder,
-    )
+    gen = ChatStreamProcessor(
+        provider,
+        [{"role": "user", "content": "Hello"}],
+        _make_conversation(),
+        service,
+        None,
+    ).stream(task_holder)
     async for _ in gen:
         pass
     await task_holder[0]
@@ -679,14 +674,13 @@ async def test_tool_calls_saved_in_metadata() -> None:
     provider.stream_message = stream_gen
 
     task_holder: list[asyncio.Task[None]] = []
-    async for _ in stream_chat_response(
-        provider=provider,
-        messages=[{"role": "user", "content": "search for something"}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        _task_holder=task_holder,
-    ):
+    async for _ in ChatStreamProcessor(
+        provider,
+        [{"role": "user", "content": "search for something"}],
+        _make_conversation(),
+        service,
+        None,
+    ).stream(task_holder):
         pass
     await task_holder[0]
 
@@ -716,14 +710,13 @@ async def test_tool_calls_in_done_payload() -> None:
 
     events = []
     task_holder: list[asyncio.Task[None]] = []
-    async for chunk in stream_chat_response(
-        provider=provider,
-        messages=[{"role": "user", "content": "run a tool"}],
-        conversation=_make_conversation(),
-        service=_make_service(),
-        tools=None,
-        _task_holder=task_holder,
-    ):
+    async for chunk in ChatStreamProcessor(
+        provider,
+        [{"role": "user", "content": "run a tool"}],
+        _make_conversation(),
+        _make_service(),
+        None,
+    ).stream(task_holder):
         if chunk.startswith("data:"):
             events.append(json.loads(chunk[5:].strip()))
     await task_holder[0]
@@ -740,14 +733,13 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
     service = _make_service()
 
     task_holder: list[asyncio.Task[None]] = []
-    async for _ in stream_chat_response(
-        provider=_make_provider(),
-        messages=[{"role": "user", "content": "Hello"}],
-        conversation=_make_conversation(),
-        service=service,
-        tools=None,
-        _task_holder=task_holder,
-    ):
+    async for _ in ChatStreamProcessor(
+        _make_provider(),
+        [{"role": "user", "content": "Hello"}],
+        _make_conversation(),
+        service,
+        None,
+    ).stream(task_holder):
         pass
     await task_holder[0]
 
@@ -808,7 +800,7 @@ class TestSimilarityThresholdRemoved:
         )
         assert req.llm_config_id == 1
 
-    def test_stream_chat_response_has_no_similarity_threshold_param(self) -> None:
-        """stream_chat_response must not have a similarity_threshold parameter."""
-        sig = inspect.signature(stream_chat_response)
+    def test_chat_stream_processor_has_no_similarity_threshold_param(self) -> None:
+        """ChatStreamProcessor must not have a similarity_threshold parameter."""
+        sig = inspect.signature(ChatStreamProcessor.__init__)
         assert "similarity_threshold" not in sig.parameters

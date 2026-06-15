@@ -30,7 +30,7 @@ from app.lib.rag import (
 logger = get_logger(__name__)
 
 
-# TODO: this function is almost similar to app.core_plugins.chat.routes.helpers.format_source_block
+# TODO: this function is almost similar to app.core_plugins.chat.routes.utils.format_source_block
 # we need to figure out how to remove this duplication.
 def _format_context(chunks: list[RetrievedChunk]) -> str:
     """Render retrieved chunks as per-document context blocks for synthesis."""
