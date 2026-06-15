@@ -1,17 +1,11 @@
-import { api, ApiRequestError, type Schema } from "@/lib/api";
-
-export type ConnectionStatus = Schema<"app__core_plugins__slack__types__ConnectionStatusResponse">;
-export type BotResponseLogItem = Schema<"BotResponseLogItem">;
-export type ConnectionLogItem = Schema<"ConnectionLogItem">;
-export type LogItem = BotResponseLogItem | ConnectionLogItem;
-export type LogsResponse = Schema<"LogsResponse">;
-export type RagSourcesResponse = Schema<"RagSourcesResponse">;
-
-export interface FetchLogsOptions {
-  limit?: number;
-  cursor?: string;
-  sinceId?: number;
-}
+import { api, ApiRequestError } from "@/lib/api";
+import type {
+  AuthorizationUrlResponse,
+  ConnectionStatus,
+  FetchLogsOptions,
+  LogsResponse,
+  RagSourcesResponse,
+} from "@/lib/slack/types";
 
 function bearer(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
@@ -36,7 +30,7 @@ export async function getConnectionStatus(token: string): Promise<ConnectionStat
 export async function getAuthorizationUrl(token: string): Promise<string> {
   try {
     const { data } = await api.GET("/api/v1/slack/oauth/authorize", { headers: bearer(token) });
-    return (data as Schema<"app__core_plugins__slack__types__AuthorizationUrlResponse">).url;
+    return (data as AuthorizationUrlResponse).url;
   } catch (error) {
     toError("Failed to get authorization URL", error);
   }

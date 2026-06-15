@@ -6,7 +6,7 @@ import {
   fetchRagSources,
   getAuthorizationUrl,
   getConnectionStatus,
-} from "@/lib/slack-api";
+} from "@/lib/slack";
 
 vi.mock("@/lib/auth-tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
@@ -88,7 +88,7 @@ describe("getAuthorizationUrl", () => {
 
 describe("disconnectSlack", () => {
   it("DELETEs the disconnect endpoint and resolves", async () => {
-    const spy = mockFetch({ ok: true });
+    const spy = mockFetch(null, 204);
 
     await expect(disconnectSlack("test-token")).resolves.toBeUndefined();
 

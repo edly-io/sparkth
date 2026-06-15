@@ -9,7 +9,7 @@ import {
   type BotResponseLogItem,
   type ConnectionLogItem,
   type LogItem,
-} from "@/lib/slack-api";
+} from "@/lib/slack";
 
 const POLL_INTERVAL_MS = 30_000;
 const PAGE_SIZE = 50;
