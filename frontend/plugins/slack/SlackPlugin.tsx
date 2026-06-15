@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
-import { getConnectionStatus, type ConnectionStatus } from "@/lib/slack-api";
+import { getConnectionStatus, type ConnectionStatus } from "@/lib/slack";
 import SlackConnectionCard from "./components/SlackConnectionCard";
 import LogStream from "./components/LogStream";
 import { SLACK_PLUGIN_PATH } from "./index";
