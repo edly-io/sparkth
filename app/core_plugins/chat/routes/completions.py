@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any, Literal, cast
+from typing import Any, AsyncGenerator, Literal, cast
 
 import anthropic
 import httpx
@@ -53,6 +53,7 @@ from app.lib.rag import (
     DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
+    RetrievedChunk,
     agentic_retrieve_context,
 )
 from app.models.user import User
@@ -370,6 +371,338 @@ async def chat_completion(
         ) from e
 
 
+class ChatStreamProcessor:
+    """Encapsulates state and sync helpers for streaming chat responses."""
+
+    def __init__(
+        self,
+        provider: BaseChatProvider,
+        messages: list[dict[str, Any]],
+        conversation: Conversation,
+        service: ChatService,
+        tools: list[Any] | None = None,
+        unresolved_messages: list[ChatMessage] | None = None,
+        user_id: int | None = None,
+        llm: Any | None = None,
+        should_run_rag: bool = False,
+        rag_routing_reason: str | None = None,
+    ) -> None:
+        self.provider = provider
+        self.messages = messages
+        self.service = service
+        self.tools = tools
+        self.unresolved_messages = unresolved_messages
+        self.user_id = user_id
+        self.llm = llm
+        self.should_run_rag = should_run_rag
+        self.rag_routing_reason = rag_routing_reason
+        self.conversation_id: int = cast(int, conversation.id)
+        self.conversation_uuid: str = str(conversation.uuid)
+        self.queue: asyncio.Queue[str | None] = asyncio.Queue()
+        self.disconnected: asyncio.Event = asyncio.Event()
+
+    def _build_rag_context(
+        self, all_chunks: list[RetrievedChunk]
+    ) -> tuple[dict[str, str], list[dict[str, str | None]]]:
+        grouped = group_by_source(all_chunks)
+        source_blocks: dict[str, str] = {
+            source: format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
+        }
+        seen_section_keys: set[str] = set()
+        confirmed_rag_sections: list[dict[str, str | None]] = []
+        for chunk in all_chunks:
+            label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
+            parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
+            name = " / ".join(parts) if parts else "General"
+            key = f"{label}:{name}:{chunk.source_name}"
+            if key not in seen_section_keys:
+                seen_section_keys.add(key)
+                confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
+        return source_blocks, confirmed_rag_sections
+
+    def _inject_rag_into_messages(self, source_blocks: dict[str, str]) -> None:
+        rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
+        for m in self.messages:
+            if not isinstance(m.get("content"), list):
+                continue
+            user_text_blocks: list[dict[str, Any]] = []
+            other_blocks: list[dict[str, Any]] = []
+            has_document_block = False
+            for b in m["content"]:
+                if isinstance(b, dict) and b.get("type") == "drive_file":
+                    has_document_block = True
+                elif isinstance(b, dict) and b.get("type") == "text":
+                    user_text_blocks.append(b)
+                else:
+                    other_blocks.append(b)
+            if not has_document_block:
+                continue
+            if rag_block_list:
+                m["content"] = (
+                    [{"type": "text", "text": RAG_CONTEXT_PROMPT}] + other_blocks + rag_block_list + user_text_blocks
+                )
+            else:
+                m["content"] = other_blocks + user_text_blocks
+
+    def _strip_unresolved_document_blocks(self) -> None:
+        for m in self.messages:
+            if isinstance(m.get("content"), list):
+                m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
+
+    async def _put(self, payload: str | None) -> None:
+        if not self.disconnected.is_set():
+            await self.queue.put(payload)
+
+    async def _emit_rag_routing_status(self, document_ids: list[int]) -> None:
+        await self._put(json.dumps({"status": "scanning_attachments", "file_count": len(document_ids), "done": False}))
+
+    async def _retrieve_rag_chunks(
+        self,
+        query_text: str,
+        document_ids: list[int],
+        bg_session: AsyncSession,
+    ) -> list[RetrievedChunk] | None:
+        await self._put(json.dumps({"status": "searching_documents", "file_count": len(document_ids), "done": False}))
+        logger.info("Agentic RAG search for document_ids=%s query_len=%d", document_ids, len(query_text))
+        if self.llm is None:
+            raise AssertionError("llm must be provided when RAG resolution is active")
+        try:
+            return await agentic_retrieve_context(query_text, document_ids, self.llm)
+        except DocumentNotFoundError as exc:
+            logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
+            error_text = "The attached document could not be found or is no longer accessible."
+            await self.service.add_message(
+                session=bg_session,
+                conversation_id=self.conversation_id,
+                role="assistant",
+                content=error_text,
+                is_error=True,
+            )
+            await self._put(json.dumps({"error": error_text, "done": True}))
+            return None
+        except RAGNotReadyError as exc:
+            logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
+            error_text = "The attached document is still being processed. Please wait a moment and try again."
+            await self.service.add_message(
+                session=bg_session,
+                conversation_id=self.conversation_id,
+                role="assistant",
+                content=error_text,
+                is_error=True,
+            )
+            await self._put(json.dumps({"error": error_text, "done": True}))
+            return None
+        except RAGRetrievalError as exc:
+            logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
+            error_text = "Failed to search the attached document. Please try again."
+            await self.service.add_message(
+                session=bg_session,
+                conversation_id=self.conversation_id,
+                role="assistant",
+                content=error_text,
+                is_error=True,
+            )
+            await self._put(json.dumps({"error": error_text, "done": True}))
+            return None
+
+    async def _emit_no_rag_results_response(self, bg_session: AsyncSession) -> None:
+        no_chunks_msg = (
+            "I searched your documents but couldn't find content closely "
+            "matching your query.\n\n"
+            "Please try rephrasing your question, or check that your documents "
+            "contain information about this topic."
+        )
+        await self.service.add_message(
+            session=bg_session,
+            conversation_id=self.conversation_id,
+            role="assistant",
+            content=no_chunks_msg,
+            message_type="text",
+        )
+        await self._put(json.dumps({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid}))
+
+    async def _emit_rag_section_events(self, confirmed_rag_sections: list[dict[str, str | None]]) -> None:
+        for section in confirmed_rag_sections:
+            await self._put(json.dumps({"status": "section_scanning", "section": section, "done": False}))
+        for section in confirmed_rag_sections:
+            await self._put(json.dumps({"status": "section_confirmed", "section": section, "done": False}))
+        await self._put(json.dumps({"status": "generating", "done": False}))
+
+    async def _run_rag_phase(self, bg_session: AsyncSession) -> list[dict[str, str | None]] | None:
+        if not self.should_run_rag or not self.unresolved_messages or self.user_id is None:
+            if self.rag_routing_reason is not None:
+                await self._put(
+                    json.dumps({"status": "skipping_rag", "reason": self.rag_routing_reason, "done": False})
+                )
+            return []
+
+        document_ids = collect_document_ids(self.unresolved_messages)
+        await self._emit_rag_routing_status(document_ids)
+
+        query_text = extract_query_text(self.unresolved_messages)
+        chunks = await self._retrieve_rag_chunks(query_text, document_ids, bg_session)
+        if chunks is None:
+            return None
+
+        source_blocks, confirmed_rag_sections = self._build_rag_context(chunks)
+        if not source_blocks:
+            await self._emit_no_rag_results_response(bg_session)
+            return None
+
+        self._inject_rag_into_messages(source_blocks)
+        await self._emit_rag_section_events(confirmed_rag_sections)
+        return confirmed_rag_sections
+
+    async def _collect_stream_response(self, bg_session: AsyncSession) -> tuple[str, list[dict[str, Any]]] | None:
+        full_response = ""
+        completed_tool_calls: list[dict[str, Any]] = []
+        try:
+            async for event in self.provider.stream_message(self.messages, tools=self.tools):
+                if event["type"] == "token":
+                    token = event["content"]
+                    full_response += token
+                    await self._put(json.dumps({"token": token, "done": False}))
+                elif event["type"] == "tool_start":
+                    await self._put(
+                        json.dumps(
+                            {
+                                "status": "tool_call",
+                                "tool_name": event["name"],
+                                "tool_status": "running",
+                                "done": False,
+                            }
+                        )
+                    )
+                elif event["type"] == "tool_end":
+                    completed_tool_calls.append({"name": event["name"]})
+                    await self._put(
+                        json.dumps(
+                            {
+                                "status": "tool_call",
+                                "tool_name": event["name"],
+                                "tool_status": "done",
+                                "done": False,
+                            }
+                        )
+                    )
+            return full_response, completed_tool_calls
+        except LLM_PROVIDER_API_ERRORS as e:
+            user_message = _streaming_error_message(e)
+            logger.error("Streaming failed: %s", e)
+            await self.service.add_message(
+                session=bg_session,
+                conversation_id=self.conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
+            await self._put(json.dumps({"error": user_message, "done": True}))
+            return None
+        except (OSError, LangChainException) as e:
+            logger.exception("Unexpected streaming error: %s", e)
+            user_message = "An error occurred while generating a response. Please try again."
+            await self.service.add_message(
+                session=bg_session,
+                conversation_id=self.conversation_id,
+                role="assistant",
+                content=user_message,
+                is_error=True,
+            )
+            await self._put(json.dumps({"error": user_message, "done": True}))
+            return None
+
+    async def _persist_and_emit_done(
+        self,
+        full_response: str,
+        confirmed_rag_sections: list[dict[str, str | None]],
+        completed_tool_calls: list[dict[str, Any]],
+        bg_session: AsyncSession,
+    ) -> None:
+        metadata: dict[str, Any] = {}
+        if confirmed_rag_sections:
+            metadata["rag_sections"] = confirmed_rag_sections
+        if completed_tool_calls:
+            metadata["tool_calls"] = completed_tool_calls
+        assistant_message = await self.service.add_message(
+            session=bg_session,
+            conversation_id=self.conversation_id,
+            role="assistant",
+            content=full_response,
+            metadata=metadata if metadata else None,
+        )
+        await self._put(
+            json.dumps(
+                {
+                    "token": "",
+                    "done": True,
+                    "conversation_id": self.conversation_uuid,
+                    "message": {
+                        "id": assistant_message.id,
+                        "role": "assistant",
+                        "content": full_response,
+                        "message_type": "text",
+                        "attachment_name": None,
+                        "attachment_size": None,
+                        "rag_sections": confirmed_rag_sections or None,
+                        "tool_calls": completed_tool_calls or None,
+                    },
+                }
+            )
+        )
+
+    async def _run_llm_phase(
+        self,
+        confirmed_rag_sections: list[dict[str, str | None]],
+        bg_session: AsyncSession,
+    ) -> None:
+        result = await self._collect_stream_response(bg_session)
+        if result is None:
+            return
+        full_response, completed_tool_calls = result
+        await self._persist_and_emit_done(full_response, confirmed_rag_sections, completed_tool_calls, bg_session)
+
+    async def _run(self, bg_session: AsyncSession) -> None:
+        confirmed_rag_sections = await self._run_rag_phase(bg_session)
+        if confirmed_rag_sections is None:
+            return
+        self._strip_unresolved_document_blocks()
+        await self._run_llm_phase(confirmed_rag_sections, bg_session)
+
+    async def _process_and_stream(self) -> None:
+        async with session_scope() as bg_session:
+            try:
+                await self._run(bg_session)
+            except BaseException as exc:
+                logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
+                error_text = "An unexpected error occurred. Please try again."
+                await self.service.add_message(
+                    session=bg_session,
+                    conversation_id=self.conversation_id,
+                    role="assistant",
+                    content=error_text,
+                    is_error=True,
+                )
+                await self._put(json.dumps({"error": error_text, "done": True}))
+                if not isinstance(exc, Exception):
+                    raise
+            finally:
+                await self._put(None)
+
+    async def stream(self, _task_holder: list[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
+        task = asyncio.create_task(self._process_and_stream())
+        if _task_holder is not None:
+            _task_holder.append(task)
+        try:
+            while True:
+                payload = await self.queue.get()
+                if payload is None:
+                    break
+                yield f"data: {payload}\n\n"
+        except asyncio.CancelledError:
+            self.disconnected.set()
+            raise
+
+
 async def stream_chat_response(
     provider: BaseChatProvider,
     messages: list[dict[str, Any]],
@@ -382,279 +715,21 @@ async def stream_chat_response(
     should_run_rag: bool = False,
     rag_routing_reason: str | None = None,
     _task_holder: list[asyncio.Task[None]] | None = None,
-) -> Any:
-    # Both Phase 1 (RAG resolution) and Phase 2 (LLM streaming + DB write) run
-    # inside an independent asyncio task so that a client disconnect (browser
-    # refresh) does not cancel the work. The generator only drains a queue.
-    conversation_id: int = cast(int, conversation.id)
-    conversation_uuid: str = str(conversation.uuid)
-    queue: asyncio.Queue[str | None] = asyncio.Queue()
-    disconnected = asyncio.Event()
-
-    async def _put(payload: str | None) -> None:
-        """Skip enqueue once the consumer has disconnected to prevent unbounded accumulation."""
-        if not disconnected.is_set():
-            await queue.put(payload)
-
-    async def _process_and_stream() -> None:
-        async with session_scope() as bg_session:
-            try:
-                await _run(bg_session)
-            except BaseException as exc:
-                # Intentionally broad: this is the top-level boundary of a fire-and-forget
-                # asyncio task. Anything that escapes _run must still deliver an error payload
-                # so the SSE consumer doesn't block forever on queue.get(). CancelledError is
-                # a BaseException (not Exception), so we re-raise it after the sentinel to
-                # preserve asyncio's cooperative cancellation contract.
-                logger.exception("Unhandled error in stream task for conversation %s", conversation_id)
-                error_text = "An unexpected error occurred. Please try again."
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=error_text,
-                    is_error=True,
-                )
-                await _put(json.dumps({"error": error_text, "done": True}))
-                if not isinstance(exc, Exception):
-                    raise
-            finally:
-                await _put(None)
-
-    async def _run(bg_session: AsyncSession) -> None:
-        confirmed_rag_sections: list[dict[str, str | None]] = []
-        document_ids = collect_document_ids(unresolved_messages) if unresolved_messages else []
-
-        # --- Phase 1: RAG resolution ---
-        if should_run_rag and unresolved_messages and user_id is not None:
-            await _put(json.dumps({"status": "scanning_attachments", "file_count": len(document_ids), "done": False}))
-
-        if not should_run_rag and rag_routing_reason is not None:
-            await _put(json.dumps({"status": "skipping_rag", "reason": rag_routing_reason, "done": False}))
-
-        if should_run_rag and unresolved_messages and user_id is not None:
-            query_text = extract_query_text(unresolved_messages)
-            any_results_found = False
-
-            await _put(json.dumps({"status": "searching_documents", "file_count": len(document_ids), "done": False}))
-
-            logger.info("Agentic RAG search for document_ids=%s query_len=%d", document_ids, len(query_text))
-            if llm is None:
-                raise AssertionError("llm must be provided when RAG resolution is active")
-            try:
-                all_chunks = await agentic_retrieve_context(query_text, document_ids, llm)
-            except DocumentNotFoundError as exc:
-                logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-                error_text = "The attached document could not be found or is no longer accessible."
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=error_text,
-                    is_error=True,
-                )
-                await _put(json.dumps({"error": error_text, "done": True}))
-                return
-            except RAGNotReadyError as exc:
-                logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-                error_text = "The attached document is still being processed. Please wait a moment and try again."
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=error_text,
-                    is_error=True,
-                )
-                await _put(json.dumps({"error": error_text, "done": True}))
-                return
-            except RAGRetrievalError as exc:
-                logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-                error_text = "Failed to search the attached document. Please try again."
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=error_text,
-                    is_error=True,
-                )
-                await _put(json.dumps({"error": error_text, "done": True}))
-                return
-
-            grouped = group_by_source(all_chunks)
-            source_blocks: dict[str, str] = {
-                source: format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
-            }
-            any_results_found = bool(source_blocks)
-
-            # Build confirmed_rag_sections from each chunk's hierarchy
-            seen_section_keys: set[str] = set()
-            for chunk in all_chunks:
-                label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
-                parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-                name = " / ".join(parts) if parts else "General"
-                key = f"{label}:{name}:{chunk.source_name}"
-                if key not in seen_section_keys:
-                    seen_section_keys.add(key)
-                    confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
-
-            # Single assembly pass: replace all legacy document blocks with resolved RAG context.
-            rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
-            for m in messages:
-                if not isinstance(m.get("content"), list):
-                    continue
-                user_text_blocks: list[dict[str, Any]] = []
-                other_blocks: list[dict[str, Any]] = []
-                has_document_block = False
-                for b in m["content"]:
-                    if isinstance(b, dict) and b.get("type") == "drive_file":
-                        has_document_block = True
-                    elif isinstance(b, dict) and b.get("type") == "text":
-                        user_text_blocks.append(b)
-                    else:
-                        other_blocks.append(b)
-                if not has_document_block:
-                    continue
-                if rag_block_list:
-                    m["content"] = (
-                        [{"type": "text", "text": RAG_CONTEXT_PROMPT}]
-                        + other_blocks
-                        + rag_block_list
-                        + user_text_blocks
-                    )
-                else:
-                    m["content"] = other_blocks + user_text_blocks
-
-            if not any_results_found:
-                no_chunks_msg = (
-                    "I searched your documents but couldn't find content closely "
-                    "matching your query.\n\n"
-                    "Please try rephrasing your question, or check that your documents "
-                    "contain information about this topic."
-                )
-                await service.add_message(
-                    session=bg_session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=no_chunks_msg,
-                    message_type="text",
-                )
-                await _put(json.dumps({"done": True, "content": no_chunks_msg, "conversation_id": conversation_uuid}))
-                return
-
-            for section in confirmed_rag_sections:
-                await _put(json.dumps({"status": "section_scanning", "section": section, "done": False}))
-            for section in confirmed_rag_sections:
-                await _put(json.dumps({"status": "section_confirmed", "section": section, "done": False}))
-            await _put(json.dumps({"status": "generating", "done": False}))
-
-        # Safety strip: remove unresolved legacy document blocks before hitting the LLM.
-        for m in messages:
-            if isinstance(m.get("content"), list):
-                m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
-
-        # --- Phase 2: LLM streaming ---
-        full_response = ""
-        completed_tool_calls: list[dict[str, Any]] = []
-        try:
-            async for event in provider.stream_message(messages, tools=tools):
-                if event["type"] == "token":
-                    token = event["content"]
-                    full_response += token
-                    await _put(json.dumps({"token": token, "done": False}))
-                elif event["type"] == "tool_start":
-                    await _put(
-                        json.dumps(
-                            {
-                                "status": "tool_call",
-                                "tool_name": event["name"],
-                                "tool_status": "running",
-                                "done": False,
-                            }
-                        )
-                    )
-                elif event["type"] == "tool_end":
-                    completed_tool_calls.append({"name": event["name"]})
-                    await _put(
-                        json.dumps(
-                            {
-                                "status": "tool_call",
-                                "tool_name": event["name"],
-                                "tool_status": "done",
-                                "done": False,
-                            }
-                        )
-                    )
-
-            metadata: dict[str, Any] = {}
-            if confirmed_rag_sections:
-                metadata["rag_sections"] = confirmed_rag_sections
-            if completed_tool_calls:
-                metadata["tool_calls"] = completed_tool_calls
-
-            assistant_message = await service.add_message(
-                session=bg_session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=full_response,
-                metadata=metadata if metadata else None,
-            )
-            await _put(
-                json.dumps(
-                    {
-                        "token": "",
-                        "done": True,
-                        "conversation_id": conversation_uuid,
-                        "message": {
-                            "id": assistant_message.id,
-                            "role": "assistant",
-                            "content": full_response,
-                            "message_type": "text",
-                            "attachment_name": None,
-                            "attachment_size": None,
-                            "rag_sections": confirmed_rag_sections or None,
-                            "tool_calls": completed_tool_calls or None,
-                        },
-                    }
-                )
-            )
-
-        except LLM_PROVIDER_API_ERRORS as e:
-            user_message = _streaming_error_message(e)
-            logger.error("Streaming failed: %s", e)
-            await service.add_message(
-                session=bg_session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=user_message,
-                is_error=True,
-            )
-            await _put(json.dumps({"error": user_message, "done": True}))
-
-        except (OSError, LangChainException) as e:
-            logger.exception("Unexpected streaming error: %s", e)
-            user_message = "An error occurred while generating a response. Please try again."
-            await service.add_message(
-                session=bg_session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=user_message,
-                is_error=True,
-            )
-            await _put(json.dumps({"error": user_message, "done": True}))
-
-    task = asyncio.create_task(_process_and_stream())
-    if _task_holder is not None:
-        _task_holder.append(task)
-
-    try:
-        while True:
-            payload = await queue.get()
-            if payload is None:
-                break
-            yield f"data: {payload}\n\n"
-    except asyncio.CancelledError:
-        disconnected.set()
-        raise
+) -> AsyncGenerator[str, None]:
+    processor = ChatStreamProcessor(
+        provider,
+        messages,
+        conversation,
+        service,
+        tools,
+        unresolved_messages,
+        user_id,
+        llm,
+        should_run_rag,
+        rag_routing_reason,
+    )
+    async for chunk in processor.stream(_task_holder):
+        yield chunk
 
 
 def _streaming_error_message(exc: Exception) -> str:
