@@ -9,6 +9,7 @@ import {
   useMemo,
   ReactNode,
 } from "react";
+import { api, ApiRequestError } from "@/lib/api";
 import {
   PluginDefinition,
   PluginConfig,
@@ -50,20 +51,26 @@ const PluginContext = createContext<PluginContextValue | undefined>(undefined);
 
 const API_BASE = "/api/v1";
 
-export async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
-  const response = await fetch(`${API_BASE}/user-plugins/`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
+function bearer(token: string): { Authorization: string } {
+  return { Authorization: `Bearer ${token}` };
+}
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to fetch plugins: ${text}`);
+// This module's public contract is plain Error objects; network failures
+// propagate untouched.
+function toError(prefix: string | null, error: unknown): never {
+  if (error instanceof ApiRequestError) {
+    throw new Error(prefix ? `${prefix}: ${error.message}` : error.message);
   }
+  throw error;
+}
 
-  return response.json();
+export async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
+  try {
+    const { data } = await api.GET("/api/v1/user-plugins/", { headers: bearer(token) });
+    return data as UserPluginState[];
+  } catch (error) {
+    toError("Failed to fetch plugins", error);
+  }
 }
 
 async function updatePluginConfigApi(
@@ -71,29 +78,16 @@ async function updatePluginConfigApi(
   config: Record<string, unknown>,
   token: string,
 ): Promise<UserPluginState> {
-  const response = await fetch(`${API_BASE}/user-plugins/${pluginName}/config`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ config }),
-  });
-
-  if (!response.ok) {
-    let message = "Failed to save configuration. Please try again.";
-    try {
-      const json = await response.json();
-      if (typeof json.detail === "string") message = json.detail;
-    } catch {
-      const text = await response.text();
-      if (text) message = text;
-    }
-    throw new Error(message);
+  try {
+    const { data } = await api.PUT("/api/v1/user-plugins/{plugin_name}/config", {
+      params: { path: { plugin_name: pluginName } },
+      body: { config },
+      headers: bearer(token),
+    });
+    return data as UserPluginState;
+  } catch (error) {
+    toError(null, error);
   }
-
-  return response.json();
 }
 
 async function togglePluginApi(
@@ -101,20 +95,19 @@ async function togglePluginApi(
   action: "enable" | "disable",
   token: string,
 ): Promise<UserPluginState> {
-  const response = await fetch(`${API_BASE}/user-plugins/${pluginName}/${action}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to ${action} plugin: ${text}`);
+  try {
+    const options = {
+      params: { path: { plugin_name: pluginName } },
+      headers: bearer(token),
+    };
+    const { data } =
+      action === "enable"
+        ? await api.PATCH("/api/v1/user-plugins/{plugin_name}/enable", options)
+        : await api.PATCH("/api/v1/user-plugins/{plugin_name}/disable", options);
+    return data as UserPluginState;
+  } catch (error) {
+    toError(`Failed to ${action} plugin`, error);
   }
-
-  return response.json();
 }
 
 // ============================================================================
@@ -248,6 +241,9 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
         token,
         updateConfig: (newConfig: Partial<PluginConfig>) =>
           updatePluginConfig(pluginName, newConfig),
+        // Dynamic passthrough for arbitrary plugin endpoints: paths are built
+        // at runtime, so they cannot be statically typed against the OpenAPI
+        // schema. This is the one deliberate raw-fetch exception (issue #403).
         callApi: async <T = unknown>(endpoint: string, options?: RequestInit): Promise<T> => {
           const url = endpoint.startsWith("/")
             ? `${API_BASE}${endpoint}`
