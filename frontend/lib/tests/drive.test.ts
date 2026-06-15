@@ -227,7 +227,10 @@ describe("files", () => {
 
     const blob = await downloadFile(9, "test-token");
 
-    expect(blob).toBeInstanceOf(Blob);
+    // response.blob() returns a Blob from the runtime's native realm, which is not
+    // `instanceof` jsdom's Blob global (their prototypes diverge across Bun versions).
+    // Assert the realm-independent brand; .text() below proves the bytes read back.
+    expect(Object.prototype.toString.call(blob)).toBe("[object Blob]");
     await expect(blob.text()).resolves.toBe("binary-bytes");
   });
 
