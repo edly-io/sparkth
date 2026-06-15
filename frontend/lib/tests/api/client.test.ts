@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
-import { api } from "./client";
+import { api } from "@/lib/api/client";
 
 vi.mock("@/lib/auth-tokens", () => ({
   getStoredToken: vi.fn(),
