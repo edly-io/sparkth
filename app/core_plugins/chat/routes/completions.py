@@ -372,7 +372,11 @@ async def chat_completion(
 
 
 class ChatStreamProcessor:
-    """Encapsulates state and sync helpers for streaming chat responses."""
+    """Holds all shared state for a single streaming chat response.
+
+    Processing runs inside a background asyncio task so a client disconnect
+    does not interrupt the DB write; the generator side only drains a queue.
+    """
 
     def __init__(
         self,
@@ -404,6 +408,9 @@ class ChatStreamProcessor:
     def _build_rag_context(
         self, all_chunks: list[RetrievedChunk]
     ) -> tuple[dict[str, str], list[dict[str, str | None]]]:
+        """Section deduplication prevents the same section appearing twice in the
+        UI when multiple chunks come from the same chapter/section/subsection.
+        """
         grouped = group_by_source(all_chunks)
         source_blocks: dict[str, str] = {
             source: format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
@@ -421,6 +428,7 @@ class ChatStreamProcessor:
         return source_blocks, confirmed_rag_sections
 
     def _inject_rag_into_messages(self, source_blocks: dict[str, str]) -> None:
+        """Mutates self.messages in-place to avoid copying large message lists."""
         rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
         for m in self.messages:
             if not isinstance(m.get("content"), list):
@@ -445,11 +453,13 @@ class ChatStreamProcessor:
                 m["content"] = other_blocks + user_text_blocks
 
     def _strip_unresolved_document_blocks(self) -> None:
+        """Ensures the LLM never receives raw file-reference blocks that RAG did not resolve."""
         for m in self.messages:
             if isinstance(m.get("content"), list):
                 m["content"] = [b for b in m["content"] if not (isinstance(b, dict) and b.get("type") == "drive_file")]
 
     async def _put(self, payload: str | None) -> None:
+        """Skips enqueue once the consumer disconnects to avoid unbounded queue accumulation."""
         if not self.disconnected.is_set():
             await self.queue.put(payload)
 
@@ -462,6 +472,7 @@ class ChatStreamProcessor:
         document_ids: list[int],
         bg_session: AsyncSession,
     ) -> list[RetrievedChunk] | None:
+        """Returns None when retrieval fails; the error SSE and DB write are already handled before returning."""
         await self._put(json.dumps({"status": "searching_documents", "file_count": len(document_ids), "done": False}))
         logger.info("Agentic RAG search for document_ids=%s query_len=%d", document_ids, len(query_text))
         if self.llm is None:
@@ -506,6 +517,7 @@ class ChatStreamProcessor:
             return None
 
     async def _emit_no_rag_results_response(self, bg_session: AsyncSession) -> None:
+        """Persists the message to DB before emitting SSE so it is saved even if the connection drops."""
         no_chunks_msg = (
             "I searched your documents but couldn't find content closely "
             "matching your query.\n\n"
@@ -522,6 +534,9 @@ class ChatStreamProcessor:
         await self._put(json.dumps({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid}))
 
     async def _emit_rag_section_events(self, confirmed_rag_sections: list[dict[str, str | None]]) -> None:
+        """Two-pass emit (scanning then confirmed) lets the UI animate each section
+        before marking it resolved, rather than all sections appearing at once.
+        """
         for section in confirmed_rag_sections:
             await self._put(json.dumps({"status": "section_scanning", "section": section, "done": False}))
         for section in confirmed_rag_sections:
@@ -529,6 +544,9 @@ class ChatStreamProcessor:
         await self._put(json.dumps({"status": "generating", "done": False}))
 
     async def _run_rag_phase(self, bg_session: AsyncSession) -> list[dict[str, str | None]] | None:
+        """Return value convention: None means the response is already complete (error or no-results handled);
+        [] means RAG was skipped but the LLM phase should still run.
+        """
         if not self.should_run_rag or not self.unresolved_messages or self.user_id is None:
             if self.rag_routing_reason is not None:
                 await self._put(
@@ -554,6 +572,7 @@ class ChatStreamProcessor:
         return confirmed_rag_sections
 
     async def _collect_stream_response(self, bg_session: AsyncSession) -> tuple[str, list[dict[str, Any]]] | None:
+        """Returns None when a streaming error is handled; the error SSE and DB write are already done."""
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
         try:
@@ -618,6 +637,9 @@ class ChatStreamProcessor:
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
     ) -> None:
+        """The done SSE payload includes the full message object so the client can
+        update its state without a separate fetch after the stream closes.
+        """
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
             metadata["rag_sections"] = confirmed_rag_sections
@@ -669,6 +691,10 @@ class ChatStreamProcessor:
         await self._run_llm_phase(confirmed_rag_sections, bg_session)
 
     async def _process_and_stream(self) -> None:
+        """BaseException (not Exception) is caught so the None sentinel always reaches
+        the generator even on KeyboardInterrupt or SystemExit, while non-Exception
+        subclasses are still re-raised after cleanup.
+        """
         async with session_scope() as bg_session:
             try:
                 await self._run(bg_session)
@@ -689,6 +715,10 @@ class ChatStreamProcessor:
                 await self._put(None)
 
     async def stream(self, _task_holder: list[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
+        """Processing runs in a separate task so a client disconnect (CancelledError on the generator)
+        does not cancel the DB write mid-flight. _task_holder lets the caller hold a reference
+        to prevent the task from being garbage-collected before it finishes.
+        """
         task = asyncio.create_task(self._process_and_stream())
         if _task_holder is not None:
             _task_holder.append(task)
