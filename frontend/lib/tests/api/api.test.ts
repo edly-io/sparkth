@@ -78,6 +78,16 @@ describe("login", () => {
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).message).toBe("Unable to connect to server: Failed to fetch");
   });
+
+  it("propagates an aborted request instead of wrapping it as a connection error", async () => {
+    const abort = new DOMException("The operation was aborted.", "AbortError");
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(abort);
+
+    const error = await login({ username: "h", password: "pw" }).catch((e: unknown) => e);
+
+    expect(error).toBe(abort);
+    expect(error).not.toBeInstanceOf(ApiRequestError);
+  });
 });
 
 describe("register", () => {

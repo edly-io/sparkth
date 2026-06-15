@@ -14,9 +14,14 @@ function bearer(token: string): { Authorization: string } {
 }
 
 // errorMiddleware turns every non-ok response into an ApiRequestError; anything
-// else rejecting here is a transport failure (DNS, refused connection, ...).
+// else rejecting here is a transport failure (DNS, refused connection, ...). A
+// cancelled request (AbortSignal) throws an AbortError that is intentional, not
+// a failure, so it propagates untouched rather than being relabelled.
 function wrapConnectionError(error: unknown): never {
   if (error instanceof ApiRequestError) throw error;
+  if ((error instanceof DOMException || error instanceof Error) && error.name === "AbortError") {
+    throw error;
+  }
   const message = error instanceof Error ? error.message : "Unknown error";
   throw new ApiRequestError({
     message: `Unable to connect to server: ${message}`,
@@ -24,71 +29,54 @@ function wrapConnectionError(error: unknown): never {
   });
 }
 
-export async function login(data: LoginRequest): Promise<LoginResponse> {
+// Runs an openapi-fetch call and returns its unwrapped data, funnelling every
+// transport failure through wrapConnectionError. `data` is typed as possibly
+// undefined (e.g. an empty 2xx body); these endpoints always send a body on
+// success, and void endpoints pass `T = void`, so the cast is safe. Endpoints
+// that need bespoke error handling (resendVerificationEmail) keep their own
+// try/catch.
+async function call<T>(request: () => Promise<{ data?: T }>): Promise<T> {
   try {
-    const { data: token } = await api.POST("/api/v1/auth/login", { body: data });
-    return token as LoginResponse;
+    const { data } = await request();
+    return data as T;
   } catch (error) {
     wrapConnectionError(error);
   }
+}
+
+export async function login(data: LoginRequest): Promise<LoginResponse> {
+  return call<LoginResponse>(() => api.POST("/api/v1/auth/login", { body: data }));
 }
 
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
-  try {
-    const { data: user } = await api.POST("/api/v1/auth/register", { body: data });
-    return user as RegisterResponse;
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+  return call<RegisterResponse>(() => api.POST("/api/v1/auth/register", { body: data }));
 }
 
 export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
-  try {
-    const { data } = await api.GET("/api/v1/auth/google/authorize");
-    return data as GoogleAuthUrlResponse;
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+  return call<GoogleAuthUrlResponse>(() => api.GET("/api/v1/auth/google/authorize"));
 }
 
 export async function getWhitelist(token: string): Promise<WhitelistEntry[]> {
-  try {
-    const { data } = await api.GET("/api/v1/whitelist/", { headers: bearer(token) });
-    return data as WhitelistEntry[];
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+  return call<WhitelistEntry[]>(() => api.GET("/api/v1/whitelist/", { headers: bearer(token) }));
 }
 
 export async function addWhitelistEntry(token: string, value: string): Promise<WhitelistEntry> {
-  try {
-    const { data } = await api.POST("/api/v1/whitelist/", {
-      body: { value },
-      headers: bearer(token),
-    });
-    return data as WhitelistEntry;
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+  return call<WhitelistEntry>(() =>
+    api.POST("/api/v1/whitelist/", { body: { value }, headers: bearer(token) }),
+  );
 }
 
 export async function removeWhitelistEntry(token: string, id: number): Promise<void> {
-  try {
-    await api.DELETE("/api/v1/whitelist/{entry_id}", {
+  return call<void>(() =>
+    api.DELETE("/api/v1/whitelist/{entry_id}", {
       params: { path: { entry_id: id } },
       headers: bearer(token),
-    });
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+    }),
+  );
 }
 
 export async function verifyEmail(token: string): Promise<void> {
-  try {
-    await api.POST("/api/v1/auth/verify-email", { body: { token } });
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+  return call<void>(() => api.POST("/api/v1/auth/verify-email", { body: { token } }));
 }
 
 export async function resendVerificationEmail(email: string): Promise<void> {
@@ -111,10 +99,5 @@ export async function resendVerificationEmail(email: string): Promise<void> {
 }
 
 export async function getCurrentUser(token: string): Promise<CurrentUser> {
-  try {
-    const { data } = await api.GET("/api/v1/user/me", { headers: bearer(token) });
-    return data as CurrentUser;
-  } catch (error) {
-    wrapConnectionError(error);
-  }
+  return call<CurrentUser>(() => api.GET("/api/v1/user/me", { headers: bearer(token) }));
 }
