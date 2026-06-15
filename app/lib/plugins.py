@@ -2,21 +2,20 @@
 
 All plugins and external modules import the plugin-authoring surface from here.
 Nothing outside ``app/lib/plugins`` should import from ``app.plugins``,
-``app.plugins.adapters``, ``app.plugins.base``, ``app.plugins.config_base`` or
-``app.plugins.middleware`` directly.
+``app.plugins.base``, ``app.plugins.config_base`` or ``app.plugins.middleware``
+directly.
 """
 
 from typing import TYPE_CHECKING, Any
 
 from app.plugins import get_plugin_loader
-from app.plugins.adapters import PLUGIN_ADAPTERS
 from app.plugins.base import SparkthPlugin
 from app.plugins.config_base import PluginConfig
 
 if TYPE_CHECKING:
     from app.plugins.middleware import PluginAccessMiddleware
 
-__all__ = ["get_plugin_loader", "PluginConfig", "SparkthPlugin", "PluginAccessMiddleware", "PLUGIN_ADAPTERS"]
+__all__ = ["get_plugin_loader", "PluginConfig", "SparkthPlugin", "PluginAccessMiddleware"]
 
 
 def __getattr__(name: str) -> Any:

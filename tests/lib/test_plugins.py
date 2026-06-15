@@ -23,7 +23,6 @@ class TestPluginsPublicApi:
             "SparkthPlugin",
             "PluginConfig",
             "PluginAccessMiddleware",
-            "PLUGIN_ADAPTERS",
             "get_plugin_loader",
         }
 
@@ -39,9 +38,6 @@ class TestPluginsImportSafety:
 
     def test_exposes_plugin_loader(self) -> None:
         assert callable(plugins_api.get_plugin_loader)
-
-    def test_exposes_plugin_adapters(self) -> None:
-        assert isinstance(plugins_api.PLUGIN_ADAPTERS, dict)
 
     def test_resolves_access_middleware_lazily(self) -> None:
         assert isinstance(plugins_api.PluginAccessMiddleware, type)
