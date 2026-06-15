@@ -134,16 +134,23 @@ class MyAppPluginConfigAdapter(LLMConfigAdapter):
     pass
 ```
 
-**2. Register it in `PLUGIN_ADAPTERS`**
+**2. Register it in `CONFIG_ADAPTERS`**
+
+In your plugin's `__init__`, add the adapter alongside the config schema:
 
 ```python
-# app/plugins/adapters.py
+# app/core_plugins/myappplugin/plugin.py
 from app.core_plugins.myappplugin.adapter import MyAppPluginConfigAdapter
+from app.core_plugins.myappplugin.config import MyAppPluginConfig
+from app.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from app.lib.plugins import SparkthPlugin
 
-PLUGIN_ADAPTERS: dict[str, LLMConfigAdapter] = {
-    ...
-    "my-app": MyAppPluginConfigAdapter(),
-}
+
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
+        CONFIG_ADAPTERS.add_item(self, MyAppPluginConfigAdapter())
 ```
 
 That's it. `preprocess_config` and `postprocess_config` are now wired in automatically for every POST and PUT to your plugin's config endpoint.
@@ -223,7 +230,7 @@ You do **not** choose the plugin name freely. The `PluginLoader` instantiates ea
 | `MyAppPlugin` | `my-app` |
 | `Slack` (no suffix) | `slack` |
 
-This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and the key you must use in `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
+This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and what `get_plugin_adapter` uses to look up your adapter from `CONFIG_ADAPTERS`. Name your class so the derived name is what you want.
 
 
 ## Basic Plugin Structure
