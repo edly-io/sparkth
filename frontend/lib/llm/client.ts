@@ -1,4 +1,4 @@
-import { api, ApiRequestError } from "@/lib/api";
+import { api, bearer, rethrowOrWrapConnectionError } from "@/lib/api";
 import type {
   CreateLLMConfigPayload,
   LLMConfig,
@@ -6,22 +6,6 @@ import type {
   ProviderCatalogResponse,
   UpdateLLMConfigPayload,
 } from "@/lib/llm/types";
-
-function bearer(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
-}
-
-// errorMiddleware turns every non-ok response into an ApiRequestError; aborts
-// are flow control and pass through; anything else is a transport failure.
-function rethrowOrWrapConnectionError(error: unknown): never {
-  if (error instanceof ApiRequestError) throw error;
-  if (error instanceof DOMException && error.name === "AbortError") throw error;
-  const message = error instanceof Error ? error.message : "Unknown error";
-  throw new ApiRequestError({
-    message: `Unable to connect to server: ${message}`,
-    fieldErrors: {},
-  });
-}
 
 export async function fetchLLMConfigs(
   token: string,

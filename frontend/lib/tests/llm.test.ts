@@ -11,6 +11,8 @@ import {
   updateLLMConfig,
 } from "@/lib/llm";
 
+import { mockFetch, sentRequest } from "./test-utils";
+
 vi.mock("@/lib/auth-tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
@@ -25,18 +27,6 @@ const CONFIG = {
   created_at: "2026-01-01T00:00:00Z",
   last_used_at: null,
 };
-
-function mockFetch(body: unknown, status = 200) {
-  const response =
-    status === 204
-      ? new Response(null, { status })
-      : new Response(JSON.stringify(body), { status });
-  return vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
-}
-
-function sentRequest(spy: ReturnType<typeof mockFetch>): Request {
-  return spy.mock.calls[0][0] as Request;
-}
 
 beforeEach(() => {
   vi.restoreAllMocks();
