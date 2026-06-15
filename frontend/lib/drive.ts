@@ -1,7 +1,6 @@
 import { api, ApiRequestError, type Schema } from "@/lib/api";
 
-export type ConnectionStatus =
-  Schema<"app__core_plugins__googledrive__schemas__ConnectionStatusResponse">;
+export type ConnectionStatus = Schema<"GoogleDriveConnectionStatusResponse">;
 export type DriveFolder = Schema<"DriveFolderResponse">;
 export type DriveFile = Schema<"DriveFileResponse">;
 export type DriveFolderWithFiles = Schema<"DriveFolderWithFilesResponse">;
@@ -65,8 +64,7 @@ export async function getAuthorizationUrl(token: string): Promise<string> {
     const { data } = await api.GET("/api/v1/google-drive/oauth/authorize", {
       headers: bearer(token),
     });
-    return (data as Schema<"app__core_plugins__googledrive__schemas__AuthorizationUrlResponse">)
-      .url;
+    return (data as Schema<"GoogleDriveAuthorizationUrlResponse">).url;
   } catch (error) {
     toError("Failed to get authorization URL", error);
   }

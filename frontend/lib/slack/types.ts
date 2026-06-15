@@ -1,8 +1,7 @@
 import { type Schema } from "@/lib/api";
 
-export type ConnectionStatus = Schema<"app__core_plugins__slack__types__ConnectionStatusResponse">;
-export type AuthorizationUrlResponse =
-  Schema<"app__core_plugins__slack__types__AuthorizationUrlResponse">;
+export type ConnectionStatus = Schema<"SlackConnectionStatusResponse">;
+export type AuthorizationUrlResponse = Schema<"SlackAuthorizationUrlResponse">;
 export type BotResponseLogItem = Schema<"BotResponseLogItem">;
 export type ConnectionLogItem = Schema<"ConnectionLogItem">;
 export type LogItem = BotResponseLogItem | ConnectionLogItem;
