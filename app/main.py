@@ -11,9 +11,8 @@ from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core.routes.hooks import PLUGIN_ROUTERS
 from app.lib.log import configure_logging, get_logger
+from app.lib.plugins import PluginAccessMiddleware, get_plugin_loader
 from app.mcp.server import mcp, register_plugin_tools
-from app.plugins import get_plugin_loader
-from app.plugins.middleware import PluginAccessMiddleware
 from app.services.plugin import get_plugin_service
 
 configure_logging()

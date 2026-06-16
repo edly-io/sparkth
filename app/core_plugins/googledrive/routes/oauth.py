@@ -19,7 +19,10 @@ from app.core_plugins.googledrive.oauth import (
 )
 from app.core_plugins.googledrive.routes.dependencies import require_user_id
 from app.core_plugins.googledrive.routes.route_utils import get_drive_credentials
-from app.core_plugins.googledrive.schemas import AuthorizationUrlResponse, ConnectionStatusResponse
+from app.core_plugins.googledrive.schemas import (
+    GoogleDriveAuthorizationUrlResponse,
+    GoogleDriveConnectionStatusResponse,
+)
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.user import User
@@ -28,15 +31,15 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.get("/oauth/authorize", response_model=AuthorizationUrlResponse)
+@router.get("/oauth/authorize", response_model=GoogleDriveAuthorizationUrlResponse)
 def get_authorization_url(
     current_user: User = Depends(get_current_user),
     user_id: int = Depends(require_user_id),
-) -> AuthorizationUrlResponse:
+) -> GoogleDriveAuthorizationUrlResponse:
     """Generate Google OAuth authorization URL."""
     client_id, _, redirect_uri = get_drive_credentials()
     url = generate_authorization_url(user_id, client_id, redirect_uri, login_hint=current_user.email)
-    return AuthorizationUrlResponse(url=url)
+    return GoogleDriveAuthorizationUrlResponse(url=url)
 
 
 @router.get("/oauth/callback")
@@ -113,24 +116,24 @@ async def disconnect_drive(
     return {"detail": "Google Drive disconnected successfully"}
 
 
-@router.get("/oauth/status", response_model=ConnectionStatusResponse)
+@router.get("/oauth/status", response_model=GoogleDriveConnectionStatusResponse)
 async def get_connection_status(
     user_id: int = Depends(require_user_id),
     session: AsyncSession = Depends(get_async_session),
-) -> ConnectionStatusResponse:
+) -> GoogleDriveConnectionStatusResponse:
     """Get Google Drive connection status."""
     token_record = await get_token_record(session, user_id)
     if not token_record:
-        return ConnectionStatusResponse(connected=False)
+        return GoogleDriveConnectionStatusResponse(connected=False)
 
     try:
         client_id, client_secret, _ = get_drive_credentials()
         access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
         user_info = await get_user_info(access_token)
-        return ConnectionStatusResponse(
+        return GoogleDriveConnectionStatusResponse(
             connected=True,
             email=user_info.get("email"),
             expires_at=token_record.token_expiry,
         )
     except (ValueError, HTTPException):
-        return ConnectionStatusResponse(connected=False)
+        return GoogleDriveConnectionStatusResponse(connected=False)

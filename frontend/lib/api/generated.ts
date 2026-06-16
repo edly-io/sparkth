@@ -1389,6 +1389,26 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * GoogleDriveAuthorizationUrlResponse
+         * @description OAuth authorization URL response.
+         */
+        GoogleDriveAuthorizationUrlResponse: {
+            /** Url */
+            url: string;
+        };
+        /**
+         * GoogleDriveConnectionStatusResponse
+         * @description Google Drive connection status.
+         */
+        GoogleDriveConnectionStatusResponse: {
+            /** Connected */
+            connected: boolean;
+            /** Email */
+            email?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1596,6 +1616,24 @@ export interface components {
              */
             email: string;
         };
+        /** SlackAuthorizationUrlResponse */
+        SlackAuthorizationUrlResponse: {
+            /** Url */
+            url: string;
+        };
+        /** SlackConnectionStatusResponse */
+        SlackConnectionStatusResponse: {
+            /** Bot User Id */
+            bot_user_id?: string | null;
+            /** Connected */
+            connected: boolean;
+            /** Connected At */
+            connected_at?: string | null;
+            /** Team Id */
+            team_id?: string | null;
+            /** Team Name */
+            team_name?: string | null;
+        };
         /**
          * SyncFolderRequest
          * @description Request to sync a Google Drive folder.
@@ -1749,44 +1787,6 @@ export interface components {
             id: number;
             /** Value */
             value: string;
-        };
-        /**
-         * AuthorizationUrlResponse
-         * @description OAuth authorization URL response.
-         */
-        app__core_plugins__googledrive__schemas__AuthorizationUrlResponse: {
-            /** Url */
-            url: string;
-        };
-        /**
-         * ConnectionStatusResponse
-         * @description Google Drive connection status.
-         */
-        app__core_plugins__googledrive__schemas__ConnectionStatusResponse: {
-            /** Connected */
-            connected: boolean;
-            /** Email */
-            email?: string | null;
-            /** Expires At */
-            expires_at?: string | null;
-        };
-        /** AuthorizationUrlResponse */
-        app__core_plugins__slack__types__AuthorizationUrlResponse: {
-            /** Url */
-            url: string;
-        };
-        /** ConnectionStatusResponse */
-        app__core_plugins__slack__types__ConnectionStatusResponse: {
-            /** Bot User Id */
-            bot_user_id?: string | null;
-            /** Connected */
-            connected: boolean;
-            /** Connected At */
-            connected_at?: string | null;
-            /** Team Id */
-            team_id?: string | null;
-            /** Team Name */
-            team_name?: string | null;
         };
     };
     responses: never;
@@ -2715,7 +2715,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__core_plugins__googledrive__schemas__AuthorizationUrlResponse"];
+                    "application/json": components["schemas"]["GoogleDriveAuthorizationUrlResponse"];
                 };
             };
         };
@@ -2789,7 +2789,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__core_plugins__googledrive__schemas__ConnectionStatusResponse"];
+                    "application/json": components["schemas"]["GoogleDriveConnectionStatusResponse"];
                 };
             };
         };
@@ -3115,7 +3115,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__core_plugins__slack__types__AuthorizationUrlResponse"];
+                    "application/json": components["schemas"]["SlackAuthorizationUrlResponse"];
                 };
             };
         };
@@ -3189,7 +3189,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__core_plugins__slack__types__ConnectionStatusResponse"];
+                    "application/json": components["schemas"]["SlackConnectionStatusResponse"];
                 };
             };
         };

@@ -1,7 +1,7 @@
 import weakref
 from typing import Generic, Iterator, TypeVar
 
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 T = TypeVar("T")
 

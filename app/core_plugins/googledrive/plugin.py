@@ -4,8 +4,8 @@ import app.core_plugins.googledrive.models  # noqa: F401 - registers tables in S
 from app.core_plugins.googledrive.config import GoogleDriveConfig
 from app.core_plugins.googledrive.routes import router
 from app.lib.config.hooks import CONFIG_SCHEMAS
+from app.lib.plugins import SparkthPlugin
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
 
 
 class GoogleDrivePlugin(SparkthPlugin):

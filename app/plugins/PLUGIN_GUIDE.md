@@ -4,12 +4,12 @@ Quick guide for creating Sparkth plugins with API routes and MCP tools.
 
 
 ## Plugin Config Definition
-Define a config class for the plugin that must inherit from `app.plugins.config_base:PluginConfig`
+Define a config class for the plugin that must inherit from `app.lib.plugins:PluginConfig`
 
 ```python
 # app/core_plugins/myappplugin/config.py
 from pydantic import Field
-from app.plugins.config_base import PluginConfig
+from app.lib.plugins import PluginConfig
 
 class MyAppPluginConfig(PluginConfig):
     config_field: str = Field(..., description="...")
@@ -24,7 +24,7 @@ If your plugin lets users pick an AI model to power some feature (e.g. answer sy
 ```python
 # app/core_plugins/myappplugin/config.py
 from pydantic import Field
-from app.plugins.config_base import PluginConfig
+from app.lib.plugins import PluginConfig
 
 class MyAppPluginConfig(PluginConfig):
     llm_config_id: int | None = Field(
@@ -96,7 +96,7 @@ When you do register one, contribute your config class to the `CONFIG_SCHEMAS` h
 
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 
 class MyAppPlugin(SparkthPlugin):
@@ -134,16 +134,23 @@ class MyAppPluginConfigAdapter(LLMConfigAdapter):
     pass
 ```
 
-**2. Register it in `PLUGIN_ADAPTERS`**
+**2. Register it in `CONFIG_ADAPTERS`**
+
+In your plugin's `__init__`, add the adapter alongside the config schema:
 
 ```python
-# app/plugins/adapters.py
+# app/core_plugins/myappplugin/plugin.py
 from app.core_plugins.myappplugin.adapter import MyAppPluginConfigAdapter
+from app.core_plugins.myappplugin.config import MyAppPluginConfig
+from app.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from app.lib.plugins import SparkthPlugin
 
-PLUGIN_ADAPTERS: dict[str, LLMConfigAdapter] = {
-    ...
-    "my-app": MyAppPluginConfigAdapter(),
-}
+
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self, plugin_name: str) -> None:
+        super().__init__(plugin_name)
+        CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
+        CONFIG_ADAPTERS.add_item(self, MyAppPluginConfigAdapter())
 ```
 
 That's it. `preprocess_config` and `postprocess_config` are now wired in automatically for every POST and PUT to your plugin's config endpoint.
@@ -223,7 +230,7 @@ You do **not** choose the plugin name freely. The `PluginLoader` instantiates ea
 | `MyAppPlugin` | `my-app` |
 | `Slack` (no suffix) | `slack` |
 
-This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and the key you must use in `PLUGIN_ADAPTERS`. Name your class so the derived name is what you want.
+This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and what `get_plugin_adapter` uses to look up your adapter from `CONFIG_ADAPTERS`. Name your class so the derived name is what you want.
 
 
 ## Basic Plugin Structure
@@ -241,7 +248,7 @@ from app.core_plugins.myappplugin.config import MyAppPluginConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 # Create router outside the class
 router = APIRouter()
@@ -347,7 +354,7 @@ from fastapi import APIRouter
 
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
 from app.lib.routes import register_router
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 # Router
 router = APIRouter()

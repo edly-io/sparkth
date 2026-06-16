@@ -11,13 +11,6 @@ Provides a flexible, OOP-based plugin architecture with:
 - Configuration management
 """
 
-from app.plugins.base import SparkthPlugin
-from app.plugins.exceptions import (
-    PluginError,
-    PluginLoadError,
-    PluginValidationError,
-)
-
 from .loader import PluginLoader
 
 
@@ -31,13 +24,3 @@ def get_plugin_loader() -> PluginLoader:
         PluginLoader: The global plugin loader instance
     """
     return PluginLoader.instance()
-
-
-__all__ = [
-    "SparkthPlugin",
-    "PluginLoader",
-    "get_plugin_loader",
-    "PluginError",
-    "PluginLoadError",
-    "PluginValidationError",
-]

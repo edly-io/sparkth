@@ -31,7 +31,7 @@ class RenameFileRequest(BaseModel):
 
 
 # Response models
-class ConnectionStatusResponse(BaseModel):
+class GoogleDriveConnectionStatusResponse(BaseModel):
     """Google Drive connection status."""
 
     connected: bool
@@ -39,7 +39,7 @@ class ConnectionStatusResponse(BaseModel):
     expires_at: datetime | None = None
 
 
-class AuthorizationUrlResponse(BaseModel):
+class GoogleDriveAuthorizationUrlResponse(BaseModel):
     """OAuth authorization URL response."""
 
     url: str

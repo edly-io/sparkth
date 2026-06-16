@@ -5,7 +5,7 @@ from app.core_plugins.openedx import tools as openedx_tools
 from app.core_plugins.openedx.config import OpenEdxConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
-from app.plugins.base import SparkthPlugin
+from app.lib.plugins import SparkthPlugin
 
 
 class OpenEdxPlugin(SparkthPlugin):

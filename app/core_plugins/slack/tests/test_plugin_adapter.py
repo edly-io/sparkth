@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core_plugins.slack.adapter import SlackConfigAdapter
+from app.lib.config import get_plugin_adapter
 from app.lib.llm import LLMConfigAdapter
 from app.models import LLMConfig
-from app.plugins.adapters import PLUGIN_ADAPTERS
 
 
 @pytest.fixture
@@ -110,7 +110,6 @@ async def test_preprocess_no_override_passes_through() -> None:
     assert result.get("llm_model_override") is None
 
 
-@pytest.mark.asyncio
-async def test_preprocess_registered_in_plugin_adapters() -> None:
-    assert "slack" in PLUGIN_ADAPTERS
-    assert isinstance(PLUGIN_ADAPTERS["slack"], SlackConfigAdapter)
+def test_slack_adapter_registered_in_config_adapters() -> None:
+    adapter = get_plugin_adapter("slack")
+    assert isinstance(adapter, SlackConfigAdapter)

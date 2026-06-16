@@ -1,7 +1,8 @@
 from collections.abc import Iterator
 
-from app.lib.config.hooks import CONFIG_SCHEMAS
-from app.plugins.config_base import PluginConfig
+from app.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from app.lib.llm import LLMConfigAdapter
+from app.lib.plugins import PluginConfig
 
 
 def iter_plugin_config_schemas() -> Iterator[tuple[str, type[PluginConfig]]]:
@@ -20,4 +21,22 @@ def get_plugin_config_schema(plugin_name: str) -> type[PluginConfig] | None:
     for name, config_schema in iter_plugin_config_schemas():
         if name == plugin_name:
             return config_schema
+    return None
+
+
+def iter_plugin_adapters() -> Iterator[tuple[str, LLMConfigAdapter]]:
+    """Yield (plugin_name, adapter) for every plugin that contributed a config adapter.
+
+    Like CONFIG_SCHEMAS, CONFIG_ADAPTERS is populated when plugins are instantiated
+    at the process entrypoint; this iterator assumes that has already happened.
+    """
+    for plugin, adapter in CONFIG_ADAPTERS.iter_items():
+        yield plugin.name, adapter
+
+
+def get_plugin_adapter(plugin_name: str) -> LLMConfigAdapter | None:
+    """Return the config adapter a plugin contributed, looked up by plugin name."""
+    for name, adapter in iter_plugin_adapters():
+        if name == plugin_name:
+            return adapter
     return None
