@@ -13,4 +13,6 @@ Example:
     ```
 """
 
-from app.core.config import get_settings as get_settings
+from app.core.config import get_settings
+
+__all__ = ["get_settings"]
