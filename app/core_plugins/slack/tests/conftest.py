@@ -30,7 +30,7 @@ from app.models.user import User
 
 @pytest.fixture(autouse=True)
 def _clear_settings_cache() -> Generator[None, None, None]:
-    from app.core.config import get_settings
+    from app.lib.settings import get_settings
 
     get_settings.cache_clear()
     yield
