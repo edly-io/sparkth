@@ -9,7 +9,7 @@ import {
   type BotResponseLogItem,
   type ConnectionLogItem,
   type LogItem,
-} from "@/lib/slack-api";
+} from "@/lib/slack";
 
 const POLL_INTERVAL_MS = 30_000;
 const PAGE_SIZE = 50;
@@ -200,7 +200,7 @@ export default function LogStream() {
       dispatch({
         type: "INITIAL_SUCCESS",
         items: data.items,
-        nextCursor: data.next_cursor,
+        nextCursor: data.next_cursor ?? null,
         hasMore: data.has_more,
       });
     } catch (err) {
@@ -291,7 +291,7 @@ export default function LogStream() {
       dispatch({
         type: "LOAD_OLDER_SUCCESS",
         items: data.items,
-        nextCursor: data.next_cursor,
+        nextCursor: data.next_cursor ?? null,
         hasMore: data.has_more,
       });
     } catch (err) {

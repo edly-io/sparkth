@@ -3,7 +3,7 @@
 import { Dispatch, SetStateAction, useState } from "react";
 import { TextAttachment } from "@/plugins/chat/types";
 import { attachDocument, detachDocument } from "@/lib/chat";
-import { uploadFile, UploadResponse } from "@/lib/file_upload";
+import { uploadFile, UploadResponse } from "@/lib/file-upload";
 import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB

@@ -1,40 +1,6 @@
-import createClient, { type Middleware } from "openapi-fetch";
-import { getStoredToken } from "@/lib/auth-tokens";
-import {
-  ApiRequestError,
-  formatApiError,
-  isStructuredDetail,
-  type ApiError,
-  type StructuredErrorDetail,
-} from "@/lib/api";
+import createClient from "openapi-fetch";
 import type { components, paths } from "./generated";
-
-const authMiddleware: Middleware = {
-  async onRequest({ request }) {
-    const token = getStoredToken();
-    if (token) request.headers.set("Authorization", `Bearer ${token}`);
-    return request;
-  },
-};
-
-const errorMiddleware: Middleware = {
-  async onResponse({ response }) {
-    if (response.ok) return response;
-    let formatted = {
-      message: `Request failed (HTTP ${response.status}). Please try again.`,
-      fieldErrors: {} as Record<string, string>,
-    };
-    let detail: StructuredErrorDetail | undefined;
-    try {
-      const envelope: ApiError = await response.clone().json();
-      formatted = formatApiError(envelope);
-      if (isStructuredDetail(envelope.detail)) detail = envelope.detail;
-    } catch {
-      // Non-JSON error body: keep the generic message.
-    }
-    throw new ApiRequestError(formatted, response.status, detail);
-  },
-};
+import { authMiddleware, errorMiddleware } from "./middleware";
 
 // Use the current origin in browsers (same-origin); fall back to localhost for
 // SSR and test environments where relative URLs are not resolvable. See #403.
@@ -48,3 +14,9 @@ export const api = createClient<paths>({ baseUrl, fetch: fetchDelegate });
 api.use(authMiddleware, errorMiddleware);
 
 export type Schema<K extends keyof components["schemas"]> = components["schemas"][K];
+
+// Builds an explicit Authorization header for calls that pass a token directly,
+// bypassing authMiddleware's stored-token lookup.
+export function bearer(token: string): { Authorization: string } {
+  return { Authorization: `Bearer ${token}` };
+}
