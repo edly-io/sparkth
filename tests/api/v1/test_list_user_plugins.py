@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -9,9 +9,7 @@ from app.models import User
 from app.services.plugin import PluginService, get_plugin_service
 
 
-async def test_list_user_plugins_basic(override_dependencies: Any) -> None:
-    client = override_dependencies
-
+async def test_list_user_plugins_basic(client: AsyncClient, user_plugins: User) -> None:
     response = await client.get("/api/v1/user-plugins/")
     assert response.status_code == 200
 

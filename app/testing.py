@@ -28,161 +28,74 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
+from app.core.db import async_engine
 from app.lib.db import get_async_session
 from app.main import app
-from app.models.plugin import Plugin, UserPlugin
 from app.models.user import User
-from app.services.plugin import PluginService, get_plugin_service
-
-DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture(scope="session", autouse=True)
-def load_plugins() -> None:
-    """Instantiate plugins once for the whole test session.
+async def dispose_async_engine() -> AsyncGenerator[None, None]:
+    """Close the shared async engine once the whole test session is done.
 
-    In production this happens at the process entrypoint (the FastAPI lifespan,
-    the standalone MCP server, or the migration runner); httpx's ASGITransport
-    does not run lifespan events, so tests load plugins here instead. This is
-    what populates the contribution hooks that hook consumers read.
+    The ``:memory:`` test database uses a ``StaticPool``, so a single aiosqlite
+    connection is kept open for the entire run. aiosqlite runs each connection in
+    a *non-daemon* worker thread, which only exits when the connection is closed.
+    Without this final dispose the thread lingers and the interpreter hangs
+    joining it at shutdown.
     """
-    from app.lib.plugins import get_plugin_loader
-
-    get_plugin_loader()
-
-
-@pytest.fixture(scope="session")
-async def engine() -> AsyncGenerator[AsyncEngine, None]:
-    engine = create_async_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
-    await engine.dispose()
-
-
-@pytest.fixture(scope="session")
-def sync_engine() -> Generator[Any, None, None]:
-    """In-memory sync engine for routes that use synchronous Session."""
-    eng = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(eng)
-    yield eng
-    SQLModel.metadata.drop_all(eng)
-    eng.dispose()
+    yield
+    await async_engine.dispose()
 
 
 @pytest.fixture
-def sync_session(sync_engine: Any) -> Generator[Session, None, None]:
-    """Sync session with rollback for each test."""
-    connection = sync_engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection)
-    try:
-        yield session
-    finally:
-        session.close()
-        transaction.rollback()
-        connection.close()
-
-
-@pytest.fixture
-async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    async with engine.connect() as conn:
+async def session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Async database session that will efficiently rollback all changes for all async
+    queries.
+    """
+    async with async_engine.connect() as conn:
         tx = await conn.begin()
-        s = AsyncSession(bind=conn)
+
+        # Create all tables corresponding to all models
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+        session = AsyncSession(bind=conn)
+
+        # Override global async sessions
+        async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
+            yield session
+
+        app.dependency_overrides[get_async_session] = get_async_session_override
         try:
-            yield s
+            yield session
         finally:
-            await s.close()
+            app.dependency_overrides.pop(get_async_session, None)
+
+            # Rollback the transaction so data is never actually written to the
+            # test database.
+            await session.close()
             await tx.rollback()
 
 
 @pytest.fixture
-async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    async def get_session_override() -> AsyncGenerator[AsyncSession, None]:
-        yield session
-
-    app.dependency_overrides[get_async_session] = get_session_override
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as ac:
-        yield ac
-
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture
-async def setup_plugins_and_user(session: AsyncSession) -> dict[str, Any]:
-    user = User(
-        name="Test User", username="testuser123", email="test@example.com", hashed_password="fakehashedpassword"
-    )
-    session.add(user)
-    await session.flush()
-
-    plugin_a = Plugin(name="plugin_a", is_core=True, enabled=True)
-    plugin_b = Plugin(name="plugin_b", is_core=True, enabled=True)
-    configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_core=True, enabled=True)
-    disabled_plugin = Plugin(name="disabled_plugin", is_core=True, enabled=False)
-    session.add_all([plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin])
-    await session.flush()
-
-    user_plugin_b = UserPlugin(
-        user_id=cast(int, user.id), plugin_id=cast(int, plugin_b.id), enabled=True, config={"some config": "abc"}
-    )
-    session.add(user_plugin_b)
-    await session.flush()
-
-    user_plugin_c = UserPlugin(
-        user_id=cast(int, user.id),
-        plugin_id=cast(int, configured_plugin_disabled.id),
-        enabled=False,
-        config={"some config": "abc"},
-    )
-    session.add(user_plugin_c)
-    await session.flush()
-
-    return {"user": user, "plugins": [plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin]}
-
-
-@pytest.fixture
-async def override_dependencies(client: AsyncClient, setup_plugins_and_user: Any) -> AsyncGenerator[AsyncClient, None]:
-    transport = cast(ASGITransport, client._transport)
-    app_instance = cast(FastAPI, transport.app)
-    user: User = setup_plugins_and_user["user"]
-
-    async def get_user_override() -> User:
-        return user
-
-    def get_plugin_service_override() -> PluginService:
-        return PluginService()
-
-    app_instance.dependency_overrides[get_current_user] = get_user_override
-    app_instance.dependency_overrides[get_plugin_service] = get_plugin_service_override
-    yield client
-    app_instance.dependency_overrides.pop(get_current_user, None)
-    app_instance.dependency_overrides.pop(get_plugin_service, None)
+async def client(session: AsyncSession) -> AsyncClient:
+    """
+    Similar to TestClient, but for async requests.
+    """
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 @pytest.fixture
 async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
+    """
+    Create a test user and login with this user in all views.
+    """
     transport = cast(ASGITransport, client._transport)
     app_instance = cast(FastAPI, transport.app)
     user = User(
@@ -202,7 +115,18 @@ async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
 
 
 @pytest.fixture(autouse=True)
-def reset_cache_service() -> Generator[None, None, None]:
+def _stub_send_verification_email() -> Generator[Any, None, None]:
+    """Stub the verification email sender so tests don't hit SMTP.
+
+    Tests that need to assert on send arguments use their own `with patch(...)`
+    inside the test body — the inner patch supersedes this autouse stub.
+    """
+    with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock) as stub:
+        yield stub
+
+
+@pytest.fixture(autouse=True)
+def _reset_cache_service() -> Generator[None, None, None]:
     """Clear the get_cache_service lru_cache after each test.
 
     CacheService holds a Redis connection bound to the event loop that was
@@ -221,11 +145,9 @@ def reset_cache_service() -> Generator[None, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def stub_send_verification_email() -> Generator[Any, None, None]:
-    """Stub the verification email sender so tests don't hit SMTP.
-
-    Tests that need to assert on send arguments use their own `with patch(...)`
-    inside the test body — the inner patch supersedes this autouse stub.
+def _clear_dependency_overrides() -> Generator[None]:
     """
-    with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock) as stub:
-        yield stub
+    Clear all application dependency overrides, just in case some things linger around.
+    """
+    yield
+    app.dependency_overrides.clear()
