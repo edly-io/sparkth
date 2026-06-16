@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 from fastapi import FastAPI, status
@@ -10,8 +10,7 @@ from app.models.user import User
 from app.services.plugin import ConfigValidationError, InternalServerError, PluginService
 
 
-async def test_configure_user_plugin_success(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
     payload = {"some_config": 123}
 
     mock_plugin = SimpleNamespace(
@@ -77,31 +76,25 @@ async def test_configure_user_plugin_unauthorized(client: AsyncClient) -> None:
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-async def test_configure_user_plugin_not_found(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_configure_user_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:
     response = await client.post("/api/v1/user-plugins/missing_plugin/configure", json={})
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "not found" in response.json()["detail"]
 
 
-async def test_configure_user_plugin_admin_disabled(override_dependencies: Any) -> None:
-    client = override_dependencies
-
+async def test_configure_user_plugin_admin_disabled(client: AsyncClient, user_plugins: User) -> None:
     response = await client.post("/api/v1/user-plugins/disabled_plugin/configure", json={})
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert "not enabled" in response.json()["detail"]
 
 
-async def test_configure_user_plugin_already_configured(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_configure_user_plugin_already_configured(client: AsyncClient, user_plugins: User) -> None:
     response = await client.post("/api/v1/user-plugins/plugin_b/configure", json={})
     assert response.status_code == status.HTTP_409_CONFLICT
     assert "already configured" in response.json()["detail"]
 
 
-async def test_configure_user_plugin_invalid_config(override_dependencies: Any) -> None:
-    client = override_dependencies
-
+async def test_configure_user_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
     with patch(
         "app.services.plugin.PluginService.validate_user_config",
         side_effect=ConfigValidationError("Invalid config"),
@@ -115,9 +108,7 @@ async def test_configure_user_plugin_invalid_config(override_dependencies: Any) 
     assert response.json()["detail"] == "Invalid config"
 
 
-async def test_configure_user_plugin_internal_error(override_dependencies: Any) -> None:
-    client = override_dependencies
-
+async def test_configure_user_plugin_internal_error(client: AsyncClient, user_plugins: User) -> None:
     valid_config = {
         "api_url": "https://canvas.instructure.com",
         "api_key": "abc123",
