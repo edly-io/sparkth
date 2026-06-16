@@ -29,7 +29,6 @@ class ChunkStoreService:
     async def store_chunks(
         self,
         session: AsyncSession,
-        user_id: int,
         chunks: list[ChunkInput],
     ) -> list[int]:
         """Persist chunks in configurable sub-batches (no embedding).
@@ -54,7 +53,6 @@ class ChunkStoreService:
             batch_rows: list[DocumentChunk] = []
             for chunk in batch:
                 row = DocumentChunk(
-                    user_id=user_id,
                     source_name=chunk.source_name,
                     content=chunk.content,
                     chunk_content_hash=chunk.chunk_content_hash,
@@ -74,12 +72,7 @@ class ChunkStoreService:
             del batch_rows
             all_ids.extend(batch_ids)
 
-        logger.info(
-            "Stored %d chunks for user_id=%d, source='%s'",
-            len(all_ids),
-            user_id,
-            source,
-        )
+        logger.info("Stored %d chunks for source='%s'", len(all_ids), source)
         return all_ids
 
     async def fetch_chunks_by_sections(
@@ -129,7 +122,6 @@ class ChunkStoreService:
     async def delete_by_source(
         self,
         session: AsyncSession,
-        user_id: int,
         source_name: str,
     ) -> int:
         """Delete all chunks for a given source document. Returns count deleted.
@@ -137,29 +129,19 @@ class ChunkStoreService:
         Note: this method flushes but does not commit. The caller is
         responsible for committing (or rolling back) the transaction.
         """
-        stmt = (
-            delete(DocumentChunk)
-            .where(col(DocumentChunk.user_id) == user_id)
-            .where(col(DocumentChunk.source_name) == source_name)
-        )
+        stmt = delete(DocumentChunk).where(col(DocumentChunk.source_name) == source_name)
         result = await session.execute(stmt)
         await session.flush()
         count: int = cast(CursorResult[Any], result).rowcount
-        logger.info("Deleted %d chunks for user_id=%d, source='%s'", count, user_id, source_name)
+        logger.info("Deleted %d chunks for source='%s'", count, source_name)
         return count
 
     async def get_sources(
         self,
         session: AsyncSession,
-        user_id: int,
     ) -> list[str]:
-        """List all distinct source names for a user."""
-        stmt = (
-            select(DocumentChunk.source_name)
-            .where(col(DocumentChunk.user_id) == user_id)
-            .distinct()
-            .order_by(col(DocumentChunk.source_name))
-        )
+        """List all distinct source names."""
+        stmt = select(DocumentChunk.source_name).distinct().order_by(col(DocumentChunk.source_name))
         result = await session.scalars(stmt)
         return list(result.all())
 
@@ -195,7 +177,6 @@ async def copy_document_chunk_links(
 
 async def store_and_link_chunks(
     session: AsyncSession,
-    user_id: int,
     document_id: int,
     chunks: list[Chunk],
     store: ChunkStoreService,
@@ -206,8 +187,6 @@ async def store_and_link_chunks(
     """
     chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
 
-    # Batch-lookup which chunk hashes already exist, excluding chunks that are
-    # only linked to soft-deleted documents (they must be re-stored for the new document).
     active_doc_subq = (
         select(DocumentChunkLink.chunk_id)
         .join(Document, col(Document.id) == col(DocumentChunkLink.document_id))
@@ -217,9 +196,10 @@ async def store_and_link_chunks(
         )
         .exists()
     )
+    # Batch-lookup which chunk hashes already exist, excluding chunks that are
+    # only linked to soft-deleted documents (they must be re-stored for the new document).
     existing_rows = await session.exec(
         select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
-            col(DocumentChunk.user_id) == user_id,
             col(DocumentChunk.chunk_content_hash).in_(chunk_hashes),
             active_doc_subq,
         )
@@ -247,7 +227,7 @@ async def store_and_link_chunks(
                 )
             )
 
-    new_ids = await store.store_chunks(session, user_id, new_chunk_inputs)
+    new_ids = await store.store_chunks(session, new_chunk_inputs)
 
     all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
     await _create_missing_links(session, document_id, all_chunk_ids)
