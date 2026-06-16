@@ -70,8 +70,8 @@ jobs:
           MP_SMTP_AUTH_ALLOW_INSECURE: "1"
 
     env:
-      # Sync form; app/core/db.py builds the sync engine from this URL and
-      # derives the async URL automatically. Alembic also reads this var.
+      # Plain postgresql:// form; app/core/db.py derives the asyncpg URL from
+      # it automatically, and Alembic reads this var directly.
       DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth
       REDIS_URL: redis://localhost:6379
       SECRET_KEY: secret-key-for-ci
@@ -140,12 +140,16 @@ jobs:
         # app/services/whitelist.py), so an empty table 403s every signup.
         run: |
           uv run python -c "
-          from sqlmodel import Session
-          from app.core.db import get_engine
+          import asyncio
+          from app.lib.db import session_scope
           from app.models.whitelist import WhitelistedEmail
-          with Session(get_engine()) as s:
-              s.add(WhitelistedEmail(value='@example.com', entry_type='domain'))
-              s.commit()
+
+          async def seed():
+              async with session_scope() as s:
+                  s.add(WhitelistedEmail(value='@example.com', entry_type='domain'))
+                  await s.commit()
+
+          asyncio.run(seed())
           "
 
       - name: Install Playwright browsers
