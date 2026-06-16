@@ -84,12 +84,13 @@ async def endpoint(
 
 ---
 
-## 5. Database: Async-First SQLModel + Dual Engines
+## 5. Database: Async-First SQLModel
 
 **Files:** `app/core/db.py`, `app/models/base.py`, `app/models/*.py`
 
-- Two engines: `async_engine` (asyncpg, used by FastAPI) and `sync_engine` (used by CLI/migrations)
+- A single `async_engine` (asyncpg) backs all application and CLI database access, obtained via `session_scope` / `get_async_session` (`app/lib/db.py`)
 - URL conversion handled in `db.py`: `postgresql://` → `postgresql+asyncpg://`
+- Alembic migrations are the one exception: `app/migrations/env.py` builds its own synchronous engine, converting the URL back to `postgresql://`
 - SQLite used for tests; PostgreSQL for production
 - All models inherit from `TimestampedModel` (adds `created_at`, `updated_at`) or `SoftDeleteModel` (adds `deleted_at`)
 

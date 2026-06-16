@@ -84,11 +84,16 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-async def client(session: AsyncSession) -> AsyncClient:
+async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     """
     Similar to TestClient, but for async requests.
     """
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as async_client:
+        # Use a context manager to ensure that it gets closed after use
+        yield async_client
 
 
 @pytest.fixture

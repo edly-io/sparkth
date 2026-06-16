@@ -58,8 +58,7 @@ Current modules (see the source for the full API — do not duplicate it here):
   (never `logging.getLogger`); `configure_logging` is the single logging setup,
   called once per process entrypoint.
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
-  background/non-request code; `get_async_session`/`get_session` are the FastAPI
-  dependencies.
+  background/non-request code; `get_async_session` is the FastAPI dependency.
 - [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. Import RAG functionality
   from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
   `IngestionResult`, `RagStatus`, RAG exceptions); never import from `app.rag.*`
