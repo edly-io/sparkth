@@ -258,19 +258,25 @@ async def chat_completion(
             provider.system_prompt += f"\n\n{lms_credentials_message}"
 
         if request.stream:
+            # The RAG inputs are only meaningful when the router decided to retrieve;
+            # gate them together so an unused create_llm() call is never made.
+            rag_unresolved = unresolved_messages if should_run_rag else None
+            rag_user_id = user_id if should_run_rag else None
+            rag_llm = provider.create_llm() if should_run_rag else None
+            processor = ChatStreamProcessor(
+                provider,
+                messages,
+                conversation,
+                service,
+                tools,
+                rag_unresolved,
+                rag_user_id,
+                rag_llm,
+                should_run_rag,
+                rag_routing_reason,
+            )
             return StreamingResponse(
-                ChatStreamProcessor(
-                    provider,
-                    messages,
-                    conversation,
-                    service,
-                    tools,
-                    unresolved_messages if should_run_rag else None,
-                    user_id if should_run_rag else None,
-                    provider.create_llm() if should_run_rag else None,
-                    should_run_rag,
-                    rag_routing_reason,
-                ).stream(),
+                processor.stream(),
                 media_type="text/event-stream",
             )
         else:

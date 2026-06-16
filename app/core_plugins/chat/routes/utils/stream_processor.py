@@ -85,6 +85,15 @@ def streaming_error_message(exc: Exception) -> str:
     return "An error occurred while generating a response. Please try again."
 
 
+def rag_retrieval_error_message(exc: Exception) -> str:
+    """Map RAG retrieval exceptions to concise, user-facing error messages."""
+    if isinstance(exc, DocumentNotFoundError):
+        return "The attached document could not be found or is no longer accessible."
+    if isinstance(exc, RAGNotReadyError):
+        return "The attached document is still being processed. Please wait a moment and try again."
+    return "Failed to search the attached document. Please try again."
+
+
 class ChatStreamProcessor:
     """Holds all shared state for a single streaming chat response.
 
@@ -177,8 +186,20 @@ class ChatStreamProcessor:
         if not self.disconnected.is_set():
             await self.queue.put(payload)
 
-    async def _emit_rag_routing_status(self, document_ids: list[int]) -> None:
-        await self._put(json.dumps({"status": "scanning_attachments", "file_count": len(document_ids), "done": False}))
+    async def _emit(self, payload: dict[str, Any]) -> None:
+        """Serialise an SSE payload onto the queue; every status/token/error event flows through here."""
+        await self._put(json.dumps(payload))
+
+    async def _persist_and_emit_error(self, error_text: str, bg_session: AsyncSession) -> None:
+        """Persists the error to DB before emitting the SSE so the failure is saved even if the client has dropped."""
+        await self.service.add_message(
+            session=bg_session,
+            conversation_id=self.conversation_id,
+            role="assistant",
+            content=error_text,
+            is_error=True,
+        )
+        await self._emit({"error": error_text, "done": True})
 
     async def _retrieve_rag_chunks(
         self,
@@ -187,47 +208,15 @@ class ChatStreamProcessor:
         bg_session: AsyncSession,
     ) -> list[RetrievedChunk] | None:
         """Returns None when retrieval fails; the error SSE and DB write are already handled before returning."""
-        await self._put(json.dumps({"status": "searching_documents", "file_count": len(document_ids), "done": False}))
+        await self._emit({"status": "searching_documents", "file_count": len(document_ids), "done": False})
         logger.info("Agentic RAG search for document_ids=%s query_len=%d", document_ids, len(query_text))
         if self.llm is None:
             raise AssertionError("llm must be provided when RAG resolution is active")
         try:
             return await agentic_retrieve_context(query_text, document_ids, self.llm)
-        except DocumentNotFoundError as exc:
+        except (DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
             logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-            error_text = "The attached document could not be found or is no longer accessible."
-            await self.service.add_message(
-                session=bg_session,
-                conversation_id=self.conversation_id,
-                role="assistant",
-                content=error_text,
-                is_error=True,
-            )
-            await self._put(json.dumps({"error": error_text, "done": True}))
-            return None
-        except RAGNotReadyError as exc:
-            logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-            error_text = "The attached document is still being processed. Please wait a moment and try again."
-            await self.service.add_message(
-                session=bg_session,
-                conversation_id=self.conversation_id,
-                role="assistant",
-                content=error_text,
-                is_error=True,
-            )
-            await self._put(json.dumps({"error": error_text, "done": True}))
-            return None
-        except RAGRetrievalError as exc:
-            logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-            error_text = "Failed to search the attached document. Please try again."
-            await self.service.add_message(
-                session=bg_session,
-                conversation_id=self.conversation_id,
-                role="assistant",
-                content=error_text,
-                is_error=True,
-            )
-            await self._put(json.dumps({"error": error_text, "done": True}))
+            await self._persist_and_emit_error(rag_retrieval_error_message(exc), bg_session)
             return None
 
     async def _emit_no_rag_results_response(self, bg_session: AsyncSession) -> None:
@@ -245,17 +234,17 @@ class ChatStreamProcessor:
             content=no_chunks_msg,
             message_type="text",
         )
-        await self._put(json.dumps({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid}))
+        await self._emit({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid})
 
     async def _emit_rag_section_events(self, confirmed_rag_sections: list[dict[str, str | None]]) -> None:
         """Two-pass emit (scanning then confirmed) lets the UI animate each section
         before marking it resolved, rather than all sections appearing at once.
         """
         for section in confirmed_rag_sections:
-            await self._put(json.dumps({"status": "section_scanning", "section": section, "done": False}))
+            await self._emit({"status": "section_scanning", "section": section, "done": False})
         for section in confirmed_rag_sections:
-            await self._put(json.dumps({"status": "section_confirmed", "section": section, "done": False}))
-        await self._put(json.dumps({"status": "generating", "done": False}))
+            await self._emit({"status": "section_confirmed", "section": section, "done": False})
+        await self._emit({"status": "generating", "done": False})
 
     async def _run_rag_phase(self, bg_session: AsyncSession) -> list[dict[str, str | None]] | None:
         """Return value convention: None means the response is already complete (error or no-results handled);
@@ -263,13 +252,11 @@ class ChatStreamProcessor:
         """
         if not self.should_run_rag or not self.unresolved_messages or self.user_id is None:
             if self.rag_routing_reason is not None:
-                await self._put(
-                    json.dumps({"status": "skipping_rag", "reason": self.rag_routing_reason, "done": False})
-                )
+                await self._emit({"status": "skipping_rag", "reason": self.rag_routing_reason, "done": False})
             return []
 
         document_ids = collect_document_ids(self.unresolved_messages)
-        await self._emit_rag_routing_status(document_ids)
+        await self._emit({"status": "scanning_attachments", "file_count": len(document_ids), "done": False})
 
         query_text = extract_query_text(self.unresolved_messages)
         chunks = await self._retrieve_rag_chunks(query_text, document_ids, bg_session)
@@ -294,54 +281,26 @@ class ChatStreamProcessor:
                 if event["type"] == "token":
                     token = event["content"]
                     full_response += token
-                    await self._put(json.dumps({"token": token, "done": False}))
+                    await self._emit({"token": token, "done": False})
                 elif event["type"] == "tool_start":
-                    await self._put(
-                        json.dumps(
-                            {
-                                "status": "tool_call",
-                                "tool_name": event["name"],
-                                "tool_status": "running",
-                                "done": False,
-                            }
-                        )
+                    await self._emit(
+                        {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
                     )
                 elif event["type"] == "tool_end":
                     completed_tool_calls.append({"name": event["name"]})
-                    await self._put(
-                        json.dumps(
-                            {
-                                "status": "tool_call",
-                                "tool_name": event["name"],
-                                "tool_status": "done",
-                                "done": False,
-                            }
-                        )
+                    await self._emit(
+                        {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
                     )
             return full_response, completed_tool_calls
         except LLM_PROVIDER_API_ERRORS as e:
-            user_message = streaming_error_message(e)
             logger.error("Streaming failed: %s", e)
-            await self.service.add_message(
-                session=bg_session,
-                conversation_id=self.conversation_id,
-                role="assistant",
-                content=user_message,
-                is_error=True,
-            )
-            await self._put(json.dumps({"error": user_message, "done": True}))
+            await self._persist_and_emit_error(streaming_error_message(e), bg_session)
             return None
         except (OSError, LangChainException) as e:
             logger.exception("Unexpected streaming error: %s", e)
-            user_message = "An error occurred while generating a response. Please try again."
-            await self.service.add_message(
-                session=bg_session,
-                conversation_id=self.conversation_id,
-                role="assistant",
-                content=user_message,
-                is_error=True,
+            await self._persist_and_emit_error(
+                "An error occurred while generating a response. Please try again.", bg_session
             )
-            await self._put(json.dumps({"error": user_message, "done": True}))
             return None
 
     async def _persist_and_emit_done(
@@ -366,24 +325,22 @@ class ChatStreamProcessor:
             content=full_response,
             metadata=metadata if metadata else None,
         )
-        await self._put(
-            json.dumps(
-                {
-                    "token": "",
-                    "done": True,
-                    "conversation_id": self.conversation_uuid,
-                    "message": {
-                        "id": assistant_message.id,
-                        "role": "assistant",
-                        "content": full_response,
-                        "message_type": "text",
-                        "attachment_name": None,
-                        "attachment_size": None,
-                        "rag_sections": confirmed_rag_sections or None,
-                        "tool_calls": completed_tool_calls or None,
-                    },
-                }
-            )
+        await self._emit(
+            {
+                "token": "",
+                "done": True,
+                "conversation_id": self.conversation_uuid,
+                "message": {
+                    "id": assistant_message.id,
+                    "role": "assistant",
+                    "content": full_response,
+                    "message_type": "text",
+                    "attachment_name": None,
+                    "attachment_size": None,
+                    "rag_sections": confirmed_rag_sections or None,
+                    "tool_calls": completed_tool_calls or None,
+                },
+            }
         )
 
     async def _run_llm_phase(
@@ -414,15 +371,7 @@ class ChatStreamProcessor:
                 await self._run(bg_session)
             except BaseException as exc:
                 logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
-                error_text = "An unexpected error occurred. Please try again."
-                await self.service.add_message(
-                    session=bg_session,
-                    conversation_id=self.conversation_id,
-                    role="assistant",
-                    content=error_text,
-                    is_error=True,
-                )
-                await self._put(json.dumps({"error": error_text, "done": True}))
+                await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
                 if not isinstance(exc, Exception):
                     raise
             finally:
