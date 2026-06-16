@@ -1,256 +1,226 @@
 # Default: show help when just running `make`
 .DEFAULT_GOAL := help
 
-# --------------------------------------------------
-# VARIABLES
-# --------------------------------------------------
 # Extract arguments for the catch-all targets (create-user, etc.)
 ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
-# --------------------------------------------------
-# PHONY TARGETS
-# --------------------------------------------------
-.PHONY: help uv dev lock test test.backend test.frontend test.e2e test.e2e.ui test.e2e.install test.help mypy \
-        up dev.up down clean restart logs shell db-shell migrations base \
-        frontend frontend.build frontend.install \
-        backend.build backend.install \
-        lint lint.fix lint.format lint.frontend lint.backend \
-        lint.fix.frontend lint.fix.backend lint.format.frontend lint.format.backend lint.help \
-        create-user reset-password \
-        api mcp cli
-
-# --------------------------------------------------
-# HELP
-# --------------------------------------------------
+.PHONY: help
 help: ## Show this help
-	@echo "Usage: make \033[36m<target>\033[0m [options]\n"
-	@echo "\033[1mDocker Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9._-]+:.*?## / {if ($$1 ~ /^(up|dev\.up|down|clean|restart|logs|shell|db-shell)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mFrontend Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9._-]+:.*?## / {if ($$1 ~ /^(frontend|frontend\.build|frontend\.install)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mBackend Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9._-]+:.*?## / {if ($$1 ~ /^(backend\.build|backend\.install)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mRun Services Locally:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(api|mcp|cli)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mLocal Dev Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(uv|dev|lock|mypy)$$/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mLinting Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9._-]+:.*?## / {if ($$1 ~ /^(lint|lint\.fix|lint\.format|lint\.frontend|lint\.backend|lint\.fix\.frontend|lint\.fix\.backend|lint\.format\.frontend|lint\.format\.backend|lint\.help)$$/) printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mTesting Targets:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9._-]+:.*?## / {if ($$1 ~ /^(test|test\.backend|test\.frontend|test\.e2e|test\.e2e\.ui|test\.e2e\.install|test\.help)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-	@echo "\n\033[1mUser Management (In Docker):\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(create-user|reset-password)/) printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "Usage: make \033[36m<target>\033[0m [options]"
+	@awk ' \
+		/^##@ / { printf "\n\033[1m%s:\033[0m\n", substr($$0, 5) } \
+		/^[a-zA-Z0-9._-]+:.*## / { \
+			target = $$0; sub(/:.*/, "", target); \
+			desc = substr($$0, index($$0, "## ") + 3); \
+			printf "  \033[36m%-25s\033[0m %s\n", target, desc \
+		} \
+	' $(MAKEFILE_LIST)
 	@echo
 
-# --------------------------------------------------
-# Project Setup
-# --------------------------------------------------
+##@ Project Setup
+.PHONY: uv
 uv: ## Install uv if missing
 	@command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# --------------------------------------------------
-# Docker Setup/Operations
-# --------------------------------------------------
-base: ## Build pre-baked base image with heavy Python deps (run when uv.lock or pyproject.toml changes)
-	docker build -f Dockerfile.base -t sparkth-base:local .
-
-up: ## Build and start app (frontend + API + db)
-	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build api
+##@ Backing Services (Docker)
+# In development the backend and frontend run natively; Docker only provides the
+# Postgres, Redis, and Mailpit services they connect to (see docker-compose.yml).
+.PHONY: services.up
+services.up: ## Start backing services (Postgres, Redis, Mailpit) in the background
 	docker compose up -d
 
-dev.up: ## Build and start app in dev mode (hot reload)
-	@docker image inspect sparkth-base:local > /dev/null 2>&1 || { echo "sparkth-base:local not found — building base image first (one-time, ~20 min)..."; $(MAKE) base; }
-	docker compose build api
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-down: ## Stop and remove containers
+.PHONY: services.down
+services.down: ## Stop and remove service containers
 	docker compose down
 
-clean: ## Stop and wipe database volume (fresh start)
-	docker compose down -v db
+.PHONY: services.clean
+services.clean: ## Stop services and wipe data volumes (fresh start)
+	docker compose down -v
 
-restart: ## Restart all containers
+.PHONY: services.restart
+services.restart: ## Restart backing services
 	docker compose restart
 
-logs: ## Tail logs for all containers
-	docker compose logs -f
+.PHONY: services.logs
+services.logs: ## Tail logs (make services.logs [service] — omit service to tail all)
+	docker compose logs -f $(ARGS)
 
-shell: ## Open shell inside the API container
-	docker compose exec api /bin/bash
-
+.PHONY: db-shell
 db-shell: ## Open Postgres shell inside DB container
-	docker compose exec db psql -U sparkth -d sparkth
+	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}
 
-migrations: ## Run Alembic migrations in Docker
-	docker compose -f docker-compose.yml up migrations
+.PHONY: migrations
+migrations: ## Apply Alembic migrations (native)
+	uv run alembic upgrade head
 
-rag-cleanup: ## Run RAG cleanup task in Docker
-	docker compose -f docker-compose.yml run --rm rag-cleanup 2>&1 | tail -1
+.PHONY: rag-cleanup
+rag-cleanup: ## Run the RAG cleanup task (native)
+	uv run python -m app.rag.cleanup
 
-app-restart: ## Restart the API container for fast iteration
-	docker compose down api
-	docker compose up api -d
-
-# --------------------------------------------------
-# User Management (Runs inside Docker)
-# --------------------------------------------------
-# These run inside the container so they can access the DB network
+##@ User Management
+.PHONY: create-user
 create-user: ## Create user (make create-user -- --username john)
-	docker compose exec api python -m app.cli.main users create-user $(ARGS)
+	uv run python -m app.cli.main users create-user $(ARGS)
 
+.PHONY: reset-password
 reset-password: ## Reset password (make reset-password -- username)
-	docker compose exec api python -m app.cli.main users reset-password $(ARGS)
+	uv run python -m app.cli.main users reset-password $(ARGS)
 
-# --------------------------------------------------
-# Frontend
-# --------------------------------------------------
-frontend.build: ## Build frontend (static export to frontend/out)
-	cd frontend && bun install --frozen-lockfile && bun run build
+##@ Frontend
+.PHONY: frontend.build
+frontend.build: frontend.build.api ## Build frontend (static export to frontend/out)
+	cd frontend && bun run build
 
-frontend.install: ## Install exact frontend dependencies from lockfile
+.PHONY: frontend.build.api
+frontend.build.api: ## Regenerate frontend API types from the backend OpenAPI schema
+	uv run python scripts/dump_openapi.py > openapi.json
+	cd frontend && bunx openapi-typescript ../openapi.json -o ./lib/api/generated.ts
+
+.PHONY: frontend.install.dev
+frontend.install.dev: ## Install exact frontend dependencies from lockfile
 	cd frontend && bun install --frozen-lockfile
 
-frontend: ## Run frontend dev server (hot reload)
-	cd frontend && bun install && bun run dev
+.PHONY: frontend.up.dev
+frontend.up.dev: ## Run frontend dev server (hot reload)
+	cd frontend && bun run dev
 
-# --------------------------------------------------
-# Backend
-# --------------------------------------------------
+##@ Backend
+.PHONY: backend.build
 backend.build: ## Build Python package (sdist + wheel)
 	uv build
 
-backend.install: ## Install exact backend dependencies from lockfile
+.PHONY: backend.install
+backend.install: uv ## Install exact backend dependencies from lockfile
 	uv sync --frozen
 
-dev: uv ## Install dev dependencies locally
-	uv sync --all-extras --dev
+.PHONY: backend.install.dev
+backend.install.dev: uv backend.install.dev.requirements backend.install.dev.githooks ## Install dev requirements and githooks
+
+.PHONY: backend.install.dev.requirements
+backend.install.dev.requirements: ## Install exact backend dev dependencies from lockfile
+	uv sync --frozen --dev
+
+.PHONY: backend.install.dev.githooks
+backend.install.dev.githooks: ## Install git hooks
 	uv run lefthook install
 
-lock: uv ## Update lockfile
-	uv lock
 
-api: ## Run FastAPI server locally
+.PHONY: backend.up.dev
+backend.up.dev: ## Run FastAPI server locally
 	uv run fastapi dev app/main.py --host 0.0.0.0 --port 7727
 
-mcp: ## Run MCP server locally (HTTP mode)
-	uv run python -m app.mcp.main --transport http
+.PHONY: lock
+lock: ## Update uv lockfile
+	uv lock
 
+.PHONY: cli
 cli: ## Run CLI tool (make cli -- users --help)
 	uv run python -m app.cli.main $(ARGS)
 
+.PHONY: mypy
 mypy: ## Run mypy type checking
 	uv run mypy --strict app/ tests/
 
-# --------------------------------------------------
-# Testing
-# --------------------------------------------------
+##@ Docker
+.PHONY: docker.build
+docker.build: ## Build the Docker image
+	docker build -t ghcr.io/edly-io/sparkth:latest .
+
+##@ Testing
+.PHONY: test
 test: ## Run tests (with-coverage=1 to include coverage)
 	$(MAKE) test.frontend $(if $(with-coverage),with-coverage=1)
 	$(MAKE) test.backend $(if $(with-coverage),with-coverage=1)
 
-test.backend: ## Run backend tests (make test.backend [path] [with-coverage=1])
-	uv run pytest $(if $(ARGS),$(ARGS),tests/) $(if $(with-coverage),--cov-report=term-missing)
+.PHONY: test.backend
+test.backend: lint.backend mypy test.backend.pytest test.backend.format ## Run backend tests
 
-test.frontend: ## Run frontend tests (make test.frontend [path] [with-coverage=1])
+.PHONY: test.backend.pytest
+test.backend.pytest: ## Run backend unit tests (make test.backend.pytest [path] [with-coverage=1])
+	uv run pytest $(ARGS) $(if $(with-coverage),--cov-report=term-missing)
+
+.PHONY: test.backend.format
+test.backend.format: ## Run backend formatting tests
+	$(MAKE) lint.format.backend check=1
+
+.PHONY: test.frontend
+test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, api drift, typecheck, unit and formatting tests
+
+.PHONY: test.frontend.api
+test.frontend.api: ## Fail when generated.ts is stale vs the current backend OpenAPI schema
+	uv run python scripts/dump_openapi.py > openapi.json
+	cd frontend && bunx openapi-typescript ../openapi.json -o ./lib/api/generated.ts --check
+
+.PHONY: test.frontend.typecheck
+test.frontend.typecheck: ## Type-check the frontend (tsc --noEmit)
+	cd frontend && bun run typecheck
+
+.PHONY: test.frontend.vitest
+test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [path] [with-coverage=1])
 	cd frontend && bun run vitest run $(if $(with-coverage),--coverage) $(ARGS)
 
-test.e2e: ## Run Playwright E2E tests (requires `make up` + seeded admin)
+.PHONY: test.frontend.format
+test.frontend.format: ## Run frontend formatting tests
+	$(MAKE) lint.format.frontend check=1
+
+.PHONY: test.e2e
+test.e2e: ## Run Playwright E2E tests (needs the app running + seeded admin; see frontend/tests/README.md)
 	cd frontend && bun run test:e2e $(ARGS)
 
+.PHONY: test.e2e.ui
 test.e2e.ui: ## Run Playwright E2E tests in interactive UI mode
 	cd frontend && bun run test:e2e:ui
 
+.PHONY: test.e2e.install
 test.e2e.install: ## Install Playwright browsers (one-time setup)
 	cd frontend && bun run test:e2e:install
 
-test.help: ## Show usage for all test commands
-	@echo "Usage: make \033[36m<test-target>\033[0m [path] [with-coverage=1]\n"
-	@echo "\033[1mTargets:\033[0m"
-	@echo "  \033[36mtest\033[0m              Run all tests (frontend + backend)"
-	@echo "  \033[36mtest.backend\033[0m      Run backend tests"
-	@echo "  \033[36mtest.frontend\033[0m     Run frontend tests"
-	@echo "  \033[36mtest.e2e\033[0m          Run Playwright E2E tests"
-	@echo "  \033[36mtest.e2e.ui\033[0m       Run Playwright E2E tests in UI mode"
-	@echo "  \033[36mtest.e2e.install\033[0m  Install Playwright browsers (one-time)"
-	@echo "\n\033[1mOptions:\033[0m"
-	@echo "  \033[33m[path]\033[0m            File or directory to test (default: all tests)"
-	@echo "  \033[33mwith-coverage=1\033[0m   Enable coverage reporting"
-	@echo "\n\033[1mExamples:\033[0m"
-	@echo "  make test"
-	@echo "  make test with-coverage=1"
-	@echo "  make test.backend tests/rag/"
-	@echo "  make test.backend tests/rag/test_store.py"
-	@echo "  make test.backend tests/rag/ with-coverage=1"
-	@echo "  make test.frontend"
-	@echo "  make test.frontend components/Button.test.tsx"
-	@echo "  make test.frontend with-coverage=1"
-	@echo "  make test.e2e"
-	@echo "  make test.e2e tests/login.spec.ts"
-	@echo
-
-# --------------------------------------------------
-# Linting
-# --------------------------------------------------
+##@ Linting
+.PHONY: lint
 lint: ## Check lint errors (frontend + backend)
 	$(MAKE) lint.frontend
 	$(MAKE) lint.backend
 
+.PHONY: lint.fix
 lint.fix: ## Auto-fix lint errors (frontend + backend)
 	$(MAKE) lint.fix.frontend
 	$(MAKE) lint.fix.backend
 
+.PHONY: lint.format
 lint.format: ## Format code (frontend + backend, check=1 to check only)
 	$(MAKE) lint.format.frontend $(if $(check),check=1)
 	$(MAKE) lint.format.backend $(if $(check),check=1)
 
+.PHONY: lint.frontend
 lint.frontend: ## Check frontend lint errors (oxlint)
 	cd frontend && bun run lint
 
+.PHONY: lint.backend
 lint.backend: ## Check backend lint errors (ruff)
-	uv run ruff check --select I
 	uv run ruff check
 
+# Base branch react-doctor diffs against; override in CI (e.g. origin/main).
+REACT_DOCTOR_BASE ?= main
+.PHONY: lint.frontend.react-doctor
+lint.frontend.react-doctor: ## Run react-doctor on files changed vs REACT_DOCTOR_BASE (default main)
+	cd frontend && bunx react-doctor@0.2.16 . --diff $(REACT_DOCTOR_BASE) --annotations --yes
+
+.PHONY: lint.fix.frontend
 lint.fix.frontend: ## Auto-fix frontend lint errors (oxlint)
 	cd frontend && bun run lint:fix
 
+.PHONY: lint.fix.backend
 lint.fix.backend: ## Auto-fix backend lint errors (ruff)
-	uv run ruff check --select I --fix
 	uv run ruff check --fix
 
+.PHONY: lint.format.frontend
 lint.format.frontend: ## Format frontend code (oxfmt, check=1 to check only)
 	cd frontend && bun run $(if $(check),format:check,format)
 
+.PHONY: lint.format.backend
 lint.format.backend: ## Format backend code (ruff, check=1 to check only)
 	uv run ruff format $(if $(check),--check)
 
-lint.help: ## Show usage for all lint commands
-	@echo "Usage: make \033[36m<lint-target>\033[0m [check=1]\n"
-	@echo "\033[1mAggregate Targets:\033[0m"
-	@echo "  \033[36mlint\033[0m                  Check lint errors (frontend + backend)"
-	@echo "  \033[36mlint.fix\033[0m              Auto-fix lint errors (frontend + backend)"
-	@echo "  \033[36mlint.format\033[0m           Format code (frontend + backend)"
-	@echo "\n\033[1mFrontend Targets:\033[0m"
-	@echo "  \033[36mlint.frontend\033[0m         Check frontend lint errors (oxlint)"
-	@echo "  \033[36mlint.fix.frontend\033[0m     Auto-fix frontend lint errors (oxlint)"
-	@echo "  \033[36mlint.format.frontend\033[0m  Format frontend code (oxfmt)"
-	@echo "\n\033[1mBackend Targets:\033[0m"
-	@echo "  \033[36mlint.backend\033[0m          Check backend lint errors (ruff)"
-	@echo "  \033[36mlint.fix.backend\033[0m      Auto-fix backend lint errors (ruff)"
-	@echo "  \033[36mlint.format.backend\033[0m   Format backend code (ruff)"
-	@echo "\n\033[1mOptions:\033[0m"
-	@echo "  \033[33mcheck=1\033[0m               Dry-run for format targets (no rewrites)"
-	@echo "\n\033[1mExamples:\033[0m"
-	@echo "  make lint"
-	@echo "  make lint.fix"
-	@echo "  make lint.format"
-	@echo "  make lint.format check=1"
-	@echo "  make lint.frontend"
-	@echo "  make lint.format.backend check=1"
-	@echo
-
-# --------------------------------------------------
 # Catch-all for argument forwarding
-# --------------------------------------------------
 %:
 	@:

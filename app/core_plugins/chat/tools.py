@@ -6,8 +6,8 @@ from typing import Any, get_type_hints
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
-from app.core.logger import get_logger
-from app.plugins import get_plugin_manager
+from app.lib.log import get_logger
+from app.lib.mcp.hooks import MCP_TOOLS, Tool
 
 logger = get_logger(__name__)
 
@@ -22,7 +22,7 @@ class ToolRegistry:
     def register_tool(self, tool: BaseTool) -> None:
         """Register a tool."""
         self._tools[tool.name] = tool
-        logger.info(f"Registered tool: {tool.name}")
+        logger.info("Registered tool: %s", tool.name)
 
     async def get_tool(self, name: str) -> BaseTool | None:
         """Get a tool by name."""
@@ -56,29 +56,37 @@ class ToolRegistry:
         ]
 
     def discover_plugin_tools(self) -> None:
-        """Discover and register tools from all loaded plugins."""
+        """Discover and register tools from all loaded plugins.
+
+        Plugins are instantiated once at the process entrypoint (which populates
+        the MCP_TOOLS hook); this only runs during request handling, well after
+        startup, so it just reads the hook.
+        """
         if self._initialized:
             return
 
-        plugin_manager = get_plugin_manager()
-        loaded_plugins = plugin_manager.get_loaded_plugins()
-
-        for plugin_name, plugin in loaded_plugins.items():
-            if plugin_name == "chat":
+        for plugin, mcp_tool in MCP_TOOLS.iter_items():
+            if plugin.name == "chat":
                 continue
 
-            mcp_tools = plugin.get_mcp_tools()
-            for mcp_tool in mcp_tools:
-                try:
-                    langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
-                    self.register_tool(langchain_tool)
-                except (KeyError, TypeError, ValueError, ValidationError) as e:
-                    logger.error(
-                        f"Failed to convert MCP tool '{mcp_tool.get('name')}' to LangChain tool: {e}", exc_info=True
-                    )
+            try:
+                langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
+                self.register_tool(langchain_tool)
+            except (KeyError, TypeError, ValueError, ValidationError) as e:
+                logger.error(
+                    "Failed to convert MCP tool '%s' to LangChain tool: %s",
+                    mcp_tool.name,
+                    e,
+                    exc_info=True,
+                )
 
         self._initialized = True
-        logger.info(f"Discovered {len(self._tools)} tools from plugins")
+        logger.info("Discovered %d tools from plugins", len(self._tools))
+
+    def reset(self) -> None:
+        """Clear all registered tools and force re-discovery on next access."""
+        self._initialized = False
+        self._tools = {}
 
     def _get_handler_type_hints(self, handler: Any) -> dict[str, Any]:
         """Extract type hints from the handler function."""
@@ -89,7 +97,7 @@ class ToolRegistry:
             hints.pop("self", None)
             return hints
         except (TypeError, NameError, AttributeError) as e:
-            logger.debug(f"Could not get type hints: {e}")
+            logger.debug("Could not get type hints: %s", e)
             return {}
 
     def _build_args_schema_from_handler(
@@ -143,17 +151,17 @@ class ToolRegistry:
 
             return create_model(name + "Input", **field_definitions)
         except (TypeError, ValueError, AttributeError) as e:
-            logger.debug(f"Could not build args_schema from handler hints for '{name}': {e}")
+            logger.debug("Could not build args_schema from handler hints for '%s': %s", name, e)
             return None
 
-    def _convert_mcp_to_langchain_tool(self, mcp_tool: dict[str, Any]) -> BaseTool:
+    def _convert_mcp_to_langchain_tool(self, mcp_tool: Tool) -> BaseTool:
         """Convert an MCP tool definition to a LangChain tool."""
-        name = mcp_tool["name"]
-        description = mcp_tool.get("description", "")
-        handler = mcp_tool["handler"]
-        input_schema = mcp_tool.get("inputSchema", {})
+        name = mcp_tool.name
+        description = mcp_tool.description
+        handler = mcp_tool.handler
+        input_schema = mcp_tool.input_schema
 
-        logger.debug(f"Tool '{name}' input schema: {json.dumps(input_schema, indent=2)}")
+        logger.debug("Tool '%s' input schema: %s", name, json.dumps(input_schema, indent=2))
 
         handler_hints = self._get_handler_type_hints(handler)
         args_schema = self._build_args_schema_from_handler(
@@ -163,11 +171,11 @@ class ToolRegistry:
         async def tool_func(**kwargs: Any) -> str:
             """Async wrapper for MCP tool handler."""
             try:
-                logger.debug(f"Tool '{name}' received raw args: {kwargs}")
+                logger.debug("Tool '%s' received raw args: %s", name, kwargs)
 
                 # Convert arguments to match handler's expected types
                 converted_args = self._convert_args_to_handler_types(kwargs, handler_hints)
-                logger.debug(f"Tool '{name}' converted args: {converted_args}")
+                logger.debug("Tool '%s' converted args: %s", name, converted_args)
                 result = await handler(**converted_args)
 
                 if isinstance(result, (dict, list)):
@@ -176,15 +184,15 @@ class ToolRegistry:
                     return result.model_dump_json(indent=2)
                 return str(result)
             except (ValidationError, ValueError, TypeError, RuntimeError) as e:
-                logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
+                logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
                 return f"Error executing tool: {str(e)}"
 
         def sync_tool_func(**kwargs: Any) -> str:
             """Sync wrapper for MCP tool handler."""
             try:
-                logger.debug(f"Tool '{name}' received raw args (sync): {kwargs}")
+                logger.debug("Tool '%s' received raw args (sync): %s", name, kwargs)
                 converted_args = self._convert_args_to_handler_types(kwargs, handler_hints)
-                logger.debug(f"Tool '{name}' converted args (sync): {converted_args}")
+                logger.debug("Tool '%s' converted args (sync): %s", name, converted_args)
 
                 loop = asyncio.new_event_loop()
                 try:
@@ -198,7 +206,7 @@ class ToolRegistry:
                     return result.model_dump_json(indent=2)
                 return str(result)
             except (ValidationError, ValueError, TypeError, RuntimeError) as e:
-                logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
+                logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
                 return f"Error executing tool: {str(e)}"
 
         return StructuredTool(
@@ -345,6 +353,15 @@ class ToolRegistry:
         return type_map.get(json_type, str)
 
 
+def get_parameters_schema(args_schema: type[BaseModel] | dict[str, Any] | None) -> dict[str, Any]:
+    """Normalise an args_schema into a plain dict suitable for serialisation."""
+    if args_schema is None:
+        return {}
+    if isinstance(args_schema, dict):
+        return args_schema
+    return args_schema.model_json_schema()
+
+
 _tool_registry = ToolRegistry()
 
 
@@ -355,7 +372,5 @@ def get_tool_registry() -> ToolRegistry:
 
 async def refresh_tools() -> None:
     """Force refresh of tools from plugins."""
-    global _tool_registry
-    _tool_registry._initialized = False
-    _tool_registry._tools = {}
+    _tool_registry.reset()
     _tool_registry.discover_plugin_tools()

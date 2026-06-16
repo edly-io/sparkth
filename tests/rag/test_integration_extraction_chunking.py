@@ -7,15 +7,15 @@ import io
 
 import pytest
 
-from app.rag.chunking import chunk_document
-from app.rag.extraction import extract_to_markdown
+from app.rag.ingestion.chunking import DocumentChunker
+from app.rag.ingestion.extraction import extract_to_markdown
 from app.rag.types import Chunk
 
 
 def _run(data: bytes, filename: str) -> list[Chunk]:
     """Run the full Layer 1 → Layer 2 pipeline and return chunks."""
     result = extract_to_markdown(data, filename)
-    return chunk_document(result)
+    return DocumentChunker().chunk(result)
 
 
 def _all_content(chunks: list[Chunk]) -> str:
@@ -357,7 +357,11 @@ class TestChunkingEdgeCases:
         assert chunks == []
 
     def test_unicode_content_preserved(self) -> None:
-        md = "# \u0627\u0644\u0639\u0646\u0648\u0627\u0646\n\n\u0645\u062d\u062a\u0648\u0649 \u0627\u0644\u0646\u0635 \u0628\u0627\u0644\u0639\u0631\u0628\u064a\u0629.\n\n## \u6807\u9898\n\n\u4e2d\u6587\u5185\u5bb9\u3002\n".encode()
+        md = (
+            "# \u0627\u0644\u0639\u0646\u0648\u0627\u0646\n\n\u0645\u062d\u062a\u0648\u0649 "
+            "\u0627\u0644\u0646\u0635 \u0628\u0627\u0644\u0639\u0631\u0628\u064a\u0629."
+            "\n\n## \u6807\u9898\n\n\u4e2d\u6587\u5185\u5bb9\u3002\n"
+        ).encode()
         chunks = _run(md, "unicode.md")
         content = _all_content(chunks)
         assert "\u0645\u062d\u062a\u0648\u0649" in content

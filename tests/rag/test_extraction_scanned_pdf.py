@@ -10,7 +10,22 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.rag.exceptions import ScannedPDFError
-from app.rag.extraction import _extract_pdf, _is_scanned_pdf, _summarize_per_page
+from app.rag.ingestion.extraction import PDFExtractor
+from app.rag.types import ExtractionResult
+
+_pdf = PDFExtractor()
+
+
+def _extract_pdf(data: bytes, source_name: str, **kwargs: object) -> ExtractionResult:
+    return _pdf.extract(data, source_name, **kwargs)  # type: ignore[arg-type]
+
+
+def _is_scanned_pdf(doc: object, *, min_chars_per_page: int) -> bool:
+    return _pdf._is_scanned_pdf(doc, min_chars_per_page)
+
+
+def _summarize_per_page(counts: list[int], head: int = 10, tail: int = 5) -> str:
+    return PDFExtractor._summarize_per_page(counts, head, tail)
 
 
 def _make_doc(pages_text: list[str]) -> MagicMock:
@@ -111,9 +126,9 @@ class TestExtractPDFRejectsScanned:
     def test_raises_scanned_pdf_error_when_doc_has_no_text(self) -> None:
         scanned_doc = _make_doc([""] * 10)
         with (
-            patch("app.rag.extraction.fitz.open", return_value=scanned_doc),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown") as mock_to_md,
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=scanned_doc),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown") as mock_to_md,
         ):
             with pytest.raises(ScannedPDFError):
                 _extract_pdf(b"%PDF-fake", "scanned.pdf")
@@ -123,9 +138,9 @@ class TestExtractPDFRejectsScanned:
     def test_error_attaches_source_name_to_exception(self) -> None:
         scanned_doc = _make_doc([""] * 10)
         with (
-            patch("app.rag.extraction.fitz.open", return_value=scanned_doc),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=scanned_doc),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown"),
         ):
             with pytest.raises(ScannedPDFError) as exc_info:
                 _extract_pdf(b"%PDF-fake", "secret-report.pdf")
@@ -135,9 +150,9 @@ class TestExtractPDFRejectsScanned:
         """str(exc) must not include the filename — it is logged separately."""
         scanned_doc = _make_doc([""] * 10)
         with (
-            patch("app.rag.extraction.fitz.open", return_value=scanned_doc),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=scanned_doc),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown"),
         ):
             with pytest.raises(ScannedPDFError) as exc_info:
                 _extract_pdf(b"%PDF-fake", "/internal/path/secret-report.pdf")
@@ -149,9 +164,9 @@ class TestExtractPDFRejectsScanned:
         """A born-digital PDF with text passes through to the batch loop."""
         text_doc = _make_doc(["lorem ipsum " * 50] * 10)
         with (
-            patch("app.rag.extraction.fitz.open", return_value=text_doc),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="content") as mock_to_md,
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=text_doc),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="content") as mock_to_md,
         ):
             result = _extract_pdf(b"%PDF-fake", "real.pdf")
         mock_to_md.assert_called()  # extraction proceeded
@@ -162,12 +177,11 @@ class TestExtractPDFRejectsScanned:
         # 50 chars/page would normally be rejected at default 100, but pass at threshold 10
         borderline_doc = _make_doc(["a" * 50] * 10)
         with (
-            patch("app.rag.extraction.get_settings") as mock_settings,
-            patch("app.rag.extraction.fitz.open", return_value=borderline_doc),
-            patch("app.rag.extraction.fitz.TOOLS"),
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.ingestion.extraction.pdf.get_rag_settings") as mock_settings,
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=borderline_doc),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS"),
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
-            mock_settings.return_value.RAG_ALLOWED_EXTENSIONS = ""
             mock_settings.return_value.RAG_PDF_EXTRACTION_BATCH_SIZE = 10
             mock_settings.return_value.RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE = 10
             # Should NOT raise — 50 > 10

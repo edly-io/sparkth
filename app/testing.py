@@ -1,0 +1,231 @@
+"""Shared pytest fixtures and test environment for the backend test suite.
+
+This module lives under ``app/`` (rather than in a conftest) so that it travels
+with the core package: a plugin extracted into its own repository can register
+the same shared fixtures via ``pytest_plugins = ["app.testing"]`` in its own
+conftest.
+
+Importing this module sets the generic test environment variables as a side
+effect, so it must be imported before any ``app.*`` module that reads settings.
+Plugin-specific environment (e.g. ``SLACK_*``) belongs in that plugin's own
+conftest, not here.
+"""
+
+import os
+
+# Set test environment variables BEFORE importing app modules.
+# This must happen before app/core/config.py calls get_settings(), which caches
+# the settings. We also need DATABASE_URL set before app/core/db.py creates
+# the async_engine at import time.
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
+
+from collections.abc import AsyncGenerator, Generator
+from typing import Any, cast
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.api.v1.auth import get_current_user
+from app.core.cache import get_cache_service
+from app.lib.db import get_async_session
+from app.main import app
+from app.models.plugin import Plugin, UserPlugin
+from app.models.user import User
+from app.services.plugin import PluginService, get_plugin_service
+
+DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def load_plugins() -> None:
+    """Instantiate plugins once for the whole test session.
+
+    In production this happens at the process entrypoint (the FastAPI lifespan,
+    the standalone MCP server, or the migration runner); httpx's ASGITransport
+    does not run lifespan events, so tests load plugins here instead. This is
+    what populates the contribution hooks that hook consumers read.
+    """
+    from app.lib.plugins import get_plugin_loader
+
+    get_plugin_loader()
+
+
+@pytest.fixture(scope="session")
+async def engine() -> AsyncGenerator[AsyncEngine, None]:
+    engine = create_async_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def sync_engine() -> Generator[Any, None, None]:
+    """In-memory sync engine for routes that use synchronous Session."""
+    eng = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(eng)
+    yield eng
+    SQLModel.metadata.drop_all(eng)
+    eng.dispose()
+
+
+@pytest.fixture
+def sync_session(sync_engine: Any) -> Generator[Session, None, None]:
+    """Sync session with rollback for each test."""
+    connection = sync_engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection)
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
+
+
+@pytest.fixture
+async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    async with engine.connect() as conn:
+        tx = await conn.begin()
+        s = AsyncSession(bind=conn)
+        try:
+            yield s
+        finally:
+            await s.close()
+            await tx.rollback()
+
+
+@pytest.fixture
+async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    async def get_session_override() -> AsyncGenerator[AsyncSession, None]:
+        yield session
+
+    app.dependency_overrides[get_async_session] = get_session_override
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def setup_plugins_and_user(session: AsyncSession) -> dict[str, Any]:
+    user = User(
+        name="Test User", username="testuser123", email="test@example.com", hashed_password="fakehashedpassword"
+    )
+    session.add(user)
+    await session.flush()
+
+    plugin_a = Plugin(name="plugin_a", is_core=True, enabled=True)
+    plugin_b = Plugin(name="plugin_b", is_core=True, enabled=True)
+    configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_core=True, enabled=True)
+    disabled_plugin = Plugin(name="disabled_plugin", is_core=True, enabled=False)
+    session.add_all([plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin])
+    await session.flush()
+
+    user_plugin_b = UserPlugin(
+        user_id=cast(int, user.id), plugin_id=cast(int, plugin_b.id), enabled=True, config={"some config": "abc"}
+    )
+    session.add(user_plugin_b)
+    await session.flush()
+
+    user_plugin_c = UserPlugin(
+        user_id=cast(int, user.id),
+        plugin_id=cast(int, configured_plugin_disabled.id),
+        enabled=False,
+        config={"some config": "abc"},
+    )
+    session.add(user_plugin_c)
+    await session.flush()
+
+    return {"user": user, "plugins": [plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin]}
+
+
+@pytest.fixture
+async def override_dependencies(client: AsyncClient, setup_plugins_and_user: Any) -> AsyncGenerator[AsyncClient, None]:
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
+    user: User = setup_plugins_and_user["user"]
+
+    async def get_user_override() -> User:
+        return user
+
+    def get_plugin_service_override() -> PluginService:
+        return PluginService()
+
+    app_instance.dependency_overrides[get_current_user] = get_user_override
+    app_instance.dependency_overrides[get_plugin_service] = get_plugin_service_override
+    yield client
+    app_instance.dependency_overrides.pop(get_current_user, None)
+    app_instance.dependency_overrides.pop(get_plugin_service, None)
+
+
+@pytest.fixture
+async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
+    user = User(
+        id=1,
+        name="Test User",
+        username="testuser",
+        email="test@example.com",
+        hashed_password="fakehashedpassword",
+    )
+
+    async def override_user() -> User:
+        return user
+
+    app_instance.dependency_overrides[get_current_user] = override_user
+    yield user
+    app_instance.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture(autouse=True)
+def reset_cache_service() -> Generator[None, None, None]:
+    """Clear the get_cache_service lru_cache after each test.
+
+    CacheService holds a Redis connection bound to the event loop that was
+    current when connect() first ran.  With per-test (function-scoped) event
+    loops each test gets a new loop, but the cached CacheService still holds a
+    connection from the previous (now-closed) loop.  When that stale connection
+    tries to disconnect it calls self._writer.close() → loop.call_soon() on the
+    closed loop → RuntimeError that is not caught by `except RedisError`.
+
+    Clearing the lru_cache forces a fresh CacheService (self._redis = None) for
+    every test so the connection is always made in the current loop.
+    """
+    yield
+
+    get_cache_service.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def stub_send_verification_email() -> Generator[Any, None, None]:
+    """Stub the verification email sender so tests don't hit SMTP.
+
+    Tests that need to assert on send arguments use their own `with patch(...)`
+    inside the test body — the inner patch supersedes this autouse stub.
+    """
+    with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock) as stub:
+        yield stub

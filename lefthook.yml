@@ -16,7 +16,7 @@ pre-commit:
     frontend-format:
       root: "frontend/"
       glob: "**/*.{js,jsx,ts,tsx}"
-      run: bunx oxfmt --check {staged_files}
+      run: bunx oxfmt --check --no-error-on-unmatched-pattern {staged_files}
 
     frontend-lint:
       root: "frontend/"

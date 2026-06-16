@@ -5,7 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # `.env` holds dev defaults; `.env.local` (git-ignored) holds sensitive creds and
+    # local overrides and takes precedence. Real environment variables (CI, prod/k8s)
+    # still win over both.
+    model_config = SettingsConfigDict(env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="ignore")
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS512"
@@ -18,15 +21,6 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_AUTH_REDIRECT_URI: str = "http://localhost:7727/api/v1/auth/google/callback"
-
-    # Google Drive OAuth (uses same client credentials, different redirect URI)
-    GOOGLE_DRIVE_REDIRECT_URI: str = "http://localhost:7727/api/v1/googledrive/oauth/callback"
-
-    # Slack TA Bot OAuth
-    SLACK_CLIENT_ID: str
-    SLACK_CLIENT_SECRET: str
-    SLACK_SIGNING_SECRET: str
-    SLACK_REDIRECT_URI: str
 
     # Email / SMTP
     SMTP_HOST: str = ""
@@ -42,17 +36,7 @@ class Settings(BaseSettings):
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
     FRONTEND_BASE_URL: str = "http://localhost:7727"
 
-    RAG_CONCURRENCY: int = 1  # max number of files to process in parallel for RAG
-    RAG_MAX_FILE_SIZE_MB: int = 50  # skip files larger than this during RAG ingestion
-    RAG_STORE_BATCH_SIZE: int = 32  # number of chunks to embed + write to DB per batch
-    RAG_EMBEDDING_PROVIDER: str = "huggingface"  # embedding provider: huggingface or openai
-    RAG_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"  # model name passed to provider
-    RAG_DISPLAY_NAME_MAX_CHARS: int = 30  # max chars for section/filename labels in the UI
     MEMORY_PROFILING_ENABLED: bool = False
-    RAG_ALLOWED_EXTENSIONS: str = ""  # comma-separated extensions, e.g. "pdf,txt,docx"; empty = allow all supported
-    RAG_SCANNED_PDF_MIN_CHARS_PER_PAGE: int = 100  # below this avg, a PDF is treated as scanned/image-only
-    RAG_PDF_EXTRACTION_BATCH_SIZE: int = 10  # number of pages per pymupdf4llm.to_markdown() call
-    RAG_MCP_URL: str
 
     LLM_ENCRYPTION_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -62,19 +46,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
-def parse_rag_allowed_extensions(raw: str) -> list[str]:
-    """Parse a comma-separated extensions string into a normalised list.
-
-    Strips whitespace, lowercases, and removes leading dots and duplicates.
-    Returns an empty list when *raw* is blank, which means all supported types
-    are permitted.
-    """
-    if not raw.strip():
-        return []
-    parts = [ext.strip().lower().lstrip(".") for ext in raw.split(",")]
-    return list(dict.fromkeys(p for p in parts if p))
 
 
 # Plugin Configuration

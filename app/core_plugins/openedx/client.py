@@ -1,36 +1,31 @@
 import json
-from types import TracebackType
-from typing import Any, Type
+from typing import Any
 
-import aiohttp
+from pydantic import ValidationError
 
-from app.core_plugins.openedx.types import TokenResponse
-from app.mcp.request import Auth, handle_error_response, request
-from app.mcp.types import AuthenticationError, JsonParseError
+from app.core_plugins.openedx.schemas import TokenResponse
+from app.lib.enums import Auth, Method
+from app.lib.exceptions import AuthenticationError, LMSRequestError
+from app.lib.http import BaseHttpClient
 
 
-class OpenEdxClient:
-    def __init__(self, lms_url: str, access_token: str | None = None):
-        self.lms_url = lms_url.rstrip("/")
+class OpenEdxClient(BaseHttpClient):
+    """HTTP client for the Open edX LMS and Studio REST APIs."""
+
+    def __init__(self, lms_url: str, access_token: str | None = None) -> None:
+        super().__init__(lms_url, Auth.JWT)
         self.client_id = "login-service-client-id"
-        self.session = aiohttp.ClientSession()
         self.access_token = access_token
         self.refresh_token: str | None = None
         self.username = None
 
-    async def __aenter__(self) -> OpenEdxClient:
-        return self
-
-    async def __aexit__(
-        self,
-        _exc_type: Type[BaseException] | None,
-        _exc_val: BaseException | None,
-        _exc_tb: TracebackType | None,
-    ) -> None:
-        await self.close()
+    @property
+    def token(self) -> str | None:
+        return self.access_token
 
     async def get_token(self, username: str, password: str) -> dict[str, Any]:
-        auth_url = f"{self.lms_url}/oauth2/access_token"
+        """Exchange username/password credentials for a JWT access token via the OAuth2 password grant."""
+        auth_url = f"{self.base_url}/oauth2/access_token"
         form = {
             "client_id": self.client_id,
             "grant_type": "password",
@@ -40,16 +35,20 @@ class OpenEdxClient:
         }
 
         async with self.session.post(auth_url, data=form) as resp:
-            if not resp.status < 300:
-                raise await handle_error_response("POST", auth_url, resp)
+            if resp.status >= 300:
+                raise await self._handle_error_response(Method.POST, auth_url, resp)
 
+            text = await resp.text()
             try:
-                data = await resp.json()
-            except aiohttp.ContentTypeError as e:
-                text = await resp.text()
-                raise JsonParseError(resp.status, f"Expected JSON, got: {text}") from e
+                data = json.loads(text)
+            except json.JSONDecodeError as e:
+                raise LMSRequestError(Method.POST, auth_url, resp.status, f"Expected JSON, got: {text}") from e
 
-        token_response = TokenResponse(**data)
+        try:
+            token_response = TokenResponse(**data)
+        except ValidationError as e:
+            raise LMSRequestError(Method.POST, auth_url, 200, f"Unexpected token response shape: {e}") from e
+
         if not token_response.access_token.strip():
             raise AuthenticationError(401, "empty access_token")
 
@@ -58,7 +57,8 @@ class OpenEdxClient:
         return token_response.model_dump()
 
     async def refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
-        auth_url = f"{self.lms_url}/oauth2/access_token"
+        """Obtain a new access token using the OAuth2 refresh token grant."""
+        auth_url = f"{self.base_url}/oauth2/access_token"
         form = {
             "client_id": self.client_id,
             "grant_type": "refresh_token",
@@ -67,14 +67,18 @@ class OpenEdxClient:
         }
 
         async with self.session.post(auth_url, data=form) as resp:
-            if not resp.status < 300:
-                raise await handle_error_response("POST", auth_url, resp)
+            if resp.status >= 300:
+                raise await self._handle_error_response(Method.POST, auth_url, resp)
+            text = await resp.text()
             try:
-                data = await resp.json()
-            except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
-                raise JsonParseError(resp.status, str(e))
+                data = json.loads(text)
+            except json.JSONDecodeError as e:
+                raise LMSRequestError(Method.POST, auth_url, resp.status, f"Expected JSON, got: {text}") from e
 
-        token_response = TokenResponse(**data)
+        try:
+            token_response = TokenResponse(**data)
+        except ValidationError as e:
+            raise LMSRequestError(Method.POST, auth_url, 200, f"Unexpected token response shape: {e}") from e
 
         if not token_response.access_token.strip():
             raise AuthenticationError(401, "empty access_token")
@@ -83,37 +87,41 @@ class OpenEdxClient:
         self.refresh_token = token_response.refresh_token or refresh_token
         return token_response.model_dump()
 
-    async def authenticate(self) -> dict[str, Any]:
-        return await self.get(self.lms_url, "api/user/v1/me")
-
-    async def get(self, base_url: str, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        return await self.request_jwt("GET", base_url, endpoint, params=params)
-
-    async def post(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self.request_jwt("POST", base_url, endpoint, payload=payload)
-
-    async def patch(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self.request_jwt("PATCH", base_url, endpoint, payload=payload)
-
-    async def delete(self, base_url: str, endpoint: str) -> dict[str, Any]:
-        return await self.request_jwt("DELETE", base_url, endpoint)
-
-    async def request_jwt(
+    async def _request_dict(
         self,
-        method: str,
-        base_url: str,
+        method: Method,
         endpoint: str,
+        *,
+        base_url: str | None = None,
         params: dict[str, Any] | None = None,
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if not self.access_token:
-            raise AuthenticationError(401, "Access token not set")
+        """Call ``_request`` and assert the response is a JSON object."""
+        result = await self._request(method, endpoint, base_url=base_url, params=params, payload=payload)
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected JSON object from {method} {endpoint}, got {type(result).__name__}")
+        return result
 
-        url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
-        return await request(method, url, self.session, Auth.JWT, self.access_token, params, payload)
+    async def authenticate(self) -> dict[str, Any]:
+        """Return the authenticated user's profile from the LMS user API."""
+        return await self._request_dict(Method.GET, "api/user/v1/me")
 
-    async def close(self) -> None:
-        await self.session.close()
+    async def get(self, base_url: str, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Send a GET request to ``base_url/endpoint`` and return the response as a JSON object."""
+        return await self._request_dict(Method.GET, endpoint, base_url=base_url, params=params)
+
+    async def post(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send a POST request with a JSON body to ``base_url/endpoint`` and return the response as a JSON object."""
+        return await self._request_dict(Method.POST, endpoint, base_url=base_url, payload=payload)
+
+    async def patch(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send a PATCH request with a JSON body to ``base_url/endpoint`` and return the response as a JSON object."""
+        return await self._request_dict(Method.PATCH, endpoint, base_url=base_url, payload=payload)
+
+    async def delete(self, base_url: str, endpoint: str) -> dict[str, Any]:
+        """Send a DELETE request to ``base_url/endpoint`` and return the response as a JSON object."""
+        return await self._request_dict(Method.DELETE, endpoint, base_url=base_url)
 
     def get_username(self) -> str | None:
+        """Return the username set during token exchange, if available."""
         return self.username

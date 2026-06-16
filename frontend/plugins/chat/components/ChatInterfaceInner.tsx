@@ -8,6 +8,7 @@ import { ChatInput } from "./input/ChatInput";
 import { TextAttachment } from "../types";
 import { Preview } from "./attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
+import { attachDocument } from "@/lib/chat";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
 import { useConversation } from "../hooks/useConversation";
@@ -42,21 +43,13 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       router.replace(`/dashboard/chat?id=${id}`);
       // Sync any drive files that were selected before the conversation existed
       for (const att of inputAttachments) {
-        if (att.driveFileDbId !== undefined) {
-          fetch(`/api/v1/chat/conversations/${id}/attachments`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ drive_file_id: att.driveFileDbId }),
-          })
-            .then((res) => {
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            })
-            .catch((err) => {
-              console.warn("Failed to persist drive file attachment on new conversation:", err);
-              setError(
-                `Failed to attach "${att.name}". It may not be available for this conversation.`,
-              );
-            });
+        if (att.documentId !== undefined) {
+          attachDocument(token, id, att.documentId).catch((err) => {
+            console.warn("Failed to persist drive file attachment on new conversation:", err);
+            setError(
+              `Failed to attach "${att.name}". It may not be available for this conversation.`,
+            );
+          });
         }
       }
     },

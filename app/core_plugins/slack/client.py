@@ -8,9 +8,9 @@ from typing import Any, cast
 
 import httpx
 
-from app.core.logger import get_logger
-from app.core_plugins.slack.config import MAX_TIMESTAMP_DELTA
+from app.core_plugins.slack.config import get_slack_settings
 from app.core_plugins.slack.exceptions import SlackSignatureError
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -106,7 +106,7 @@ class SlackClient:
         except ValueError as exc:
             raise SlackSignatureError("Invalid timestamp header") from exc
 
-        if abs(time.time() - ts) > MAX_TIMESTAMP_DELTA:
+        if abs(time.time() - ts) > get_slack_settings().max_timestamp_delta:
             raise SlackSignatureError("Request timestamp is too old — possible replay attack")
 
         try:

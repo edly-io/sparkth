@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, TypedDict
@@ -14,8 +15,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
-from app.core.logger import get_logger
-from app.llm.prompt import get_learning_design_system_prompt
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -104,7 +104,7 @@ class BaseChatProvider(ABC):
         self.max_tool_executions = max_tool_executions
         self.max_retries = max_retries
         self._llm: Any = None
-        self.system_prompt = system_prompt or get_learning_design_system_prompt()
+        self.system_prompt = system_prompt or ""
 
     @abstractmethod
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
@@ -282,7 +282,7 @@ class BaseChatProvider(ABC):
                     elif hasattr(tool, "invoke"):
                         result = tool.invoke(tool_args)
                     elif hasattr(tool, "func") and tool.func is not None:
-                        if asyncio.iscoroutinefunction(tool.func):
+                        if inspect.iscoroutinefunction(tool.func):
                             result = await tool.func(**tool_args)
                         else:
                             result = tool.func(**tool_args)

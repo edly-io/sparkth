@@ -1,3 +1,5 @@
+# Troubleshoot with act https://github.com/nektos/act
+# act pull_request --workflows ./.github/workflows/ci.yml
 name: CI
 
 on:
@@ -5,34 +7,49 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
-    name: Frontend Lint & Format
+    name: Frontend Lint, Test & Format
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # required for react-doctor --diff
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-        working-directory: frontend
+      # uv is needed because test.frontend.api shells out to the Python dump
+      # script to detect drift between the backend schema and generated.ts.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
 
-      - name: Lint (oxlint)
-        run: bun run lint
-        working-directory: frontend
+      - name: Install frontend dependencies
+        run: make frontend.install.dev
 
-      - name: Check formatting (oxfmt)
-        run: bun run format:check
-        working-directory: frontend
+      - name: Install backend dependencies (for OpenAPI dump)
+        run: make backend.install.dev.requirements
+
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.frontend` (lint + react-doctor + api drift + typecheck + vitest + format check).
+      # Override the react-doctor base to the PR's actual base.
+      - name: Run frontend tests
+        run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }}
 
   backend:
-    name: Backend Lint, Type Check & Test
+    name: Backend Lint, Type Check, Test & Format
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -45,28 +62,9 @@ jobs:
           enable-cache: true
 
       - name: Install the project
-        run: uv sync --locked --dev
+        run: make backend.install.dev.requirements
 
-      - name: Check formatting (ruff)
-        run: uv run ruff format --check .
-
-      - name: Check import sorting (ruff)
-        run: uv run ruff check --select I .
-
-      - name: Lint (ruff)
-        run: uv run ruff check .
-
-      - name: Type check (mypy)
-        run: uv run mypy --strict app/ tests/
-
-      - name: Run tests
-        run: uv run pytest tests/
-        env:
-          DATABASE_URL: sqlite+aiosqlite:///./test.db
-          SECRET_KEY: secret-key-for-ci
-          SLACK_CLIENT_ID: fake-client-id
-          SLACK_CLIENT_SECRET: fake-client-secret
-          SLACK_SIGNING_SECRET: fake-signing-secret
-          SLACK_REDIRECT_URI: http://localhost/callback
-          RAG_MCP_URL: http://localhost:7728/mcp
-          LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.backend` (lint + mypy + pytest + format check).
+      - name: Run backend tests
+        run: make test.backend

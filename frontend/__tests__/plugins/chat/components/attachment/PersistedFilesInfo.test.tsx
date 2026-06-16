@@ -17,6 +17,7 @@ describe("PersistedFilesInfo", () => {
     text: "content",
     size: 1024,
     driveFileDbId: id,
+    documentId: id,
   });
 
   it("renders null when attachments array is empty", () => {
@@ -86,7 +87,7 @@ describe("PersistedFilesInfo", () => {
     expect(screen.getByText(expectedText)).toBeInTheDocument();
   });
 
-  it("calls onDetachFile with the correct driveFileDbId on × click", async () => {
+  it("calls onDetachFile with the correct documentId on × click", async () => {
     const user = userEvent.setup();
     const attachments: TextAttachment[] = [
       makeDriveFile(1, "first.pdf"),

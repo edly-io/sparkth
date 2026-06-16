@@ -6,6 +6,8 @@ FROM oven/bun:1 AS frontend-builder
 WORKDIR /frontend
 
 COPY frontend/package.json frontend/bun.lock ./
+# TODO we should install non-dev dependencies with `--production` but right now this is
+# failing with missing typescript dependency.
 RUN bun install --frozen-lockfile
 
 COPY frontend/ ./
@@ -25,12 +27,12 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev --all-extras
+    uv sync --frozen --no-install-project --no-dev
 
 COPY . /app
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --all-extras
+    uv sync --frozen --no-dev
 
 # -------------------
 # Stage 3: Runtime image

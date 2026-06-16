@@ -1,47 +1,21 @@
-from starlette.middleware import Middleware
-
-from app.core.logger import get_logger
+from app.core_plugins.chat.adapter import ChatConfigAdapter
 from app.core_plugins.chat.config import ChatUserConfig
-from app.core_plugins.chat.models import Conversation, Message
+from app.core_plugins.chat.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
+    Conversation,
+    Message,
+)
 from app.core_plugins.chat.routes import chat_router
-from app.plugins.base import SparkthPlugin
+from app.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from app.lib.log import get_logger
+from app.lib.plugins import SparkthPlugin
+from app.lib.routes import register_router
 
 logger = get_logger(__name__)
 
 
 class ChatPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
-        super().__init__(
-            plugin_name,
-            config_schema=ChatUserConfig,
-            is_core=True,
-            version="1.0.0",
-            description="Multi-provider chat support with LangChain",
-            author="Sparkth Team",
-        )
-
-        self.add_model(Conversation)
-        self.add_model(Message)
-
-        self.add_route(chat_router)
-
-        logger.info("Chat plugin initialized")
-
-    def initialize(self) -> None:
-        super().initialize()
-
-        if not self.config_schema:
-            raise ValueError("ChatUserConfig is required")
-
-        logger.info("Chat plugin configuration validated")
-
-    def enable(self) -> None:
-        super().enable()
-
-        logger.info("Chat plugin enabled with providers: OpenAI, Anthropic, Google")
-
-    def get_route_prefix(self) -> str:
-        return "/api/v1"
-
-    def get_middleware(self) -> list[Middleware]:
-        return []
+        super().__init__(plugin_name)
+        register_router(self, chat_router)
+        CONFIG_SCHEMAS.add_item(self, ChatUserConfig)
+        CONFIG_ADAPTERS.add_item(self, ChatConfigAdapter())

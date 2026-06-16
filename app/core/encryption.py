@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 

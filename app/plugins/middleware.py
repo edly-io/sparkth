@@ -3,13 +3,14 @@ from typing import Any, Awaitable, Callable, cast
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DatabaseError, OperationalError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import Session, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
-from app.core.db import get_async_session
-from app.core.logger import get_logger
+from app.core.routes import get_route_plugin_name
+from app.lib.db import get_async_session
+from app.lib.log import get_logger
 from app.models.plugin import Plugin, UserPlugin
 
 logger = get_logger(__name__)
@@ -67,17 +68,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
         for route in request.app.routes:
             match, _ = route.matches(request.scope)
             if match == Match.FULL:
-                if hasattr(route, "endpoint"):
-                    endpoint = route.endpoint
-                    if hasattr(endpoint, "__plugin_name__"):
-                        plugin_name = getattr(endpoint, "__plugin_name__")
-                        if isinstance(plugin_name, str):
-                            return plugin_name
-                    if hasattr(route, "tags") and route.tags:
-                        for tag in route.tags:
-                            if isinstance(tag, str) and tag.startswith("plugin:"):
-                                return tag.replace("plugin:", "")
-                break
+                return get_route_plugin_name(route)
         return None
 
     async def _check_plugin_access(self, user_id: int, plugin_name: str) -> bool:
@@ -109,8 +100,8 @@ async def _check_plugin_access_async(
         Plugin.name == plugin_name,
         Plugin.deleted_at == None,
     )
-    result = await session.execute(plugin_statement)
-    plugin = result.scalar_one_or_none()
+    result = await session.exec(plugin_statement)
+    plugin = result.one_or_none()
 
     if plugin is None:
         logger.debug(f"Plugin '{plugin_name}' not found in database. Allowing access by default.")
@@ -125,14 +116,14 @@ async def _check_plugin_access_async(
         UserPlugin.plugin_id == plugin.id,
         UserPlugin.deleted_at == None,
     )
-    result = await session.execute(statement)
-    user_plugin = result.scalar_one_or_none()
+    user_plugin_result = await session.exec(statement)
+    user_plugin = user_plugin_result.one_or_none()
 
     if user_plugin is None:
         logger.debug(f"No UserPlugin record for user {user_id} and plugin '{plugin_name}'. Allowing access by default.")
         return True
 
-    return user_plugin.enabled
+    return bool(user_plugin.enabled)
 
 
 def _check_plugin_access(user_id: int, plugin_name: str, session: Session, check_system_enabled: bool = False) -> bool:

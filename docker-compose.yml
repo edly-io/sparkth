@@ -1,145 +1,57 @@
+# Backing services for local development.
+#
+# In development the backend (make backend.up.dev) and frontend (make frontend.up.dev)
+# run natively on the host; this file only provides the Postgres, Redis, and Mailpit
+# services they talk to. Ports are published on 127.0.0.1 so the native processes can
+# reach them. The application image itself is built only for production (see Dockerfile,
+# published to GHCR by CI and orchestrated by Kubernetes).
 services:
-  # ----------------------------------------
-  # Sparkth API Service
-  # ----------------------------------------
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.local
-      # Requires sparkth-base:local — run `make base` first (or `make up` handles it automatically)
-    image: sparkth:local
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:7727:7727"
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      REDIS_URL: redis://redis:6379
-      PORT: "7727"
-      TOKENIZERS_PARALLELISM: "false"
-      # Disable HuggingFace XET chunked download protocol — it can hang indefinitely
-      # on unauthenticated requests. Standard HTTP download is reliable.
-      HF_HUB_DISABLE_XET: "1"
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      SMTP_USE_TLS: "false"
-      SMTP_FROM_EMAIL: no-reply@sparkth.local
-      SMTP_FROM_NAME: Sparkth
-    volumes:
-      - ./app:/app/app
-      - ./frontend/out:/app/frontend/out
-      - .ignored/logs:/app/logs
-      - hf_cache:/home/nonroot/.cache/huggingface
-    depends_on:
-      - db
-      - redis
-      - rag-mcp
-      - mailpit
-
-  # ----------------------------------------
   # Mailpit (local SMTP for development)
-  # ----------------------------------------
+  # For production we should use a managed email services e.g AWS SES SMTP interface
   mailpit:
     image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:8025:8025"
       - "127.0.0.1:1025:1025"
-    environment:
-      MP_MAX_MESSAGES: "5000"
-      MP_SMTP_AUTH_ACCEPT_ANY: "1"
-      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    env_file:
+      - .env
     volumes:
       - mailpit_data:/data
 
-  # ----------------------------------------
   # Postgres
-  # ----------------------------------------
+  # For production we should use a managed DB service e.g AWS RDS
   db:
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: sparkth
-      POSTGRES_PASSWORD: sparkth_password
-      POSTGRES_DB: sparkth
+    ports:
+      - "127.0.0.1:5432:5432"
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sparkth}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # ----------------------------------------
   # Redis
-  # ----------------------------------------
+  # For production we should use a redis service e.g AWS' managed redis service
   redis:
     image: docker.io/redis:7-alpine
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
-
-  # ----------------------------------------
-  # RAG Cleanup Job
-  # ----------------------------------------
-  rag-cleanup:
-    image: sparkth:local
-    pull_policy: never
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      TOKENIZERS_PARALLELISM: "false"
-      HF_HUB_DISABLE_XET: "1"
-    volumes:
-      - ./app:/app/app
-      - hf_cache:/home/nonroot/.cache/huggingface
-    command: python -m app.rag.cleanup
-    depends_on:
-      - db
-    restart: "no"
-
-  # ----------------------------------------
-  # RAG Metadata MCP Server
-  # ----------------------------------------
-  rag-mcp:
-    image: sparkth:local
-    pull_policy: never
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-      TOKENIZERS_PARALLELISM: "false"
-      HF_HUB_DISABLE_XET: "1"
-    volumes:
-      - ./app:/app/app
-      - hf_cache:/home/nonroot/.cache/huggingface
-    command: python -m app.rag_mcp.main
-    depends_on:
-      - db
-
-  # ----------------------------------------
-  # Alembic Migrations
-  # ----------------------------------------
-  migrations:
-    image: sparkth:local
-    pull_policy: never
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://sparkth:sparkth_password@db:5432/sparkth
-    volumes:
-      - ./app:/app/app
-    command: >
-      sh -c "
-      echo '⏳ Waiting for DB...' &&
-      alembic upgrade head &&
-      echo '✅ Alembic migrations complete'
-      "
-    depends_on:
-      - db
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres_data:
   redis_data:
-  hf_cache:
   mailpit_data:

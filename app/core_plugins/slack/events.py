@@ -12,11 +12,10 @@ def is_greeting(text: str) -> bool:
 
 
 def extract_question(text: str, bot_user_id: str) -> str:
-    """Strip bot @-mention(s) from message text and return cleaned question."""
+    """Strip bot @-mention(s) from message text and return the cleaned question."""
     if not bot_user_id:
         return text.strip()
-    pattern = re.compile(rf"<@{re.escape(bot_user_id)}>")
-    return pattern.sub("", text).strip()
+    return re.sub(rf"<@{re.escape(bot_user_id)}>", "", text).strip()
 
 
 def should_handle_event(event: dict[str, Any], bot_user_id: str) -> bool:

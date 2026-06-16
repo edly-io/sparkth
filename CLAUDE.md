@@ -2,8 +2,11 @@
 
 AI-first, open-source learning platform by Edly. Provides a unified framework for course generation with integrated AI capabilities exposed via a Model Context Protocol (MCP) server.
 
-- REST API: `/api/` | MCP server: `/ai/mcp` | Docs: `/docs`
-- Current version: `0.1.10`
+Useful URLs:
+
+- REST API: `/api/`
+- MCP server: `/ai/mcp`
+- Docs: `/docs`
 
 ## Tech Stack
 
@@ -17,14 +20,15 @@ AI-first, open-source learning platform by Edly. Provides a unified framework fo
 
 ```
 app/
-  core/          # Settings, DB engines, security (JWT/OAuth), logger
+  core/          # Settings, DB engines, security (JWT/OAuth)
+  lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
   api/v1/        # REST endpoints: auth, user, user-plugins, file-parser
-  plugins/       # Plugin framework: base.py (SparkthPlugin, @tool), manager.py
-  core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/
+  plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py
+  core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
-  rag/           # Retrieval-augmented generation (loader, vectorstore, retriever)
+  rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/    # Alembic versions
 
@@ -34,31 +38,63 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # pytest suite mirroring app structure (api/, chat/, mcp/, rag/)
+tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, services/
+                 # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
+                 # Shared fixtures: app/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
 ```
+
+## Public Library (`app/lib/`)
+
+`app/lib/` is the curated, stable API that application code **and plugins** import
+from, instead of reaching into `app.core.*` (or other internal packages) directly
+— every internal symbol a plugin imports becomes an implicit public API and blocks
+refactoring (see issue #379). When a core capability is needed beyond `app/core`,
+expose it through `app/lib` and import it from there.
+
+Current modules (see the source for the full API — do not duplicate it here):
+
+- [`app/lib/log.py`](app/lib/log.py) — logging. Obtain loggers via `get_logger`
+  (never `logging.getLogger`); `configure_logging` is the single logging setup,
+  called once per process entrypoint.
+- [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
+  background/non-request code; `get_async_session`/`get_session` are the FastAPI
+  dependencies.
+- [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. Import RAG functionality
+  from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
+  `IngestionResult`, `RagStatus`, RAG exceptions); never import from `app.rag.*`
+  directly. Implementation lives in `app/rag/` (see issue #398).
+- [`app/lib/llm.py`](app/lib/llm.py) — LLM public API. Import LLM functionality
+  from here (`BaseChatProvider`, `get_provider`, `LLMConfigService`,
+  `get_llm_service`, `LLMConfigAdapter`, and the `LLMConfig*` exceptions); never
+  import from `app.llm.*` directly. Implementation lives in `app/llm/` (see
+  issue #379).
+- [`app/lib/plugins.py`](app/lib/plugins.py) — plugin framework public API.
+  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`); never import
+  from `app.plugins`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
 
 ## Essential Commands
 
 ```bash
-# Docker (recommended for full stack)
-make up              # Build + start (PostgreSQL + Redis + API + frontend)
-make dev.up          # Dev mode with hot reload
-make down            # Stop containers
-make clean           # Stop + wipe database volume
+# Backing services (Docker): Postgres, Redis, Mailpit — the backend/frontend run natively
+make services.up     # Start backing services in the background
+make services.down   # Stop service containers
+make services.clean  # Stop services + wipe data volumes
 
-# Local backend (requires uv)
-make dev             # Install dev dependencies
-make api             # FastAPI on http://0.0.0.0:7727
-make mcp             # MCP server (HTTP mode)
-make test            # Run all tests (frontend + backend)
-make test.backend    # Run backend tests only
-make test.frontend   # Run frontend tests only
-make test.e2e        # Run Playwright E2E tests (see frontend/tests/README.md)
-make test.e2e.ui     # Run Playwright E2E tests in interactive UI mode
-make test.e2e.install # Install Playwright browsers (one-time)
-make test.help       # Show usage for all test commands
-make mypy            # mypy --strict
+# Local backend (requires uv) — connects to the backing services above
+make backend.install.dev    # Install dev dependencies
+make backend.up.dev         # FastAPI on http://0.0.0.0:7727 (MCP server mounted at /ai/mcp; hot reload)
+make test                   # Run all tests (frontend + backend)
+make test.backend           # Run all backend tests
+make test.backend.pytest    # Run unit tests with pytest
+make test.backend.format    # Run backend formatting tests
+make test.frontend          # Run all frontend tests
+make test.frontend.vitest   # Run unit tests with vitest
+make test.frontend.format   # Run frontend formatting tests
+make test.e2e               # Run Playwright E2E tests (see frontend/tests/README.md)
+make test.e2e.ui            # Run Playwright E2E tests in interactive UI mode
+make test.e2e.install       # Install Playwright browsers (one-time)
+make mypy                   # mypy --strict
 
 # Linting
 make lint                    # Check lint errors (frontend + backend)
@@ -71,22 +107,23 @@ make lint.fix.frontend       # Auto-fix frontend lint errors (oxlint)
 make lint.fix.backend        # Auto-fix backend lint errors (ruff)
 make lint.format.frontend    # Format frontend code (oxfmt)
 make lint.format.backend     # Format backend code (ruff)
-make lint.help               # Show usage for all lint commands
+make lint.frontend.react-doctor  # React health check on files changed vs main (CI gate)
 
 # Local frontend
-make frontend        # Next.js dev server on :3000
-make frontend.build  # Static export → frontend/out/
+make frontend.up.dev # Next.js dev server on :3000 (proxies /api to the backend; needs `make backend.up.dev` running)
+make frontend.build  # Static export → frontend/out/ (served by the backend in production)
+make frontend.build.api  # Regenerate frontend/lib/api/generated.ts from the backend OpenAPI schema (run after backend API changes; called automatically by make frontend.build)
 
 # Database
-make migrations      # Run pending Alembic migrations
-make shell           # Shell inside API container
-make db-shell        # PostgreSQL shell
-make create-user     # Create user (pass args after --)
+make migrations         # Apply Alembic migrations (native)
+make services.logs      # Tail logs for the service containers (make services.logs [service])
+make db-shell           # PostgreSQL shell
+make create-user        # Create user (pass args after --)
 ```
 
 ## Environment Setup
 
-Copy `.env.example` → `.env`. Required variables:
+`.env` is committed with working dev defaults (localhost-first: it points at the backing services published by `docker-compose.yml`). For sensitive credentials (Google OAuth, Slack) and local overrides, create a `.env.local` file (git-ignored) — it takes precedence over `.env` and is read by both the native backend and `docker compose`. See the production checklist at the top of `.env` for values that must change before deploying.
 
 | Variable | Purpose |
 |---|---|
@@ -94,14 +131,29 @@ Copy `.env.example` → `.env`. Required variables:
 | `SECRET_KEY` | JWT signing key |
 | `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
 | `REDIS_URL` | Redis for chat session caching and the email-verification resend rate-limit bucket |
-| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP (Amazon SES, Mailgun, MailHog, …) |
+| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (add to `.env.local`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP — dev default is Mailpit (bundled); use Amazon SES, Mailgun, etc. in production |
 | `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | From-header for verification + other transactional emails |
 | `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |
 | `FRONTEND_BASE_URL` | Base URL used in verification email links |
+| `CHAT_MAX_TOOL_EXECUTIONS` | Max tool-call iterations the LLM may perform per request (default 50) |
+| `CHAT_TITLE_MAX_LENGTH` | Max characters for the auto-extracted conversation title (default 60) |
+| `CHAT_TITLE_PROMPT_MAX_CHARS` | Max characters from first user message sent to title-generation LLM (default 500) |
+| `CHAT_TITLE_LLM_MAX_TOKENS` | Max tokens the title-generation LLM may produce (default 20) |
+| `CHAT_TITLE_DB_MAX_LENGTH` | Max characters stored in the conversation title column (default 255) |
+| `CHAT_TITLE_LLM_TEMPERATURE` | Temperature for title-generation LLM calls (default 0.3) |
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
+
+### Adding a new environment variable
+
+**`.env` is always the source of truth.** It must have complete, up-to-date information about every variable the application needs.
+
+- **Non-sensitive variable** — add it to `.env` with an appropriate dev default value.
+- **Sensitive variable** (API keys, OAuth secrets, passwords) — add it to the user's `.env.local` (git-ignored), but add a reference to it in the `# !! MUST change in production !!` comment block at the top of `.env` so developers know it exists and where to set it.
+
+Never add a variable only to `.env.local` without a corresponding reference in `.env`.
 
 ## Development Workflow: Test-Driven Development (TDD)
 
@@ -111,7 +163,7 @@ CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against S
 
 For every new feature, endpoint, service method, utility, or plugin tool:
 
-1. **Write the test first** — create or update the relevant file under `tests/` mirroring the module path (e.g. `app/services/foo.py` → `tests/services/test_foo.py`)
+1. **Write the test first** — create or update the relevant test file, following the [Test Layout](#test-layout) rules below.
 2. **Confirm the test fails** — the test must fail before any implementation exists (red phase)
 3. **Write the minimum implementation** to make the test pass (green phase)
 4. **Refactor** while keeping all tests green
@@ -119,6 +171,35 @@ For every new feature, endpoint, service method, utility, or plugin tool:
 > Never write implementation code before a corresponding failing test exists.
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
+
+## Documentation Hygiene
+
+**Always update documentation alongside every code change — no exceptions.**
+
+Documentation includes:
+
+- **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit.
+- **Inline comments** — remove or update comments that describe logic that has changed. Never leave comments that contradict the code.
+- **Markdown files** — `CLAUDE.md`, `README.md`, plugin guides, and any other `.md` files must be updated when commands, architecture, configuration, or behaviour they describe changes.
+
+The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
+
+### Test Layout
+
+Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
+
+- **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, services)
+
+  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`); the
+  RAG MCP tooling under `app/rag/mcp/` is mirrored by `tests/rag/mcp/`.
+
+How the suite is wired:
+
+- Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
+- Shared fixtures (`engine`, `session`, `client`, `setup_plugins_and_user`, …) and the generic test environment live in [`app/testing.py`](app/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["app.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
+- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 ## Database Migrations
 
@@ -172,7 +253,7 @@ This rule applies to all layers: API endpoints, services, plugins, MCP tools, an
 
 ```python
 # ✅ Good — specific exception, logged, re-raise is a conscious choice
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -234,17 +315,33 @@ except Exception as exc:
 
 ## Commit Messages
 
-Every commit must follow Conventional Commits. No exceptions.
+Every commit must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
+enforced by [`commitlint`](.github/workflows/commitlint.yml) on every PR.
 
 ```
-<type>(<scope>): <short description>
+<type>[(<scope>)]: <short description>
 
 [optional body — explain WHY, not what]
 ```
 
-**Types:** `feat` | `fix` | `refactor` | `test` | `docs` | `chore`
+**Types** (all conventional-commits types are accepted):
 
-**Scopes:** `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are acceptable when none of these fit (e.g. `auth`, `docker`, `deps`)
+| Type | Use for |
+|---|---|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `test` | Adding or correcting tests |
+| `docs` | Documentation only |
+| `chore` | Maintenance tasks (dependency bumps, tooling config, …) |
+| `build` | Changes to the build system or external dependencies |
+| `ci` | Changes to CI configuration files and scripts |
+| `perf` | Performance improvement |
+| `revert` | Reverts a previous commit |
+| `style` | Formatting changes that do not affect meaning |
+
+**Scope** (optional, but recommended for clarity):
+Common scopes: `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are fine when none of these fit (e.g. `auth`, `docker`, `deps`).
 
 **Rules:**
 - Subject line: max 72 chars, lowercase, no trailing period
@@ -264,6 +361,8 @@ refactor(rag): extract vectorstore into separate service
 test(mcp): add integration tests for tool registration
 
 chore(ci): pin uv version in GitHub Actions
+
+docs: update environment variable reference table
 ```
 
 ## Pull Request Descriptions
@@ -271,7 +370,7 @@ chore(ci): pin uv version in GitHub Actions
 Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). It auto-populates on GitHub.
 
 **Rules:**
-- Title: `<type>(<scope>): short description` — max 70 chars, lowercase
+- Title: `<type>[(<scope>)]: short description` — max 70 chars, lowercase
 - "What" must name the problem solved, not just the mechanism
 - Every non-trivial code path needs a test step
 - Flag breaking changes and migration requirements explicitly — never bury them
@@ -283,3 +382,8 @@ Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/P
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
 | Plugin development guide | [app/plugins/PLUGIN_GUIDE.md](app/plugins/PLUGIN_GUIDE.md) |
 | Frontend plugin development | [frontend/README.md](frontend/README.md) |
+| GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
+
+## GitHub Project Management
+
+When creating or editing GitHub issues, posting proposed solutions, opening pull requests, or committing LLM-generated code, follow the conventions in the [`sparkth-project-management`](.claude/skills/sparkth-project-management/SKILL.md) skill.

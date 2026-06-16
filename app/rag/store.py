@@ -1,35 +1,38 @@
-"""Vector store service for storing and retrieving document chunks."""
+"""RAG database storage service — shared by ingestion and retrieval.
 
-from typing import Any
+``ChunkStoreService`` is the single point of contact between the RAG pipeline
+and the database. Ingestion uses it to persist and deduplicate chunks;
+retrieval uses it to fetch chunks by section.
+"""
 
-from sqlalchemy import and_, delete, literal, or_
+import hashlib
+from typing import Any, cast
+
+from sqlalchemy import and_, delete, or_
+from sqlalchemy.engine import CursorResult
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
-from app.core.logger import get_logger
-from app.rag.embeddings import BaseEmbeddingProvider
-from app.rag.memory_profiler import profile_memory
-from app.rag.models import DocumentChunk
-from app.rag.types import ChunkInput, SimilarityResult
-
-# Re-export for backwards-compatibility with modules that import from store
-__all__ = ["ChunkInput", "SimilarityResult", "VectorStoreService"]
+from app.lib.documents import Document
+from app.lib.log import get_logger
+from app.memory_profiler import profile_memory
+from app.rag.config import get_rag_settings
+from app.rag.models import DocumentChunk, DocumentChunkLink
+from app.rag.types import Chunk, ChunkInput
 
 logger = get_logger(__name__)
 
 
-class VectorStoreService:
-    """Service for storing and retrieving document chunks with vector embeddings."""
+class ChunkStoreService:
+    """Service for storing and retrieving document chunks."""
 
     async def store_chunks(
         self,
         session: AsyncSession,
         user_id: int,
         chunks: list[ChunkInput],
-        provider: BaseEmbeddingProvider,
     ) -> list[int]:
-        """Embed and persist chunks in configurable sub-batches.
+        """Persist chunks in configurable sub-batches (no embedding).
 
         Processes RAG_STORE_BATCH_SIZE chunks per iteration, expunging batch
         objects from session identity map after each flush to prevent
@@ -41,19 +44,15 @@ class VectorStoreService:
         if not chunks:
             return []
 
-        batch_size = get_settings().RAG_STORE_BATCH_SIZE
+        batch_size = get_rag_settings().RAG_STORE_BATCH_SIZE
         source = chunks[0].source_name
         all_ids: list[int] = []
 
         for batch_start in range(0, len(chunks), batch_size):
             batch = chunks[batch_start : batch_start + batch_size]
-            texts = [c.content for c in batch]
-
-            async with profile_memory("embedding", source=source, n_chunks=len(batch)):
-                embeddings = await provider.embed_documents(texts)
 
             batch_rows: list[DocumentChunk] = []
-            for chunk, embedding in zip(batch, embeddings, strict=True):
+            for chunk in batch:
                 row = DocumentChunk(
                     user_id=user_id,
                     source_name=chunk.source_name,
@@ -62,15 +61,12 @@ class VectorStoreService:
                     chapter=chunk.chapter,
                     section=chunk.section,
                     subsection=chunk.subsection,
-                    embedding=embedding,
-                    embedding_model=provider.model_name,
-                    embedding_provider=provider.provider_name,
                     token_count=chunk.token_count,
                 )
                 session.add(row)
                 batch_rows.append(row)
 
-            async with profile_memory("vectorstore_write", source=source, n_rows=len(batch_rows)):
+            async with profile_memory("chunkstore_write", source=source, n_rows=len(batch_rows)):
                 await session.flush()
 
             batch_ids = [row.id for row in batch_rows if row.id is not None]
@@ -86,84 +82,16 @@ class VectorStoreService:
         )
         return all_ids
 
-    async def similarity_search(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        query_embedding: list[float],
-        limit: int = 5,
-        source_names: list[str] | None = None,
-        similarity_threshold: float = 0.7,
-        chapters: list[str] | None = None,
-        sections: list[str] | None = None,
-        subsections: list[str] | None = None,
-    ) -> list[SimilarityResult]:
-        """Find the most similar chunks using cosine similarity.
-
-        Uses pgvector's ``cosine_distance`` via SQLAlchemy ORM.
-        Cosine similarity = 1 - cosine distance.
-
-        ``source_names`` restricts the search to a specific set of sources.
-        Pass ``None`` (default) to search all sources for the user.
-        """
-        distance = DocumentChunk.embedding.cosine_distance(query_embedding)
-        similarity = (literal(1) - distance).label("similarity")
-
-        stmt = (
-            select(DocumentChunk, similarity)
-            .where(col(DocumentChunk.user_id) == user_id)
-            .where(similarity >= similarity_threshold)
-        )
-
-        if source_names:
-            stmt = stmt.where(col(DocumentChunk.source_name).in_(source_names))
-
-        if chapters is not None:
-            stmt = stmt.where(col(DocumentChunk.chapter).in_(chapters))
-        if sections is not None:
-            stmt = stmt.where(col(DocumentChunk.section).in_(sections))
-        if subsections is not None:
-            stmt = stmt.where(col(DocumentChunk.subsection).in_(subsections))
-
-        stmt = stmt.order_by(distance).limit(limit)
-
-        result = await session.execute(stmt)
-        rows = result.all()
-
-        return [SimilarityResult(chunk=row[0], similarity=row[1]) for row in rows]
-
-    async def get_distinct_sections(
-        self,
-        session: AsyncSession,
-        user_id: int,
-        source_name: str,
-    ) -> list[dict[str, str | None]]:
-        """Return distinct (chapter, section, subsection) tuples for a source."""
-        stmt = (
-            select(
-                DocumentChunk.chapter,
-                DocumentChunk.section,
-                DocumentChunk.subsection,
-            )
-            .where(col(DocumentChunk.user_id) == user_id)
-            .where(col(DocumentChunk.source_name) == source_name)
-            .distinct()
-        )
-        result = await session.execute(stmt)
-        return [{"chapter": row[0], "section": row[1], "subsection": row[2]} for row in result.all()]
-
     async def fetch_chunks_by_sections(
         self,
         session: AsyncSession,
-        user_id: int,
-        source_name: str,
+        document_id: int,
         section_keys: list[dict[str, str | None]],
         limit: int = 50,
-    ) -> list[SimilarityResult]:
+    ) -> list[DocumentChunk]:
         """Fetch chunks for specific section keys in document order (by id).
 
         Matches exact (chapter, section, subsection) tuples — NULL-safe.
-        Returns SimilarityResult with similarity=1.0 (no vector scoring).
         """
         if not section_keys:
             return []
@@ -186,9 +114,9 @@ class VectorStoreService:
 
         stmt = (
             select(DocumentChunk)
+            .join(DocumentChunkLink, col(DocumentChunk.id) == col(DocumentChunkLink.chunk_id))
             .where(
-                col(DocumentChunk.user_id) == user_id,
-                col(DocumentChunk.source_name) == source_name,
+                col(DocumentChunkLink.document_id) == document_id,
                 or_(*[_key_condition(k) for k in section_keys]),
             )
             .order_by(col(DocumentChunk.id))
@@ -196,8 +124,7 @@ class VectorStoreService:
         )
 
         result = await session.exec(stmt)
-        chunks = result.all()
-        return [SimilarityResult(chunk=chunk, similarity=1.0) for chunk in chunks]
+        return list(result.all())
 
     async def delete_by_source(
         self,
@@ -217,7 +144,7 @@ class VectorStoreService:
         )
         result = await session.execute(stmt)
         await session.flush()
-        count: int = result.rowcount  # type: ignore[attr-defined]
+        count: int = cast(CursorResult[Any], result).rowcount
         logger.info("Deleted %d chunks for user_id=%d, source='%s'", count, user_id, source_name)
         return count
 
@@ -233,5 +160,96 @@ class VectorStoreService:
             .distinct()
             .order_by(col(DocumentChunk.source_name))
         )
-        result = await session.execute(stmt)
-        return [row[0] for row in result.all()]
+        result = await session.scalars(stmt)
+        return list(result.all())
+
+
+async def _create_missing_links(session: AsyncSession, document_id: int, chunk_ids: set[int]) -> None:
+    """Insert bridge-table links for chunk_ids not already linked to document_id."""
+    already_linked = await session.scalars(
+        select(DocumentChunkLink.chunk_id).where(
+            col(DocumentChunkLink.document_id) == document_id,
+        )
+    )
+    existing_ids = set(already_linked.all())
+    new_links = [DocumentChunkLink(document_id=document_id, chunk_id=cid) for cid in chunk_ids - existing_ids]
+    if new_links:
+        session.add_all(new_links)
+        await session.flush()
+
+
+async def copy_document_chunk_links(
+    session: AsyncSession,
+    source_document_id: int,
+    target_document_id: int,
+) -> None:
+    """Copy all chunk links from source_document_id to target_document_id."""
+    source_chunk_ids = await session.scalars(
+        select(DocumentChunkLink.chunk_id).where(
+            col(DocumentChunkLink.document_id) == source_document_id,
+        )
+    )
+    chunk_ids = set(source_chunk_ids.all())
+    await _create_missing_links(session, target_document_id, chunk_ids)
+
+
+async def store_and_link_chunks(
+    session: AsyncSession,
+    user_id: int,
+    document_id: int,
+    chunks: list[Chunk],
+    store: ChunkStoreService,
+) -> tuple[int, int]:
+    """Store new chunks, reuse existing ones, and create bridge-table links.
+
+    Returns (new_count, reused_count).
+    """
+    chunk_hashes = [hashlib.sha256(c.content.encode()).hexdigest() for c in chunks]
+
+    # Batch-lookup which chunk hashes already exist, excluding chunks that are
+    # only linked to soft-deleted documents (they must be re-stored for the new document).
+    active_doc_subq = (
+        select(DocumentChunkLink.chunk_id)
+        .join(Document, col(Document.id) == col(DocumentChunkLink.document_id))
+        .where(
+            col(DocumentChunkLink.chunk_id) == col(DocumentChunk.id),
+            col(Document.is_deleted) == False,  # noqa: E712
+        )
+        .exists()
+    )
+    existing_rows = await session.exec(
+        select(DocumentChunk.id, DocumentChunk.chunk_content_hash).where(
+            col(DocumentChunk.user_id) == user_id,
+            col(DocumentChunk.chunk_content_hash).in_(chunk_hashes),
+            active_doc_subq,
+        )
+    )
+    existing_hash_to_id: dict[str, int] = {
+        row[1]: row[0] for row in existing_rows.all() if row[0] is not None and row[1] is not None
+    }
+
+    new_chunk_inputs: list[ChunkInput] = []
+    reused_chunk_ids: list[int] = []
+
+    for chunk, chunk_hash in zip(chunks, chunk_hashes):
+        if chunk_hash in existing_hash_to_id:
+            reused_chunk_ids.append(existing_hash_to_id[chunk_hash])
+            logger.debug("Duplicate chunk (hash=%s) — reusing existing.", chunk_hash[:12])
+        else:
+            new_chunk_inputs.append(
+                ChunkInput(
+                    content=chunk.content,
+                    source_name=chunk.metadata.source_name,
+                    chapter=chunk.metadata.chapter,
+                    section=chunk.metadata.section,
+                    subsection=chunk.metadata.subsection,
+                    chunk_content_hash=chunk_hash,
+                )
+            )
+
+    new_ids = await store.store_chunks(session, user_id, new_chunk_inputs)
+
+    all_chunk_ids: set[int] = set(new_ids) | set(reused_chunk_ids)
+    await _create_missing_links(session, document_id, all_chunk_ids)
+
+    return len(new_chunk_inputs), len(reused_chunk_ids)

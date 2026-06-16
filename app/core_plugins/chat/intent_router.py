@@ -8,18 +8,16 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
-from app.core.logger import get_logger
+from app.core_plugins.chat.exceptions import RAGIntentRouterError
 from app.core_plugins.chat.schemas import RAGRoutingDecision
-from app.models.drive import DriveFile
+from app.lib.documents import Document
+from app.lib.log import get_logger
+from app.lib.rag import get_rag_ingested_document_structure
 
 logger = get_logger(__name__)
 
 # Load system prompt at module import time
 _SYSTEM_PROMPT = (Path(__file__).parent / "assets" / "rag_intent_router_system_prompt.txt").read_text()
-
-
-class RAGIntentRouterError(Exception):
-    """Raised when the router's LLM call fails."""
 
 
 class RAGIntentRouter:
@@ -37,15 +35,13 @@ class RAGIntentRouter:
         self,
         *,
         query: str,
-        attached_files: list[DriveFile],
-        user_id: int,
+        attached_documents: list[Document],
     ) -> RAGRoutingDecision:
         """Decide whether to run RAG retrieval for this turn.
 
         Args:
             query: The user's query text.
-            attached_files: List of DriveFile objects attached to the conversation.
-            user_id: The user ID passed to get_document_structure.
+            attached_documents: Documents attached to the conversation.
 
         Returns:
             RAGRoutingDecision with should_retrieve and reason.
@@ -55,30 +51,30 @@ class RAGIntentRouter:
         """
         # Build attachment summary with section metadata
         attachment_summary = ""
-        if attached_files:
-            # Lazy import to avoid initializing DB at module level
-            from app.rag_mcp.tools import get_document_structure
-
+        if attached_documents:
+            documents = [doc for doc in attached_documents if doc.id is not None]
+            # TODO: batch-lookup document structures in a single query instead of one coroutine per document
             results = await asyncio.gather(
-                *[get_document_structure(user_id=user_id, file_id=cast(int, f.id)) for f in attached_files],
+                *[get_rag_ingested_document_structure(document_id=cast(int, doc.id)) for doc in documents],
                 return_exceptions=True,
             )
 
-            attachment_summary = "The user has attached the following files:\n"
-            for file, sections_or_exc in zip(attached_files, results):
-                attachment_summary += f"\n- {file.name}:\n"
-                if isinstance(sections_or_exc, BaseException):
-                    logger.warning(
-                        "Failed to get document structure for file %d: %s",
-                        file.id,
-                        sections_or_exc,
-                    )
-                    continue
-                for section in sections_or_exc:
-                    path_parts = [section.chapter, section.section, section.subsection]
-                    path = " / ".join(p for p in path_parts if p is not None)
-                    if path:
-                        attachment_summary += f"  - {path}\n"
+            if documents:
+                attachment_summary = "The user has attached the following documents:\n"
+                for document, sections_or_exc in zip(documents, results):
+                    attachment_summary += f"\n- {document.name}:\n"
+                    if isinstance(sections_or_exc, BaseException):
+                        logger.warning(
+                            "Failed to get document structure for document %d: %s",
+                            cast(int, document.id),
+                            sections_or_exc,
+                        )
+                        continue
+                    for section in sections_or_exc:
+                        path_parts = [section.chapter, section.section, section.subsection]
+                        path = " / ".join(p for p in path_parts if p is not None)
+                        if path:
+                            attachment_summary += f"  - {path}\n"
 
         # Build messages for the router chain
         human_text = query

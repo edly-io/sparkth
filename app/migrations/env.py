@@ -1,43 +1,18 @@
-import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from asyncpg.exceptions import UndefinedTableError
 from sqlalchemy import engine_from_config, pool
-from sqlalchemy.exc import ProgrammingError
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
-from app.core.logger import get_logger
+from app.lib.plugins import get_plugin_loader
 from app.models import *  # noqa: F403
-from app.plugins import get_plugin_manager
-
-logger = get_logger(__name__)
 
 settings = get_settings()
 
 config = context.config
 db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 config.set_main_option("sqlalchemy.url", db_url)
-
-
-# Import plugin models for Alembic autogenerate
-def import_plugin_models():
-    """Import models from all enabled plugins for Alembic to discover."""
-    plugin_manager = get_plugin_manager()
-    try:
-        loaded_plugins = asyncio.run(plugin_manager.load_all_enabled())
-    except (ProgrammingError, UndefinedTableError) as e:
-        if 'relation "plugins" does not exist' in str(e):
-            logger.warning("plugins table not yet created — skipping plugin model import")
-            return
-        raise
-
-    # Get models from each plugin
-    for plugin_name, plugin in loaded_plugins.items():
-        models = plugin.get_models()
-        if models:
-            logger.info(f"Loaded {len(models)} model(s) from plugin '{plugin_name}'")
 
 
 # this is the Alembic Config object, which provides
@@ -74,7 +49,7 @@ def run_migrations_offline() -> None:
 
     """
     # Load plugin models before running migrations
-    import_plugin_models()
+    get_plugin_loader()
 
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -96,7 +71,7 @@ def run_migrations_online() -> None:
 
     """
     # Load plugin models before running migrations
-    import_plugin_models()
+    get_plugin_loader()
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

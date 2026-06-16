@@ -1,10 +1,11 @@
 import { useCallback, useRef } from "react";
+import { requestChatCompletionStream } from "@/lib/chat";
 import { ChatMessage, TextAttachment } from "../types";
 
 interface SendPayload {
   message: string;
   attachments: TextAttachment[];
-  driveFileIds?: number[];
+  documentIds?: number[];
   similarityThreshold?: number;
 }
 
@@ -372,7 +373,7 @@ export function useChatStream({
   );
 
   const handleSend = useCallback(
-    async ({ message, attachments, driveFileIds, similarityThreshold = 0.45 }: SendPayload) => {
+    async ({ message, attachments, documentIds, similarityThreshold = 0.45 }: SendPayload) => {
       lastSentRef.current = { message, attachments };
       lastSentThresholdRef.current = similarityThreshold;
 
@@ -403,24 +404,17 @@ export function useChatStream({
       ]);
 
       try {
-        const res = await fetch("/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            llm_config_id: llmConfigId,
-            ...(modelOverride && { model_override: modelOverride }),
-            messages: newUserMessages,
-            stream: true,
-            tools: "*",
-            tool_choice: "auto",
-            include_system_tools_message: true,
-            similarity_threshold: similarityThreshold,
-            ...(conversationId && { conversation_id: conversationId }),
-            ...(driveFileIds && driveFileIds.length > 0 && { drive_file_ids: driveFileIds }),
-          }),
+        const res = await requestChatCompletionStream(token, {
+          llm_config_id: llmConfigId,
+          ...(modelOverride && { model_override: modelOverride }),
+          messages: newUserMessages,
+          stream: true,
+          tools: "*",
+          tool_choice: "auto",
+          include_system_tools_message: true,
+          similarity_threshold: similarityThreshold,
+          ...(conversationId && { conversation_id: conversationId }),
+          ...(documentIds && documentIds.length > 0 && { document_ids: documentIds }),
         });
 
         if (!res.ok) {

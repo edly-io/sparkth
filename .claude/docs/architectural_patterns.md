@@ -4,20 +4,36 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ---
 
-## 1. Plugin System: Metaclass-Driven Tool Registration
+## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `app/plugins/base.py`, `app/core_plugins/*/plugin.py`
+**Files:** `app/lib/hooks.py`, `app/lib/mcp/hooks.py`, `app/lib/routes.py`, `app/lib/config/hooks.py`, `app/core_plugins/*/plugin.py`
 
-`PluginMeta` metaclass collects `@tool`-decorated methods at class definition time into `_tool_registry`. On instantiation, these are automatically registered as MCP tools — no manual wiring required.
+A plugin contributes its capabilities from its `__init__` — one consistent pattern
+across all contribution types (a `PluginCollectionHook` holds many items per plugin,
+a `PluginHook` holds one):
 
 ```
-SparkthPlugin (metaclass=PluginMeta)
-  └── @tool(description="...", category="...")
-      → auto-registered in _tool_registry at class definition
-      → registered as MCP tool on plugin enable
+SparkthPlugin.__init__
+  ├── register_router(self, router)                                   # app/lib/routes.py
+  ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # app/lib/mcp/hooks.py
+  ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # app/lib/config/hooks.py
+  └── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # app/lib/config/hooks.py
 ```
+
+`register_router` (`app/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
+deriving both the prefix and OpenAPI tags from the plugin instance automatically.
+
+A `Tool` (`app/lib/mcp/hooks.py`) derives its name from the handler method, its
+description from the handler docstring, and its input schema from the signature.
+Consumers iterate the hooks: `app/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
+server, the chat tool registry converts them to LangChain tools, and `app/main.py`
+mounts plugin routes.
 
 Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `app/plugins/config_base.py` for the base class.
+
+A plugin may also contribute a `CONFIG_ADAPTERS` entry (`app/lib/config/hooks.py`): an
+`LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
+plugin name via `get_plugin_adapter` (`app/lib/config`), so the framework never names a concrete plugin.
 
 Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
 
@@ -25,15 +41,13 @@ Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:
 
 ## 2. Plugin Lifecycle Management
 
-**Files:** `app/plugins/manager.py`, `app/main.py` (lifespan handler)
+**Files:** `app/plugins/loader.py`, `app/main.py` (`assemble_app()` + lifespan handler)
 
-The `PluginManager` singleton manages discovery → load → enable → disable → unload. The FastAPI lifespan context manager calls `load_all_enabled()` on startup and cleanup on shutdown. Each plugin can contribute:
+The `PluginLoader` singleton manages discovery → load → unload. Route registration is DB-free and happens in `assemble_app()` at import time, so the full route map (and OpenAPI schema) exists without a running server. The FastAPI lifespan context manager owns the stateful side: it calls `get_plugin_service().get_or_create_all()` on startup and unloads plugins on shutdown. Each plugin can contribute:
 
-- **Routes:** `FastAPI.include_router()`
-- **Models:** SQLModel table classes
+- **Routes:** via `register_router` (`app/lib/routes.py`), mounted with `FastAPI.include_router()`
 - **Middleware:** Starlette middleware
-- **MCP tools:** Via `@tool` decorator
-- **Dependencies:** Callable factories
+- **MCP tools:** via the `MCP_TOOLS` hook (see §1)
 
 `PluginAccessMiddleware` (`app/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
 
@@ -49,7 +63,7 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 
 - Endpoint functions stay thin; business logic lives in `app/services/`
 - All DB access is async: `AsyncSession` injected via `Depends(get_async_session)`
-- Plugin routes are mounted dynamically by the plugin manager at startup
+- Plugin routes are mounted dynamically by the plugin loader at startup
 
 ---
 
@@ -106,27 +120,23 @@ async def endpoint(
 
 ```
 PluginError (base)
-├── PluginNotFoundError
 ├── PluginLoadError
 ├── PluginValidationError
-├── PluginDependencyError
-├── PluginAlreadyLoadedError
-├── PluginNotLoadedError
-└── PluginConfigError
 ```
 
 Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` at the endpoint layer. MCP tools raise `AuthenticationError` for credential issues.
 
 ---
 
-## 9. Chat Plugin: Service + Provider + Encryption
+## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `app/core_plugins/chat/service.py`, `app/core_plugins/chat/providers.py`, `app/core_plugins/chat/encryption.py`, `app/core_plugins/chat/cache.py`
+**Files:** `app/core_plugins/chat/service.py`, `app/core_plugins/chat/intent_router.py`, `app/core_plugins/chat/middleware.py`, `app/llm/providers.py`, `app/llm/service.py`, `app/core/encryption.py`, `app/core/cache.py`
 
 - `ChatService` owns conversation logic and history management
-- `providers.py` abstracts LLM backends (OpenAI, Claude, Google) behind a uniform interface
-- Conversations stored encrypted at rest using Fernet (AES-128); key from `CHAT_ENCRYPTION_KEY`
-- Redis (`cache.py`) manages session state and enforces rate limits (per-user + concurrent stream caps)
+- LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `app/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
+- `RAGIntentRouter` (`intent_router.py`) decides how to route a user turn
+- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`app/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
+- Redis (`app/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 
 ---
 
@@ -140,6 +150,6 @@ Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => imp
 
 ## 11. MCP Tool Registration Pipeline
 
-**Files:** `app/mcp/main.py`, `app/mcp/server.py`
+**Files:** `app/mcp/server.py`, `app/lib/mcp/hooks.py`
 
-`register_plugin_tools()` iterates all enabled plugins, validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. Transport is configurable: HTTP (default, port 7727) for network clients; stdio for local AI agent integrations.
+`register_plugin_tools()` iterates the `MCP_TOOLS` hook (each entry a `Tool` contributed by a plugin from its `__init__`), validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`app/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.

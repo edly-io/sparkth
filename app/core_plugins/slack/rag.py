@@ -1,26 +1,99 @@
-"""RAG dispatch for the Slack TA Bot plugin."""
+"""RAG dispatch for the Slack TA Bot plugin — agentic retrieval."""
 
 import httpx
 from langchain_core.exceptions import LangChainException
+from langchain_core.language_models import BaseChatModel
 from pydantic import ValidationError
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logger import get_logger
-from app.core_plugins.slack.config import SlackConfig
+from app.core_plugins.slack.config import SlackConfig, get_slack_settings
+from app.core_plugins.slack.constants import (
+    DRIVE_FILE_NOT_FOUND_MESSAGE,
+    NO_FILES_RESOLVED_MESSAGE,
+    RAG_NOT_READY_MESSAGE,
+    RETRIEVAL_ERROR_MESSAGE,
+)
+from app.core_plugins.slack.enums import ResponseType
 from app.core_plugins.slack.synthesis import synthesize_answer
-from app.llm.providers import BaseChatProvider
-from app.rag.context_service import RAGContextService, format_chunks_as_context
-from app.rag.embeddings import BaseEmbeddingProvider
-from app.rag.provider import get_provider
-from app.rag.store import SimilarityResult
+from app.lib.documents import Document, DocumentStatus
+from app.lib.llm import BaseChatProvider
+from app.lib.log import get_logger
+from app.lib.rag import (
+    DocumentNotFoundError,
+    RAGNotReadyError,
+    RAGRetrievalError,
+    RetrievedChunk,
+    agentic_retrieve_context,
+)
 
 logger = get_logger(__name__)
 
-# Module-level singleton — embedding model and vector store loaded once per process
-_rag_service: RAGContextService = RAGContextService()
+
+# TODO: this function is almost similar to app.core_plugins.chat.routes.helpers.format_source_block
+# we need to figure out how to remove this duplication.
+def _format_context(chunks: list[RetrievedChunk]) -> str:
+    """Render retrieved chunks as per-document context blocks for synthesis."""
+    by_source: dict[str, list[RetrievedChunk]] = {}
+    order: list[str] = []
+    for c in chunks:
+        if c.source_name not in by_source:
+            order.append(c.source_name)
+            by_source[c.source_name] = []
+        by_source[c.source_name].append(c)
+
+    blocks: list[str] = []
+    for source in order:
+        lines = [f"[DOCUMENT CONTEXT: {source}]", "The following excerpts were retrieved:", ""]
+        for i, c in enumerate(by_source[source], 1):
+            parts = [p for p in [c.chapter, c.section, c.subsection] if p]
+            label = " / ".join(parts) if parts else "General"
+            lines.append(f"--- Excerpt {i} (Section: {label}) ---")
+            lines.append(c.content.strip())
+            lines.append("")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
 
 
-_SIMILARITY_THRESHOLD = 0.5
+async def _resolve_document_ids_for_sources(
+    session: AsyncSession,
+    user_id: int,
+    allowed_sources: list[str],
+) -> list[int]:
+    """Resolve a list of source names to RAG-ready Document IDs for *user_id*.
+
+    Returns Document IDs filtered to DocumentStatus.READY and is_deleted=False. When
+    *allowed_sources* is empty, returns all ready owner document IDs ordered by
+    Document.id ASC, capped at SlackSettings.max_agent_files.
+    """
+    max_agent_files = get_slack_settings().max_agent_files
+    stmt = (
+        select(Document)
+        .where(
+            col(Document.user_id) == user_id,
+            col(Document.status) == DocumentStatus.READY,
+            col(Document.is_deleted) == False,  # noqa: E712
+        )
+        .order_by(col(Document.id).asc())
+    )
+
+    if allowed_sources:
+        stmt = stmt.where(col(Document.name).in_(allowed_sources))
+
+    result = await session.exec(stmt)
+    documents: list[Document] = list(result.all())
+    document_ids = [document.id for document in documents if document.id is not None]
+
+    if len(document_ids) > max_agent_files:
+        logger.warning(
+            "Slack agentic RAG: %d documents resolved for user=%d, capping at max_agent_files=%d",
+            len(document_ids),
+            user_id,
+            max_agent_files,
+        )
+        document_ids = document_ids[:max_agent_files]
+
+    return document_ids
 
 
 async def answer_question(
@@ -28,98 +101,78 @@ async def answer_question(
     user_id: int,
     question: str,
     config: SlackConfig,
-    similarity_threshold: float = _SIMILARITY_THRESHOLD,
-    limit: int = 5,
-    provider: BaseEmbeddingProvider | None = None,
+    agent_llm: BaseChatModel,
     llm_provider: BaseChatProvider | None = None,
-) -> tuple[str, bool]:
-    """Embed question, rank sections, search vector store, return (answer, rag_matched).
+) -> tuple[str, ResponseType]:
+    """Run agentic RAG for the bot's allowed_sources and return (answer, response_type).
 
-    Mirrors the chat RAG flow when allowed_sources are configured:
-      1. Embed the query.
-      2. Rank document sections by title similarity per source.
-      3. Run similarity search filtered to the top-ranked sections.
-      4. Merge and re-rank results across all sources.
-      5. (Optional) Synthesize a natural-language answer via LLM.
+    Steps:
+      1. Resolve allowed_sources to RAG-ready Document IDs (or top-N owner documents
+         when allowed_sources is empty).
+      2. Retrieve relevant chunks via agentic_retrieve_context, which fans out
+         internally across all already-validated document_ids.
+      3. If no chunks are returned, reply with the configured fallback_message.
+      4. Optionally synthesize via LLM; otherwise return formatted raw chunks.
 
-    Falls back to a broad similarity search across all user content when
-    no allowed_sources are configured.
+    Each operational failure mode maps to its own distinct user-facing message and
+    ResponseType. config.fallback_message is reserved ONLY for the case where the
+    agent ran successfully but found no relevant chunks.
 
-    Returns (config.fallback_message, False) when no chunks meet the threshold.
-    provider defaults to the RAGContextService embedding provider; pass a mock for testing.
-    llm_provider, when set, sends the question + chunks to an LLM for synthesis.
+    Args:
+        session: Async SQLModel session.
+        user_id: Bot owner (RLS scope).
+        question: Cleaned student question (mention stripped).
+        config: Per-bot SlackConfig (allowed_sources, fallback_message, ...).
+        agent_llm: LangChain LLM used by the per-file agentic search. Required.
+            Built from the instructor's llm_config_id by the caller.
+        llm_provider: Optional BaseChatProvider for synthesis. When None, the bot
+            returns formatted raw chunks. Built from the instructor's llm_config_id
+            by the caller.
     """
-    embedding_provider = provider or get_provider()
-    query_embedding = await embedding_provider.embed_query(question)
-
-    all_results: list[SimilarityResult] = []
-    source_names = config.allowed_sources
-
-    if source_names:
-        for source_name in source_names:
-            ranked_sections = await _rag_service.rank_sections(
-                session=session,
-                user_id=user_id,
-                source_name=source_name,
-                query_embedding=query_embedding,
-            )
-            section_filter = list({s["section"] for s in ranked_sections if s["section"]}) or None
-
-            results = await _rag_service.search_with_embedding(
-                session=session,
-                user_id=user_id,
-                source_name=source_name,
-                query_embedding=query_embedding,
-                limit=limit,
-                similarity_threshold=similarity_threshold,
-                sections=section_filter,
-            )
-            all_results.extend(results)
-
-        # Re-rank merged results and keep the top limit
-        all_results.sort(key=lambda r: r.similarity, reverse=True)
-        all_results = all_results[:limit]
-    else:
-        # No source filter: broad search across all user content
-        all_results = await _rag_service.search_all_sources(
-            session=session,
-            user_id=user_id,
-            query_embedding=query_embedding,
-            limit=limit,
-            similarity_threshold=similarity_threshold,
-        )
+    document_ids = await _resolve_document_ids_for_sources(session, user_id, config.allowed_sources)
 
     logger.info(
-        "RAG search for user_id=%d found %d chunks (threshold=%.2f, sources=%s)",
+        "Slack agentic RAG: user=%d documents=%d sources=%s",
         user_id,
-        len(all_results),
-        similarity_threshold,
-        source_names or "all",
+        len(document_ids),
+        config.allowed_sources or "all",
     )
 
-    if not all_results:
-        return config.fallback_message, False
+    if not document_ids:
+        logger.warning(
+            "Slack agentic RAG: no documents resolved for user=%d sources=%s",
+            user_id,
+            config.allowed_sources or "all",
+        )
+        return NO_FILES_RESOLVED_MESSAGE, ResponseType.NO_FILES_RESOLVED
 
-    # Group results by source and format
-    sources_seen: list[str] = []
-    results_by_source: dict[str, list[SimilarityResult]] = {}
-    for r in all_results:
-        sname = r.chunk.source_name
-        if sname not in results_by_source:
-            sources_seen.append(sname)
-            results_by_source[sname] = []
-        results_by_source[sname].append(r)
+    try:
+        chunks = await agentic_retrieve_context(question, document_ids, agent_llm)
+    except DocumentNotFoundError as exc:
+        logger.error("Slack agentic RAG: document not found user=%d documents=%s: %s", user_id, document_ids, exc)
+        return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND
+    except RAGNotReadyError as exc:
+        logger.warning("Slack agentic RAG: document not ready user=%d documents=%s: %s", user_id, document_ids, exc)
+        return RAG_NOT_READY_MESSAGE, ResponseType.RAG_NOT_READY
+    except RAGRetrievalError as exc:
+        logger.error("Slack agentic RAG: retrieval error user=%d documents=%s: %s", user_id, document_ids, exc)
+        return RETRIEVAL_ERROR_MESSAGE, ResponseType.RETRIEVAL_ERROR
 
-    formatted_context = "\n\n".join(format_chunks_as_context(sname, results_by_source[sname]) for sname in sources_seen)
+    logger.info("Slack agentic RAG: %d chunks for user=%d", len(chunks), user_id)
+
+    if not chunks:
+        return config.fallback_message, ResponseType.FALLBACK
+
+    formatted_context = _format_context(chunks)
 
     if llm_provider:
         try:
             answer = await synthesize_answer(
-                question=question,
-                context=formatted_context,
-                provider=llm_provider,
+                question,
+                formatted_context,
+                llm_provider,
             )
-            return answer, True
+            return answer, ResponseType.RAG_MATCH
         except (LangChainException, ValidationError, ValueError, RuntimeError, httpx.RemoteProtocolError) as exc:
             logger.warning(
                 "LLM synthesis failed for user_id=%d, falling back to raw chunks: %s: %s",
@@ -127,6 +180,12 @@ async def answer_question(
                 type(exc).__name__,
                 exc,
             )
-            return f"Could not generate an AI summary, but here is what RAG found:\n\n{formatted_context}", True
+            return (
+                f"Could not generate an AI summary, but here is what RAG found:\n\n{formatted_context}",
+                ResponseType.RAG_MATCH,
+            )
 
-    return f"AI summary is not available, but here is what RAG found:\n\n{formatted_context}", True
+    return (
+        f"AI summary is not available, but here is what RAG found:\n\n{formatted_context}",
+        ResponseType.RAG_MATCH,
+    )

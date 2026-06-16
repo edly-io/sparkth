@@ -1,27 +1,29 @@
-from dataclasses import dataclass
-from enum import StrEnum
+"""Shared data types for the RAG pipeline."""
 
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
+from app.rag.enums import DocType
 from app.rag.models import DocumentChunk
 
 
-class DocType(StrEnum):
-    PDF = "pdf"
-    DOCX = "docx"
-    HTML = "html"
-    TXT = "txt"
+@dataclass(repr=False)
+class ExtractionResult:
+    """Raw output of a file extractor — structured Markdown plus metadata."""
 
+    markdown: str
+    doc_type: DocType
+    source_name: str
+    page_count: int | None = None
+    warnings: list[str] = field(default_factory=list)
 
-class RagStatus(StrEnum):
-    QUEUED = "queued"
-    PROCESSING = "processing"
-    READY = "ready"
-    FAILED = "failed"
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<ExtractionResult source={self.source_name!r} type={self.doc_type} chars={len(self.markdown)}>"
 
 
 @dataclass
 class ChunkMetadata:
+    """Heading hierarchy for a single chunk, used for SQL filtering and display."""
+
     source_name: str
     chapter: str | None = None
     section: str | None = None
@@ -38,37 +40,15 @@ class ChunkMetadata:
 
 @dataclass
 class Chunk:
+    """A single text chunk paired with its heading metadata."""
+
     content: str
     metadata: ChunkMetadata
 
 
 @dataclass
-class SimilarityResult:
-    """A chunk together with its cosine similarity score."""
-
-    chunk: DocumentChunk
-    similarity: float
-
-
-@dataclass
-class RAGContext:
-    """Retrieved context ready for injection into an LLM prompt."""
-
-    file_db_id: int
-    source_name: str
-    chunks: list[SimilarityResult]
-    formatted_text: str
-    ranked_sections: list[dict[str, str | None]] | None = None
-
-
-@dataclass
 class ChunkInput:
-    """Input data for a single chunk to be embedded and stored.
-
-    This is a standalone type so the store module compiles without
-    the chunking PR (#202). Once that PR merges, callers can map
-    ``Chunk`` / ``ChunkMetadata`` to ``ChunkInput`` trivially.
-    """
+    """Flattened chunk data passed to the chunk store for persistence."""
 
     content: str
     source_name: str
@@ -79,17 +59,57 @@ class ChunkInput:
     chunk_content_hash: str | None = None
 
 
-class SectionRef(BaseModel):
-    # We use Optional and default=None to handle the "use null for missing fields" requirement
-    chapter: str | None = Field(default=None, description="The chapter title")
-    section: str | None = Field(default=None, description="The section title")
-    subsection: str | None = Field(default=None, description="The subsection title")
+@dataclass
+class RAGContext:
+    """Retrieved context ready for injection into an LLM prompt."""
+
+    document_id: int
+    source_name: str
+    chunks: list[DocumentChunk]
+    formatted_text: str
 
 
-class RAGSearchAgentResponse(BaseModel):
-    """Agent's decision about which sections to fetch directly."""
+@dataclass
+class IngestionResult:
+    """Outcome of a successful document ingestion."""
 
-    source_name: str = Field(description="The document's source_name from get_document_structure")
-    selected_sections: list[SectionRef] = Field(
-        description="Sections to retrieve, matching values from get_document_structure exactly"
-    )
+    new_chunks: int
+    reused_chunks: int
+
+
+@dataclass
+class RetrievedChunk:
+    """A chunk returned by retrieval, with its document/section attribution."""
+
+    source_name: str
+    chapter: str | None
+    section: str | None
+    subsection: str | None
+    content: str
+
+
+@dataclass
+class DocumentSection:
+    """A structural section in a document, with chunk count and document order."""
+
+    source_name: str
+    chapter: str | None
+    section: str | None
+    subsection: str | None
+    chunk_count: int
+    position_index: int
+
+    def __repr__(self) -> str:
+        """Match the previous Pydantic-style repr used in RAG agent tool output."""
+        return (
+            f"source_name={self.source_name!r} "
+            f"chapter={self.chapter!r} "
+            f"section={self.section!r} "
+            f"subsection={self.subsection!r} "
+            f"chunk_count={self.chunk_count!r} "
+            f"position_index={self.position_index!r}"
+        )
+
+    def __str__(self) -> str:
+        """Use the stable agent-facing representation for string conversion."""
+        return repr(self)

@@ -48,9 +48,9 @@ class ChatMessage(BaseModel):
                     if size > MAX_FILE_SIZE:
                         raise ValueError("File size exceeds 30MB limit")
                 if block.get("type") == "drive_file":
-                    file_id = block.get("file_id")
-                    if not isinstance(file_id, int) or file_id <= 0:
-                        raise ValueError("drive_file content block must have a positive integer 'file_id'")
+                    document_id = block.get("file_id")
+                    if not isinstance(document_id, int) or document_id <= 0:
+                        raise ValueError("legacy document content block must have a positive integer 'file_id'")
         return v
 
 
@@ -58,12 +58,6 @@ class ToolCall(BaseModel):
     id: str
     name: str
     arguments: dict[str, Any]
-
-
-class ToolResult(BaseModel):
-    tool_call_id: str
-    name: str
-    content: str
 
 
 class ChatCompletionRequest(BaseModel):
@@ -86,16 +80,13 @@ class ChatCompletionRequest(BaseModel):
     include_system_tools_message: bool = Field(
         default=True, description="Automatically prepend a system message listing available tools"
     )
-    similarity_threshold: float = Field(
-        default=0.45,
-        ge=0.0,
-        le=1.0,
-        description="Cosine similarity threshold for RAG chunk retrieval (0 = very loose, 1 = exact match)",
-    )
-    drive_file_ids: list[int] | None = Field(
+    document_ids: list[int] | None = Field(
         default=None,
         max_length=20,
-        description="Drive file IDs to attach to the conversation before processing (used when attaching files on a new conversation).",
+        description=(
+            "Document IDs to attach to the conversation before processing "
+            "(used when attaching documents on a new conversation)."
+        ),
     )
 
 
@@ -108,13 +99,6 @@ class ChatCompletionResponse(BaseModel):
     cost: float | None = None
     tool_calls: list[ToolCall] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ConversationCreate(BaseModel):
-    provider: str
-    model: str
-    title: str | None = Field(default=None, max_length=255)
-    system_prompt: str | None = Field(default=None)
 
 
 class MessageResponse(BaseModel):
@@ -156,9 +140,9 @@ class RAGRoutingDecision(BaseModel):
 
 
 class ConversationAttachmentCreate(BaseModel):
-    """Request body for attaching a drive file to a conversation."""
+    """Request body for attaching a document to a conversation."""
 
-    drive_file_id: int
+    document_id: int
 
 
 class ConversationAttachmentResponse(BaseModel):
@@ -166,12 +150,12 @@ class ConversationAttachmentResponse(BaseModel):
 
     id: int
     conversation_id: int
-    drive_file_id: int
+    document_id: int
     attached_at: datetime
 
 
-class AttachedDriveFileResponse(BaseModel):
-    """Drive file info returned by the list-attachments endpoint."""
+class AttachedDocumentResponse(BaseModel):
+    """Document info returned by the list-attachments endpoint."""
 
     id: int
     name: str
@@ -192,21 +176,3 @@ class ToolSchema(BaseModel):
 class ToolListResponse(BaseModel):
     tools: list[ToolSchema]
     total: int
-
-
-class ErrorResponse(BaseModel):
-    detail: str
-    error_code: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ProviderInfo(BaseModel):
-    id: str
-    label: str
-    models: list[str]
-
-
-class ProviderCatalogResponse(BaseModel):
-    providers: list[ProviderInfo]
-    default_provider: str
-    default_model: str

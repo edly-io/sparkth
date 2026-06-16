@@ -26,6 +26,7 @@ import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {
   id: number;
+  document_id: number;
   name: string;
   mime_type?: string;
   size?: number;
@@ -76,9 +77,11 @@ function pickerReducer(state: PickerState, action: PickerAction): PickerState {
         newIds.delete(file.id);
         newMap.delete(file.id);
       } else {
+        if (file.document_id == null) return state;
         newIds.add(file.id);
         newMap.set(file.id, {
           id: file.id,
+          document_id: file.document_id,
           name: file.name,
           mime_type: file.mime_type,
           size: file.size,
@@ -172,6 +175,7 @@ export default function DriveFilePicker({
   const handleConfirmSelection = () => {
     const selectedFiles = Array.from(selectedFilesMap.values()).map((f) => ({
       id: f.id,
+      document_id: f.document_id,
       name: f.name,
       mime_type: f.mime_type,
       size: f.size,
@@ -253,7 +257,7 @@ export default function DriveFilePicker({
                 {files.map((file) => {
                   const ragStatus = ragStatuses[file.id]?.status ?? null;
                   const ragError = ragStatuses[file.id]?.error ?? null;
-                  const isReady = ragStatus === RagStatus.Ready;
+                  const canAttach = ragStatus === RagStatus.Ready && file.document_id != null;
                   const isSelected = selectedFileIds.has(file.id);
                   return (
                     <li
@@ -263,7 +267,7 @@ export default function DriveFilePicker({
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        disabled={!isReady}
+                        disabled={!canAttach}
                         onChange={() => toggleFileSelection(file.id)}
                         className="w-4 h-4 rounded border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label={`Select ${file.name}`}

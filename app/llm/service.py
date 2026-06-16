@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.cache import CacheService, get_cache_service
 from app.core.config import get_settings
 from app.core.encryption import EncryptionService, get_encryption_service
-from app.core.logger import get_logger
+from app.lib.log import get_logger
 from app.llm.exceptions import (
     LLMConfigDuplicateNameError,
     LLMConfigInactiveError,
@@ -202,7 +202,8 @@ class LLMConfigService:
             raise LLMConfigNotFoundError(config_id, user_id)
         if not config.model:
             raise LLMConfigModelNotSetError(
-                f"LLMConfig {config_id} has no model set. Update it via PATCH /api/v1/llm/configs/{config_id} before use."
+                f"LLMConfig {config_id} has no model set. Update it via "
+                f"PATCH /api/v1/llm/configs/{config_id} before use."
             )
         if not config.is_active:
             raise LLMConfigInactiveError()

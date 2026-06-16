@@ -1,7 +1,11 @@
 """Google Drive plugin for Sparkth."""
 
+import app.core_plugins.googledrive.models  # noqa: F401 - registers tables in SQLModel metadata
 from app.core_plugins.googledrive.config import GoogleDriveConfig
-from app.plugins.base import SparkthPlugin
+from app.core_plugins.googledrive.routes import router
+from app.lib.config.hooks import CONFIG_SCHEMAS
+from app.lib.plugins import SparkthPlugin
+from app.lib.routes import register_router
 
 
 class GoogleDrivePlugin(SparkthPlugin):
@@ -12,34 +16,6 @@ class GoogleDrivePlugin(SparkthPlugin):
     """
 
     def __init__(self, name: str = "google-drive"):
-        super().__init__(
-            name=name,
-            config_schema=GoogleDriveConfig,
-            is_core=True,
-            version="1.0.0",
-            description="Google Drive integration for folder sync and file management",
-            author="Sparkth Team",
-        )
-
-    def initialize(self) -> None:
-        """Initialize the Google Drive plugin."""
-        super().initialize()
-        from app.core_plugins.googledrive.routes import router
-
-        self.add_route(router)
-
-    def get_route_prefix(self) -> str:
-        """Return the route prefix for Google Drive endpoints."""
-        return "/api/v1/googledrive"
-
-    def get_route_tags(self) -> list[str]:
-        """Return OpenAPI tags for Google Drive routes."""
-        return ["Google Drive"]
-
-    def enable(self) -> None:
-        """Enable the Google Drive plugin."""
-        super().enable()
-
-    def disable(self) -> None:
-        """Disable the Google Drive plugin."""
-        super().disable()
+        super().__init__(name)
+        register_router(self, router)
+        CONFIG_SCHEMAS.add_item(self, GoogleDriveConfig)

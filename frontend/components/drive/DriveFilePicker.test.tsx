@@ -28,9 +28,30 @@ const mockFolder = {
 };
 
 const mockFiles = [
-  { id: 10, drive_file_id: "f1", name: "doc.pdf", size: 1024, modified_time: "2026-01-01" },
-  { id: 20, drive_file_id: "f2", name: "notes.txt", size: 512, modified_time: "2026-01-02" },
+  {
+    id: 10,
+    drive_file_id: "f1",
+    document_id: 100,
+    name: "doc.pdf",
+    size: 1024,
+    modified_time: "2026-01-01",
+  },
+  {
+    id: 20,
+    drive_file_id: "f2",
+    document_id: 200,
+    name: "notes.txt",
+    size: 512,
+    modified_time: "2026-01-02",
+  },
 ];
+
+const paginated = <T,>(items: T[]) => ({
+  items,
+  total: items.length,
+  skip: 0,
+  limit: 100,
+});
 
 const selectFolder = async () => {
   const folderButton = await screen.findByText("Test Folder");
@@ -39,8 +60,8 @@ const selectFolder = async () => {
 
 describe("DriveFilePicker - RAG Status Column", () => {
   beforeEach(() => {
-    vi.mocked(listFolders).mockResolvedValue([mockFolder]);
-    vi.mocked(listFiles).mockResolvedValue(mockFiles);
+    vi.mocked(listFolders).mockResolvedValue(paginated([mockFolder]));
+    vi.mocked(listFiles).mockResolvedValue(paginated(mockFiles));
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [
@@ -69,7 +90,7 @@ describe("DriveFilePicker - RAG Status Column", () => {
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "failed", rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
     await selectFolder();
@@ -84,7 +105,7 @@ describe("DriveFilePicker - RAG Status Column", () => {
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "queued", rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
     await selectFolder();
@@ -99,7 +120,7 @@ describe("DriveFilePicker - RAG Status Column", () => {
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: null, rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
     await selectFolder();
@@ -110,17 +131,17 @@ describe("DriveFilePicker - RAG Status Column", () => {
   });
 });
 
-describe("DriveFilePicker - Select Button Disabled State", () => {
+describe("DriveFilePicker - File Checkbox Disabled State", () => {
   beforeEach(() => {
-    vi.mocked(listFolders).mockResolvedValue([mockFolder]);
-    vi.mocked(listFiles).mockResolvedValue(mockFiles);
+    vi.mocked(listFolders).mockResolvedValue(paginated([mockFolder]));
+    vi.mocked(listFiles).mockResolvedValue(paginated(mockFiles));
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("enables Select only when rag_status is ready", async () => {
+  it("enables the checkbox only when rag_status is ready", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [
@@ -133,81 +154,82 @@ describe("DriveFilePicker - Select Button Disabled State", () => {
     await selectFolder();
 
     await waitFor(() => {
-      expect(screen.getByTestId("select-file-10")).not.toBeDisabled();
+      expect(screen.getByLabelText("Select doc.pdf")).not.toBeDisabled();
     });
-    expect(screen.getByTestId("select-file-20")).toBeDisabled();
+    expect(screen.getByLabelText("Select notes.txt")).toBeDisabled();
   });
 
-  it("disables Select for queued files", async () => {
+  it("disables the checkbox for queued files", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "queued", rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
     await selectFolder();
 
     await waitFor(() => {
-      expect(screen.getByTestId("select-file-10")).toBeDisabled();
+      expect(screen.getByLabelText("Select doc.pdf")).toBeDisabled();
     });
   });
 
-  it("disables Select for failed files", async () => {
+  it("disables the checkbox for failed files", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "failed", rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
     await selectFolder();
 
     await waitFor(() => {
-      expect(screen.getByTestId("select-file-10")).toBeDisabled();
+      expect(screen.getByLabelText("Select doc.pdf")).toBeDisabled();
     });
   });
 
-  it("disables Select for null status", async () => {
+  it("disables the checkbox for null status", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: null, rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
     await selectFolder();
 
     await waitFor(() => {
-      expect(screen.getByTestId("select-file-10")).toBeDisabled();
+      expect(screen.getByLabelText("Select doc.pdf")).toBeDisabled();
     });
   });
 
-  it("calls onFileSelected when ready file is selected", async () => {
+  it("calls onFileSelected when a ready file is checked and confirmed", async () => {
     vi.mocked(getFolderRagStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null }],
     });
-    vi.mocked(listFiles).mockResolvedValue([mockFiles[0]]);
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
 
     const onFileSelected = vi.fn();
     render(<DriveFilePicker onClose={vi.fn()} onFileSelected={onFileSelected} />);
     await selectFolder();
 
-    const button = await screen.findByTestId("select-file-10");
-    await waitFor(() => expect(button).not.toBeDisabled());
-    await userEvent.click(button);
+    const checkbox = await screen.findByLabelText("Select doc.pdf");
+    await waitFor(() => expect(checkbox).not.toBeDisabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm selection" }));
 
-    expect(onFileSelected).toHaveBeenCalledWith(
+    expect(onFileSelected).toHaveBeenCalledWith([
       expect.objectContaining({ id: 10, name: "doc.pdf" }),
-    );
+    ]);
   });
 });
 
 describe("DriveFilePicker - RAG Status Polling", () => {
   beforeEach(() => {
-    vi.mocked(listFolders).mockResolvedValue([mockFolder]);
-    vi.mocked(listFiles).mockResolvedValue(mockFiles);
+    vi.mocked(listFolders).mockResolvedValue(paginated([mockFolder]));
+    vi.mocked(listFiles).mockResolvedValue(paginated(mockFiles));
   });
 
   afterEach(() => {

@@ -9,7 +9,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.rag.extraction import _extract_pdf
+from app.rag.ingestion.extraction import PDFExtractor
+
+_pdf = PDFExtractor()
+
+
+def _extract_pdf(data: bytes, source_name: str, **kwargs: object) -> object:
+    return _pdf.extract(data, source_name, **kwargs)  # type: ignore[arg-type]
 
 
 def _make_mock_doc(page_count: int) -> MagicMock:
@@ -27,9 +33,9 @@ class TestExtractionMemory:
     def test_store_shrunk_after_single_batch(self) -> None:
         """A small doc that fits in one batch shrinks the store once in-loop + once in finally."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_doc(3)),
-            patch("app.rag.extraction.fitz.TOOLS") as mock_tools,
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_doc(3)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS") as mock_tools,
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             _extract_pdf(b"%PDF-1.4\n", "small.pdf", batch_size=10)
 
@@ -40,9 +46,9 @@ class TestExtractionMemory:
     def test_store_shrunk_once_per_batch(self) -> None:
         """A doc that spans multiple batches shrinks the store once per batch (plus finally)."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_doc(25)),
-            patch("app.rag.extraction.fitz.TOOLS") as mock_tools,
-            patch("app.rag.extraction.pymupdf4llm.to_markdown", return_value="md"),
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_doc(25)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS") as mock_tools,
+            patch("app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown", return_value="md"),
         ):
             _extract_pdf(b"%PDF-1.4\n", "big.pdf", batch_size=10)
 
@@ -53,10 +59,10 @@ class TestExtractionMemory:
     def test_store_shrunk_even_on_extraction_error(self) -> None:
         """If pymupdf4llm raises mid-batch, the finally block still shrinks the store."""
         with (
-            patch("app.rag.extraction.fitz.open", return_value=_make_mock_doc(5)),
-            patch("app.rag.extraction.fitz.TOOLS") as mock_tools,
+            patch("app.rag.ingestion.extraction.pdf.fitz.open", return_value=_make_mock_doc(5)),
+            patch("app.rag.ingestion.extraction.pdf.fitz.TOOLS") as mock_tools,
             patch(
-                "app.rag.extraction.pymupdf4llm.to_markdown",
+                "app.rag.ingestion.extraction.pdf.pymupdf4llm.to_markdown",
                 side_effect=RuntimeError("PDF parsing failed"),
             ),
         ):

@@ -3,16 +3,17 @@
 import base64
 import hashlib
 from datetime import timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 from cryptography.fernet import Fernet
 from itsdangerous import URLSafeTimedSerializer
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
+from app.core_plugins.googledrive.models import DriveOAuthToken
 from app.models.base import utc_now
-from app.models.drive import DriveOAuthToken
 
 # Google OAuth endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -29,6 +30,7 @@ GOOGLE_SCOPES = [
 
 # OAuth state token expiry (10 minutes)
 OAUTH_STATE_MAX_AGE = 600
+_SECRET_KEY = get_settings().SECRET_KEY
 
 
 def _get_fernet() -> Fernet:
@@ -36,15 +38,13 @@ def _get_fernet() -> Fernet:
 
     Derives a valid 32-byte Fernet key from the app SECRET_KEY.
     """
-    settings = get_settings()
-    key = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+    key = hashlib.sha256(_SECRET_KEY.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
 
 
 def _get_timed_serializer() -> URLSafeTimedSerializer:
     """Get timed serializer for OAuth state with CSRF/replay protection."""
-    settings = get_settings()
-    return URLSafeTimedSerializer(settings.SECRET_KEY, salt="google-drive-oauth-state")
+    return URLSafeTimedSerializer(_SECRET_KEY, salt="google-drive-oauth-state")
 
 
 def encrypt_token(token: str) -> str:
@@ -159,8 +159,8 @@ async def revoke_token(token: str) -> bool:
             return response.status == 200
 
 
-def save_tokens(
-    session: Session,
+async def save_tokens(
+    session: AsyncSession,
     user_id: int,
     access_token: str,
     refresh_token: str,
@@ -170,8 +170,8 @@ def save_tokens(
     """Save OAuth tokens to database."""
     token_expiry = utc_now() + timedelta(seconds=expires_in)
 
-    statement = select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id)
-    existing = session.exec(statement).first()
+    result = await session.exec(select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id))
+    existing = result.first()
 
     if existing:
         if existing.is_deleted:
@@ -182,8 +182,8 @@ def save_tokens(
         existing.scopes = scopes
         existing.update_timestamp()
         session.add(existing)
-        session.commit()
-        session.refresh(existing)
+        await session.commit()
+        await session.refresh(existing)
         return existing
 
     token_record = DriveOAuthToken(
@@ -194,20 +194,22 @@ def save_tokens(
         scopes=scopes,
     )
     session.add(token_record)
-    session.commit()
-    session.refresh(token_record)
+    await session.commit()
+    await session.refresh(token_record)
     return token_record
 
 
-def get_token_record(session: Session, user_id: int) -> Optional[DriveOAuthToken]:
+async def get_token_record(session: AsyncSession, user_id: int) -> DriveOAuthToken | None:
     """Get OAuth token record for a user."""
-    statement = select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id, DriveOAuthToken.is_deleted == False)
-    return session.exec(statement).first()
+    result = await session.exec(
+        select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id, DriveOAuthToken.is_deleted == False)  # noqa: E712
+    )
+    return result.first()
 
 
-async def get_valid_access_token(session: Session, user_id: int, client_id: str, client_secret: str) -> str:
+async def get_valid_access_token(session: AsyncSession, user_id: int, client_id: str, client_secret: str) -> str:
     """Get a valid access token for a user, refreshing if necessary."""
-    token_record = get_token_record(session, user_id)
+    token_record = await get_token_record(session, user_id)
     if not token_record:
         raise ValueError("Google Drive not connected")
 
@@ -222,7 +224,7 @@ async def get_valid_access_token(session: Session, user_id: int, client_id: str,
         refresh_tok = decrypt_token(token_record.refresh_token_encrypted)
         token_data = await refresh_access_token(refresh_tok, client_id, client_secret)
 
-        save_tokens(
+        await save_tokens(
             session,
             user_id,
             token_data["access_token"],
@@ -237,13 +239,13 @@ async def get_valid_access_token(session: Session, user_id: int, client_id: str,
     return decrypt_token(token_record.access_token_encrypted)
 
 
-def delete_token(session: Session, user_id: int) -> bool:
+async def delete_token(session: AsyncSession, user_id: int) -> bool:
     """Delete OAuth token record for a user (soft delete)."""
-    token_record = get_token_record(session, user_id)
+    token_record = await get_token_record(session, user_id)
     if not token_record:
         return False
 
     token_record.soft_delete()
     session.add(token_record)
-    session.commit()
+    await session.commit()
     return True

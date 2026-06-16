@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -6,10 +5,13 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.config import get_plugin_adapter, get_plugin_config_schema
+from app.lib.db import session_scope
+from app.lib.log import get_logger
+from app.lib.plugins import PluginConfig, get_plugin_loader
 from app.models.plugin import Plugin, UserPlugin
-from app.plugins import PLUGIN_CONFIG_CLASSES
-from app.plugins.adapters import PLUGIN_ADAPTERS
-from app.plugins.config_base import PluginConfig
+
+logger = get_logger(__name__)
 
 
 class ConfigValidationError(Exception):
@@ -62,13 +64,13 @@ class PluginService:
             ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
         """
 
-        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        config_class = get_plugin_config_schema(plugin.name)
         if not config_class:
-            logging.error(f"Plugin '{plugin.name}' config class is missing or invalid")
+            logger.error(f"Plugin '{plugin.name}' config class is missing or invalid")
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
         if not issubclass(config_class, PluginConfig):
-            logging.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
+            logger.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
         try:
@@ -86,7 +88,7 @@ class PluginService:
         incoming_config: dict[str, Any],
     ) -> dict[str, Any]:
         """Run the plugin's preprocess adapter if one is registered."""
-        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        adapter = get_plugin_adapter(plugin_name)
         if adapter:
             return await adapter.preprocess_config(
                 session=session,
@@ -103,7 +105,7 @@ class PluginService:
         stored_config: dict[str, Any],
     ) -> dict[str, Any]:
         """Run the plugin's postprocess adapter if one is registered."""
-        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        adapter = get_plugin_adapter(plugin_name)
         if adapter:
             return await adapter.postprocess_config(
                 session=session,
@@ -119,7 +121,7 @@ class PluginService:
         user_id: int,
         stored_config: dict[str, Any],
     ) -> None:
-        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        adapter = get_plugin_adapter(plugin_name)
         if adapter:
             await adapter.sync_cache(session=session, user_id=user_id, stored_config=stored_config)
 
@@ -128,36 +130,31 @@ class PluginService:
         result = await session.exec(statement)
         return result.one_or_none()
 
-    async def get_or_create(
-        self,
-        session: AsyncSession,
-        name: str,
-        is_core: bool,
-        schema: dict[str, Any],
-        enabled: bool = True,
-    ) -> Plugin:
-        plugin = await self.get_by_name(session, name)
+    async def get_or_create_all(self) -> None:
+        """
+        Ensure every loaded plugin has a row in the database.
 
-        if plugin is not None:
-            if plugin.config_schema != schema:
-                plugin.config_schema = schema
-                session.add(plugin)
-                await session.commit()
-                await session.refresh(plugin)
-            return plugin
+        Called once at startup. Fetches existing plugins in a single query and
+        upserts all loaded plugins in one transaction. Only ``config_schema`` is
+        refreshed on existing rows — ``enabled`` is left untouched so a plugin a
+        user disabled stays disabled across restarts.
+        """
+        loaded = get_plugin_loader().get_loaded_plugins()
+        async with session_scope() as session:
+            result = await session.exec(select(Plugin).where(Plugin.deleted_at == None))
+            existing = {plugin.name: plugin for plugin in result.all()}
 
-        plugin = Plugin(
-            name=name,
-            is_core=is_core,
-            config_schema=schema,
-            enabled=enabled,
-        )
+            for _name, plugin_instance in loaded:
+                config_class = get_plugin_config_schema(plugin_instance.name)
+                schema = config_class.model_json_schema() if config_class else {}
+                current = existing.get(plugin_instance.name)
+                if current is None:
+                    # New plugins are enabled by default and considered core.
+                    session.add(Plugin(name=plugin_instance.name, config_schema=schema, is_core=True, enabled=True))
+                elif current.config_schema != schema:
+                    current.config_schema = schema
 
-        session.add(plugin)
-        await session.commit()
-        await session.refresh(plugin)
-
-        return plugin
+            await session.commit()
 
     async def get_all(
         self,
@@ -282,7 +279,7 @@ class PluginService:
         else:
             merged_config = user_config
 
-        config_class = PLUGIN_CONFIG_CLASSES.get(plugin.name)
+        config_class = get_plugin_config_schema(plugin.name)
         if config_class:
             known_fields = set(config_class.model_fields.keys())
             merged_config = {k: v for k, v in merged_config.items() if k in known_fields}

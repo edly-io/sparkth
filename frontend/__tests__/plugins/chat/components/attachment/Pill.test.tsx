@@ -46,12 +46,7 @@ describe("Pill", () => {
 
       render(<Pill attachments={attachments} onPreview={mockOnPreview} onRemove={mockOnRemove} />);
 
-      const removeButton = screen
-        .getByRole("button", { name: "" })
-        .parentElement?.querySelector("button:last-child");
-      if (removeButton) {
-        await userEvent.click(removeButton);
-      }
+      await userEvent.click(screen.getByTitle("Remove attachment"));
 
       expect(mockOnRemove).toHaveBeenCalledWith(undefined);
     });
@@ -96,21 +91,35 @@ describe("Pill", () => {
 
     it("calls onRemove with driveFileDbId for per-file removal", async () => {
       const attachments: TextAttachment[] = [
-        { name: "first.pdf", size: 1024, text: "content", driveFileDbId: 100 },
-        { name: "second.pdf", size: 2048, text: "content", driveFileDbId: 123 },
+        {
+          name: "first.pdf",
+          size: 1024,
+          text: "content",
+          driveFileDbId: 100,
+          documentId: 200,
+        },
+        {
+          name: "second.pdf",
+          size: 2048,
+          text: "content",
+          driveFileDbId: 123,
+          documentId: 223,
+        },
       ];
 
       render(
-        <TooltipProvider>
+        <TooltipProvider delayDuration={0}>
           <Pill attachments={attachments} onPreview={mockOnPreview} onRemove={mockOnRemove} />
         </TooltipProvider>,
       );
 
-      // First "Remove attachment" button belongs to the first file in the visible area
-      const firstRemoveButton = screen.getAllByTitle("Remove attachment")[0];
+      // Per-file remove buttons live inside the tooltip listing the secondary
+      // files (attachments after the first), so open it before clicking.
+      await userEvent.hover(screen.getByText(/\+ 1 other/));
+      const firstRemoveButton = (await screen.findAllByTitle("Remove attachment"))[0];
       await userEvent.click(firstRemoveButton);
 
-      expect(mockOnRemove).toHaveBeenCalledWith(100);
+      expect(mockOnRemove).toHaveBeenCalledWith(223);
     });
   });
 

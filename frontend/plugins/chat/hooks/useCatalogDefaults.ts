@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { fetchProviderCatalog } from "@/lib/llm";
 
 interface CatalogDefaults {
   provider: string;
@@ -12,13 +13,8 @@ export function useCatalogDefaults(token: string | null): CatalogDefaults | null
     async (signal: AbortSignal) => {
       if (!token) return;
       try {
-        const r = await fetch("/api/v1/llm/providers", {
-          headers: { Authorization: `Bearer ${token}` },
-          signal,
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (data?.default_provider && data?.default_model) {
+        const data = await fetchProviderCatalog(token, { signal });
+        if (data.default_provider && data.default_model) {
           setDefaults({ provider: data.default_provider, model: data.default_model });
         }
       } catch (err) {
