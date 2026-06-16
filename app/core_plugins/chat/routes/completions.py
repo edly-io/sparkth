@@ -52,8 +52,8 @@ from app.lib.rag import (
     RAGNotReadyError,
     RAGRetrievalError,
     agentic_retrieve_context,
-    format_source_block,
-    group_by_source,
+    format_document_chunks_as_llm_context,
+    group_retrieved_chunks_by_document,
 )
 from app.models.user import User
 
@@ -480,9 +480,10 @@ async def stream_chat_response(
                 await _put(json.dumps({"error": error_text, "done": True}))
                 return
 
-            grouped = group_by_source(all_chunks)
+            grouped = group_retrieved_chunks_by_document(all_chunks)
             source_blocks: dict[str, str] = {
-                source: format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
+                source: format_document_chunks_as_llm_context(source, src_chunks)
+                for source, src_chunks in grouped.items()
             }
             any_results_found = bool(source_blocks)
 

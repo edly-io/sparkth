@@ -24,8 +24,8 @@ from app.lib.rag import (
     RAGNotReadyError,
     RAGRetrievalError,
     agentic_retrieve_context,
-    format_source_block,
-    group_by_source,
+    format_document_chunks_as_llm_context,
+    group_retrieved_chunks_by_document,
 )
 
 logger = get_logger(__name__)
@@ -140,7 +140,8 @@ async def answer_question(
         return config.fallback_message, ResponseType.FALLBACK
 
     formatted_context = "\n\n".join(
-        format_source_block(src, src_chunks) for src, src_chunks in group_by_source(chunks).items()
+        format_document_chunks_as_llm_context(src, src_chunks)
+        for src, src_chunks in group_retrieved_chunks_by_document(chunks).items()
     )
 
     if llm_provider:
