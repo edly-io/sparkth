@@ -150,8 +150,8 @@ class TestSendVerificationEmail:
         kwargs = mock.await_args.kwargs
         assert kwargs["to"] == "alice@example.com"
         assert "Alice" in kwargs["text_body"]
-        assert "https://app.test/verify-email?token=abc123" in kwargs["text_body"]
-        assert "https://app.test/verify-email?token=abc123" in kwargs["html_body"]
+        assert "https://app.test/verify-email/?token=abc123" in kwargs["text_body"]
+        assert "https://app.test/verify-email/?token=abc123" in kwargs["html_body"]
         assert "24" in kwargs["text_body"]
 
     async def test_strips_trailing_slash_in_frontend_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -163,7 +163,7 @@ class TestSendVerificationEmail:
 
         assert mock.await_args is not None
         text_body = mock.await_args.kwargs["text_body"]
-        assert "https://app.test/verify-email?token=t" in text_body
+        assert "https://app.test/verify-email/?token=t" in text_body
         assert "https://app.test//verify-email" not in text_body
 
     async def test_escapes_name_in_html_body(self, monkeypatch: pytest.MonkeyPatch) -> None:

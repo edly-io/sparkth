@@ -107,7 +107,12 @@ class EmailVerificationService:
 
 
 def _build_verify_url(raw_token: str) -> str:
-    return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/verify-email?token={raw_token}"
+    # Trailing slash matches Next's `trailingSlash: true` config. In the
+    # production deployment the frontend is statically exported and served by
+    # FastAPI's StaticFiles mount, which 307-redirects `/verify-email` to
+    # `/verify-email/` and drops the query string in the process. Emit the
+    # canonical form here so the token survives.
+    return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/verify-email/?token={raw_token}"
 
 
 def _render_email(name: str, raw_token: str) -> tuple[str, str]:

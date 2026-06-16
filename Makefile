@@ -9,7 +9,7 @@ help: ## Show this help
 	@echo "Usage: make \033[36m<target>\033[0m [options]"
 	@awk ' \
 		/^##@ / { printf "\n\033[1m%s:\033[0m\n", substr($$0, 5) } \
-		/^[a-zA-Z._-]+:.*## / { \
+		/^[a-zA-Z0-9._-]+:.*## / { \
 			target = $$0; sub(/:.*/, "", target); \
 			desc = substr($$0, index($$0, "## ") + 3); \
 			printf "  \033[36m%-25s\033[0m %s\n", target, desc \
@@ -162,6 +162,18 @@ test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [pat
 .PHONY: test.frontend.format
 test.frontend.format: ## Run frontend formatting tests
 	$(MAKE) lint.format.frontend check=1
+
+.PHONY: test.e2e
+test.e2e: ## Run Playwright E2E tests (needs the app running + seeded admin; see frontend/tests/README.md)
+	cd frontend && bun run test:e2e $(ARGS)
+
+.PHONY: test.e2e.ui
+test.e2e.ui: ## Run Playwright E2E tests in interactive UI mode
+	cd frontend && bun run test:e2e:ui
+
+.PHONY: test.e2e.install
+test.e2e.install: ## Install Playwright browsers (one-time setup)
+	cd frontend && bun run test:e2e:install
 
 ##@ Linting
 .PHONY: lint
