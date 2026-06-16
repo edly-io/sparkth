@@ -895,10 +895,8 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         patch("app.core_plugins.slack.routes.answer_question", new_callable=AsyncMock) as mock_aq,
         patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
         patch("app.core_plugins.slack.routes.SlackClient", return_value=mock_slack_client),
-        patch("app.core_plugins.slack.routes.LLMConfigService") as mock_llm_svc_cls,
+        patch("app.core_plugins.slack.routes.get_llm_service") as mock_get_llm_svc,
         patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
-        patch("app.core_plugins.slack.routes.get_encryption_service"),
-        patch("app.core_plugins.slack.routes.get_cache_service"),
         patch("app.core_plugins.slack.routes.get_slack_settings"),
         patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
@@ -912,10 +910,10 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         mock_plugin_instance.get_user_plugin_map.return_value = {"slack": mock_user_plugin}
         mock_plugin_svc.return_value = mock_plugin_instance
 
-        # Simulate LLMConfigService.resolve returning config + decrypted key
+        # Simulate get_llm_service returning a service that resolves config + decrypted key
         mock_llm_svc = AsyncMock()
         mock_llm_svc.resolve.return_value = (mock_llm_config, "sk-decrypted-key")
-        mock_llm_svc_cls.return_value = mock_llm_svc
+        mock_get_llm_svc.return_value = mock_llm_svc
 
         mock_provider_instance = MagicMock()
         mock_get_provider.return_value = mock_provider_instance
@@ -973,10 +971,8 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         patch("app.core_plugins.slack.routes.answer_question", new_callable=AsyncMock) as mock_aq,
         patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
         patch("app.core_plugins.slack.routes.SlackClient", return_value=mock_slack_client),
-        patch("app.core_plugins.slack.routes.LLMConfigService") as mock_llm_svc_cls,
+        patch("app.core_plugins.slack.routes.get_llm_service") as mock_get_llm_svc,
         patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
-        patch("app.core_plugins.slack.routes.get_encryption_service"),
-        patch("app.core_plugins.slack.routes.get_cache_service"),
         patch("app.core_plugins.slack.routes.get_slack_settings"),
         patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
@@ -991,7 +987,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
 
         mock_llm_svc = AsyncMock()
         mock_llm_svc.resolve.return_value = (mock_llm_config, "sk-decrypted-key")
-        mock_llm_svc_cls.return_value = mock_llm_svc
+        mock_get_llm_svc.return_value = mock_llm_svc
 
         mock_get_provider.return_value = MagicMock()
 

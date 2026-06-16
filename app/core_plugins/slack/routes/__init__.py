@@ -14,9 +14,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.cache import get_cache_service
-from app.core.config import get_settings
-from app.core.encryption import get_encryption_service
 from app.core_plugins.slack.client import SlackClient
 from app.core_plugins.slack.config import SlackConfig, get_slack_settings
 from app.core_plugins.slack.constants import (
@@ -42,7 +39,7 @@ from app.core_plugins.slack.types import (
 )
 from app.lib.db import get_async_session, session_scope
 from app.lib.documents import list_ready_documents
-from app.lib.llm import BaseChatProvider, LLMConfigService, get_provider
+from app.lib.llm import BaseChatProvider, get_llm_service, get_provider
 from app.lib.log import get_logger
 from app.services.plugin import PluginService
 
@@ -64,11 +61,7 @@ async def _build_llm_provider(
     `model_override`, if provided, takes precedence over the LLMConfig's model.
     """
     try:
-        settings = get_settings()
-        llm_service = LLMConfigService(
-            encryption=get_encryption_service(settings.LLM_ENCRYPTION_KEY),
-            cache=get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
-        )
+        llm_service = get_llm_service()
     except (ValidationError, ValueError) as exc:
         logger.error("Failed to initialise LLM service for user %d: %s", user_id, exc)
         return None
