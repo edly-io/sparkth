@@ -1,7 +1,6 @@
 """Unit tests for RAG chunk formatting utilities."""
 
-from app.rag.formatting import format_source_block, group_by_source
-from app.rag.types import RetrievedChunk
+from app.lib.rag import RetrievedChunk, format_source_block, group_by_source
 
 
 def _chunk(
