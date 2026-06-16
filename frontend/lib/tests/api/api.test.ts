@@ -13,21 +13,11 @@ import {
   verifyEmail,
 } from "@/lib/api";
 
+import { mockFetch, sentRequest } from "../test-utils";
+
 vi.mock("@/lib/auth-tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
-
-function mockFetch(body: unknown, status = 200) {
-  const response =
-    status === 204
-      ? new Response(null, { status })
-      : new Response(JSON.stringify(body), { status });
-  return vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
-}
-
-function sentRequest(spy: ReturnType<typeof mockFetch>): Request {
-  return spy.mock.calls[0][0] as Request;
-}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -256,5 +246,12 @@ describe("getCurrentUser", () => {
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).message).toBe("Unable to connect to server: Failed to fetch");
+  });
+
+  it("re-throws AbortError unwrapped so callers can ignore aborted requests", async () => {
+    const abortError = new DOMException("The operation was aborted.", "AbortError");
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(abortError);
+
+    await expect(getCurrentUser("test-token")).rejects.toBe(abortError);
   });
 });

@@ -1,8 +1,9 @@
-export { api, type Schema } from "./client";
+export { api, bearer, type Schema } from "./client";
 export {
   ApiRequestError,
   formatApiError,
   isStructuredDetail,
+  rethrowOrWrapConnectionError,
   type ApiError,
   type FormattedError,
   type StructuredErrorDetail,

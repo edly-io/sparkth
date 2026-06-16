@@ -78,3 +78,16 @@ export class ApiRequestError extends Error {
     }
   }
 }
+
+// errorMiddleware turns every non-ok response into an ApiRequestError; aborts are
+// flow control and pass through unwrapped; anything else rejecting at a call site
+// is a transport failure (DNS, refused connection, ...).
+export function rethrowOrWrapConnectionError(error: unknown): never {
+  if (error instanceof ApiRequestError) throw error;
+  if (error instanceof DOMException && error.name === "AbortError") throw error;
+  const message = error instanceof Error ? error.message : "Unknown error";
+  throw new ApiRequestError({
+    message: `Unable to connect to server: ${message}`,
+    fieldErrors: {},
+  });
+}

@@ -14,3 +14,9 @@ export const api = createClient<paths>({ baseUrl, fetch: fetchDelegate });
 api.use(authMiddleware, errorMiddleware);
 
 export type Schema<K extends keyof components["schemas"]> = components["schemas"][K];
+
+// Builds an explicit Authorization header for calls that pass a token directly,
+// bypassing authMiddleware's stored-token lookup.
+export function bearer(token: string): { Authorization: string } {
+  return { Authorization: `Bearer ${token}` };
+}

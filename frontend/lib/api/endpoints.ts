@@ -1,5 +1,5 @@
-import { api, type Schema } from "./client";
-import { ApiRequestError } from "./errors";
+import { api, bearer, type Schema } from "./client";
+import { ApiRequestError, rethrowOrWrapConnectionError } from "./errors";
 
 export type LoginRequest = Schema<"UserLogin">;
 export type LoginResponse = Schema<"Token">;
@@ -9,38 +9,18 @@ export type GoogleAuthUrlResponse = Schema<"GoogleAuthUrl">;
 export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
 export type CurrentUser = Schema<"User">;
 
-function bearer(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
-}
-
-// errorMiddleware turns every non-ok response into an ApiRequestError; anything
-// else rejecting here is a transport failure (DNS, refused connection, ...). A
-// cancelled request (AbortSignal) throws an AbortError that is intentional, not
-// a failure, so it propagates untouched rather than being relabelled.
-function wrapConnectionError(error: unknown): never {
-  if (error instanceof ApiRequestError) throw error;
-  if ((error instanceof DOMException || error instanceof Error) && error.name === "AbortError") {
-    throw error;
-  }
-  const message = error instanceof Error ? error.message : "Unknown error";
-  throw new ApiRequestError({
-    message: `Unable to connect to server: ${message}`,
-    fieldErrors: {},
-  });
-}
-
 // Runs an openapi-fetch call and returns its unwrapped data, funnelling every
-// transport failure through wrapConnectionError. `data` is typed as possibly
-// undefined (e.g. an empty 2xx body); these endpoints always send a body on
-// success, and void endpoints pass `T = void`, so the cast is safe. Endpoints
-// that need bespoke error handling (resendVerificationEmail) keep their own
-// try/catch.
+// transport failure through rethrowOrWrapConnectionError. `data` is typed as
+// possibly undefined (e.g. an empty 2xx body); these endpoints always send a
+// body on success, and void endpoints pass `T = void`, so the cast is safe.
+// Endpoints that need bespoke error handling (resendVerificationEmail) keep
+// their own try/catch.
 async function call<T>(request: () => Promise<{ data?: T }>): Promise<T> {
   try {
     const { data } = await request();
     return data as T;
   } catch (error) {
-    wrapConnectionError(error);
+    rethrowOrWrapConnectionError(error);
   }
 }
 
@@ -94,7 +74,7 @@ export async function resendVerificationEmail(email: string): Promise<void> {
         error.status,
       );
     }
-    wrapConnectionError(error);
+    rethrowOrWrapConnectionError(error);
   }
 }
 
