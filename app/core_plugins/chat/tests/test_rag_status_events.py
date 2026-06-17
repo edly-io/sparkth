@@ -244,10 +244,11 @@ async def test_multi_document_rag_context_preserved() -> None:
     content = original_messages[0]["content"]
     assert isinstance(content, list)
     text_blocks = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
-    # context prompt + two RAG context blocks (one per source) — neither document's context is lost
-    assert len(text_blocks) == 3
-    assert any("Context from document 1." in t for t in text_blocks)
-    assert any("Context from document 2." in t for t in text_blocks)
+    # context prompt + one combined RAG block — neither document's context is lost
+    assert len(text_blocks) == 2
+    combined = " ".join(text_blocks)
+    assert "Context from document 1." in combined
+    assert "Context from document 2." in combined
 
 
 @pytest.mark.asyncio

@@ -24,7 +24,6 @@ from app.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
     format_document_chunks_as_llm_context,
-    group_retrieved_chunks_by_document,
 )
 
 
@@ -100,24 +99,12 @@ def _make_retrieved_chunk(content: str, source_name: str = "docs.pdf") -> Retrie
     )
 
 
-def test_group_retrieved_chunks_by_document_preserves_insertion_order_and_groups() -> None:
-    chunks = [
-        RetrievedChunk(source_name="a.pdf", chapter="Ch1", section="S1", subsection=None, content="text A"),
-        RetrievedChunk(source_name="b.pdf", chapter=None, section=None, subsection=None, content="text B"),
-        RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="text A2"),
-    ]
-    grouped = group_retrieved_chunks_by_document(chunks)
-    assert list(grouped.keys()) == ["a.pdf", "b.pdf"]
-    assert len(grouped["a.pdf"]) == 2
-    assert len(grouped["b.pdf"]) == 1
-
-
 def test_format_document_chunks_as_llm_context_renders_header_and_excerpts() -> None:
     chunks = [
         RetrievedChunk(source_name="a.pdf", chapter="Ch1", section="S1", subsection=None, content="text A"),
         RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="text A2"),
     ]
-    result = format_document_chunks_as_llm_context("a.pdf", chunks)
+    result = format_document_chunks_as_llm_context(chunks)
     assert "[DOCUMENT CONTEXT: a.pdf]" in result
     assert "Ch1 / S1" in result
     assert "General" in result

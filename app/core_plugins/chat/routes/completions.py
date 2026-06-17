@@ -53,7 +53,6 @@ from app.lib.rag import (
     RAGRetrievalError,
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
-    group_retrieved_chunks_by_document,
 )
 from app.models.user import User
 
@@ -480,12 +479,7 @@ async def stream_chat_response(
                 await _put(json.dumps({"error": error_text, "done": True}))
                 return
 
-            grouped = group_retrieved_chunks_by_document(all_chunks)
-            source_blocks: dict[str, str] = {
-                source: format_document_chunks_as_llm_context(source, src_chunks)
-                for source, src_chunks in grouped.items()
-            }
-            any_results_found = bool(source_blocks)
+            any_results_found = bool(all_chunks)
 
             # Build confirmed_rag_sections from each chunk's hierarchy
             seen_section_keys: set[str] = set()
@@ -499,7 +493,9 @@ async def stream_chat_response(
                     confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
 
             # Single assembly pass: replace all legacy document blocks with resolved RAG context.
-            rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
+            rag_block_list: list[dict[str, Any]] = (
+                [{"type": "text", "text": format_document_chunks_as_llm_context(all_chunks)}] if all_chunks else []
+            )
             for m in messages:
                 if not isinstance(m.get("content"), list):
                     continue

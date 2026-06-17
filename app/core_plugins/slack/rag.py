@@ -25,7 +25,6 @@ from app.lib.rag import (
     RAGRetrievalError,
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
-    group_retrieved_chunks_by_document,
 )
 
 logger = get_logger(__name__)
@@ -139,10 +138,7 @@ async def answer_question(
     if not chunks:
         return config.fallback_message, ResponseType.FALLBACK
 
-    formatted_context = "\n\n".join(
-        format_document_chunks_as_llm_context(src, src_chunks)
-        for src, src_chunks in group_retrieved_chunks_by_document(chunks).items()
-    )
+    formatted_context = format_document_chunks_as_llm_context(chunks)
 
     if llm_provider:
         try:

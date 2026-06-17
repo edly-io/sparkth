@@ -31,7 +31,6 @@ from app.lib.rag import (
     RetrievedChunk,
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
-    group_retrieved_chunks_by_document,
 )
 
 logger = get_logger(__name__)
@@ -115,16 +114,14 @@ async def resolve_document_blocks(
 
         chunks = await _retrieve_rag_chunks(document_ids, query_text, llm)
 
-        grouped = group_retrieved_chunks_by_document(chunks)
-        rag_blocks: list[dict[str, Any]] = [
-            {"type": "text", "text": format_document_chunks_as_llm_context(source, src_chunks)}
-            for source, src_chunks in grouped.items()
-        ]
+        rag_blocks: list[dict[str, Any]] = (
+            [{"type": "text", "text": format_document_chunks_as_llm_context(chunks)}] if chunks else []
+        )
         logger.info(
             "Replaced legacy document attachment blocks document_ids=%s with %d RAG chunks across %d source(s)",
             document_ids,
             len(chunks),
-            len(grouped),
+            len({chunk.source_name for chunk in chunks}),
         )
 
         if rag_blocks:
