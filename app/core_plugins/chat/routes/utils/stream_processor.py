@@ -1,6 +1,7 @@
 import asyncio
 import json
-from typing import Any, AsyncGenerator, cast
+from collections.abc import AsyncGenerator
+from typing import Any, cast
 
 import anthropic
 import httpx
