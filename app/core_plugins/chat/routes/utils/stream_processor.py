@@ -127,9 +127,7 @@ class ChatStreamProcessor:
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
         self.disconnected: asyncio.Event = asyncio.Event()
 
-    def _build_rag_context(
-        self, all_chunks: list[RetrievedChunk]
-    ) -> tuple[str, list[dict[str, str | None]]]:
+    def _build_rag_context(self, all_chunks: list[RetrievedChunk]) -> tuple[str, list[dict[str, str | None]]]:
         """Section deduplication prevents the same section appearing twice in the
         UI when multiple chunks come from the same chapter/section/subsection.
         """
