@@ -10,9 +10,9 @@ from fastapi import HTTPException, status
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
 from app.core_plugins.googledrive.config import get_googledrive_settings
 from app.lib.documents import Document
+from app.lib.settings import get_settings
 
 
 async def batch_fetch_documents(session: AsyncSession, document_ids: list[int]) -> dict[int, Document]:

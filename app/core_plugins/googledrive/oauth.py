@@ -11,8 +11,8 @@ from itsdangerous import URLSafeTimedSerializer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
 from app.core_plugins.googledrive.models import DriveOAuthToken
+from app.lib.settings import get_settings
 from app.models.base import utc_now
 
 # Google OAuth endpoints

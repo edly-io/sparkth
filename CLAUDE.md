@@ -59,6 +59,9 @@ Current modules (see the source for the full API — do not duplicate it here):
   called once per process entrypoint.
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
   background/non-request code; `get_async_session` is the FastAPI dependency.
+- [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
+  via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
+  `app.core.config` directly. Implementation lives in `app/core/config.py`.
 - [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. Import RAG functionality
   from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
   `IngestionResult`, `RagStatus`, RAG exceptions); never import from `app.rag.*`
