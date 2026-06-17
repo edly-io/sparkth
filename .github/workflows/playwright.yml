@@ -125,32 +125,10 @@ jobs:
       - name: Run database migrations
         run: uv run alembic upgrade head
 
-      - name: Seed E2E superuser
-        run: |
-          uv run python -m app.cli.main users create-user \
-            --username "$FIRST_SUPERUSER" \
-            --email "$FIRST_SUPERUSER_EMAIL" \
-            --password "$FIRST_SUPERUSER_PASSWORD" \
-            --superuser \
-            --email-verified
-
-      - name: Seed E2E whitelist (@example.com domain)
-        # randomUser() in frontend/tests/utils/user.ts generates @example.com
-        # addresses. Registration enforces a domain/email whitelist (see
-        # app/services/whitelist.py), so an empty table 403s every signup.
-        run: |
-          uv run python -c "
-          import asyncio
-          from app.lib.db import session_scope
-          from app.models.whitelist import WhitelistedEmail
-
-          async def seed():
-              async with session_scope() as s:
-                  s.add(WhitelistedEmail(value='@example.com', entry_type='domain'))
-                  await s.commit()
-
-          asyncio.run(seed())
-          "
+      - name: Seed E2E superuser + whitelist
+        # Same idempotent seed `make seed-e2e` runs locally. Reads the
+        # FIRST_SUPERUSER* env vars set at the job level above.
+        run: uv run python scripts/seed_e2e.py
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium

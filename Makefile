@@ -163,8 +163,12 @@ test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [pat
 test.frontend.format: ## Run frontend formatting tests
 	$(MAKE) lint.format.frontend check=1
 
+.PHONY: seed-e2e
+seed-e2e: ## Seed the E2E superuser + @example.com whitelist (idempotent; rerun after services.clean)
+	uv run python scripts/seed_e2e.py
+
 .PHONY: test.e2e
-test.e2e: ## Run Playwright E2E tests (needs the app running + seeded admin; see frontend/tests/README.md)
+test.e2e: seed-e2e ## Run Playwright E2E tests (needs the app running; seeds the admin user first; see frontend/tests/README.md)
 	cd frontend && bun run test:e2e $(ARGS)
 
 .PHONY: test.e2e.ui

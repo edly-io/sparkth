@@ -32,11 +32,12 @@ sign-up) override `storageState` to start with a fresh context.
 
    ```bash
    make up                                  # postgres, redis, mailpit, api, frontend
-   make create-user -- --username admin \
-       --email admin@sparkth.local \
-       --password 'Sparkth-admin-1!' \
-       --superuser --email-verified
    ```
+
+   `make test.e2e` seeds the superuser `auth.setup.ts` logs in as (plus the
+   `@example.com` whitelist the sign-up specs need) automatically via the
+   `seed-e2e` target — idempotent, so it's safe on every run. Run `make seed-e2e`
+   on its own if you only want to (re)seed, e.g. after `make services.clean`.
 
 3. **Run the suite**:
 
@@ -62,7 +63,8 @@ Override via env vars (also read from `frontend/.env`): `PLAYWRIGHT_BASE_URL`,
 `.github/workflows/playwright.yml` brings up Postgres, Redis, and Mailpit as
 service containers, builds the frontend statically and serves it through the
 API on `:7727` (matching the production deployment model), seeds the superuser
-via the CLI, then runs the suite. Blob reports are uploaded as artifacts and
+and whitelist via `scripts/seed_e2e.py` (the same script `make seed-e2e` runs
+locally), then runs the suite. Blob reports are uploaded as artifacts and
 server logs are attached on failure.
 
 ### Local vs CI topology
