@@ -1,13 +1,13 @@
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import status
+from httpx import AsyncClient
 
+from app.models.user import User
 from app.services.plugin import ConfigValidationError
 
 
-async def test_update_plugin_not_configured_success(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_update_plugin_not_configured_success(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
     mock_user_plugin = MagicMock()
@@ -44,8 +44,7 @@ async def test_update_plugin_not_configured_success(override_dependencies: Any) 
     assert data["is_core"] is True
 
 
-async def test_update_plugin_success(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_update_plugin_success(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
     mock_user_plugin = MagicMock()
@@ -83,8 +82,7 @@ async def test_update_plugin_success(override_dependencies: Any) -> None:
     assert data["is_core"] is True
 
 
-async def test_update_plugin_not_found(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_update_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
     response = await client.put("/api/v1/user-plugins/plugin_not_found/config", json=payload)
@@ -92,8 +90,7 @@ async def test_update_plugin_not_found(override_dependencies: Any) -> None:
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-async def test_update_admin_disabled_plugin(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_update_admin_disabled_plugin(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
     response = await client.put("/api/v1/user-plugins/disabled_plugin/config", json=payload)
@@ -101,8 +98,7 @@ async def test_update_admin_disabled_plugin(override_dependencies: Any) -> None:
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-async def test_update_user_disabled_plugin(override_dependencies: Any) -> None:
-    client = override_dependencies
+async def test_update_user_disabled_plugin(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
     response = await client.put("/api/v1/user-plugins/configured_plugin_disabled/config", json=payload)
@@ -110,9 +106,7 @@ async def test_update_user_disabled_plugin(override_dependencies: Any) -> None:
     assert response.status_code == status.HTTP_409_CONFLICT
 
 
-async def test_update_user_plugin_invalid_config(override_dependencies: Any) -> None:
-    client = override_dependencies
-
+async def test_update_user_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
     with patch(
         "app.services.plugin.PluginService.validate_user_config",
         side_effect=ConfigValidationError("Invalid config"),

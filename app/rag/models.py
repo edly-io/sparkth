@@ -1,6 +1,6 @@
 """Database models for RAG document chunk storage."""
 
-from sqlalchemy import Column, Index, Text
+from sqlalchemy import Column, Text
 from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampedModel
@@ -22,10 +22,8 @@ class DocumentChunk(TimestampedModel, table=True):
     """Stores document chunks for retrieval."""
 
     __tablename__ = "rag_document_chunks"
-    __table_args__ = (Index("idx_rag_chunks_user_source", "user_id", "source_name"),)
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id", index=True)
 
     # Source identification
     source_name: str = Field(max_length=500)

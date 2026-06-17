@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.models import Message
-from app.core_plugins.chat.routes.helpers import parse_metadata_list
+from app.core_plugins.chat.routes.utils import parse_metadata_list
 from app.core_plugins.chat.schemas import (
     ConversationDetailResponse,
     ConversationListResponse,

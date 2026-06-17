@@ -43,7 +43,7 @@ async def test_store_chunks_splits_into_batches() -> None:
         patch("app.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(25).side_effect),
     ):
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
-        rows = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
+        rows = await service.store_chunks(mock_session, chunks)
 
     # 25 chunks / batch_size 10 → 3 flush calls
     assert mock_session.flush.await_count == 3
@@ -69,7 +69,7 @@ async def test_store_chunks_single_batch_when_chunks_fit() -> None:
         patch("app.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(5).side_effect),
     ):
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 32
-        rows = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
+        rows = await service.store_chunks(mock_session, chunks)
 
     assert mock_session.flush.await_count == 1
     assert len(rows) == 5
@@ -83,7 +83,7 @@ async def test_store_chunks_empty_returns_empty() -> None:
     mock_session = AsyncMock()
     mock_session.flush = AsyncMock()
 
-    rows = await service.store_chunks(mock_session, user_id=1, chunks=[])
+    rows = await service.store_chunks(mock_session, [])
 
     assert rows == []
     mock_session.flush.assert_not_awaited()

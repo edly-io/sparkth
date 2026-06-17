@@ -2,19 +2,18 @@
 
 This is the single public entry point for obtaining a database session. All code,
 including plugins, should acquire sessions from here rather than reaching for the
-raw SQLAlchemy engines in :mod:`app.core.db`.
+raw SQLAlchemy engine in :mod:`app.core.db`.
 
-The engines themselves stay in :mod:`app.core.db` (they read settings); this
-module is only the public face that hands out sessions over them.
+The engine itself stays in :mod:`app.core.db` (it reads settings); this module is
+only the public face that hands out sessions over it.
 """
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlmodel import Session
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import async_engine, engine
+from app.core.db import async_engine
 
 
 @asynccontextmanager
@@ -50,8 +49,7 @@ async def session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncS
     and fails once the session has closed. Keeping ``expire_on_commit=False``
     leaves already-loaded attributes valid after the commit and after the block.
     Pass ``expire_on_commit=True`` only if you specifically want post-commit
-    objects to refresh on next access. (Note the synchronous :func:`get_session`
-    uses ``True`` — see its docstring.)
+    objects to refresh on next access.
 
     Args:
         expire_on_commit: Whether ORM objects are expired after ``commit()``.
@@ -73,23 +71,4 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     :func:`session_scope` directly when you need to override it.
     """
     async with session_scope() as session:
-        yield session
-
-
-def get_session() -> Generator[Session, None, None]:
-    """FastAPI dependency that provides a synchronous :class:`Session`.
-
-    For synchronous (``def``) handlers only — FastAPI runs those in a threadpool,
-    so the blocking psycopg2 I/O does not stall the event loop. An ``async def``
-    handler must use :func:`get_async_session` instead; a sync session inside an
-    async handler blocks the loop on every query.
-
-    ``expire_on_commit=True`` is set explicitly (rather than relying on the
-    SQLAlchemy default) to document the deliberate asymmetry with the async
-    :func:`session_scope`, which uses ``False``. In synchronous code, expiring on
-    commit is harmless: the post-commit reload is a plain blocking ``SELECT`` that
-    succeeds while the session is open. Like :func:`get_async_session`, this
-    dependency is parameterless for the FastAPI query-parameter reason above.
-    """
-    with Session(engine, expire_on_commit=True) as session:
         yield session

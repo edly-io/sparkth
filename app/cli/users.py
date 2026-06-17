@@ -1,8 +1,11 @@
-import typer
-from sqlmodel import Session, select
+import asyncio
 
-from app.core.db import get_engine
+import typer
+from sqlmodel import select
+
 from app.core.security import get_password_hash
+from app.lib.db import session_scope
+from app.models.base import utc_now
 from app.models.user import User
 
 app = typer.Typer(help="User management commands")
@@ -15,10 +18,21 @@ def create_user(
     password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True),
     name: str | None = typer.Option(None, "--name", "-n"),
     superuser: bool = typer.Option(False, "--superuser", "--admin", is_flag=True),
+    email_verified: bool = typer.Option(False, "--email-verified", is_flag=True),
 ) -> None:
-    engine = get_engine()
-    with Session(engine) as session:
-        existing = session.exec(select(User).where((User.username == username) | (User.email == email))).first()
+    asyncio.run(_create_user(username, email, password, name, superuser, email_verified))
+
+
+async def _create_user(
+    username: str,
+    email: str,
+    password: str,
+    name: str | None,
+    superuser: bool,
+    email_verified: bool,
+) -> None:
+    async with session_scope() as session:
+        existing = (await session.exec(select(User).where((User.username == username) | (User.email == email)))).first()
         if existing:
             typer.secho(
                 f"User with username '{username}' or email '{email}' already exists!",
@@ -26,18 +40,18 @@ def create_user(
             )
             raise typer.Exit(code=1)
 
-        hashed_password = get_password_hash(password)
-
         user = User(
             username=username,
             email=email,
-            hashed_password=hashed_password,
+            hashed_password=get_password_hash(password),
             name=name or username,
             is_superuser=superuser,
+            email_verified=email_verified,
+            email_verified_at=utc_now() if email_verified else None,
         )
         session.add(user)
-        session.commit()
-        session.refresh(user)
+        await session.commit()
+        await session.refresh(user)
 
         role = "Superuser" if superuser else "Regular user"
         typer.secho(f"{role} created successfully!", fg=typer.colors.GREEN)
@@ -59,9 +73,14 @@ def reset_password(
         confirmation_prompt=True,
     ),
 ) -> None:
-    engine = get_engine()
-    with Session(engine) as session:
-        user = session.exec(select(User).where((User.username == identifier) | (User.email == identifier))).first()
+    asyncio.run(_reset_password(identifier, new_password))
+
+
+async def _reset_password(identifier: str, new_password: str) -> None:
+    async with session_scope() as session:
+        user = (
+            await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
+        ).first()
 
         if not user:
             typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
@@ -73,12 +92,10 @@ def reset_password(
                 fg=typer.colors.YELLOW,
             )
 
-        hashed_password = get_password_hash(new_password)
-
-        user.hashed_password = hashed_password
+        user.hashed_password = get_password_hash(new_password)
         user.update_timestamp()
         session.add(user)
-        session.commit()
+        await session.commit()
 
         typer.secho(
             f"Password reset successfully for user: {user.username}",
