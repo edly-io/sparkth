@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/Dialog";
 import { useAuth } from "@/lib/auth-context";
 import SlackIcon from "../SlackIcon";
-import { getAuthorizationUrl, disconnectSlack, type ConnectionStatus } from "@/lib/slack-api";
+import { getAuthorizationUrl, disconnectSlack, type ConnectionStatus } from "@/lib/slack";
 
 interface SlackConnectionCardProps {
   status: ConnectionStatus | null;

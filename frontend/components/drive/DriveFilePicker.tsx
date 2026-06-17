@@ -83,8 +83,8 @@ function pickerReducer(state: PickerState, action: PickerAction): PickerState {
           id: file.id,
           document_id: file.document_id,
           name: file.name,
-          mime_type: file.mime_type,
-          size: file.size,
+          mime_type: file.mime_type ?? undefined,
+          size: file.size ?? undefined,
         });
       }
       return { ...state, selectedFileIds: newIds, selectedFilesMap: newMap };

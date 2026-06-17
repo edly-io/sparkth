@@ -10,6 +10,7 @@ from app.rag.exceptions import (
     ScannedPDFError,
     UnsupportedFileTypeError,
 )
+from app.rag.formatting import format_document_chunks_as_llm_context
 from app.rag.ingestion import ingest_document
 from app.rag.retrieval import agentic_retrieve_context
 from app.rag.store import copy_document_chunk_links
@@ -22,6 +23,7 @@ __all__ = [
     "RAGRetrievalError",
     "ScannedPDFError",
     "UnsupportedFileTypeError",
+    "format_document_chunks_as_llm_context",
     "ingest_document",
     "agentic_retrieve_context",
     "copy_document_chunk_links",

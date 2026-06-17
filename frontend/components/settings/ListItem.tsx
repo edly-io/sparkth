@@ -84,7 +84,7 @@ export default function PluginListItem({
             </div>
             <p className="text-sm text-muted mb-2">Sparkth</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {pluginDef?.description || plugin.description}
+              {pluginDef?.description}
             </p>
 
             {toggleError && (

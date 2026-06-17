@@ -82,8 +82,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const userInfo = {
     name: user?.name || user?.username,
     email: user?.email,
-    avatar: user?.avatar,
-    plan: user?.plan || "Free Plan",
+    plan: "Free Plan",
     is_superuser: user?.is_superuser,
   };
 

@@ -5,10 +5,10 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.config import get_plugin_config_schema
+from app.lib.config import get_plugin_adapter, get_plugin_config_schema
 from app.lib.db import session_scope
 from app.lib.log import get_logger
-from app.lib.plugins import PLUGIN_ADAPTERS, PluginConfig, get_plugin_loader
+from app.lib.plugins import PluginConfig, get_plugin_loader
 from app.models.plugin import Plugin, UserPlugin
 
 logger = get_logger(__name__)
@@ -88,7 +88,7 @@ class PluginService:
         incoming_config: dict[str, Any],
     ) -> dict[str, Any]:
         """Run the plugin's preprocess adapter if one is registered."""
-        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        adapter = get_plugin_adapter(plugin_name)
         if adapter:
             return await adapter.preprocess_config(
                 session=session,
@@ -105,7 +105,7 @@ class PluginService:
         stored_config: dict[str, Any],
     ) -> dict[str, Any]:
         """Run the plugin's postprocess adapter if one is registered."""
-        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        adapter = get_plugin_adapter(plugin_name)
         if adapter:
             return await adapter.postprocess_config(
                 session=session,
@@ -121,7 +121,7 @@ class PluginService:
         user_id: int,
         stored_config: dict[str, Any],
     ) -> None:
-        adapter = PLUGIN_ADAPTERS.get(plugin_name)
+        adapter = get_plugin_adapter(plugin_name)
         if adapter:
             await adapter.sync_cache(session=session, user_id=user_id, stored_config=stored_config)
 

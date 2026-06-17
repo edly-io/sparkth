@@ -14,8 +14,6 @@ from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.routes.utils import (
     collect_document_ids,
     extract_query_text,
-    format_source_block,
-    group_by_source,
 )
 from app.core_plugins.chat.schemas import ChatMessage
 from app.core_plugins.chat.service import ChatService
@@ -28,6 +26,7 @@ from app.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
     agentic_retrieve_context,
+    format_document_chunks_as_llm_context,
 )
 
 logger = get_logger(__name__)
@@ -130,14 +129,11 @@ class ChatStreamProcessor:
 
     def _build_rag_context(
         self, all_chunks: list[RetrievedChunk]
-    ) -> tuple[dict[str, str], list[dict[str, str | None]]]:
+    ) -> tuple[str, list[dict[str, str | None]]]:
         """Section deduplication prevents the same section appearing twice in the
         UI when multiple chunks come from the same chapter/section/subsection.
         """
-        grouped = group_by_source(all_chunks)
-        source_blocks: dict[str, str] = {
-            source: format_source_block(source, src_chunks) for source, src_chunks in grouped.items()
-        }
+        rag_context = format_document_chunks_as_llm_context(all_chunks)
         seen_section_keys: set[str] = set()
         confirmed_rag_sections: list[dict[str, str | None]] = []
         for chunk in all_chunks:
@@ -148,11 +144,11 @@ class ChatStreamProcessor:
             if key not in seen_section_keys:
                 seen_section_keys.add(key)
                 confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
-        return source_blocks, confirmed_rag_sections
+        return rag_context, confirmed_rag_sections
 
-    def _inject_rag_into_messages(self, source_blocks: dict[str, str]) -> None:
+    def _inject_rag_into_messages(self, rag_context: str) -> None:
         """Mutates self.messages in-place to avoid copying large message lists."""
-        rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": text} for text in source_blocks.values()]
+        rag_block_list: list[dict[str, Any]] = [{"type": "text", "text": rag_context}] if rag_context else []
         for m in self.messages:
             if not isinstance(m.get("content"), list):
                 continue
@@ -263,12 +259,12 @@ class ChatStreamProcessor:
         if chunks is None:
             return None
 
-        source_blocks, confirmed_rag_sections = self._build_rag_context(chunks)
-        if not source_blocks:
+        rag_context, confirmed_rag_sections = self._build_rag_context(chunks)
+        if not rag_context:
             await self._emit_no_rag_results_response(bg_session)
             return None
 
-        self._inject_rag_into_messages(source_blocks)
+        self._inject_rag_into_messages(rag_context)
         await self._emit_rag_section_events(confirmed_rag_sections)
         return confirmed_rag_sections
 

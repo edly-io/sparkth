@@ -70,8 +70,8 @@ Current modules (see the source for the full API — do not duplicate it here):
   import from `app.llm.*` directly. Implementation lives in `app/llm/` (see
   issue #379).
 - [`app/lib/plugins.py`](app/lib/plugins.py) — plugin framework public API.
-  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`, `PLUGIN_ADAPTERS`); never import
-  from `app.plugins`, `app.plugins.adapters`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
+  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`); never import
+  from `app.plugins`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
 
 ## Essential Commands
 
@@ -91,6 +91,9 @@ make test.backend.format    # Run backend formatting tests
 make test.frontend          # Run all frontend tests
 make test.frontend.vitest   # Run unit tests with vitest
 make test.frontend.format   # Run frontend formatting tests
+make test.e2e               # Run Playwright E2E tests (see frontend/tests/README.md)
+make test.e2e.ui            # Run Playwright E2E tests in interactive UI mode
+make test.e2e.install       # Install Playwright browsers (one-time)
 make mypy                   # mypy --strict
 
 # Linting

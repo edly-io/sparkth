@@ -16,7 +16,8 @@ a `PluginHook` holds one):
 SparkthPlugin.__init__
   ├── register_router(self, router)                                   # app/lib/routes.py
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # app/lib/mcp/hooks.py
-  └── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # app/lib/config/hooks.py
+  ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # app/lib/config/hooks.py
+  └── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # app/lib/config/hooks.py
 ```
 
 `register_router` (`app/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
@@ -29,6 +30,10 @@ server, the chat tool registry converts them to LangChain tools, and `app/main.p
 mounts plugin routes.
 
 Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `app/plugins/config_base.py` for the base class.
+
+A plugin may also contribute a `CONFIG_ADAPTERS` entry (`app/lib/config/hooks.py`): an
+`LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
+plugin name via `get_plugin_adapter` (`app/lib/config`), so the framework never names a concrete plugin.
 
 Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
 

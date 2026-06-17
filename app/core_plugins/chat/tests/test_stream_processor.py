@@ -69,11 +69,12 @@ class TestBuildRagContext:
         _, sections = processor._build_rag_context(chunks)
         assert len(sections) == 1
 
-    def test_source_blocks_keyed_by_source(self) -> None:
+    def test_rag_context_contains_each_document(self) -> None:
         processor = _make_processor()
         chunks = [_make_chunk(source_name="a.pdf"), _make_chunk(source_name="b.pdf")]
-        source_blocks, _ = processor._build_rag_context(chunks)
-        assert set(source_blocks.keys()) == {"a.pdf", "b.pdf"}
+        rag_context, _ = processor._build_rag_context(chunks)
+        assert "[DOCUMENT CONTEXT: a.pdf]" in rag_context
+        assert "[DOCUMENT CONTEXT: b.pdf]" in rag_context
 
     def test_section_name_joins_hierarchy(self) -> None:
         processor = _make_processor()
@@ -92,7 +93,7 @@ class TestInjectRagIntoMessages:
     def test_replaces_drive_file_blocks(self) -> None:
         messages: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}]
         processor = _make_processor(messages)
-        processor._inject_rag_into_messages({"doc.pdf": "RAG context"})
+        processor._inject_rag_into_messages("RAG context")
         content = messages[0]["content"]
         assert all(b.get("type") != "drive_file" for b in content)
 
@@ -107,7 +108,7 @@ class TestInjectRagIntoMessages:
             }
         ]
         processor = _make_processor(messages)
-        processor._inject_rag_into_messages({"doc.pdf": "context"})
+        processor._inject_rag_into_messages("context")
         content = messages[0]["content"]
         text_blocks = [b["text"] for b in content if b.get("type") == "text"]
         assert text_blocks[-1] == "user question"
@@ -116,10 +117,10 @@ class TestInjectRagIntoMessages:
         messages: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "text", "text": "plain"}]}]
         processor = _make_processor(messages)
         original = list(messages[0]["content"])
-        processor._inject_rag_into_messages({"doc.pdf": "context"})
+        processor._inject_rag_into_messages("context")
         assert messages[0]["content"] == original
 
-    def test_empty_source_blocks_removes_drive_file_only(self) -> None:
+    def test_empty_rag_context_removes_drive_file_only(self) -> None:
         messages: list[dict[str, Any]] = [
             {
                 "role": "user",
@@ -130,7 +131,7 @@ class TestInjectRagIntoMessages:
             }
         ]
         processor = _make_processor(messages)
-        processor._inject_rag_into_messages({})
+        processor._inject_rag_into_messages("")
         content = messages[0]["content"]
         assert len(content) == 1
         assert content[0]["text"] == "question"
