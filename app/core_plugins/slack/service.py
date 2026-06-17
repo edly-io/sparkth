@@ -7,10 +7,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
 from app.core_plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from app.core_plugins.slack.models import SlackWorkspace
 from app.lib.log import get_logger
+from app.lib.settings import get_settings
 
 logger = get_logger(__name__)
 

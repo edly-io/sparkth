@@ -7,10 +7,10 @@ from typing import Any
 import httpx
 from itsdangerous import URLSafeTimedSerializer
 
-from app.core.config import get_settings
 from app.core_plugins.slack.config import get_slack_settings
 from app.core_plugins.slack.constants import SLACK_AUTHORIZE_URL, SLACK_TOKEN_URL
 from app.lib.log import get_logger
+from app.lib.settings import get_settings
 
 logger = get_logger(__name__)
 
