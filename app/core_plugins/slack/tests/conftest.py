@@ -24,14 +24,13 @@ from app.core_plugins.slack.config import SlackSettings
 from app.core_plugins.slack.models import SlackWorkspace
 from app.core_plugins.slack.service import encrypt_token
 from app.lib.db import get_async_session
+from app.lib.settings import get_settings
 from app.main import app
 from app.models.user import User
 
 
 @pytest.fixture(autouse=True)
 def _clear_settings_cache() -> Generator[None, None, None]:
-    from app.lib.settings import get_settings
-
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
