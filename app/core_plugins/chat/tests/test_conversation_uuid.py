@@ -256,9 +256,9 @@ class TestConversationUUIDRoutes:
 
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("app.core_plugins.chat.routes.helpers.generate_conversation_title"),
+            patch("app.core_plugins.chat.routes.utils.generate_conversation_title"),
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_classifier_cls,
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
@@ -308,7 +308,7 @@ class TestConversationUUIDRoutes:
         with (
             patch("app.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("app.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
-            patch("app.core_plugins.chat.routes.helpers.ScopeClassifier") as mock_classifier_cls,
+            patch("app.core_plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
             mock_classifier.classify = AsyncMock(return_value=True)
