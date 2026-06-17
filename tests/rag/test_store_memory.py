@@ -37,7 +37,7 @@ class TestStoreMemory:
                 mock_chunks.append(mock_chunk)
             mock_chunk_class.side_effect = mock_chunks
 
-            result = await service.store_chunks(mock_session, user_id=1, chunks=chunks)
+            result = await service.store_chunks(mock_session, chunks)
 
         # Verify result is list of ints
         assert isinstance(result, list)
@@ -58,7 +58,7 @@ class TestStoreMemory:
 
         with patch("app.rag.store.get_rag_settings") as mock_settings:
             mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
-            await service.store_chunks(mock_session, user_id=1, chunks=chunks)
+            await service.store_chunks(mock_session, chunks)
 
         # Should call expunge_all once per batch (3 batches for 25 chunks with batch_size=10)
         assert mock_session.expunge_all.call_count == 3

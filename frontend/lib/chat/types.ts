@@ -1,3 +1,9 @@
+import type { Schema } from "@/lib/api";
+
+// ApiMessage and ApiConversation deliberately narrow the generated
+// MessageResponse/ConversationDetailResponse: role, message_type,
+// rag_sections and tool_calls are JSON dicts on the wire, and their concrete
+// shapes are client-side knowledge (same category as the SSE event payloads).
 export interface ApiMessage {
   id: number;
   role: "user" | "assistant";
@@ -16,37 +22,6 @@ export interface ApiConversation {
   messages: ApiMessage[];
 }
 
-export interface ConversationSummary {
-  id: string;
-  title: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PersistedAttachment {
-  id: number;
-  name: string;
-  size: number | null;
-}
-
-export interface OutgoingChatMessage {
-  role: string;
-  // `unknown[]` for multipart content (e.g. image/text blocks): callers must
-  // narrow before use until we share a typed content-parts schema with the backend.
-  content: string | unknown[];
-  attachment?: { name: string; size: number };
-}
-
-export interface ChatCompletionRequestBody {
-  llm_config_id?: number;
-  model_override?: string;
-  messages: OutgoingChatMessage[];
-  stream: boolean;
-  tools: string;
-  tool_choice: string;
-  include_system_tools_message: boolean;
-  similarity_threshold: number;
-  conversation_id?: string;
-  document_ids?: number[];
-}
+export type ConversationSummary = Schema<"ConversationResponse">;
+export type PersistedAttachment = Schema<"AttachedDocumentResponse">;
+export type ChatCompletionRequestBody = Schema<"ChatCompletionRequest">;

@@ -1,3 +1,4 @@
+import { api, ApiRequestError } from "@/lib/api";
 import type {
   ApiConversation,
   ApiMessage,
@@ -6,44 +7,42 @@ import type {
   PersistedAttachment,
 } from "@/lib/chat/types";
 
-const API_BASE = "/api/v1/chat";
-
 // NOTE: chat endpoints throw plain `Error` on failure, while `@/lib/api`
 // and `@/lib/llm` throw the structured `ApiRequestError`. The chat plugin's
 // callers only need a message, so the lighter contract is intentional for
-// now. Aligning the two is tracked as a follow-up.
+// now (requestChatCompletionStream is the exception: its caller branches on
+// the structured error). Aligning the rest is tracked as a follow-up.
 
 // TODO: tighten the signature to `token: string` once every caller has a
 // guaranteed-non-null token. The backend rejects "Bearer null" with 401,
 // but a literal "null" is still a silent bug magnet for new callers.
-function authHeaders(token: string | null): HeadersInit {
+function authHeader(token: string | null): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
 }
 
-function jsonAuthHeaders(token: string | null): HeadersInit {
-  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
-}
-
-async function chatFetch(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (error) {
-    // Aborts are flow control, not failures: let callers see them as-is.
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Network error: ${message}`);
-  }
+// Aborts are flow control; ApiRequestError is the middleware's typed failure
+// (rethrown for callers that map or branch on it); anything else is transport.
+function passOrWrapNetworkError(error: unknown): never {
+  if (error instanceof DOMException && error.name === "AbortError") throw error;
+  if (error instanceof ApiRequestError) throw error;
+  const message = error instanceof Error ? error.message : "Unknown error";
+  throw new Error(`Network error: ${message}`);
 }
 
 export async function requestChatCompletionStream(
   token: string | null,
   body: ChatCompletionRequestBody,
 ): Promise<Response> {
-  return chatFetch(`${API_BASE}/completions`, {
-    method: "POST",
-    headers: jsonAuthHeaders(token),
-    body: JSON.stringify(body),
-  });
+  try {
+    const { response } = await api.POST("/api/v1/chat/completions", {
+      body,
+      parseAs: "stream",
+      headers: authHeader(token),
+    });
+    return response;
+  } catch (error) {
+    passOrWrapNetworkError(error);
+  }
 }
 
 export async function getConversation(
@@ -51,12 +50,19 @@ export async function getConversation(
   conversationId: string,
   signal?: AbortSignal,
 ): Promise<ApiConversation> {
-  const r = await chatFetch(`${API_BASE}/conversations/${conversationId}`, {
-    headers: authHeaders(token),
-    signal,
-  });
-  if (!r.ok) throw new Error(`Load conversation failed with status ${r.status}`);
-  return r.json();
+  try {
+    const { data } = await api.GET("/api/v1/chat/conversations/{conversation_id}", {
+      params: { path: { conversation_id: conversationId } },
+      headers: authHeader(token),
+      signal,
+    });
+    return data as unknown as ApiConversation;
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw new Error(`Load conversation failed with status ${error.status}`);
+    }
+    passOrWrapNetworkError(error);
+  }
 }
 
 export async function getConversationAttachments(
@@ -64,12 +70,18 @@ export async function getConversationAttachments(
   conversationId: string,
   signal?: AbortSignal,
 ): Promise<PersistedAttachment[]> {
-  const r = await chatFetch(`${API_BASE}/conversations/${conversationId}/attachments`, {
-    headers: authHeaders(token),
-    signal,
-  });
-  // Attachment-list failures are non-fatal: the conversation still renders.
-  return r.ok ? r.json() : [];
+  try {
+    const { data } = await api.GET("/api/v1/chat/conversations/{conversation_id}/attachments", {
+      params: { path: { conversation_id: conversationId } },
+      headers: authHeader(token),
+      signal,
+    });
+    return data as PersistedAttachment[];
+  } catch (error) {
+    // Attachment-list failures are non-fatal: the conversation still renders.
+    if (error instanceof ApiRequestError) return [];
+    passOrWrapNetworkError(error);
+  }
 }
 
 export async function getLastMessage(
@@ -77,25 +89,35 @@ export async function getLastMessage(
   conversationId: string,
   signal?: AbortSignal,
 ): Promise<ApiMessage | null> {
-  const r = await chatFetch(`${API_BASE}/conversations/${conversationId}/last-message`, {
-    headers: authHeaders(token),
-    signal,
-  });
-  if (!r.ok) return null;
-  return r.json();
+  try {
+    const { data } = await api.GET("/api/v1/chat/conversations/{conversation_id}/last-message", {
+      params: { path: { conversation_id: conversationId } },
+      headers: authHeader(token),
+      signal,
+    });
+    return data as unknown as ApiMessage | null;
+  } catch (error) {
+    if (error instanceof ApiRequestError) return null;
+    passOrWrapNetworkError(error);
+  }
 }
 
 export async function listConversations(
   token: string | null,
   signal?: AbortSignal,
 ): Promise<ConversationSummary[]> {
-  const r = await chatFetch(`${API_BASE}/conversations`, {
-    headers: authHeaders(token),
-    signal,
-  });
-  if (!r.ok) throw new Error(`Failed to load conversations: HTTP ${r.status}`);
-  const data = await r.json();
-  return data.conversations ?? [];
+  try {
+    const { data } = await api.GET("/api/v1/chat/conversations", {
+      headers: authHeader(token),
+      signal,
+    });
+    return data?.conversations ?? [];
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw new Error(`Failed to load conversations: HTTP ${error.status}`);
+    }
+    passOrWrapNetworkError(error);
+  }
 }
 
 export async function attachDocument(
@@ -103,12 +125,16 @@ export async function attachDocument(
   conversationId: string,
   documentId: number,
 ): Promise<void> {
-  const res = await chatFetch(`${API_BASE}/conversations/${conversationId}/attachments`, {
-    method: "POST",
-    headers: jsonAuthHeaders(token),
-    body: JSON.stringify({ document_id: documentId }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  try {
+    await api.POST("/api/v1/chat/conversations/{conversation_id}/attachments", {
+      params: { path: { conversation_id: conversationId } },
+      body: { document_id: documentId },
+      headers: authHeader(token),
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw new Error(`HTTP ${error.status}`);
+    passOrWrapNetworkError(error);
+  }
 }
 
 export async function detachDocument(
@@ -116,12 +142,13 @@ export async function detachDocument(
   conversationId: string,
   documentId: number,
 ): Promise<void> {
-  const res = await chatFetch(
-    `${API_BASE}/conversations/${conversationId}/attachments/${documentId}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(token),
-    },
-  );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  try {
+    await api.DELETE("/api/v1/chat/conversations/{conversation_id}/attachments/{document_id}", {
+      params: { path: { conversation_id: conversationId, document_id: documentId } },
+      headers: authHeader(token),
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw new Error(`HTTP ${error.status}`);
+    passOrWrapNetworkError(error);
+  }
 }

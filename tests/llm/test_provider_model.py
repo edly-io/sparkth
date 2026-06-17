@@ -2,7 +2,7 @@
 Unit tests for the provider/model feature:
   - PROVIDER_MODELS registry and catalog helpers (providers.py)
   - ChatUserConfig.provider validation and model field (config.py)
-  - _streaming_error_message error mapping (routes.py)
+  - streaming_error_message error mapping (routes.py)
   - GET /api/v1/llm/providers endpoint (routes.py)
 """
 
@@ -14,7 +14,7 @@ import openai
 import pytest
 from google.api_core import exceptions as google_exceptions
 
-from app.core_plugins.chat.routes.completions import _streaming_error_message
+from app.core_plugins.chat.routes.utils.stream_processor import streaming_error_message
 from app.llm.providers import (
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
@@ -140,36 +140,36 @@ class TestChatUserConfig:
 
 
 # ===========================================================================
-# _streaming_error_message
+# streaming_error_message
 # ===========================================================================
 
 
 class TestStreamingErrorMessage:
     def test_anthropic_auth_error(self) -> None:
         exc = anthropic.AuthenticationError("invalid x-api-key", response=_anthropic_response(401), body=None)
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "Invalid API key" in msg
         assert "Anthropic" in msg
 
     def test_anthropic_permission_error(self) -> None:
         exc = anthropic.PermissionDeniedError("forbidden", response=_anthropic_response(403), body=None)
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "permission" in msg.lower()
 
     def test_anthropic_rate_limit_error(self) -> None:
         exc = anthropic.RateLimitError("rate limit exceeded", response=_anthropic_response(429), body=None)
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "rate limit" in msg.lower()
         assert "Anthropic" in msg
 
     def test_anthropic_bad_request_error(self) -> None:
         exc = anthropic.BadRequestError("invalid request", response=_anthropic_response(400), body=None)
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "rejected" in msg.lower()
 
     def test_anthropic_generic_api_status_error(self) -> None:
         exc = anthropic.APIStatusError("server error", response=_anthropic_response(500), body=None)
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "500" in msg
         assert "Anthropic" in msg
 
@@ -178,89 +178,89 @@ class TestStreamingErrorMessage:
             message="connection failed",
             request=httpx.Request("POST", "https://api.anthropic.com/"),
         )
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "network" in msg.lower() or "reach" in msg.lower()
 
     def test_openai_auth_error(self) -> None:
         exc = openai.AuthenticationError("invalid api key", response=_openai_response(401), body={})
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "Invalid API key" in msg
         assert "OpenAI" in msg
 
     def test_openai_permission_error(self) -> None:
         exc = openai.PermissionDeniedError("forbidden", response=_openai_response(403), body={})
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "permission" in msg.lower()
 
     def test_openai_rate_limit_error(self) -> None:
         exc = openai.RateLimitError("rate limit exceeded", response=_openai_response(429), body={})
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "rate limit" in msg.lower()
         assert "OpenAI" in msg
 
     def test_openai_bad_request_error(self) -> None:
         exc = openai.BadRequestError("invalid request", response=_openai_response(400), body={})
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "rejected" in msg.lower()
 
     def test_openai_generic_api_status_error(self) -> None:
         exc = openai.APIStatusError("server error", response=_openai_response(500), body={})
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "500" in msg
         assert "OpenAI" in msg
 
     def test_openai_connection_error(self) -> None:
         exc = openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/"))
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "network" in msg.lower() or "reach" in msg.lower()
 
     def test_google_unauthenticated_error(self) -> None:
         exc = google_exceptions.Unauthenticated("invalid api key")  # type: ignore[no-untyped-call]
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "Invalid API key" in msg
         assert "Google" in msg
 
     def test_google_permission_denied_error(self) -> None:
         exc = google_exceptions.PermissionDenied("forbidden")  # type: ignore[no-untyped-call]
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "permission" in msg.lower()
         assert "Google" in msg
 
     def test_google_resource_exhausted_error(self) -> None:
         exc = google_exceptions.ResourceExhausted("quota exceeded")  # type: ignore[no-untyped-call]
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "rate limit" in msg.lower()
         assert "Google" in msg
 
     def test_google_invalid_argument_error(self) -> None:
         exc = google_exceptions.InvalidArgument("bad request")  # type: ignore[no-untyped-call]
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "rejected" in msg.lower()
         assert "Google" in msg
 
     def test_google_service_unavailable_error(self) -> None:
         exc = google_exceptions.ServiceUnavailable("unavailable")  # type: ignore[no-untyped-call]
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "network" in msg.lower() or "reach" in msg.lower()
         assert "Google" in msg
 
     def test_google_generic_api_call_error(self) -> None:
         exc = google_exceptions.GoogleAPICallError("server error")  # type: ignore[no-untyped-call]
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "Google" in msg
         assert str(exc.grpc_status_code or "unknown") in msg
 
     def test_runtime_error_returns_generic_message(self) -> None:
-        msg = _streaming_error_message(RuntimeError("boom"))
+        msg = streaming_error_message(RuntimeError("boom"))
         assert "error occurred" in msg.lower()
 
     def test_value_error_returns_generic_message(self) -> None:
-        msg = _streaming_error_message(ValueError("bad value"))
+        msg = streaming_error_message(ValueError("bad value"))
         assert "error occurred" in msg.lower()
 
     def test_httpx_remote_protocol_error(self) -> None:
         exc = httpx.RemoteProtocolError("peer closed connection without sending complete message body")
-        msg = _streaming_error_message(exc)
+        msg = streaming_error_message(exc)
         assert "connection was interrupted" in msg.lower()
         assert "try again" in msg.lower()
 
@@ -276,7 +276,7 @@ class TestStreamingErrorMessage:
             RuntimeError("x"),
         ]
         for exc in errors:
-            msg = _streaming_error_message(exc)
+            msg = streaming_error_message(exc)
             assert isinstance(msg, str) and msg.strip(), f"Empty message for {type(exc).__name__}"
 
 

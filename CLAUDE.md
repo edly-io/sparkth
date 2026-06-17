@@ -58,8 +58,7 @@ Current modules (see the source for the full API — do not duplicate it here):
   (never `logging.getLogger`); `configure_logging` is the single logging setup,
   called once per process entrypoint.
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
-  background/non-request code; `get_async_session`/`get_session` are the FastAPI
-  dependencies.
+  background/non-request code; `get_async_session` is the FastAPI dependency.
 - [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
   `app.core.config` directly. Implementation lives in `app/core/config.py`.
@@ -94,6 +93,9 @@ make test.backend.format    # Run backend formatting tests
 make test.frontend          # Run all frontend tests
 make test.frontend.vitest   # Run unit tests with vitest
 make test.frontend.format   # Run frontend formatting tests
+make test.e2e               # Run Playwright E2E tests (see frontend/tests/README.md)
+make test.e2e.ui            # Run Playwright E2E tests in interactive UI mode
+make test.e2e.install       # Install Playwright browsers (one-time)
 make mypy                   # mypy --strict
 
 # Linting

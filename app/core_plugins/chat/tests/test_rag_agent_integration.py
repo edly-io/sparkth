@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.core_plugins.chat.routes.helpers import resolve_document_blocks
+from app.core_plugins.chat.routes.utils import resolve_document_blocks
 from app.core_plugins.chat.schemas import ChatMessage
 from app.lib.rag import (
     DocumentNotFoundError,
@@ -14,7 +14,7 @@ from app.lib.rag import (
     RetrievedChunk,
 )
 
-RETRIEVE_CONTEXT_PATH = "app.core_plugins.chat.routes.helpers.agentic_retrieve_context"
+RETRIEVE_CONTEXT_PATH = "app.core_plugins.chat.routes.utils.agentic_retrieve_context"
 
 
 def _make_chunk(
