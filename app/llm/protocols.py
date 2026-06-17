@@ -1,4 +1,4 @@
-"""Structural interfaces app/llm depends on, free of app.core couplings."""
+"""Structural interfaces app/llm depends on"""
 
 from typing import Protocol
 
