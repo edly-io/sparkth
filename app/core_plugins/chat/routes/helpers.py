@@ -30,6 +30,7 @@ from app.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
     agentic_retrieve_context,
+    format_document_chunks_as_llm_context,
 )
 
 logger = get_logger(__name__)
@@ -54,28 +55,6 @@ def extract_query_text(messages: list[ChatMessage]) -> str:
         if joined:
             return joined
     return ""
-
-
-def format_source_block(source_name: str, chunks: list[RetrievedChunk]) -> str:
-    lines = [
-        f"[DOCUMENT CONTEXT: {source_name}]",
-        "The following excerpts were retrieved from the document to inform your response:",
-        "",
-    ]
-    for i, chunk in enumerate(chunks, 1):
-        parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-        label = " / ".join(parts) if parts else "General"
-        lines.append(f"--- Excerpt {i} (Section: {label}) ---")
-        lines.append(chunk.content.strip())
-        lines.append("")
-    return "\n".join(lines)
-
-
-def group_by_source(chunks: list[RetrievedChunk]) -> dict[str, list[RetrievedChunk]]:
-    grouped: dict[str, list[RetrievedChunk]] = {}
-    for chunk in chunks:
-        grouped.setdefault(chunk.source_name, []).append(chunk)
-    return grouped
 
 
 def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
@@ -135,15 +114,14 @@ async def resolve_document_blocks(
 
         chunks = await _retrieve_rag_chunks(document_ids, query_text, llm)
 
-        grouped = group_by_source(chunks)
-        rag_blocks: list[dict[str, Any]] = [
-            {"type": "text", "text": format_source_block(source, src_chunks)} for source, src_chunks in grouped.items()
-        ]
+        rag_blocks: list[dict[str, Any]] = (
+            [{"type": "text", "text": format_document_chunks_as_llm_context(chunks)}] if chunks else []
+        )
         logger.info(
             "Replaced legacy document attachment blocks document_ids=%s with %d RAG chunks across %d source(s)",
             document_ids,
             len(chunks),
-            len(grouped),
+            len({chunk.source_name for chunk in chunks}),
         )
 
         if rag_blocks:
