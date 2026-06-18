@@ -22,8 +22,6 @@ class PermissionService:
         scope_type: str = SCOPE_GLOBAL,
         scope_id: str | None = None,
     ) -> bool:
-        if user.is_superuser:
-            return True
         statement = (
             select(RolePermission.permission)
             .join(RoleAssignment, RoleAssignment.role_id == RolePermission.role_id)  # type: ignore[arg-type]

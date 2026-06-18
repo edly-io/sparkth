@@ -82,9 +82,10 @@ async def test_can_allows_with_assigned_role(session: AsyncSession) -> None:
     assert await PermissionService(session).can(user, "assignment.grade") is True
 
 
-async def test_can_superuser_fast_path(session: AsyncSession) -> None:
+async def test_can_has_no_superuser_bypass(session: AsyncSession) -> None:
+    # is_superuser must NOT grant anything — authz is purely assignment-based.
     user = await make_user(session, "root", is_superuser=True)
-    assert await PermissionService(session).can(user, "anything.at.all") is True
+    assert await PermissionService(session).can(user, "anything.at.all") is False
 
 
 async def test_can_denies_permission_at_other_scope(session: AsyncSession) -> None:
