@@ -2,7 +2,7 @@
 
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -586,15 +586,6 @@ class TestGetLogs:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-def _make_session_mock() -> tuple[AsyncMock, MagicMock]:
-    """Return (mock_async_session_cls, mock_session) wired as a context manager."""
-    mock_session = AsyncMock()
-    mock_cls = MagicMock()
-    mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-    return mock_cls, mock_session
-
-
 def _make_plugin_svc(user_plugin: MagicMock | None) -> AsyncMock:
     """Return a PluginService mock whose get_user_plugin_map returns the given plugin (or {})."""
     instance = AsyncMock()
@@ -607,31 +598,32 @@ def _make_slack_client_mock() -> AsyncMock:
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=False)
     client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
+    # _resolve_names runs for real against this mock; return real (None) names so the
+    # BotResponseLog row persists on the real session.
+    client.get_user_display_name = AsyncMock(return_value=None)
+    client.get_channel_name = AsyncMock(return_value=None)
     return client
 
 
 class TestDispatchEvent:
-    """Unit tests for _dispatch_event — each test patches the full dependency chain."""
+    """Unit tests for _dispatch_event — the DB runs for real; external calls are mocked.
 
-    @staticmethod
-    def _base_patches(user_plugin: MagicMock | None, slack_client: AsyncMock) -> tuple[MagicMock, AsyncMock]:
-        """Return (mock_session_cls, mock_plugin_svc) wired for standard dispatch calls."""
-        mock_session_cls, _ = _make_session_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
-        return mock_session_cls, mock_plugin_svc
+    These call _dispatch_event directly (not over HTTP), so they don't use the
+    ``slack_client`` fixture's auth override; PluginService is mocked to supply the
+    plugin row, and the real session_scope persists the BotResponseLog.
+    """
 
     @pytest.mark.asyncio
     async def test_posts_not_configured_message_when_plugin_missing(self) -> None:
         """No UserPlugin row → post informative Slack message, do not process."""
         event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, mock_plugin_svc = self._base_patches(None, slack_client)
+        mock_plugin_svc = _make_plugin_svc(None)
 
         with (
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -647,13 +639,12 @@ class TestDispatchEvent:
         user_plugin.enabled = False
         user_plugin.config = {"bot_name": "TA Bot"}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
+        mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -669,13 +660,12 @@ class TestDispatchEvent:
         user_plugin.enabled = True
         user_plugin.config = {}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
+        mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -691,13 +681,12 @@ class TestDispatchEvent:
         user_plugin.enabled = True
         user_plugin.config = {"greeting_message": "Hey there, student!"}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, mock_plugin_svc = self._base_patches(user_plugin, slack_client)
+        mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
         ):
             await _dispatch_event(workspace_id=1, user_id=1, bot_token_encrypted="enc", bot_user_id="BOT", event=event)
 
@@ -719,7 +708,6 @@ class TestDispatchEvent:
         user_plugin.enabled = True
         user_plugin.config = {"fallback_message": "No answer found.", "llm_config_id": 1}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, _ = _make_session_mock()
         mock_plugin_svc = _make_plugin_svc(user_plugin)
         mock_llm_provider = MagicMock()
         mock_llm_provider.create_llm = MagicMock(return_value=MagicMock())
@@ -728,7 +716,6 @@ class TestDispatchEvent:
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
             patch(
                 "app.core_plugins.slack.routes._build_llm_provider",
                 new_callable=AsyncMock,
@@ -760,14 +747,12 @@ class TestDispatchEvent:
         user_plugin.enabled = True
         user_plugin.config = {"fallback_message": "Bot temporarily unavailable."}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, _ = _make_session_mock()
         mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
             patch(
                 "app.core_plugins.slack.routes.answer_question",
                 new_callable=AsyncMock,
@@ -794,14 +779,12 @@ class TestDispatchEvent:
         user_plugin.enabled = True
         user_plugin.config = {"fallback_message": "Bot misconfigured.", "llm_config_id": 99}
         slack_client = _make_slack_client_mock()
-        mock_session_cls, _ = _make_session_mock()
         mock_plugin_svc = _make_plugin_svc(user_plugin)
 
         with (
             patch("app.core_plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
             patch("app.core_plugins.slack.routes.decrypt_token", return_value="xoxb-fake"),
             patch("app.core_plugins.slack.routes.SlackClient", return_value=slack_client),
-            patch("app.core_plugins.slack.routes.session_scope", mock_session_cls),
             patch("app.core_plugins.slack.routes._build_llm_provider", new_callable=AsyncMock, return_value=None),
             patch(
                 "app.core_plugins.slack.routes.answer_question",
@@ -889,6 +872,8 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
     mock_slack_client.__aenter__ = AsyncMock(return_value=mock_slack_client)
     mock_slack_client.__aexit__ = AsyncMock(return_value=False)
     mock_slack_client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
+    mock_slack_client.get_user_display_name = AsyncMock(return_value=None)
+    mock_slack_client.get_channel_name = AsyncMock(return_value=None)
 
     with (
         patch("app.core_plugins.slack.routes.PluginService") as mock_plugin_svc,
@@ -898,7 +883,6 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_llm_service") as mock_get_llm_svc,
         patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
         patch("app.core_plugins.slack.routes.get_slack_settings"),
-        patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
         mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)
 
@@ -917,11 +901,6 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
 
         mock_provider_instance = MagicMock()
         mock_get_provider.return_value = mock_provider_instance
-
-        # Wire up the async session context manager
-        mock_session = AsyncMock()
-        mock_async_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_async_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
         await _dispatch_event(
             workspace_id=1,
@@ -965,6 +944,8 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
     mock_slack_client.__aenter__ = AsyncMock(return_value=mock_slack_client)
     mock_slack_client.__aexit__ = AsyncMock(return_value=False)
     mock_slack_client.post_message = AsyncMock(return_value={"ts": "9999.0000"})
+    mock_slack_client.get_user_display_name = AsyncMock(return_value=None)
+    mock_slack_client.get_channel_name = AsyncMock(return_value=None)
 
     with (
         patch("app.core_plugins.slack.routes.PluginService") as mock_plugin_svc,
@@ -974,7 +955,6 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         patch("app.core_plugins.slack.routes.get_llm_service") as mock_get_llm_svc,
         patch("app.core_plugins.slack.routes.get_provider") as mock_get_provider,
         patch("app.core_plugins.slack.routes.get_slack_settings"),
-        patch("app.core_plugins.slack.routes.session_scope") as mock_async_session_cls,
     ):
         mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)
 
@@ -991,10 +971,6 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
 
         mock_get_provider.return_value = MagicMock()
 
-        mock_session = AsyncMock()
-        mock_async_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_async_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-
         await _dispatch_event(
             workspace_id=1,
             user_id=1,
@@ -1009,32 +985,15 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
 
 
 class TestDispatchEventLogging:
-    """Test that _dispatch_event creates BotResponseLog for every bot reply path."""
+    """Test that _dispatch_event persists a BotResponseLog for every bot reply path."""
 
     @staticmethod
-    def _make_fake_session(added: list[Any]) -> Any:
-        class _FakeSession:
-            async def __aenter__(self) -> "_FakeSession":
-                return self
-
-            async def __aexit__(self, *a: Any) -> None:
-                pass
-
-            def add(self, obj: Any) -> None:
-                added.append(obj)
-
-            async def commit(self) -> None:
-                pass
-
-            async def rollback(self) -> None:
-                pass
-
-        return _FakeSession()
+    async def _logs(session: AsyncSession) -> list[BotResponseLog]:
+        session.expire_all()
+        return list((await session.exec(select(BotResponseLog))).all())
 
     @pytest.mark.asyncio
-    async def test_plugin_not_configured_logs_plugin_disabled(self) -> None:
-        added: list[Any] = []
-
+    async def test_plugin_not_configured_logs_plugin_disabled(self, session: AsyncSession) -> None:
         with (
             patch(
                 "app.core_plugins.slack.routes.PluginService",
@@ -1050,7 +1009,6 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1060,15 +1018,12 @@ class TestDispatchEventLogging:
                 event={"text": "<@U_BOT> hi", "user": "U1", "channel": "C1", "ts": "1.0"},
             )
 
-        assert len(added) == 1
-        log = added[0]
-        assert isinstance(log, BotResponseLog)
-        assert log.response_type == ResponseType.PLUGIN_DISABLED
+        logs = await self._logs(session)
+        assert len(logs) == 1
+        assert logs[0].response_type == ResponseType.PLUGIN_DISABLED
 
     @pytest.mark.asyncio
-    async def test_plugin_disabled_logs_plugin_disabled(self) -> None:
-        added: list[Any] = []
-
+    async def test_plugin_disabled_logs_plugin_disabled(self, session: AsyncSession) -> None:
         plugin = MagicMock()
         plugin.enabled = False
         plugin.config = {"fallback_message": "Bot is disabled"}
@@ -1088,7 +1043,6 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1098,13 +1052,12 @@ class TestDispatchEventLogging:
                 event={"text": "<@U_BOT> hello", "user": "U1", "channel": "C1", "ts": "1.0"},
             )
 
-        assert len(added) == 1
-        assert added[0].response_type == ResponseType.PLUGIN_DISABLED
+        logs = await self._logs(session)
+        assert len(logs) == 1
+        assert logs[0].response_type == ResponseType.PLUGIN_DISABLED
 
     @pytest.mark.asyncio
-    async def test_config_incomplete_logs_config_incomplete(self) -> None:
-        added: list[Any] = []
-
+    async def test_config_incomplete_logs_config_incomplete(self, session: AsyncSession) -> None:
         plugin = MagicMock()
         plugin.enabled = True
         plugin.config = None
@@ -1124,7 +1077,6 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1134,13 +1086,12 @@ class TestDispatchEventLogging:
                 event={"text": "<@U_BOT> hello", "user": "U1", "channel": "C1", "ts": "1.0"},
             )
 
-        assert len(added) == 1
-        assert added[0].response_type == ResponseType.CONFIG_INCOMPLETE
+        logs = await self._logs(session)
+        assert len(logs) == 1
+        assert logs[0].response_type == ResponseType.CONFIG_INCOMPLETE
 
     @pytest.mark.asyncio
-    async def test_greeting_logs_with_resolved_names(self) -> None:
-        added: list[Any] = []
-
+    async def test_greeting_logs_with_resolved_names(self, session: AsyncSession) -> None:
         plugin = MagicMock()
         plugin.enabled = True
         plugin.config = {
@@ -1164,7 +1115,6 @@ class TestDispatchEventLogging:
                 return_value=("alice", "general"),
             ),
             patch("app.core_plugins.slack.routes.is_greeting", return_value=True),
-            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1174,16 +1124,14 @@ class TestDispatchEventLogging:
                 event={"text": "<@U_BOT> hi there", "user": "U1", "channel": "C1", "ts": "1.0"},
             )
 
-        assert len(added) == 1
-        log = added[0]
-        assert log.response_type == ResponseType.GREETING
-        assert log.slack_user_name == "alice"
-        assert log.slack_channel_name == "general"
+        logs = await self._logs(session)
+        assert len(logs) == 1
+        assert logs[0].response_type == ResponseType.GREETING
+        assert logs[0].slack_user_name == "alice"
+        assert logs[0].slack_channel_name == "general"
 
     @pytest.mark.asyncio
-    async def test_post_failure_means_no_log_created(self) -> None:
-        added: list[Any] = []
-
+    async def test_post_failure_means_no_log_created(self, session: AsyncSession) -> None:
         with (
             patch(
                 "app.core_plugins.slack.routes.PluginService",
@@ -1199,7 +1147,6 @@ class TestDispatchEventLogging:
                 new_callable=AsyncMock,
                 return_value=(None, None),
             ),
-            patch("app.core_plugins.slack.routes.session_scope", return_value=self._make_fake_session(added)),
         ):
             await _dispatch_event(
                 workspace_id=1,
@@ -1209,7 +1156,7 @@ class TestDispatchEventLogging:
                 event={"text": "<@U_BOT> hi", "user": "U1", "channel": "C1", "ts": "1.0"},
             )
 
-        assert len(added) == 0
+        assert await self._logs(session) == []
 
 
 class TestConnectionEventLogging:
