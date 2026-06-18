@@ -137,3 +137,19 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.SCOPE_GLOBAL == "global"
     assert facade.PermissionService is PermissionService
     assert issubclass(facade.RoleNotFound, Exception)
+
+
+async def test_has_role_true_when_assigned(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    await make_role(session, "admin", [])
+    assert user.id is not None
+    service = PermissionService(session)
+    await service.assign_role(user.id, "admin")
+    assert await service.has_role(user.id, "admin") is True
+
+
+async def test_has_role_false_when_not_assigned(session: AsyncSession) -> None:
+    user = await make_user(session, "bob")
+    await make_role(session, "admin", [])
+    assert user.id is not None
+    assert await PermissionService(session).has_role(user.id, "admin") is False

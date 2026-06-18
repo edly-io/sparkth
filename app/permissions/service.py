@@ -53,6 +53,28 @@ class PermissionService:
         await self.session.flush()
         return assignment
 
+    async def has_role(
+        self,
+        user_id: int,
+        role_name: str,
+        scope_type: str = SCOPE_GLOBAL,
+        scope_id: str | None = None,
+    ) -> bool:
+        """Return True if user_id holds role_name at the given scope (active assignment)."""
+        statement = (
+            select(RoleAssignment.id)
+            .join(Role, Role.id == RoleAssignment.role_id)  # type: ignore[arg-type]
+            .where(
+                RoleAssignment.user_id == user_id,
+                Role.name == role_name,
+                RoleAssignment.scope_type == scope_type,
+                RoleAssignment.scope_id == scope_id,
+                RoleAssignment.is_deleted == False,
+            )
+            .limit(1)
+        )
+        return (await self.session.exec(statement)).first() is not None
+
     async def revoke_role(
         self,
         user_id: int,
