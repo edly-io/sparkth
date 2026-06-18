@@ -44,10 +44,28 @@ class PermissionService:
         scope_type: str = SCOPE_GLOBAL,
         scope_id: str | None = None,
     ) -> RoleAssignment:
-        """Create a role assignment for user_id, raising RoleNotFound if the role does not exist."""
+        """Return the active assignment of role_name to user_id at the given scope, creating it if absent.
+
+        Raises RoleNotFound if the role does not exist.
+        """
         role = (await self.session.exec(select(Role).where(Role.name == role_name))).one_or_none()
         if role is None or role.id is None:
             raise RoleNotFound(role_name)
+        existing = (
+            await self.session.exec(
+                select(RoleAssignment)
+                .where(
+                    RoleAssignment.user_id == user_id,
+                    RoleAssignment.role_id == role.id,
+                    RoleAssignment.scope_type == scope_type,
+                    RoleAssignment.scope_id == scope_id,
+                    RoleAssignment.is_deleted == False,
+                )
+                .limit(1)
+            )
+        ).first()
+        if existing is not None:
+            return existing
         assignment = RoleAssignment(user_id=user_id, role_id=role.id, scope_type=scope_type, scope_id=scope_id)
         self.session.add(assignment)
         await self.session.flush()

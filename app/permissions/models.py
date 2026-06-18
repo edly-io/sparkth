@@ -1,5 +1,6 @@
 """Scoped-RBAC table models. Authored with LLM (Claude) assistance."""
 
+from sqlalchemy import Index, text
 from sqlmodel import Field
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -23,6 +24,21 @@ class RolePermission(TimestampedModel, table=True):
 
 class RoleAssignment(TimestampedModel, SoftDeleteModel, table=True):
     __tablename__ = "role_assignment"
+    __table_args__ = (
+        # At most one active assignment per (user, role, scope). scope_id is
+        # NULL for global scope, and SQL treats NULLs as distinct, so coalesce
+        # collapses it to '' to make global rows collide too.
+        Index(
+            "uq_role_assignment_active",
+            "user_id",
+            "role_id",
+            "scope_type",
+            text("coalesce(scope_id, '')"),
+            unique=True,
+            sqlite_where=text("is_deleted = 0"),
+            postgresql_where=text("is_deleted = false"),
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
