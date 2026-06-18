@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core_plugins.googledrive.exceptions import GoogleDriveAPIError
 from app.core_plugins.googledrive.models import DriveFile, DriveFolder
 from app.core_plugins.googledrive.utils import (
@@ -11,7 +13,7 @@ from app.core_plugins.googledrive.utils import (
     _resolve_filename,
     process_folder_rag,
 )
-from app.lib.documents import DocumentStatus
+from app.lib.documents import Document, DocumentStatus
 from app.lib.rag import ScannedPDFError, UnsupportedFileTypeError
 
 
@@ -378,53 +380,34 @@ class TestProcessSingleFile:
 
 # process_folder_rag
 class TestProcessFolderRag:
-    @patch("app.core_plugins.googledrive.utils.session_scope")
-    async def test_skips_when_no_files(self, mock_session_cls: MagicMock) -> None:
-        """Empty folder should return early."""
-        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
+    @staticmethod
+    async def _seed_folder(session: AsyncSession, *files: DriveFile, documents: list[Document] | None = None) -> None:
+        session.add(DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test"))
+        for document in documents or []:
+            session.add(document)
+        for drive_file in files:
+            session.add(drive_file)
+        await session.commit()
 
-        mock_session = AsyncMock()
-        folder_result = MagicMock()
-        folder_result.first.return_value = folder
-        files_result = MagicMock()
-        files_result.all.return_value = []
-        done_result = MagicMock()
-        done_result.all.return_value = []
-        mock_session.exec = AsyncMock(side_effect=[folder_result, files_result, done_result])
-        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+    async def test_skips_when_no_files(self, session: AsyncSession) -> None:
+        """Empty folder should return early without error."""
+        await self._seed_folder(session)
 
         await process_folder_rag(1, user_id=1, access_token="tok")
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
-    @patch("app.core_plugins.googledrive.utils.session_scope")
-    async def test_skips_ready_and_processing_files(self, mock_session_cls: MagicMock, mock_process: AsyncMock) -> None:
-        ready_file = _make_drive_file(file_id=1, document_id=10)
-        processing_file = _make_drive_file(file_id=3, document_id=20)
-        pending_file = _make_drive_file(file_id=2, document_id=None)
-        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
+    async def test_skips_ready_and_processing_files(self, mock_process: AsyncMock, session: AsyncSession) -> None:
+        await self._seed_folder(
+            session,
+            _make_drive_file(file_id=1, document_id=10),  # ready → skipped
+            _make_drive_file(file_id=3, document_id=20),  # processing → skipped
+            _make_drive_file(file_id=2, document_id=None),  # pending → processed
+            documents=[
+                Document(id=10, user_id=1, name="ready.pdf", status=DocumentStatus.READY),
+                Document(id=20, user_id=1, name="processing.pdf", status=DocumentStatus.PROCESSING),
+            ],
+        )
 
-        list_session = AsyncMock()
-        folder_result = MagicMock()
-        folder_result.first.return_value = folder
-        files_result = MagicMock()
-        files_result.all.return_value = [ready_file, processing_file, pending_file]
-        done_result = MagicMock()
-        done_result.all.return_value = [10, 20]
-        list_session.exec = AsyncMock(side_effect=[folder_result, files_result, done_result])
-
-        file_session = AsyncMock()
-
-        sessions = iter([list_session, file_session])
-
-        def make_ctx(*args: object, **kwargs: object) -> MagicMock:
-            ctx = MagicMock()
-            s = next(sessions)
-            ctx.__aenter__ = AsyncMock(return_value=s)
-            ctx.__aexit__ = AsyncMock(return_value=None)
-            return ctx
-
-        mock_session_cls.side_effect = make_ctx
         await process_folder_rag(1, user_id=1, access_token="tok")
 
         assert mock_process.await_count == 1
@@ -432,36 +415,14 @@ class TestProcessFolderRag:
         assert processed_file.id == 2
 
     @patch("app.core_plugins.googledrive.utils._process_single_file")
-    @patch("app.core_plugins.googledrive.utils.session_scope")
     async def test_base_exception_from_gather_is_logged(
         self,
-        mock_session_cls: MagicMock,
         mock_process: AsyncMock,
+        session: AsyncSession,
     ) -> None:
         """BaseException raised inside a gather task must be logged, not re-raised."""
-        pending_file = _make_drive_file(file_id=1, document_id=None)
-        folder = DriveFolder(id=1, user_id=1, drive_folder_id="abc", drive_folder_name="Test")
-
-        list_session = AsyncMock()
-        folder_result = MagicMock()
-        folder_result.first.return_value = folder
-        files_result = MagicMock()
-        files_result.all.return_value = [pending_file]
-        done_result = MagicMock()
-        done_result.all.return_value = []
-        list_session.exec = AsyncMock(side_effect=[folder_result, files_result, done_result])
-
-        file_session = AsyncMock()
-        sessions = iter([list_session, file_session])
-
-        def make_ctx(*args: object, **kwargs: object) -> MagicMock:
-            ctx = MagicMock()
-            s = next(sessions)
-            ctx.__aenter__ = AsyncMock(return_value=s)
-            ctx.__aexit__ = AsyncMock(return_value=None)
-            return ctx
-
-        mock_session_cls.side_effect = make_ctx
+        await self._seed_folder(session, _make_drive_file(file_id=1, document_id=None))
         mock_process.side_effect = BaseException("fatal")
 
+        # Must not raise.
         await process_folder_rag(1, user_id=1, access_token="tok")
