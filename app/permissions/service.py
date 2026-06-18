@@ -81,7 +81,7 @@ class PermissionService:
         """Return True if user_id holds role_name at the given scope (active assignment)."""
         statement = (
             select(RoleAssignment.id)
-            .join(Role, Role.id == RoleAssignment.role_id)  # type: ignore[arg-type]
+            .join(Role, col(Role.id) == col(RoleAssignment.role_id))
             .where(
                 RoleAssignment.user_id == user_id,
                 Role.name == role_name,
