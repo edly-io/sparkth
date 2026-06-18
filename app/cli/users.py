@@ -51,17 +51,18 @@ async def _create_user(
             email_verified_at=utc_now() if email_verified else None,
         )
         session.add(user)
-        await session.commit()
-        await session.refresh(user)
+        await session.flush()
 
         if admin:
             assert user.id is not None
             try:
                 await PermissionService(session).assign_role(user.id, ROLE_ADMIN)
-                await session.commit()
             except RoleNotFound:
                 typer.secho("admin role not found — run `make migrations` first.", fg=typer.colors.RED)
                 raise typer.Exit(code=1) from None
+
+        await session.commit()
+        await session.refresh(user)
 
         role = "Admin user" if admin else "Regular user"
         typer.secho(f"{role} created successfully!", fg=typer.colors.GREEN)

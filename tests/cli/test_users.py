@@ -126,3 +126,17 @@ async def test_create_user_with_admin_assigns_admin_role(cli_session: AsyncSessi
     assert user.id is not None
     assignment = (await cli_session.exec(select(RoleAssignment).where(RoleAssignment.user_id == user.id))).one()
     assert assignment.scope_type == "global"
+
+
+async def test_create_user_with_admin_missing_role_exits(cli_session: AsyncSession) -> None:
+    # No "admin" role seeded → assign_role raises RoleNotFound → command exits gracefully
+    # (the user create + role assign share one commit, so nothing is persisted on failure).
+    with pytest.raises(typer.Exit):
+        await users._create_user(
+            username="root",
+            email="root@example.com",
+            password="s3cret",
+            name=None,
+            admin=True,
+            email_verified=True,
+        )
