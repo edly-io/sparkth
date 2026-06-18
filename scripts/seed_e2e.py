@@ -20,6 +20,7 @@ import os
 
 from sqlmodel import select
 
+from app.core.db import async_engine
 from app.core.security import get_password_hash
 from app.lib.db import session_scope
 from app.models.base import utc_now
@@ -65,7 +66,15 @@ async def seed() -> None:
 
 
 def main() -> None:
-    asyncio.run(seed())
+    async def _run() -> None:
+        try:
+            await seed()
+        finally:
+            # Dispose so aiosqlite's connection worker thread exits; otherwise the
+            # process hangs at interpreter shutdown waiting to join it.
+            await async_engine.dispose()
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

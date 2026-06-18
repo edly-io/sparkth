@@ -37,7 +37,15 @@ async def init_schema(engine: AsyncEngine) -> None:
 
 
 def main() -> None:
-    asyncio.run(init_schema(async_engine))
+    async def _run() -> None:
+        try:
+            await init_schema(async_engine)
+        finally:
+            # Dispose so aiosqlite's connection worker thread exits; otherwise the
+            # process hangs at interpreter shutdown waiting to join it.
+            await async_engine.dispose()
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
