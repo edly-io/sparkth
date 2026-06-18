@@ -1,4 +1,6 @@
 import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.user import User
@@ -137,3 +139,55 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.SCOPE_GLOBAL == "global"
     assert facade.PermissionService is PermissionService
     assert issubclass(facade.RoleNotFound, Exception)
+
+
+async def test_assign_role_is_idempotent(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", ["assignment.grade"])
+    service = PermissionService(session)
+
+    first = await service.assign_role(user.id, "grader")
+    second = await service.assign_role(user.id, "grader")
+
+    assert first.id == second.id
+    active = (
+        await session.exec(
+            select(RoleAssignment).where(
+                RoleAssignment.user_id == user.id,
+                RoleAssignment.is_deleted == False,
+            )
+        )
+    ).all()
+    assert len(active) == 1
+
+
+async def test_duplicate_active_global_assignment_is_rejected(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    assert user.id is not None and role.id is not None
+
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id))
+    await session.flush()
+
+    # Savepoint so the expected violation rolls back without poisoning the
+    # fixture's outer transaction.
+    with pytest.raises(IntegrityError):
+        async with session.begin_nested():
+            session.add(RoleAssignment(user_id=user.id, role_id=role.id))
+
+
+async def test_soft_deleted_assignment_does_not_block_reassignment(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    assert user.id is not None and role.id is not None
+
+    revoked = RoleAssignment(user_id=user.id, role_id=role.id)
+    session.add(revoked)
+    await session.flush()
+    revoked.soft_delete()
+    session.add(revoked)
+    await session.flush()
+
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id))
+    await session.flush()

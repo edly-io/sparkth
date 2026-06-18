@@ -8,6 +8,14 @@ from app.core.config import get_settings
 from app.lib.plugins import get_plugin_loader
 from app.models import *  # noqa: F403
 
+# Imported after app.models so SQLModel.metadata carries the permission tables for
+# autogenerate. Must stay below app.models: importing it first cycles via app.models.base.
+from app.permissions.models import (  # noqa: F401
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
+
 settings = get_settings()
 
 config = context.config
