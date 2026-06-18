@@ -25,7 +25,7 @@ class User(UserBase):
     id: int
     name: str
     username: str
-    is_superuser: bool
+    is_admin: bool = False
     email_verified: bool
 
     model_config = ConfigDict(from_attributes=True)
