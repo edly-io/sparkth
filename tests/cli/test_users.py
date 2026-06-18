@@ -16,6 +16,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import users
+from app.models.permissions import Role, RoleAssignment
 from app.models.user import User
 
 
@@ -41,13 +42,12 @@ async def test_create_user_persists_a_hashed_user(cli_session: AsyncSession) -> 
         email="alice@example.com",
         password="s3cret",
         name="Alice",
-        superuser=False,
+        admin=False,
         email_verified=True,
     )
 
     user: User = (await cli_session.exec(select(User).where(User.username == "alice"))).one()
     assert user.email == "alice@example.com"
-    assert user.is_superuser is False
     assert user.email_verified
     assert user.email_verified_at
     assert user.hashed_password != "s3cret"
@@ -59,7 +59,7 @@ async def test_create_unverified_user(cli_session: AsyncSession) -> None:
         email="alice@example.com",
         password="s3cret",
         name="Alice",
-        superuser=False,
+        admin=False,
         email_verified=False,
     )
 
@@ -68,28 +68,13 @@ async def test_create_unverified_user(cli_session: AsyncSession) -> None:
     assert user.email_verified_at is None
 
 
-async def test_create_user_marks_superuser(cli_session: AsyncSession) -> None:
-    await users._create_user(
-        username="root",
-        email="root@example.com",
-        password="s3cret",
-        name=None,
-        superuser=True,
-        email_verified=True,
-    )
-
-    user = (await cli_session.exec(select(User).where(User.username == "root"))).one()
-    assert user.is_superuser is True
-    assert user.name == "root"  # falls back to username when name is omitted
-
-
 async def test_create_user_rejects_duplicate(cli_session: AsyncSession) -> None:
     await users._create_user(
         username="bob",
         email="bob@example.com",
         password="s3cret",
         name=None,
-        superuser=False,
+        admin=False,
         email_verified=True,
     )
 
@@ -99,7 +84,7 @@ async def test_create_user_rejects_duplicate(cli_session: AsyncSession) -> None:
             email="other@example.com",
             password="s3cret",
             name=None,
-            superuser=False,
+            admin=False,
             email_verified=True,
         )
 
@@ -110,7 +95,7 @@ async def test_reset_password_changes_hash(cli_session: AsyncSession) -> None:
         email="carol@example.com",
         password="old-pass",
         name=None,
-        superuser=False,
+        admin=False,
         email_verified=True,
     )
     old_hash = (await cli_session.exec(select(User).where(User.username == "carol"))).one().hashed_password
@@ -124,3 +109,20 @@ async def test_reset_password_changes_hash(cli_session: AsyncSession) -> None:
 async def test_reset_password_unknown_user_exits(cli_session: AsyncSession) -> None:
     with pytest.raises(typer.Exit):
         await users._reset_password(identifier="ghost", new_password="whatever")
+
+
+async def test_create_user_with_admin_assigns_admin_role(cli_session: AsyncSession) -> None:
+    cli_session.add(Role(name="admin"))
+    await cli_session.flush()
+    await users._create_user(
+        username="root",
+        email="root@example.com",
+        password="s3cret",
+        name=None,
+        admin=True,
+        email_verified=True,
+    )
+    user = (await cli_session.exec(select(User).where(User.username == "root"))).one()
+    assert user.id is not None
+    assignment = (await cli_session.exec(select(RoleAssignment).where(RoleAssignment.user_id == user.id))).one()
+    assert assignment.scope_type == "global"
