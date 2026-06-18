@@ -128,3 +128,11 @@ async def test_revoke_role_noop_when_no_assignment(session: AsyncSession) -> Non
     assert user.id is not None
     await make_role(session, "grader", ["assignment.grade"])
     await PermissionService(session).revoke_role(user.id, "grader")
+
+
+def test_facade_exposes_public_surface() -> None:
+    from app.lib import permissions as facade
+
+    assert facade.SCOPE_GLOBAL == "global"
+    assert facade.PermissionService is PermissionService
+    assert issubclass(facade.RoleNotFound, Exception)
