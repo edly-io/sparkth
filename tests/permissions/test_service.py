@@ -44,13 +44,12 @@ async def test_role_permission_round_trips(session: AsyncSession) -> None:
     await session.flush()
 
 
-async def make_user(session: AsyncSession, username: str, is_superuser: bool = False) -> User:
+async def make_user(session: AsyncSession, username: str) -> User:
     user = User(
         name="T",
         username=username,
         email=f"{username}@example.com",
         hashed_password="x",
-        is_superuser=is_superuser,
     )
     session.add(user)
     await session.flush()
@@ -80,12 +79,6 @@ async def test_can_allows_with_assigned_role(session: AsyncSession) -> None:
     session.add(RoleAssignment(user_id=user.id, role_id=role.id))
     await session.flush()
     assert await PermissionService(session).can(user, "assignment.grade") is True
-
-
-async def test_can_has_no_superuser_bypass(session: AsyncSession) -> None:
-    # is_superuser must NOT grant anything — authz is purely assignment-based.
-    user = await make_user(session, "root", is_superuser=True)
-    assert await PermissionService(session).can(user, "anything.at.all") is False
 
 
 async def test_can_denies_permission_at_other_scope(session: AsyncSession) -> None:

@@ -43,7 +43,6 @@ async def _create_regular_user(session: AsyncSession) -> User:
         username=_uniq("regular"),
         email=f"{_uniq('regular')}@example.com",
         hashed_password="fakehash",
-        is_superuser=False,
     )
     session.add(user)
     await session.flush()
@@ -62,7 +61,6 @@ def _override_current_user(client: AsyncClient, user: User) -> None:
         username=user.username,
         email=user.email,
         hashed_password=user.hashed_password,
-        is_superuser=user.is_superuser,
     )
     make_transient(snapshot)
 

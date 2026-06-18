@@ -12,13 +12,12 @@ def _request() -> Request:
     return Request({"type": "http"})
 
 
-async def _seed(session: AsyncSession, username: str, permission: str | None, is_superuser: bool = False) -> User:
+async def _seed(session: AsyncSession, username: str, permission: str | None) -> User:
     user = User(
         name="T",
         username=username,
         email=f"{username}@e.com",
         hashed_password="x",
-        is_superuser=is_superuser,
     )
     session.add(user)
     await session.flush()
@@ -42,14 +41,6 @@ async def test_dependency_allows_when_granted(session: AsyncSession) -> None:
 
 async def test_dependency_denies_without_permission(session: AsyncSession) -> None:
     user = await _seed(session, "bob", None)
-    dep = RequirePermission("assignment.grade")
-    with pytest.raises(HTTPException) as exc:
-        await dep(_request(), user, session)
-    assert exc.value.status_code == 403
-
-
-async def test_dependency_denies_superuser_without_permission(session: AsyncSession) -> None:
-    user = await _seed(session, "root", None, is_superuser=True)
     dep = RequirePermission("assignment.grade")
     with pytest.raises(HTTPException) as exc:
         await dep(_request(), user, session)
