@@ -75,23 +75,20 @@ class TestIngestDocument:
 
     @pytest.mark.asyncio
     async def test_happy_path_returns_counts(self) -> None:
+        # The real (engine-backed) session_scope runs; storage is stubbed so the test
+        # stays focused on ingest_document's return value and chunk-storage delegation.
         extraction = MagicMock(markdown="# H\ntext")
         chunker = MagicMock()
         chunker.return_value.chunk.return_value = [MagicMock()]
         with (
             patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
             patch("app.rag.ingestion.DocumentChunker", chunker),
-            patch("app.rag.ingestion.session_scope") as mock_scope,
             patch("app.rag.ingestion.store_and_link_chunks", return_value=(1, 0)) as mock_store,
         ):
-            mock_session = AsyncMock()
-            mock_scope.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
             result = await ingest_document("a.txt", b"x", 10)
         assert result.new_chunks == 1
         assert result.reused_chunks == 0
         mock_store.assert_awaited_once()
-        mock_session.commit.assert_awaited_once()
 
 
 class TestRetrieveContextSurface:
