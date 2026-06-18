@@ -19,7 +19,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.core_plugins.googledrive.config import GoogleDriveSettings
 from app.core_plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
-from app.lib.db import get_async_session
 from app.main import app
 from app.models.user import User
 
@@ -44,7 +43,7 @@ async def test_user(session: AsyncSession) -> User:
         hashed_password="fakehashedpassword",
     )
     session.add(user)
-    await session.flush()
+    await session.commit()
     await session.refresh(user)
     return user
 
@@ -62,7 +61,7 @@ async def test_oauth_token(session: AsyncSession, test_user: User) -> DriveOAuth
         scopes="https://www.googleapis.com/auth/drive.file",
     )
     session.add(token)
-    await session.flush()
+    await session.commit()
     await session.refresh(token)
     return token
 
@@ -79,7 +78,7 @@ async def test_folder(session: AsyncSession, test_user: User) -> DriveFolder:
         sync_status="synced",
     )
     session.add(folder)
-    await session.flush()
+    await session.commit()
     await session.refresh(folder)
     return folder
 
@@ -99,7 +98,7 @@ async def test_file(session: AsyncSession, test_user: User, test_folder: DriveFo
         last_synced_at=datetime.now(timezone.utc),
     )
     session.add(drive_file)
-    await session.flush()
+    await session.commit()
     await session.refresh(drive_file)
     return drive_file
 
@@ -133,15 +132,13 @@ async def drive_client(
     test_user: User,
     mock_drive_credentials: Any,
 ) -> AsyncGenerator[AsyncClient, None]:
-    """AsyncClient with the shared async session and Drive auth overridden.
+    """AsyncClient with Drive auth overridden.
 
-    All Drive route handlers are async, so overriding ``get_async_session`` with
-    the shared ``session`` fixture lets handlers, data fixtures, and test-body
-    assertions all operate on the same session/transaction.
+    Handlers open their own engine-backed session via the real ``session_scope`` on
+    the same in-memory StaticPool database as the ``session`` fixture, so data seeded
+    (and committed) through ``session`` is visible to handlers and vice versa. Only
+    auth is faked here.
     """
-
-    async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
-        yield session
 
     assert test_user.id is not None
     auth_user = User(
@@ -158,11 +155,9 @@ async def drive_client(
     async def get_user_override() -> User:
         return auth_user
 
-    app.dependency_overrides[get_async_session] = get_async_session_override
     app.dependency_overrides[get_current_user] = get_user_override
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
-    app.dependency_overrides.pop(get_async_session, None)
     app.dependency_overrides.pop(get_current_user, None)

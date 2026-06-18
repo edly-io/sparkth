@@ -352,7 +352,7 @@ class TestGetLogs:
             slack_channel_name="general",
         )
         session.add(log)
-        await session.flush()
+        await session.commit()
 
         response = await slack_client.get("/api/v1/slack/logs")
         assert response.status_code == status.HTTP_200_OK
@@ -380,7 +380,7 @@ class TestGetLogs:
                 team_name="Test Workspace",
             )
         )
-        await session.flush()
+        await session.commit()
 
         response = await slack_client.get("/api/v1/slack/logs")
         assert response.status_code == status.HTTP_200_OK
@@ -412,7 +412,7 @@ class TestGetLogs:
             created_at=base - timedelta(seconds=1),
         )
         session.add(msg_log)
-        await session.flush()
+        await session.commit()
 
         conn_log = SlackConnectionLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -421,7 +421,7 @@ class TestGetLogs:
             created_at=base,
         )
         session.add(conn_log)
-        await session.flush()
+        await session.commit()
 
         response = await slack_client.get("/api/v1/slack/logs")
         data = response.json()
@@ -452,7 +452,7 @@ class TestGetLogs:
                     created_at=base - timedelta(seconds=2 - i),
                 )
             )
-            await session.flush()
+            await session.commit()
 
         response = await slack_client.get("/api/v1/slack/logs?limit=2")
         data = response.json()
@@ -487,7 +487,7 @@ class TestGetLogs:
                 created_at=base - timedelta(seconds=2 - i),
             )
             session.add(log)
-            await session.flush()
+            await session.commit()
             await session.refresh(log)
             ids.append(log.id)
 
@@ -524,7 +524,7 @@ class TestGetLogs:
             created_at=base - timedelta(seconds=2),
         )
         session.add(old_log)
-        await session.flush()
+        await session.commit()
         await session.refresh(old_log)
         since = old_log.id
 
@@ -536,7 +536,7 @@ class TestGetLogs:
                 created_at=base - timedelta(seconds=1),
             )
         )
-        await session.flush()
+        await session.commit()
 
         new_log = BotResponseLog(
             workspace_id=test_workspace.id,  # type: ignore[arg-type]
@@ -550,7 +550,7 @@ class TestGetLogs:
             created_at=base,
         )
         session.add(new_log)
-        await session.flush()
+        await session.commit()
 
         response = await slack_client.get(f"/api/v1/slack/logs?since_id={since}&limit=10")
         data = response.json()
