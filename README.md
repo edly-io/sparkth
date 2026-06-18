@@ -69,6 +69,23 @@ Access the app at http://localhost:3000.
 For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — see the comments inside `.env` for the variables to add there. `.env.local` takes precedence over `.env`.
 
 
+### End-to-end tests
+
+Playwright end-to-end tests live in `frontend/tests/`. They run against their own
+ephemeral SQLite database, created fresh and deleted on every run, so they never
+touch your dev Postgres data. The run starts and stops a throwaway backend (on
+port 7727) and the frontend for you.
+
+Install the browsers once:
+
+    make test.e2e.install
+
+Then, with the backing services up (`make services.up`, for Mailpit and Redis)
+and your dev backend stopped (the run owns port 7727):
+
+    make test.e2e            # headless
+    make test.e2e.ui         # interactive UI mode
+
 ### Local MCP Endpoint
 
 The MCP server is served over HTTP by the running backend. When running the API server
