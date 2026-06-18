@@ -93,8 +93,7 @@ make test.backend.format    # Run backend formatting tests
 make test.frontend          # Run all frontend tests
 make test.frontend.vitest   # Run unit tests with vitest
 make test.frontend.format   # Run frontend formatting tests
-make seed-e2e               # Seed E2E superuser + @example.com whitelist (idempotent; test.e2e runs it automatically)
-make test.e2e               # Run Playwright E2E tests (see frontend/tests/README.md)
+make test.e2e               # Run Playwright E2E tests against an ephemeral SQLite DB (see frontend/tests/README.md)
 make test.e2e.ui            # Run Playwright E2E tests in interactive UI mode
 make test.e2e.install       # Install Playwright browsers (one-time)
 make mypy                   # mypy --strict
