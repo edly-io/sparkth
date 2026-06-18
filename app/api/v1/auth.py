@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import jwt
 import redis.asyncio as aioredis
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import select
@@ -21,6 +21,7 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.db import get_async_session
+from app.lib.permissions import SCOPE_GLOBAL, PermissionService
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
@@ -349,3 +350,27 @@ async def require_superuser(
             detail="Superuser access required",
         )
     return current_user
+
+
+class RequirePermission:
+    """FastAPI dependency authorizing the current user for a permission.
+
+    Instances are callable dependencies; the instance carries the permission and
+    scope, so no nested function is required.
+    """
+
+    def __init__(self, permission: str, scope_type: str = SCOPE_GLOBAL, scope_param: str | None = None) -> None:
+        self.permission = permission
+        self.scope_type = scope_type
+        self.scope_param = scope_param
+
+    async def __call__(
+        self,
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session),
+    ) -> User:
+        scope_id = request.path_params.get(self.scope_param) if self.scope_param else None
+        if not await PermissionService(session).can(current_user, self.permission, self.scope_type, scope_id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        return current_user
