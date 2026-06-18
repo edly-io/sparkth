@@ -4,7 +4,7 @@ import typer
 from sqlmodel import select
 
 from app.lib.db import session_scope
-from app.lib.permissions import PermissionService, RoleNotFound
+from app.lib.permissions import SCOPE_GLOBAL, PermissionService, RoleNotFound
 from app.models.user import User
 
 app = typer.Typer(help="Role management commands")
@@ -26,8 +26,11 @@ async def _assign_role(identifier: str, role: str, scope_type: str, scope_id: st
 
     Separate from the Typer command because Typer entrypoints are synchronous while
     the database layer is async; this is the awaited implementation. Exits non-zero
-    if the user or the role does not exist.
+    if the user or role is missing, or a non-global scope is given without a scope id.
     """
+    if scope_type != SCOPE_GLOBAL and scope_id is None:
+        typer.secho("--scope-id is required for non-global scopes", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
     async with session_scope() as session:
         user = (
             await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))

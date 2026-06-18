@@ -4,6 +4,8 @@ Revision ID: b8bf876007e2
 Revises: 7ee9891441d3
 Create Date: 2026-06-18 16:32:36.226825
 
+Downgrade caveat: removes ALL admin-role assignments and the admin role itself —
+including grants made later via `roles assign-role`, not only the rows seeded here.
 """
 
 from typing import Sequence, Union
