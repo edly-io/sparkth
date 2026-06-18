@@ -4,6 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
 from app.api.v1.auth import RequirePermission
+from app.lib.permissions import SCOPE_GLOBAL
 from app.models.permissions import Role, RoleAssignment, RolePermission
 from app.models.user import User
 
@@ -36,13 +37,13 @@ async def _seed(session: AsyncSession, username: str, permission: str | None, is
 
 async def test_dependency_allows_when_granted(session: AsyncSession) -> None:
     user = await _seed(session, "alice", "assignment.grade")
-    dep = RequirePermission("assignment.grade")
+    dep = RequirePermission("assignment.grade", SCOPE_GLOBAL)
     assert await dep(_request(), user, session) is user
 
 
 async def test_dependency_denies_without_permission(session: AsyncSession) -> None:
     user = await _seed(session, "bob", None)
-    dep = RequirePermission("assignment.grade")
+    dep = RequirePermission("assignment.grade", SCOPE_GLOBAL)
     with pytest.raises(HTTPException) as exc:
         await dep(_request(), user, session)
     assert exc.value.status_code == 403
@@ -50,7 +51,7 @@ async def test_dependency_denies_without_permission(session: AsyncSession) -> No
 
 async def test_dependency_allows_superuser(session: AsyncSession) -> None:
     user = await _seed(session, "root", None, is_superuser=True)
-    dep = RequirePermission("assignment.grade")
+    dep = RequirePermission("assignment.grade", SCOPE_GLOBAL)
     assert await dep(_request(), user, session) is user
 
 

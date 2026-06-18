@@ -21,7 +21,7 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.db import get_async_session
-from app.lib.permissions import SCOPE_GLOBAL, PermissionService
+from app.lib.permissions import PermissionService
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
@@ -359,7 +359,7 @@ class RequirePermission:
     scope, so no nested function is required.
     """
 
-    def __init__(self, permission: str, scope_type: str = SCOPE_GLOBAL, scope_param: str | None = None) -> None:
+    def __init__(self, permission: str, scope_type: str, scope_param: str | None = None) -> None:
         self.permission = permission
         self.scope_type = scope_type
         self.scope_param = scope_param
