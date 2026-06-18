@@ -5,8 +5,8 @@ from starlette.requests import Request
 
 from app.api.v1.auth import RequirePermission
 from app.lib.permissions import SCOPE_GLOBAL
-from app.models.permissions import Role, RoleAssignment, RolePermission
 from app.models.user import User
+from app.permissions.models import Role, RoleAssignment, RolePermission
 
 
 def _request() -> Request:

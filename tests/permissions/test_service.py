@@ -1,10 +1,10 @@
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.permissions import Role, RoleAssignment, RolePermission
 from app.models.user import User
 from app.permissions.constants import SCOPE_GLOBAL
 from app.permissions.exceptions import RoleNotFound
+from app.permissions.models import Role, RoleAssignment, RolePermission
 from app.permissions.service import PermissionService
 
 

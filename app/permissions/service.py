@@ -1,12 +1,12 @@
 """Scoped-RBAC permission service. Authored with LLM (Claude) assistance."""
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.permissions import Role, RoleAssignment, RolePermission
 from app.models.user import User
 from app.permissions.constants import SCOPE_GLOBAL
 from app.permissions.exceptions import RoleNotFound
+from app.permissions.models import Role, RoleAssignment, RolePermission
 
 
 class PermissionService:
@@ -26,7 +26,7 @@ class PermissionService:
             return True
         statement = (
             select(RolePermission.permission)
-            .join(RoleAssignment, RoleAssignment.role_id == RolePermission.role_id)  # type: ignore[arg-type]
+            .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))
             .where(
                 RoleAssignment.user_id == user.id,
                 RoleAssignment.is_deleted == False,
@@ -65,7 +65,7 @@ class PermissionService:
         """Soft-delete all active assignments of role_name for user_id at the given scope."""
         statement = (
             select(RoleAssignment)
-            .join(Role, Role.id == RoleAssignment.role_id)  # type: ignore[arg-type]
+            .join(Role, col(Role.id) == col(RoleAssignment.role_id))
             .where(
                 RoleAssignment.user_id == user_id,
                 Role.name == role_name,
