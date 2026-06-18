@@ -2,9 +2,8 @@
 
 from sqlmodel import Field
 
+from app.models.base import SoftDeleteModel, TimestampedModel
 from app.permissions.constants import SCOPE_GLOBAL
-
-from .base import SoftDeleteModel, TimestampedModel
 
 
 class Role(TimestampedModel, table=True):
