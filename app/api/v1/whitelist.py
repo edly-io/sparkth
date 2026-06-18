@@ -4,6 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import RequirePermission
 from app.lib.db import get_async_session
+from app.lib.permissions import SCOPE_GLOBAL
 from app.models.user import User
 from app.permissions.enums import EmailWhitelistPermissions
 from app.schemas import WhitelistedEmailCreate, WhitelistedEmailResponse
@@ -14,7 +15,7 @@ router = APIRouter()
 
 @router.get("/", response_model=list[WhitelistedEmailResponse])
 async def list_whitelist(
-    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.READ)),
+    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.READ, SCOPE_GLOBAL)),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[WhitelistedEmailResponse]:
     entries = await WhitelistService.list_entries(session)
@@ -24,7 +25,7 @@ async def list_whitelist(
 @router.post("/", response_model=WhitelistedEmailResponse, status_code=status.HTTP_201_CREATED)
 async def add_whitelist_entry(
     payload: WhitelistedEmailCreate,
-    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.CREATE)),
+    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.CREATE, SCOPE_GLOBAL)),
     session: AsyncSession = Depends(get_async_session),
 ) -> WhitelistedEmailResponse:
     try:
@@ -49,7 +50,7 @@ async def add_whitelist_entry(
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_whitelist_entry(
     entry_id: int,
-    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.DELETE)),
+    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.DELETE, SCOPE_GLOBAL)),
     session: AsyncSession = Depends(get_async_session),
 ) -> None:
     try:

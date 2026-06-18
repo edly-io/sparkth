@@ -16,8 +16,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import users
-from app.models.permissions import Role, RoleAssignment
 from app.models.user import User
+from app.permissions.models import Role, RoleAssignment
 
 
 # TODO we should get rid of this fixture once we properly override session_scope in
