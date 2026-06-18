@@ -4,9 +4,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import RequirePermission
 from app.lib.db import get_async_session
-from app.lib.permissions import SCOPE_GLOBAL
+from app.lib.permissions import SCOPE_GLOBAL, EmailWhitelistPermissions
 from app.models.user import User
-from app.permissions.enums import EmailWhitelistPermissions
 from app.schemas import WhitelistedEmailCreate, WhitelistedEmailResponse
 from app.services.whitelist import WhitelistService
 

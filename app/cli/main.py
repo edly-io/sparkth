@@ -1,8 +1,7 @@
 import typer
 
+from app.cli import roles, users
 from app.lib.log import configure_logging
-
-from . import roles, users
 
 app = typer.Typer(help="Root command for all CLI tools")
 

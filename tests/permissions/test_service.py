@@ -132,6 +132,7 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.SCOPE_GLOBAL == "global"
     assert facade.PermissionService is PermissionService
     assert issubclass(facade.RoleNotFound, Exception)
+    assert facade.EmailWhitelistPermissions.READ.value == "email.whitelist.read"
 
 
 async def test_has_role_true_when_assigned(session: AsyncSession) -> None:
