@@ -9,7 +9,7 @@
 # Runs from the repo root (Playwright sets cwd to the repo root).
 set -euo pipefail
 
-rm -f e2e.db e2e.db-shm e2e.db-wal e2e.db-journal
+rm -f e2e.db e2e.db-*
 
 uv run python scripts/e2e_init_db.py
 uv run python scripts/seed_e2e.py

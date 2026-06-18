@@ -126,8 +126,8 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Seed E2E superuser + whitelist
-        # Same idempotent seed `make seed-e2e` runs locally. Reads the
-        # FIRST_SUPERUSER* env vars set at the job level above.
+        # Idempotent seed; locally the E2E backend wrapper seeds the same way.
+        # Reads the FIRST_SUPERUSER* env vars set at the job level above.
         run: uv run python scripts/seed_e2e.py
 
       - name: Install Playwright browsers
