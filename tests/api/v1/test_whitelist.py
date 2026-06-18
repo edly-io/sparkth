@@ -128,6 +128,13 @@ class TestAddWhitelist:
         response = await client.post("/api/v1/whitelist/", json={"value": "not-valid"})
         assert response.status_code == 422
 
+    async def test_read_only_user_cannot_create(self, client: AsyncClient, session: AsyncSession) -> None:
+        user = await _create_user_with_permissions(session, [EmailWhitelistPermissions.READ])
+        _override_current_user(client, user)
+
+        response = await client.post("/api/v1/whitelist/", json={"value": "a@b.com"})
+        assert response.status_code == 403
+
     async def test_regular_user_gets_403(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _create_regular_user(session)
         _override_current_user(client, user)
