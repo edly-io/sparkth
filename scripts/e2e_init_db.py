@@ -10,11 +10,13 @@ import *` registers the core tables and get_plugin_loader() registers the plugin
 tables, so SQLModel.metadata is complete before create_all runs.
 """
 
-from sqlalchemy.engine import Engine
+import asyncio
+
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import SQLModel
 
-from app.core.db import get_engine
+from app.core.db import async_engine
 from app.lib.log import get_logger
 from app.lib.plugins import get_plugin_loader
 from app.models import *  # noqa: F403
@@ -22,11 +24,12 @@ from app.models import *  # noqa: F403
 logger = get_logger(__name__)
 
 
-def init_schema(engine: Engine) -> None:
+async def init_schema(engine: AsyncEngine) -> None:
     """Create every application table on `engine`. Idempotent."""
     get_plugin_loader()
     try:
-        SQLModel.metadata.create_all(engine)
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
     except SQLAlchemyError:
         logger.exception("Failed to create the E2E schema")
         raise
@@ -34,7 +37,7 @@ def init_schema(engine: Engine) -> None:
 
 
 def main() -> None:
-    init_schema(get_engine())
+    asyncio.run(init_schema(async_engine))
 
 
 if __name__ == "__main__":

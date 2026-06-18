@@ -15,24 +15,28 @@ to the values in `frontend/tests/config.ts` and can be overridden via the
 environment variables.
 """
 
+import asyncio
 import os
 
-from sqlmodel import Session, select
+from sqlmodel import select
 
-from app.core.db import get_engine
 from app.core.security import get_password_hash
+from app.lib.db import session_scope
 from app.models.base import utc_now
 from app.models.user import User
 from app.models.whitelist import WhitelistedEmail
 
 
-def main() -> None:
+async def seed() -> None:
     username = os.environ.get("FIRST_SUPERUSER", "admin")
     email = os.environ.get("FIRST_SUPERUSER_EMAIL", "admin@sparkth.local")
     password = os.environ.get("FIRST_SUPERUSER_PASSWORD", "Sparkth-admin-1!")
 
-    with Session(get_engine()) as session:
-        if session.exec(select(User).where((User.username == username) | (User.email == email))).first():
+    async with session_scope() as session:
+        existing_user = (
+            await session.exec(select(User).where((User.username == username) | (User.email == email)))
+        ).first()
+        if existing_user:
             print(f"superuser '{username}' already present")
         else:
             session.add(
@@ -46,15 +50,22 @@ def main() -> None:
                     email_verified_at=utc_now(),
                 )
             )
-            session.commit()
+            await session.commit()
             print(f"superuser '{username}' created")
 
-        if session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == "@example.com")).first():
+        existing_whitelist = (
+            await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == "@example.com"))
+        ).first()
+        if existing_whitelist:
             print("whitelist '@example.com' already present")
         else:
             session.add(WhitelistedEmail(value="@example.com", entry_type="domain"))
-            session.commit()
+            await session.commit()
             print("whitelist '@example.com' created")
+
+
+def main() -> None:
+    asyncio.run(seed())
 
 
 if __name__ == "__main__":
