@@ -21,7 +21,7 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.db import get_async_session
-from app.lib.permissions import SCOPE_GLOBAL, PermissionService
+from app.lib.permissions import PermissionService
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
@@ -348,7 +348,14 @@ class RequirePermission:
     scope, so no nested function is required.
     """
 
-    def __init__(self, permission: str, scope_type: str = SCOPE_GLOBAL, scope_param: str | None = None) -> None:
+    def __init__(self, permission: str, scope_type: str, scope_param: str | None = None) -> None:
+        """Bind the permission and scope this dependency enforces.
+
+        Captured at construction so one instance is a reusable dependency across requests.
+        ``scope_param`` names the path parameter whose value becomes the scope id; it is
+        resolved per request (not here), because the path value does not exist yet when the
+        dependency object is built.
+        """
         self.permission = permission
         self.scope_type = scope_type
         self.scope_param = scope_param
@@ -359,6 +366,12 @@ class RequirePermission:
         current_user: User = Depends(get_current_user),
         session: AsyncSession = Depends(get_async_session),
     ) -> User:
+        """Authorize the current user for the bound permission, or raise 403.
+
+        Resolves the scope id from the request's path params at call time, asks the
+        permission engine whether the user may act, and returns the user so the route
+        receives the authenticated principal. Raises 403 when the permission is absent.
+        """
         scope_id = request.path_params.get(self.scope_param) if self.scope_param else None
         if not await PermissionService(session).can(current_user, self.permission, self.scope_type, scope_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")

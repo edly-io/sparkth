@@ -4,6 +4,8 @@ Application code and plugins import the permissions surface from here, never fro
 ``app.permissions.*`` directly.
 """
 
-from app.permissions.constants import SCOPE_GLOBAL as SCOPE_GLOBAL
-from app.permissions.exceptions import RoleNotFound as RoleNotFound
-from app.permissions.service import PermissionService as PermissionService
+from app.permissions.constants import SCOPE_GLOBAL
+from app.permissions.exceptions import RoleNotFound
+from app.permissions.service import PermissionService
+
+__all__ = ["PermissionService", "RoleNotFound", "SCOPE_GLOBAL"]

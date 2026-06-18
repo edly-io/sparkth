@@ -7,9 +7,9 @@ from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.models.permissions import Role, RoleAssignment, RolePermission
 from app.models.user import User
 from app.permissions.enums import EmailWhitelistPermissions
+from app.permissions.models import Role, RoleAssignment, RolePermission
 
 
 def _uniq(prefix: str) -> str:

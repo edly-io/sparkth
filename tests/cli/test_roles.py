@@ -8,8 +8,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import roles
-from app.models.permissions import Role, RoleAssignment
 from app.models.user import User
+from app.permissions.models import Role, RoleAssignment
 
 
 @pytest.fixture
