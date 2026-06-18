@@ -3,9 +3,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.lib.db import get_async_session
-from app.lib.permissions import PermissionService
+from app.lib.permissions import ROLE_ADMIN, PermissionService
 from app.models.user import User
-from app.permissions.constants import ROLE_ADMIN
 from app.schemas import User as UserSchema
 
 router = APIRouter()

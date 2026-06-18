@@ -5,10 +5,9 @@ from sqlmodel import select
 
 from app.core.security import get_password_hash
 from app.lib.db import session_scope
-from app.lib.permissions import PermissionService, RoleNotFound
+from app.lib.permissions import ROLE_ADMIN, PermissionService, RoleNotFound
 from app.models.base import utc_now
 from app.models.user import User
-from app.permissions.constants import ROLE_ADMIN
 
 app = typer.Typer(help="User management commands")
 

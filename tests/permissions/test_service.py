@@ -130,6 +130,7 @@ def test_facade_exposes_public_surface() -> None:
     from app.lib import permissions as facade
 
     assert facade.SCOPE_GLOBAL == "global"
+    assert facade.ROLE_ADMIN == "admin"
     assert facade.PermissionService is PermissionService
     assert issubclass(facade.RoleNotFound, Exception)
     assert facade.EmailWhitelistPermissions.READ.value == "email.whitelist.read"

@@ -4,9 +4,9 @@ Application code and plugins import the permissions surface from here, never fro
 ``app.permissions.*`` directly.
 """
 
-from app.permissions.constants import SCOPE_GLOBAL
+from app.permissions.constants import ROLE_ADMIN, SCOPE_GLOBAL
 from app.permissions.enums import EmailWhitelistPermissions
 from app.permissions.exceptions import RoleNotFound
 from app.permissions.service import PermissionService
 
-__all__ = ["EmailWhitelistPermissions", "PermissionService", "RoleNotFound", "SCOPE_GLOBAL"]
+__all__ = ["EmailWhitelistPermissions", "PermissionService", "ROLE_ADMIN", "RoleNotFound", "SCOPE_GLOBAL"]
