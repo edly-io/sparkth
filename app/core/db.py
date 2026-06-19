@@ -17,10 +17,18 @@ def _get_async_database_url(url: str) -> str:
     return url
 
 
-# Lazily-built singleton async engine. Built on first `get_engine()` call rather
-# than at import time so that (a) importing `app.core.db` has no side effects and
+def _create_engine(url: str) -> AsyncEngine:
+    """Build an async engine from a database URL, applying a connection pool for non-SQLite backends."""
+    async_url = _get_async_database_url(url)
+    pool_kwargs = dict(pool_size=3, max_overflow=2, pool_recycle=1800) if not async_url.startswith("sqlite") else {}
+    return create_async_engine(async_url, echo=False, pool_pre_ping=True, **pool_kwargs)
+
+
+# Lazily-built singleton async engines. Built on first `get_engine()` / `get_analytics_engine()` call
+# rather than at import time so that (a) importing `app.core.db` has no side effects and
 # (b) tests can swap in their own engine before the real one is ever created.
 _engine: AsyncEngine | None = None
+_analytics_engine: AsyncEngine | None = None
 
 
 def get_engine() -> AsyncEngine:
@@ -33,10 +41,22 @@ def get_engine() -> AsyncEngine:
     """
     global _engine
     if _engine is None:
-        url = _get_async_database_url(get_settings().DATABASE_URL)
-        pool_kwargs = {} if url.startswith("sqlite") else dict(pool_size=3, max_overflow=2, pool_recycle=1800)
-        _engine = create_async_engine(url, echo=False, pool_pre_ping=True, **pool_kwargs)
+        _engine = _create_engine(get_settings().DATABASE_URL)
     return _engine
+
+
+def get_analytics_engine() -> AsyncEngine:
+    """Return the process-wide analytics async engine, building it on first use.
+
+    Mirrors :func:`get_engine` but points at ``ANALYTICS_DATABASE_URL`` (the
+    separate analytics database / TimescaleDB instance). Resolved lazily for the
+    same reasons: no import-time side effects, and tests can inject a throwaway
+    engine.
+    """
+    global _analytics_engine
+    if _analytics_engine is None:
+        _analytics_engine = _create_engine(get_settings().ANALYTICS_DATABASE_URL)
+    return _analytics_engine
 
 
 @asynccontextmanager
@@ -56,6 +76,17 @@ async def open_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSe
         yield session
 
 
+@asynccontextmanager
+async def open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
+    """Open an :class:`AsyncSession` bound to the analytics engine from :func:`get_analytics_engine`.
+
+    Mirrors :func:`open_session` for the analytics database. Tests can override
+    this function on the ``app.core.db`` module to inject a throwaway engine.
+    """
+    async with AsyncSession(get_analytics_engine(), expire_on_commit=expire_on_commit) as session:
+        yield session
+
+
 async def dispose_engine() -> None:
     """Dispose the singleton engine and reset it, so the next `get_engine()` rebuilds.
 
@@ -66,3 +97,11 @@ async def dispose_engine() -> None:
     if _engine is not None:
         await _engine.dispose()
         _engine = None
+
+
+async def dispose_analytics_engine() -> None:
+    """Dispose the analytics singleton engine and reset it, mirroring :func:`dispose_engine`."""
+    global _analytics_engine
+    if _analytics_engine is not None:
+        await _analytics_engine.dispose()
+        _analytics_engine = None

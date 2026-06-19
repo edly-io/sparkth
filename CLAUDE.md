@@ -31,6 +31,7 @@ app/
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/    # Alembic versions
+  migrations_analytics/ # Alembic versions for the separate analytics DB (TimescaleDB)
 
 frontend/
   app/           # Next.js pages: login, register, dashboard/[pluginName]
@@ -117,9 +118,10 @@ make frontend.build  # Static export → frontend/out/ (served by the backend in
 make frontend.build.api  # Regenerate frontend/lib/api/generated.ts from the backend OpenAPI schema (run after backend API changes; called automatically by make frontend.build)
 
 # Database
-make migrations         # Apply Alembic migrations (native)
+make migrations         # Apply Alembic migrations for both app and analytics databases (native)
 make services.logs      # Tail logs for the service containers (make services.logs [service])
 make db-shell           # PostgreSQL shell
+make db-shell-analytics  # PostgreSQL shell on the analytics database
 make create-user        # Create user (pass args after --)
 ```
 
@@ -130,6 +132,7 @@ make create-user        # Create user (pass args after --)
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
+| `ANALYTICS_DATABASE_URL` | PostgreSQL connection for the separate analytics database (TimescaleDB). Same instance as `DATABASE_URL` by default (Option B); point at another host to isolate it. |
 | `SECRET_KEY` | JWT signing key |
 | `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
 | `REDIS_URL` | Redis for chat session caching and the email-verification resend rate-limit bucket |
@@ -222,6 +225,14 @@ To apply all pending migrations:
 ```bash
 make migrations
 ```
+
+The project has **two independent Alembic lineages**: the application database
+(`alembic.ini` → `app/migrations/`) and the analytics database
+(`alembic_analytics.ini` → `app/migrations_analytics/`). `make migrations` applies
+both. Generate an analytics migration with
+`alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
+databases never share metadata: app models use `SQLModel.metadata`, analytics
+tables use `app.models.analytics.analytics_metadata`.
 
 ### Preventing Split Heads
 

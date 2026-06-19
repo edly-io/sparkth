@@ -76,3 +76,36 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with session_scope() as session:
         yield session
+
+
+@asynccontextmanager
+async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
+    """Open an async session against the **analytics** database as a managed context.
+
+    Identical in contract to :func:`session_scope`, but bound to the analytics
+    engine (the separate analytics database). Use this for background/non-request
+    analytics code (event ingestion, rollup maintenance). Inside request handlers,
+    prefer the :func:`get_analytics_session` dependency.
+
+    Delegates to ``core_db.open_analytics_session`` — the same seam that the test
+    suite overrides to inject a throwaway engine.
+
+    Args:
+        expire_on_commit: Whether ORM objects are expired after ``commit()``.
+            Defaults to ``False`` (async-safe).
+
+    Yields:
+        An :class:`AsyncSession` bound to the analytics async engine.
+    """
+    async with core_db.open_analytics_session(expire_on_commit=expire_on_commit) as session:
+        yield session
+
+
+async def get_analytics_session() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency providing an :class:`AsyncSession` bound to the analytics database.
+
+    Delegates to :func:`analytics_session_scope`. Parameterless for the same
+    reason as :func:`get_async_session`.
+    """
+    async with analytics_session_scope() as session:
+        yield session
