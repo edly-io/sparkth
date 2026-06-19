@@ -2,10 +2,10 @@
 
 This is the single public entry point for obtaining a database session. All code,
 including plugins, should acquire sessions from here rather than reaching for the
-raw SQLAlchemy engine in :mod:`app.core.db`.
+raw SQLAlchemy engine in :mod:`app.core.db` or :mod:`app.analytics.db`.
 
-The engine itself stays in :mod:`app.core.db` (it reads settings); this module is
-only the public face that hands out sessions over it.
+The engine itself stays in :mod:`app.core.db` (app DB) and :mod:`app.analytics.db`
+(analytics DB); this module is only the public face that hands out sessions over them.
 """
 
 from collections.abc import AsyncGenerator
@@ -13,10 +13,11 @@ from contextlib import asynccontextmanager
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-# Imported as a module (not `from app.core.db import open_session`) on purpose:
-# `session_scope` resolves `core_db.open_session` at call time, so overriding that one
-# function (e.g. in tests) reaches every caller — including code that imported
-# `session_scope` by value.
+# Imported as modules (not `from … import open_session`) on purpose:
+# `session_scope` / `analytics_session_scope` resolve `open_session` /
+# `open_analytics_session` at call time, so overriding those functions in tests
+# reaches every caller — including code that imported the scope helpers by value.
+import app.analytics.db as analytics_db
 import app.core.db as core_db
 
 
@@ -87,8 +88,8 @@ async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenera
     analytics code (event ingestion, rollup maintenance). Inside request handlers,
     prefer the :func:`get_analytics_session` dependency.
 
-    Delegates to ``core_db.open_analytics_session`` — the same seam that the test
-    suite overrides to inject a throwaway engine.
+    Delegates to ``analytics_db.open_analytics_session`` — the same seam that the
+    test suite overrides to inject a throwaway engine.
 
     Args:
         expire_on_commit: Whether ORM objects are expired after ``commit()``.
@@ -97,7 +98,7 @@ async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenera
     Yields:
         An :class:`AsyncSession` bound to the analytics async engine.
     """
-    async with core_db.open_analytics_session(expire_on_commit=expire_on_commit) as session:
+    async with analytics_db.open_analytics_session(expire_on_commit=expire_on_commit) as session:
         yield session
 
 

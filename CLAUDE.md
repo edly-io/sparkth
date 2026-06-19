@@ -21,6 +21,7 @@ Useful URLs:
 ```
 app/
   core/          # Settings, DB engines, security (JWT/OAuth)
+  analytics/     # Analytics DB engine, session providers, and metadata registry
   lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
   api/v1/        # REST endpoints: auth, user, user-plugins, file-parser
@@ -30,8 +31,9 @@ app/
   services/      # Business logic layer, plugin adapters
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
-  migrations/    # Alembic versions
-  migrations_analytics/ # Alembic versions for the separate analytics DB (TimescaleDB)
+  migrations/
+    core/        # Alembic versions for the main application DB
+    analytics/   # Alembic versions for the separate analytics DB (TimescaleDB)
 
 frontend/
   app/           # Next.js pages: login, register, dashboard/[pluginName]
@@ -39,7 +41,7 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # Core / cross-cutting tests: api/, core/, llm/, rag/, services/
+tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, rag/, services/
                  # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
                  # Shared fixtures: app/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
@@ -58,8 +60,10 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/log.py`](app/lib/log.py) — logging. Obtain loggers via `get_logger`
   (never `logging.getLogger`); `configure_logging` is the single logging setup,
   called once per process entrypoint.
-- [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` for
-  background/non-request code; `get_async_session` is the FastAPI dependency.
+- [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` /
+  `get_async_session` for the main DB; `analytics_session_scope` /
+  `get_analytics_session` for the analytics DB. Implementation lives in
+  `app/core/db.py` (main) and `app/analytics/db.py` (analytics).
 - [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
   `app.core.config` directly. Implementation lives in `app/core/config.py`.
@@ -227,12 +231,12 @@ make migrations
 ```
 
 The project has **two independent Alembic lineages**: the application database
-(`alembic.ini` → `app/migrations/`) and the analytics database
-(`alembic_analytics.ini` → `app/migrations_analytics/`). `make migrations` applies
+(`alembic.ini` → `app/migrations/core/`) and the analytics database
+(`alembic_analytics.ini` → `app/migrations/analytics/`). `make migrations` applies
 both. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
 databases never share metadata: app models use `SQLModel.metadata`, analytics
-tables use `app.models.analytics.analytics_metadata`.
+tables use `app.analytics.models.analytics_metadata`.
 
 ### Preventing Split Heads
 

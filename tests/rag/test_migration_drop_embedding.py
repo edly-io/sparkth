@@ -5,7 +5,7 @@ from pathlib import Path
 
 def _find_migration_file() -> Path | None:
     """Find the migration file that drops embedding columns."""
-    versions_dir = Path(__file__).parent.parent.parent / "app" / "migrations" / "versions"
+    versions_dir = Path(__file__).parent.parent.parent / "app" / "migrations" / "core" / "versions"
     for f in versions_dir.glob("*.py"):
         content = f.read_text()
         if "drop_embedding_columns" in f.name or ("embedding" in content and "drop_column" in content):

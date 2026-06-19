@@ -32,11 +32,13 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.analytics.db as analytics_db
 import app.core.db as core_db
 import app.lib.db as db
+from app.analytics.db import dispose_analytics_engine, get_analytics_engine
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
-from app.core.db import dispose_analytics_engine, dispose_engine, get_analytics_engine, get_engine
+from app.core.db import dispose_engine, get_engine
 from app.main import app
 from app.models.user import User
 
@@ -50,7 +52,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     engine's whole lifetime.
 
     We override the single low-level providers ``app.core.db.open_session`` and
-    ``app.core.db.open_analytics_session`` to create the schema on first use.
+    ``app.analytics.db.open_analytics_session`` to create the schema on first use.
     ``session_scope`` / ``analytics_session_scope`` resolve these via module
     attribute at call time, so a single override reaches *every* call path —
     including modules that did ``from app.lib.db import session_scope``. It stays
@@ -61,7 +63,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     test isolation, not rollback.
     """
     real_open_session = core_db.open_session
-    real_open_analytics_session = core_db.open_analytics_session
+    real_open_analytics_session = analytics_db.open_analytics_session
     schema_created = False
     analytics_schema_created = False
 
@@ -79,7 +81,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     async def _open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession]:
         nonlocal analytics_schema_created
         if not analytics_schema_created:
-            from app.models.analytics import analytics_metadata
+            from app.analytics.models import analytics_metadata
 
             async with get_analytics_engine().begin() as conn:
                 await conn.run_sync(lambda c: analytics_metadata.create_all(c, checkfirst=False))
@@ -88,7 +90,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
             yield s
 
     monkeypatch.setattr(core_db, "open_session", _open_session)
-    monkeypatch.setattr(core_db, "open_analytics_session", _open_analytics_session)
+    monkeypatch.setattr(analytics_db, "open_analytics_session", _open_analytics_session)
 
     try:
         yield

@@ -1,9 +1,10 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 
-def test_analytics_migrations_apply_on_sqlite(tmp_path) -> None:
+def test_analytics_migrations_apply_on_sqlite(tmp_path: Path) -> None:
     db_file = tmp_path / "analytics_migr.db"
     env = {
         "ANALYTICS_DATABASE_URL": f"sqlite+aiosqlite:///{db_file}",
