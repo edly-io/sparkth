@@ -4,7 +4,6 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.user import User
-from app.permissions.constants import SCOPE_GLOBAL
 from app.permissions.exceptions import RoleNotFound
 from app.permissions.models import Role, RoleAssignment, RolePermission
 
@@ -19,8 +18,8 @@ class PermissionService:
         self,
         user: User,
         permission: str,
-        scope_type: str = SCOPE_GLOBAL,
-        scope_id: str | None = None,
+        scope_type: str,
+        scope_id: str | None,
     ) -> bool:
         if user.is_superuser:
             return True
@@ -43,8 +42,8 @@ class PermissionService:
         self,
         user_id: int,
         role_name: str,
-        scope_type: str = SCOPE_GLOBAL,
-        scope_id: str | None = None,
+        scope_type: str,
+        scope_id: str | None,
     ) -> RoleAssignment:
         """Return the active assignment of role_name to user_id at the given scope, creating it if absent.
 
@@ -77,8 +76,8 @@ class PermissionService:
         self,
         user_id: int,
         role_name: str,
-        scope_type: str = SCOPE_GLOBAL,
-        scope_id: str | None = None,
+        scope_type: str,
+        scope_id: str | None,
     ) -> None:
         """Soft-delete all active assignments of role_name for user_id at the given scope."""
         statement = (

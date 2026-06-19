@@ -30,7 +30,7 @@ async def _seed(session: AsyncSession, username: str, permission: str | None, is
         await session.flush()
         assert role.id is not None
         session.add(RolePermission(role_id=role.id, permission=permission))
-        session.add(RoleAssignment(user_id=user.id, role_id=role.id))
+        session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope_type=SCOPE_GLOBAL, scope_id=None))
         await session.flush()
     return user
 

@@ -52,6 +52,10 @@ def upgrade() -> None:
             ["user.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "(scope_type = 'global' AND scope_id IS NULL) OR (scope_type != 'global' AND scope_id IS NOT NULL)",
+            name="ck_role_assignment_scope",
+        ),
     )
     op.create_index(op.f("ix_role_assignment_is_deleted"), "role_assignment", ["is_deleted"], unique=False)
     op.create_index(op.f("ix_role_assignment_role_id"), "role_assignment", ["role_id"], unique=False)

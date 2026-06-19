@@ -1,6 +1,6 @@
 """Scoped-RBAC table models. Authored with LLM (Claude) assistance."""
 
-from sqlalchemy import Index, text
+from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -38,10 +38,18 @@ class RoleAssignment(TimestampedModel, SoftDeleteModel, table=True):
             sqlite_where=text("is_deleted = 0"),
             postgresql_where=text("is_deleted = false"),
         ),
+        # A scope is the pair (scope_type, scope_id): the global scope carries no
+        # id, every other scope must name one. Enforced in the database so no code
+        # path can persist a contradictory pair.
+        CheckConstraint(
+            f"(scope_type = '{SCOPE_GLOBAL}' AND scope_id IS NULL) "
+            f"OR (scope_type != '{SCOPE_GLOBAL}' AND scope_id IS NOT NULL)",
+            name="ck_role_assignment_scope",
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
     role_id: int = Field(foreign_key="role.id", index=True)
-    scope_type: str = Field(default=SCOPE_GLOBAL, max_length=50, index=True)
-    scope_id: str | None = Field(default=None, max_length=100, index=True)
+    scope_type: str = Field(max_length=50, index=True)
+    scope_id: str | None = Field(max_length=100, index=True)
