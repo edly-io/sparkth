@@ -212,6 +212,80 @@ Options:
 - `--username, -u`: Username (required)
 - `--password, -p`: New password (optional, will prompt if not provided)
 
+## Permission Management System
+
+Sparkth authorizes actions with a scoped role-based access control (RBAC) model. Authorization data lives in three tables:
+
+- **`role`** — a named role (e.g. `admin`).
+- **`role_permission`** — the permissions a role grants. A permission is a free-form dotted string (e.g. `assignment.grade`); a role grants many.
+- **`role_assignment`** — grants a role to a user at a single scope.
+
+A user is authorized when they hold, through an active `role_assignment` at the relevant scope, a role whose `role_permission` rows include the permission. `can()` resolves exactly this against the three tables — it is the single authorization check.
+
+### Permissions and scopes are declared through hooks
+
+The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table. Plugins and core features contribute it through two hooks in `app.lib.permissions`:
+
+- **`PERMISSIONS`** — the permission strings that exist (e.g. `assignment.grade`).
+- **`SCOPES`** — the scope kinds that exist, as `Scope` objects.
+
+A plugin ships its own permissions and scope kinds with its code and they are collected on load, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
+
+### Scopes
+
+A scope answers *where* a role applies. It is the pair of two columns on `role_assignment`:
+
+- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `SCOPES` hook. It is a free-form string, not a foreign key.
+- **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
+
+A scope kind may name a parent (`Scope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
+
+The `global` scope is the root: it applies everywhere and names no object, so `scope = 'global'` requires `scope_object_id` to be `NULL`, while every non-global scope requires a `scope_object_id`. A database `CHECK` constraint enforces this pairing.
+
+#### Shipped with the app
+
+| Kind | Names | Notes |
+|---|---|---|
+| **Scopes** | `global` | The root scope; applies platform-wide; `scope_object_id` is `NULL`. |
+| **Roles** | _(none)_ | No roles are seeded by default — define your own (see below). |
+
+### Extending the permission system
+
+**Declare a permission or scope kind** — register it through the `PERMISSIONS` / `SCOPES` hooks in `app.lib.permissions`, next to the code that relies on it. A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
+
+**Add a role and its permissions** — seed them in a migration:
+
+```sql
+INSERT INTO role (name, description, created_at, updated_at)
+VALUES ('grader', 'Grades submissions', now(), now());
+INSERT INTO role_permission (role_id, permission, created_at, updated_at)
+VALUES ((SELECT id FROM role WHERE name = 'grader'), 'assignment.grade', now(), now());
+```
+
+**Assign a role to a user** — call `assign_role`:
+
+```python
+from app.lib.permissions import assign_role, SCOPE_GLOBAL
+
+await assign_role(user_id, "grader", SCOPE_GLOBAL, None, session)
+# or scoped to one course:
+await assign_role(user_id, "grader", "course", "42", session)
+```
+
+**Gate an endpoint on a permission** — depend on `RequirePermission`:
+
+```python
+from fastapi import Depends
+from app.api.v1.auth import RequirePermission
+from app.lib.permissions import SCOPE_GLOBAL
+
+@router.get("/things", dependencies=[Depends(RequirePermission("thing.read", SCOPE_GLOBAL))])
+async def list_things(): ...
+
+# For a scoped check, name the path parameter that carries the object id:
+RequirePermission("course.edit", "course", "course_id")  # reads {course_id} from the path
+```
+
 ## Contributing
 
 Contributions are welcome. Open a pull request against `main` and a maintainer will take a look.

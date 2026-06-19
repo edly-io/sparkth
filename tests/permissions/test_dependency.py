@@ -4,9 +4,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
 from app.api.v1.auth import RequirePermission
-from app.lib.permissions import SCOPE_GLOBAL
+from app.core.permissions.constants import SCOPE_GLOBAL
+from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.models.user import User
-from app.permissions.models import Role, RoleAssignment, RolePermission
 
 
 def _request() -> Request:
@@ -30,7 +30,7 @@ async def _seed(session: AsyncSession, username: str, permission: str | None, is
         await session.flush()
         assert role.id is not None
         session.add(RolePermission(role_id=role.id, permission=permission))
-        session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope_type=SCOPE_GLOBAL, scope_id=None))
+        session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
         await session.flush()
     return user
 
@@ -63,7 +63,7 @@ async def test_dependency_resolves_scope_from_path_params(session: AsyncSession)
     await session.flush()
     assert role.id is not None
     session.add(RolePermission(role_id=role.id, permission="assignment.grade"))
-    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope_type="course", scope_id="5"))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="course", scope_object_id="5"))
     await session.flush()
 
     dep = RequirePermission("assignment.grade", "course", "course_id")
