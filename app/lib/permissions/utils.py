@@ -5,17 +5,17 @@ from app.lib.permissions.hooks import PERMISSIONS, SCOPES
 
 
 def create_permisson(permission: str) -> None:
-    PERMISSIONS.add_item(permission)
+    PERMISSIONS.add_item(
+        # pluging,
+        permission
+    )
     return permission
 
 
 def create_scope(name: str, parent: Scope | None):
     scope = Scope(name, parent)
-    SCOPES.add_item(scope)
+    SCOPES.add_item(
+        # plugin,
+        scope
+    )
     return scope
-
-
-# Need to integrate something like this in the app's lifecycle
-# TODO: incomplete placeholder — temporarily commented out so the suite parses.
-# def add_permissions_to_db():  # placeholder name
-#     for permission in PERMISSIONS.iter_items()

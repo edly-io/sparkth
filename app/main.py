@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.routes.hooks import PLUGIN_ROUTERS
 from app.lib.log import configure_logging, get_logger
 from app.lib.plugins import PluginAccessMiddleware, get_plugin_loader
+from app.lib.permissions.hooks import PERMISSIONS, SCOPES
 from app.mcp.server import mcp, register_plugin_tools
 from app.services.plugin import get_plugin_service
 
@@ -108,6 +109,7 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     )
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)
+    # TODO: how do we add the PERMISSIONS and SCOPES to the application here for down stream usage?
     return application
 
 

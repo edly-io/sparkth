@@ -4,7 +4,7 @@ from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field
 
 from app.models.base import SoftDeleteModel, TimestampedModel
-
+from app.core.permissions.constants import SCOPE_GLOBAL
 
 class Role(TimestampedModel, table=True):
     __tablename__ = "role"
@@ -15,6 +15,7 @@ class Role(TimestampedModel, table=True):
 
 
 class RolePermission(TimestampedModel, table=True):
+    """Bridge table between Role and Permissions to cater the many-to-many relation."""
     __tablename__ = "role_permission"
 
     role_id: int = Field(foreign_key="role.id", primary_key=True)
@@ -41,7 +42,9 @@ class RoleAssignment(TimestampedModel, SoftDeleteModel, table=True):
         # object, every other scope must. Enforced in the database so no code path
         # can persist a contradictory pair.
         CheckConstraint(
-            "(scope = 'global' AND scope_object_id IS NULL) OR (scope != 'global' AND scope_object_id IS NOT NULL)",
+            f"(scope = '{SCOPE_GLOBAL}' AND scope_object_id IS NULL) "
+            "OR "
+            f"(scope != '{SCOPE_GLOBAL}' AND scope_object_id IS NOT NULL)",
             name="ck_role_assignment_scope",
         ),
     )

@@ -1,5 +1,8 @@
 class Scope:
-    """A scope kind and its position in the scope hierarchy.
+    """A Scope level that a plugin contributes to :data:`SCOPES` hook
+
+    The plugin registers it from its ``__init__`` with
+    ``SCOPES.add_item(self, Scope(<scope_name>, parent=<parent_scope_object>))``.
 
     A scope is a named kind of boundary a role can be assigned at (e.g. ``global``,
     ``course``, ``quiz``). Each scope may have a single ``parent`` scope, forming a
