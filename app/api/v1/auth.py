@@ -356,10 +356,10 @@ class RequirePermission:
     """FastAPI dependency authorizing the current user for a permission.
 
     Instances are callable dependencies; the instance carries the permission and
-    scope, so no nested function is required.
+    scope.
     """
 
-    def __init__(self, permission: str, scope: str, scope_param: str | None = None) -> None:
+    def __init__(self, permission: str, permission_scope: str, scope_param: str | None = None) -> None:
         """Bind the permission and scope this dependency enforces.
 
         Captured at construction so one instance is a reusable dependency across requests.
@@ -368,7 +368,7 @@ class RequirePermission:
         dependency object is built.
         """
         self.permission = permission
-        self.scope = scope
+        self.permission_scope = permission_scope
         self.scope_param = scope_param
 
     async def __call__(
@@ -385,6 +385,6 @@ class RequirePermission:
         """
         # TODO: question: where is the `scope_chain` constructed?
         scope_object_id = request.path_params.get(self.scope_param) if self.scope_param else None
-        if not await can(current_user, self.permission, self.scope, scope_object_id, session):
+        if not await can(current_user, self.permission, self.permission_scope, scope_object_id, session):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
         return current_user

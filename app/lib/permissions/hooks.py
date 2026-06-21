@@ -1,4 +1,4 @@
-from app.core.permissions.scope import Scope
+from app.core.permissions.scope import PermissionScope
 from app.core.permissions.constants import SCOPE_GLOBAL
 from app.lib.hooks import PluginCollectionHook
 
@@ -6,9 +6,9 @@ from app.lib.hooks import PluginCollectionHook
 PERMISSIONS: PluginCollectionHook[str] = PluginCollectionHook()
 
 # Scopes hook
-SCOPES: PluginCollectionHook[Scope] = PluginCollectionHook()
-# SCOPES.add_item(Scope(SCOPE_GLOBAL))    # Adding this here for now, might need to shift to a better place
+PERMISSION_SCOPE: PluginCollectionHook[PermissionScope] = PluginCollectionHook()
+# PERMISSION_SCOPE.add_item(PermissionScope(plugin, SCOPE_GLOBAL))  # default global; may move
 
 # TODO: question: how to add default scopes and permission that are not related to any plugin?
 # cant add to `PluginCollectionHook` without a plugin.
-# TODO: question - where do these PERMISSIONS get registered in the plugin lifecycle?
+# TODO: question - where do these hooks get registered in the app lifecycle?

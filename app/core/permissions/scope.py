@@ -1,8 +1,8 @@
-class Scope:
-    """A Scope level that a plugin contributes to :data:`SCOPES` hook
+class PermissionScope:
+    """A PermissionScope level that a plugin contributes to :data:`PERMISSION_SCOPE` hook
 
     The plugin registers it from its ``__init__`` with
-    ``SCOPES.add_item(self, Scope(<scope_name>, parent=<parent_scope_object>))``.
+    ``PERMISSION_SCOPE.add_item(self, PermissionScope(<scope_name>, parent=<parent_scope_object>))``.
 
     A scope is a named kind of boundary a role can be assigned at (e.g. ``global``,
     ``course``, ``quiz``). Each scope may have a single ``parent`` scope, forming a
@@ -10,7 +10,7 @@ class Scope:
     The hierarchy lets a role granted at a parent scope cascade to its descendants.
     """
 
-    def __init__(self, name: str, parent: "Scope" | None = None) -> None:
+    def __init__(self, name: str, parent: "PermissionScope" | None = None) -> None:
         """Create a scope.
 
         Args:
@@ -20,7 +20,7 @@ class Scope:
         self.parent = parent
         self.name = name
 
-    def get_parents(self) -> list["Scope"]:
+    def get_parents(self) -> list["PermissionScope"]:
         """Return this scope's ancestors, nearest first.
 
         Walks up the hierarchy and returns ``[parent, grandparent, …]`` ending at the
