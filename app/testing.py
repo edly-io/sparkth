@@ -17,6 +17,7 @@ import os
 # This must happen before app/core/config.py calls get_settings(), which caches
 # the settings on first use.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("ANALYTICS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
 
@@ -31,8 +32,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.analytics.db as analytics_db
 import app.core.db as core_db
 import app.lib.db as db
+from app.analytics.db import dispose_analytics_engine, get_analytics_engine
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.db import dispose_engine, get_engine
@@ -42,24 +45,27 @@ from app.models.user import User
 
 @pytest.fixture(autouse=True)
 async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
-    """Migrate the in-memory database on first session use, then dispose it.
+    """Migrate the in-memory databases on first session use, then dispose them.
 
-    The test ``DATABASE_URL`` is an in-memory SQLite database backed by a
-    ``StaticPool``: one connection, one database, for the engine's whole lifetime.
+    The test ``DATABASE_URL`` and ``ANALYTICS_DATABASE_URL`` are in-memory SQLite
+    databases backed by a ``StaticPool``: one connection, one database, for the
+    engine's whole lifetime.
 
-    We override the single low-level provider ``app.core.db.open_session`` to create
-    the schema on first use. ``session_scope`` resolves ``open_session`` via module
-    attribute at call time, so this one override reaches *every* call path — the
-    ``session`` fixture, the request path, ``get_async_session``, and direct
-    ``session_scope`` calls in background/CLI/MCP code — including modules that did
-    ``from app.lib.db import session_scope``. It stays lazy: tests that never open a
-    session build no engine and pay nothing.
+    We override the single low-level providers ``app.core.db.open_session`` and
+    ``app.analytics.db.open_analytics_session`` to create the schema on first use.
+    ``session_scope`` / ``analytics_session_scope`` resolve these via module
+    attribute at call time, so a single override reaches *every* call path —
+    including modules that did ``from app.lib.db import session_scope``. It stays
+    lazy: tests that never open a session build no engine and pay nothing.
 
-    Disposing the engine afterwards means the next ``get_engine()`` rebuilds an empty
-    database; that disposal *is* the test isolation, not rollback.
+    Disposing the engines afterwards means the next ``get_engine()`` /
+    ``get_analytics_engine()`` rebuilds an empty database; that disposal *is* the
+    test isolation, not rollback.
     """
     real_open_session = core_db.open_session
+    real_open_analytics_session = analytics_db.open_analytics_session
     schema_created = False
+    analytics_schema_created = False
 
     @asynccontextmanager
     async def _open_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession]:
@@ -71,13 +77,28 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
         async with real_open_session(expire_on_commit=expire_on_commit) as s:
             yield s
 
+    @asynccontextmanager
+    async def _open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession]:
+        nonlocal analytics_schema_created
+        if not analytics_schema_created:
+            from app.analytics.models import analytics_metadata
+
+            async with get_analytics_engine().begin() as conn:
+                await conn.run_sync(lambda c: analytics_metadata.create_all(c, checkfirst=False))
+            analytics_schema_created = True
+        async with real_open_analytics_session(expire_on_commit=expire_on_commit) as s:
+            yield s
+
     monkeypatch.setattr(core_db, "open_session", _open_session)
+    monkeypatch.setattr(analytics_db, "open_analytics_session", _open_analytics_session)
 
     try:
         yield
     finally:
         if schema_created:
             await dispose_engine()
+        if analytics_schema_created:
+            await dispose_analytics_engine()
 
 
 @pytest.fixture

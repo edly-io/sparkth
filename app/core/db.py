@@ -7,7 +7,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 
 
-# Helper function to convert database URL to async driver
 def _get_async_database_url(url: str) -> str:
     """Convert database URL to use async driver."""
     if url.startswith("postgresql://"):
@@ -15,6 +14,13 @@ def _get_async_database_url(url: str) -> str:
     elif url.startswith("sqlite://"):
         return url.replace("sqlite://", "sqlite+aiosqlite://")
     return url
+
+
+def _create_engine(url: str) -> AsyncEngine:
+    """Build an async engine from a database URL, applying a connection pool for non-SQLite backends."""
+    async_url = _get_async_database_url(url)
+    pool_kwargs = dict(pool_size=3, max_overflow=2, pool_recycle=1800) if not async_url.startswith("sqlite") else {}
+    return create_async_engine(async_url, echo=False, pool_pre_ping=True, **pool_kwargs)
 
 
 # Lazily-built singleton async engine. Built on first `get_engine()` call rather
@@ -33,9 +39,7 @@ def get_engine() -> AsyncEngine:
     """
     global _engine
     if _engine is None:
-        url = _get_async_database_url(get_settings().DATABASE_URL)
-        pool_kwargs = {} if url.startswith("sqlite") else dict(pool_size=3, max_overflow=2, pool_recycle=1800)
-        _engine = create_async_engine(url, echo=False, pool_pre_ping=True, **pool_kwargs)
+        _engine = _create_engine(get_settings().DATABASE_URL)
     return _engine
 
 
