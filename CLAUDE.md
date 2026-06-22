@@ -32,7 +32,7 @@ app/
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user management)
   migrations/
-    core/        # Alembic versions for the main application DB
+    app/        # Alembic versions for the main application DB
     analytics/   # Alembic versions for the separate analytics DB (TimescaleDB)
 
 frontend/
@@ -231,7 +231,7 @@ make migrations
 ```
 
 The project has **two independent Alembic lineages**: the application database
-(`alembic.ini` → `app/migrations/core/`) and the analytics database
+(`alembic.ini` → `app/migrations/app/`) and the analytics database
 (`alembic_analytics.ini` → `app/migrations/analytics/`). `make migrations` applies
 both. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
