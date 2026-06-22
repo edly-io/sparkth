@@ -14,11 +14,11 @@ from app.models.user import User
 async def can(
     user: User,
     permission: str,
-    scope: str,
+    permission_scope: str,
     scope_object_id: str | None,
     session: AsyncSession,
 ) -> bool:
-    """Return whether user holds permission at the given scope."""
+    """Return whether user holds permission at the given permission scope."""
     if user.is_superuser:
         return True
     statement = (
@@ -27,7 +27,7 @@ async def can(
         .where(
             RoleAssignment.user_id == user.id,
             RoleAssignment.is_deleted == False,
-            RoleAssignment.scope == scope,
+            RoleAssignment.scope == permission_scope,
             RoleAssignment.scope_object_id == scope_object_id,
             RolePermission.permission == permission,
         )
@@ -40,11 +40,11 @@ async def can(
 async def assign_role(
     user_id: int,
     role_name: str,
-    scope: str,
+    permission_scope: str,
     scope_object_id: str | None,
     session: AsyncSession,
 ) -> RoleAssignment:
-    """Return the active assignment of role_name to user_id at the given scope, creating it if absent.
+    """Return the active assignment of role_name to user_id at the given permission scope, creating it if absent.
 
     Raises RoleNotFound if the role does not exist.
     """
@@ -57,7 +57,7 @@ async def assign_role(
             .where(
                 RoleAssignment.user_id == user_id,
                 RoleAssignment.role_id == role.id,
-                RoleAssignment.scope == scope,
+                RoleAssignment.scope == permission_scope,
                 RoleAssignment.scope_object_id == scope_object_id,
                 RoleAssignment.is_deleted == False,
             )
@@ -66,7 +66,9 @@ async def assign_role(
     ).first()
     if existing is not None:
         return existing
-    assignment = RoleAssignment(user_id=user_id, role_id=role.id, scope=scope, scope_object_id=scope_object_id)
+    assignment = RoleAssignment(
+        user_id=user_id, role_id=role.id, scope=permission_scope, scope_object_id=scope_object_id
+    )
     session.add(assignment)
     await session.flush()
     return assignment
@@ -75,18 +77,18 @@ async def assign_role(
 async def revoke_role(
     user_id: int,
     role_name: str,
-    scope: str,
+    permission_scope: str,
     scope_object_id: str | None,
     session: AsyncSession,
 ) -> None:
-    """Soft-delete all active assignments of role_name for user_id at the given scope."""
+    """Soft-delete all active assignments of role_name for user_id at the given permission scope."""
     statement = (
         select(RoleAssignment)
         .join(Role, col(Role.id) == col(RoleAssignment.role_id))
         .where(
             RoleAssignment.user_id == user_id,
             Role.name == role_name,
-            RoleAssignment.scope == scope,
+            RoleAssignment.scope == permission_scope,
             RoleAssignment.scope_object_id == scope_object_id,
             RoleAssignment.is_deleted == False,
         )

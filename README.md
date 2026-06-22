@@ -227,18 +227,18 @@ A user is authorized when they hold, through an active `role_assignment` at the 
 The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table. Plugins and core features contribute it through two hooks in `app.lib.permissions`:
 
 - **`PERMISSIONS`** — the permission strings that exist (e.g. `assignment.grade`).
-- **`SCOPES`** — the scope kinds that exist, as `Scope` objects.
+- **`PERMISSION_SCOPE`** — the scope kinds that exist, as `PermissionScope` objects.
 
-A plugin ships its own permissions and scope kinds with its code and they are collected on load, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
+At startup the app loads these hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered) — and those registries are what the rest of the system queries. A plugin ships its own permissions and scope kinds with its code and they are collected on load, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
 
 ### Scopes
 
 A scope answers *where* a role applies. It is the pair of two columns on `role_assignment`:
 
-- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `SCOPES` hook. It is a free-form string, not a foreign key.
+- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `PERMISSION_SCOPE` hook. It is a free-form string, not a foreign key.
 - **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
 
-A scope kind may name a parent (`Scope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
+A scope kind may name a parent (`PermissionScope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
 
 The `global` scope is the root: it applies everywhere and names no object, so `scope = 'global'` requires `scope_object_id` to be `NULL`, while every non-global scope requires a `scope_object_id`. A database `CHECK` constraint enforces this pairing.
 
@@ -251,7 +251,7 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 
 ### Extending the permission system
 
-**Declare a permission or scope kind** — register it through the `PERMISSIONS` / `SCOPES` hooks in `app.lib.permissions`, next to the code that relies on it. A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
+**Declare a permission or scope kind** — register it through the `PERMISSIONS` / `PERMISSION_SCOPE` hooks in `app.lib.permissions`, next to the code that relies on it. A scope kind's parent must be declared before it. A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
 
 **Add a role and its permissions** — seed them in a migration:
 
@@ -265,9 +265,10 @@ VALUES ((SELECT id FROM role WHERE name = 'grader'), 'assignment.grade', now(), 
 **Assign a role to a user** — call `assign_role`:
 
 ```python
-from app.lib.permissions import assign_role, SCOPE_GLOBAL
+from app.lib.permissions import assign_role
 
-await assign_role(user_id, "grader", SCOPE_GLOBAL, None, session)
+# the platform-wide "global" scope names no object, so scope_object_id is None
+await assign_role(user_id, "grader", "global", None, session)
 # or scoped to one course:
 await assign_role(user_id, "grader", "course", "42", session)
 ```
@@ -277,9 +278,8 @@ await assign_role(user_id, "grader", "course", "42", session)
 ```python
 from fastapi import Depends
 from app.api.v1.auth import RequirePermission
-from app.lib.permissions import SCOPE_GLOBAL
 
-@router.get("/things", dependencies=[Depends(RequirePermission("thing.read", SCOPE_GLOBAL))])
+@router.get("/things", dependencies=[Depends(RequirePermission("thing.read", "global"))])
 async def list_things(): ...
 
 # For a scoped check, name the path parameter that carries the object id:

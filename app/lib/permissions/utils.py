@@ -13,11 +13,11 @@ def create_permisson(permission: str) -> None:
     return permission
 
 
-def create_scope(name: str, parent: PermissionScope | None):
-    scope = PermissionScope(name, parent)
-    # Check if the scope already exists
+def create_permission_scope(name: str, parent: PermissionScope | None):
+    permission_scope = PermissionScope(name, parent)
+    # Check if the permission scope already exists
     PERMISSION_SCOPE.add_item(
         # plugin,
-        scope
+        permission_scope
     )
-    return scope
+    return permission_scope

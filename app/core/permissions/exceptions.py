@@ -14,9 +14,9 @@ class PermissionNotFound(Exception):
         self.permission = permission
 
 
-class ScopeNotFound(Exception):
-    """Raised when a scope referenced by name is not registered."""
+class PermissionScopeNotFound(Exception):
+    """Raised when a permission scope referenced by name is not registered."""
 
     def __init__(self, name: str) -> None:
-        super().__init__(f"Scope not found: {name}")
+        super().__init__(f"Permission scope not found: {name}")
         self.name = name

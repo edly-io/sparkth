@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.permissions.exceptions import PermissionNotFound, ScopeNotFound
+from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scope import PermissionScope
 from app.lib.permissions import registry
 from app.lib.permissions.registry import (
@@ -17,7 +17,7 @@ def permissions() -> PermissionsRegistry:
 
 
 @pytest.fixture
-def scopes() -> PermissionScopesRegistry:
+def permission_scopes() -> PermissionScopesRegistry:
     return PermissionScopesRegistry()
 
 
@@ -58,56 +58,56 @@ def test_clear_empties_permissions(permissions: PermissionsRegistry) -> None:
     assert permissions.all() == []
 
 
-def test_add_scope_returns_it(scopes: PermissionScopesRegistry) -> None:
-    scope = PermissionScope("global")
-    assert scopes.add(scope) is scope
+def test_add_permission_scope_returns_it(permission_scopes: PermissionScopesRegistry) -> None:
+    permission_scope = PermissionScope("global")
+    assert permission_scopes.add(permission_scope) is permission_scope
 
 
-def test_get_scope_returns_added(scopes: PermissionScopesRegistry) -> None:
-    scope = PermissionScope("global")
-    scopes.add(scope)
-    assert scopes.get("global") is scope
+def test_get_permission_scope_returns_added(permission_scopes: PermissionScopesRegistry) -> None:
+    permission_scope = PermissionScope("global")
+    permission_scopes.add(permission_scope)
+    assert permission_scopes.get("global") is permission_scope
 
 
-def test_get_unknown_scope_raises(scopes: PermissionScopesRegistry) -> None:
-    with pytest.raises(ScopeNotFound):
-        scopes.get("course")
+def test_get_unknown_permission_scope_raises(permission_scopes: PermissionScopesRegistry) -> None:
+    with pytest.raises(PermissionScopeNotFound):
+        permission_scopes.get("course")
 
 
-def test_add_child_after_parent_links(scopes: PermissionScopesRegistry) -> None:
+def test_add_child_after_parent_links(permission_scopes: PermissionScopesRegistry) -> None:
     root = PermissionScope("global")
     course = PermissionScope("course", parent=root)
-    scopes.add(root)
-    scopes.add(course)
+    permission_scopes.add(root)
+    permission_scopes.add(course)
 
-    assert scopes.get("course").parent is root
+    assert permission_scopes.get("course").parent is root
 
 
-def test_add_scope_with_unregistered_parent_raises(scopes: PermissionScopesRegistry) -> None:
-    # A scope's parent must be registered first; we do not auto-create ancestors.
+def test_add_permission_scope_with_unregistered_parent_raises(permission_scopes: PermissionScopesRegistry) -> None:
+    # A permission scope's parent must be registered first; we do not auto-create ancestors.
     course = PermissionScope("course", parent=PermissionScope("global"))
-    with pytest.raises(ScopeNotFound):
-        scopes.add(course)
+    with pytest.raises(PermissionScopeNotFound):
+        permission_scopes.add(course)
 
 
-def test_add_chain_in_hierarchy_order(scopes: PermissionScopesRegistry) -> None:
+def test_add_chain_in_hierarchy_order(permission_scopes: PermissionScopesRegistry) -> None:
     root = PermissionScope("global")
     course = PermissionScope("course", parent=root)
     quiz = PermissionScope("quiz", parent=course)
-    scopes.add(root)
-    scopes.add(course)
-    scopes.add(quiz)
+    permission_scopes.add(root)
+    permission_scopes.add(course)
+    permission_scopes.add(quiz)
 
-    assert scopes.get("global") is root
-    assert scopes.get("course") is course
-    assert scopes.get("quiz") is quiz
+    assert permission_scopes.get("global") is root
+    assert permission_scopes.get("course") is course
+    assert permission_scopes.get("quiz") is quiz
 
 
-def test_clear_empties_scopes(scopes: PermissionScopesRegistry) -> None:
-    scopes.add(PermissionScope("global"))
-    scopes.clear()
-    with pytest.raises(ScopeNotFound):
-        scopes.get("global")
+def test_clear_empties_permission_scopes(permission_scopes: PermissionScopesRegistry) -> None:
+    permission_scopes.add(PermissionScope("global"))
+    permission_scopes.clear()
+    with pytest.raises(PermissionScopeNotFound):
+        permission_scopes.get("global")
 
 
 def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -117,7 +117,7 @@ def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.Mo
     assert PermissionsRegistry().get("assignment.grade") == "assignment.grade"
 
 
-def test_initialize_scopes_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_initialize_permission_scopes_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
     root = PermissionScope("global")
     course = PermissionScope("course", parent=root)
     # Parent must be registered before its child, so the hook must yield it first.

@@ -7,7 +7,7 @@ Each registry is a singleton: ``PermissionsRegistry()`` always returns the one
 shared instance.
 """
 
-from app.core.permissions.exceptions import PermissionNotFound, ScopeNotFound
+from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scope import PermissionScope
 from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
 
@@ -72,23 +72,23 @@ class PermissionScopesRegistry:
         if not hasattr(self, "_index"):
             self._index = {}
 
-    def add(self, scope: PermissionScope) -> PermissionScope:
-        """Register scope and return it. Registering the same one twice is a no-op.
+    def add(self, permission_scope: PermissionScope) -> PermissionScope:
+        """Register permission_scope and return it. Registering the same one twice is a no-op.
 
-        The scope's parent, if any, must already be registered; ancestors are never
-        auto-created. Adding a scope whose parent is absent raises ScopeNotFound.
+        The permission scope's parent, if any, must already be registered; ancestors are
+        never auto-created. Adding one whose parent is absent raises PermissionScopeNotFound.
         """
-        if scope.name in self._index:
-            return scope
-        if scope.parent is not None and scope.parent.name not in self._index:
-            raise ScopeNotFound(scope.parent.name)
-        self._index[scope.name] = scope
-        return scope
+        if permission_scope.name in self._index:
+            return permission_scope
+        if permission_scope.parent is not None and permission_scope.parent.name not in self._index:
+            raise PermissionScopeNotFound(permission_scope.parent.name)
+        self._index[permission_scope.name] = permission_scope
+        return permission_scope
 
     def get(self, name: str) -> PermissionScope:
-        """Return the registered scope named name, or raise ScopeNotFound."""
+        """Return the registered permission scope named name, or raise PermissionScopeNotFound."""
         if name not in self._index:
-            raise ScopeNotFound(name)
+            raise PermissionScopeNotFound(name)
         return self._index[name]
 
     def clear(self) -> None:
@@ -104,7 +104,7 @@ def initialize_permissions_registry() -> None:
 
 
 def initialize_permission_scopes_registry() -> None:
-    """Load every scope contributed through the PERMISSION_SCOPE hook into the registry."""
+    """Load every permission scope contributed through the PERMISSION_SCOPE hook into the registry."""
     registry = PermissionScopesRegistry()
-    for _, scope in PERMISSION_SCOPE.iter_items():
-        registry.add(scope)
+    for _, permission_scope in PERMISSION_SCOPE.iter_items():
+        registry.add(permission_scope)

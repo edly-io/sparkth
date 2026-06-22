@@ -3,8 +3,9 @@
 from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field
 
-from app.models.base import SoftDeleteModel, TimestampedModel
 from app.core.permissions.constants import SCOPE_GLOBAL
+from app.models.base import SoftDeleteModel, TimestampedModel
+
 
 class Role(TimestampedModel, table=True):
     __tablename__ = "role"
