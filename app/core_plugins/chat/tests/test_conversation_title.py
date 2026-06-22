@@ -1,11 +1,16 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core_plugins.chat.conversation_title import (
     extract_title_from_messages,
     generate_conversation_title,
     get_first_user_text,
 )
+from app.core_plugins.chat.models import Conversation
 from app.core_plugins.chat.schemas import ChatMessage
+from app.core_plugins.chat.service import ChatService
 
 
 def _user_msg(text: str) -> ChatMessage:
@@ -123,122 +128,107 @@ class TestGenerateConversationTitle:
     """
     generate_conversation_title:
       1. Calls provider.send_message with a title prompt
-      2. Strips the response and persists via service.update_conversation_title
+      2. Strips the response and persists it via the real ChatService against the DB
     """
 
-    def _make_mocks(self, llm_response: str = "Debugging Async Session") -> tuple[MagicMock, MagicMock, AsyncMock]:
-        mock_provider = MagicMock()
-        mock_provider.send_message = AsyncMock(return_value={"content": llm_response})
+    @staticmethod
+    def _provider(llm_response: str = "Debugging Async Session") -> MagicMock:
+        provider = MagicMock()
+        provider.send_message = AsyncMock(return_value={"content": llm_response})
+        return provider
 
-        mock_service = MagicMock()
-        mock_service.update_conversation_title = AsyncMock()
+    @staticmethod
+    async def _seed_conversation(session: AsyncSession, conversation_id: int, user_id: int = 42) -> None:
+        session.add(Conversation(id=conversation_id, user_id=user_id, provider="openai", model="gpt-4o"))
+        await session.commit()
 
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        return mock_provider, mock_service, mock_session
-
-    async def _call(
-        self,
-        mock_provider: MagicMock,
-        mock_service: MagicMock,
-        mock_session: AsyncMock,
+    @staticmethod
+    async def _generate(
+        provider: MagicMock,
         *,
-        conversation_id: int = 1,
+        conversation_id: int,
         user_id: int = 42,
         first_user_message: str = "some message",
     ) -> None:
-        with patch("app.core_plugins.chat.conversation_title.session_scope", return_value=mock_session):
-            await generate_conversation_title(
-                conversation_id=conversation_id,
-                user_id=user_id,
-                first_user_message=first_user_message,
-                service=mock_service,
-                provider=mock_provider,
-            )
+        await generate_conversation_title(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            first_user_message=first_user_message,
+            service=ChatService(),
+            provider=provider,
+        )
 
-    async def test_calls_update_with_llm_title(self) -> None:
-        mock_provider, mock_service, mock_session = self._make_mocks("Fix Async Bug")
-        await self._call(
-            mock_provider,
-            mock_service,
-            mock_session,
+    @staticmethod
+    async def _title(session: AsyncSession, conversation_id: int) -> str | None:
+        session.expire_all()
+        conversation = (await session.exec(select(Conversation).where(Conversation.id == conversation_id))).first()
+        assert conversation is not None
+        return conversation.title
+
+    async def test_persists_llm_title(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 1)
+        await self._generate(
+            self._provider("Fix Async Bug"),
             conversation_id=1,
             first_user_message="How do I fix async session errors?",
         )
 
-        mock_service.update_conversation_title.assert_awaited_once()
-        call_kwargs = mock_service.update_conversation_title.call_args.kwargs
-        assert call_kwargs["conversation_id"] == 1
-        assert call_kwargs["title"] == "Fix Async Bug"
+        assert await self._title(session, 1) == "Fix Async Bug"
 
-    async def test_strips_quotes_from_llm_response(self) -> None:
-        mock_provider, mock_service, mock_session = self._make_mocks('"Quoted Title"')
-        await self._call(mock_provider, mock_service, mock_session, conversation_id=2)
+    async def test_strips_quotes_from_llm_response(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 2)
+        await self._generate(self._provider('"Quoted Title"'), conversation_id=2)
 
-        call_kwargs = mock_service.update_conversation_title.call_args.kwargs
-        assert call_kwargs["title"] == "Quoted Title"
+        assert await self._title(session, 2) == "Quoted Title"
 
-    async def test_truncates_title_to_255_chars(self) -> None:
-        mock_provider, mock_service, mock_session = self._make_mocks("w" * 300)
-        await self._call(mock_provider, mock_service, mock_session, conversation_id=3)
+    async def test_truncates_title_to_255_chars(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 3)
+        await self._generate(self._provider("w" * 300), conversation_id=3)
 
-        call_kwargs = mock_service.update_conversation_title.call_args.kwargs
-        assert len(call_kwargs["title"]) == 255
+        title = await self._title(session, 3)
+        assert title is not None
+        assert len(title) == 255
 
-    async def test_skips_update_when_llm_returns_empty_string(self) -> None:
-        mock_provider, mock_service, mock_session = self._make_mocks("   ")
-        await self._call(mock_provider, mock_service, mock_session, conversation_id=4)
+    async def test_skips_update_when_llm_returns_empty_string(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 4)
+        await self._generate(self._provider("   "), conversation_id=4)
 
-        mock_service.update_conversation_title.assert_not_awaited()
+        assert await self._title(session, 4) is None  # title left untouched
 
-    async def test_swallows_provider_exception(self) -> None:
-        mock_provider = MagicMock()
-        mock_provider.send_message = AsyncMock(side_effect=RuntimeError("API error"))
-        mock_service = MagicMock()
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
+    async def test_swallows_provider_exception(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 5)
+        provider = MagicMock()
+        provider.send_message = AsyncMock(side_effect=RuntimeError("API error"))
 
-        await generate_conversation_title(
-            conversation_id=5,
-            user_id=42,
-            first_user_message="message",
-            service=mock_service,
-            provider=mock_provider,
-        )
+        # Must not raise; title stays unset.
+        await self._generate(provider, conversation_id=5)
 
-    async def test_prompt_contains_first_user_message(self) -> None:
-        mock_provider, mock_service, mock_session = self._make_mocks("Some Title")
-        await self._call(
-            mock_provider, mock_service, mock_session, conversation_id=6, first_user_message="explain gradient descent"
-        )
+        assert await self._title(session, 5) is None
 
-        sent_messages = mock_provider.send_message.call_args.kwargs["messages"]
+    async def test_prompt_contains_first_user_message(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 6)
+        provider = self._provider("Some Title")
+        await self._generate(provider, conversation_id=6, first_user_message="explain gradient descent")
+
+        sent_messages = provider.send_message.call_args.kwargs["messages"]
         assert any("explain gradient descent" in m["content"] for m in sent_messages)
 
-    async def test_prompt_truncates_long_message_to_500_chars(self) -> None:
-        mock_provider, mock_service, mock_session = self._make_mocks("Some Title")
-        await self._call(mock_provider, mock_service, mock_session, conversation_id=7, first_user_message="x" * 1000)
+    async def test_prompt_truncates_long_message_to_500_chars(self, session: AsyncSession) -> None:
+        await self._seed_conversation(session, 7)
+        provider = self._provider("Some Title")
+        await self._generate(provider, conversation_id=7, first_user_message="x" * 1000)
 
-        prompt_content = mock_provider.send_message.call_args.kwargs["messages"][0]["content"]
+        prompt_content = provider.send_message.call_args.kwargs["messages"][0]["content"]
         assert "x" * 501 not in prompt_content
         assert "x" * 500 in prompt_content
 
-    async def test_passed_provider_send_message_is_called(self) -> None:
+    async def test_passed_provider_send_message_is_called(self, session: AsyncSession) -> None:
         """The provider passed in is the one whose send_message is called."""
-        mock_provider, mock_service, mock_session = self._make_mocks("Passed Provider Title")
+        await self._seed_conversation(session, 8)
+        provider = self._provider("Passed Provider Title")
 
-        with patch("app.core_plugins.chat.conversation_title.session_scope", return_value=mock_session):
-            await generate_conversation_title(
-                conversation_id=8,
-                user_id=42,
-                first_user_message="some message",
-                service=mock_service,
-                provider=mock_provider,
-            )
+        await self._generate(provider, conversation_id=8, first_user_message="some message")
 
-        mock_provider.send_message.assert_awaited_once()
-        sent_messages = mock_provider.send_message.call_args.kwargs["messages"]
+        provider.send_message.assert_awaited_once()
+        sent_messages = provider.send_message.call_args.kwargs["messages"]
         assert any("some message" in m["content"] for m in sent_messages)

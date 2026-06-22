@@ -13,7 +13,11 @@ from contextlib import asynccontextmanager
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import async_engine
+# Imported as a module (not `from app.core.db import open_session`) on purpose:
+# `session_scope` resolves `core_db.open_session` at call time, so overriding that one
+# function (e.g. in tests) reaches every caller — including code that imported
+# `session_scope` by value.
+import app.core.db as core_db
 
 
 @asynccontextmanager
@@ -21,7 +25,7 @@ async def session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncS
     """Open an async database session as a managed context.
 
     Yields an :class:`AsyncSession` — a unit-of-work that borrows a connection
-    from the shared ``async_engine`` pool, tracks the ORM objects you load and
+    from the shared engine (``app.core.db.get_engine``), tracks the ORM objects you load and
     mutate, and returns the connection to the pool when the ``async with`` block
     exits (whether normally or via an exception). Always use it as a context
     manager so the connection is never leaked::
@@ -56,9 +60,9 @@ async def session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncS
             Defaults to ``False`` (async-safe).
 
     Yields:
-        An :class:`AsyncSession` bound to the shared async engine.
+        An :class:`AsyncSession` bound to the engine from :func:`app.core.db.get_engine`.
     """
-    async with AsyncSession(async_engine, expire_on_commit=expire_on_commit) as session:
+    async with core_db.open_session(expire_on_commit=expire_on_commit) as session:
         yield session
 
 

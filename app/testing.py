@@ -15,13 +15,13 @@ import os
 
 # Set test environment variables BEFORE importing app modules.
 # This must happen before app/core/config.py calls get_settings(), which caches
-# the settings. We also need DATABASE_URL set before app/core/db.py creates
-# the async_engine at import time.
+# the settings on first use.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
 
 from collections.abc import AsyncGenerator, Generator
+from contextlib import asynccontextmanager
 from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
@@ -31,56 +31,65 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import app.core.db as core_db
+import app.lib.db as db
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
-from app.core.db import async_engine
-from app.lib.db import get_async_session
+from app.core.db import dispose_engine, get_engine
 from app.main import app
 from app.models.user import User
 
 
-@pytest.fixture(scope="session", autouse=True)
-async def dispose_async_engine() -> AsyncGenerator[None, None]:
-    """Close the shared async engine once the whole test session is done.
+@pytest.fixture(autouse=True)
+async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
+    """Migrate the in-memory database on first session use, then dispose it.
 
-    The ``:memory:`` test database uses a ``StaticPool``, so a single aiosqlite
-    connection is kept open for the entire run. aiosqlite runs each connection in
-    a *non-daemon* worker thread, which only exits when the connection is closed.
-    Without this final dispose the thread lingers and the interpreter hangs
-    joining it at shutdown.
+    The test ``DATABASE_URL`` is an in-memory SQLite database backed by a
+    ``StaticPool``: one connection, one database, for the engine's whole lifetime.
+
+    We override the single low-level provider ``app.core.db.open_session`` to create
+    the schema on first use. ``session_scope`` resolves ``open_session`` via module
+    attribute at call time, so this one override reaches *every* call path — the
+    ``session`` fixture, the request path, ``get_async_session``, and direct
+    ``session_scope`` calls in background/CLI/MCP code — including modules that did
+    ``from app.lib.db import session_scope``. It stays lazy: tests that never open a
+    session build no engine and pay nothing.
+
+    Disposing the engine afterwards means the next ``get_engine()`` rebuilds an empty
+    database; that disposal *is* the test isolation, not rollback.
     """
-    yield
-    await async_engine.dispose()
+    real_open_session = core_db.open_session
+    schema_created = False
+
+    @asynccontextmanager
+    async def _open_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession]:
+        nonlocal schema_created
+        if not schema_created:
+            async with get_engine().begin() as conn:
+                await conn.run_sync(lambda c: SQLModel.metadata.create_all(c, checkfirst=False))
+            schema_created = True
+        async with real_open_session(expire_on_commit=expire_on_commit) as s:
+            yield s
+
+    monkeypatch.setattr(core_db, "open_session", _open_session)
+
+    try:
+        yield
+    finally:
+        if schema_created:
+            await dispose_engine()
 
 
 @pytest.fixture
 async def session() -> AsyncGenerator[AsyncSession, None]:
+    """Async session on the shared in-memory database (schema from ``_db_schema``).
+
+    Because the engine uses a ``StaticPool``, every session opened on it — this
+    fixture, the request path, or a ``session_scope`` call in background/CLI code —
+    shares the same database.
     """
-    Async database session that will efficiently rollback all changes for all async
-    queries.
-    """
-    async with async_engine.connect() as conn:
-        tx = await conn.begin()
-
-        # Create all tables corresponding to all models
-        await conn.run_sync(SQLModel.metadata.create_all)
-
-        session = AsyncSession(bind=conn)
-
-        # Override global async sessions
-        async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
-            yield session
-
-        app.dependency_overrides[get_async_session] = get_async_session_override
-        try:
-            yield session
-        finally:
-            app.dependency_overrides.pop(get_async_session, None)
-
-            # Rollback the transaction so data is never actually written to the
-            # test database.
-            await session.close()
-            await tx.rollback()
+    async with db.session_scope() as s:
+        yield s
 
 
 @pytest.fixture
