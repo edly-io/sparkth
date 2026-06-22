@@ -234,9 +234,12 @@ export interface paths {
          * Emit Event
          * @description Validate an analytics event against its versioned schema and land it.
          *
-         *     Fire-and-forget for the producer: does the minimum (validate + insert) and
-         *     returns ``202``. Unknown event types and invalid payloads are rejected with
-         *     ``422``.
+         *     Only client-emittable event types are accepted here. Server-only types (e.g.
+         *     ``assessment.submitted``) must be emitted by server-side callers via
+         *     `ingest_event` directly.
+         *
+         *     ``occurred_at`` is always set to the server's current time; the client cannot
+         *     supply it. Unknown event types and invalid payloads are rejected with ``422``.
          */
         post: operations["emit_event_api_v1_events__post"];
         delete?: never;

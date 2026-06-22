@@ -4,10 +4,10 @@ A representative event that proves the registry + versioning + gateway path. It 
 not yet emitted by any producer — producer wiring is a later phase.
 """
 
-from pydantic import BaseModel
+from app.analytics.schemas.base import AnalyticsEventSchema
 
 
-class AssessmentSubmitted(BaseModel):
+class AssessmentSubmitted(AnalyticsEventSchema):
     learner_id: str
     competency_id: str
     score: float
