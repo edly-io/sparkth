@@ -1,147 +1,157 @@
-"""Tests for RAG cleanup: orphaned chunk deletion."""
+"""Tests for RAG cleanup: orphaned chunk deletion (against a real in-memory DB)."""
 
-from collections.abc import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-import pytest
-
+from app.lib.documents import Document
 from app.rag.cleanup import cleanup_deleted_documents
+from app.rag.models import DocumentChunk, DocumentChunkLink
 
 
-def _make_session(
-    scalars_side_effects: list[MagicMock],
-    execute_side_effects: list[MagicMock] | None = None,
-) -> AsyncMock:
-    """Build a mock AsyncSession.
-
-    scalars() handles single-column SELECT queries; execute() handles DELETE/DML statements.
-    """
-    session = AsyncMock()
-    session.__aenter__ = AsyncMock(return_value=session)
-    session.__aexit__ = AsyncMock(return_value=False)
-    session.scalars = AsyncMock(side_effect=scalars_side_effects)
-    session.execute = AsyncMock(side_effect=execute_side_effects or [])
-    session.commit = AsyncMock()
-    return session
+def _document(doc_id: int, *, is_deleted: bool) -> Document:
+    return Document(id=doc_id, user_id=1, name=f"doc-{doc_id}.pdf", is_deleted=is_deleted)
 
 
-def _rows(*values: object) -> MagicMock:
-    """Return a mock result whose .all() yields scalar values."""
-    result = MagicMock()
-    result.all.return_value = list(values)
-    return result
+def _chunk(chunk_id: int) -> DocumentChunk:
+    return DocumentChunk(id=chunk_id, source_name="src.pdf", content="body")
 
 
-@pytest.fixture
-def patch_session() -> Generator[MagicMock, None, None]:
-    """Patch session_scope so cleanup_deleted_documents uses our mock."""
-    with patch("app.rag.cleanup.session_scope") as mock_cls:
-        yield mock_cls
+async def _seed(session: AsyncSession, *objects: object) -> None:
+    for obj in objects:
+        session.add(obj)
+    # cleanup_deleted_documents opens its own session on the shared in-memory
+    # connection, so the rows must be committed before it can see them.
+    await session.commit()
+
+
+async def _chunk_ids(session: AsyncSession) -> set[int]:
+    session.expire_all()
+    return {chunk_id for chunk_id in (await session.exec(select(DocumentChunk.id))).all() if chunk_id is not None}
+
+
+async def _link_keys(session: AsyncSession) -> set[tuple[int, int]]:
+    session.expire_all()
+    rows = (await session.exec(select(DocumentChunkLink.document_id, DocumentChunkLink.chunk_id))).all()
+    return {(doc_id, chunk_id) for doc_id, chunk_id in rows}
+
+
+async def _document_ids(session: AsyncSession) -> set[int]:
+    session.expire_all()
+    return {doc_id for doc_id in (await session.exec(select(Document.id))).all() if doc_id is not None}
 
 
 class TestCleanupDeletedDocuments:
-    async def test_no_deleted_documents_exits_early(self, patch_session: MagicMock) -> None:
-        session = _make_session([_rows()])  # empty deleted-documents result
-        patch_session.return_value = session
-
-        await cleanup_deleted_documents()
-
-        session.scalars.assert_awaited_once()
-        session.commit.assert_not_awaited()
-
-    async def test_deleted_documents_with_no_chunks(self, patch_session: MagicMock) -> None:
-        """Deleted Documents with no linked chunks: only delete links (0 rows matched)."""
-        session = _make_session(
-            scalars_side_effects=[_rows(1, 2), _rows()],  # deleted doc ids, no candidate chunks
-            execute_side_effects=[MagicMock()],  # DELETE links only
+    async def test_no_deleted_documents_exits_early(self, session: AsyncSession) -> None:
+        """With no soft-deleted documents, nothing is touched."""
+        await _seed(
+            session,
+            _document(1, is_deleted=False),
+            _chunk(10),
+            DocumentChunkLink(document_id=1, chunk_id=10),
         )
-        patch_session.return_value = session
 
         await cleanup_deleted_documents()
 
-        assert session.scalars.await_count == 2
-        assert session.execute.await_count == 1
-        session.commit.assert_awaited_once()
+        assert await _chunk_ids(session) == {10}
+        assert await _link_keys(session) == {(1, 10)}
 
-    async def test_all_chunks_still_alive_deletes_links_only(self, patch_session: MagicMock) -> None:
-        """When all chunks are still alive, delete only document-chunk links."""
-        session = _make_session(
-            scalars_side_effects=[
-                _rows(1),
-                _rows(10, 11),
-                _rows(10, 11),  # all chunks are alive
-            ],
-            execute_side_effects=[MagicMock()],  # DELETE links only
+    async def test_deleted_documents_with_no_chunks(self, session: AsyncSession) -> None:
+        """Soft-deleted documents with no linked chunks: documents survive, nothing to clean."""
+        await _seed(session, _document(1, is_deleted=True), _document(2, is_deleted=True))
+
+        await cleanup_deleted_documents()
+
+        # Cleanup never hard-deletes Document rows.
+        assert await _document_ids(session) == {1, 2}
+        assert await _chunk_ids(session) == set()
+        assert await _link_keys(session) == set()
+
+    async def test_all_chunks_still_alive_deletes_links_only(self, session: AsyncSession) -> None:
+        """Chunks shared with a live document survive; only the deleted doc's links go."""
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _document(2, is_deleted=False),
+            _chunk(10),
+            _chunk(11),
+            DocumentChunkLink(document_id=1, chunk_id=10),
+            DocumentChunkLink(document_id=1, chunk_id=11),
+            DocumentChunkLink(document_id=2, chunk_id=10),
+            DocumentChunkLink(document_id=2, chunk_id=11),
         )
-        patch_session.return_value = session
 
         await cleanup_deleted_documents()
 
-        assert session.scalars.await_count == 3
-        assert session.execute.await_count == 1
-        session.commit.assert_awaited_once()
+        assert await _chunk_ids(session) == {10, 11}
+        assert await _link_keys(session) == {(2, 10), (2, 11)}
 
-    async def test_orphaned_chunks_are_deleted(self, patch_session: MagicMock) -> None:
-        session = _make_session(
-            scalars_side_effects=[
-                _rows(1),
-                _rows(10, 11),
-                _rows(10),  # chunk 11 orphaned
-            ],
-            execute_side_effects=[MagicMock(), MagicMock()],  # DELETE links, DELETE chunks
+    async def test_orphaned_chunks_are_deleted(self, session: AsyncSession) -> None:
+        """A chunk linked only to deleted documents is removed; a shared one is kept."""
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _document(2, is_deleted=False),
+            _chunk(10),
+            _chunk(11),
+            DocumentChunkLink(document_id=1, chunk_id=10),
+            DocumentChunkLink(document_id=1, chunk_id=11),
+            DocumentChunkLink(document_id=2, chunk_id=10),  # chunk 10 still alive
         )
-        patch_session.return_value = session
 
         await cleanup_deleted_documents()
 
-        assert session.scalars.await_count == 3
-        assert session.execute.await_count == 2
-        session.commit.assert_awaited_once()
+        assert await _chunk_ids(session) == {10}
+        assert await _link_keys(session) == {(2, 10)}
 
-    async def test_all_chunks_orphaned_when_no_alive_documents(self, patch_session: MagicMock) -> None:
-        session = _make_session(
-            scalars_side_effects=[_rows(1, 2), _rows(10, 11, 12), _rows()],  # deleted ids, candidates, none alive
-            execute_side_effects=[MagicMock(), MagicMock()],  # DELETE links, DELETE chunks
+    async def test_all_chunks_orphaned_when_no_alive_documents(self, session: AsyncSession) -> None:
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _document(2, is_deleted=True),
+            _chunk(10),
+            _chunk(11),
+            _chunk(12),
+            DocumentChunkLink(document_id=1, chunk_id=10),
+            DocumentChunkLink(document_id=1, chunk_id=11),
+            DocumentChunkLink(document_id=2, chunk_id=12),
         )
-        patch_session.return_value = session
 
         await cleanup_deleted_documents()
 
-        assert session.scalars.await_count == 3
-        assert session.execute.await_count == 2
-        session.commit.assert_awaited_once()
+        assert await _chunk_ids(session) == set()
+        assert await _link_keys(session) == set()
 
-    async def test_shared_chunk_preserved_when_one_document_alive(self, patch_session: MagicMock) -> None:
-        """Chunk linked to both a deleted and a live document must not be deleted."""
-        session = _make_session(
-            scalars_side_effects=[_rows(1), _rows(99), _rows(99)],  # chunk 99 also alive
-            execute_side_effects=[MagicMock()],  # DELETE links only
+    async def test_shared_chunk_preserved_when_one_document_alive(self, session: AsyncSession) -> None:
+        """A chunk linked to both a deleted and a live document must not be deleted."""
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _document(2, is_deleted=False),
+            _chunk(99),
+            DocumentChunkLink(document_id=1, chunk_id=99),
+            DocumentChunkLink(document_id=2, chunk_id=99),
         )
-        patch_session.return_value = session
 
         await cleanup_deleted_documents()
 
-        assert session.scalars.await_count == 3
-        assert session.execute.await_count == 1
-        session.commit.assert_awaited_once()
+        assert await _chunk_ids(session) == {99}
+        assert await _link_keys(session) == {(2, 99)}
 
-    async def test_delete_statements_use_correct_ids(self, patch_session: MagicMock) -> None:
-        """DELETE statements reference the right document/chunk ids."""
-        session = _make_session(
-            scalars_side_effects=[
-                _rows(5),
-                _rows(20, 21),
-                _rows(20),  # chunk 21 orphaned
-            ],
-            execute_side_effects=[MagicMock(), MagicMock()],  # DELETE links, DELETE chunks
+    async def test_deletes_target_the_right_ids(self, session: AsyncSession) -> None:
+        """Only the soft-deleted document's links and its orphaned chunks are removed."""
+        await _seed(
+            session,
+            _document(5, is_deleted=True),
+            _document(6, is_deleted=False),
+            _chunk(20),
+            _chunk(21),
+            DocumentChunkLink(document_id=5, chunk_id=20),
+            DocumentChunkLink(document_id=5, chunk_id=21),
+            DocumentChunkLink(document_id=6, chunk_id=20),  # chunk 20 still alive
         )
-        patch_session.return_value = session
 
         await cleanup_deleted_documents()
 
-        calls = session.execute.await_args_list
-        compiled_links = str(calls[0][0][0].compile(compile_kwargs={"literal_binds": False}))
-        compiled_chunks = str(calls[1][0][0].compile(compile_kwargs={"literal_binds": False}))
-
-        assert "rag_document_chunk_links" in compiled_links
-        assert "rag_document_chunks" in compiled_chunks
+        assert await _chunk_ids(session) == {20}  # chunk 21 orphaned and deleted
+        assert await _link_keys(session) == {(6, 20)}  # doc 5's links gone
+        assert await _document_ids(session) == {5, 6}

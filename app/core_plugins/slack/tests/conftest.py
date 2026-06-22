@@ -23,7 +23,6 @@ from app.api.v1.auth import get_current_user
 from app.core_plugins.slack.config import SlackSettings
 from app.core_plugins.slack.models import SlackWorkspace
 from app.core_plugins.slack.service import encrypt_token
-from app.lib.db import get_async_session
 from app.lib.settings import get_settings
 from app.main import app
 from app.models.user import User
@@ -45,7 +44,9 @@ async def test_user(session: AsyncSession) -> User:
         hashed_password="fakehashedpassword",
     )
     session.add(user)
-    await session.flush()
+    # Commit (not just flush) so handlers running on their own engine-backed session
+    # see the seeded row and don't roll it back when their session_scope closes.
+    await session.commit()
     await session.refresh(user)
     return user
 
@@ -61,7 +62,7 @@ async def test_workspace(session: AsyncSession, test_user: User) -> SlackWorkspa
         is_active=True,
     )
     session.add(workspace)
-    await session.flush()
+    await session.commit()
     await session.refresh(workspace)
     return workspace
 
@@ -87,13 +88,11 @@ async def slack_client(
     test_user: User,
     mock_slack_credentials: Any,
 ) -> AsyncGenerator[AsyncClient, None]:
-    async def get_async_session_override() -> AsyncGenerator[AsyncSession, None]:
-        yield session
-
+    # No get_async_session override: handlers open their own engine-backed session on
+    # the same in-memory StaticPool DB as the `session` fixture. Only auth is faked.
     async def get_user_override() -> User:
         return test_user
 
-    app.dependency_overrides[get_async_session] = get_async_session_override
     app.dependency_overrides[get_current_user] = get_user_override
 
     async with AsyncClient(
@@ -102,5 +101,4 @@ async def slack_client(
     ) as ac:
         yield ac
 
-    app.dependency_overrides.pop(get_async_session, None)
     app.dependency_overrides.pop(get_current_user, None)

@@ -3,8 +3,8 @@
 import inspect
 
 
-def test_async_engine_has_explicit_pool_config() -> None:
-    """Verify async_engine is created with explicit pool_size and max_overflow."""
+def test_engine_has_explicit_pool_config() -> None:
+    """Verify the engine is created with explicit pool_size and max_overflow."""
     # Verify the source code contains the pool configuration parameters
     import app.core.db
 
@@ -15,7 +15,7 @@ def test_async_engine_has_explicit_pool_config() -> None:
     assert "max_overflow=2" in source
     assert "pool_recycle=1800" in source
 
-    # Verify the engine is actually created and usable
-    from app.core.db import async_engine
+    # Verify the engine provider builds a usable engine
+    from app.core.db import get_engine
 
-    assert async_engine is not None
+    assert get_engine() is not None

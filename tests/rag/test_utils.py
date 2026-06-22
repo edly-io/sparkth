@@ -1,68 +1,64 @@
-"""Tests for RAG utility functions."""
+"""Tests for RAG utility functions (against a real in-memory DB)."""
 
-from collections.abc import Sequence
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.lib.documents import Document
+from app.rag.models import DocumentChunk, DocumentChunkLink
 from app.rag.utils import get_rag_ingested_document_structure
 
-
-def _mock_document(document_id: int, name: str) -> MagicMock:
-    document = MagicMock()
-    document.id = document_id
-    document.name = name
-    return document
+# (chapter, section, subsection, [chunk ids]) — chunk ids drive the section ordering
+# (sections are ordered by the minimum chunk id within each group).
+Group = tuple[str | None, str | None, str | None, list[int]]
 
 
-def _make_session(
-    document: MagicMock | None,
-    rows: Sequence[tuple[str | None, str | None, str | None, int]],
-) -> AsyncMock:
-    session = AsyncMock(spec=AsyncSession)
-
-    document_result = MagicMock()
-    document_result.first.return_value = document
-
-    structure_result = MagicMock()
-    structure_result.all.return_value = rows
-
-    if document is None:
-        session.exec = AsyncMock(return_value=document_result)
-    else:
-        session.exec = AsyncMock(side_effect=[document_result, structure_result])
-
-    return session
+async def _seed(session: AsyncSession, document_id: int, name: str, groups: list[Group]) -> None:
+    session.add(Document(id=document_id, user_id=1, name=name))
+    for chapter, section, subsection, chunk_ids in groups:
+        for chunk_id in chunk_ids:
+            session.add(
+                DocumentChunk(
+                    id=chunk_id,
+                    source_name=name,
+                    content="body",
+                    chapter=chapter,
+                    section=section,
+                    subsection=subsection,
+                )
+            )
+            session.add(DocumentChunkLink(document_id=document_id, chunk_id=chunk_id))
+    await session.commit()
 
 
 class TestGetRagIngestedDocumentStructure:
-    @pytest.mark.asyncio
-    async def test_position_index_assigned_in_document_order(self) -> None:
-        rows = [
-            ("Chapter 1", "Introduction", None, 3),
-            ("Chapter 1", "Background", None, 5),
-            ("Chapter 2", None, None, 2),
-        ]
-        with patch("app.rag.utils.session_scope") as mock_scope:
-            mock_scope.return_value.__aenter__.return_value = _make_session(
-                _mock_document(document_id=10, name="test.pdf"), rows
-            )
+    async def test_position_index_assigned_in_document_order(self, session: AsyncSession) -> None:
+        await _seed(
+            session,
+            10,
+            "test.pdf",
+            [
+                ("Chapter 1", "Introduction", None, [1, 2, 3]),
+                ("Chapter 1", "Background", None, [4, 5, 6, 7, 8]),
+                ("Chapter 2", None, None, [9, 10]),
+            ],
+        )
 
-            result = await get_rag_ingested_document_structure(10)
+        result = await get_rag_ingested_document_structure(10)
 
         assert [section.position_index for section in result] == [0, 1, 2]
+        assert [(s.chapter, s.section, s.chunk_count) for s in result] == [
+            ("Chapter 1", "Introduction", 3),
+            ("Chapter 1", "Background", 5),
+            ("Chapter 2", None, 2),
+        ]
 
-    @pytest.mark.asyncio
-    async def test_chunk_count_and_section_fields_populated(self) -> None:
-        with patch("app.rag.utils.session_scope") as mock_scope:
-            mock_scope.return_value.__aenter__.return_value = _make_session(
-                _mock_document(document_id=10, name="test.pdf"),
-                [("Ch1", "Sec1", "Sub1", 7)],
-            )
+    async def test_chunk_count_and_section_fields_populated(self, session: AsyncSession) -> None:
+        await _seed(session, 10, "test.pdf", [("Ch1", "Sec1", "Sub1", [1, 2, 3, 4, 5, 6, 7])])
 
-            result = await get_rag_ingested_document_structure(10)
+        result = await get_rag_ingested_document_structure(10)
 
         assert len(result) == 1
         section = result[0]
@@ -73,21 +69,15 @@ class TestGetRagIngestedDocumentStructure:
         assert section.chunk_count == 7
         assert section.position_index == 0
 
-    @pytest.mark.asyncio
-    async def test_document_not_found_returns_empty(self) -> None:
-        with patch("app.rag.utils.session_scope") as mock_scope:
-            mock_scope.return_value.__aenter__.return_value = _make_session(None, [])
-
-            result = await get_rag_ingested_document_structure(999)
+    async def test_document_not_found_returns_empty(self, session: AsyncSession) -> None:
+        result = await get_rag_ingested_document_structure(999)
 
         assert result == []
 
-    @pytest.mark.asyncio
     async def test_sqlalchemy_error_raises(self) -> None:
-        with patch("app.rag.utils.session_scope") as mock_scope:
-            session = AsyncMock(spec=AsyncSession)
-            session.exec = AsyncMock(side_effect=SQLAlchemyError("DB error"))
-            mock_scope.return_value.__aenter__.return_value = session
-
+        with patch(
+            "app.rag.utils._fetch_document",
+            new=AsyncMock(side_effect=SQLAlchemyError("DB error")),
+        ):
             with pytest.raises(SQLAlchemyError):
                 await get_rag_ingested_document_structure(1)

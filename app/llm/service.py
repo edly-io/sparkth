@@ -6,9 +6,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.cache import CacheService, get_cache_service
-from app.core.config import get_settings
-from app.core.encryption import EncryptionService, get_encryption_service
 from app.lib.log import get_logger
 from app.llm.exceptions import (
     LLMConfigDuplicateNameError,
@@ -17,6 +14,7 @@ from app.llm.exceptions import (
     LLMConfigNotFoundError,
     LLMConfigValidationError,
 )
+from app.llm.protocols import SupportsCache, SupportsEncryption
 from app.llm.providers import get_models_for_provider
 from app.models.llm import LLMConfig
 
@@ -26,7 +24,7 @@ _CACHE_PREFIX = "llm_config"
 
 
 class LLMConfigService:
-    def __init__(self, encryption: EncryptionService, cache: CacheService) -> None:
+    def __init__(self, encryption: SupportsEncryption, cache: SupportsCache) -> None:
         """Initialize with encryption and cache services."""
         self.encryption = encryption
         self.cache = cache
@@ -222,11 +220,3 @@ class LLMConfigService:
         session.add(config)
         await session.flush()
         return config, decrypted
-
-
-def get_llm_service() -> LLMConfigService:
-    settings = get_settings()
-    return LLMConfigService(
-        encryption=get_encryption_service(settings.LLM_ENCRYPTION_KEY),
-        cache=get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
-    )

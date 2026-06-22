@@ -91,5 +91,8 @@ class TestGoogleCallbackVerification:
         assert response.status_code == 302
         result = await session.exec(select(User).where(User.email == email))
         refreshed = result.one()
+        # The request handler mutated the user in its own session; refresh to pull
+        # the committed row rather than this session's cached (pre-callback) copy.
+        await session.refresh(refreshed)
         assert refreshed.email_verified is True
         assert refreshed.email_verified_at is not None

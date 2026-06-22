@@ -22,7 +22,7 @@ services:
   # Postgres
   # For production we should use a managed DB service e.g AWS RDS
   db:
-    image: docker.io/pgvector/pgvector:pg18
+    image: docker.io/timescale/timescaledb-ha:pg18
     restart: unless-stopped
     ports:
       - "127.0.0.1:5432:5432"
@@ -30,6 +30,7 @@ services:
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sparkth}"]
       interval: 5s
