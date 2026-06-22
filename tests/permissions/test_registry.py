@@ -1,5 +1,6 @@
 import pytest
 
+from app.core.permissions.defaults import DEFAULT_PERMISSION_SCOPES, DEFAULT_PERMISSIONS
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scope import PermissionScope
 from app.lib.permissions import registry
@@ -30,6 +31,20 @@ def _reset_registries() -> None:
 def test_registries_are_singletons() -> None:
     assert PermissionsRegistry() is PermissionsRegistry()
     assert PermissionScopesRegistry() is PermissionScopesRegistry()
+
+
+def test_construction_seeds_default_permission_scopes() -> None:
+    # Reset the singleton so __init__ runs fresh; the autouse fixture clears the
+    # shared instance, so a fresh build is the only way to observe seeding.
+    PermissionScopesRegistry.instance = None
+    fresh = PermissionScopesRegistry()
+    assert fresh.get("global") is DEFAULT_PERMISSION_SCOPES[0]
+
+
+def test_construction_seeds_default_permissions() -> None:
+    PermissionsRegistry.instance = None
+    fresh = PermissionsRegistry()
+    assert fresh.all() == list(DEFAULT_PERMISSIONS)
 
 
 def test_add_permission_returns_it(permissions: PermissionsRegistry) -> None:

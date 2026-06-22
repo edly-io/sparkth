@@ -7,6 +7,7 @@ Each registry is a singleton: ``PermissionsRegistry()`` always returns the one
 shared instance.
 """
 
+from app.core.permissions.defaults import DEFAULT_PERMISSION_SCOPES, DEFAULT_PERMISSIONS
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scope import PermissionScope
 from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
@@ -28,6 +29,8 @@ class PermissionsRegistry:
         # guard the storage so an existing registry is never reset.
         if not hasattr(self, "_permissions"):
             self._permissions = []
+            for permission in DEFAULT_PERMISSIONS:
+                self.add(permission)
 
     def add(self, permission: str) -> str:
         """Register permission and return it. Registering the same one twice is a no-op."""
@@ -71,6 +74,8 @@ class PermissionScopesRegistry:
         # guard the storage so an existing registry is never reset.
         if not hasattr(self, "_index"):
             self._index = {}
+            for permission_scope in DEFAULT_PERMISSION_SCOPES:
+                self.add(permission_scope)
 
     def add(self, permission_scope: PermissionScope) -> PermissionScope:
         """Register permission_scope and return it. Registering the same one twice is a no-op.

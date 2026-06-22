@@ -222,20 +222,20 @@ Sparkth authorizes actions with a scoped role-based access control (RBAC) model.
 
 A user is authorized when they hold, through an active `role_assignment` at the relevant scope, a role whose `role_permission` rows include the permission. `can()` resolves exactly this against the three tables — it is the single authorization check.
 
-### Permissions and scopes are declared through hooks
+### Permissions and scopes are declared in code
 
-The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table. Plugins and core features contribute it through two hooks in `app.lib.permissions`:
+The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table. It comes from two sources:
 
-- **`PERMISSIONS`** — the permission strings that exist (e.g. `assignment.grade`).
-- **`PERMISSION_SCOPE`** — the scope kinds that exist, as `PermissionScope` objects.
+- **Platform defaults** — the permissions and scope kinds the application ships with (e.g. the `global` scope) live in `app.core.permissions.defaults` and are seeded into the registries at construction, so they exist regardless of which plugins are loaded.
+- **Plugin contributions** — plugins add their own through two hooks in `app.lib.permissions`: **`PERMISSIONS`** (permission strings, e.g. `assignment.grade`) and **`PERMISSION_SCOPE`** (scope kinds, as `PermissionScope` objects).
 
-At startup the app loads these hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered) — and those registries are what the rest of the system queries. A plugin ships its own permissions and scope kinds with its code and they are collected on load, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
+At startup the app loads the hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered) — layering plugin contributions on top of the seeded defaults. Those registries are what the rest of the system queries, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
 
 ### Scopes
 
 A scope answers *where* a role applies. It is the pair of two columns on `role_assignment`:
 
-- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `PERMISSION_SCOPE` hook. It is a free-form string, not a foreign key.
+- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared as a platform default or through the `PERMISSION_SCOPE` hook. It is a free-form string, not a foreign key.
 - **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
 
 A scope kind may name a parent (`PermissionScope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
@@ -251,7 +251,7 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 
 ### Extending the permission system
 
-**Declare a permission or scope kind** — register it through the `PERMISSIONS` / `PERMISSION_SCOPE` hooks in `app.lib.permissions`, next to the code that relies on it. A scope kind's parent must be declared before it. A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
+**Declare a permission or scope kind** — for a plugin, register it through the `PERMISSIONS` / `PERMISSION_SCOPE` hooks in `app.lib.permissions`, next to the code that relies on it; for a platform-wide default (not tied to any plugin), add it to `app.core.permissions.defaults`. A scope kind's parent must be declared before it. A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
 
 **Add a role and its permissions** — seed them in a migration:
 
