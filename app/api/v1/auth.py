@@ -10,6 +10,8 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,7 +22,8 @@ from app.core.google_auth import (
     generate_google_login_url,
     get_google_user_info,
 )
-from app.lib.db import get_async_session
+from app.lib.analytics import UnknownEventTypeError, ingest_event
+from app.lib.db import get_analytics_session, get_async_session
 from app.lib.log import get_logger
 from app.lib.permissions import can
 from app.models.base import utc_now
@@ -135,7 +138,9 @@ async def register_user(
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
-    form_data: UserLogin, session: AsyncSession = Depends(get_async_session)
+    form_data: UserLogin,
+    session: AsyncSession = Depends(get_async_session),
+    analytics_session: AsyncSession = Depends(get_analytics_session),
 ) -> dict[str, str | datetime]:
     result = await session.exec(select(User).where(User.username == form_data.username))
     user = result.one_or_none()
@@ -166,6 +171,25 @@ async def login_for_access_token(
     expires_at = utc_now() + access_token_expires
 
     access_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+
+    # Emitted inline on the request's event loop (awaited here, NOT via
+    # BackgroundTasks/create_task) so tests can override get_analytics_session and
+    # assert the row landed.
+    # "Fire-and-forget" is the error contract, not the
+    # scheduling: it is one INSERT and any failure is swallowed and logged, so
+    # analytics can never break login. Latency is not isolated, though — if the
+    # analytics write ever becomes slow, move this to a background dispatch (the
+    # ingest_event gateway contract stays the same).
+    try:
+        await ingest_event(
+            analytics_session,
+            "user.logged_in",
+            1,
+            {"username": user.username},
+            actor_id=str(user.id) if user.id is not None else None,
+        )
+    except (UnknownEventTypeError, ValidationError, SQLAlchemyError) as exc:
+        logger.warning("Failed to emit user.logged_in analytics event: %s", exc)
 
     return {"access_token": access_token, "token_type": "bearer", "expires_at": expires_at}
 

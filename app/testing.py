@@ -114,6 +114,20 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
+async def analytics_session() -> AsyncGenerator[AsyncSession, None]:
+    """Async session on the shared in-memory **analytics** database (schema from ``_db_schema``).
+
+    Mirrors the app ``session`` fixture but bound to the analytics engine. Isolation
+    comes from ``_db_schema`` disposing the in-memory analytics engine after each test,
+    not from rollback. Because the analytics engine uses a ``StaticPool``, the request
+    handler's ``get_analytics_session`` and this fixture share the same database, so a
+    row the handler commits is visible to assertions here.
+    """
+    async with db.analytics_session_scope() as s:
+        yield s
+
+
+@pytest.fixture
 async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     """
     Similar to TestClient, but for async requests.
