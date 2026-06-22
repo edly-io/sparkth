@@ -47,3 +47,35 @@ def test_sample_schema_validates_good_payload() -> None:
 def test_sample_schema_rejects_bad_payload() -> None:
     with pytest.raises(ValidationError):
         AssessmentSubmitted.model_validate({"learner_id": "u1"})
+
+
+def test_assessment_submitted_rejects_extra_fields() -> None:
+    with pytest.raises(ValidationError):
+        AssessmentSubmitted.model_validate(
+            {"learner_id": "u1", "competency_id": "c1", "score": 0.9, "passed": True, "extra": "bad"}
+        )
+
+
+def test_user_logged_in_rejects_extra_fields() -> None:
+    from app.analytics.schemas.v1.user_logged_in import UserLoggedIn
+
+    with pytest.raises(ValidationError):
+        UserLoggedIn.model_validate({"username": "alice", "extra": "bad"})
+
+
+def test_server_only_defaults_to_false() -> None:
+    registry = EventRegistry()
+    registry.register("sample.event", 1, AssessmentSubmitted)
+    assert registry.is_server_only("sample.event", 1) is False
+
+
+def test_server_only_can_be_set_true() -> None:
+    registry = EventRegistry()
+    registry.register("secure.event", 1, AssessmentSubmitted, server_only=True)
+    assert registry.is_server_only("secure.event", 1) is True
+
+
+def test_is_server_only_raises_for_unregistered_event() -> None:
+    registry = EventRegistry()
+    with pytest.raises(UnknownEventTypeError):
+        registry.is_server_only("does.not.exist", 1)

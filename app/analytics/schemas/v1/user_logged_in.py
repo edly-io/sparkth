@@ -4,8 +4,8 @@ Emitted fire-and-forget by the login endpoint on a successful password login —
 the first real producer wired to the emission gateway.
 """
 
-from pydantic import BaseModel
+from app.analytics.schemas.base import AnalyticsEventSchema
 
 
-class UserLoggedIn(BaseModel):
+class UserLoggedIn(AnalyticsEventSchema):
     username: str

@@ -35,7 +35,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.analytics.db as analytics_db
 import app.core.db as core_db
 import app.lib.db as db
-from app.analytics.db import dispose_analytics_engine, get_analytics_engine
 from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.db import dispose_engine, get_engine
@@ -83,7 +82,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
         if not analytics_schema_created:
             from app.analytics.models import analytics_metadata
 
-            async with get_analytics_engine().begin() as conn:
+            async with analytics_db.get_analytics_engine().begin() as conn:
                 await conn.run_sync(lambda c: analytics_metadata.create_all(c, checkfirst=False))
             analytics_schema_created = True
         async with real_open_analytics_session(expire_on_commit=expire_on_commit) as s:
@@ -98,7 +97,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
         if schema_created:
             await dispose_engine()
         if analytics_schema_created:
-            await dispose_analytics_engine()
+            await analytics_db.dispose_analytics_engine()
 
 
 @pytest.fixture

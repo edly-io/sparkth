@@ -37,6 +37,7 @@ class EventRegistry:
         # the existing singleton — guard so re-construction never wipes registrations.
         if not hasattr(self, "_schemas"):
             self._schemas: dict[tuple[str, int], type[BaseModel]] = {}
+            self._server_only: dict[tuple[str, int], bool] = {}
             self._register_defaults()
 
     def _register_defaults(self) -> None:
@@ -44,12 +45,29 @@ class EventRegistry:
         # Lazy import avoids a module-level dependency from registry → schemas.
         from app.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
 
-        self.register("assessment.submitted", 1, AssessmentSubmitted)
-        self.register("user.logged_in", 1, UserLoggedIn)
+        self.register("assessment.submitted", 1, AssessmentSubmitted, server_only=True)
+        self.register("user.logged_in", 1, UserLoggedIn, server_only=True)
 
-    def register(self, event_type: str, version: int, schema: type[BaseModel]) -> None:
-        """Register ``schema`` as the validator for ``(event_type, version)``."""
+    def register(
+        self,
+        event_type: str,
+        version: int,
+        schema: type[BaseModel],
+        *,
+        server_only: bool = False,
+    ) -> None:
+        """Register ``schema`` as the validator for ``(event_type, version)``.
+
+        Args:
+            event_type: Dot-separated event name, e.g. ``"assessment.submitted"``.
+            version: Schema version integer.
+            schema: Pydantic model that validates the event payload.
+            server_only: When ``True``, the event may only be emitted by trusted
+                server-side callers via :func:`~app.analytics.gateway.ingest_event`
+                directly. The HTTP emission endpoint rejects it with ``403``.
+        """
         self._schemas[(event_type, version)] = schema
+        self._server_only[(event_type, version)] = server_only
 
     def resolve(self, event_type: str, version: int) -> type[BaseModel]:
         """Return the schema for ``(event_type, version)``.
@@ -59,5 +77,16 @@ class EventRegistry:
         """
         try:
             return self._schemas[(event_type, version)]
+        except KeyError:
+            raise UnknownEventTypeError(event_type, version) from None
+
+    def is_server_only(self, event_type: str, version: int) -> bool:
+        """Return whether ``(event_type, version)`` is restricted to server-side callers.
+
+        Raises:
+            UnknownEventTypeError: No schema is registered for the pair.
+        """
+        try:
+            return self._server_only[(event_type, version)]
         except KeyError:
             raise UnknownEventTypeError(event_type, version) from None
