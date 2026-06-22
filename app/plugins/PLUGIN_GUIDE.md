@@ -238,7 +238,7 @@ This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEM
 The loader constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, and a config schema to `CONFIG_SCHEMAS`.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, and any permissions or scope kinds to `PERMISSIONS` / `PERMISSION_SCOPE`.
 
 ```python
 # app/core_plugins/myappplugin/plugin.py
@@ -247,6 +247,7 @@ from fastapi import APIRouter
 from app.core_plugins.myappplugin.config import MyAppPluginConfig
 from app.lib.config.hooks import CONFIG_SCHEMAS
 from app.lib.mcp.hooks import MCP_TOOLS, Tool
+from app.lib.permissions import PERMISSIONS
 from app.lib.routes import register_router
 from app.lib.plugins import SparkthPlugin
 
@@ -265,11 +266,14 @@ class MyAppPlugin(SparkthPlugin):
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
+        PERMISSIONS.add_item(self, "myapp.process")
 
 async def process_data(input: str) -> str:
     """Process some input and return the result."""
     return f"Processed: {input}"
 ```
+
+Scope kinds register the same way, through `PERMISSION_SCOPE.add_item(self, PermissionScope(...))` — both the hooks and the `PermissionScope` class come from `app.lib.permissions`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
 
 ### Where do plugin routes get mounted?
 

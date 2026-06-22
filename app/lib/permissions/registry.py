@@ -10,7 +10,10 @@ shared instance.
 from app.core.permissions.defaults import DEFAULT_PERMISSION_SCOPES, DEFAULT_PERMISSIONS
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scope import PermissionScope
+from app.lib.log import get_logger
 from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
+
+logger = get_logger(__name__)
 
 
 class PermissionsRegistry:
@@ -33,9 +36,11 @@ class PermissionsRegistry:
                 self.add(permission)
 
     def add(self, permission: str) -> str:
-        """Register permission and return it. Registering the same one twice is a no-op."""
-        if permission not in self._permissions:
-            self._permissions.append(permission)
+        """Register permission and return it. A duplicate is logged and ignored."""
+        if permission in self._permissions:
+            logger.warning("Permission already registered, ignoring duplicate: %s", permission)
+            return permission
+        self._permissions.append(permission)
         return permission
 
     def get(self, name: str) -> str:
@@ -78,13 +83,15 @@ class PermissionScopesRegistry:
                 self.add(permission_scope)
 
     def add(self, permission_scope: PermissionScope) -> PermissionScope:
-        """Register permission_scope and return it. Registering the same one twice is a no-op.
+        """Register permission_scope and return it. A duplicate (by name) is logged and ignored.
 
         The permission scope's parent, if any, must already be registered; ancestors are
         never auto-created. Adding one whose parent is absent raises PermissionScopeNotFound.
         """
-        if permission_scope.name in self._index:
-            return permission_scope
+        existing = self._index.get(permission_scope.name)
+        if existing is not None:
+            logger.warning("Permission scope already registered, ignoring duplicate: %s", permission_scope.name)
+            return existing
         if permission_scope.parent is not None and permission_scope.parent.name not in self._index:
             raise PermissionScopeNotFound(permission_scope.parent.name)
         self._index[permission_scope.name] = permission_scope

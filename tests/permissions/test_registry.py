@@ -1,9 +1,11 @@
+import logging
+
 import pytest
 
 from app.core.permissions.defaults import DEFAULT_PERMISSION_SCOPES, DEFAULT_PERMISSIONS
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scope import PermissionScope
-from app.lib.permissions import registry
+from app.lib.permissions import hooks
 from app.lib.permissions.registry import (
     PermissionScopesRegistry,
     PermissionsRegistry,
@@ -56,10 +58,14 @@ def test_get_permission_returns_added(permissions: PermissionsRegistry) -> None:
     assert permissions.get("assignment.grade") == "assignment.grade"
 
 
-def test_add_permission_is_idempotent(permissions: PermissionsRegistry) -> None:
+def test_add_duplicate_permission_logs_and_ignores(
+    permissions: PermissionsRegistry, caplog: pytest.LogCaptureFixture
+) -> None:
     permissions.add("assignment.grade")
-    permissions.add("assignment.grade")
+    with caplog.at_level(logging.WARNING):
+        permissions.add("assignment.grade")
     assert permissions.all() == ["assignment.grade"]
+    assert "assignment.grade" in caplog.text
 
 
 def test_get_unknown_permission_raises(permissions: PermissionsRegistry) -> None:
@@ -87,6 +93,16 @@ def test_get_permission_scope_returns_added(permission_scopes: PermissionScopesR
 def test_get_unknown_permission_scope_raises(permission_scopes: PermissionScopesRegistry) -> None:
     with pytest.raises(PermissionScopeNotFound):
         permission_scopes.get("course")
+
+
+def test_add_duplicate_permission_scope_logs_and_ignores(
+    permission_scopes: PermissionScopesRegistry, caplog: pytest.LogCaptureFixture
+) -> None:
+    first = permission_scopes.add(PermissionScope("global"))
+    with caplog.at_level(logging.WARNING):
+        second = permission_scopes.add(PermissionScope("global"))
+    assert second is first
+    assert "global" in caplog.text
 
 
 def test_add_child_after_parent_links(permission_scopes: PermissionScopesRegistry) -> None:
@@ -127,7 +143,7 @@ def test_clear_empties_permission_scopes(permission_scopes: PermissionScopesRegi
 
 def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
     # The hook yields (plugin, item) pairs; the loader must unpack and register the item.
-    monkeypatch.setattr(registry.PERMISSIONS, "iter_items", lambda: iter([(object(), "assignment.grade")]))
+    monkeypatch.setattr(hooks.PERMISSIONS, "iter_items", lambda: iter([(object(), "assignment.grade")]))
     initialize_permissions_registry()
     assert PermissionsRegistry().get("assignment.grade") == "assignment.grade"
 
@@ -136,6 +152,6 @@ def test_initialize_permission_scopes_registry_loads_hook_items(monkeypatch: pyt
     root = PermissionScope("global")
     course = PermissionScope("course", parent=root)
     # Parent must be registered before its child, so the hook must yield it first.
-    monkeypatch.setattr(registry.PERMISSION_SCOPE, "iter_items", lambda: iter([(object(), root), (object(), course)]))
+    monkeypatch.setattr(hooks.PERMISSION_SCOPE, "iter_items", lambda: iter([(object(), root), (object(), course)]))
     initialize_permission_scopes_registry()
     assert PermissionScopesRegistry().get("course") is course

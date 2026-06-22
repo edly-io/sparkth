@@ -17,6 +17,7 @@ class Role(TimestampedModel, table=True):
 
 class RolePermission(TimestampedModel, table=True):
     """Bridge table between Role and Permissions to cater the many-to-many relation."""
+
     __tablename__ = "role_permission"
 
     role_id: int = Field(foreign_key="role.id", primary_key=True)

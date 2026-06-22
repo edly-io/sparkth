@@ -173,12 +173,19 @@ async def test_revoke_role_noop_when_no_assignment(session: AsyncSession) -> Non
 
 
 def test_facade_exposes_public_surface() -> None:
+    from app.core.permissions.scope import PermissionScope
     from app.lib import permissions as facade
+    from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
 
     assert facade.can is can
     assert facade.assign_role is assign_role
     assert facade.revoke_role is revoke_role
     assert issubclass(facade.RoleNotFound, Exception)
+    # Plugins author against the facade, so the scope class and the hooks they
+    # register through must be reachable here, not only from app.core / the hook module.
+    assert facade.PermissionScope is PermissionScope
+    assert facade.PERMISSIONS is PERMISSIONS
+    assert facade.PERMISSION_SCOPE is PERMISSION_SCOPE
 
 
 async def test_assign_role_is_idempotent(session: AsyncSession) -> None:

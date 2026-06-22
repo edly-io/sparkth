@@ -251,7 +251,21 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 
 ### Extending the permission system
 
-**Declare a permission or scope kind** — for a plugin, register it through the `PERMISSIONS` / `PERMISSION_SCOPE` hooks in `app.lib.permissions`, next to the code that relies on it; for a platform-wide default (not tied to any plugin), add it to `app.core.permissions.defaults`. A scope kind's parent must be declared before it. A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
+**Declare a permission or scope kind** — a plugin adds its own to the hooks from its `__init__`, exactly as it registers tools or config; a platform-wide default (not tied to any plugin) goes in `app.core.permissions.defaults`. Import everything you need from `app.lib.permissions` — never from `app.core` or the hook modules directly.
+
+```python
+from app.lib.permissions import PERMISSIONS, PERMISSION_SCOPE, PermissionScope
+from app.lib.plugins import SparkthPlugin
+
+class GraderPlugin(SparkthPlugin):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        # parent must already be registered; the global root always is
+        course = PERMISSION_SCOPE.add_item(self, PermissionScope("course", parent=...))
+        PERMISSIONS.add_item(self, "assignment.grade")
+```
+
+A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
 
 **Add a role and its permissions** — seed them in a migration:
 
