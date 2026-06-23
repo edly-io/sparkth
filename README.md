@@ -247,7 +247,8 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global` | The root scope; applies platform-wide; `scope_object_id` is `NULL`. |
-| **Roles** | _(none)_ | No roles are seeded by default — define your own (see below). |
+| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete` | Gate the registration email-whitelist endpoints. |
+| **Roles** | `admin` | Grants the three `email.whitelist.*` permissions. The seed migration also assigns it at the `global` scope to every account that was a superuser when the migration ran — a one-time backfill, not an ongoing rule. |
 
 ### Extending the permission system
 
@@ -276,7 +277,16 @@ INSERT INTO role_permission (role_id, permission, created_at, updated_at)
 VALUES ((SELECT id FROM role WHERE name = 'grader'), 'assignment.grade', now(), now());
 ```
 
-**Assign a role to a user** — call `assign_role`:
+**Assign a role to a user** — for bootstrapping, use the CLI (it looks the user up by username or email):
+
+```bash
+# assign at the global scope
+make cli -- roles assign-role john admin
+# or scoped to one object — pass the scope kind and the object id
+make cli -- roles assign-role john grader --scope course --scope-object-id 42
+```
+
+From application code, call `assign_role`:
 
 ```python
 from app.lib.permissions import assign_role

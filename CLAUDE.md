@@ -20,17 +20,17 @@ Useful URLs:
 
 ```
 app/
-  core/          # Settings, DB engines, security (JWT/OAuth)
+  core/          # Settings, DB engines, security (JWT/OAuth), permissions (scoped RBAC)
   analytics/     # Analytics DB engine, session providers, and metadata registry
   lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
-  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser
+  api/v1/        # REST endpoints: auth, user, user-plugins, llm, whitelist, file-parser
   plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
   services/      # Business logic layer, plugin adapters
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
-  cli/           # Typer CLI (user management)
+  cli/           # Typer CLI (user and role management)
   migrations/
     app/        # Alembic versions for the main application DB
     analytics/   # Alembic versions for the separate analytics DB (TimescaleDB)

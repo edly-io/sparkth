@@ -19,8 +19,6 @@ async def can(
     session: AsyncSession,
 ) -> bool:
     """Return whether user holds permission at the given permission scope."""
-    if user.is_superuser:
-        return True
     # TODO(scope hierarchy): matches the exact (scope, scope_object_id) only — a role granted
     # at a parent scope does not yet cascade to descendants (see PermissionScope.get_parents()).
     # Cascading is the end goal and lands in the scope-hierarchy phase.
