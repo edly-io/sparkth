@@ -14,5 +14,11 @@ DEFAULT_PERMISSION_SCOPES: list[PermissionScope] = [
     PermissionScope(SCOPE_GLOBAL)
 ]
 
-# Default permission strings shipped with the platform.
-DEFAULT_PERMISSIONS: list[str] = []
+# Default permission strings shipped with the platform. The email-whitelist
+# permissions gate reading, creating, and deleting entries in the registration
+# email whitelist (see the /api/v1/whitelist endpoints).
+DEFAULT_PERMISSIONS: list[str] = [
+    "email.whitelist.read",
+    "email.whitelist.create",
+    "email.whitelist.delete",
+]

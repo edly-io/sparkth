@@ -7,9 +7,10 @@ from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
-from app.core.permissions.enums import EmailWhitelistPermissions
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.models.user import User
+
+_WHITELIST_PERMISSIONS = ["email.whitelist.read", "email.whitelist.create", "email.whitelist.delete"]
 
 
 def _uniq(prefix: str) -> str:
@@ -74,7 +75,7 @@ def _override_current_user(client: AsyncClient, user: User) -> None:
 
 class TestListWhitelist:
     async def test_permitted_user_can_list(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         response = await client.get("/api/v1/whitelist/")
@@ -91,7 +92,7 @@ class TestListWhitelist:
 
 class TestAddWhitelist:
     async def test_add_email(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         email = f"{_uniq('user')}@example.com"
@@ -103,7 +104,7 @@ class TestAddWhitelist:
         assert "id" in data
 
     async def test_add_domain(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         domain = f"@{_uniq('org')}.com"
@@ -113,7 +114,7 @@ class TestAddWhitelist:
         assert data["entry_type"] == "domain"
 
     async def test_add_duplicate_returns_409(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         email = f"{_uniq('user')}@example.com"
@@ -122,14 +123,14 @@ class TestAddWhitelist:
         assert response.status_code == 409
 
     async def test_add_invalid_returns_422(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         response = await client.post("/api/v1/whitelist/", json={"value": "not-valid"})
         assert response.status_code == 422
 
     async def test_read_only_user_cannot_create(self, client: AsyncClient, session: AsyncSession) -> None:
-        user = await _create_user_with_permissions(session, [EmailWhitelistPermissions.READ])
+        user = await _create_user_with_permissions(session, ["email.whitelist.read"])
         _override_current_user(client, user)
 
         response = await client.post("/api/v1/whitelist/", json={"value": "a@b.com"})
@@ -145,7 +146,7 @@ class TestAddWhitelist:
 
 class TestRemoveWhitelist:
     async def test_remove_entry(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         email = f"{_uniq('user')}@example.com"
@@ -156,7 +157,7 @@ class TestRemoveWhitelist:
         assert response.status_code == 204
 
     async def test_remove_nonexistent_returns_404(self, client: AsyncClient, session: AsyncSession) -> None:
-        admin = await _create_user_with_permissions(session, list(EmailWhitelistPermissions))
+        admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
         _override_current_user(client, admin)
 
         response = await client.delete("/api/v1/whitelist/999999")

@@ -185,7 +185,6 @@ def test_facade_exposes_public_surface() -> None:
     # Plugins author against the facade, so the scope class and the hooks they
     # register through must be reachable here, not only from app.core / the hook module.
     assert facade.PermissionScope is PermissionScope
-    assert facade.EmailWhitelistPermissions.READ.value == "email.whitelist.read"
     assert facade.PERMISSIONS is PERMISSIONS
     assert facade.PERMISSION_SCOPE is PERMISSION_SCOPE
 

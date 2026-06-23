@@ -19,8 +19,8 @@ down_revision: Union[str, Sequence[str], None] = "d7fc891901e7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-# Literal permission/role strings — a migration is a historical snapshot, so it must
-# NOT import EmailWhitelistPermissions or ROLE_ADMIN (a future rename would break history).
+# Literal permission/role strings — a migration is a historical snapshot, so it uses
+# literals, never imported permission/role symbols (a later rename or removal breaks history).
 _ROLE = "admin"
 _PERMISSIONS = ("email.whitelist.read", "email.whitelist.create", "email.whitelist.delete")
 
