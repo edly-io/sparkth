@@ -38,6 +38,30 @@ async def can(
     return result.first() is not None
 
 
+async def has_role(
+    user: User,
+    role_name: str,
+    permission_scope: str,
+    scope_object_id: str | None,
+    session: AsyncSession,
+) -> bool:
+    """Return whether user holds an active assignment of role_name at the given permission scope."""
+    statement = (
+        select(RoleAssignment.id)
+        .join(Role, col(Role.id) == col(RoleAssignment.role_id))
+        .where(
+            RoleAssignment.user_id == user.id,
+            Role.name == role_name,
+            RoleAssignment.is_deleted == False,
+            RoleAssignment.scope == permission_scope,
+            RoleAssignment.scope_object_id == scope_object_id,
+        )
+        .limit(1)
+    )
+    result = await session.exec(statement)
+    return result.first() is not None
+
+
 async def assign_role(
     user_id: int,
     role_name: str,

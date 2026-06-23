@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions import assign_role, can, revoke_role
+from app.core.permissions import assign_role, can, has_role, revoke_role
 from app.core.permissions.constants import SCOPE_GLOBAL
 from app.core.permissions.exceptions import RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
@@ -88,13 +88,12 @@ async def test_role_permission_round_trips(session: AsyncSession) -> None:
     await session.flush()
 
 
-async def make_user(session: AsyncSession, username: str, is_superuser: bool = False) -> User:
+async def make_user(session: AsyncSession, username: str) -> User:
     user = User(
         name="T",
         username=username,
         email=f"{username}@example.com",
         hashed_password="x",
-        is_superuser=is_superuser,
     )
     session.add(user)
     await session.flush()
@@ -124,12 +123,6 @@ async def test_can_allows_with_assigned_role(session: AsyncSession) -> None:
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
     await session.flush()
     assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is True
-
-
-async def test_can_has_no_superuser_bypass(session: AsyncSession) -> None:
-    # is_superuser must NOT grant anything — authz is purely assignment-based.
-    user = await make_user(session, "root", is_superuser=True)
-    assert await can(user, "anything.at.all", SCOPE_GLOBAL, None, session) is False
 
 
 async def test_can_denies_permission_at_other_scope(session: AsyncSession) -> None:
@@ -173,6 +166,39 @@ async def test_revoke_role_noop_when_no_assignment(session: AsyncSession) -> Non
     await revoke_role(user.id, "grader", SCOPE_GLOBAL, None, session)
 
 
+async def test_has_role_false_without_assignment(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    await make_role(session, "admin", [])
+    assert await has_role(user, "admin", SCOPE_GLOBAL, None, session) is False
+
+
+async def test_has_role_true_when_assigned(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "admin", [])
+    await assign_role(user.id, "admin", SCOPE_GLOBAL, None, session)
+    assert await has_role(user, "admin", SCOPE_GLOBAL, None, session) is True
+
+
+async def test_has_role_is_scope_specific(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", [])
+    await assign_role(user.id, "grader", "course", "1", session)
+    # The same role at a different scope must not satisfy the global check.
+    assert await has_role(user, "grader", SCOPE_GLOBAL, None, session) is False
+    assert await has_role(user, "grader", "course", "1", session) is True
+
+
+async def test_has_role_false_after_revoke(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "admin", [])
+    await assign_role(user.id, "admin", SCOPE_GLOBAL, None, session)
+    await revoke_role(user.id, "admin", SCOPE_GLOBAL, None, session)
+    assert await has_role(user, "admin", SCOPE_GLOBAL, None, session) is False
+
+
 def test_facade_exposes_public_surface() -> None:
     from app.core.permissions.scope import PermissionScope
     from app.lib import permissions as facade
@@ -181,6 +207,7 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.can is can
     assert facade.assign_role is assign_role
     assert facade.revoke_role is revoke_role
+    assert facade.has_role is has_role
     assert issubclass(facade.RoleNotFound, Exception)
     # Plugins author against the facade, so the scope class and the hooks they
     # register through must be reachable here, not only from app.core / the hook module.

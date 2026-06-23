@@ -32,7 +32,7 @@ function DashboardContent({
   logout,
 }: {
   children: React.ReactNode;
-  user: { name?: string; email?: string; avatar?: string; plan?: string; is_superuser?: boolean };
+  user: { name?: string; email?: string; avatar?: string; plan?: string; is_admin?: boolean };
   logout: () => void;
 }) {
   const { isCollapsed, toggleCollapsed } = useSidebar();
@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     name: user?.name || user?.username,
     email: user?.email,
     plan: "Free Plan",
-    is_superuser: user?.is_superuser,
+    is_admin: user?.is_admin,
   };
 
   return (

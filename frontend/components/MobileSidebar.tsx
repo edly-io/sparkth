@@ -10,7 +10,7 @@ interface MobileSidebarProps {
     email?: string;
     avatar?: string;
     plan?: string;
-    is_superuser?: boolean;
+    is_admin?: boolean;
   };
   onLogout?: () => void;
 }

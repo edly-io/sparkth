@@ -182,9 +182,9 @@ Create a new user account:
 
 If password is not provided via flag, you'll be prompted to enter it securely.
 
-Create superuser:
+Create an admin user — grants the global `admin` role (run `make migrations` first so the role is seeded):
 
-    make create-user -- --username admin --email admin@example.com --name "Admin User" --superuser
+    make create-user -- --username admin --email admin@example.com --name "Admin User" --admin
 
 Provide password directly:
 
@@ -196,7 +196,7 @@ Options:
 - `--email, -e`: Email address (required)
 - `--name, -n`: Full name (required)
 - `--password, -p`: Password (optional, will prompt if not provided)
-- `--superuser, -s`: Create as superuser (optional, default: false)
+- `--admin` (alias `--superuser`): also grant the user the global `admin` role (optional, default: false). The `admin` role must already be seeded (via `make migrations`), or the command exits without creating the user.
 
 Reset a user's password:
 

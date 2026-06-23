@@ -5,6 +5,7 @@ from sqlmodel import select
 
 from app.core.security import get_password_hash
 from app.lib.db import session_scope
+from app.lib.permissions import RoleNotFound, assign_role
 from app.models.base import utc_now
 from app.models.user import User
 
@@ -45,15 +46,28 @@ async def _create_user(
             email=email,
             hashed_password=get_password_hash(password),
             name=name or username,
-            is_superuser=superuser,
             email_verified=email_verified,
             email_verified_at=utc_now() if email_verified else None,
         )
         session.add(user)
+        # Flush to obtain user.id, then grant the admin role before the single commit
+        # so a missing admin role aborts the whole operation and leaves no orphaned user.
+        await session.flush()
+        if superuser:
+            assert user.id is not None
+            try:
+                await assign_role(user.id, "admin", "global", None, session)
+            except RoleNotFound:
+                typer.secho(
+                    "Admin role not found — run migrations to seed it before creating an admin user.",
+                    fg=typer.colors.RED,
+                )
+                raise typer.Exit(code=1) from None
+
         await session.commit()
         await session.refresh(user)
 
-        role = "Superuser" if superuser else "Regular user"
+        role = "Admin" if superuser else "Regular user"
         typer.secho(f"{role} created successfully!", fg=typer.colors.GREEN)
         typer.echo(f"ID: {user.id}")
         typer.echo(f"UUID: {user.uuid}")

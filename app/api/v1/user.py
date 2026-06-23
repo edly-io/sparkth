@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.lib.db import get_async_session
+from app.lib.permissions import has_role
 from app.models.user import User
 from app.schemas import User as UserSchema
 
@@ -8,17 +11,17 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=UserSchema)
-def get_user(
+async def get_user(
     current_user: User = Depends(get_current_user),
-) -> User:
-    """
-    Fetch the current authenticated user from JWT token.
+    session: AsyncSession = Depends(get_async_session),
+) -> UserSchema:
+    """Fetch the current authenticated user from the JWT token.
 
-     Returns:
-         Current authenticated user
+    ``is_admin`` is derived here from whether the user holds the global ``admin``
+    role; it is not a stored column.
 
-     Raises:
-         HTTPException: If no user is authenticated
+    Raises:
+        HTTPException: If no user is authenticated.
     """
 
     if not current_user or not current_user.id:
@@ -27,4 +30,6 @@ def get_user(
             detail="No user authenticated.",
         )
 
-    return current_user
+    # "global" is the root scope; admin-ness is membership of the admin role there.
+    is_admin = await has_role(current_user, "admin", "global", None, session)
+    return UserSchema.model_validate(current_user).model_copy(update={"is_admin": is_admin})

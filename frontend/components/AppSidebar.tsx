@@ -31,7 +31,7 @@ interface AppSidebarProps {
     email?: string;
     avatar?: string;
     plan?: string;
-    is_superuser?: boolean;
+    is_admin?: boolean;
   };
   basePath?: string;
   onLogout?: () => void;
@@ -230,7 +230,7 @@ export default function AppSidebar({
               </Link>
             </div>
 
-            {user?.is_superuser && (
+            {user?.is_admin && (
               <div>
                 <Link
                   href={`${basePath}/admin/whitelist`}

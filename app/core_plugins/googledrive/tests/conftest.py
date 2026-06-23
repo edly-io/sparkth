@@ -147,7 +147,6 @@ async def drive_client(
         username=test_user.username,
         email=test_user.email,
         hashed_password=test_user.hashed_password,
-        is_superuser=test_user.is_superuser,
         email_verified=test_user.email_verified,
         email_verified_at=test_user.email_verified_at,
     )
