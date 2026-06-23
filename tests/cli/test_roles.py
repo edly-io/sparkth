@@ -59,3 +59,11 @@ async def test_assign_role_non_global_scope_without_id_exits(cli_session: AsyncS
         await roles._assign_role("alice", "admin", "course", None)
     # the dangling (scope="course", scope_object_id=NULL) row must not be created
     assert (await cli_session.exec(select(RoleAssignment))).all() == []
+
+
+async def test_assign_role_global_scope_with_id_exits(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    with pytest.raises(typer.Exit):
+        await roles._assign_role("alice", "admin", "global", "42")
+    # the contradictory (scope="global", scope_object_id="42") row must not be created
+    assert (await cli_session.exec(select(RoleAssignment))).all() == []

@@ -29,10 +29,14 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
 
     Separate from the Typer command because Typer entrypoints are synchronous while
     the database layer is async; this is the awaited implementation. Exits non-zero
-    if the user or role is missing, or a non-global scope is given without a scope object id.
+    if the user or role is missing, or the scope and scope object id contradict each
+    other — a non-global scope without an object id, or the global scope with one.
     """
     if scope != _SCOPE_GLOBAL and scope_object_id is None:
         typer.secho("--scope-object-id is required for non-global scopes", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    if scope == _SCOPE_GLOBAL and scope_object_id is not None:
+        typer.secho("--scope-object-id is not allowed for the global scope", fg=typer.colors.RED)
         raise typer.Exit(code=1)
     async with session_scope() as session:
         user = (
