@@ -383,7 +383,6 @@ class RequirePermission:
         permission engine whether the user may act, and returns the user so the route
         receives the authenticated principal. Raises 403 when the permission is absent.
         """
-        # TODO: question: where is the `scope_chain` constructed?
         scope_object_id = request.path_params.get(self.scope_param) if self.scope_param else None
         if not await can(current_user, self.permission, self.permission_scope, scope_object_id, session):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")

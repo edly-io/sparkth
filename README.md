@@ -260,9 +260,9 @@ from app.lib.plugins import SparkthPlugin
 class GraderPlugin(SparkthPlugin):
     def __init__(self, name: str) -> None:
         super().__init__(name)
-        # parent must already be registered; the global root always is
-        course = PERMISSION_SCOPE.add_item(self, PermissionScope("course", parent=...))
         PERMISSIONS.add_item(self, "assignment.grade")
+        # a scope kind's parent must already be registered (the global root always is)
+        PERMISSION_SCOPE.add_item(self, PermissionScope("course", parent=...))
 ```
 
 A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
