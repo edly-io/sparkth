@@ -19,6 +19,9 @@ async def can(
     session: AsyncSession,
 ) -> bool:
     """Return whether user holds permission at the given permission scope."""
+    # TODO(scope hierarchy): matches the exact (scope, scope_object_id) only — a role granted
+    # at a parent scope does not yet cascade to descendants (see PermissionScope.get_parents()).
+    # Cascading is the end goal and lands in the scope-hierarchy phase.
     statement = (
         select(RolePermission.permission)
         .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))

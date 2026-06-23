@@ -10,7 +10,7 @@ class PermissionScope:
     The hierarchy lets a role granted at a parent scope cascade to its descendants.
     """
 
-    def __init__(self, name: str, parent: "PermissionScope" | None = None) -> None:
+    def __init__(self, name: str, parent: "PermissionScope | None" = None) -> None:
         """Create a scope.
 
         Args:
