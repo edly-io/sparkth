@@ -194,23 +194,22 @@ Options:
 
 - `--username, -u`: Username (required)
 - `--email, -e`: Email address (required)
-- `--name, -n`: Full name (required)
+- `--name, -n`: Full name (optional, defaults to the username)
 - `--password, -p`: Password (optional, will prompt if not provided)
+- `--email-verified`: mark the user's email as already verified (optional, default: false)
 - `--admin` (alias `--superuser`): also grant the user the global `admin` role (optional, default: false). The `admin` role must already be seeded (via `make migrations`), or the command exits without creating the user.
 
-Reset a user's password:
+Reset a user's password (the user is given as a positional username **or** email):
 
-    make reset-password -- --username john
-    # Using short flag
-    make reset-password -- -u john
+    make reset-password -- john
     # Provide password directly
-    make reset-password -- -u john -p "NewSecurePass123"
-    make reset-password -- --username john --password "NewSecurePass123"
+    make reset-password -- john --new-password "NewSecurePass123"
+    make reset-password -- john -p "NewSecurePass123"
 
 Options:
 
-- `--username, -u`: Username (required)
-- `--password, -p`: New password (optional, will prompt if not provided)
+- `identifier`: Username or email of the user (required, positional)
+- `--new-password, -p`: New password (optional, will prompt if not provided)
 
 ## Permission Management System
 
