@@ -18,9 +18,10 @@ async def can(
     scope_object_id: str | None,
     session: AsyncSession,
 ) -> bool:
-    """Return whether user holds permission at the given permission scope."""
-    if user.is_superuser:
-        return True
+    """Return whether user holds permission at the given permission scope.
+
+    Authorization is purely assignment-based: is_superuser grants nothing.
+    """
     statement = (
         select(RolePermission.permission)
         .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))

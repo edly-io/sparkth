@@ -126,9 +126,10 @@ async def test_can_allows_with_assigned_role(session: AsyncSession) -> None:
     assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is True
 
 
-async def test_can_superuser_fast_path(session: AsyncSession) -> None:
+async def test_can_has_no_superuser_bypass(session: AsyncSession) -> None:
+    # is_superuser must NOT grant anything — authz is purely assignment-based.
     user = await make_user(session, "root", is_superuser=True)
-    assert await can(user, "anything.at.all", SCOPE_GLOBAL, None, session) is True
+    assert await can(user, "anything.at.all", SCOPE_GLOBAL, None, session) is False
 
 
 async def test_can_denies_permission_at_other_scope(session: AsyncSession) -> None:
@@ -184,6 +185,7 @@ def test_facade_exposes_public_surface() -> None:
     # Plugins author against the facade, so the scope class and the hooks they
     # register through must be reachable here, not only from app.core / the hook module.
     assert facade.PermissionScope is PermissionScope
+    assert facade.EmailWhitelistPermissions.READ.value == "email.whitelist.read"
     assert facade.PERMISSIONS is PERMISSIONS
     assert facade.PERMISSION_SCOPE is PERMISSION_SCOPE
 

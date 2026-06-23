@@ -49,10 +49,12 @@ async def test_dependency_denies_without_permission(session: AsyncSession) -> No
     assert exc.value.status_code == 403
 
 
-async def test_dependency_allows_superuser(session: AsyncSession) -> None:
+async def test_dependency_denies_superuser_without_permission(session: AsyncSession) -> None:
     user = await _seed(session, "root", None, is_superuser=True)
     dep = RequirePermission("assignment.grade", SCOPE_GLOBAL)
-    assert await dep(_request(), user, session) is user
+    with pytest.raises(HTTPException) as exc:
+        await dep(_request(), user, session)
+    assert exc.value.status_code == 403
 
 
 async def test_dependency_resolves_scope_from_path_params(session: AsyncSession) -> None:
