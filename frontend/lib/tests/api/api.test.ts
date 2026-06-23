@@ -87,7 +87,7 @@ describe("register", () => {
       name: "H",
       username: "h",
       email: "h@example.com",
-      is_admin: false,
+      is_superuser: false,
       email_verified: false,
     };
     const spy = mockFetch(user);
@@ -217,7 +217,7 @@ describe("getCurrentUser", () => {
       name: "H",
       username: "h",
       email: "h@example.com",
-      is_admin: false,
+      is_superuser: false,
       email_verified: true,
     };
     const spy = mockFetch(user);

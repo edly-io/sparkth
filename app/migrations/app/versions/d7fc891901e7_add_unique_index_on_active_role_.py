@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.create_index(
         "uq_role_assignment_active",
         "role_assignment",
-        ["user_id", "role_id", "scope_type", sa.text("coalesce(scope_id, '')")],
+        ["user_id", "role_id", "scope", sa.text("coalesce(scope_object_id, '')")],
         unique=True,
         postgresql_where=sa.text("is_deleted = false"),
         sqlite_where=sa.text("is_deleted = 0"),

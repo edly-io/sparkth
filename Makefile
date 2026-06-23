@@ -49,9 +49,14 @@ services.logs: ## Tail logs (make services.logs [service] — omit service to ta
 db-shell: ## Open Postgres shell inside DB container
 	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}
 
+.PHONY: db-shell-analytics
+db-shell-analytics: ## Open Postgres shell on the analytics database
+	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d sparkth_analytics
+
 .PHONY: migrations
-migrations: ## Apply Alembic migrations (native)
+migrations: ## Apply Alembic migrations for both the app and analytics databases (native)
 	uv run alembic upgrade head
+	uv run alembic -c alembic_analytics.ini upgrade head
 
 .PHONY: rag-cleanup
 rag-cleanup: ## Run the RAG cleanup task (native)

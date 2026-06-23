@@ -4,6 +4,9 @@ All plugins and external modules import LLM functionality from here. Nothing
 outside ``app/llm/`` should import from ``app.llm.*`` directly.
 """
 
+from app.core.cache import get_cache_service
+from app.core.config import get_settings
+from app.core.encryption import get_encryption_service
 from app.llm.adapter import LLMConfigAdapter
 from app.llm.exceptions import (
     LLMConfigDuplicateNameError,
@@ -29,7 +32,7 @@ from app.llm.schemas import (
     ProviderCatalogResponse,
     ProviderInfo,
 )
-from app.llm.service import LLMConfigService, get_llm_service
+from app.llm.service import LLMConfigService
 
 __all__ = [
     "BaseChatProvider",
@@ -54,3 +57,11 @@ __all__ = [
     "get_provider",
     "get_provider_catalog",
 ]
+
+
+def get_llm_service() -> LLMConfigService:
+    settings = get_settings()
+    return LLMConfigService(
+        get_encryption_service(settings.LLM_ENCRYPTION_KEY),
+        get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
+    )

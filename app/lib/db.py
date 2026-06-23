@@ -2,10 +2,10 @@
 
 This is the single public entry point for obtaining a database session. All code,
 including plugins, should acquire sessions from here rather than reaching for the
-raw SQLAlchemy engine in :mod:`app.core.db`.
+raw SQLAlchemy engine in :mod:`app.core.db` or :mod:`app.analytics.db`.
 
-The engine itself stays in :mod:`app.core.db` (it reads settings); this module is
-only the public face that hands out sessions over it.
+The engine itself stays in :mod:`app.core.db` (app DB) and :mod:`app.analytics.db`
+(analytics DB); this module is only the public face that hands out sessions over them.
 """
 
 from collections.abc import AsyncGenerator
@@ -13,7 +13,12 @@ from contextlib import asynccontextmanager
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import async_engine
+# Imported as modules (not `from … import open_session`) on purpose:
+# `session_scope` / `analytics_session_scope` resolve `open_session` /
+# `open_analytics_session` at call time, so overriding those functions in tests
+# reaches every caller — including code that imported the scope helpers by value.
+import app.analytics.db as analytics_db
+import app.core.db as core_db
 
 
 @asynccontextmanager
@@ -21,7 +26,7 @@ async def session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncS
     """Open an async database session as a managed context.
 
     Yields an :class:`AsyncSession` — a unit-of-work that borrows a connection
-    from the shared ``async_engine`` pool, tracks the ORM objects you load and
+    from the shared engine (``app.core.db.get_engine``), tracks the ORM objects you load and
     mutate, and returns the connection to the pool when the ``async with`` block
     exits (whether normally or via an exception). Always use it as a context
     manager so the connection is never leaked::
@@ -56,9 +61,9 @@ async def session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncS
             Defaults to ``False`` (async-safe).
 
     Yields:
-        An :class:`AsyncSession` bound to the shared async engine.
+        An :class:`AsyncSession` bound to the engine from :func:`app.core.db.get_engine`.
     """
-    async with AsyncSession(async_engine, expire_on_commit=expire_on_commit) as session:
+    async with core_db.open_session(expire_on_commit=expire_on_commit) as session:
         yield session
 
 
@@ -71,4 +76,37 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     :func:`session_scope` directly when you need to override it.
     """
     async with session_scope() as session:
+        yield session
+
+
+@asynccontextmanager
+async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
+    """Open an async session against the **analytics** database as a managed context.
+
+    Identical in contract to :func:`session_scope`, but bound to the analytics
+    engine (the separate analytics database). Use this for background/non-request
+    analytics code (event ingestion, rollup maintenance). Inside request handlers,
+    prefer the :func:`get_analytics_session` dependency.
+
+    Delegates to ``analytics_db.open_analytics_session`` — the same seam that the
+    test suite overrides to inject a throwaway engine.
+
+    Args:
+        expire_on_commit: Whether ORM objects are expired after ``commit()``.
+            Defaults to ``False`` (async-safe).
+
+    Yields:
+        An :class:`AsyncSession` bound to the analytics async engine.
+    """
+    async with analytics_db.open_analytics_session(expire_on_commit=expire_on_commit) as session:
+        yield session
+
+
+async def get_analytics_session() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency providing an :class:`AsyncSession` bound to the analytics database.
+
+    Delegates to :func:`analytics_session_scope`. Parameterless for the same
+    reason as :func:`get_async_session`.
+    """
+    async with analytics_session_scope() as session:
         yield session

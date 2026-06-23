@@ -212,6 +212,104 @@ Options:
 - `--username, -u`: Username (required)
 - `--password, -p`: New password (optional, will prompt if not provided)
 
+## Permission Management System
+
+Sparkth authorizes actions with a scoped role-based access control (RBAC) model. Authorization data lives in three tables:
+
+- **`role`** — a named role (e.g. `admin`).
+- **`role_permission`** — the permissions a role grants. A permission is a free-form dotted string (e.g. `assignment.grade`); a role grants many.
+- **`role_assignment`** — grants a role to a user at a single scope.
+
+A user is authorized when they hold, through an active `role_assignment` at the relevant scope, a role whose `role_permission` rows include the permission. `can()` resolves exactly this against the three tables — it is the single authorization check.
+
+### Permissions and scopes are declared in code
+
+The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table. It comes from two sources:
+
+- **Platform defaults** — the permissions and scope kinds the application ships with (e.g. the `global` scope) live in `app.core.permissions.defaults` and are seeded into the registries at construction, so they exist regardless of which plugins are loaded.
+- **Plugin contributions** — plugins add their own through two hooks in `app.lib.permissions`: **`PERMISSIONS`** (permission strings, e.g. `assignment.grade`) and **`PERMISSION_SCOPE`** (scope kinds, as `PermissionScope` objects).
+
+At startup the app loads the hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered) — layering plugin contributions on top of the seeded defaults. Those registries are what the rest of the system queries, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
+
+### Scopes
+
+A scope answers *where* a role applies. It is the pair of two columns on `role_assignment`:
+
+- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared as a platform default or through the `PERMISSION_SCOPE` hook. It is a free-form string, not a foreign key.
+- **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
+
+A scope kind may name a parent (`PermissionScope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
+
+The `global` scope is the root: it applies everywhere and names no object, so `scope = 'global'` requires `scope_object_id` to be `NULL`, while every non-global scope requires a `scope_object_id`. A database `CHECK` constraint enforces this pairing.
+
+#### Shipped with the app
+
+| Kind | Names | Notes |
+|---|---|---|
+| **Scopes** | `global` | The root scope; applies platform-wide; `scope_object_id` is `NULL`. |
+| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete` | Gate the registration email-whitelist endpoints. |
+| **Roles** | `admin` | Grants the three `email.whitelist.*` permissions. The seed migration also assigns it at the `global` scope to every account that was a superuser when the migration ran — a one-time backfill, not an ongoing rule. |
+
+### Extending the permission system
+
+**Declare a permission or scope kind** — a plugin adds its own to the hooks from its `__init__`, exactly as it registers tools or config; a platform-wide default (not tied to any plugin) goes in `app.core.permissions.defaults`. Import everything you need from `app.lib.permissions` — never from `app.core` or the hook modules directly.
+
+```python
+from app.lib.permissions import PERMISSIONS, PERMISSION_SCOPE, PermissionScope
+from app.lib.plugins import SparkthPlugin
+
+class GraderPlugin(SparkthPlugin):
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        PERMISSIONS.add_item(self, "assignment.grade")
+        # a scope kind's parent must already be registered (the global root always is)
+        PERMISSION_SCOPE.add_item(self, PermissionScope("course", parent=...))
+```
+
+A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
+
+**Add a role and its permissions** — seed them in a migration:
+
+```sql
+INSERT INTO role (name, description, created_at, updated_at)
+VALUES ('grader', 'Grades submissions', now(), now());
+INSERT INTO role_permission (role_id, permission, created_at, updated_at)
+VALUES ((SELECT id FROM role WHERE name = 'grader'), 'assignment.grade', now(), now());
+```
+
+**Assign a role to a user** — for bootstrapping, use the CLI (it looks the user up by username or email):
+
+```bash
+# assign at the global scope
+make cli -- roles assign-role john admin
+# or scoped to one object — pass the scope kind and the object id
+make cli -- roles assign-role john grader --scope course --scope-object-id 42
+```
+
+From application code, call `assign_role`:
+
+```python
+from app.lib.permissions import assign_role
+
+# the platform-wide "global" scope names no object, so scope_object_id is None
+await assign_role(user_id, "grader", "global", None, session)
+# or scoped to one course:
+await assign_role(user_id, "grader", "course", "42", session)
+```
+
+**Gate an endpoint on a permission** — depend on `RequirePermission`:
+
+```python
+from fastapi import Depends
+from app.api.v1.auth import RequirePermission
+
+@router.get("/things", dependencies=[Depends(RequirePermission("thing.read", "global"))])
+async def list_things(): ...
+
+# For a scoped check, name the path parameter that carries the object id:
+RequirePermission("course.edit", "course", "course_id")  # reads {course_id} from the path
+```
+
 ## Contributing
 
 Contributions are welcome. Open a pull request against `main` and a maintainer will take a look.

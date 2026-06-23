@@ -5,16 +5,15 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
-from app.lib.plugins import get_plugin_loader
-from app.models import *  # noqa: F403
 
-# Imported after app.models so SQLModel.metadata carries the permission tables for
-# autogenerate. Must stay below app.models: importing it first cycles via app.models.base.
-from app.permissions.models import (  # noqa: F401
+# Imported so SQLModel.metadata carries the permission tables for autogenerate.
+from app.core.permissions.models import (  # noqa: F401
     Role,
     RoleAssignment,
     RolePermission,
 )
+from app.lib.plugins import get_plugin_loader
+from app.models import *  # noqa: F403
 
 settings = get_settings()
 

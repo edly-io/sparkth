@@ -8,8 +8,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import roles
+from app.core.permissions.models import Role, RoleAssignment
 from app.models.user import User
-from app.permissions.models import Role, RoleAssignment
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ async def test_assign_role_creates_assignment(cli_session: AsyncSession) -> None
     await roles._assign_role("alice", "admin", "global", None)
 
     assignment = (await cli_session.exec(select(RoleAssignment))).one()
-    assert assignment.scope_type == "global"
+    assert assignment.scope == "global"
 
 
 async def test_assign_role_unknown_user_exits(cli_session: AsyncSession) -> None:
@@ -57,5 +57,13 @@ async def test_assign_role_non_global_scope_without_id_exits(cli_session: AsyncS
     await _seed_user_and_role(cli_session)
     with pytest.raises(typer.Exit):
         await roles._assign_role("alice", "admin", "course", None)
-    # the dangling (scope_type="course", scope_id=NULL) row must not be created
+    # the dangling (scope="course", scope_object_id=NULL) row must not be created
+    assert (await cli_session.exec(select(RoleAssignment))).all() == []
+
+
+async def test_assign_role_global_scope_with_id_exits(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    with pytest.raises(typer.Exit):
+        await roles._assign_role("alice", "admin", "global", "42")
+    # the contradictory (scope="global", scope_object_id="42") row must not be created
     assert (await cli_session.exec(select(RoleAssignment))).all() == []

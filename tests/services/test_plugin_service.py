@@ -1,7 +1,5 @@
 """Unit tests for PluginService."""
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -151,35 +149,28 @@ def _fake_config_class(schema: dict[str, Any]) -> type:
     return _FakeConfig
 
 
-def _patch_bootstrap(session: AsyncSession, plugins: list[_FakePlugin]) -> Any:
-    """Patch get_or_create_all's loader, config resolver, and session for the test DB.
+def _patch_bootstrap(plugins: list[_FakePlugin]) -> Any:
+    """Patch get_or_create_all's loader and config resolver.
 
     ``get_plugin_config_schema`` is patched to resolve each fake plugin's schema by
-    name (mirroring the real ``CONFIG_SCHEMAS`` hook lookup). ``session_scope`` is
-    replaced with a context manager yielding the test session, and that session's
-    ``commit`` is aliased to ``flush`` so the test fixture's outer transaction can
-    still roll the writes back.
+    name (mirroring the real ``CONFIG_SCHEMAS`` hook lookup). ``session_scope`` is left
+    untouched: it is engine-backed, so ``get_or_create_all`` writes to the same
+    in-memory test database the ``session`` fixture reads from.
     """
     schemas_by_name = {p.name: _fake_config_class(p.schema) for p in plugins}
-
-    @asynccontextmanager
-    async def _scope(*_args: Any, **_kwargs: Any) -> AsyncGenerator[AsyncSession, None]:
-        with patch.object(session, "commit", session.flush):
-            yield session
 
     return (
         patch("app.services.plugin.get_plugin_loader", return_value=_FakeLoader(plugins)),
         patch("app.services.plugin.get_plugin_config_schema", side_effect=schemas_by_name.get),
-        patch("app.services.plugin.session_scope", _scope),
     )
 
 
 @pytest.mark.asyncio
 async def test_get_or_create_all_inserts_missing_plugins(session: AsyncSession) -> None:
     plugins = [_FakePlugin("alpha", {"type": "object"}), _FakePlugin("beta", {})]
-    loader_patch, config_patch, scope_patch = _patch_bootstrap(session, plugins)
+    loader_patch, config_patch = _patch_bootstrap(plugins)
 
-    with loader_patch, config_patch, scope_patch:
+    with loader_patch, config_patch:
         await PluginService().get_or_create_all()
 
     rows = (await session.exec(select(Plugin).order_by(Plugin.name))).all()
@@ -191,9 +182,9 @@ async def test_get_or_create_all_inserts_missing_plugins(session: AsyncSession) 
 @pytest.mark.asyncio
 async def test_get_or_create_all_is_idempotent(session: AsyncSession) -> None:
     plugins = [_FakePlugin("alpha", {"type": "object"})]
-    loader_patch, config_patch, scope_patch = _patch_bootstrap(session, plugins)
+    loader_patch, config_patch = _patch_bootstrap(plugins)
 
-    with loader_patch, config_patch, scope_patch:
+    with loader_patch, config_patch:
         await PluginService().get_or_create_all()
         await PluginService().get_or_create_all()
 
@@ -205,14 +196,19 @@ async def test_get_or_create_all_is_idempotent(session: AsyncSession) -> None:
 async def test_get_or_create_all_updates_schema_but_preserves_enabled(session: AsyncSession) -> None:
     existing = Plugin(name="alpha", is_core=True, enabled=False, config_schema={"old": True})
     session.add(existing)
-    await session.flush()
+    # Commit so get_or_create_all's own session sees the seeded row on the shared
+    # in-memory connection.
+    await session.commit()
 
     plugins = [_FakePlugin("alpha", {"new": True})]
-    loader_patch, config_patch, scope_patch = _patch_bootstrap(session, plugins)
+    loader_patch, config_patch = _patch_bootstrap(plugins)
 
-    with loader_patch, config_patch, scope_patch:
+    with loader_patch, config_patch:
         await PluginService().get_or_create_all()
 
+    # get_or_create_all updated the row on its own session; drop our identity-map copy
+    # so the re-query reflects the committed change.
+    session.expire_all()
     rows = (await session.exec(select(Plugin).where(Plugin.name == "alpha"))).all()
     assert len(rows) == 1
     assert rows[0].config_schema == {"new": True}

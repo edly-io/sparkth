@@ -20,6 +20,8 @@ class User(TimestampedModel, SoftDeleteModel, table=True):
 
     uuid: UUID = Field(default_factory=uuid7, unique=True, index=True)
 
+    is_superuser: bool = Field(default=False)
+
     email_verified: bool = Field(default=False)
     email_verified_at: datetime | None = Field(
         default=None,

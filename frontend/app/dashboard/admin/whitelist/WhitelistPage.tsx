@@ -81,7 +81,7 @@ export default function WhitelistPage() {
   const { token, user } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  if (user && !user.is_admin) {
+  if (user && !user.is_superuser) {
     redirect("/dashboard");
   }
 

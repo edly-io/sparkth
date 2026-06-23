@@ -10,7 +10,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api.v1.auth import get_current_user
 from app.lib.db import get_async_session
-from app.llm.service import get_llm_service
+from app.lib.llm import get_llm_service
 from app.main import app
 from app.models.user import User
 

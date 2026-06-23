@@ -910,7 +910,13 @@ export interface paths {
         };
         /**
          * Get User
-         * @description Return current authenticated user with is_admin derived from admin role.
+         * @description Fetch the current authenticated user from JWT token.
+         *
+         *      Returns:
+         *          Current authenticated user
+         *
+         *      Raises:
+         *          HTTPException: If no user is authenticated
          */
         get: operations["get_user_api_v1_user_me_get"];
         put?: never;
@@ -1695,11 +1701,8 @@ export interface components {
             email_verified: boolean;
             /** Id */
             id: number;
-            /**
-             * Is Admin
-             * @default false
-             */
-            is_admin: boolean;
+            /** Is Superuser */
+            is_superuser: boolean;
             /** Name */
             name: string;
             /** Username */
