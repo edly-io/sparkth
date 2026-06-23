@@ -75,3 +75,13 @@ async def test_dependency_resolves_scope_from_path_params(session: AsyncSession)
     with pytest.raises(HTTPException) as exc:
         await dep(denied, user, session)
     assert exc.value.status_code == 403
+
+
+async def test_dependency_raises_500_when_scope_param_missing(session: AsyncSession) -> None:
+    # scope_param names a path parameter the route doesn't provide — a wiring error,
+    # not an auth failure, so it must surface as 500 rather than a silent 403.
+    user = await _seed(session, "dave", None)
+    dep = RequirePermission("assignment.grade", "course", "course_id")
+    with pytest.raises(HTTPException) as exc:
+        await dep(_request(), user, session)
+    assert exc.value.status_code == 500
