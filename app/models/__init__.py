@@ -1,8 +1,8 @@
-from .email_verification import EmailVerificationToken
-from .llm import LLMConfig
-from .plugin import Plugin, UserPlugin
-from .user import User
-from .whitelist import WhitelistedEmail
+from app.models.email_verification import EmailVerificationToken
+from app.models.llm import LLMConfig
+from app.models.plugin import Plugin, UserPlugin
+from app.models.user import User
+from app.models.whitelist import WhitelistedEmail
 
 __all__ = [
     "User",

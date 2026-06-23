@@ -5,6 +5,13 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
+
+# Imported so SQLModel.metadata carries the permission tables for autogenerate.
+from app.core.permissions.models import (  # noqa: F401
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
 from app.lib.plugins import get_plugin_loader
 from app.models import *  # noqa: F403
 

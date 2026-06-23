@@ -1,0 +1,239 @@
+import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.permissions import assign_role, can, revoke_role
+from app.core.permissions.constants import SCOPE_GLOBAL
+from app.core.permissions.exceptions import RoleNotFound
+from app.core.permissions.models import Role, RoleAssignment, RolePermission
+from app.models.user import User
+
+
+def test_scope_global_constant() -> None:
+    assert SCOPE_GLOBAL == "global"
+
+
+def test_role_not_found_carries_name() -> None:
+    exc = RoleNotFound("teacher")
+    assert exc.role_name == "teacher"
+    assert "teacher" in str(exc)
+
+
+async def test_role_assignment_global_scope_round_trips(session: AsyncSession) -> None:
+    role = Role(name="grader")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+
+    assignment = RoleAssignment(user_id=1, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None)
+    session.add(assignment)
+    await session.flush()
+
+    assert assignment.id is not None
+    assert assignment.scope == SCOPE_GLOBAL
+    assert assignment.scope_object_id is None
+    assert assignment.is_deleted is False
+
+
+async def test_role_assignment_non_global_scope_round_trips(session: AsyncSession) -> None:
+    role = Role(name="grader")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+
+    assignment = RoleAssignment(user_id=1, role_id=role.id, scope="course", scope_object_id="42")
+    session.add(assignment)
+    await session.flush()
+
+    assert assignment.id is not None
+    assert assignment.scope == "course"
+    assert assignment.scope_object_id == "42"
+
+
+async def test_global_scope_with_object_id_is_rejected(session: AsyncSession) -> None:
+    role = Role(name="grader")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+
+    # The scope CHECK constraint rejects a global scope carrying an object id. The
+    # savepoint isolates the rollback from the fixture's outer transaction.
+    with pytest.raises(IntegrityError):
+        async with session.begin_nested():
+            session.add(RoleAssignment(user_id=1, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id="42"))
+            await session.flush()
+
+
+async def test_non_global_scope_without_object_id_is_rejected(session: AsyncSession) -> None:
+    role = Role(name="grader")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+
+    # The scope CHECK constraint rejects a non-global scope that omits its object id.
+    with pytest.raises(IntegrityError):
+        async with session.begin_nested():
+            session.add(RoleAssignment(user_id=1, role_id=role.id, scope="course", scope_object_id=None))
+            await session.flush()
+
+
+async def test_role_permission_round_trips(session: AsyncSession) -> None:
+    role = Role(name="grader")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+
+    session.add(RolePermission(role_id=role.id, permission="assignment.grade"))
+    await session.flush()
+
+
+async def make_user(session: AsyncSession, username: str, is_superuser: bool = False) -> User:
+    user = User(
+        name="T",
+        username=username,
+        email=f"{username}@example.com",
+        hashed_password="x",
+        is_superuser=is_superuser,
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+async def make_role(session: AsyncSession, name: str, permissions: list[str]) -> Role:
+    role = Role(name=name)
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    for permission in permissions:
+        session.add(RolePermission(role_id=role.id, permission=permission))
+    await session.flush()
+    return role
+
+
+async def test_can_denies_without_assignment(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is False
+
+
+async def test_can_allows_with_assigned_role(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
+    await session.flush()
+    assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is True
+
+
+async def test_can_superuser_fast_path(session: AsyncSession) -> None:
+    user = await make_user(session, "root", is_superuser=True)
+    assert await can(user, "anything.at.all", SCOPE_GLOBAL, None, session) is True
+
+
+async def test_can_denies_permission_at_other_scope(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="course", scope_object_id="1"))
+    await session.flush()
+    assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is False
+
+
+async def test_assign_role_creates_assignment(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", ["assignment.grade"])
+    assignment = await assign_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+    assert assignment.id is not None
+    assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is True
+
+
+async def test_assign_role_unknown_role_raises(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    with pytest.raises(RoleNotFound):
+        await assign_role(user.id, "nope", SCOPE_GLOBAL, None, session)
+
+
+async def test_revoke_role_revokes_access(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", ["assignment.grade"])
+    await assign_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+    await revoke_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+    assert await can(user, "assignment.grade", SCOPE_GLOBAL, None, session) is False
+
+
+async def test_revoke_role_noop_when_no_assignment(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", ["assignment.grade"])
+    await revoke_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+
+
+def test_facade_exposes_public_surface() -> None:
+    from app.core.permissions.scope import PermissionScope
+    from app.lib import permissions as facade
+    from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
+
+    assert facade.can is can
+    assert facade.assign_role is assign_role
+    assert facade.revoke_role is revoke_role
+    assert issubclass(facade.RoleNotFound, Exception)
+    # Plugins author against the facade, so the scope class and the hooks they
+    # register through must be reachable here, not only from app.core / the hook module.
+    assert facade.PermissionScope is PermissionScope
+    assert facade.PERMISSIONS is PERMISSIONS
+    assert facade.PERMISSION_SCOPE is PERMISSION_SCOPE
+
+
+async def test_assign_role_is_idempotent(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", ["assignment.grade"])
+
+    first = await assign_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+    second = await assign_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+
+    assert first.id == second.id
+    active = (
+        await session.exec(
+            select(RoleAssignment).where(
+                RoleAssignment.user_id == user.id,
+                RoleAssignment.is_deleted == False,
+            )
+        )
+    ).all()
+    assert len(active) == 1
+
+
+async def test_duplicate_active_global_assignment_is_rejected(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    assert user.id is not None and role.id is not None
+
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
+    await session.flush()
+
+    # Savepoint so the expected violation rolls back without poisoning the
+    # fixture's outer transaction.
+    with pytest.raises(IntegrityError):
+        async with session.begin_nested():
+            session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
+
+
+async def test_soft_deleted_assignment_does_not_block_reassignment(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    assert user.id is not None and role.id is not None
+
+    revoked = RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None)
+    session.add(revoked)
+    await session.flush()
+    revoked.soft_delete()
+    session.add(revoked)
+    await session.flush()
+
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
+    await session.flush()

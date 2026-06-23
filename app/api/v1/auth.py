@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import jwt
 import redis.asyncio as aioredis
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import select
@@ -21,6 +21,8 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.db import get_async_session
+from app.lib.log import get_logger
+from app.lib.permissions import can
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
@@ -41,6 +43,7 @@ from app.services.email_verification import (
 from app.services.whitelist import WhitelistService
 
 settings = get_settings()
+logger = get_logger(__name__)
 
 router = APIRouter()
 security_scheme = HTTPBearer()
@@ -349,3 +352,52 @@ async def require_superuser(
             detail="Superuser access required",
         )
     return current_user
+
+
+class RequirePermission:
+    """FastAPI dependency authorizing the current user for a permission.
+
+    Instances are callable dependencies; the instance carries the permission and
+    scope.
+    """
+
+    def __init__(self, permission: str, permission_scope: str, scope_param: str | None = None) -> None:
+        """Bind the permission and scope this dependency enforces.
+
+        Captured at construction so one instance is a reusable dependency across requests.
+        ``scope_param`` names the path parameter whose value becomes the scope object id; it
+        is resolved per request (not here), because the path value does not exist yet when the
+        dependency object is built.
+        """
+        self.permission = permission
+        self.permission_scope = permission_scope
+        self.scope_param = scope_param
+
+    async def __call__(
+        self,
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session),
+    ) -> User:
+        """Authorize the current user for the bound permission, or raise 403.
+
+        Resolves the scope object id from the request's path params at call time, asks the
+        permission engine whether the user may act, and returns the user so the route
+        receives the authenticated principal. Raises 403 when the permission is absent, and
+        500 when ``scope_param`` names a path parameter the route does not provide (a wiring
+        error that would otherwise silently deny every user).
+        """
+        if self.scope_param is not None and self.scope_param not in request.path_params:
+            logger.error(
+                "RequirePermission misconfigured: scope_param %r is not among the route's path params %s",
+                self.scope_param,
+                list(request.path_params),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Permission scope is misconfigured",
+            )
+        scope_object_id = request.path_params.get(self.scope_param) if self.scope_param else None
+        if not await can(current_user, self.permission, self.permission_scope, scope_object_id, session):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        return current_user
