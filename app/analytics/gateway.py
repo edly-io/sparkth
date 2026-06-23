@@ -12,9 +12,8 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import app.analytics.schemas  # noqa: F401 -- populates event_registry on import
 from app.analytics.models import raw_events
-from app.analytics.registry import event_registry
+from app.analytics.registry import EventRegistry
 from app.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -43,7 +42,7 @@ async def ingest_event(
         pydantic.ValidationError: The payload does not satisfy the schema.
         sqlalchemy.exc.SQLAlchemyError: The insert failed.
     """
-    schema = event_registry.resolve(event_type, version)
+    schema = EventRegistry().resolve(event_type, version)
     validated = schema.model_validate(payload)
 
     try:

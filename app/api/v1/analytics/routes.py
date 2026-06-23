@@ -1,12 +1,10 @@
 """Analytics emission gateway endpoint — the single validating write path."""
 
-from datetime import datetime
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.v1.analytics.schemas import EmitEventRequest, EmitEventResponse
 from app.api.v1.auth import get_current_user
 from app.lib.analytics import UnknownEventTypeError, ingest_event
 from app.lib.db import get_analytics_session
@@ -16,17 +14,6 @@ from app.models.user import User
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-class EmitEventRequest(BaseModel):
-    event_type: str
-    version: int
-    payload: dict[str, Any]
-    occurred_at: datetime | None = None
-
-
-class EmitEventResponse(BaseModel):
-    accepted: bool
 
 
 @router.post("/", response_model=EmitEventResponse, status_code=status.HTTP_202_ACCEPTED)

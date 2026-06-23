@@ -16,10 +16,36 @@ from app.analytics.exceptions import UnknownEventTypeError
 
 
 class EventRegistry:
-    """In-memory registry of versioned event payload schemas."""
+    """In-memory registry of versioned event payload schemas.
+
+    Singleton: ``EventRegistry()`` always returns the same instance, so every
+    import path shares one set of registered schemas. Core default events are
+    registered on first construction; call ``EventRegistry()`` during app
+    assembly (``assemble_app``) to ensure the registry is ready before the
+    first request arrives.
+    """
+
+    _instance: "EventRegistry | None" = None
+
+    def __new__(cls) -> "EventRegistry":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self) -> None:
-        self._schemas: dict[tuple[str, int], type[BaseModel]] = {}
+        # __init__ runs on every EventRegistry() call, even when __new__ returns
+        # the existing singleton — guard so re-construction never wipes registrations.
+        if not hasattr(self, "_schemas"):
+            self._schemas: dict[tuple[str, int], type[BaseModel]] = {}
+            self._register_defaults()
+
+    def _register_defaults(self) -> None:
+        """Register core events shipped with Sparkth."""
+        # Lazy import avoids a module-level dependency from registry → schemas.
+        from app.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
+
+        self.register("assessment.submitted", 1, AssessmentSubmitted)
+        self.register("user.logged_in", 1, UserLoggedIn)
 
     def register(self, event_type: str, version: int, schema: type[BaseModel]) -> None:
         """Register ``schema`` as the validator for ``(event_type, version)``."""
@@ -35,7 +61,3 @@ class EventRegistry:
             return self._schemas[(event_type, version)]
         except KeyError:
             raise UnknownEventTypeError(event_type, version) from None
-
-
-# Module-level singleton every schema registers on (see app/analytics/schemas/).
-event_registry = EventRegistry()

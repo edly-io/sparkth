@@ -1,15 +1,11 @@
-"""Analytics event schemas, registered on import.
+"""Default analytics event schemas shipped with Sparkth core.
 
-Importing this package populates :data:`app.analytics.registry.event_registry`
-with every known event schema. Modules that need a populated registry (the
-gateway) import this package for its registration side effect.
+Import from this package to access the event schema classes directly.
+Registration of these schemas into :class:`~app.analytics.registry.EventRegistry`
+happens automatically on first ``EventRegistry()`` construction, which
+``assemble_app`` triggers at startup.
 """
 
-from app.analytics.registry import event_registry
-from app.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
-from app.analytics.schemas.v1.user_logged_in import UserLoggedIn
-
-event_registry.register("assessment.submitted", 1, AssessmentSubmitted)
-event_registry.register("user.logged_in", 1, UserLoggedIn)
+from app.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
 
 __all__ = ["AssessmentSubmitted", "UserLoggedIn"]

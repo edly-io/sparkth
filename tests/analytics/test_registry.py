@@ -1,24 +1,34 @@
 import pytest
 from pydantic import ValidationError
 
-import app.analytics.schemas  # noqa: F401 -- registers schemas on import
 from app.analytics.exceptions import UnknownEventTypeError
-from app.analytics.registry import EventRegistry, event_registry
+from app.analytics.registry import EventRegistry
 from app.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
 
 
+def test_registry_is_singleton() -> None:
+    assert EventRegistry() is EventRegistry()
+
+
+def test_reconstruction_preserves_registered_schemas() -> None:
+    EventRegistry().register("sample.persisted", 1, AssessmentSubmitted)
+    # Re-constructing returns the same instance, so prior registrations survive
+    # an accidental EventRegistry() call elsewhere.
+    assert EventRegistry().resolve("sample.persisted", 1) is AssessmentSubmitted
+
+
 def test_resolve_returns_registered_schema() -> None:
-    assert event_registry.resolve("assessment.submitted", 1) is AssessmentSubmitted
+    assert EventRegistry().resolve("assessment.submitted", 1) is AssessmentSubmitted
 
 
 def test_resolve_unknown_event_type_raises() -> None:
     with pytest.raises(UnknownEventTypeError):
-        event_registry.resolve("does.not.exist", 1)
+        EventRegistry().resolve("does.not.exist", 1)
 
 
 def test_resolve_unknown_version_of_known_type_raises() -> None:
     with pytest.raises(UnknownEventTypeError):
-        event_registry.resolve("assessment.submitted", 999)
+        EventRegistry().resolve("assessment.submitted", 999)
 
 
 def test_register_and_resolve_roundtrip() -> None:
