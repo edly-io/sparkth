@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import require_superuser
+from app.api.v1.auth import RequirePermission
 from app.lib.db import get_async_session
+from app.lib.permissions import EmailWhitelistPermissions
 from app.models.user import User
 from app.schemas import WhitelistedEmailCreate, WhitelistedEmailResponse
 from app.services.whitelist import WhitelistService
@@ -11,9 +12,12 @@ from app.services.whitelist import WhitelistService
 router = APIRouter()
 
 
-@router.get("/", response_model=list[WhitelistedEmailResponse])
+@router.get(
+    "/",
+    response_model=list[WhitelistedEmailResponse],
+    dependencies=[Depends(RequirePermission(EmailWhitelistPermissions.READ, "global"))],
+)
 async def list_whitelist(
-    current_user: User = Depends(require_superuser),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[WhitelistedEmailResponse]:
     entries = await WhitelistService.list_entries(session)
@@ -23,7 +27,7 @@ async def list_whitelist(
 @router.post("/", response_model=WhitelistedEmailResponse, status_code=status.HTTP_201_CREATED)
 async def add_whitelist_entry(
     payload: WhitelistedEmailCreate,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(RequirePermission(EmailWhitelistPermissions.CREATE, "global")),
     session: AsyncSession = Depends(get_async_session),
 ) -> WhitelistedEmailResponse:
     try:
@@ -45,10 +49,13 @@ async def add_whitelist_entry(
     return WhitelistedEmailResponse.model_validate(entry)
 
 
-@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(RequirePermission(EmailWhitelistPermissions.DELETE, "global"))],
+)
 async def remove_whitelist_entry(
     entry_id: int,
-    current_user: User = Depends(require_superuser),
     session: AsyncSession = Depends(get_async_session),
 ) -> None:
     try:
