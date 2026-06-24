@@ -78,3 +78,22 @@ async def test_dependency_raises_500_when_scope_param_missing(session: AsyncSess
     with pytest.raises(HTTPException) as exc:
         await dep(_request(), user, session)
     assert exc.value.status_code == 500
+
+
+async def test_dependency_denies_admin_role_without_the_checked_permission(session: AsyncSession) -> None:
+    # Holding the global admin role is not a bypass: authorization is purely
+    # permission-based, so an admin role that does not grant the checked permission
+    # is still denied.
+    user = await _seed(session, "erin", None)
+    assert user.id is not None
+    role = Role(name="admin")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None))
+    await session.flush()
+
+    dep = RequirePermission("assignment.grade", SCOPE_GLOBAL)
+    with pytest.raises(HTTPException) as exc:
+        await dep(_request(), user, session)
+    assert exc.value.status_code == 403
