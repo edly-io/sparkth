@@ -10,7 +10,7 @@ permissions and scope kinds from its ``__init__`` by adding them to the hooks::
     PERMISSIONS.add_item(self, "course.grade")
 """
 
-from app.core.permissions import assign_role, can, revoke_role
+from app.core.permissions import assign_role, can, has_role, revoke_role
 from app.core.permissions.exceptions import RoleNotFound
 from app.core.permissions.scope import PermissionScope
 from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
@@ -18,6 +18,7 @@ from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
 __all__ = [
     "assign_role",
     "can",
+    "has_role",
     "revoke_role",
     "RoleNotFound",
     "PermissionScope",

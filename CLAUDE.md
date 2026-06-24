@@ -41,7 +41,7 @@ frontend/
   lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
   components/    # Reusable UI components (settings/, ui/)
 
-tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, rag/, services/
+tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, permissions/, rag/, services/
                  # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
                  # Shared fixtures: app/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
@@ -79,6 +79,11 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/plugins.py`](app/lib/plugins.py) — plugin framework public API.
   Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`); never import
   from `app.plugins`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
+- [`app/lib/permissions/`](app/lib/permissions/__init__.py) — permissions public API
+  (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
+  `assign_role`, `revoke_role`, `RoleNotFound`, `PermissionScope`, and the
+  `PERMISSIONS` / `PERMISSION_SCOPE` plugin hooks); never import from
+  `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
 - [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
   from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.analytics.gateway` or
   `app.analytics.exceptions` directly. Implementation lives in `app/analytics/`.
@@ -203,7 +208,7 @@ The rule applies to both new work and incidental changes. If you touch a file an
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
 - **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
-- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, rag, services)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, permissions, rag, services)
 
   RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`); the
   RAG MCP tooling under `app/rag/mcp/` is mirrored by `tests/rag/mcp/`.

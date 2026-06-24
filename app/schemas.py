@@ -25,7 +25,10 @@ class User(UserBase):
     id: int
     name: str
     username: str
-    is_superuser: bool
+    # Derived from the permission system (holding the global admin role), not a stored
+    # column. Defaults to False so endpoints returning the ORM user directly (register,
+    # login) report a non-admin; /user/me computes and sets the real value.
+    is_admin: bool = False
     email_verified: bool
 
     model_config = ConfigDict(from_attributes=True)

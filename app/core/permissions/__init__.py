@@ -3,12 +3,39 @@
 The public surface is re-exported from ``app.lib.permissions``
 """
 
+from sqlalchemy import ColumnElement
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.permissions.exceptions import RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.models.user import User
+
+
+def _active_assignment_at_scope(
+    user_id: int | None,
+    permission_scope: str,
+    scope_object_id: str | None,
+) -> tuple[ColumnElement[bool], ...]:
+    """WHERE clauses selecting a user's active role assignments at one permission scope.
+
+    Shared by the read-side checks (``can`` and ``has_role``) so they resolve a scope
+    identically — the single place to change when scope hierarchy lands, which keeps the
+    two from diverging.
+
+    TODO(scope hierarchy): matches the exact (scope, scope_object_id) only — a role granted
+    at a parent scope does not yet cascade to descendants (see PermissionScope.get_parents()).
+    Cascading is the end goal and lands here.
+
+    The write operations (``assign_role``, ``revoke_role``) deliberately target the exact
+    assignment row and must NOT use this — they never cascade to parent scopes.
+    """
+    return (
+        col(RoleAssignment.user_id) == user_id,
+        col(RoleAssignment.is_deleted) == False,
+        col(RoleAssignment.scope) == permission_scope,
+        col(RoleAssignment.scope_object_id) == scope_object_id,
+    )
 
 
 async def can(
@@ -19,18 +46,33 @@ async def can(
     session: AsyncSession,
 ) -> bool:
     """Return whether user holds permission at the given permission scope."""
-    # TODO(scope hierarchy): matches the exact (scope, scope_object_id) only — a role granted
-    # at a parent scope does not yet cascade to descendants (see PermissionScope.get_parents()).
-    # Cascading is the end goal and lands in the scope-hierarchy phase.
     statement = (
         select(RolePermission.permission)
         .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))
         .where(
-            RoleAssignment.user_id == user.id,
-            RoleAssignment.is_deleted == False,
-            RoleAssignment.scope == permission_scope,
-            RoleAssignment.scope_object_id == scope_object_id,
+            *_active_assignment_at_scope(user.id, permission_scope, scope_object_id),
             RolePermission.permission == permission,
+        )
+        .limit(1)
+    )
+    result = await session.exec(statement)
+    return result.first() is not None
+
+
+async def has_role(
+    user: User,
+    role_name: str,
+    permission_scope: str,
+    scope_object_id: str | None,
+    session: AsyncSession,
+) -> bool:
+    """Return whether user holds an active assignment of role_name at the given permission scope."""
+    statement = (
+        select(RoleAssignment.id)
+        .join(Role, col(Role.id) == col(RoleAssignment.role_id))
+        .where(
+            *_active_assignment_at_scope(user.id, permission_scope, scope_object_id),
+            Role.name == role_name,
         )
         .limit(1)
     )

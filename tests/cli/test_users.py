@@ -13,6 +13,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import users
+from app.core.permissions import has_role
+from app.core.permissions.constants import SCOPE_GLOBAL
+from app.core.permissions.models import Role
 from app.models.user import User
 
 
@@ -28,7 +31,6 @@ async def test_create_user_persists_a_hashed_user(session: AsyncSession) -> None
 
     user: User = (await session.exec(select(User).where(User.username == "alice"))).one()
     assert user.email == "alice@example.com"
-    assert user.is_superuser is False
     assert user.email_verified
     assert user.email_verified_at
     assert user.hashed_password != "s3cret"
@@ -49,7 +51,10 @@ async def test_create_unverified_user(session: AsyncSession) -> None:
     assert user.email_verified_at is None
 
 
-async def test_create_user_marks_superuser(session: AsyncSession) -> None:
+async def test_create_user_admin_assigns_admin_role(session: AsyncSession) -> None:
+    session.add(Role(name="admin"))
+    await session.flush()
+
     await users._create_user(
         username="root",
         email="root@example.com",
@@ -60,8 +65,24 @@ async def test_create_user_marks_superuser(session: AsyncSession) -> None:
     )
 
     user = (await session.exec(select(User).where(User.username == "root"))).one()
-    assert user.is_superuser is True
     assert user.name == "root"  # falls back to username when name is omitted
+    assert await has_role(user, "admin", SCOPE_GLOBAL, None, session) is True
+
+
+async def test_create_user_admin_without_seeded_role_persists_nothing(session: AsyncSession) -> None:
+    # The admin role has not been seeded, so the role assignment fails. Because the
+    # role is assigned before the single commit, the user must not be left orphaned.
+    with pytest.raises(typer.Exit):
+        await users._create_user(
+            username="root",
+            email="root@example.com",
+            password="s3cret",
+            name=None,
+            superuser=True,
+            email_verified=True,
+        )
+
+    assert (await session.exec(select(User).where(User.username == "root"))).all() == []
 
 
 async def test_create_user_rejects_duplicate(session: AsyncSession) -> None:
