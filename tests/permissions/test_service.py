@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import permissions as permissions_module
 from app.core.permissions import assign_role, can, has_role, revoke_role
 from app.core.permissions.constants import SCOPE_GLOBAL
 from app.core.permissions.exceptions import RoleNotFound
@@ -148,6 +149,42 @@ async def test_assign_role_unknown_role_raises(session: AsyncSession) -> None:
     assert user.id is not None
     with pytest.raises(RoleNotFound):
         await assign_role(user.id, "nope", SCOPE_GLOBAL, None, session)
+
+
+async def test_assign_role_recovers_from_concurrent_insert(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Simulate the check-then-insert race: a concurrent request already created the
+    # assignment, but this call's existence check misses it (the TOCTOU window), so it
+    # tries to insert and hits the unique index. assign_role must recover by re-querying
+    # and returning the existing row, not surface the IntegrityError as a 500.
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", [])
+    assert user.id is not None and role.id is not None
+    existing = RoleAssignment(user_id=user.id, role_id=role.id, scope=SCOPE_GLOBAL, scope_object_id=None)
+    session.add(existing)
+    await session.flush()
+
+    real_find = permissions_module._find_active_assignment
+    calls = {"n": 0}
+
+    async def find_missing_first(
+        user_id: int,
+        role_id: int,
+        permission_scope: str,
+        scope_object_id: str | None,
+        db: AsyncSession,
+    ) -> RoleAssignment | None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None  # the existence check misses, as if the concurrent row isn't visible yet
+        return await real_find(user_id, role_id, permission_scope, scope_object_id, db)
+
+    monkeypatch.setattr(permissions_module, "_find_active_assignment", find_missing_first)
+
+    result = await assign_role(user.id, "grader", SCOPE_GLOBAL, None, session)
+
+    assert result.id == existing.id
 
 
 async def test_revoke_role_revokes_access(session: AsyncSession) -> None:
