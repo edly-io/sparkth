@@ -16,24 +16,46 @@ from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
 logger = get_logger(__name__)
 
 
-class PermissionsRegistry:
-    """The set of registered permission strings, held in a flat list."""
+class SingletonRegistry:
+    """Base for the permission vocabulary registries.
 
-    instance: "PermissionsRegistry | None" = None
-    _permissions: list[str]
+    Holds one shared instance per subclass and seeds the platform defaults once on
+    construction. Subclasses implement :meth:`reset` to (re)build their storage and
+    seed defaults; the base reuses it for the one-time seed and exposes it publicly.
+    """
 
-    def __new__(cls) -> "PermissionsRegistry":
+    instance: "SingletonRegistry | None" = None
+    _seeded: bool = False
+
+    def __new__(cls) -> "SingletonRegistry":
         if cls.instance is None:
             cls.instance = super().__new__(cls)
         return cls.instance
 
     def __init__(self) -> None:
-        # __new__ returns the shared instance, so __init__ runs on every call;
-        # guard the storage so an existing registry is never reset.
-        if not hasattr(self, "_permissions"):
-            self._permissions = []
-            for permission in DEFAULT_PERMISSIONS:
-                self.add(permission)
+        # __new__ returns the shared instance, so __init__ runs on every call; seed once.
+        if not self._seeded:
+            self._seeded = True
+            self.reset()
+
+    def reset(self) -> None:
+        """Drop every registered item and re-seed the platform defaults.
+
+        Mainly for test isolation: ``clear()`` alone leaves the registry empty, which for
+        scopes drops the ``global`` root and makes any later child registration fail.
+        """
+        raise NotImplementedError
+
+
+class PermissionsRegistry(SingletonRegistry):
+    """The set of registered permission strings, held in a flat list."""
+
+    _permissions: list[str]
+
+    def reset(self) -> None:
+        self._permissions = []
+        for permission in DEFAULT_PERMISSIONS:
+            self.add(permission)
 
     def add(self, permission: str) -> str:
         """Register permission and return it. A duplicate is logged and ignored."""
@@ -54,11 +76,11 @@ class PermissionsRegistry:
         return list(self._permissions)
 
     def clear(self) -> None:
-        """Drop every registered permission."""
+        """Drop every registered permission, without re-seeding (see reset())."""
         self._permissions.clear()
 
 
-class PermissionScopesRegistry:
+class PermissionScopesRegistry(SingletonRegistry):
     """The registered scope kinds, indexed by name.
 
     The scopes form a tree through each scope's upward ``parent`` link; the
@@ -66,21 +88,12 @@ class PermissionScopesRegistry:
     scope is registered too.
     """
 
-    instance: "PermissionScopesRegistry | None" = None
     _index: dict[str, PermissionScope]
 
-    def __new__(cls) -> "PermissionScopesRegistry":
-        if cls.instance is None:
-            cls.instance = super().__new__(cls)
-        return cls.instance
-
-    def __init__(self) -> None:
-        # __new__ returns the shared instance, so __init__ runs on every call;
-        # guard the storage so an existing registry is never reset.
-        if not hasattr(self, "_index"):
-            self._index = {}
-            for permission_scope in DEFAULT_PERMISSION_SCOPES:
-                self.add(permission_scope)
+    def reset(self) -> None:
+        self._index = {}
+        for permission_scope in DEFAULT_PERMISSION_SCOPES:
+            self.add(permission_scope)
 
     def add(self, permission_scope: PermissionScope) -> PermissionScope:
         """Register permission_scope and return it. A duplicate (by name) is logged and ignored.
@@ -104,7 +117,7 @@ class PermissionScopesRegistry:
         return self._index[name]
 
     def clear(self) -> None:
-        """Drop every registered scope."""
+        """Drop every registered scope, without re-seeding (see reset())."""
         self._index.clear()
 
 

@@ -4,6 +4,7 @@ The public surface is re-exported from ``app.lib.permissions``
 """
 
 from sqlalchemy import ColumnElement
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -36,6 +37,28 @@ def _active_assignment_at_scope(
         col(RoleAssignment.scope) == permission_scope,
         col(RoleAssignment.scope_object_id) == scope_object_id,
     )
+
+
+async def _find_active_assignment(
+    user_id: int,
+    role_id: int,
+    permission_scope: str,
+    scope_object_id: str | None,
+    session: AsyncSession,
+) -> RoleAssignment | None:
+    """Return the user's active assignment of role_id at the exact scope, or None."""
+    statement = (
+        select(RoleAssignment)
+        .where(
+            RoleAssignment.user_id == user_id,
+            RoleAssignment.role_id == role_id,
+            RoleAssignment.scope == permission_scope,
+            RoleAssignment.scope_object_id == scope_object_id,
+            RoleAssignment.is_deleted == False,
+        )
+        .limit(1)
+    )
+    return (await session.exec(statement)).first()
 
 
 async def can(
@@ -89,32 +112,36 @@ async def assign_role(
 ) -> RoleAssignment:
     """Return the active assignment of role_name to user_id at the given permission scope, creating it if absent.
 
+    Idempotent and race-safe: if a concurrent assign inserts the same (user, role, scope)
+    between the existence check and our insert, the unique index rejects ours; we recover by
+    re-querying and returning the winner instead of surfacing the IntegrityError.
+
     Raises RoleNotFound if the role does not exist.
     """
     role = (await session.exec(select(Role).where(Role.name == role_name))).one_or_none()
     if role is None or role.id is None:
         raise RoleNotFound(role_name)
-    existing = (
-        await session.exec(
-            select(RoleAssignment)
-            .where(
-                RoleAssignment.user_id == user_id,
-                RoleAssignment.role_id == role.id,
-                RoleAssignment.scope == permission_scope,
-                RoleAssignment.scope_object_id == scope_object_id,
-                RoleAssignment.is_deleted == False,
-            )
-            .limit(1)
-        )
-    ).first()
+    existing = await _find_active_assignment(user_id, role.id, permission_scope, scope_object_id, session)
     if existing is not None:
         return existing
-    assignment = RoleAssignment(
-        user_id=user_id, role_id=role.id, scope=permission_scope, scope_object_id=scope_object_id
-    )
-    session.add(assignment)
-    await session.flush()
-    return assignment
+    try:
+        # Insert inside a savepoint so a unique-index violation rolls back cleanly without
+        # poisoning the surrounding transaction.
+        async with session.begin_nested():
+            assignment = RoleAssignment(
+                user_id=user_id, role_id=role.id, scope=permission_scope, scope_object_id=scope_object_id
+            )
+            session.add(assignment)
+            await session.flush()
+        return assignment
+    except IntegrityError:
+        # A concurrent assign_role inserted the same (user, role, scope)
+        # after our check, so the unique index rejected ours. Re-query and return that
+        # winner to stay idempotent; if it's somehow still not visible, re-raise.
+        winner = await _find_active_assignment(user_id, role.id, permission_scope, scope_object_id, session)
+        if winner is None:
+            raise
+        return winner
 
 
 async def revoke_role(
@@ -138,6 +165,7 @@ async def revoke_role(
     )
     assignments = (await session.exec(statement)).all()
     for assignment in assignments:
+        # Already tracked by the session (they came from this query), so mutating them marks
+        # them dirty — no session.add needed.
         assignment.soft_delete()
-        session.add(assignment)
     await session.flush()
