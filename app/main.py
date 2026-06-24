@@ -7,8 +7,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Lifespan
 
-from app.analytics.registry import EventRegistry
 from app.api.v1.api import api_router
+from app.core.analytics.registry import EventRegistry
 from app.core.config import get_settings
 from app.core.routes.hooks import PLUGIN_ROUTERS
 from app.lib.log import configure_logging, get_logger

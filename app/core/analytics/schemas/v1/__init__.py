@@ -5,7 +5,7 @@ directly (``from app.analytics.schemas.v1 import UserLoggedIn``) instead of
 reaching into each per-event module.
 """
 
-from app.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
-from app.analytics.schemas.v1.user_logged_in import UserLoggedIn
+from app.core.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
+from app.core.analytics.schemas.v1.user_logged_in import UserLoggedIn
 
 __all__ = ["AssessmentSubmitted", "UserLoggedIn"]

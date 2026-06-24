@@ -12,7 +12,7 @@ canonical dot-separated name stored in ``raw_events.event_type``.
 
 from pydantic import BaseModel
 
-from app.analytics.exceptions import UnknownEventTypeError
+from app.core.analytics.exceptions import UnknownEventTypeError
 
 
 class EventRegistry:
@@ -43,7 +43,7 @@ class EventRegistry:
     def _register_defaults(self) -> None:
         """Register core events shipped with Sparkth."""
         # Lazy import avoids a module-level dependency from registry → schemas.
-        from app.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
+        from app.core.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
 
         self.register("assessment.submitted", 1, AssessmentSubmitted, server_only=True)
         self.register("user.logged_in", 1, UserLoggedIn, server_only=True)

@@ -13,9 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.analytics.registry import EventRegistry
 from app.api.v1.analytics.schemas import EmitEventRequest, EmitEventResponse
 from app.api.v1.auth import get_current_user
+from app.core.analytics.registry import EventRegistry
 from app.lib.analytics import UnknownEventTypeError, ingest_event
 from app.lib.db import get_analytics_session
 from app.lib.log import get_logger

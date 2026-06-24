@@ -1,8 +1,8 @@
 from sqlalchemy import MetaData, text
 from sqlmodel import SQLModel
 
-from app.analytics.db import get_analytics_engine
-from app.analytics.models import analytics_metadata
+from app.core.analytics.db import get_analytics_engine
+from app.core.analytics.models import analytics_metadata
 from app.core.db import get_engine
 from app.lib.db import analytics_session_scope
 from app.lib.settings import get_settings
