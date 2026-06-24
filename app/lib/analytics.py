@@ -1,8 +1,8 @@
 """Public API for the analytics emission gateway.
 
 All application code and plugins import analytics functionality from here rather
-than reaching into ``app.analytics.*`` directly. Implementation lives in
-``app/analytics/``.
+than reaching into ``app.core.analytics.*`` directly. Implementation lives in
+``app/core/analytics/``.
 """
 
 from app.core.analytics.exceptions import UnknownEventTypeError

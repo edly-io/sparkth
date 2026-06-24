@@ -63,7 +63,7 @@ class EventRegistry:
             version: Schema version integer.
             schema: Pydantic model that validates the event payload.
             server_only: When ``True``, the event may only be emitted by trusted
-                server-side callers via :func:`~app.analytics.gateway.ingest_event`
+                server-side callers via :func:`~app.core.analytics.gateway.ingest_event`
                 directly. The HTTP emission endpoint rejects it with ``403``.
         """
         self._schemas[(event_type, version)] = schema
