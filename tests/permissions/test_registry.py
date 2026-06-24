@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Generator
 
 import pytest
 
@@ -25,9 +26,14 @@ def permission_scopes() -> PermissionScopesRegistry:
 
 
 @pytest.fixture(autouse=True)
-def _reset_registries() -> None:
+def _reset_registries() -> Generator[None, None, None]:
+    # Clear before each test for an empty baseline; restore the platform defaults afterwards
+    # so this module never leaves the shared singletons empty for a later module to trip over.
     PermissionsRegistry().clear()
     PermissionScopesRegistry().clear()
+    yield
+    PermissionsRegistry().reset()
+    PermissionScopesRegistry().reset()
 
 
 def test_registries_are_singletons() -> None:
