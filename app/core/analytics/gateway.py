@@ -12,8 +12,8 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.analytics.models import raw_events
-from app.analytics.registry import EventRegistry
+from app.core.analytics.models import raw_events
+from app.core.analytics.registry import EventRegistry
 from app.lib.log import get_logger
 
 logger = get_logger(__name__)

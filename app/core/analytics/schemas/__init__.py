@@ -6,6 +6,6 @@ happens automatically on first ``EventRegistry()`` construction, which
 ``assemble_app`` triggers at startup.
 """
 
-from app.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
+from app.core.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
 
 __all__ = ["AssessmentSubmitted", "UserLoggedIn"]

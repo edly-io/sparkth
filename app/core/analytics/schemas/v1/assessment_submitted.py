@@ -4,7 +4,7 @@ A representative event that proves the registry + versioning + gateway path. It 
 not yet emitted by any producer — producer wiring is a later phase.
 """
 
-from app.analytics.schemas.base import AnalyticsEventSchema
+from app.core.analytics.schemas.base import AnalyticsEventSchema
 
 
 class AssessmentSubmitted(AnalyticsEventSchema):

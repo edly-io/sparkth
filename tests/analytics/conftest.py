@@ -5,7 +5,7 @@ from collections.abc import Generator
 import pytest
 from pydantic import BaseModel
 
-from app.analytics.registry import EventRegistry
+from app.core.analytics.registry import EventRegistry
 
 
 class _SimpleEvent(BaseModel):

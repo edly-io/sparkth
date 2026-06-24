@@ -5,8 +5,8 @@ than reaching into ``app.analytics.*`` directly. Implementation lives in
 ``app/analytics/``.
 """
 
-from app.analytics.exceptions import UnknownEventTypeError
-from app.analytics.gateway import ingest_event
+from app.core.analytics.exceptions import UnknownEventTypeError
+from app.core.analytics.gateway import ingest_event
 
 __all__ = [
     "UnknownEventTypeError",

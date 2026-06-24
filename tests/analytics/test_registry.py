@@ -1,9 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from app.analytics.exceptions import UnknownEventTypeError
-from app.analytics.registry import EventRegistry
-from app.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
+from app.core.analytics.exceptions import UnknownEventTypeError
+from app.core.analytics.registry import EventRegistry
+from app.core.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
 
 
 def test_registry_is_singleton() -> None:
@@ -57,7 +57,7 @@ def test_assessment_submitted_rejects_extra_fields() -> None:
 
 
 def test_user_logged_in_rejects_extra_fields() -> None:
-    from app.analytics.schemas.v1.user_logged_in import UserLoggedIn
+    from app.core.analytics.schemas.v1.user_logged_in import UserLoggedIn
 
     with pytest.raises(ValidationError):
         UserLoggedIn.model_validate({"username": "alice", "extra": "bad"})

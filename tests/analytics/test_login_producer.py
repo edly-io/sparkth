@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.analytics.models import raw_events
+from app.core.analytics.models import raw_events
 from app.core.security import get_password_hash
 from app.models.user import User
 

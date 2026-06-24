@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 # `session_scope` / `analytics_session_scope` resolve `open_session` /
 # `open_analytics_session` at call time, so overriding those functions in tests
 # reaches every caller — including code that imported the scope helpers by value.
-import app.analytics.db as analytics_db
+import app.core.analytics.db as analytics_db
 import app.core.db as core_db
 
 
