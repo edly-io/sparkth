@@ -49,6 +49,27 @@ def test_construction_seeds_default_permissions() -> None:
     assert fresh.all() == list(DEFAULT_PERMISSIONS)
 
 
+def test_reset_reseeds_default_permissions(permissions: PermissionsRegistry) -> None:
+    permissions.add("assignment.grade")
+    permissions.reset()
+    assert permissions.all() == list(DEFAULT_PERMISSIONS)
+
+
+def test_reset_reseeds_default_permission_scopes(permission_scopes: PermissionScopesRegistry) -> None:
+    permission_scopes.clear()
+    permission_scopes.reset()
+    assert permission_scopes.get("global") is DEFAULT_PERMISSION_SCOPES[0]
+
+
+def test_child_scope_registers_after_reset(permission_scopes: PermissionScopesRegistry) -> None:
+    # clear() drops the global root, which would make any child registration fail;
+    # reset() restores it, so a child scope can be added against it again.
+    permission_scopes.clear()
+    permission_scopes.reset()
+    course = PermissionScope("course", parent=permission_scopes.get("global"))
+    assert permission_scopes.add(course) is course
+
+
 def test_add_permission_returns_it(permissions: PermissionsRegistry) -> None:
     assert permissions.add("assignment.grade") == "assignment.grade"
 
