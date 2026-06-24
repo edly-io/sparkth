@@ -37,7 +37,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg18
+        image: timescale/timescaledb-ha:pg18
         env:
           POSTGRES_USER: sparkth
           POSTGRES_PASSWORD: sparkth_password
@@ -73,6 +73,10 @@ jobs:
       # Plain postgresql:// form; app/core/db.py derives the asyncpg URL from
       # it automatically, and Alembic reads this var directly.
       DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth
+      # Login emits a user.logged_in analytics event, so the e2e env must provision
+      # the separate analytics database too (created + migrated below). Same
+      # instance as DATABASE_URL, different DB — mirrors the .env default (Option B).
+      ANALYTICS_DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics
       REDIS_URL: redis://localhost:6379
       SECRET_KEY: secret-key-for-ci
       LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
@@ -122,8 +126,19 @@ jobs:
         run: bun run build
         working-directory: frontend
 
+      - name: Create analytics database
+        # The postgres service only initializes POSTGRES_DB (sparkth). The analytics
+        # lineage lives in a separate database, so create it before migrating.
+        env:
+          PGPASSWORD: sparkth_password
+        run: |
+          psql -h localhost -U sparkth -d sparkth \
+            -c "CREATE DATABASE sparkth_analytics;"
+
       - name: Run database migrations
-        run: uv run alembic upgrade head
+        run: |
+          uv run alembic upgrade head
+          uv run alembic -c alembic_analytics.ini upgrade head
 
       - name: Seed E2E superuser
         run: |

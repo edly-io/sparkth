@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Lifespan
 
+from app.analytics.registry import EventRegistry
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core.routes.hooks import PLUGIN_ROUTERS
@@ -95,6 +96,7 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     Pass lifespan=None (the default) for codegen and tests that only need the
     route map; production startup passes the real lifespan below.
     """
+    EventRegistry()  # populate default event schemas before the first request
     application = FastAPI(lifespan=lifespan)
     application.mount("/ai", mcp_app)
     application.add_middleware(

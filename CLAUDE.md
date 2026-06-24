@@ -20,11 +20,11 @@ Useful URLs:
 
 ```
 app/
-  core/          # Settings, DB engines, security (JWT/OAuth), permissions (scoped RBAC)
-  analytics/     # Analytics DB engine, session providers, and metadata registry
+  core/          # Settings, DB engines, security (JWT/OAuth)
+  analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema registry, schemas, gateway (raw_events). Login emits user.logged_in.
   lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
-  api/v1/        # REST endpoints: auth, user, user-plugins, llm, whitelist, file-parser
+  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events (analytics emission gateway)
   plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py
   core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
   mcp/           # FastMCP server, tool registration, prompts/
@@ -84,6 +84,9 @@ Current modules (see the source for the full API — do not duplicate it here):
   `assign_role`, `revoke_role`, `RoleNotFound`, `PermissionScope`, and the
   `PERMISSIONS` / `PERMISSION_SCOPE` plugin hooks); never import from
   `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
+- [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
+  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.analytics.gateway` or
+  `app.analytics.exceptions` directly. Implementation lives in `app/analytics/`.
 
 ## Essential Commands
 

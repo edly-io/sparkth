@@ -10,6 +10,8 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,7 +22,8 @@ from app.core.google_auth import (
     generate_google_login_url,
     get_google_user_info,
 )
-from app.lib.db import get_async_session
+from app.lib.analytics import UnknownEventTypeError, ingest_event
+from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
 from app.lib.permissions import can
 from app.models.base import utc_now
@@ -133,9 +136,38 @@ async def register_user(
     return db_user
 
 
+async def _emit_login_event(username: str, user_id: str | None) -> None:
+    """Emit a user.logged_in analytics event as a background task.
+
+    Runs after the login response has been sent. Must not raise — any exception
+    that escapes a background task propagates through Starlette's middleware in
+    ASGI test transports and would break tests even though production handles it
+    transparently. Known analytics failures are logged at WARNING; anything
+    unexpected is logged at ERROR. Either way the login outcome is unaffected.
+    """
+    try:
+        async with analytics_session_scope() as analytics_session:
+            await ingest_event(
+                analytics_session,
+                "user.logged_in",
+                1,
+                {"username": username},
+                actor_id=user_id,
+            )
+    except (UnknownEventTypeError, ValidationError, SQLAlchemyError) as exc:
+        logger.warning("Failed to emit user.logged_in analytics event: %s", exc)
+    except Exception as exc:
+        # Broad catch required: any unhandled exception in a background task
+        # propagates through the Starlette ASGI middleware stack. Log at ERROR
+        # so unexpected failures are visible, but never let them surface to callers.
+        logger.error("Unexpected error emitting user.logged_in analytics event: %s", exc, exc_info=True)
+
+
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
-    form_data: UserLogin, session: AsyncSession = Depends(get_async_session)
+    form_data: UserLogin,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str | datetime]:
     result = await session.exec(select(User).where(User.username == form_data.username))
     user = result.one_or_none()
@@ -166,6 +198,12 @@ async def login_for_access_token(
     expires_at = utc_now() + access_token_expires
 
     access_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+
+    background_tasks.add_task(
+        _emit_login_event,
+        username=user.username,
+        user_id=str(user.id) if user.id is not None else None,
+    )
 
     return {"access_token": access_token, "token_type": "bearer", "expires_at": expires_at}
 
