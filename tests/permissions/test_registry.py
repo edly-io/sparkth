@@ -1,159 +1,58 @@
-import logging
-
 import pytest
 
 from app.core.permissions import PERMISSIONS, Permission
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
 from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
-from app.lib.permissions.registry import (
-    PermissionScopesRegistry,
-    PermissionsRegistry,
-    initialize_permission_scopes_registry,
-    initialize_permissions_registry,
-)
+from app.lib.hooks import SingleNamedItemHook
+from app.lib.permissions.registry import PermissionScopesRegistry, PermissionsRegistry
 
 
-@pytest.fixture
-def permissions() -> PermissionsRegistry:
-    return PermissionsRegistry()
+def test_get_permission_returns_the_registered_object() -> None:
+    hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+    permission = Permission("assignment.grade")
+    hook.add_item(permission)
+
+    assert PermissionsRegistry(hook).get("assignment.grade") is permission
 
 
-@pytest.fixture
-def permission_scopes() -> PermissionScopesRegistry:
-    return PermissionScopesRegistry()
+def test_get_unknown_permission_raises() -> None:
+    registry = PermissionsRegistry(SingleNamedItemHook())
 
-
-@pytest.fixture(autouse=True)
-def _reset_registries() -> None:
-    PermissionsRegistry().clear()
-    PermissionScopesRegistry().clear()
-
-
-def test_registries_are_singletons() -> None:
-    assert PermissionsRegistry() is PermissionsRegistry()
-    assert PermissionScopesRegistry() is PermissionScopesRegistry()
-
-
-def test_construction_does_not_seed_permission_scopes() -> None:
-    # Scopes are no longer seeded at construction; the registry is populated solely by
-    # initialize_permission_scopes_registry() reading from the PERMISSION_SCOPES hook.
-    PermissionScopesRegistry.instance = None
-    fresh = PermissionScopesRegistry()
-    with pytest.raises(PermissionScopeNotFound):
-        fresh.get("global")
-
-
-def test_construction_does_not_seed_permissions() -> None:
-    # Permissions are no longer seeded at construction; the registry is populated solely
-    # by initialize_permissions_registry() reading from the PERMISSIONS hook.
-    PermissionsRegistry.instance = None
-    fresh = PermissionsRegistry()
-    assert fresh.all() == []
-
-
-def test_add_permission_returns_it(permissions: PermissionsRegistry) -> None:
-    assert permissions.add("assignment.grade") == "assignment.grade"
-
-
-def test_get_permission_returns_added(permissions: PermissionsRegistry) -> None:
-    permissions.add("assignment.grade")
-    assert permissions.get("assignment.grade") == "assignment.grade"
-
-
-def test_add_duplicate_permission_logs_and_ignores(
-    permissions: PermissionsRegistry, caplog: pytest.LogCaptureFixture
-) -> None:
-    permissions.add("assignment.grade")
-    with caplog.at_level(logging.WARNING):
-        permissions.add("assignment.grade")
-    assert permissions.all() == ["assignment.grade"]
-    assert "assignment.grade" in caplog.text
-
-
-def test_get_unknown_permission_raises(permissions: PermissionsRegistry) -> None:
     with pytest.raises(PermissionNotFound):
-        permissions.get("nope")
+        registry.get("nope")
 
 
-def test_clear_empties_permissions(permissions: PermissionsRegistry) -> None:
-    permissions.add("assignment.grade")
-    permissions.clear()
-    assert permissions.all() == []
+def test_all_returns_every_registered_permission() -> None:
+    hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+    first = Permission("a")
+    second = Permission("b")
+    hook.add_item(first)
+    hook.add_item(second)
+
+    assert PermissionsRegistry(hook).all() == [first, second]
 
 
-def test_add_permission_scope_returns_it(permission_scopes: PermissionScopesRegistry) -> None:
-    permission_scope = PermissionScope("global")
-    assert permission_scopes.add(permission_scope) is permission_scope
+def test_all_is_empty_for_an_empty_hook() -> None:
+    assert PermissionsRegistry(SingleNamedItemHook()).all() == []
 
 
-def test_get_permission_scope_returns_added(permission_scopes: PermissionScopesRegistry) -> None:
-    permission_scope = PermissionScope("global")
-    permission_scopes.add(permission_scope)
-    assert permission_scopes.get("global") is permission_scope
+def test_get_permission_scope_returns_the_registered_object() -> None:
+    hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
+    scope = PermissionScope("course")
+    hook.add_item(scope)
+
+    assert PermissionScopesRegistry(hook).get("course") is scope
 
 
-def test_get_unknown_permission_scope_raises(permission_scopes: PermissionScopesRegistry) -> None:
+def test_get_unknown_permission_scope_raises() -> None:
+    registry = PermissionScopesRegistry(SingleNamedItemHook())
+
     with pytest.raises(PermissionScopeNotFound):
-        permission_scopes.get("course")
+        registry.get("course")
 
 
-def test_add_duplicate_permission_scope_logs_and_ignores(
-    permission_scopes: PermissionScopesRegistry, caplog: pytest.LogCaptureFixture
-) -> None:
-    first = permission_scopes.add(PermissionScope("global"))
-    with caplog.at_level(logging.WARNING):
-        second = permission_scopes.add(PermissionScope("global"))
-    assert second is first
-    assert "global" in caplog.text
-
-
-def test_add_child_after_parent_links(permission_scopes: PermissionScopesRegistry) -> None:
-    root = PermissionScope("global")
-    course = PermissionScope("course", parent=root)
-    permission_scopes.add(root)
-    permission_scopes.add(course)
-
-    assert permission_scopes.get("course").parent is root
-
-
-def test_add_permission_scope_with_unregistered_parent_raises(permission_scopes: PermissionScopesRegistry) -> None:
-    # A permission scope's parent must be registered first; we do not auto-create ancestors.
-    course = PermissionScope("course", parent=PermissionScope("global"))
-    with pytest.raises(PermissionScopeNotFound):
-        permission_scopes.add(course)
-
-
-def test_add_chain_in_hierarchy_order(permission_scopes: PermissionScopesRegistry) -> None:
-    root = PermissionScope("global")
-    course = PermissionScope("course", parent=root)
-    quiz = PermissionScope("quiz", parent=course)
-    permission_scopes.add(root)
-    permission_scopes.add(course)
-    permission_scopes.add(quiz)
-
-    assert permission_scopes.get("global") is root
-    assert permission_scopes.get("course") is course
-    assert permission_scopes.get("quiz") is quiz
-
-
-def test_clear_empties_permission_scopes(permission_scopes: PermissionScopesRegistry) -> None:
-    permission_scopes.add(PermissionScope("global"))
-    permission_scopes.clear()
-    with pytest.raises(PermissionScopeNotFound):
-        permission_scopes.get("global")
-
-
-def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The hook yields Permission objects; the loader unwraps each to its name string.
-    monkeypatch.setattr(PERMISSIONS, "iter_values", lambda: iter([Permission("assignment.grade")]))
-    initialize_permissions_registry()
-    assert PermissionsRegistry().get("assignment.grade") == "assignment.grade"
-
-
-def test_initialize_permission_scopes_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
-    root = PermissionScope("global")
-    course = PermissionScope("course", parent=root)
-    # The hook yields scopes in insertion order, so a parent precedes its child.
-    monkeypatch.setattr(PERMISSION_SCOPES, "iter_values", lambda: iter([root, course]))
-    initialize_permission_scopes_registry()
-    assert PermissionScopesRegistry().get("course") is course
+def test_registries_default_to_the_global_hooks() -> None:
+    # No-arg construction reads the global hooks, which carry the core vocabulary registered at
+    # import: the email-whitelist permissions and the global scope.
+    assert PermissionsRegistry().get("email.whitelist.read") is PERMISSIONS.get("email.whitelist.read")
+    assert PermissionScopesRegistry().get("global") is PERMISSION_SCOPES.get("global")

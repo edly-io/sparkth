@@ -8,7 +8,7 @@ from app.lib.permissions import PermissionScopeNotFound, RoleNotFound
 
 # Aliased to avoid colliding with this module's own ``assign_role`` Typer command.
 from app.lib.permissions import assign_role as grant_role
-from app.lib.permissions.registry import PermissionScopesRegistry, initialize_permission_scopes_registry
+from app.lib.permissions.registry import PermissionScopesRegistry
 from app.lib.permissions.scopes import GLOBAL
 from app.lib.plugins import get_plugin_loader
 from app.models.user import User
@@ -44,7 +44,6 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
     # Validate the scope kind against the registered vocabulary so a mistyped --scope
     # fails loudly instead of persisting a no-op assignment.
     get_plugin_loader()
-    initialize_permission_scopes_registry()
     try:
         permission_scope = PermissionScopesRegistry().get(scope)
     except PermissionScopeNotFound:
