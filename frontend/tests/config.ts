@@ -3,7 +3,7 @@
  *
  * Values come from environment variables (loaded via `dotenv/config` in
  * `playwright.config.ts`). Defaults match `compose.yml`'s local dev setup so
- * the suite "just works" against `make up`.
+ * the suite "just works" against `make services.up`.
  */
 
 export const firstSuperuser = process.env.FIRST_SUPERUSER ?? "admin";

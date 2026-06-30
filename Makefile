@@ -169,7 +169,7 @@ test.frontend.format: ## Run frontend formatting tests
 	$(MAKE) lint.format.frontend check=1
 
 .PHONY: test.e2e
-test.e2e: ## Run Playwright E2E tests (needs the app running + seeded admin; see frontend/tests/README.md)
+test.e2e: ## Run Playwright E2E tests against an ephemeral SQLite backend (needs `make services.up`; see README.md)
 	cd frontend && bun run test:e2e $(ARGS)
 
 .PHONY: test.e2e.ui

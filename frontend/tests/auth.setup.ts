@@ -9,8 +9,9 @@ const STORAGE_STATE = "playwright/.auth/user.json";
  * resulting localStorage to `playwright/.auth/user.json`. Every chromium
  * project depends on this fixture, so individual specs start already logged in.
  *
- * The seeded superuser is created out-of-band — either by `make create-user`
- * locally or by the `seed-e2e-user` step in `.github/workflows/playwright.yml`.
+ * The superuser is seeded automatically before the suite runs: locally by the
+ * ephemeral SQLite backend (scripts/e2e-backend.sh) and in CI by the seed step
+ * in .github/workflows/playwright.yml.
  */
 setup("authenticate", async ({ page, request }) => {
   const { access_token, expires_at } = await logInViaApi(
