@@ -25,7 +25,8 @@ from app.core.google_auth import (
 from app.lib.analytics import UnknownEventTypeError, ingest_event
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
-from app.lib.permissions import Permission, PermissionScope, can
+from app.lib.permissions import Permission, can
+from app.lib.permissions.scopes import PermissionScope
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (

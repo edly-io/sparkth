@@ -8,8 +8,8 @@ from app.lib.permissions import (
     EMAIL_WHITELIST_CREATE,
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
-    GLOBAL,
 )
+from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
 from app.schemas import WhitelistedEmailCreate, WhitelistedEmailResponse
 from app.services.whitelist import WhitelistService

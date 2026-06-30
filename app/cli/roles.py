@@ -4,11 +4,12 @@ import typer
 from sqlmodel import select
 
 from app.lib.db import session_scope
-from app.lib.permissions import GLOBAL, PermissionScopeNotFound, RoleNotFound
+from app.lib.permissions import PermissionScopeNotFound, RoleNotFound
 
 # Aliased to avoid colliding with this module's own ``assign_role`` Typer command.
 from app.lib.permissions import assign_role as grant_role
 from app.lib.permissions.registry import PermissionScopesRegistry, initialize_permission_scopes_registry
+from app.lib.permissions.scopes import GLOBAL
 from app.lib.plugins import get_plugin_loader
 from app.models.user import User
 

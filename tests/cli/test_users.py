@@ -14,7 +14,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import users
 from app.core.permissions.models import Role
-from app.lib.permissions import GLOBAL, has_role
+from app.lib.permissions import has_role
+from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
 
 

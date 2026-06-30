@@ -5,7 +5,8 @@ from starlette.requests import Request
 
 from app.api.v1.auth import RequirePermission
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.permissions import GLOBAL, Permission, PermissionScope
+from app.lib.permissions import Permission
+from app.lib.permissions.scopes import GLOBAL, PermissionScope
 from app.models.user import User
 
 

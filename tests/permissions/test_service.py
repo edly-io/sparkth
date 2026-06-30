@@ -6,7 +6,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.permissions import utils as permissions_utils
 from app.core.permissions.exceptions import RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.permissions import GLOBAL, Permission, PermissionScope, assign_role, can, has_role, revoke_role
+from app.lib.permissions import Permission, assign_role, can, has_role, revoke_role
+from app.lib.permissions.scopes import GLOBAL, PermissionScope
 from app.models.user import User
 
 
@@ -237,19 +238,22 @@ async def test_has_role_false_after_revoke(session: AsyncSession) -> None:
 
 def test_facade_exposes_public_surface() -> None:
     from app.core.permissions.hooks import PERMISSION_SCOPES, PERMISSIONS
-    from app.core.permissions.scopes import PermissionScope
+    from app.core.permissions.scopes import GLOBAL, PermissionScope
     from app.lib import permissions as facade
+    from app.lib.permissions import scopes as scopes_facade
 
     assert facade.can is can
     assert facade.assign_role is assign_role
     assert facade.revoke_role is revoke_role
     assert facade.has_role is has_role
     assert issubclass(facade.RoleNotFound, Exception)
-    # Plugins author against the facade, so the scope class and the hooks they
-    # register through must be reachable here, not only from app.core / the hook module.
-    assert facade.PermissionScope is PermissionScope
+    # Plugins author against the facade for the hooks they register through.
     assert facade.PERMISSIONS is PERMISSIONS
     assert facade.PERMISSION_SCOPES is PERMISSION_SCOPES
+    # The scope class and the GLOBAL root are re-exported from the app.lib.permissions.scopes
+    # submodule (not the package facade), so plugins import them from there.
+    assert scopes_facade.PermissionScope is PermissionScope
+    assert scopes_facade.GLOBAL is GLOBAL
 
 
 async def test_assign_role_is_idempotent(session: AsyncSession) -> None:

@@ -5,7 +5,8 @@ Application code and plugins import the permissions surface from here, never fro
 permissions and scope kinds from its ``__init__`` with ``Permission.create()`` /
 ``PermissionScope.create()``::
 
-    from app.lib.permissions import GLOBAL, Permission, PermissionScope
+    from app.lib.permissions import Permission
+    from app.lib.permissions.scopes import GLOBAL, PermissionScope
 
     PermissionScope.create("course", parent=GLOBAL)
     Permission.create("course.grade")
@@ -19,7 +20,6 @@ from app.core.permissions import (
 )
 from app.core.permissions.exceptions import PermissionScopeNotFound, RoleNotFound
 from app.core.permissions.hooks import PERMISSION_SCOPES, PERMISSIONS
-from app.core.permissions.scopes import GLOBAL, PermissionScope
 from app.core.permissions.utils import assign_role, can, has_role, revoke_role
 
 __all__ = [
@@ -30,8 +30,6 @@ __all__ = [
     "Permission",
     "RoleNotFound",
     "PermissionScopeNotFound",
-    "PermissionScope",
-    "GLOBAL",
     "EMAIL_WHITELIST_READ",
     "EMAIL_WHITELIST_CREATE",
     "EMAIL_WHITELIST_DELETE",

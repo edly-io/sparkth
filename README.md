@@ -271,10 +271,10 @@ COURSE_GRADE = Permission.create("course.grade")
 
 ### The `PermissionScope` class
 
-A `PermissionScope` is a named **kind** of boundary a role can be assigned at — `global`, `course`, `quiz`, and so on. It answers *where* a role applies; how a scope kind maps onto the `scope` / `scope_object_id` columns of `role_assignment` is covered under [Scopes](#scopes). Import it from `app.lib.permissions`:
+A `PermissionScope` is a named **kind** of boundary a role can be assigned at — `global`, `course`, `quiz`, and so on. It answers *where* a role applies; how a scope kind maps onto the `scope` / `scope_object_id` columns of `role_assignment` is covered under [Scopes](#scopes). Import it from `app.lib.permissions.scopes`:
 
 ```python
-from app.lib.permissions import GLOBAL, PermissionScope
+from app.lib.permissions.scopes import GLOBAL, PermissionScope
 ```
 
 **State** — two fields:
@@ -317,10 +317,11 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 
 ### Extending the permission system
 
-**Declare a permission or scope kind** — a plugin declares its own from its `__init__`, exactly as it registers tools or config. Core declarations (not tied to any plugin) live in `app.core.permissions` (permissions) and `app.core.permissions.scopes` (scope kinds). Import everything you need from `app.lib.permissions` — never from `app.core` or the hook modules directly.
+**Declare a permission or scope kind** — a plugin declares its own from its `__init__`, exactly as it registers tools or config. Core declarations (not tied to any plugin) live in `app.core.permissions` (permissions) and `app.core.permissions.scopes` (scope kinds). Import everything you need from `app.lib.permissions` (the `PermissionScope` class and the `GLOBAL` scope come from its `app.lib.permissions.scopes` submodule) — never from `app.core` or the hook modules directly.
 
 ```python
-from app.lib.permissions import GLOBAL, Permission, PermissionScope
+from app.lib.permissions import Permission
+from app.lib.permissions.scopes import GLOBAL, PermissionScope
 from app.lib.plugins import SparkthPlugin
 
 class GraderPlugin(SparkthPlugin):
@@ -356,7 +357,8 @@ make cli -- roles assign-role john grader --scope course --scope-object-id 42
 From application code, call `assign_role`:
 
 ```python
-from app.lib.permissions import GLOBAL, assign_role
+from app.lib.permissions import assign_role
+from app.lib.permissions.scopes import GLOBAL
 
 # Pass a declared PermissionScope instance (GLOBAL is the shipped root; COURSE is your
 # PermissionScope.create("course", …) result). The platform-wide GLOBAL scope names
@@ -371,7 +373,7 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```python
 from fastapi import Depends
 from app.api.v1.auth import RequirePermission
-from app.lib.permissions import GLOBAL
+from app.lib.permissions.scopes import GLOBAL
 
 # Reference your declared instances — don't reconstruct them. THING_READ and COURSE_EDIT
 # are Permission.create(...) results; COURSE is a PermissionScope.create(...) result.

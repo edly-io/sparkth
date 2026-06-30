@@ -3,7 +3,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.lib.db import get_async_session
-from app.lib.permissions import GLOBAL, has_role
+from app.lib.permissions import has_role
+from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
 from app.schemas import User as UserSchema
 

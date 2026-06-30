@@ -273,7 +273,7 @@ async def process_data(input: str) -> str:
     return f"Processed: {input}"
 ```
 
-Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` — the `PermissionScope` class comes from `app.lib.permissions`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
+Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` — the `PermissionScope` class comes from `app.lib.permissions.scopes`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
 
 ### Where do plugin routes get mounted?
 
