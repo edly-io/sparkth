@@ -1,8 +1,11 @@
+from app.core.permissions.hooks import PERMISSION_SCOPES
+
+
 class PermissionScope:
-    """A PermissionScope level that a plugin contributes to :data:`PERMISSION_SCOPE` hook
+    """A PermissionScope level that a plugin contributes to the :data:`PERMISSION_SCOPES` hook
 
     The plugin registers it from its ``__init__`` with
-    ``PERMISSION_SCOPE.add_item(self, PermissionScope(<scope_name>, parent=<parent_scope_object>))``.
+    ``PermissionScope.create(<scope_name>, parent=<parent_scope_object>)``.
 
     A scope is a named kind of boundary a role can be assigned at (e.g. ``global``,
     ``course``, ``quiz``). Each scope may have a single ``parent`` scope, forming a
@@ -20,6 +23,12 @@ class PermissionScope:
         self.parent = parent
         self.name = name
 
+    @classmethod
+    def create(cls, name: str, parent: "PermissionScope | None" = None) -> "PermissionScope":
+        permission_scope = cls(name, parent)
+        PERMISSION_SCOPES.add_item(permission_scope)
+        return permission_scope
+
     def get_parents(self) -> list["PermissionScope"]:
         """Return this scope's ancestors, nearest first.
 
@@ -30,3 +39,10 @@ class PermissionScope:
             return []
         grand_parents = self.parent.get_parents()
         return [self.parent, *grand_parents]
+
+
+# Core Permisson Scopes shipped with the application, ordered root-first so each is registered after its parent.
+
+# The root scope: it applies platform-wide and names no object. This is the canonical
+# instance plugins should reference as a parent so the whole tree shares one root.
+GLOBAL = PermissionScope.create("global")

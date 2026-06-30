@@ -1,8 +1,16 @@
 import weakref
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterator, Protocol, TypeVar
 
 from app.lib.plugins import SparkthPlugin
 
+
+class HasName(Protocol):
+    # Structural bound for UniqueCollectionHook's type var, so the generic hook can read
+    # ``item.name`` under mypy --strict. Any object with a ``name: str`` satisfies it.
+    name: str
+
+
+N = TypeVar("N", bound=HasName)
 T = TypeVar("T")
 
 
@@ -44,3 +52,22 @@ class PluginCollectionHook(BasePluginHook[list[T]]):
         for plugin, plugin_items in self._iter_plugin_items():
             for plugin_item in plugin_items:
                 yield plugin, plugin_item
+
+
+class UniqueCollectionHook(Generic[N]):
+    """A flat hook holding items identified by a unique ``name``.
+
+    Each item is added directly and keyed by its ``name``. Adding a second item whose
+    name is already present raises ``ValueError``.
+    """
+
+    def __init__(self) -> None:
+        self._items: dict[str, N] = {}
+
+    def add_item(self, item: N) -> None:
+        if item.name in self._items:
+            raise ValueError(f"Duplicate hook item: {item.name}")
+        self._items[item.name] = item
+
+    def iter_items(self) -> Iterator[N]:
+        yield from self._items.values()

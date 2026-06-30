@@ -25,7 +25,7 @@ from app.core.google_auth import (
 from app.lib.analytics import UnknownEventTypeError, ingest_event
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
-from app.lib.permissions import can
+from app.lib.permissions import Permission, PermissionScope, can
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
@@ -384,11 +384,13 @@ async def resend_verification_email(
 class RequirePermission:
     """FastAPI dependency authorizing the current user for a permission.
 
-    Instances are callable dependencies; the instance carries the permission and
-    scope.
+    Instances are callable dependencies; the instance carries the ``Permission`` and
+    ``PermissionScope`` it enforces.
     """
 
-    def __init__(self, permission: str, permission_scope: str, scope_param: str | None = None) -> None:
+    def __init__(
+        self, permission: Permission, permission_scope: PermissionScope, scope_param: str | None = None
+    ) -> None:
         """Bind the permission and scope this dependency enforces.
 
         Captured at construction so one instance is a reusable dependency across requests.

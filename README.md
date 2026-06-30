@@ -240,18 +240,20 @@ A user is authorized when they hold, through an active `role_assignment` at the 
 
 ### Permissions and scopes are declared in code
 
-The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table. It comes from two sources:
+The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table.
 
-- **Platform defaults** — the permissions and scope kinds the application ships with (e.g. the `global` scope) live in `app.core.permissions.defaults` and are seeded into the registries at construction, so they exist regardless of which plugins are loaded.
-- **Plugin contributions** — plugins add their own through two hooks in `app.lib.permissions`: **`PERMISSIONS`** (permission strings, e.g. `assignment.grade`) and **`PERMISSION_SCOPE`** (scope kinds, as `PermissionScope` objects).
+- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in `app.core.permissions`; plugins declare their own from their `__init__`. The hook is the single source of truth — nothing seeds permissions into the registry separately.
+- **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared this way in `app.core.permissions.scopes`; plugins declare their own from their `__init__`. As with permissions, the hook is the single source of truth — nothing seeds scopes into the registry separately.
 
-At startup the app loads the hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered) — layering plugin contributions on top of the seeded defaults. Those registries are what the rest of the system queries, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
+Each hook is a `UniqueCollectionHook` keyed by name: declaring two permissions or two scope kinds with the same name **raises `ValueError`**, so a collision fails fast at import time instead of being silently ignored.
+
+At startup the app reads both hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered). Those registries are what the rest of the system queries, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
 
 ### Scopes
 
 A scope answers *where* a role applies. It is the pair of two columns on `role_assignment`:
 
-- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared as a platform default or through the `PERMISSION_SCOPE` hook. It is a free-form string, not a foreign key.
+- **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `PERMISSION_SCOPES` hook. It is a free-form string, not a foreign key.
 - **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
 
 A scope kind may name a parent (`PermissionScope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
@@ -268,18 +270,18 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 
 ### Extending the permission system
 
-**Declare a permission or scope kind** — a plugin adds its own to the hooks from its `__init__`, exactly as it registers tools or config; a platform-wide default (not tied to any plugin) goes in `app.core.permissions.defaults`. Import everything you need from `app.lib.permissions` — never from `app.core` or the hook modules directly.
+**Declare a permission or scope kind** — a plugin declares its own from its `__init__`, exactly as it registers tools or config. Core declarations (not tied to any plugin) live in `app.core.permissions` (permissions) and `app.core.permissions.scopes` (scope kinds). Import everything you need from `app.lib.permissions` — never from `app.core` or the hook modules directly.
 
 ```python
-from app.lib.permissions import PERMISSIONS, PERMISSION_SCOPE, PermissionScope
+from app.lib.permissions import GLOBAL, Permission, PermissionScope
 from app.lib.plugins import SparkthPlugin
 
 class GraderPlugin(SparkthPlugin):
     def __init__(self, name: str) -> None:
         super().__init__(name)
-        PERMISSIONS.add_item(self, "assignment.grade")
+        Permission.create("assignment.grade")
         # a scope kind's parent must already be registered (the global root always is)
-        PERMISSION_SCOPE.add_item(self, PermissionScope("course", parent=...))
+        PermissionScope.create("course", parent=GLOBAL)
 ```
 
 A `role_assignment` whose `scope` names a declared kind then sets `scope_object_id` to the id of one such entity (e.g. `scope = 'course'` with `scope_object_id` a course's id).
@@ -305,12 +307,12 @@ make cli -- roles assign-role john grader --scope course --scope-object-id 42
 From application code, call `assign_role`:
 
 ```python
-from app.lib.permissions import assign_role
+from app.lib.permissions import GLOBAL, PermissionScope, assign_role
 
-# the platform-wide "global" scope names no object, so scope_object_id is None
-await assign_role(user_id, "grader", "global", None, session)
-# or scoped to one course:
-await assign_role(user_id, "grader", "course", "42", session)
+# the platform-wide GLOBAL scope names no object, so scope_object_id is None
+await assign_role(user_id, "grader", GLOBAL, None, session)
+# or scoped to one course (pass the PermissionScope for that kind):
+await assign_role(user_id, "grader", PermissionScope("course"), "42", session)
 ```
 
 **Gate an endpoint on a permission** — depend on `RequirePermission`:
@@ -318,12 +320,14 @@ await assign_role(user_id, "grader", "course", "42", session)
 ```python
 from fastapi import Depends
 from app.api.v1.auth import RequirePermission
+from app.lib.permissions import GLOBAL, Permission, PermissionScope
 
-@router.get("/things", dependencies=[Depends(RequirePermission("thing.read", "global"))])
+# Pass the Permission and PermissionScope objects (typically your declared instances).
+@router.get("/things", dependencies=[Depends(RequirePermission(Permission("thing.read"), GLOBAL))])
 async def list_things(): ...
 
 # For a scoped check, name the path parameter that carries the object id:
-RequirePermission("course.edit", "course", "course_id")  # reads {course_id} from the path
+RequirePermission(Permission("course.edit"), PermissionScope("course"), "course_id")  # reads {course_id}
 ```
 
 ## Contributing
