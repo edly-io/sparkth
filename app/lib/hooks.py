@@ -74,3 +74,7 @@ class SingleNamedItemHook(Generic[N]):
 
     def iter_items(self) -> Iterator[tuple[str, N]]:
         yield from self._items.items()
+
+    def get(self, name: str) -> N | None:
+        """Return the item registered under ``name``, or ``None`` if none is registered."""
+        return self._items.get(name)
