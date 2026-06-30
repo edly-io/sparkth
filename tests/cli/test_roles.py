@@ -67,3 +67,12 @@ async def test_assign_role_global_scope_with_id_exits(cli_session: AsyncSession)
         await roles._assign_role("alice", "admin", "global", "42")
     # the contradictory (scope="global", scope_object_id="42") row must not be created
     assert (await cli_session.exec(select(RoleAssignment))).all() == []
+
+
+async def test_assign_role_unknown_scope_exits(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    # "corse" is not a registered scope kind (typo for "course"); it must be rejected
+    # rather than silently persisting a no-op assignment.
+    with pytest.raises(typer.Exit):
+        await roles._assign_role("alice", "admin", "corse", "42")
+    assert (await cli_session.exec(select(RoleAssignment))).all() == []

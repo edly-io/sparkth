@@ -4,8 +4,10 @@ import typer
 from sqlmodel import select
 
 from app.lib.db import session_scope
-from app.lib.permissions import GLOBAL, PermissionScope, RoleNotFound
+from app.lib.permissions import GLOBAL, PermissionScopeNotFound, RoleNotFound
 from app.lib.permissions import assign_role as grant_role
+from app.lib.permissions.registry import PermissionScopesRegistry, initialize_permission_scopes_registry
+from app.lib.plugins import get_plugin_loader
 from app.models.user import User
 
 app = typer.Typer(help="Role management commands")
@@ -36,6 +38,15 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
     if scope == GLOBAL.name and scope_object_id is not None:
         typer.secho("--scope-object-id is not allowed for the global scope", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+    # Validate the scope kind against the registered vocabulary so a mistyped --scope
+    # fails loudly instead of persisting a no-op assignment.
+    get_plugin_loader()
+    initialize_permission_scopes_registry()
+    try:
+        permission_scope = PermissionScopesRegistry().get(scope)
+    except PermissionScopeNotFound:
+        typer.secho(f"Unknown scope kind: '{scope}'", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
     async with session_scope() as session:
         user = (
             await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
@@ -44,7 +55,7 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
             typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
             raise typer.Exit(code=1)
         try:
-            await grant_role(user.id, role, PermissionScope(scope), scope_object_id, session)
+            await grant_role(user.id, role, permission_scope, scope_object_id, session)
         except RoleNotFound:
             typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
             raise typer.Exit(code=1) from None
