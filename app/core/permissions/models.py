@@ -3,7 +3,6 @@
 from sqlalchemy import CheckConstraint, Index, text
 from sqlmodel import Field
 
-from app.core.permissions.scopes import GLOBAL
 from app.models.base import SoftDeleteModel, TimestampedModel
 
 
@@ -44,9 +43,7 @@ class RoleAssignment(TimestampedModel, SoftDeleteModel, table=True):
         # object, every other scope must. Enforced in the database so no code path
         # can persist a contradictory pair.
         CheckConstraint(
-            f"(scope = '{GLOBAL.name}' AND scope_object_id IS NULL) "
-            "OR "
-            f"(scope != '{GLOBAL.name}' AND scope_object_id IS NOT NULL)",
+            "(scope = 'global' AND scope_object_id IS NULL) OR (scope != 'global' AND scope_object_id IS NOT NULL)",
             name="ck_role_assignment_scope",
         ),
     )
