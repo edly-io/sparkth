@@ -124,7 +124,7 @@ cli: ## Run CLI tool (make cli -- users --help)
 
 .PHONY: mypy
 mypy: ## Run mypy type checking
-	uv run mypy --strict app/ tests/
+	uv run mypy --strict app/ tests/ scripts/
 
 ##@ Docker
 .PHONY: docker.build

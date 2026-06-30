@@ -16,7 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import SQLModel
 
-from app.core.db import async_engine
+from app.core.db import dispose_engine, get_engine
 from app.lib.log import get_logger
 from app.lib.plugins import get_plugin_loader
 from app.models import *  # noqa: F403
@@ -39,11 +39,11 @@ async def init_schema(engine: AsyncEngine) -> None:
 def main() -> None:
     async def _run() -> None:
         try:
-            await init_schema(async_engine)
+            await init_schema(get_engine())
         finally:
             # Dispose so aiosqlite's connection worker thread exits; otherwise the
             # process hangs at interpreter shutdown waiting to join it.
-            await async_engine.dispose()
+            await dispose_engine()
 
     asyncio.run(_run())
 
