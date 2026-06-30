@@ -2,7 +2,7 @@ import gc
 
 import pytest
 
-from app.lib.hooks import PluginCollectionHook, PluginHook, UniqueCollectionHook
+from app.lib.hooks import PluginCollectionHook, PluginHook, SingleNamedItemHook
 from app.lib.plugins import SparkthPlugin
 
 
@@ -80,32 +80,43 @@ def test_hook_drops_items_when_plugin_is_garbage_collected() -> None:
     assert list(hook.iter_items()) == []
 
 
-def test_unique_collection_hook_yields_added_items() -> None:
-    hook: UniqueCollectionHook[_Named] = UniqueCollectionHook()
+def test_single_named_item_hook_yields_added_items() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
     first = _Named("a")
     second = _Named("b")
 
     hook.add_item(first)
     hook.add_item(second)
 
-    assert list(hook.iter_items()) == [first, second]
+    assert list(hook.iter_values()) == [first, second]
 
 
-def test_unique_collection_hook_preserves_insertion_order() -> None:
+def test_single_named_item_hook_iter_items_yields_name_value_pairs() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
+    first = _Named("a")
+    second = _Named("b")
+
+    hook.add_item(first)
+    hook.add_item(second)
+
+    assert list(hook.iter_items()) == [("a", first), ("b", second)]
+
+
+def test_single_named_item_hook_preserves_insertion_order() -> None:
     # Insertion order (not alphabetic) so hierarchical items reach consumers
     # parent-before-child — here "course" must precede its child "course.module".
-    hook: UniqueCollectionHook[_Named] = UniqueCollectionHook()
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
     parent = _Named("course")
     child = _Named("course.module")
 
     hook.add_item(parent)
     hook.add_item(child)
 
-    assert list(hook.iter_items()) == [parent, child]
+    assert list(hook.iter_values()) == [parent, child]
 
 
-def test_unique_collection_hook_rejects_duplicate_name() -> None:
-    hook: UniqueCollectionHook[_Named] = UniqueCollectionHook()
+def test_single_named_item_hook_rejects_duplicate_name() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
     hook.add_item(_Named("course.grade"))
 
     with pytest.raises(ValueError, match="course.grade"):

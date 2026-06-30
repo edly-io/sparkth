@@ -145,7 +145,7 @@ def test_clear_empties_permission_scopes(permission_scopes: PermissionScopesRegi
 
 def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
     # The hook yields Permission objects; the loader unwraps each to its name string.
-    monkeypatch.setattr(hooks.PERMISSIONS, "iter_items", lambda: iter([Permission("assignment.grade")]))
+    monkeypatch.setattr(hooks.PERMISSIONS, "iter_values", lambda: iter([Permission("assignment.grade")]))
     initialize_permissions_registry()
     assert PermissionsRegistry().get("assignment.grade") == "assignment.grade"
 
@@ -154,6 +154,6 @@ def test_initialize_permission_scopes_registry_loads_hook_items(monkeypatch: pyt
     root = PermissionScope("global")
     course = PermissionScope("course", parent=root)
     # The hook yields scopes in insertion order, so a parent precedes its child.
-    monkeypatch.setattr(hooks.PERMISSION_SCOPES, "iter_items", lambda: iter([root, course]))
+    monkeypatch.setattr(hooks.PERMISSION_SCOPES, "iter_values", lambda: iter([root, course]))
     initialize_permission_scopes_registry()
     assert PermissionScopesRegistry().get("course") is course

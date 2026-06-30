@@ -108,12 +108,12 @@ class PermissionScopesRegistry:
 def initialize_permissions_registry() -> None:
     """Load every permission contributed through the PERMISSIONS hook into the registry."""
     registry = PermissionsRegistry()
-    for permission in PERMISSIONS.iter_items():
+    for permission in PERMISSIONS.iter_values():
         registry.add(permission.name)
 
 
 def initialize_permission_scopes_registry() -> None:
     """Load every permission scope contributed through the PERMISSION_SCOPES hook into the registry."""
     registry = PermissionScopesRegistry()
-    for permission_scope in PERMISSION_SCOPES.iter_items():
+    for permission_scope in PERMISSION_SCOPES.iter_values():
         registry.add(cast(PermissionScope, permission_scope))

@@ -245,11 +245,56 @@ The vocabulary the system draws on — which permission strings and which scope 
 - **Permissions** are declared with `Permission.create("assignment.grade")`, which registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in `app.core.permissions`; plugins declare their own from their `__init__`. The hook is the single source of truth — nothing seeds permissions into the registry separately.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared this way in `app.core.permissions.scopes`; plugins declare their own from their `__init__`. As with permissions, the hook is the single source of truth — nothing seeds scopes into the registry separately.
 
-Each hook is a `UniqueCollectionHook` keyed by name: declaring two permissions or two scope kinds with the same name **raises `ValueError`**, so a collision fails fast at import time instead of being silently ignored.
+Each hook is a `SingleNamedItemHook` keyed by name: declaring two permissions or two scope kinds with the same name **raises `ValueError`**, so a collision fails fast at import time instead of being silently ignored.
 
-> **Always create permissions and scope kinds via `Permission.create()` / `PermissionScope.create()`** — only these register the object on the hook (the source of truth) and fail fast on duplicates. The bare constructors `Permission(name)` / `PermissionScope(name)` skip registration and validation and are **internal/test-only**: objects compare by `.name`, so a bare `Permission("typo")` silently authorizes nothing instead of erroring — never construct them in application code. To act on a permission or scope, reference its declared instance (e.g. `EMAIL_WHITELIST_READ`, `GLOBAL`). A scope kind known only by name resolves via `PermissionScopesRegistry.get(name)`, which returns the registered object; `PermissionsRegistry` tracks only permission *name strings*, so there is no `Permission` object to read back from it — use the declared instance.
+> **Always declare permissions and scope kinds via `Permission.create()` / `PermissionScope.create()`, never the bare constructors.** Only `.create()` registers the object on its hook — the source of truth — which is also what makes a duplicate name fail fast. Bind each declaration to a constant and reference that one instance wherever the permission or scope is used (e.g. `EMAIL_WHITELIST_READ`, `GLOBAL`). The bare `Permission(name)` / `PermissionScope(name)` constructors are **internal/test-only**; see [The `Permission` class](#the-permission-class) and [The `PermissionScope` class](#the-permissionscope-class) below for exactly what they skip and why it matters.
 
-At startup the app reads both hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered). Those registries are what the rest of the system queries, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
+At startup the app reads both hooks into two singleton registries — `PermissionsRegistry` (a flat list of permission names) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered). They are the in-memory catalogue of the declared vocabulary, so extending it needs no schema change; the tables above stay the system of record for what is actually *granted* and *assigned*.
+
+### The `Permission` class
+
+A `Permission` is a named unit of authorization — the right to perform one action, written as a dotted string such as `assignment.grade`. A role grants a set of permissions (one `role_permission` row each); `can()` authorizes a request when the user holds, at the relevant scope, a role whose permissions include the one being checked. Import it from `app.lib.permissions` (never from `app.core.permissions`):
+
+```python
+from app.lib.permissions import Permission
+```
+
+**State** — a permission carries one field, `name: str` (the dotted string). It defines no custom `__eq__`, so two `Permission` objects are equal only when they are the *same* object — equality is identity, not name.
+
+**`Permission.create(name)`** — the way to declare one. It constructs the permission, **registers it on the `PERMISSIONS` hook** (the single source of truth for the permission vocabulary), and returns it. Registration is what makes collisions fail fast: declaring two permissions with the same name **raises `ValueError`** at import time. Declare core permissions in `app.core.permissions`; a plugin declares its own from its `__init__`. Bind the result to a constant and reference that instance everywhere:
+
+```python
+COURSE_GRADE = Permission.create("course.grade")
+```
+
+**`Permission(name)` vs `.create(name)`** — the bare constructor only sets `name`; it does **not** register on the hook, and is internal/test-only. The practical difference is narrow for permissions: `can()` matches the `.name` *string* against the `role_permission` table and never consults `PermissionsRegistry` (nothing reads that registry today), so a bare-constructed permission with a correct name still authorizes. What you lose by skipping `.create()` is catalogue membership and duplicate detection — and, because matching is by string, a misspelled name fails silently however the object was built (it simply matches no granted permission, so the check denies). Declaring once via `.create()` and referencing that one instance is what keeps names from drifting. The shipped permissions are listed under [Shipped with the app](#shipped-with-the-app).
+
+### The `PermissionScope` class
+
+A `PermissionScope` is a named **kind** of boundary a role can be assigned at — `global`, `course`, `quiz`, and so on. It answers *where* a role applies; how a scope kind maps onto the `scope` / `scope_object_id` columns of `role_assignment` is covered under [Scopes](#scopes). Import it from `app.lib.permissions`:
+
+```python
+from app.lib.permissions import GLOBAL, PermissionScope
+```
+
+**State** — two fields:
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `name` | `str` | The scope kind's identifier (e.g. `course`); stored verbatim in `role_assignment.scope`. |
+| `parent` | `PermissionScope \| None` | The enclosing scope kind, or `None` for a root. Scope kinds chain from a narrow boundary up to a broader one. |
+
+As with `Permission`, there is no custom `__eq__` — equality is identity.
+
+**`get_parents() -> list[PermissionScope]`** — returns this scope's ancestors nearest-first (`[parent, grandparent, …]`) by walking `parent` pointers, ending at the root (an empty list for a root scope). It exists to support scope-hierarchy cascade — a role granted at a broad scope applying to narrower ones — planned for a later phase. It does **not** drive authorization today: `can()` matches a scope by its exact name and does not walk to parents.
+
+**`PermissionScope.create(name, parent=None)`** — the way to declare a scope kind. It constructs the scope, **registers it on the `PERMISSION_SCOPES` hook**, and returns it; a duplicate name **raises `ValueError`**, and a `parent` must already be registered (the `global` root always is). Declare core scopes in `app.core.permissions.scopes`; a plugin declares its own from its `__init__`:
+
+```python
+COURSE = PermissionScope.create("course", parent=GLOBAL)
+```
+
+**`PermissionScope(name)` vs `.create(name)`** — the bare constructor is internal/test-only and does not register. For scopes this difference is **not** cosmetic: a scope kind is resolved back from its name through `PermissionScopesRegistry.get(name)` — which the CLI uses to validate `--scope`. A bare-constructed scope is absent from that registry, so resolving it by name raises `PermissionScopeNotFound` — exactly the no-op `--scope` assignment the CLI now rejects. Always declare via `.create()` and reference the returned instance (`GLOBAL`, your `COURSE`, …). The shipped root scope is exported as `GLOBAL`; see [Shipped with the app](#shipped-with-the-app).
 
 ### Scopes
 
@@ -258,7 +303,7 @@ A scope answers *where* a role applies. It is the pair of two columns on `role_a
 - **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `PERMISSION_SCOPES` hook. It is a free-form string, not a foreign key.
 - **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
 
-A scope kind may name a parent (`PermissionScope(name, parent)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
+A scope kind may name a parent (`PermissionScope.create(name, parent=…)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
 
 The `global` scope is the root: it applies everywhere and names no object, so `scope = 'global'` requires `scope_object_id` to be `NULL`, while every non-global scope requires a `scope_object_id`. A database `CHECK` constraint enforces this pairing.
 
@@ -311,12 +356,14 @@ make cli -- roles assign-role john grader --scope course --scope-object-id 42
 From application code, call `assign_role`:
 
 ```python
-from app.lib.permissions import GLOBAL, PermissionScope, assign_role
+from app.lib.permissions import GLOBAL, assign_role
 
-# the platform-wide GLOBAL scope names no object, so scope_object_id is None
+# Pass a declared PermissionScope instance (GLOBAL is the shipped root; COURSE is your
+# PermissionScope.create("course", …) result). The platform-wide GLOBAL scope names
+# no object, so scope_object_id is None:
 await assign_role(user_id, "grader", GLOBAL, None, session)
-# or scoped to one course (pass the PermissionScope for that kind):
-await assign_role(user_id, "grader", PermissionScope("course"), "42", session)
+# Scoped to one course:
+await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
 **Gate an endpoint on a permission** — depend on `RequirePermission`:
@@ -324,14 +371,15 @@ await assign_role(user_id, "grader", PermissionScope("course"), "42", session)
 ```python
 from fastapi import Depends
 from app.api.v1.auth import RequirePermission
-from app.lib.permissions import GLOBAL, Permission, PermissionScope
+from app.lib.permissions import GLOBAL
 
-# Pass the Permission and PermissionScope objects (typically your declared instances).
-@router.get("/things", dependencies=[Depends(RequirePermission(Permission("thing.read"), GLOBAL))])
+# Reference your declared instances — don't reconstruct them. THING_READ and COURSE_EDIT
+# are Permission.create(...) results; COURSE is a PermissionScope.create(...) result.
+@router.get("/things", dependencies=[Depends(RequirePermission(THING_READ, GLOBAL))])
 async def list_things(): ...
 
 # For a scoped check, name the path parameter that carries the object id:
-RequirePermission(Permission("course.edit"), PermissionScope("course"), "course_id")  # reads {course_id}
+RequirePermission(COURSE_EDIT, COURSE, "course_id")  # reads {course_id}
 ```
 
 ## Contributing

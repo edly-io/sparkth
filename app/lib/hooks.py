@@ -5,7 +5,7 @@ from app.lib.plugins import SparkthPlugin
 
 
 class HasName(Protocol):
-    # Structural bound for UniqueCollectionHook's type var, so the generic hook can read
+    # Structural bound for SingleNamedItemHook's type var, so the generic hook can read
     # ``item.name`` under mypy --strict. Any object with a ``name: str`` satisfies it.
     name: str
 
@@ -54,7 +54,7 @@ class PluginCollectionHook(BasePluginHook[list[T]]):
                 yield plugin, plugin_item
 
 
-class UniqueCollectionHook(Generic[N]):
+class SingleNamedItemHook(Generic[N]):
     """A flat hook holding items identified by a unique ``name``.
 
     Each item is added directly and keyed by its ``name``. Adding a second item whose
@@ -69,5 +69,8 @@ class UniqueCollectionHook(Generic[N]):
             raise ValueError(f"Duplicate hook item: {item.name}")
         self._items[item.name] = item
 
-    def iter_items(self) -> Iterator[N]:
+    def iter_values(self) -> Iterator[N]:
         yield from self._items.values()
+
+    def iter_items(self) -> Iterator[tuple[str, N]]:
+        yield from self._items.items()
