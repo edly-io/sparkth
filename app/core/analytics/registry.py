@@ -1,28 +1,28 @@
 """Event schema registry for the analytics emission gateway.
 
-Maps a versioned event type — ``(event_type, version)`` — to the Pydantic schema
-that validates that event's payload. The gateway resolves the schema here before
-validating and landing an event, so adding a new event type is a registry entry,
-not a new route.
+Maps a versioned event type — ``(event_type, version)`` — to the
+:class:`~app.core.analytics.schemas.AnalyticsEventSchema` subclass that
+validates that event's payload. The gateway resolves the schema here (by string)
+before validating and landing an event, so adding a new event type is a registry
+entry, not a new route.
 
 Event types are plain strings, not a closed enum, so producers outside the core
-(plugins) can register their own events without editing core. The string is the
-canonical dot-separated name stored in ``raw_events.event_type``.
+(plugins) can register their own events without editing core. Each schema owns
+its identity and emission policy, so registration takes the class alone.
 """
 
-from pydantic import BaseModel
-
-from app.core.analytics.exceptions import UnknownEventTypeError
+from app.core.analytics.exceptions import DuplicateEventTypeError, UnknownEventTypeError
+from app.core.analytics.schemas import AnalyticsEventSchema
 
 
 class EventRegistry:
     """In-memory registry of versioned event payload schemas.
 
     Singleton: ``EventRegistry()`` always returns the same instance, so every
-    import path shares one set of registered schemas. Core default events are
-    registered on first construction; call ``EventRegistry()`` during app
-    assembly (``assemble_app``) to ensure the registry is ready before the
-    first request arrives.
+    import path shares one set of registered schemas. Core events are registered
+    on first construction; call ``EventRegistry()`` during app assembly
+    (``assemble_app``) to ensure the registry is ready before the first request
+    arrives.
     """
 
     _instance: "EventRegistry | None" = None
@@ -36,40 +36,46 @@ class EventRegistry:
         # __init__ runs on every EventRegistry() call, even when __new__ returns
         # the existing singleton — guard so re-construction never wipes registrations.
         if not hasattr(self, "_schemas"):
-            self._schemas: dict[tuple[str, int], type[BaseModel]] = {}
+            self._schemas: dict[tuple[str, int], type[AnalyticsEventSchema]] = {}
             self._server_only: dict[tuple[str, int], bool] = {}
-            self._register_defaults()
+            self._register_core_events()
 
-    def _register_defaults(self) -> None:
-        """Register core events shipped with Sparkth."""
+    def _register_core_events(self) -> None:
+        """Register core events shipped with Sparkth.
+
+        Plugin contributions are registered separately via a hook drain (not yet wired).
+        """
         # Lazy import avoids a module-level dependency from registry → schemas.
         from app.core.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
 
-        self.register("assessment.submitted", 1, AssessmentSubmitted, server_only=True)
-        self.register("user.logged_in", 1, UserLoggedIn, server_only=True)
+        self.register(AssessmentSubmitted)
+        self.register(UserLoggedIn)
 
-    def register(
-        self,
-        event_type: str,
-        version: int,
-        schema: type[BaseModel],
-        *,
-        server_only: bool = False,
-    ) -> None:
-        """Register ``schema`` as the validator for ``(event_type, version)``.
+    def register(self, schema: type[AnalyticsEventSchema]) -> None:
+        """Register ``schema`` under its own ``(event_type, version)``.
 
-        Args:
-            event_type: Dot-separated event name, e.g. ``"assessment.submitted"``.
-            version: Schema version integer.
-            schema: Pydantic model that validates the event payload.
-            server_only: When ``True``, the event may only be emitted by trusted
-                server-side callers via :func:`~app.core.analytics.gateway.ingest_event`
-                directly. The HTTP emission endpoint rejects it with ``403``.
+        Idempotent: registering the same class again is a no-op, so draining the
+        plugin hook more than once is safe. A *different* class claiming an
+        already-registered ``(event_type, version)`` raises
+        :class:`DuplicateEventTypeError`.
+
+        Raises:
+            TypeError: ``schema`` does not declare both ``event_type`` and ``version``
+                as class attributes.
         """
-        self._schemas[(event_type, version)] = schema
-        self._server_only[(event_type, version)] = server_only
+        missing = [attr for attr in ("event_type", "version") if not hasattr(schema, attr)]
+        if missing:
+            raise TypeError(
+                f"{schema.__qualname__} must declare {missing} as class attributes before it can be registered"
+            )
+        key = (schema.event_type, schema.version)
+        existing = self._schemas.get(key)
+        if existing is not None and existing is not schema:
+            raise DuplicateEventTypeError(schema.event_type, schema.version)
+        self._schemas[key] = schema
+        self._server_only[key] = schema.server_only
 
-    def resolve(self, event_type: str, version: int) -> type[BaseModel]:
+    def resolve(self, event_type: str, version: int) -> type[AnalyticsEventSchema]:
         """Return the schema for ``(event_type, version)``.
 
         Raises:
