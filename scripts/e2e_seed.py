@@ -2,7 +2,7 @@
 
 Two things are created, both idempotently (existing rows are left untouched):
 
-1. The superuser `frontend/tests/auth.setup.ts` logs in as. Created
+1. The account `frontend/tests/auth.setup.ts` logs in as. Created
    email-verified so login succeeds without the mail round-trip.
 2. The `@example.com` whitelist entry. `randomUser()` in
    `frontend/tests/utils/user.ts` generates `@example.com` addresses, and
@@ -20,7 +20,7 @@ import os
 
 from sqlmodel import select
 
-from app.core.db import get_engine
+from app.core.db import dispose_engine
 from app.core.security import get_password_hash
 from app.lib.db import session_scope
 from app.models.base import utc_now
@@ -71,7 +71,7 @@ def main() -> None:
         finally:
             # Dispose so aiosqlite's connection worker thread exits; otherwise the
             # process hangs at interpreter shutdown waiting to join it.
-            await get_engine().dispose()
+            await dispose_engine()
 
     asyncio.run(_run())
 
