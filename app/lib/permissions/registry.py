@@ -7,11 +7,9 @@ Each registry is a singleton: ``PermissionsRegistry()`` always returns the one
 shared instance.
 """
 
-from typing import cast
-
+from app.core.permissions import PERMISSIONS
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
-from app.core.permissions.hooks import PERMISSION_SCOPES, PERMISSIONS
-from app.core.permissions.scopes import PermissionScope
+from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from app.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -116,4 +114,4 @@ def initialize_permission_scopes_registry() -> None:
     """Load every permission scope contributed through the PERMISSION_SCOPES hook into the registry."""
     registry = PermissionScopesRegistry()
     for permission_scope in PERMISSION_SCOPES.iter_values():
-        registry.add(cast(PermissionScope, permission_scope))
+        registry.add(permission_scope)

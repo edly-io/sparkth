@@ -1,4 +1,4 @@
-from app.core.permissions.hooks import PERMISSIONS
+from app.lib.hooks import SingleNamedItemHook
 
 
 class Permission:
@@ -24,6 +24,11 @@ class Permission:
     # def require_in_scope(self, permisson_scope: str, scope_object_id: str):
     #     ...
 
+
+# Every permission the platform knows; Permission.create() registers each one here.
+# This hook is the single source of truth — app.lib.permissions.registry.PermissionsRegistry
+# only reads from it.
+PERMISSIONS: SingleNamedItemHook[Permission] = SingleNamedItemHook()
 
 # Core Permissions shipped with the application.
 

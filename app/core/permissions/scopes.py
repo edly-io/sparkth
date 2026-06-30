@@ -1,4 +1,4 @@
-from app.core.permissions.hooks import PERMISSION_SCOPES
+from app.lib.hooks import SingleNamedItemHook
 
 
 class PermissionScope:
@@ -45,6 +45,11 @@ class PermissionScope:
         grand_parents = self.parent.get_parents()
         return [self.parent, *grand_parents]
 
+
+# Every scope kind the platform knows; PermissionScope.create() registers each one here.
+# This hook is the single source of truth — app.lib.permissions.registry.PermissionScopesRegistry
+# only reads from it.
+PERMISSION_SCOPES: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
 
 # Core Permisson Scopes shipped with the application, ordered root-first so each is registered after its parent.
 

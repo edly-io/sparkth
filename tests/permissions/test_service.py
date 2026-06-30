@@ -237,8 +237,8 @@ async def test_has_role_false_after_revoke(session: AsyncSession) -> None:
 
 
 def test_facade_exposes_public_surface() -> None:
-    from app.core.permissions.hooks import PERMISSION_SCOPES, PERMISSIONS
-    from app.core.permissions.scopes import GLOBAL, PermissionScope
+    from app.core.permissions import PERMISSIONS
+    from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, PermissionScope
     from app.lib import permissions as facade
     from app.lib.permissions import scopes as scopes_facade
 
