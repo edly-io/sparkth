@@ -2,7 +2,7 @@
 
 Two things are created, both idempotently (existing rows are left untouched):
 
-1. The superuser `frontend/tests/auth.setup.ts` logs in as. Created
+1. The account `frontend/tests/auth.setup.ts` logs in as. Created
    email-verified so login succeeds without the mail round-trip.
 2. The `@example.com` whitelist entry. `randomUser()` in
    `frontend/tests/utils/user.ts` generates `@example.com` addresses, and
@@ -46,7 +46,6 @@ async def seed() -> None:
                     email=email,
                     hashed_password=get_password_hash(password),
                     name=username,
-                    is_superuser=True,
                     email_verified=True,
                     email_verified_at=utc_now(),
                 )
