@@ -4,6 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.permissions import has_role
+from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
 from app.schemas import User as UserSchema
 
@@ -31,5 +32,5 @@ async def get_user(
         )
 
     # "global" is the root scope; admin-ness is membership of the admin role there.
-    is_admin = await has_role(current_user, "admin", "global", None, session)
+    is_admin = await has_role(current_user, "admin", GLOBAL, None, session)
     return UserSchema.model_validate(current_user).model_copy(update={"is_admin": is_admin})

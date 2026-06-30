@@ -2,26 +2,38 @@
 
 Application code and plugins import the permissions surface from here, never from
 ``app.core.permissions`` or the hook modules directly. A plugin declares its
-permissions and scope kinds from its ``__init__`` by adding them to the hooks::
+permissions and scope kinds from its ``__init__`` with ``Permission.create()`` /
+``PermissionScope.create()``::
 
-    from app.lib.permissions import PERMISSIONS, PERMISSION_SCOPE, PermissionScope
+    from app.lib.permissions import Permission
+    from app.lib.permissions.scopes import GLOBAL, PermissionScope
 
-    PERMISSION_SCOPE.add_item(self, PermissionScope("course", parent=...))
-    PERMISSIONS.add_item(self, "course.grade")
+    PermissionScope.create("course", parent=GLOBAL)
+    Permission.create("course.grade")
 """
 
-from app.core.permissions import assign_role, can, has_role, revoke_role
-from app.core.permissions.exceptions import RoleNotFound
-from app.core.permissions.scope import PermissionScope
-from app.lib.permissions.hooks import PERMISSION_SCOPE, PERMISSIONS
+from app.core.permissions import (
+    EMAIL_WHITELIST_CREATE,
+    EMAIL_WHITELIST_DELETE,
+    EMAIL_WHITELIST_READ,
+    PERMISSIONS,
+    Permission,
+)
+from app.core.permissions.exceptions import PermissionScopeNotFound, RoleNotFound
+from app.core.permissions.scopes import PERMISSION_SCOPES
+from app.core.permissions.utils import assign_role, can, has_role, revoke_role
 
 __all__ = [
     "assign_role",
     "can",
     "has_role",
     "revoke_role",
+    "Permission",
     "RoleNotFound",
-    "PermissionScope",
+    "PermissionScopeNotFound",
+    "EMAIL_WHITELIST_READ",
+    "EMAIL_WHITELIST_CREATE",
+    "EMAIL_WHITELIST_DELETE",
     "PERMISSIONS",
-    "PERMISSION_SCOPE",
+    "PERMISSION_SCOPES",
 ]

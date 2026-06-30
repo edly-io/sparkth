@@ -6,6 +6,7 @@ from sqlmodel import select
 from app.core.security import get_password_hash
 from app.lib.db import session_scope
 from app.lib.permissions import RoleNotFound, assign_role
+from app.lib.permissions.scopes import GLOBAL
 from app.models.base import utc_now
 from app.models.user import User
 
@@ -56,7 +57,7 @@ async def _create_user(
         if superuser:
             assert user.id is not None
             try:
-                await assign_role(user.id, "admin", "global", None, session)
+                await assign_role(user.id, "admin", GLOBAL, None, session)
             except RoleNotFound:
                 typer.secho(
                     "Admin role not found — run migrations to seed it before creating an admin user.",

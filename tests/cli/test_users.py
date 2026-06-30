@@ -13,9 +13,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.cli import users
-from app.core.permissions import has_role
-from app.core.permissions.constants import SCOPE_GLOBAL
 from app.core.permissions.models import Role
+from app.lib.permissions import has_role
+from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
 
 
@@ -66,7 +66,7 @@ async def test_create_user_admin_assigns_admin_role(session: AsyncSession) -> No
 
     user = (await session.exec(select(User).where(User.username == "root"))).one()
     assert user.name == "root"  # falls back to username when name is omitted
-    assert await has_role(user, "admin", SCOPE_GLOBAL, None, session) is True
+    assert await has_role(user, "admin", GLOBAL, None, session) is True
 
 
 async def test_create_user_admin_without_seeded_role_persists_nothing(session: AsyncSession) -> None:

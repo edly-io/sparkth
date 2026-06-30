@@ -10,7 +10,8 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 A plugin contributes its capabilities from its `__init__` — one consistent pattern
 across all contribution types (a `PluginCollectionHook` holds many items per plugin,
-a `PluginHook` holds one):
+a `PluginHook` holds one; `app/lib/hooks.py` also defines a `SingleNamedItemHook` —
+a flat, name-keyed set not grouped by plugin — used for the permission/scope vocabulary):
 
 ```
 SparkthPlugin.__init__

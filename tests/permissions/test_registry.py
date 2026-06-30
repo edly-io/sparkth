@@ -1,12 +1,10 @@
 import logging
-from collections.abc import Generator
 
 import pytest
 
-from app.core.permissions.defaults import DEFAULT_PERMISSION_SCOPES, DEFAULT_PERMISSIONS
+from app.core.permissions import PERMISSIONS, Permission
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound
-from app.core.permissions.scope import PermissionScope
-from app.lib.permissions import hooks
+from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from app.lib.permissions.registry import (
     PermissionScopesRegistry,
     PermissionsRegistry,
@@ -26,14 +24,9 @@ def permission_scopes() -> PermissionScopesRegistry:
 
 
 @pytest.fixture(autouse=True)
-def _reset_registries() -> Generator[None, None, None]:
-    # Clear before each test for an empty baseline; restore the platform defaults afterwards
-    # so this module never leaves the shared singletons empty for a later module to trip over.
+def _reset_registries() -> None:
     PermissionsRegistry().clear()
     PermissionScopesRegistry().clear()
-    yield
-    PermissionsRegistry().reset()
-    PermissionScopesRegistry().reset()
 
 
 def test_registries_are_singletons() -> None:
@@ -41,39 +34,21 @@ def test_registries_are_singletons() -> None:
     assert PermissionScopesRegistry() is PermissionScopesRegistry()
 
 
-def test_construction_seeds_default_permission_scopes() -> None:
-    # Reset the singleton so __init__ runs fresh; the autouse fixture clears the
-    # shared instance, so a fresh build is the only way to observe seeding.
+def test_construction_does_not_seed_permission_scopes() -> None:
+    # Scopes are no longer seeded at construction; the registry is populated solely by
+    # initialize_permission_scopes_registry() reading from the PERMISSION_SCOPES hook.
     PermissionScopesRegistry.instance = None
     fresh = PermissionScopesRegistry()
-    assert fresh.get("global") is DEFAULT_PERMISSION_SCOPES[0]
+    with pytest.raises(PermissionScopeNotFound):
+        fresh.get("global")
 
 
-def test_construction_seeds_default_permissions() -> None:
+def test_construction_does_not_seed_permissions() -> None:
+    # Permissions are no longer seeded at construction; the registry is populated solely
+    # by initialize_permissions_registry() reading from the PERMISSIONS hook.
     PermissionsRegistry.instance = None
     fresh = PermissionsRegistry()
-    assert fresh.all() == list(DEFAULT_PERMISSIONS)
-
-
-def test_reset_reseeds_default_permissions(permissions: PermissionsRegistry) -> None:
-    permissions.add("assignment.grade")
-    permissions.reset()
-    assert permissions.all() == list(DEFAULT_PERMISSIONS)
-
-
-def test_reset_reseeds_default_permission_scopes(permission_scopes: PermissionScopesRegistry) -> None:
-    permission_scopes.clear()
-    permission_scopes.reset()
-    assert permission_scopes.get("global") is DEFAULT_PERMISSION_SCOPES[0]
-
-
-def test_child_scope_registers_after_reset(permission_scopes: PermissionScopesRegistry) -> None:
-    # clear() drops the global root, which would make any child registration fail;
-    # reset() restores it, so a child scope can be added against it again.
-    permission_scopes.clear()
-    permission_scopes.reset()
-    course = PermissionScope("course", parent=permission_scopes.get("global"))
-    assert permission_scopes.add(course) is course
+    assert fresh.all() == []
 
 
 def test_add_permission_returns_it(permissions: PermissionsRegistry) -> None:
@@ -169,8 +144,8 @@ def test_clear_empties_permission_scopes(permission_scopes: PermissionScopesRegi
 
 
 def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The hook yields (plugin, item) pairs; the loader must unpack and register the item.
-    monkeypatch.setattr(hooks.PERMISSIONS, "iter_items", lambda: iter([(object(), "assignment.grade")]))
+    # The hook yields Permission objects; the loader unwraps each to its name string.
+    monkeypatch.setattr(PERMISSIONS, "iter_values", lambda: iter([Permission("assignment.grade")]))
     initialize_permissions_registry()
     assert PermissionsRegistry().get("assignment.grade") == "assignment.grade"
 
@@ -178,7 +153,7 @@ def test_initialize_permissions_registry_loads_hook_items(monkeypatch: pytest.Mo
 def test_initialize_permission_scopes_registry_loads_hook_items(monkeypatch: pytest.MonkeyPatch) -> None:
     root = PermissionScope("global")
     course = PermissionScope("course", parent=root)
-    # Parent must be registered before its child, so the hook must yield it first.
-    monkeypatch.setattr(hooks.PERMISSION_SCOPE, "iter_items", lambda: iter([(object(), root), (object(), course)]))
+    # The hook yields scopes in insertion order, so a parent precedes its child.
+    monkeypatch.setattr(PERMISSION_SCOPES, "iter_values", lambda: iter([root, course]))
     initialize_permission_scopes_registry()
     assert PermissionScopesRegistry().get("course") is course
