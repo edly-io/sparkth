@@ -25,6 +25,11 @@ class PermissionScope:
 
     @classmethod
     def create(cls, name: str, parent: "PermissionScope | None" = None) -> "PermissionScope":
+        """Create a scope kind and register it on the PERMISSION_SCOPES hook.
+
+        Use this, not the bare ``PermissionScope(name)`` constructor — the constructor does
+        not register (it is internal/test-only).
+        """
         permission_scope = cls(name, parent)
         PERMISSION_SCOPES.add_item(permission_scope)
         return permission_scope

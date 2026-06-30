@@ -247,6 +247,8 @@ The vocabulary the system draws on — which permission strings and which scope 
 
 Each hook is a `UniqueCollectionHook` keyed by name: declaring two permissions or two scope kinds with the same name **raises `ValueError`**, so a collision fails fast at import time instead of being silently ignored.
 
+> **Always create permissions and scope kinds via `Permission.create()` / `PermissionScope.create()`** — only these register the object on the hook (the source of truth) and fail fast on duplicates. The bare constructors `Permission(name)` / `PermissionScope(name)` skip registration and validation and are **internal/test-only**: objects compare by `.name`, so a bare `Permission("typo")` silently authorizes nothing instead of erroring — never construct them in application code. To act on a permission or scope, reference its declared instance (e.g. `EMAIL_WHITELIST_READ`, `GLOBAL`). A scope kind known only by name resolves via `PermissionScopesRegistry.get(name)`, which returns the registered object; `PermissionsRegistry` tracks only permission *name strings*, so there is no `Permission` object to read back from it — use the declared instance.
+
 At startup the app reads both hooks into two singleton registries — `PermissionsRegistry` (a flat list) and `PermissionScopesRegistry` (a name-indexed tree of scope kinds, where a scope's parent must already be registered). Those registries are what the rest of the system queries, so extending the vocabulary needs no schema change. The tables above stay the system of record for what is actually *granted* and *assigned*.
 
 ### Scopes
@@ -303,6 +305,8 @@ make cli -- roles assign-role john admin
 # or scoped to one object — pass the scope kind and the object id
 make cli -- roles assign-role john grader --scope course --scope-object-id 42
 ```
+
+`--scope` must name a declared scope kind (`global`, or any added via `PermissionScope.create()`); an unknown kind is rejected rather than persisted as a no-op assignment.
 
 From application code, call `assign_role`:
 

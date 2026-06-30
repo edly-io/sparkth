@@ -116,7 +116,4 @@ def initialize_permission_scopes_registry() -> None:
     """Load every permission scope contributed through the PERMISSION_SCOPES hook into the registry."""
     registry = PermissionScopesRegistry()
     for permission_scope in PERMISSION_SCOPES.iter_items():
-        # The hook is typed by the shared HasName bound; every item is in fact a
-        # PermissionScope (added via PermissionScope.create), and the registry needs the
-        # full type to resolve parents.
         registry.add(cast(PermissionScope, permission_scope))

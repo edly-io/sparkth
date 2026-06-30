@@ -7,6 +7,11 @@ class Permission:
 
     @classmethod
     def create(cls, name: str) -> "Permission":
+        """Create a permission and register it on the PERMISSIONS hook.
+
+        Use this, not the bare ``Permission(name)`` constructor — the constructor does not
+        register (it is internal/test-only), and an unregistered permission authorizes nothing.
+        """
         permission = cls(name)
         PERMISSIONS.add_item(permission)
         return permission
