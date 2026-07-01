@@ -21,7 +21,7 @@ Useful URLs:
 ```
 app/
   core/          # Settings, DB engines, security (JWT/OAuth)
-  analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema registry, schemas, gateway (raw_events). Login emits user.logged_in.
+  analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema registry, schemas (self-describing AnalyticsEventSchema base; plugins contribute via the ANALYTICS_SCHEMAS hook), gateway (raw_events). Login emits user.logged_in.
   lib/           # Curated public API for app + plugins (see below)
   models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
   api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events (analytics emission gateway)
@@ -86,9 +86,16 @@ Current modules (see the source for the full API — do not duplicate it here):
   `GLOBAL` scope are imported from the `app.lib.permissions.scopes` submodule. Plugins
   declare their own via `Permission.create()` / `PermissionScope.create()`. Never import
   from `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
-- [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
-  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
-  `app.core.analytics.exceptions` directly. Implementation lives in `app/core/analytics/`.
+- [`app/lib/analytics/`](app/lib/analytics/__init__.py) — analytics gateway public API.
+  Import analytics functionality from here (`ingest_event`, `AnalyticsEventSchema`,
+  `ANALYTICS_SCHEMAS`, `initialize_event_registry`, `EventRegistry`,
+  `UnknownEventTypeError`, `DuplicateEventTypeError`, `EventNamespaceError`);
+  never import from `app.core.analytics.*`
+  directly. Plugins subclass `AnalyticsEventSchema` (declaring `event_type` — namespaced under
+  the plugin name, e.g. `"slack.message_received"` — and `version`; events are server-only by
+  default, set `server_only = False` to allow client emission), register it from their
+  `__init__` via `ANALYTICS_SCHEMAS.add_item(self, MyEvent)`, and emit it through `ingest_event`.
+  Implementation lives in `app/core/analytics/`.
 
 ## Essential Commands
 
