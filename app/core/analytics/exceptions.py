@@ -8,3 +8,16 @@ class UnknownEventTypeError(Exception):
         self.event_type = event_type
         self.version = version
         super().__init__(f"No schema registered for event '{event_type}' version {version}")
+
+
+class DuplicateEventTypeError(Exception):
+    """Raised when two different schemas claim the same ``(event_type, version)``.
+
+    A colliding schema class is a startup-fatal programming error — a producer's
+    payload would silently validate against the wrong schema.
+    """
+
+    def __init__(self, event_type: str, version: int) -> None:
+        self.event_type = event_type
+        self.version = version
+        super().__init__(f"A different schema is already registered for event '{event_type}' version {version}")

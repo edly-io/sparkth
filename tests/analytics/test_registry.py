@@ -1,20 +1,67 @@
+from collections.abc import Generator
+
 import pytest
 from pydantic import ValidationError
 
-from app.core.analytics.exceptions import UnknownEventTypeError
 from app.core.analytics.registry import EventRegistry
-from app.core.analytics.schemas.v1.assessment_submitted import AssessmentSubmitted
+from app.core.analytics.schemas import AssessmentSubmitted
+from app.lib.analytics import AnalyticsEventSchema, DuplicateEventTypeError, UnknownEventTypeError
+
+
+class _SampleEvent(AnalyticsEventSchema):
+    event_type = "sample.event"
+    version = 7
+
+    value: int
+
+
+class _SampleEventConflict(AnalyticsEventSchema):
+    # Same (event_type, version) as _SampleEvent, different class.
+    event_type = "sample.event"
+    version = 7
+
+    other: str
+
+
+class _SampleServerOnly(AnalyticsEventSchema):
+    event_type = "sample.server_only"
+    version = 1
+    server_only = True
+
+    value: int
+
+
+class _SampleClientEmittable(AnalyticsEventSchema):
+    event_type = "sample.client_emittable"
+    version = 1
+    server_only = False
+
+    value: int
+
+
+_SAMPLE_KEYS = [
+    ("sample.event", 7),
+    ("sample.server_only", 1),
+    ("sample.client_emittable", 1),
+]
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_sample_registrations() -> Generator[None, None, None]:
+    """Remove sample.* keys from the singleton after each test.
+
+    Mirrors the conftest cleanup for test.client_event — without this, a later
+    test registering a different class under the same key would hit a spurious
+    DuplicateEventTypeError from leftover state.
+    """
+    yield
+    for key in _SAMPLE_KEYS:
+        EventRegistry()._schemas.pop(key, None)
+        EventRegistry()._server_only.pop(key, None)
 
 
 def test_registry_is_singleton() -> None:
     assert EventRegistry() is EventRegistry()
-
-
-def test_reconstruction_preserves_registered_schemas() -> None:
-    EventRegistry().register("sample.persisted", 1, AssessmentSubmitted)
-    # Re-constructing returns the same instance, so prior registrations survive
-    # an accidental EventRegistry() call elsewhere.
-    assert EventRegistry().resolve("sample.persisted", 1) is AssessmentSubmitted
 
 
 def test_resolve_returns_registered_schema() -> None:
@@ -31,10 +78,60 @@ def test_resolve_unknown_version_of_known_type_raises() -> None:
         EventRegistry().resolve("assessment.submitted", 999)
 
 
-def test_register_and_resolve_roundtrip() -> None:
-    registry = EventRegistry()
-    registry.register("sample.event", 2, AssessmentSubmitted)
-    assert registry.resolve("sample.event", 2) is AssessmentSubmitted
+def test_register_derives_key_from_class() -> None:
+    EventRegistry().register(_SampleEvent)
+    assert EventRegistry().resolve("sample.event", 7) is _SampleEvent
+
+
+def test_register_same_class_twice_is_idempotent() -> None:
+    EventRegistry().register(_SampleEvent)
+    EventRegistry().register(_SampleEvent)  # no error, no warning
+    assert EventRegistry().resolve("sample.event", 7) is _SampleEvent
+
+
+def test_register_conflicting_class_raises() -> None:
+    EventRegistry().register(_SampleEvent)
+    # A different class claiming the same (event_type, version) is a programming
+    # error — analytics raises rather than silently keeping one schema, because a
+    # producer's payload would otherwise validate against the wrong schema.
+    with pytest.raises(DuplicateEventTypeError):
+        EventRegistry().register(_SampleEventConflict)
+    # The first registration is unaffected.
+    assert EventRegistry().resolve("sample.event", 7) is _SampleEvent
+
+
+def test_server_only_defaults_to_true() -> None:
+    # Default-deny: _SampleEvent declares no server_only, so it is server-only.
+    EventRegistry().register(_SampleEvent)
+    assert EventRegistry().is_server_only("sample.event", 7) is True
+
+
+def test_server_only_derived_from_class() -> None:
+    EventRegistry().register(_SampleServerOnly)
+    assert EventRegistry().is_server_only("sample.server_only", 1) is True
+
+
+def test_server_only_false_is_an_explicit_opt_in() -> None:
+    EventRegistry().register(_SampleClientEmittable)
+    assert EventRegistry().is_server_only("sample.client_emittable", 1) is False
+
+
+def test_core_events_are_server_only() -> None:
+    assert EventRegistry().is_server_only("assessment.submitted", 1) is True
+    assert EventRegistry().is_server_only("user.logged_in", 1) is True
+
+
+def test_is_server_only_raises_for_unregistered_event() -> None:
+    with pytest.raises(UnknownEventTypeError):
+        EventRegistry().is_server_only("does.not.exist", 1)
+
+
+def test_register_missing_identity_raises_descriptive_error() -> None:
+    class _Incomplete(AnalyticsEventSchema):
+        value: int  # forgot event_type and version
+
+    with pytest.raises(TypeError, match="_Incomplete"):
+        EventRegistry().register(_Incomplete)
 
 
 def test_sample_schema_validates_good_payload() -> None:
@@ -61,21 +158,3 @@ def test_user_logged_in_rejects_extra_fields() -> None:
 
     with pytest.raises(ValidationError):
         UserLoggedIn.model_validate({"username": "alice", "extra": "bad"})
-
-
-def test_server_only_defaults_to_false() -> None:
-    registry = EventRegistry()
-    registry.register("sample.event", 1, AssessmentSubmitted)
-    assert registry.is_server_only("sample.event", 1) is False
-
-
-def test_server_only_can_be_set_true() -> None:
-    registry = EventRegistry()
-    registry.register("secure.event", 1, AssessmentSubmitted, server_only=True)
-    assert registry.is_server_only("secure.event", 1) is True
-
-
-def test_is_server_only_raises_for_unregistered_event() -> None:
-    registry = EventRegistry()
-    with pytest.raises(UnknownEventTypeError):
-        registry.is_server_only("does.not.exist", 1)

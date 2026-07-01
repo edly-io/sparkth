@@ -63,7 +63,7 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` /
   `get_async_session` for the main DB; `analytics_session_scope` /
   `get_analytics_session` for the analytics DB. Implementation lives in
-  `app/core/db.py` (main) and `app/analytics/db.py` (analytics).
+  `app/core/db.py` (main) and `app/core/analytics/db.py` (analytics).
 - [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
   `app.core.config` directly. Implementation lives in `app/core/config.py`.
@@ -87,8 +87,8 @@ Current modules (see the source for the full API — do not duplicate it here):
   declare their own via `Permission.create()` / `PermissionScope.create()`. Never import
   from `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
 - [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
-  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.analytics.gateway` or
-  `app.analytics.exceptions` directly. Implementation lives in `app/analytics/`.
+  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
+  `app.core.analytics.exceptions` directly. Implementation lives in `app/core/analytics/`.
 
 ## Essential Commands
 
@@ -248,7 +248,7 @@ The project has **two independent Alembic lineages**: the application database
 both. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
 databases never share metadata: app models use `SQLModel.metadata`, analytics
-tables use `app.analytics.models.analytics_metadata`.
+tables use `app.core.analytics.models.analytics_metadata`.
 
 ### Preventing Split Heads
 
