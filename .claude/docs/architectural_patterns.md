@@ -6,7 +6,7 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/plugins/*/plugin.py`
+**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/lib/analytics/hooks.py`, `sparkth/plugins/*/plugin.py`
 
 A plugin contributes its capabilities from its `__init__` — one consistent pattern
 across all contribution types (a `PluginCollectionHook` holds many items per plugin,
@@ -18,7 +18,8 @@ SparkthPlugin.__init__
   ├── register_router(self, router)                                   # sparkth/lib/routes.py
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # sparkth/lib/mcp/hooks.py
   ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # sparkth/lib/config/hooks.py
-  └── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
+  ├── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
+  └── ANALYTICS_SCHEMAS.add_item(self, MyEvent)                      # sparkth/lib/analytics/hooks.py
 ```
 
 `register_router` (`sparkth/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
@@ -35,6 +36,16 @@ Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-use
 A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hooks.py`): an
 `LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
 plugin name via `get_plugin_adapter` (`sparkth/lib/config`), so the framework never names a concrete plugin.
+
+A plugin may also contribute analytics event schemas via `ANALYTICS_SCHEMAS`
+(`sparkth/lib/analytics/hooks.py`): self-describing `AnalyticsEventSchema` subclasses that
+declare their own `event_type`/`version`. `initialize_event_registry`
+(`sparkth/lib/analytics`) drains the hook into the `EventRegistry` singleton during
+`assemble_app()`, exactly as `initialize_permissions_registry` drains `PERMISSIONS` — the
+hook carries plugin contributions only, while core events are seeded inside the registry.
+The drain is deliberately stricter than the permissions drain: plugin events must be
+namespaced under the plugin name (`EventNamespaceError`) and default to `server_only=True`
+(default-deny — set `server_only = False` to allow client emission via the HTTP gateway).
 
 Plugin registration list lives at `sparkth/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
 

@@ -13,6 +13,7 @@ from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
+from sparkth.lib.analytics import initialize_event_registry
 from sparkth.lib.log import configure_logging, get_logger
 from sparkth.lib.plugins import PluginAccessMiddleware, get_plugin_loader
 from sparkth.mcp.server import mcp, register_plugin_tools
@@ -96,7 +97,6 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     Pass lifespan=None (the default) for codegen and tests that only need the
     route map; production startup passes the real lifespan below.
     """
-    EventRegistry()  # populate default event schemas before the first request
     # Core audit event classes register on the AUDIT_EVENTS hook when
     # app.core.audit.events imports (pulled in through api_router's endpoints,
     # which import from app.lib.audit).
@@ -117,6 +117,7 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     application.add_middleware(AuditContextMiddleware)
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)
+    initialize_event_registry()
     return application
 
 
