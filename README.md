@@ -368,20 +368,19 @@ await assign_role(user_id, "grader", GLOBAL, None, session)
 await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
-**Gate an endpoint on a permission** — depend on `RequirePermission`:
+**Gate an endpoint on a permission** — depend on the `Permission` instance's own dependency factory:
 
 ```python
 from fastapi import Depends
-from app.api.v1.auth import RequirePermission
-from app.lib.permissions.scopes import GLOBAL
 
-# Reference your declared instances — don't reconstruct them. THING_READ and COURSE_EDIT
-# are Permission.create(...) results; COURSE is a PermissionScope.create(...) result.
-@router.get("/things", dependencies=[Depends(RequirePermission(THING_READ, GLOBAL))])
+# Reference your declared instance — don't reconstruct it. THING_READ and COURSE_EDIT
+# are Permission.create(...) results.
+@router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
 async def list_things(): ...
 
-# For a scoped check, name the path parameter that carries the object id:
-RequirePermission(COURSE_EDIT, COURSE, "course_id")  # reads {course_id}
+# For a scoped check, name the registered scope kind and the path parameter that carries
+# the object id:
+COURSE_EDIT.require("course", "course_id")  # reads {course_id}
 ```
 
 ## Contributing
