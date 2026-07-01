@@ -5,11 +5,9 @@ from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
-import jwt
 import redis.asyncio as aioredis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
@@ -23,6 +21,10 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.analytics import UnknownEventTypeError, ingest_event
+
+# Re-exported from its new home in app.lib.auth (same object) so existing importers and the
+# test harness's dependency_overrides keep working unchanged.
+from app.lib.auth import get_current_user as get_current_user
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
 from app.lib.permissions import Permission, can
@@ -50,41 +52,6 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 router = APIRouter()
-security_scheme = HTTPBearer()
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
-    session: AsyncSession = Depends(get_async_session),
-) -> User:
-    token = credentials.credentials
-
-    try:
-        payload = security.decode_access_token(token)
-        username = payload.get("sub")
-        if not isinstance(username, str) or username is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    result = await session.exec(select(User).where(User.username == username))
-    user = result.one_or_none()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return user
 
 
 @router.post("/register", response_model=UserSchema)

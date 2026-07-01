@@ -64,6 +64,10 @@ Current modules (see the source for the full API — do not duplicate it here):
   `get_async_session` for the main DB; `analytics_session_scope` /
   `get_analytics_session` for the analytics DB. Implementation lives in
   `app/core/db.py` (main) and `app/analytics/db.py` (analytics).
+- [`app/lib/auth.py`](app/lib/auth.py) — authentication dependency. Import
+  `get_current_user` from here (the FastAPI dependency that resolves the authenticated
+  `User` from the bearer token); it is re-exported from `app.api.v1.auth` for backward
+  compatibility. Implementation lives in `app/lib/auth.py`.
 - [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
   `app.core.config` directly. Implementation lives in `app/core/config.py`.
