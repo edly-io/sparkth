@@ -368,20 +368,43 @@ await assign_role(user_id, "grader", GLOBAL, None, session)
 await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
-**Gate an endpoint on a permission** — depend on the `Permission` instance's own dependency factory:
+**Gate an endpoint on a permission** — call `.require_in_global_scope()` or
+`.require(scope_name, path_param)` on the permission itself:
 
 ```python
 from fastapi import Depends
 
-# Reference your declared instance — don't reconstruct it. THING_READ and COURSE_EDIT
-# are Permission.create(...) results.
+# Reference your declared permission instances — don't reconstruct them. THING_READ,
+# THING_CREATE and COURSE_EDIT are Permission.create(...) results.
+
+# Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
 async def list_things(): ...
 
-# For a scoped check, name the registered scope kind and the path parameter that carries
-# the object id:
-COURSE_EDIT.require("course", "course_id")  # reads {course_id}
+# Global scope, injected so the route can use the authorized user:
+async def create_thing(user: User = Depends(THING_CREATE.require_in_global_scope())): ...
+
+# Scoped check — pass the scope kind's *name* (not the PermissionScope object) and the path
+# parameter that carries the object id; the id is read from the URL on each request:
+@router.patch(
+    "/courses/{course_id}",
+    dependencies=[Depends(COURSE_EDIT.require("course", "course_id"))],  # reads {course_id}
+)
+async def edit_course(course_id: int): ...
 ```
+
+The returned dependency resolves the current user, checks the permission, and returns the
+authenticated `User`. Behavior:
+
+| Scenario | Trigger | Result |
+|---|---|---|
+| Authorized | The user holds the permission at the resolved scope | The route runs; the dependency returns the `User`. |
+| Not granted | The user lacks the permission at that scope | **403** `Permission denied`. |
+| Unregistered scope | `require("course", …)` where `"course"` was never declared via `PermissionScope.create()` | `PermissionScopeNotFound` is raised **at startup** (when the route module is imported) — a wiring error surfaces immediately, never as a silent per-request denial. |
+| Misconfigured path param | `require("course", "course_id")` on a route whose path has no `{course_id}` | **500** `Permission scope is misconfigured` (logged) — surfaced as a server error, not a silent 403. |
+
+`require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter, so
+it can never hit the last two rows.
 
 ## Contributing
 
