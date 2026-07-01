@@ -3,16 +3,24 @@
 The public surface is re-exported from ``app.lib.permissions``
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ColumnElement
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions import Permission
 from app.core.permissions.exceptions import RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.core.permissions.scopes import PermissionScope
 from app.models.user import User
+
+if TYPE_CHECKING:
+    # Annotation-only: importing Permission at runtime would cycle — the package __init__
+    # imports dependency.py, which imports can() from this module before __init__ finishes.
+    from app.core.permissions import Permission
 
 
 def _active_assignment_at_scope(

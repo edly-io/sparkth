@@ -374,8 +374,10 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```python
 from fastapi import Depends
 
-# Reference your declared permission instances — don't reconstruct them. THING_READ,
-# THING_CREATE and COURSE_EDIT are Permission.create(...) results.
+# Import your declared permission instances (don't reconstruct them) from the module that owns
+# them — app.lib.permissions for the platform's shipped permissions, or your plugin's module for
+# ones the plugin declares. THING_READ, THING_CREATE and COURSE_EDIT are Permission.create(...) results.
+from app.lib.permissions import COURSE_EDIT, THING_CREATE, THING_READ
 
 # Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
@@ -394,7 +396,9 @@ async def edit_course(course_id: int): ...
 ```
 
 The returned dependency resolves the current user, checks the permission, and returns the
-authenticated `User`. Behavior:
+authenticated `User`. Put it in `dependencies=[...]` to gate a route; inject it as a parameter
+(`user: User = Depends(...)`) only when the handler needs the authorized user — both forms enforce
+the permission identically. Behavior:
 
 | Scenario | Trigger | Result |
 |---|---|---|
