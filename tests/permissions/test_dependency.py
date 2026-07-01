@@ -3,15 +3,29 @@ from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
-from app.api.v1.auth import RequirePermission
+from app.core.permissions.exceptions import PermissionScopeNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
+from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from app.lib.permissions import Permission
-from app.lib.permissions.scopes import GLOBAL, PermissionScope
+from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
 
 
 def _request() -> Request:
     return Request({"type": "http"})
+
+
+@pytest.fixture
+def course_scope(monkeypatch: pytest.MonkeyPatch) -> PermissionScope:
+    """Register a 'course' scope on the global hook for the duration of one test.
+
+    PERMISSION_SCOPES is a process-wide singleton with no reset and a duplicate guard, so
+    patch its backing dict via monkeypatch (auto-restored) rather than calling create()/
+    add_item(), which would leak the scope into every later test.
+    """
+    scope = PermissionScope("course", parent=GLOBAL)
+    monkeypatch.setitem(PERMISSION_SCOPES._items, "course", scope)
+    return scope
 
 
 async def _seed(session: AsyncSession, username: str, permission: str | None) -> User:
@@ -37,19 +51,19 @@ async def _seed(session: AsyncSession, username: str, permission: str | None) ->
 
 async def test_dependency_allows_when_granted(session: AsyncSession) -> None:
     user = await _seed(session, "alice", "assignment.grade")
-    dep = RequirePermission(Permission("assignment.grade"), GLOBAL)
+    dep = Permission("assignment.grade").require_in_global_scope()
     assert await dep(_request(), user, session) is user
 
 
 async def test_dependency_denies_without_permission(session: AsyncSession) -> None:
     user = await _seed(session, "bob", None)
-    dep = RequirePermission(Permission("assignment.grade"), GLOBAL)
+    dep = Permission("assignment.grade").require_in_global_scope()
     with pytest.raises(HTTPException) as exc:
         await dep(_request(), user, session)
     assert exc.value.status_code == 403
 
 
-async def test_dependency_resolves_scope_from_path_params(session: AsyncSession) -> None:
+async def test_dependency_resolves_scope_from_path_params(session: AsyncSession, course_scope: PermissionScope) -> None:
     user = await _seed(session, "carol", None)
     assert user.id is not None
     role = Role(name="course-grader")
@@ -60,7 +74,7 @@ async def test_dependency_resolves_scope_from_path_params(session: AsyncSession)
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="course", scope_object_id="5"))
     await session.flush()
 
-    dep = RequirePermission(Permission("assignment.grade"), PermissionScope("course"), "course_id")
+    dep = Permission("assignment.grade").require("course", "course_id")
 
     granted = Request({"type": "http", "path_params": {"course_id": "5"}})
     assert await dep(granted, user, session) is user
@@ -71,20 +85,21 @@ async def test_dependency_resolves_scope_from_path_params(session: AsyncSession)
     assert exc.value.status_code == 403
 
 
-async def test_dependency_raises_500_when_scope_param_missing(session: AsyncSession) -> None:
+async def test_dependency_raises_500_when_scope_param_missing(
+    session: AsyncSession, course_scope: PermissionScope
+) -> None:
     # scope_param names a path parameter the route doesn't provide — a wiring error,
     # not an auth failure, so it must surface as 500 rather than a silent 403.
     user = await _seed(session, "dave", None)
-    dep = RequirePermission(Permission("assignment.grade"), PermissionScope("course"), "course_id")
+    dep = Permission("assignment.grade").require("course", "course_id")
     with pytest.raises(HTTPException) as exc:
         await dep(_request(), user, session)
     assert exc.value.status_code == 500
 
 
 async def test_dependency_denies_admin_role_without_the_checked_permission(session: AsyncSession) -> None:
-    # Holding the global admin role is not a bypass: authorization is purely
-    # permission-based, so an admin role that does not grant the checked permission
-    # is still denied.
+    # Holding the global admin role is not a bypass: authorization is purely permission-based,
+    # so an admin role that does not grant the checked permission is still denied.
     user = await _seed(session, "erin", None)
     assert user.id is not None
     role = Role(name="admin")
@@ -94,7 +109,14 @@ async def test_dependency_denies_admin_role_without_the_checked_permission(sessi
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     await session.flush()
 
-    dep = RequirePermission(Permission("assignment.grade"), GLOBAL)
+    dep = Permission("assignment.grade").require_in_global_scope()
     with pytest.raises(HTTPException) as exc:
         await dep(_request(), user, session)
     assert exc.value.status_code == 403
+
+
+def test_require_with_unregistered_scope_raises() -> None:
+    # A scope name that was never registered via PermissionScope.create() is a wiring error;
+    # require() raises at call time (route-definition/import time) so it fails fast at startup.
+    with pytest.raises(PermissionScopeNotFound):
+        Permission("assignment.grade").require("does-not-exist", "course_id")
