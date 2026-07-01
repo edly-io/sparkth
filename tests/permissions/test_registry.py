@@ -7,52 +7,61 @@ from app.lib.hooks import SingleNamedItemHook
 from app.lib.permissions.registry import PermissionScopesRegistry, PermissionsRegistry
 
 
-def test_get_permission_returns_the_registered_object() -> None:
+@pytest.fixture
+def permissions_hook(monkeypatch: pytest.MonkeyPatch) -> SingleNamedItemHook[Permission]:
+    """Patch PermissionsRegistry onto a fresh, isolated hook and return it to populate."""
     hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+    monkeypatch.setattr(PermissionsRegistry, "_hook", hook)
+    return hook
+
+
+@pytest.fixture
+def scopes_hook(monkeypatch: pytest.MonkeyPatch) -> SingleNamedItemHook[PermissionScope]:
+    """Patch PermissionScopesRegistry onto a fresh, isolated hook and return it to populate."""
+    hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
+    monkeypatch.setattr(PermissionScopesRegistry, "_hook", hook)
+    return hook
+
+
+def test_get_permission_returns_the_registered_object(permissions_hook: SingleNamedItemHook[Permission]) -> None:
     permission = Permission("assignment.grade")
-    hook.add_item(permission)
+    permissions_hook.add_item(permission)
 
-    assert PermissionsRegistry(hook).get("assignment.grade") is permission
+    assert PermissionsRegistry().get("assignment.grade") is permission
 
 
-def test_get_unknown_permission_raises() -> None:
-    registry = PermissionsRegistry(SingleNamedItemHook())
-
+def test_get_unknown_permission_raises(permissions_hook: SingleNamedItemHook[Permission]) -> None:
     with pytest.raises(PermissionNotFound):
-        registry.get("nope")
+        PermissionsRegistry().get("nope")
 
 
-def test_all_returns_every_registered_permission() -> None:
-    hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+def test_all_returns_every_registered_permission(permissions_hook: SingleNamedItemHook[Permission]) -> None:
     first = Permission("a")
     second = Permission("b")
-    hook.add_item(first)
-    hook.add_item(second)
+    permissions_hook.add_item(first)
+    permissions_hook.add_item(second)
 
-    assert PermissionsRegistry(hook).all() == [first, second]
-
-
-def test_all_is_empty_for_an_empty_hook() -> None:
-    assert PermissionsRegistry(SingleNamedItemHook()).all() == []
+    assert PermissionsRegistry().all() == [first, second]
 
 
-def test_get_permission_scope_returns_the_registered_object() -> None:
-    hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
+def test_all_is_empty_for_an_empty_hook(permissions_hook: SingleNamedItemHook[Permission]) -> None:
+    assert PermissionsRegistry().all() == []
+
+
+def test_get_permission_scope_returns_the_registered_object(scopes_hook: SingleNamedItemHook[PermissionScope]) -> None:
     scope = PermissionScope("course")
-    hook.add_item(scope)
+    scopes_hook.add_item(scope)
 
-    assert PermissionScopesRegistry(hook).get("course") is scope
+    assert PermissionScopesRegistry().get("course") is scope
 
 
-def test_get_unknown_permission_scope_raises() -> None:
-    registry = PermissionScopesRegistry(SingleNamedItemHook())
-
+def test_get_unknown_permission_scope_raises(scopes_hook: SingleNamedItemHook[PermissionScope]) -> None:
     with pytest.raises(PermissionScopeNotFound):
-        registry.get("course")
+        PermissionScopesRegistry().get("course")
 
 
-def test_registries_default_to_the_global_hooks() -> None:
-    # No-arg construction reads the global hooks, which carry the core vocabulary registered at
-    # import: the email-whitelist permissions and the global scope.
+def test_registries_read_the_global_hooks_by_default() -> None:
+    # Unpatched, each registry's class-attribute hook is the real global hook, which carries the
+    # core vocabulary registered at import: the email-whitelist permissions and the global scope.
     assert PermissionsRegistry().get("email.whitelist.read") is PERMISSIONS.get("email.whitelist.read")
     assert PermissionScopesRegistry().get("global") is PERMISSION_SCOPES.get("global")
