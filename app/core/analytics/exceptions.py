@@ -21,3 +21,14 @@ class DuplicateEventTypeError(Exception):
         self.event_type = event_type
         self.version = version
         super().__init__(f"A different schema is already registered for event '{event_type}' version {version}")
+
+
+class EventNamespaceError(Exception):
+    """Raised when a plugin contributes an event not namespaced under its own name."""
+
+    def __init__(self, plugin_name: str, event_type: str) -> None:
+        self.plugin_name = plugin_name
+        self.event_type = event_type
+        super().__init__(
+            f"Plugin '{plugin_name}' registered event '{event_type}', which is not namespaced under '{plugin_name}.'"
+        )

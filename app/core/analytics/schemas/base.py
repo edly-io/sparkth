@@ -8,10 +8,10 @@ policy live in one place and cannot drift apart.
 
 Namespacing convention: plugin events MUST prefix ``event_type`` with the plugin
 name (e.g. ``"slack.message_received"``) so they cannot collide with core events
-or with another plugin's events. This is a convention only at this stage —
-enforcement will be added when the plugin registration drain is wired in.
-A *different* class claiming an already-registered ``(event_type, version)`` is a
-startup-fatal ``DuplicateEventTypeError`` (see ``EventRegistry.register``).
+or with another plugin's events. Enforcement is wired via ``initialize_event_registry``
+(called from ``assemble_app()``) which rejects unnamespaced events with
+``EventNamespaceError``. A *different* class claiming an already-registered
+``(event_type, version)`` is a startup-fatal ``DuplicateEventTypeError``.
 """
 
 from typing import ClassVar

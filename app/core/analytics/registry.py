@@ -41,10 +41,7 @@ class EventRegistry:
             self._register_core_events()
 
     def _register_core_events(self) -> None:
-        """Register core events shipped with Sparkth.
-
-        Plugin contributions are registered separately via a hook drain (not yet wired).
-        """
+        """Register core events shipped with Sparkth."""
         # Lazy import avoids a module-level dependency from registry → schemas.
         from app.core.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
 
