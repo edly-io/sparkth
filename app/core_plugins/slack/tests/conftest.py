@@ -19,10 +19,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
 from app.core_plugins.slack.config import SlackSettings
 from app.core_plugins.slack.models import SlackWorkspace
 from app.core_plugins.slack.service import encrypt_token
+from app.lib.auth import get_current_user
 from app.lib.settings import get_settings
 from app.main import app
 from app.models.user import User

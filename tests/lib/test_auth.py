@@ -6,8 +6,9 @@ def test_get_current_user_lives_in_lib_auth() -> None:
     assert callable(lib_auth.get_current_user)
 
 
-def test_get_current_user_reexported_from_api_auth_is_same_object() -> None:
-    # The test harness overrides get_current_user imported from app.api.v1.auth, while the
-    # permission dependency imports it from app.lib.auth. dependency_overrides keys on object
-    # identity, so the re-export MUST be the very same function object.
-    assert api_auth.get_current_user is lib_auth.get_current_user
+def test_get_current_user_not_reexported_from_api_auth() -> None:
+    # get_current_user has a single canonical home in app.lib.auth; every caller (routes, the
+    # permission dependency, and the test harness's dependency_overrides) imports it from there
+    # so they all share one object. app.api.v1.auth must NOT re-export it — a compat shim would
+    # split the canonical location and let a dependency_overrides key silently miss.
+    assert not hasattr(api_auth, "get_current_user")

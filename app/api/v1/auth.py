@@ -21,10 +21,6 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.analytics import UnknownEventTypeError, ingest_event
-
-# Re-exported from its new home in app.lib.auth (same object) so existing importers and the
-# test harness's dependency_overrides keep working unchanged.
-from app.lib.auth import get_current_user as get_current_user
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
 from app.models.base import utc_now

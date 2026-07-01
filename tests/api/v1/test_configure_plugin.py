@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI, status
 from httpx import ASGITransport, AsyncClient
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.models.user import User
 from app.services.plugin import ConfigValidationError, InternalServerError, PluginService
 

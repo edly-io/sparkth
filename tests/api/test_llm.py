@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.main import app
 from app.models.user import User
 

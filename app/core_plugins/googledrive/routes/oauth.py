@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
 from app.core_plugins.googledrive.oauth import (
     decode_state,
     decrypt_token,
@@ -23,6 +22,7 @@ from app.core_plugins.googledrive.schemas import (
     GoogleDriveAuthorizationUrlResponse,
     GoogleDriveConnectionStatusResponse,
 )
+from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.user import User
