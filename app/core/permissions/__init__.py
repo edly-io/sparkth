@@ -59,10 +59,7 @@ class Permission:
                     scope_param,
                     list(request.path_params),
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Permission scope is misconfigured",
-                )
+                raise RuntimeError("Permission scope is misconfigured")
             scope_object_id = request.path_params.get(scope_param) if scope_param else None
             if not await can(current_user, self, permission_scope, scope_object_id, session):
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")

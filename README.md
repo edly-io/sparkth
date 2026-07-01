@@ -405,7 +405,7 @@ the permission identically. Behavior:
 | Authorized | The user holds the permission at the resolved scope | The route runs; the dependency returns the `User`. |
 | Not granted | The user lacks the permission at that scope | **403** `Permission denied`. |
 | Unregistered scope | `require("course", …)` where `"course"` was never declared via `PermissionScope.create()` | `PermissionScopeNotFound` is raised **at startup** (when the route module is imported) — a wiring error surfaces immediately, never as a silent per-request denial. |
-| Misconfigured path param | `require("course", "course_id")` on a route whose path has no `{course_id}` | **500** `Permission scope is misconfigured` (logged) — surfaced as a server error, not a silent 403. |
+| Misconfigured path param | `require("course", "course_id")` on a route whose path has no `{course_id}` | The dependency raises a plain exception, which FastAPI turns into a **500** (`Permission scope is misconfigured` is logged server-side, not returned to the client) — surfaced as a server error, not a silent 403. |
 
 `require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter, so
 it can never hit the last two rows.

@@ -85,16 +85,14 @@ async def test_dependency_resolves_scope_from_path_params(session: AsyncSession,
     assert exc.value.status_code == 403
 
 
-async def test_dependency_raises_500_when_scope_param_missing(
-    session: AsyncSession, course_scope: PermissionScope
-) -> None:
-    # scope_param names a path parameter the route doesn't provide — a wiring error,
-    # not an auth failure, so it must surface as 500 rather than a silent 403.
+async def test_dependency_raises_for_missing_scope_param(session: AsyncSession, course_scope: PermissionScope) -> None:
+    # scope_param names a path parameter the route doesn't provide — a wiring error, not an auth
+    # failure. The dependency raises a plain exception (FastAPI turns it into a 500), never a
+    # silent 403.
     user = await _seed(session, "dave", None)
     dep = Permission("assignment.grade").require("course", "course_id")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(RuntimeError):
         await dep(_request(), user, session)
-    assert exc.value.status_code == 500
 
 
 async def test_dependency_denies_admin_role_without_the_checked_permission(session: AsyncSession) -> None:
