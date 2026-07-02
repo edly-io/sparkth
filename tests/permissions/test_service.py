@@ -4,9 +4,18 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.permissions import utils as permissions_utils
-from app.core.permissions.exceptions import RoleNotFound
+from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.permissions import Permission, assign_role, can, has_role, revoke_role
+from app.lib.hooks import SingleNamedItemHook
+from app.lib.permissions import (
+    Permission,
+    assign_role,
+    can,
+    get_permission_or_raise,
+    get_permission_scope_or_raise,
+    has_role,
+    revoke_role,
+)
 from app.lib.permissions.scopes import GLOBAL, PermissionScope
 from app.models.user import User
 
@@ -247,6 +256,8 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.assign_role is assign_role
     assert facade.revoke_role is revoke_role
     assert facade.has_role is has_role
+    assert facade.get_permission_or_raise is get_permission_or_raise
+    assert facade.get_permission_scope_or_raise is get_permission_scope_or_raise
     assert issubclass(facade.RoleNotFound, Exception)
     # The registration hooks are re-exported from the app.lib.permissions.hooks submodule
     # (not the package facade), so plugins import them from there.
@@ -307,3 +318,46 @@ async def test_soft_deleted_assignment_does_not_block_reassignment(session: Asyn
 
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     await session.flush()
+
+
+def test_get_permission_or_raise_returns_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+    permission = Permission("assignment.grade")
+    hook.add_item(permission)
+    monkeypatch.setattr(permissions_utils, "PERMISSIONS", hook)
+
+    assert get_permission_or_raise("assignment.grade") is permission
+
+
+def test_get_permission_or_raise_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+    monkeypatch.setattr(permissions_utils, "PERMISSIONS", hook)
+
+    with pytest.raises(PermissionNotFound):
+        get_permission_or_raise("nope")
+
+
+def test_get_permission_scope_or_raise_returns_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
+    scope = PermissionScope("course")
+    hook.add_item(scope)
+    monkeypatch.setattr(permissions_utils, "PERMISSION_SCOPES", hook)
+
+    assert get_permission_scope_or_raise("course") is scope
+
+
+def test_get_permission_scope_or_raise_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
+    monkeypatch.setattr(permissions_utils, "PERMISSION_SCOPES", hook)
+
+    with pytest.raises(PermissionScopeNotFound):
+        get_permission_scope_or_raise("course")
+
+
+def test_get_permission_or_raise_reads_the_global_hook() -> None:
+    # Unpatched: resolves against the real PERMISSIONS hook, which carries the core
+    # email-whitelist permissions registered at import. This is the wiring the deleted
+    # test_registry.py used to cover.
+    from app.lib.permissions import EMAIL_WHITELIST_READ
+
+    assert get_permission_or_raise("email.whitelist.read") is EMAIL_WHITELIST_READ
