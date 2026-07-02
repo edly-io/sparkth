@@ -5,11 +5,9 @@ from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
-import jwt
 import redis.asyncio as aioredis
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
@@ -25,8 +23,6 @@ from app.core.google_auth import (
 from app.lib.analytics import UnknownEventTypeError, ingest_event
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
-from app.lib.permissions import Permission, can
-from app.lib.permissions.scopes import PermissionScope
 from app.models.base import utc_now
 from app.models.user import User
 from app.schemas import (
@@ -50,41 +46,6 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 router = APIRouter()
-security_scheme = HTTPBearer()
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
-    session: AsyncSession = Depends(get_async_session),
-) -> User:
-    token = credentials.credentials
-
-    try:
-        payload = security.decode_access_token(token)
-        username = payload.get("sub")
-        if not isinstance(username, str) or username is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    result = await session.exec(select(User).where(User.username == username))
-    user = result.one_or_none()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return user
 
 
 @router.post("/register", response_model=UserSchema)
@@ -380,54 +341,3 @@ async def resend_verification_email(
         raw_token=raw_token,
     )
     return {}
-
-
-class RequirePermission:
-    """FastAPI dependency authorizing the current user for a permission.
-
-    Instances are callable dependencies; the instance carries the ``Permission`` and
-    ``PermissionScope`` it enforces.
-    """
-
-    def __init__(
-        self, permission: Permission, permission_scope: PermissionScope, scope_param: str | None = None
-    ) -> None:
-        """Bind the permission and scope this dependency enforces.
-
-        Captured at construction so one instance is a reusable dependency across requests.
-        ``scope_param`` names the path parameter whose value becomes the scope object id; it
-        is resolved per request (not here), because the path value does not exist yet when the
-        dependency object is built.
-        """
-        self.permission = permission
-        self.permission_scope = permission_scope
-        self.scope_param = scope_param
-
-    async def __call__(
-        self,
-        request: Request,
-        current_user: User = Depends(get_current_user),
-        session: AsyncSession = Depends(get_async_session),
-    ) -> User:
-        """Authorize the current user for the bound permission, or raise 403.
-
-        Resolves the scope object id from the request's path params at call time, asks the
-        permission engine whether the user may act, and returns the user so the route
-        receives the authenticated principal. Raises 403 when the permission is absent, and
-        500 when ``scope_param`` names a path parameter the route does not provide (a wiring
-        error that would otherwise silently deny every user).
-        """
-        if self.scope_param is not None and self.scope_param not in request.path_params:
-            logger.error(
-                "RequirePermission misconfigured: scope_param %r is not among the route's path params %s",
-                self.scope_param,
-                list(request.path_params),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Permission scope is misconfigured",
-            )
-        scope_object_id = request.path_params.get(self.scope_param) if self.scope_param else None
-        if not await can(current_user, self.permission, self.permission_scope, scope_object_id, session):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
-        return current_user

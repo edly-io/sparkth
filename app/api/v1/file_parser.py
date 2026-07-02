@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 from pypdf import PdfReader
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.models.user import User
 
 router: APIRouter = APIRouter()

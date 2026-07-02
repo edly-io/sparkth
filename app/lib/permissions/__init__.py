@@ -17,9 +17,6 @@ from app.core.permissions import (
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
     Permission,
-)
-from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
-from app.core.permissions.utils import (
     assign_role,
     can,
     get_permission_or_raise,
@@ -27,6 +24,7 @@ from app.core.permissions.utils import (
     has_role,
     revoke_role,
 )
+from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
 
 __all__ = [
     "assign_role",
