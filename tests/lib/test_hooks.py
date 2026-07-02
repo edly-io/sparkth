@@ -121,3 +121,24 @@ def test_single_named_item_hook_rejects_duplicate_name() -> None:
 
     with pytest.raises(ValueError, match="course.grade"):
         hook.add_item(_Named("course.grade"))
+
+
+def test_single_named_item_hook_get_returns_item_by_name() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
+    item = _Named("a")
+    hook.add_item(item)
+
+    assert hook.get("a") is item
+
+
+def test_single_named_item_hook_get_returns_none_for_unknown_name() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
+
+    assert hook.get("missing") is None
+
+
+def test_single_named_item_hook_get_returns_default_for_unknown_name() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
+    fallback = _Named("fallback")
+
+    assert hook.get("missing", fallback) is fallback

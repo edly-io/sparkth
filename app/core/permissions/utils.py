@@ -8,10 +8,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions import Permission
-from app.core.permissions.exceptions import RoleNotFound
+from app.core.permissions import PERMISSIONS, Permission
+from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.core.permissions.scopes import PermissionScope
+from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from app.models.user import User
 
 
@@ -171,3 +171,19 @@ async def revoke_role(
         # them dirty — no session.add needed.
         assignment.soft_delete()
     await session.flush()
+
+
+def get_permission_or_raise(name: str) -> Permission:
+    """Return the registered permission named ``name``, or raise PermissionNotFound."""
+    permission = PERMISSIONS.get(name)
+    if permission is None:
+        raise PermissionNotFound(name)
+    return permission
+
+
+def get_permission_scope_or_raise(name: str) -> PermissionScope:
+    """Return the registered scope kind named ``name``, or raise PermissionScopeNotFound."""
+    permission_scope = PERMISSION_SCOPES.get(name)
+    if permission_scope is None:
+        raise PermissionScopeNotFound(name)
+    return permission_scope

@@ -26,8 +26,7 @@ class Permission:
 
 
 # Every permission the platform knows; Permission.create() registers each one here.
-# This hook is the single source of truth — app.lib.permissions.registry.PermissionsRegistry
-# only reads from it.
+# This hook is the single source of truth — get_permission_or_raise() resolves names against it.
 PERMISSIONS: SingleNamedItemHook[Permission] = SingleNamedItemHook()
 
 # Core Permissions shipped with the application.

@@ -1,3 +1,4 @@
+from app.core.permissions.exceptions import PermissionScopeNotFound
 from app.lib.hooks import SingleNamedItemHook
 
 
@@ -28,8 +29,12 @@ class PermissionScope:
         """Create a scope kind and register it on the PERMISSION_SCOPES hook.
 
         Use this, not the bare ``PermissionScope(name)`` constructor — the constructor does
-        not register (it is internal/test-only).
+        not register (it is internal/test-only). A ``parent`` must already be registered;
+        ancestors are never auto-created, so passing an unregistered parent raises
+        ``PermissionScopeNotFound``.
         """
+        if parent is not None and PERMISSION_SCOPES.get(parent.name) is None:
+            raise PermissionScopeNotFound(parent.name)
         permission_scope = cls(name, parent)
         PERMISSION_SCOPES.add_item(permission_scope)
         return permission_scope
@@ -47,8 +52,7 @@ class PermissionScope:
 
 
 # Every scope kind the platform knows; PermissionScope.create() registers each one here.
-# This hook is the single source of truth — app.lib.permissions.registry.PermissionScopesRegistry
-# only reads from it.
+# This hook is the single source of truth — get_permission_scope_or_raise() resolves names against it.
 PERMISSION_SCOPES: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
 
 # Core Permisson Scopes shipped with the application, ordered root-first so each is registered after its parent.
