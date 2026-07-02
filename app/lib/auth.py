@@ -1,7 +1,8 @@
 """Authentication dependency for resolving the current user from a bearer token.
 
-Public API home for ``get_current_user`` (plugins and application code import it here).
-``app.api.v1.auth`` re-exports it for backward compatibility.
+The single canonical home for ``get_current_user``: every caller (routes, the permission
+gate, plugins, and the test harness) imports it from here. It is deliberately not
+re-exported from ``app.api.v1.auth`` — one object keeps FastAPI dependency overrides working.
 """
 
 import jwt
