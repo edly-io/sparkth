@@ -15,8 +15,6 @@ from app.lib.hooks import SingleNamedItemHook
 class PermissionsRegistry:
     """Read-only view of the registered permissions, backed by the PERMISSIONS hook."""
 
-    # In production the source is always the global PERMISSIONS hook, so it is a fixed class
-    # attribute rather than a constructor argument. Unit tests patch it to inject an isolated hook.
     _hook: SingleNamedItemHook[Permission] = PERMISSIONS
 
     def get(self, name: str) -> Permission:
@@ -34,7 +32,6 @@ class PermissionsRegistry:
 class PermissionScopesRegistry:
     """Read-only view of the registered scope kinds, backed by the PERMISSION_SCOPES hook."""
 
-    # Fixed class attribute, patched in tests; see PermissionsRegistry.
     _hook: SingleNamedItemHook[PermissionScope] = PERMISSION_SCOPES
 
     def get(self, name: str) -> PermissionScope:
