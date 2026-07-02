@@ -240,6 +240,7 @@ def test_facade_exposes_public_surface() -> None:
     from app.core.permissions import PERMISSIONS
     from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, PermissionScope
     from app.lib import permissions as facade
+    from app.lib.permissions import hooks as hooks_facade
     from app.lib.permissions import scopes as scopes_facade
 
     assert facade.can is can
@@ -247,9 +248,10 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.revoke_role is revoke_role
     assert facade.has_role is has_role
     assert issubclass(facade.RoleNotFound, Exception)
-    # Plugins author against the facade for the hooks they register through.
-    assert facade.PERMISSIONS is PERMISSIONS
-    assert facade.PERMISSION_SCOPES is PERMISSION_SCOPES
+    # The registration hooks are re-exported from the app.lib.permissions.hooks submodule
+    # (not the package facade), so plugins import them from there.
+    assert hooks_facade.PERMISSIONS is PERMISSIONS
+    assert hooks_facade.PERMISSION_SCOPES is PERMISSION_SCOPES
     # The scope class and the GLOBAL root are re-exported from the app.lib.permissions.scopes
     # submodule (not the package facade), so plugins import them from there.
     assert scopes_facade.PermissionScope is PermissionScope
