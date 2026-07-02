@@ -20,3 +20,19 @@ class PermissionScopeNotFound(Exception):
     def __init__(self, name: str) -> None:
         super().__init__(f"Permission scope not found: {name}")
         self.name = name
+
+
+class RoleAlreadyExists(Exception):
+    """Raised when creating or renaming a role to a name that is already taken."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Role already exists: {name}")
+        self.name = name
+
+
+class RoleInUse(Exception):
+    """Raised when deleting a role that still has active assignments."""
+
+    def __init__(self, role_id: int) -> None:
+        super().__init__(f"Role is still assigned and cannot be deleted: {role_id}")
+        self.role_id = role_id

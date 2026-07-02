@@ -16,6 +16,11 @@ from app.core.permissions import (
     EMAIL_WHITELIST_CREATE,
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
+    PERMISSION_READ,
+    ROLE_CREATE,
+    ROLE_DELETE,
+    ROLE_READ,
+    ROLE_UPDATE,
     Permission,
     assign_role,
     can,
@@ -23,7 +28,6 @@ from app.core.permissions import (
     has_role,
     revoke_role,
 )
-from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
 from app.core.permissions.scopes import get_permission_scope
 
 __all__ = [
@@ -34,10 +38,12 @@ __all__ = [
     "has_role",
     "revoke_role",
     "Permission",
-    "RoleNotFound",
-    "PermissionNotFound",
-    "PermissionScopeNotFound",
     "EMAIL_WHITELIST_READ",
     "EMAIL_WHITELIST_CREATE",
     "EMAIL_WHITELIST_DELETE",
+    "ROLE_CREATE",
+    "ROLE_READ",
+    "ROLE_UPDATE",
+    "ROLE_DELETE",
+    "PERMISSION_READ",
 ]

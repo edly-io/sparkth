@@ -5,7 +5,8 @@ from sqlmodel import select
 
 from app.core.security import get_password_hash
 from app.lib.db import session_scope
-from app.lib.permissions import RoleNotFound, assign_role
+from app.lib.permissions import assign_role
+from app.lib.permissions.exceptions import RoleNotFound
 from app.lib.permissions.scopes import GLOBAL
 from app.models.base import utc_now
 from app.models.user import User
