@@ -242,8 +242,8 @@ A user is authorized when they hold, through an active `role_assignment` at the 
 
 The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table.
 
-- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in `app.core.permissions`; plugins declare their own from their `__init__`. The hook is the single source of truth — nothing seeds permissions into the registry separately.
-- **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared this way in `app.core.permissions.scopes`; plugins declare their own from their `__init__`. As with permissions, the hook is the single source of truth — nothing seeds scopes into the registry separately.
+- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in `app.core.permissions`; plugins declare their own from their `__init__`. The hook is the single source of truth — nothing is copied into a separate store.
+- **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared this way in `app.core.permissions.scopes`; plugins declare their own from their `__init__`. As with permissions, the hook is the single source of truth — nothing is copied into a separate store.
 
 Each hook is a `SingleNamedItemHook` keyed by name: declaring two permissions or two scope kinds with the same name **raises `ValueError`**, so a collision fails fast at import time instead of being silently ignored.
 
