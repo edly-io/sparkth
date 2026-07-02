@@ -205,7 +205,7 @@ Documentation includes:
 
 The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
 
-**Permission system → README.** Whenever you change the permission system — declare or remove a permission or scope kind (via `Permission.create()` / `PermissionScope.create()`, which feed the `PERMISSIONS` / `PERMISSION_SCOPES` hooks), add or remove a role, or change how scopes, the registries, or assignments behave — update the "Permission Management System" section of [`README.md`](README.md) in the same PR. The shipped scopes/roles tables and the extension guide must stay accurate so the README grows with the codebase and is reviewed alongside the change.
+**Permission system → README.** Whenever you change the permission system — declare or remove a permission or scope kind (via `Permission.create()` / `PermissionScope.create()`, which feed the `PERMISSIONS` / `PERMISSION_SCOPES` hooks), add or remove a role, or change how scopes, the lookup helpers, or assignments behave — update the "Permission Management System" section of [`README.md`](README.md) in the same PR. The shipped scopes/roles tables and the extension guide must stay accurate so the README grows with the codebase and is reviewed alongside the change.
 
 ### Test Layout
 
