@@ -66,8 +66,8 @@ Current modules (see the source for the full API — do not duplicate it here):
   `app/core/db.py` (main) and `app/analytics/db.py` (analytics).
 - [`app/lib/auth.py`](app/lib/auth.py) — authentication dependency. Import
   `get_current_user` from here (the FastAPI dependency that resolves the authenticated
-  `User` from the bearer token); it is re-exported from `app.api.v1.auth` for backward
-  compatibility. Implementation lives in `app/lib/auth.py`.
+  `User` from the bearer token) — its single canonical home; every caller (routes, the
+  permission gate) imports it from there. Implementation lives in `app/lib/auth.py`.
 - [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
   `app.core.config` directly. Implementation lives in `app/core/config.py`.
@@ -85,9 +85,11 @@ Current modules (see the source for the full API — do not duplicate it here):
   from `app.plugins`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
 - [`app/lib/permissions/`](app/lib/permissions/__init__.py) — permissions public API
   (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
-  `assign_role`, `revoke_role`, `RoleNotFound`, `Permission`, and the
-  `PERMISSIONS` / `PERMISSION_SCOPES` hooks); the `PermissionScope` class and the
-  `GLOBAL` scope are imported from the `app.lib.permissions.scopes` submodule. Plugins
+  `assign_role`, `revoke_role`, `get_permission_or_raise`,
+  `get_permission_scope_or_raise`, `RoleNotFound`, `Permission`); the
+  `PERMISSIONS` / `PERMISSION_SCOPES` hooks are imported from the
+  `app.lib.permissions.hooks` submodule, and the `PermissionScope` class and the
+  `GLOBAL` scope from the `app.lib.permissions.scopes` submodule. Plugins
   declare their own via `Permission.create()` / `PermissionScope.create()`. Never import
   from `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
 - [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
@@ -207,7 +209,7 @@ Documentation includes:
 
 The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
 
-**Permission system → README.** Whenever you change the permission system — declare or remove a permission or scope kind (via `Permission.create()` / `PermissionScope.create()`, which feed the `PERMISSIONS` / `PERMISSION_SCOPES` hooks), add or remove a role, or change how scopes, the registries, or assignments behave — update the "Permission Management System" section of [`README.md`](README.md) in the same PR. The shipped scopes/roles tables and the extension guide must stay accurate so the README grows with the codebase and is reviewed alongside the change.
+**Permission system → README.** Whenever you change the permission system — declare or remove a permission or scope kind (via `Permission.create()` / `PermissionScope.create()`, which feed the `PERMISSIONS` / `PERMISSION_SCOPES` hooks), add or remove a role, or change how scopes, the lookup helpers, or assignments behave — update the "Permission Management System" section of [`README.md`](README.md) in the same PR. The shipped scopes/roles tables and the extension guide must stay accurate so the README grows with the codebase and is reviewed alongside the change.
 
 ### Test Layout
 
