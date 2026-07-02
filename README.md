@@ -317,8 +317,25 @@ The `global` scope is the root: it applies everywhere and names no object, so `s
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global` | The root scope; applies platform-wide; `scope_object_id` is `NULL`. |
-| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete` | Gate the registration email-whitelist endpoints. |
-| **Roles** | `admin` | Grants the three `email.whitelist.*` permissions. The seed migration also assigns it at the `global` scope to every account that was a superuser when the migration ran — a one-time backfill, not an ongoing rule. |
+| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete`; `role.create`, `role.read`, `role.update`, `role.delete` | The `email.whitelist.*` permissions gate the registration email-whitelist endpoints; the `role.*` permissions gate the role-management API (see [Managing roles at runtime](#managing-roles-at-runtime)). |
+| **Roles** | `admin` | Grants the three `email.whitelist.*` and the four `role.*` permissions. The seed migration also assigns it at the `global` scope to every account that was a superuser when the migration ran — a one-time backfill, not an ongoing rule. |
+
+### Managing roles at runtime
+
+Roles and their permission grants are managed at runtime through the role-management REST API under `/api/v1/permissions`, gated by the `role.*` permissions. Permissions and scope kinds themselves are **not** editable here — they are declared in code (platform defaults or plugin hooks); this API only grants already-declared permissions to roles.
+
+| Method & path | Permission | Purpose |
+|---|---|---|
+| `GET /permissions/available` | `role.read` | List the permission strings assignable to a role. |
+| `GET /permissions/roles` | `role.read` | List every role with its permission grants. |
+| `POST /permissions/roles` | `role.create` | Create a role (`409` if the name is taken). |
+| `GET /permissions/roles/{role_id}` | `role.read` | Fetch one role (`404` if missing). |
+| `PATCH /permissions/roles/{role_id}` | `role.update` | Rename or re-describe a role (`404` missing, `409` name taken). |
+| `DELETE /permissions/roles/{role_id}` | `role.delete` | Delete a role (`409` while it still has an active assignment). |
+| `POST /permissions/roles/{role_id}/permissions` | `role.update` | Grant a registered permission to a role (`422` if the permission is not registered). |
+| `DELETE /permissions/roles/{role_id}/permissions/{permission}` | `role.update` | Revoke a permission from a role. |
+
+Grants and revokes are idempotent. Assigning a role to a *user* is a separate concern handled by `assign_role` / the CLI (see [Assign a role to a user](#extending-the-permission-system)), not by this API.
 
 ### Extending the permission system
 
