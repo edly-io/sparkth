@@ -52,7 +52,7 @@ class PermissionScope:
 
 
 # Every scope kind the platform knows; PermissionScope.create() registers each one here.
-# This hook is the single source of truth — get_permission_scope_or_raise() resolves names against it.
+# This hook is the single source of truth — get_permission_scope() resolves names against it.
 PERMISSION_SCOPES: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
 
 # Core Permisson Scopes shipped with the application, ordered root-first so each is registered after its parent.

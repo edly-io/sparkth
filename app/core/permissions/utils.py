@@ -173,7 +173,7 @@ async def revoke_role(
     await session.flush()
 
 
-def get_permission_or_raise(name: str) -> Permission:
+def get_permission(name: str) -> Permission:
     """Return the registered permission named ``name``, or raise PermissionNotFound."""
     permission = PERMISSIONS.get(name)
     if permission is None:
@@ -181,7 +181,7 @@ def get_permission_or_raise(name: str) -> Permission:
     return permission
 
 
-def get_permission_scope_or_raise(name: str) -> PermissionScope:
+def get_permission_scope(name: str) -> PermissionScope:
     """Return the registered scope kind named ``name``, or raise PermissionScopeNotFound."""
     permission_scope = PERMISSION_SCOPES.get(name)
     if permission_scope is None:

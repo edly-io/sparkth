@@ -250,7 +250,7 @@ Each hook is a `SingleNamedItemHook` keyed by name: declaring two permissions or
 > **Always declare permissions and scope kinds via `Permission.create()` / `PermissionScope.create()`, never the bare constructors.** Only `.create()` registers the object on its hook — the source of truth — which is also what makes a duplicate name fail fast. Bind each declaration to a constant and reference that one instance wherever the permission or scope is used (e.g. `EMAIL_WHITELIST_READ`, `GLOBAL`). The bare `Permission(name)` / `PermissionScope(name)` constructors are **internal/test-only**; see [The `Permission` class](#the-permission-class) and [The `PermissionScope` class](#the-permissionscope-class) below for exactly what they skip and why it matters.
 
 The hooks *are* the catalogue: resolve a name to its registered object with
-`get_permission_or_raise(name)` / `get_permission_scope_or_raise(name)` (they return the
+`get_permission(name)` / `get_permission_scope(name)` (they return the
 `Permission` / `PermissionScope`, raising `PermissionNotFound` / `PermissionScopeNotFound`
 on a miss). There is no separate storage, no singleton, and no startup priming step — so
 extending the vocabulary needs no schema change; the tables above stay the system of record
@@ -299,7 +299,7 @@ As with `Permission`, there is no custom `__eq__` — equality is identity.
 COURSE = PermissionScope.create("course", parent=GLOBAL)
 ```
 
-**`PermissionScope(name)` vs `.create(name)`** — the bare constructor is internal/test-only and does not register. For scopes this difference is **not** cosmetic: a scope kind is resolved back from its name through `get_permission_scope_or_raise(name)` — which the CLI uses to validate `--scope`. A bare-constructed scope is absent from the hook, so resolving it by name raises `PermissionScopeNotFound` — exactly the no-op `--scope` assignment the CLI now rejects. Always declare via `.create()` and reference the returned instance (`GLOBAL`, your `COURSE`, …). The shipped root scope is exported as `GLOBAL`; see [Shipped with the app](#shipped-with-the-app).
+**`PermissionScope(name)` vs `.create(name)`** — the bare constructor is internal/test-only and does not register. For scopes this difference is **not** cosmetic: a scope kind is resolved back from its name through `get_permission_scope(name)` — which the CLI uses to validate `--scope`. A bare-constructed scope is absent from the hook, so resolving it by name raises `PermissionScopeNotFound` — exactly the no-op `--scope` assignment the CLI now rejects. Always declare via `.create()` and reference the returned instance (`GLOBAL`, your `COURSE`, …). The shipped root scope is exported as `GLOBAL`; see [Shipped with the app](#shipped-with-the-app).
 
 ### Scopes
 
