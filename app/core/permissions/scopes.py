@@ -33,8 +33,9 @@ class PermissionScope:
         ancestors are never auto-created, so passing an unregistered parent raises
         ``PermissionScopeNotFound``.
         """
-        if parent is not None and PERMISSION_SCOPES.get(parent.name) is None:
-            raise PermissionScopeNotFound(parent.name)
+        if parent is not None:
+            # Validate the parent is registered; raises PermissionScopeNotFound if it is not.
+            get_permission_scope(parent.name)
         permission_scope = cls(name, parent)
         PERMISSION_SCOPES.add_item(permission_scope)
         return permission_scope
@@ -52,8 +53,17 @@ class PermissionScope:
 
 
 # Every scope kind the platform knows; PermissionScope.create() registers each one here.
-# This hook is the single source of truth — get_permission_scope_or_raise() resolves names against it.
+# This hook is the single source of truth — get_permission_scope() resolves names against it.
 PERMISSION_SCOPES: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
+
+
+def get_permission_scope(name: str) -> PermissionScope:
+    """Return the registered scope kind named ``name``, or raise PermissionScopeNotFound."""
+    permission_scope = PERMISSION_SCOPES.get(name)
+    if permission_scope is None:
+        raise PermissionScopeNotFound(name)
+    return permission_scope
+
 
 # Core Permisson Scopes shipped with the application, ordered root-first so each is registered after its parent.
 

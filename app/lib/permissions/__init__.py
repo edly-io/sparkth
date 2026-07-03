@@ -19,18 +19,18 @@ from app.core.permissions import (
     Permission,
     assign_role,
     can,
-    get_permission_or_raise,
-    get_permission_scope_or_raise,
+    get_permission,
     has_role,
     revoke_role,
 )
 from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
+from app.core.permissions.scopes import get_permission_scope
 
 __all__ = [
     "assign_role",
     "can",
-    "get_permission_or_raise",
-    "get_permission_scope_or_raise",
+    "get_permission",
+    "get_permission_scope",
     "has_role",
     "revoke_role",
     "Permission",

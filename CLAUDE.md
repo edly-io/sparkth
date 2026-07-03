@@ -63,7 +63,7 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` /
   `get_async_session` for the main DB; `analytics_session_scope` /
   `get_analytics_session` for the analytics DB. Implementation lives in
-  `app/core/db.py` (main) and `app/analytics/db.py` (analytics).
+  `app/core/db.py` (main) and `app/core/analytics/db.py` (analytics).
 - [`app/lib/auth.py`](app/lib/auth.py) — authentication dependency. Import
   `get_current_user` from here (the FastAPI dependency that resolves the authenticated
   `User` from the bearer token) — its single canonical home; every caller (routes, the
@@ -85,16 +85,16 @@ Current modules (see the source for the full API — do not duplicate it here):
   from `app.plugins`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
 - [`app/lib/permissions/`](app/lib/permissions/__init__.py) — permissions public API
   (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
-  `assign_role`, `revoke_role`, `get_permission_or_raise`,
-  `get_permission_scope_or_raise`, `RoleNotFound`, `Permission`); the
+  `assign_role`, `revoke_role`, `get_permission`,
+  `get_permission_scope`, `RoleNotFound`, `Permission`); the
   `PERMISSIONS` / `PERMISSION_SCOPES` hooks are imported from the
   `app.lib.permissions.hooks` submodule, and the `PermissionScope` class and the
   `GLOBAL` scope from the `app.lib.permissions.scopes` submodule. Plugins
   declare their own via `Permission.create()` / `PermissionScope.create()`. Never import
   from `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
 - [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
-  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.analytics.gateway` or
-  `app.analytics.exceptions` directly. Implementation lives in `app/analytics/`.
+  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
+  `app.core.analytics.exceptions` directly. Implementation lives in `app/core/analytics/`.
 
 ## Essential Commands
 
@@ -254,7 +254,7 @@ The project has **two independent Alembic lineages**: the application database
 both. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
 databases never share metadata: app models use `SQLModel.metadata`, analytics
-tables use `app.analytics.models.analytics_metadata`.
+tables use `app.core.analytics.models.analytics_metadata`.
 
 ### Preventing Split Heads
 

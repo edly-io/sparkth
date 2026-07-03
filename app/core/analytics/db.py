@@ -3,7 +3,7 @@
 Mirrors the structure of :mod:`app.core.db` but points at the separate analytics
 database (``ANALYTICS_DATABASE_URL`` / TimescaleDB). All analytics database access
 goes through these providers so the test suite can inject a throwaway engine via
-``monkeypatch.setattr(app.analytics.db, "open_analytics_session", ...)``.
+``monkeypatch.setattr(app.core.analytics.db, "open_analytics_session", ...)``.
 """
 
 from collections.abc import AsyncGenerator

@@ -3,7 +3,8 @@
 Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
 dependency layer, and the RBAC engine functions (``can``, ``has_role``,
-``assign_role``, ``revoke_role``) together with the ``get_*_or_raise`` lookups.
+``assign_role``, ``revoke_role``) together with the ``get_permission`` /
+``get_permission_scope`` lookups.
 
 These live in one module on purpose: the ``require*`` gate needs ``can`` while the
 engine functions need the ``Permission`` class and the ``PERMISSIONS`` hook, so
@@ -21,9 +22,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
+from app.core.permissions.exceptions import PermissionNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, PermissionScope
+from app.core.permissions.scopes import GLOBAL, PermissionScope, get_permission_scope
 from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.hooks import SingleNamedItemHook
@@ -96,19 +97,27 @@ class Permission:
 
         Args:
             permission_scope: A registered scope kind's name (e.g. ``"course"``). Resolved via
-                ``get_permission_scope_or_raise``; an unregistered name raises
-                ``PermissionScopeNotFound`` here (at route-definition/import time) so
-                misconfiguration fails fast at startup.
+                ``get_permission_scope``; an unregistered name raises ``PermissionScopeNotFound``
+                here (at route-definition/import time) so misconfiguration fails fast at startup.
             scope_param: The name of the route's path parameter carrying the scope object id;
                 resolved from ``request.path_params`` on each request.
         """
-        scope = get_permission_scope_or_raise(permission_scope)
+        scope = get_permission_scope(permission_scope)
         return self._require_permission(scope, scope_param)
 
 
 # Every permission the platform knows; Permission.create() registers each one here.
-# This hook is the single source of truth — get_permission_or_raise() resolves names against it.
+# This hook is the single source of truth — get_permission() resolves names against it.
 PERMISSIONS: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+
+
+def get_permission(name: str) -> Permission:
+    """Return the registered permission named ``name``, or raise PermissionNotFound."""
+    permission = PERMISSIONS.get(name)
+    if permission is None:
+        raise PermissionNotFound(name)
+    return permission
+
 
 # Core Permissions shipped with the application.
 
@@ -274,19 +283,3 @@ async def revoke_role(
         # them dirty — no session.add needed.
         assignment.soft_delete()
     await session.flush()
-
-
-def get_permission_or_raise(name: str) -> Permission:
-    """Return the registered permission named ``name``, or raise PermissionNotFound."""
-    permission = PERMISSIONS.get(name)
-    if permission is None:
-        raise PermissionNotFound(name)
-    return permission
-
-
-def get_permission_scope_or_raise(name: str) -> PermissionScope:
-    """Return the registered scope kind named ``name``, or raise PermissionScopeNotFound."""
-    permission_scope = PERMISSION_SCOPES.get(name)
-    if permission_scope is None:
-        raise PermissionScopeNotFound(name)
-    return permission_scope

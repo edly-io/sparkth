@@ -2,9 +2,9 @@
 
 This is the single public entry point for obtaining a database session. All code,
 including plugins, should acquire sessions from here rather than reaching for the
-raw SQLAlchemy engine in :mod:`app.core.db` or :mod:`app.analytics.db`.
+raw SQLAlchemy engine in :mod:`app.core.db` or :mod:`app.core.analytics.db`.
 
-The engine itself stays in :mod:`app.core.db` (app DB) and :mod:`app.analytics.db`
+The engine itself stays in :mod:`app.core.db` (app DB) and :mod:`app.core.analytics.db`
 (analytics DB); this module is only the public face that hands out sessions over them.
 """
 

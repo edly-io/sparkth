@@ -51,7 +51,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     engine's whole lifetime.
 
     We override the single low-level providers ``app.core.db.open_session`` and
-    ``app.analytics.db.open_analytics_session`` to create the schema on first use.
+    ``app.core.analytics.db.open_analytics_session`` to create the schema on first use.
     ``session_scope`` / ``analytics_session_scope`` resolve these via module
     attribute at call time, so a single override reaches *every* call path —
     including modules that did ``from app.lib.db import session_scope``. It stays
