@@ -89,6 +89,12 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
   from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
   `app.core.analytics.exceptions` directly. Implementation lives in `app/core/analytics/`.
+- [`app/lib/audit.py`](app/lib/audit.py) — audit trail public API. Import audit functionality from here
+  (`record_event`, `record_event_now`, `AuditActor`, `AuditContext`, `AuditContextMiddleware`,
+  `AuditEventRegistry`, `AuditOutcome`, `AuditSource`, the context helpers, and the audit exceptions); never
+  import from `app.core.audit.*` directly. Implementation lives in `app/core/audit/`. Unlike analytics
+  (best-effort), audit writes are fail-closed: mutating and AI actions must not proceed if their audit
+  record cannot be written.
 
 ## Essential Commands
 

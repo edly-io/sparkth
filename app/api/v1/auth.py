@@ -23,6 +23,7 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.analytics import UnknownEventTypeError, ingest_event
+from app.lib.audit import AuditActor, AuditOutcome, record_event_now
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
 from app.lib.permissions import Permission, can
@@ -173,8 +174,18 @@ async def login_for_access_token(
     result = await session.exec(select(User).where(User.username == form_data.username))
     user = result.one_or_none()
 
+    # Audit writes are fail-closed and committed independently of this request
+    # (record_event_now), so a failed attempt stays on record despite the 401.
+    attempted_actor = AuditActor(type="anonymous", label=form_data.username)
+
     # Check if user exists and has a password set (Google-only users won't have one)
     if not user or not user.hashed_password:
+        await record_event_now(
+            "auth.login",
+            outcome=AuditOutcome.FAILURE,
+            actor=attempted_actor,
+            error_detail="unknown username, or account has no password login",
+        )
         raise HTTPException(
             status_code=401,
             detail="Incorrect username or password",
@@ -182,6 +193,12 @@ async def login_for_access_token(
         )
 
     if not security.verify_password(form_data.password, user.hashed_password):
+        await record_event_now(
+            "auth.login",
+            outcome=AuditOutcome.FAILURE,
+            actor=attempted_actor,
+            error_detail="incorrect password",
+        )
         raise HTTPException(
             status_code=401,
             detail="Incorrect username or password",
@@ -189,6 +206,12 @@ async def login_for_access_token(
         )
 
     if not user.email_verified:
+        await record_event_now(
+            "auth.login",
+            outcome=AuditOutcome.DENIED,
+            actor=attempted_actor,
+            error_detail="email not verified",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "email_not_verified", "email": user.email},
@@ -199,6 +222,16 @@ async def login_for_access_token(
     expires_at = utc_now() + access_token_expires
 
     access_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+
+    await record_event_now(
+        "auth.login",
+        outcome=AuditOutcome.SUCCESS,
+        actor=AuditActor(
+            type="user",
+            id=str(user.id) if user.id is not None else None,
+            label=user.username,
+        ),
+    )
 
     background_tasks.add_task(
         _emit_login_event,

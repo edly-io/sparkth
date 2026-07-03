@@ -1,3 +1,4 @@
+from app.models.audit import AuditEvent
 from app.models.email_verification import EmailVerificationToken
 from app.models.llm import LLMConfig
 from app.models.plugin import Plugin, UserPlugin
@@ -11,4 +12,5 @@ __all__ = [
     "LLMConfig",
     "WhitelistedEmail",
     "EmailVerificationToken",
+    "AuditEvent",
 ]
