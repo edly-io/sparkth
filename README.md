@@ -373,21 +373,47 @@ await assign_role(user_id, "grader", GLOBAL, None, session)
 await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
-**Gate an endpoint on a permission** — depend on `RequirePermission`:
+**Gate an endpoint on a permission** — call `.require_in_global_scope()` or
+`.require(scope_name, path_param)` on the permission itself:
 
 ```python
 from fastapi import Depends
-from app.api.v1.auth import RequirePermission
-from app.lib.permissions.scopes import GLOBAL
 
-# Reference your declared instances — don't reconstruct them. THING_READ and COURSE_EDIT
-# are Permission.create(...) results; COURSE is a PermissionScope.create(...) result.
-@router.get("/things", dependencies=[Depends(RequirePermission(THING_READ, GLOBAL))])
+# Import your declared permission instances (don't reconstruct them) from the module that owns
+# them — app.lib.permissions for the platform's shipped permissions, or your plugin's module for
+# ones the plugin declares. THING_READ, THING_CREATE and COURSE_EDIT are Permission.create(...) results.
+from app.lib.permissions import COURSE_EDIT, THING_CREATE, THING_READ
+
+# Global scope, as a route dependency:
+@router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
 async def list_things(): ...
 
-# For a scoped check, name the path parameter that carries the object id:
-RequirePermission(COURSE_EDIT, COURSE, "course_id")  # reads {course_id}
+# Global scope, injected so the route can use the authorized user:
+async def create_thing(user: User = Depends(THING_CREATE.require_in_global_scope())): ...
+
+# Scoped check — pass the scope kind's *name* (not the PermissionScope object) and the path
+# parameter that carries the object id; the id is read from the URL on each request:
+@router.patch(
+    "/courses/{course_id}",
+    dependencies=[Depends(COURSE_EDIT.require("course", "course_id"))],  # reads {course_id}
+)
+async def edit_course(course_id: int): ...
 ```
+
+The returned dependency resolves the current user, checks the permission, and returns the
+authenticated `User`. Put it in `dependencies=[...]` to gate a route; inject it as a parameter
+(`user: User = Depends(...)`) only when the handler needs the authorized user — both forms enforce
+the permission identically. Behavior:
+
+| Scenario | Trigger | Result |
+|---|---|---|
+| Authorized | The user holds the permission at the resolved scope | The route runs; the dependency returns the `User`. |
+| Not granted | The user lacks the permission at that scope | **403** `Permission denied`. |
+| Unregistered scope | `require("course", …)` where `"course"` was never declared via `PermissionScope.create()` | `PermissionScopeNotFound` is raised **at startup** (when the route module is imported) — a wiring error surfaces immediately, never as a silent per-request denial. |
+| Misconfigured path param | `require("course", "course_id")` on a route whose path has no `{course_id}` | The dependency raises a plain exception, which FastAPI turns into a **500** (`Permission scope is misconfigured` is logged server-side, not returned to the client) — surfaced as a server error, not a silent 403. |
+
+`require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter, so
+it can never hit the last two rows.
 
 ## Contributing
 

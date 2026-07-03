@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.models import Message
 from app.core_plugins.chat.routes.utils import parse_metadata_list
 from app.core_plugins.chat.schemas import (
@@ -15,6 +14,7 @@ from app.core_plugins.chat.schemas import (
     MessageResponse,
 )
 from app.core_plugins.chat.service import ChatService, get_chat_service
+from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.user import User

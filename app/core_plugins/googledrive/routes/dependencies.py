@@ -5,7 +5,7 @@ Functions here are injected via ``Depends()`` by route handlers.
 
 from fastapi import Depends, HTTPException, status
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.lib.log import get_logger
 from app.models.user import User
 

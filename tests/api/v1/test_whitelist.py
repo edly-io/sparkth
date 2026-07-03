@@ -6,8 +6,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
+from app.lib.auth import get_current_user
 from app.models.user import User
 
 _WHITELIST_PERMISSIONS = ["email.whitelist.read", "email.whitelist.create", "email.whitelist.delete"]

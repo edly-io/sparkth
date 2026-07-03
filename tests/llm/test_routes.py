@@ -8,7 +8,7 @@ import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.llm import get_llm_service
 from app.main import app

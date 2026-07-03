@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.log import get_logger
 from app.models.plugin import Plugin

@@ -17,16 +17,14 @@ from app.core.permissions import (
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
     Permission,
-    get_permission,
-)
-from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
-from app.core.permissions.scopes import get_permission_scope
-from app.core.permissions.utils import (
     assign_role,
     can,
+    get_permission,
     has_role,
     revoke_role,
 )
+from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
+from app.core.permissions.scopes import get_permission_scope
 
 __all__ = [
     "assign_role",

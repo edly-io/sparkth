@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.llm import (
     DEFAULT_MODEL,
