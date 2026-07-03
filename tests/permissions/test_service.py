@@ -8,6 +8,7 @@ from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeN
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.lib.hooks import SingleNamedItemHook
 from app.lib.permissions import (
+    EMAIL_WHITELIST_READ,
     Permission,
     assign_role,
     can,
@@ -324,14 +325,14 @@ def test_get_permission_returns_registered(monkeypatch: pytest.MonkeyPatch) -> N
     hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
     permission = Permission("assignment.grade")
     hook.add_item(permission)
-    monkeypatch.setattr(permissions_utils, "PERMISSIONS", hook)
+    monkeypatch.setattr("app.core.permissions.PERMISSIONS", hook)
 
     assert get_permission("assignment.grade") is permission
 
 
 def test_get_permission_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
     hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
-    monkeypatch.setattr(permissions_utils, "PERMISSIONS", hook)
+    monkeypatch.setattr("app.core.permissions.PERMISSIONS", hook)
 
     with pytest.raises(PermissionNotFound):
         get_permission("nope")
@@ -341,14 +342,14 @@ def test_get_permission_scope_returns_registered(monkeypatch: pytest.MonkeyPatch
     hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
     scope = PermissionScope("course")
     hook.add_item(scope)
-    monkeypatch.setattr(permissions_utils, "PERMISSION_SCOPES", hook)
+    monkeypatch.setattr("app.core.permissions.scopes.PERMISSION_SCOPES", hook)
 
     assert get_permission_scope("course") is scope
 
 
 def test_get_permission_scope_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
     hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
-    monkeypatch.setattr(permissions_utils, "PERMISSION_SCOPES", hook)
+    monkeypatch.setattr("app.core.permissions.scopes.PERMISSION_SCOPES", hook)
 
     with pytest.raises(PermissionScopeNotFound):
         get_permission_scope("course")
@@ -358,6 +359,4 @@ def test_get_permission_reads_the_global_hook() -> None:
     # Unpatched: resolves against the real PERMISSIONS hook, which carries the core
     # email-whitelist permissions registered at import. This is the wiring the deleted
     # test_registry.py used to cover.
-    from app.lib.permissions import EMAIL_WHITELIST_READ
-
     assert get_permission("email.whitelist.read") is EMAIL_WHITELIST_READ

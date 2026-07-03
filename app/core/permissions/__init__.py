@@ -1,3 +1,4 @@
+from app.core.permissions.exceptions import PermissionNotFound
 from app.lib.hooks import SingleNamedItemHook
 
 
@@ -28,6 +29,15 @@ class Permission:
 # Every permission the platform knows; Permission.create() registers each one here.
 # This hook is the single source of truth — get_permission() resolves names against it.
 PERMISSIONS: SingleNamedItemHook[Permission] = SingleNamedItemHook()
+
+
+def get_permission(name: str) -> Permission:
+    """Return the registered permission named ``name``, or raise PermissionNotFound."""
+    permission = PERMISSIONS.get(name)
+    if permission is None:
+        raise PermissionNotFound(name)
+    return permission
+
 
 # Core Permissions shipped with the application.
 
