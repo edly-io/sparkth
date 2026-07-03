@@ -29,7 +29,7 @@ sparkth/
     models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
     plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
     permissions/   # Scoped-RBAC engine (roles, scopes, defaults)
-    analytics/     # Analytics DB + emission gateway write path: engine/sessions, registries, schemas, gateway
+    analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema hook (ANALYTICS_EVENTS), schemas (self-describing AnalyticsEventSchema base; plugins register via register_event_schema at import time), gateway (raw_events). Login emits user.logged_in.
     audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context
     routes/        # Plugin route-registration helpers
   lib/           # Curated public façade to core — the only surface plugins import from (see below)
@@ -119,10 +119,9 @@ Current modules (see the source for the full API — do not duplicate it here):
   from `sparkth.core.permissions.*` directly. Implementation lives in `sparkth/core/permissions/`.
 - [`sparkth/lib/analytics/`](sparkth/lib/analytics/__init__.py) — analytics gateway public API.
   Import analytics functionality from here (`ingest_event`, `AnalyticsEventSchema`,
-  `ANALYTICS_SCHEMAS`, `initialize_event_registry`, `EventRegistry`,
-  `UnknownEventTypeError`, `DuplicateEventTypeError`, `EventNamespaceError`);
-  never import from `sparkth.core.analytics.*`
-  directly. Plugins subclass `AnalyticsEventSchema` (declaring `event_type` — namespaced under
+  `register_analytics_event`, `EventRegistry`, `UnknownEventTypeError`,
+  `DuplicateEventTypeError`, `EventNamespaceError`); never import from `sparkth.core.analytics.*`
+  directly. Plugins subclass `AnalyticsEventSchema` (declaring `event_type` — namespaced under 
   the plugin name, e.g. `"slack.message_received"` — and `version`; events are server-only by
   default, set `server_only = False` to allow client emission), register it from their
   `__init__` via `ANALYTICS_SCHEMAS.add_item(self, MyEvent)`, and emit it through `ingest_event`.

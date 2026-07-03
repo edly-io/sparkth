@@ -23,26 +23,8 @@ class _SampleEventConflict(AnalyticsEventSchema):
     other: str
 
 
-class _SampleServerOnly(AnalyticsEventSchema):
-    event_type = "sample.server_only"
-    version = 1
-    server_only = True
-
-    value: int
-
-
-class _SampleClientEmittable(AnalyticsEventSchema):
-    event_type = "sample.client_emittable"
-    version = 1
-    server_only = False
-
-    value: int
-
-
 _SAMPLE_KEYS = [
     ("sample.event", 7),
-    ("sample.server_only", 1),
-    ("sample.client_emittable", 1),
 ]
 
 
@@ -50,14 +32,12 @@ _SAMPLE_KEYS = [
 def _cleanup_sample_registrations() -> Generator[None, None, None]:
     """Remove sample.* keys from the singleton after each test.
 
-    Mirrors the conftest cleanup for test.client_event — without this, a later
-    test registering a different class under the same key would hit a spurious
-    DuplicateEventTypeError from leftover state.
+    Without this, a later test registering a different class under the same key
+    would hit a spurious DuplicateEventTypeError from leftover state.
     """
     yield
     for key in _SAMPLE_KEYS:
         EventRegistry()._schemas.pop(key, None)
-        EventRegistry()._server_only.pop(key, None)
 
 
 def test_registry_is_singleton() -> None:
@@ -98,32 +78,6 @@ def test_register_conflicting_class_raises() -> None:
         EventRegistry().register(_SampleEventConflict)
     # The first registration is unaffected.
     assert EventRegistry().resolve("sample.event", 7) is _SampleEvent
-
-
-def test_server_only_defaults_to_true() -> None:
-    # Default-deny: _SampleEvent declares no server_only, so it is server-only.
-    EventRegistry().register(_SampleEvent)
-    assert EventRegistry().is_server_only("sample.event", 7) is True
-
-
-def test_server_only_derived_from_class() -> None:
-    EventRegistry().register(_SampleServerOnly)
-    assert EventRegistry().is_server_only("sample.server_only", 1) is True
-
-
-def test_server_only_false_is_an_explicit_opt_in() -> None:
-    EventRegistry().register(_SampleClientEmittable)
-    assert EventRegistry().is_server_only("sample.client_emittable", 1) is False
-
-
-def test_core_events_are_server_only() -> None:
-    assert EventRegistry().is_server_only("assessment.submitted", 1) is True
-    assert EventRegistry().is_server_only("user.logged_in", 1) is True
-
-
-def test_is_server_only_raises_for_unregistered_event() -> None:
-    with pytest.raises(UnknownEventTypeError):
-        EventRegistry().is_server_only("does.not.exist", 1)
 
 
 def test_register_missing_identity_raises_descriptive_error() -> None:

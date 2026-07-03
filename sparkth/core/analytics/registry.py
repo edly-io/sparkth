@@ -20,9 +20,9 @@ class EventRegistry:
 
     Singleton: ``EventRegistry()`` always returns the same instance, so every
     import path shares one set of registered schemas. Core events are registered
-    on first construction; call ``EventRegistry()`` during app assembly
-    (``assemble_app``) to ensure the registry is ready before the first request
-    arrives.
+    on first construction (lazily, on the first ``EventRegistry()`` — e.g. the
+    first ``resolve``/``register`` or a plugin's ``register_analytics_event``),
+    so the registry is populated before the first event is resolved.
     """
 
     _instance: "EventRegistry | None" = None
@@ -37,7 +37,6 @@ class EventRegistry:
         # the existing singleton — guard so re-construction never wipes registrations.
         if not hasattr(self, "_schemas"):
             self._schemas: dict[tuple[str, int], type[AnalyticsEventSchema]] = {}
-            self._server_only: dict[tuple[str, int], bool] = {}
             self._register_core_events()
 
     def _register_core_events(self) -> None:
@@ -51,8 +50,8 @@ class EventRegistry:
     def register(self, schema: type[AnalyticsEventSchema]) -> None:
         """Register ``schema`` under its own ``(event_type, version)``.
 
-        Idempotent: registering the same class again is a no-op, so draining the
-        plugin hook more than once is safe. A *different* class claiming an
+        Idempotent: registering the same class again is a no-op, so registering the
+        same schema more than once is safe. A *different* class claiming an
         already-registered ``(event_type, version)`` raises
         :class:`DuplicateEventTypeError`.
 
@@ -70,7 +69,6 @@ class EventRegistry:
         if existing is not None and existing is not schema:
             raise DuplicateEventTypeError(schema.event_type, schema.version)
         self._schemas[key] = schema
-        self._server_only[key] = schema.server_only
 
     def resolve(self, event_type: str, version: int) -> type[AnalyticsEventSchema]:
         """Return the schema for ``(event_type, version)``.
@@ -80,16 +78,5 @@ class EventRegistry:
         """
         try:
             return self._schemas[(event_type, version)]
-        except KeyError:
-            raise UnknownEventTypeError(event_type, version) from None
-
-    def is_server_only(self, event_type: str, version: int) -> bool:
-        """Return whether ``(event_type, version)`` is restricted to server-side callers.
-
-        Raises:
-            UnknownEventTypeError: No schema is registered for the pair.
-        """
-        try:
-            return self._server_only[(event_type, version)]
         except KeyError:
             raise UnknownEventTypeError(event_type, version) from None

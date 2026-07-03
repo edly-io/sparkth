@@ -117,7 +117,6 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     application.add_middleware(AuditContextMiddleware)
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)
-    initialize_event_registry()
     return application
 
 

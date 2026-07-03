@@ -19,7 +19,7 @@ SparkthPlugin.__init__
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # sparkth/lib/mcp/hooks.py
   ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # sparkth/lib/config/hooks.py
   ├── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
-  └── ANALYTICS_SCHEMAS.add_item(self, MyEvent)                      # sparkth/lib/analytics/hooks.py
+  └── register_analytics_event(self, MyEvent)                        # sparkth/lib/analytics
 ```
 
 `register_router` (`sparkth/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
@@ -37,15 +37,15 @@ A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hook
 `LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
 plugin name via `get_plugin_adapter` (`sparkth/lib/config`), so the framework never names a concrete plugin.
 
-A plugin may also contribute analytics event schemas via `ANALYTICS_SCHEMAS`
-(`sparkth/lib/analytics/hooks.py`): self-describing `AnalyticsEventSchema` subclasses that
-declare their own `event_type`/`version`. `initialize_event_registry`
-(`sparkth/lib/analytics`) drains the hook into the `EventRegistry` singleton during
-`assemble_app()`, exactly as `initialize_permissions_registry` drains `PERMISSIONS` — the
-hook carries plugin contributions only, while core events are seeded inside the registry.
-The drain is deliberately stricter than the permissions drain: plugin events must be
-namespaced under the plugin name (`EventNamespaceError`) and default to `server_only=True`
-(default-deny — set `server_only = False` to allow client emission via the HTTP gateway).
+A plugin may also register analytics event schemas via `register_analytics_event(self, MyEvent)`
+(`sparkth/lib/analytics`): self-describing `AnalyticsEventSchema` subclasses that declare their own
+`event_type`/`version`. Registration runs at import time from the plugin's `__init__` and writes
+straight into the `EventRegistry` singleton the gateway resolves against — the analytics analog
+of `Permission.create()`, with no drain and no `assemble_app()` wiring. `register_analytics_event`
+enforces three startup-fatal guards a plain permission does not need: the `event_type` must be
+namespaced under the plugin name (`EventNamespaceError`), a different class on an existing
+`(event_type, version)` is a `DuplicateEventTypeError`, and a schema missing its identity
+ClassVars is a `TypeError`. All events are emitted server-side via `ingest_event`.
 
 Plugin registration list lives at `sparkth/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
 
