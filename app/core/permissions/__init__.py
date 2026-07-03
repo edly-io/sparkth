@@ -13,8 +13,6 @@ The public surface is re-exported from ``app.lib.permissions`` — application c
 and plugins import from there, never from this module directly.
 """
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, Request, status
