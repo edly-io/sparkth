@@ -4,11 +4,10 @@ import typer
 from sqlmodel import select
 
 from app.lib.db import session_scope
-from app.lib.permissions import PermissionScopeNotFound, RoleNotFound
+from app.lib.permissions import PermissionScopeNotFound, RoleNotFound, get_permission_scope
 
 # Aliased to avoid colliding with this module's own ``assign_role`` Typer command.
 from app.lib.permissions import assign_role as grant_role
-from app.lib.permissions.registry import PermissionScopesRegistry, initialize_permission_scopes_registry
 from app.lib.permissions.scopes import GLOBAL
 from app.lib.plugins import get_plugin_loader
 from app.models.user import User
@@ -44,9 +43,8 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
     # Validate the scope kind against the registered vocabulary so a mistyped --scope
     # fails loudly instead of persisting a no-op assignment.
     get_plugin_loader()
-    initialize_permission_scopes_registry()
     try:
-        permission_scope = PermissionScopesRegistry().get(scope)
+        permission_scope = get_permission_scope(scope)
     except PermissionScopeNotFound:
         typer.secho(f"Unknown scope kind: '{scope}'", fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
