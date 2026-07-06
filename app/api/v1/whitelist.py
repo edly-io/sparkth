@@ -18,7 +18,7 @@ router = APIRouter()
 @router.get(
     "/",
     response_model=list[WhitelistedEmailResponse],
-    dependencies=[Depends(EMAIL_WHITELIST_READ.require_in_global_scope())],
+    dependencies=[Depends(EMAIL_WHITELIST_READ.require("whitelist"))],
 )
 async def list_whitelist(
     session: AsyncSession = Depends(get_async_session),
@@ -30,7 +30,7 @@ async def list_whitelist(
 @router.post("/", response_model=WhitelistedEmailResponse, status_code=status.HTTP_201_CREATED)
 async def add_whitelist_entry(
     payload: WhitelistedEmailCreate,
-    current_user: User = Depends(EMAIL_WHITELIST_CREATE.require_in_global_scope()),
+    current_user: User = Depends(EMAIL_WHITELIST_CREATE.require("whitelist")),
     session: AsyncSession = Depends(get_async_session),
 ) -> WhitelistedEmailResponse:
     try:
@@ -55,7 +55,7 @@ async def add_whitelist_entry(
 @router.delete(
     "/{entry_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(EMAIL_WHITELIST_DELETE.require_in_global_scope())],
+    dependencies=[Depends(EMAIL_WHITELIST_DELETE.require("whitelist"))],
 )
 async def remove_whitelist_entry(
     entry_id: int,
