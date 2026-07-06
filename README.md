@@ -282,18 +282,19 @@ A `PermissionScope` is a named **kind** of boundary a role can be assigned at �
 from app.lib.permissions.scopes import GLOBAL, PermissionScope
 ```
 
-**State** — two fields:
+**State** — three fields:
 
 | Attribute | Type | Meaning |
 |---|---|---|
 | `name` | `str` | The scope kind's identifier (e.g. `course`); stored verbatim in `role_assignment.scope`. |
 | `parent` | `PermissionScope \| None` | The enclosing scope kind, or `None` for a root. Scope kinds chain from a narrow boundary up to a broader one. |
+| `objectless` | `bool` | Whether this scope names no object. An objectless scope is a singleton (there is exactly one — e.g. `global`, `whitelist`), so its `role_assignment` rows carry `scope_object_id = NULL`. An object-bearing scope (e.g. `course`, one of many) must name which object; the pairing is enforced in `assign_role` (see [Scopes](#scopes)). |
 
 As with `Permission`, there is no custom `__eq__` — equality is identity.
 
-**`get_parents() -> list[PermissionScope]`** — returns this scope's ancestors nearest-first (`[parent, grandparent, …]`) by walking `parent` pointers, ending at the root (an empty list for a root scope). It exists to support scope-hierarchy cascade — a role granted at a broad scope applying to narrower ones — planned for a later phase. It does **not** drive authorization today: `can()` matches a scope by its exact name and does not walk to parents.
+**`get_parents() -> list[PermissionScope]`** — returns this scope's ancestors nearest-first (`[parent, grandparent, …]`) by walking `parent` pointers, ending at the root (an empty list for a root scope). `can()` and `has_role()` use it to cascade a grant **parent → child**: a grant at an *objectless* ancestor scope (`global`, `whitelist`) satisfies a check at any descendant, because an objectless ancestor's `scope_object_id` is always `NULL` and needs no per-object resolution. Object-bearing multi-level cascade (e.g. a grant at one `org` applying automatically to its `course`s) still needs a materialized path to resolve which descendant objects belong to which ancestor object, and remains deferred (issue #420 Phase 2).
 
-**`PermissionScope.create(name, parent=None)`** — the way to declare a scope kind. It constructs the scope, **registers it on the `PERMISSION_SCOPES` hook**, and returns it; a duplicate name **raises `ValueError`**, and a `parent` must already be registered (the `global` root always is). Declare core scopes in `app.core.permissions.scopes`; a plugin declares its own from its `__init__`:
+**`PermissionScope.create(name, parent=None, *, objectless=False)`** — the way to declare a scope kind. It constructs the scope, **registers it on the `PERMISSION_SCOPES` hook**, and returns it; a duplicate name **raises `ValueError`**, and a `parent` must already be registered (the `global` root always is). Pass `objectless=True` to declare a singleton scope that names no object (e.g. `global`, `whitelist`); leave it at the default `False` for an object-bearing scope like `course`. Declare core scopes in `app.core.permissions.scopes`; a plugin declares its own from its `__init__`:
 
 ```python
 COURSE = PermissionScope.create("course", parent=GLOBAL)
@@ -308,16 +309,18 @@ A scope answers *where* a role applies. It is the pair of two columns on `role_a
 - **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `PERMISSION_SCOPES` hook. It is a free-form string, not a foreign key.
 - **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
 
-A scope kind may name a parent (`PermissionScope.create(name, parent=…)`), so kinds form a hierarchy from a narrow boundary up to a broader one.
+A scope kind may name a parent (`PermissionScope.create(name, parent=…)`), so kinds form a hierarchy from a narrow boundary up to a broader one, and a scope kind may be **objectless** (`objectless=True`) — a singleton with no object to name, so its `role_assignment` rows carry `scope_object_id = NULL`. The `global` scope is the objectless root: it applies everywhere. `whitelist` is a second objectless scope, nested under `global`, for the singleton registration-whitelist feature (see [Shipped with the app](#shipped-with-the-app)).
 
-The `global` scope is the root: it applies everywhere and names no object, so `scope = 'global'` requires `scope_object_id` to be `NULL`, while every non-global scope requires a `scope_object_id`. A database `CHECK` constraint enforces this pairing.
+Every objectless scope requires `scope_object_id` to be `NULL`; every object-bearing scope (e.g. `course`) requires a non-`NULL` `scope_object_id`. This pairing is enforced in application code — `assign_role` calls `_validate_scope_object_id`, which raises `InvalidScopeObjectId` on a mismatch — **not** a database `CHECK` constraint, so the database stays ignorant of the scope vocabulary declared via `PERMISSION_SCOPES`.
+
+`can()` and `has_role()` cascade a grant **parent → child**: a grant at an objectless ancestor scope (`global`, `whitelist`) satisfies a check at any of its descendants, because an objectless ancestor's `scope_object_id` is always `NULL` and needs no per-object resolution. Object-bearing multi-level cascade (e.g. a grant at one `org` applying automatically to its `course`s) still needs a materialized path and remains deferred (issue #420 Phase 2).
 
 #### Shipped with the app
 
 | Kind | Names | Notes |
 |---|---|---|
-| **Scopes** | `global` | The root scope; applies platform-wide; `scope_object_id` is `NULL`. |
-| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete`; `role.create`, `role.read`, `role.update`, `role.delete`; `permission.read` | The `email.whitelist.*` permissions gate the registration email-whitelist endpoints; the `role.*` permissions gate the role-management API, and `permission.read` gates listing the assignable permission vocabulary (see [Managing roles at runtime](#managing-roles-at-runtime)). |
+| **Scopes** | `global`, `whitelist` | `global` is the root scope; applies platform-wide; objectless, so `scope_object_id` is `NULL`. `whitelist` is an objectless singleton container scope nested under `global`; a role assigned here manages the whole registration whitelist without a global grant; `scope_object_id` is also `NULL`. |
+| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete`; `role.create`, `role.read`, `role.update`, `role.delete`; `permission.read` | The `email.whitelist.*` permissions gate the registration email-whitelist endpoints (at the `whitelist` scope); the `role.*` permissions gate the role-management API, and `permission.read` gates listing the assignable permission vocabulary (see [Managing roles at runtime](#managing-roles-at-runtime)). |
 | **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, and the `permission.read` permissions. The seed migration also assigns it at the `global` scope to every account that was a superuser when the migration ran — a one-time backfill, not an ongoing rule. |
 
 ### Managing roles at runtime
@@ -391,15 +394,20 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
 **Gate an endpoint on a permission** — call `.require_in_global_scope()` or
-`.require(scope_name, path_param)` on the permission itself:
+`.require(scope_name, scope_param=None)` on the permission itself. `scope_param` names the path
+parameter that carries the scope object id; it is **optional** — omit it for an objectless scope
+(e.g. `require("whitelist")`), and supply it for an object-bearing one (e.g.
+`require("course", "course_id")`). Supplying `scope_param` for an objectless scope, or omitting it
+for an object-bearing one, is a wiring error and **raises `ValueError`** at definition time:
 
 ```python
 from fastapi import Depends
 
 # Import your declared permission instances (don't reconstruct them) from the module that owns
 # them — app.lib.permissions for the platform's shipped permissions, or your plugin's module for
-# ones the plugin declares. THING_READ, THING_CREATE and COURSE_EDIT are Permission.create(...) results.
-from app.lib.permissions import COURSE_EDIT, THING_CREATE, THING_READ
+# ones the plugin declares. EMAIL_WHITELIST_READ, THING_READ, THING_CREATE and COURSE_EDIT are
+# Permission.create(...) results.
+from app.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_CREATE, THING_READ
 
 # Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
@@ -407,6 +415,11 @@ async def list_things(): ...
 
 # Global scope, injected so the route can use the authorized user:
 async def create_thing(user: User = Depends(THING_CREATE.require_in_global_scope())): ...
+
+# Objectless scope check — "whitelist" is a singleton, so there is no object id to read from the
+# URL and no scope_param to pass:
+@router.get("/whitelist", dependencies=[Depends(EMAIL_WHITELIST_READ.require("whitelist"))])
+async def list_whitelist(): ...
 
 # Scoped check — pass the scope kind's *name* (not the PermissionScope object) and the path
 # parameter that carries the object id; the id is read from the URL on each request:
@@ -427,10 +440,12 @@ the permission identically. Behavior:
 | Authorized | The user holds the permission at the resolved scope | The route runs; the dependency returns the `User`. |
 | Not granted | The user lacks the permission at that scope | **403** `Permission denied`. |
 | Unregistered scope | `require("course", …)` where `"course"` was never declared via `PermissionScope.create()` | `PermissionScopeNotFound` is raised **at startup** (when the route module is imported) — a wiring error surfaces immediately, never as a silent per-request denial. |
+| Objectless/object-bearing mismatch | `require("whitelist", "some_param")` (a `scope_param` given for an objectless scope) or `require("course")` (no `scope_param` for an object-bearing scope) | `ValueError` is raised **at definition time** (when `.require(...)` is called, i.e. when the route module is imported) — a wiring error, never a silent 403. |
 | Misconfigured path param | `require("course", "course_id")` on a route whose path has no `{course_id}` | The dependency raises a plain exception, which FastAPI turns into a **500** (`Permission scope is misconfigured` is logged server-side, not returned to the client) — surfaced as a server error, not a silent 403. |
 
-`require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter, so
-it can never hit the last two rows.
+`require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter — it
+calls `_require_permission` directly rather than going through `require()`'s scope-name and
+`scope_param` checks — so it can never hit the last three rows.
 
 ## Contributing
 
