@@ -13,7 +13,6 @@ from app.core.audit.middleware import AuditContextMiddleware
 from app.core.config import get_settings
 from app.core.routes.hooks import PLUGIN_ROUTERS
 from app.lib.log import configure_logging, get_logger
-from app.lib.permissions.registry import initialize_permission_scopes_registry, initialize_permissions_registry
 from app.lib.plugins import PluginAccessMiddleware, get_plugin_loader
 from app.mcp.server import mcp, register_plugin_tools
 from app.services.plugin import get_plugin_service
@@ -118,8 +117,6 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     application.add_middleware(AuditContextMiddleware)
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)
-    initialize_permissions_registry()
-    initialize_permission_scopes_registry()
     return application
 
 

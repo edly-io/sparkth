@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status
 
-from app.api.v1.auth import get_current_user
+from app.lib.auth import get_current_user
 from app.models.user import User
 
 

@@ -35,9 +35,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.core.analytics.db as analytics_db
 import app.core.db as core_db
 import app.lib.db as db
-from app.api.v1.auth import get_current_user
 from app.core.cache import get_cache_service
 from app.core.db import dispose_engine, get_engine
+from app.lib.auth import get_current_user
 from app.main import app
 from app.models.user import User
 

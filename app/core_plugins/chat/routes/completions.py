@@ -6,7 +6,6 @@ from langchain_core.exceptions import LangChainException
 from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.auth import get_current_user
 from app.core_plugins.chat.classifier import HistoryTurn
 from app.core_plugins.chat.config import ChatSettings, get_chat_settings
 from app.core_plugins.chat.constants import LLM_PROVIDER_API_ERRORS
@@ -29,6 +28,7 @@ from app.core_plugins.chat.routes.utils.stream_processor import ChatStreamProces
 from app.core_plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.core_plugins.chat.service import ChatService, get_chat_service
 from app.core_plugins.chat.tools import get_tool_registry
+from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.llm import (
     LLMConfigInactiveError,
