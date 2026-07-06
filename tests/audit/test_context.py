@@ -20,6 +20,7 @@ from app.lib.audit import (
     bind_audit_actor,
     current_audit_context,
 )
+from app.lib.settings import get_settings
 
 Scope = MutableMapping[str, Any]
 Message = MutableMapping[str, Any]
@@ -61,17 +62,38 @@ async def test_middleware_seeds_request_metadata() -> None:
     assert context.source == AuditSource.REST
 
 
-async def test_middleware_prefers_x_forwarded_for_first_hop() -> None:
+async def _ip_seen_by_app(headers: list[tuple[bytes, bytes]]) -> str | None:
     seen: dict[str, AuditRequestContext | AuditSystemContext] = {}
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         seen["context"] = current_audit_context()
 
     middleware = AuditContextMiddleware(app)
-    headers = [(b"x-forwarded-for", b"9.9.9.9, 10.0.0.1")]
     await middleware(_http_scope(headers=headers), _receive, _send)
+    return seen["context"].request_ip
 
-    assert seen["context"].request_ip == "9.9.9.9"
+
+async def test_xff_is_ignored_without_trusted_proxies() -> None:
+    # Default TRUSTED_PROXY_HOPS=0: the client-controlled header must not
+    # become audit evidence; the socket peer is used instead.
+    ip = await _ip_seen_by_app([(b"x-forwarded-for", b"6.6.6.6")])
+    assert ip == "1.2.3.4"
+
+
+async def test_xff_takes_nth_from_right_per_trusted_hops(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_settings(), "TRUSTED_PROXY_HOPS", 1)
+    ip = await _ip_seen_by_app([(b"x-forwarded-for", b"6.6.6.6, 9.9.9.9, 10.0.0.1")])
+    assert ip == "10.0.0.1"
+
+    monkeypatch.setattr(get_settings(), "TRUSTED_PROXY_HOPS", 2)
+    ip = await _ip_seen_by_app([(b"x-forwarded-for", b"6.6.6.6, 9.9.9.9, 10.0.0.1")])
+    assert ip == "9.9.9.9"
+
+
+async def test_xff_chain_shorter_than_trusted_hops_falls_back_to_peer(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_settings(), "TRUSTED_PROXY_HOPS", 3)
+    ip = await _ip_seen_by_app([(b"x-forwarded-for", b"9.9.9.9, 10.0.0.1")])
+    assert ip == "1.2.3.4"
 
 
 async def test_middleware_resets_context_after_request() -> None:
