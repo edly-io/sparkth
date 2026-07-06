@@ -14,18 +14,26 @@ class PermissionScope:
     The hierarchy lets a role granted at a parent scope cascade to its descendants.
     """
 
-    def __init__(self, name: str, parent: "PermissionScope | None" = None) -> None:
+    def __init__(self, name: str, parent: "PermissionScope | None" = None, *, objectless: bool = False) -> None:
         """Create a scope.
 
         Args:
             name: The scope kind's identifier (e.g. ``course``).
             parent: The enclosing scope, or ``None`` if this scope is a root.
+            objectless: Whether this scope names no object. An objectless scope is a
+                singleton (there is exactly one — e.g. ``global``, ``whitelist``), so its
+                ``role_assignment`` rows carry ``scope_object_id = NULL``. An object-bearing
+                scope (``course``, one of many) must name which object. The pairing is
+                enforced in ``assign_role``.
         """
         self.parent = parent
         self.name = name
+        self.objectless = objectless
 
     @classmethod
-    def create(cls, name: str, parent: "PermissionScope | None" = None) -> "PermissionScope":
+    def create(
+        cls, name: str, parent: "PermissionScope | None" = None, *, objectless: bool = False
+    ) -> "PermissionScope":
         """Create a scope kind and register it on the PERMISSION_SCOPES hook.
 
         Use this, not the bare ``PermissionScope(name)`` constructor — the constructor does
@@ -36,7 +44,7 @@ class PermissionScope:
         if parent is not None:
             # Validate the parent is registered; raises PermissionScopeNotFound if it is not.
             get_permission_scope(parent.name)
-        permission_scope = cls(name, parent)
+        permission_scope = cls(name, parent, objectless=objectless)
         PERMISSION_SCOPES.add_item(permission_scope)
         return permission_scope
 
@@ -69,4 +77,9 @@ def get_permission_scope(name: str) -> PermissionScope:
 
 # The root scope: it applies platform-wide and names no object. This is the canonical
 # instance plugins should reference as a parent so the whole tree shares one root.
-GLOBAL = PermissionScope.create("global")
+GLOBAL = PermissionScope.create("global", objectless=True)
+
+# The whitelist is a singleton feature (there is exactly one registration whitelist), so it
+# is an objectless container scope under GLOBAL. A role assigned at this scope manages the
+# whole whitelist; a GLOBAL grant cascades down to it. See issue #489.
+WHITELIST = PermissionScope.create("whitelist", parent=GLOBAL, objectless=True)

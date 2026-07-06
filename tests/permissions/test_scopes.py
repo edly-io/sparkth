@@ -1,7 +1,8 @@
 import pytest
 
 from app.core.permissions.exceptions import PermissionScopeNotFound
-from app.core.permissions.scopes import PermissionScope
+from app.core.permissions.scopes import GLOBAL, PermissionScope, get_permission_scope
+from app.lib.permissions.scopes import WHITELIST
 
 
 def test_create_with_unregistered_parent_raises() -> None:
@@ -12,3 +13,18 @@ def test_create_with_unregistered_parent_raises() -> None:
 
     with pytest.raises(PermissionScopeNotFound):
         PermissionScope.create("orphan-child", parent=orphan)
+
+
+def test_scope_objectless_defaults_false() -> None:
+    assert PermissionScope("course").objectless is False
+
+
+def test_global_scope_is_objectless() -> None:
+    assert GLOBAL.objectless is True
+
+
+def test_whitelist_scope_registered_under_global() -> None:
+    assert get_permission_scope("whitelist") is WHITELIST
+    assert WHITELIST.parent is GLOBAL
+    assert WHITELIST.objectless is True
+    assert WHITELIST.get_parents() == [GLOBAL]

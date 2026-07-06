@@ -1,6 +1,7 @@
-from app.core.permissions.scopes import GLOBAL, PermissionScope
+from app.core.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
 
 __all__ = [
     "PermissionScope",
     "GLOBAL",
+    "WHITELIST",
 ]
