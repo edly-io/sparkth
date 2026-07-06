@@ -373,11 +373,13 @@ VALUES ((SELECT id FROM role WHERE name = 'grader'), 'assignment.grade', now(), 
 ```bash
 # assign at the global scope
 make cli -- roles assign-role john admin
+# or at another objectless scope — no --scope-object-id, same as global
+make cli -- roles assign-role jane "Whitelist Manager" --scope whitelist
 # or scoped to one object — pass the scope kind and the object id
 make cli -- roles assign-role john grader --scope course --scope-object-id 42
 ```
 
-`--scope` must name a declared scope kind (`global`, or any added via `PermissionScope.create()`); an unknown kind is rejected rather than persisted as a no-op assignment.
+`--scope` must name a declared scope kind (`global`, or any added via `PermissionScope.create()`); an unknown kind is rejected rather than persisted as a no-op assignment. Whether `--scope-object-id` is required depends on the scope kind's `objectless` flag: objectless scopes (`global`, `whitelist`) must be assigned *without* one; object-bearing scopes (like `course`) must be assigned *with* one. The CLI defers this check to `assign_role`, which raises `InvalidScopeObjectId` on a mismatch and exits non-zero with a clean error rather than persisting a contradictory row.
 
 From application code, call `assign_role`:
 
