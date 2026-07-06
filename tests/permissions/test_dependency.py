@@ -118,3 +118,21 @@ def test_require_with_unregistered_scope_raises() -> None:
     # require() raises at call time (route-definition/import time) so it fails fast at startup.
     with pytest.raises(PermissionScopeNotFound):
         Permission("assignment.grade").require("does-not-exist", "course_id")
+
+
+def test_require_objectless_scope_rejects_scope_param() -> None:
+    # global is objectless -> naming a path param is a wiring error, caught at definition time.
+    with pytest.raises(ValueError):
+        Permission("assignment.grade").require("global", "course_id")
+
+
+def test_require_object_bearing_scope_requires_scope_param(course_scope: PermissionScope) -> None:
+    with pytest.raises(ValueError):
+        Permission("assignment.grade").require("course")
+
+
+async def test_require_objectless_scope_allows_no_param(session: AsyncSession) -> None:
+    # require("global") with no object id resolves and authorizes a global grant.
+    user = await _seed(session, "gwen", "assignment.grade")
+    dep = Permission("assignment.grade").require("global")
+    assert await dep(_request(), user, session) is user

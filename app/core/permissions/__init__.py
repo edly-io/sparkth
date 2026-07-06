@@ -92,17 +92,27 @@ class Permission:
         """
         return self._require_permission(GLOBAL, None)
 
-    def require(self, permission_scope: str, scope_param: str) -> Callable[..., Awaitable[User]]:
+    def require(self, permission_scope: str, scope_param: str | None = None) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at a named scope.
 
         Args:
-            permission_scope: A registered scope kind's name (e.g. ``"course"``). Resolved via
-                ``get_permission_scope``; an unregistered name raises ``PermissionScopeNotFound``
-                here (at route-definition/import time) so misconfiguration fails fast at startup.
-            scope_param: The name of the route's path parameter carrying the scope object id;
-                resolved from ``request.path_params`` on each request.
+            permission_scope: A registered scope kind's name (e.g. ``"course"``, ``"whitelist"``).
+                Resolved via ``get_permission_scope``; an unregistered name raises
+                ``PermissionScopeNotFound`` here (at route-definition/import time).
+            scope_param: The route path parameter carrying the scope object id, resolved from
+                ``request.path_params`` per request. Omit for an objectless scope (it names no
+                object). Supplying it for an objectless scope, or omitting it for an
+                object-bearing one, is a wiring error and raises ``ValueError`` at definition time.
         """
         scope = get_permission_scope(permission_scope)
+        if scope.objectless and scope_param is not None:
+            raise ValueError(
+                f"Scope {scope.name!r} is objectless and names no object; drop the scope_param {scope_param!r}"
+            )
+        if not scope.objectless and scope_param is None:
+            raise ValueError(
+                f"Scope {scope.name!r} is object-bearing; require() needs a scope_param naming its path parameter"
+            )
         return self._require_permission(scope, scope_param)
 
 
