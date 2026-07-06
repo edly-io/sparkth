@@ -17,7 +17,7 @@ and plugins import from there, never from this module directly.
 from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -142,24 +142,36 @@ def _active_assignment_at_scope(
     permission_scope: PermissionScope,
     scope_object_id: str | None,
 ) -> tuple[ColumnElement[bool], ...]:
-    """WHERE clauses selecting a user's active role assignments at one permission scope.
+    """WHERE clauses selecting a user's active assignments that satisfy a check at one scope,
+    honouring the scope hierarchy.
 
-    Shared by the read-side checks (``can`` and ``has_role``) so they resolve a scope
-    identically — the single place to change when scope hierarchy lands, which keeps the
-    two from diverging.
+    A grant at the checked scope itself, or at any *objectless* ancestor, satisfies the check
+    (parent -> child cascade). Objectless ancestors (``global``, ``whitelist``) name no object,
+    so their id in the chain is NULL and is resolvable here. An object-bearing ancestor (e.g.
+    ``course`` under an ``org``) would need a materialized path to resolve its id, so it is not
+    walked yet (deferred; see issue #420 Phase 2).
 
-    TODO(scope hierarchy): matches the exact (scope, scope_object_id) only — a role granted
-    at a parent scope does not yet cascade to descendants (see PermissionScope.get_parents()).
-    Cascading is the end goal and lands here.
-
-    The write operations (``assign_role``, ``revoke_role``) deliberately target the exact
-    assignment row and must NOT use this — they never cascade to parent scopes.
+    Shared by the read-side checks (``can`` and ``has_role``). The write operations
+    (``assign_role``, ``revoke_role``) target the exact assignment row and must NOT use this —
+    they never cascade to ancestor scopes.
     """
+    scope_pairs: list[tuple[str, str | None]] = [(permission_scope.name, scope_object_id)]
+    for ancestor in permission_scope.get_parents():
+        if ancestor.objectless:
+            scope_pairs.append((ancestor.name, None))
+    scope_clause = or_(
+        *(
+            and_(
+                col(RoleAssignment.scope) == name,
+                col(RoleAssignment.scope_object_id) == object_id,
+            )
+            for name, object_id in scope_pairs
+        )
+    )
     return (
         col(RoleAssignment.user_id) == user_id,
         col(RoleAssignment.is_deleted) == False,
-        col(RoleAssignment.scope) == permission_scope.name,
-        col(RoleAssignment.scope_object_id) == scope_object_id,
+        scope_clause,
     )
 
 

@@ -253,6 +253,40 @@ async def test_has_role_false_after_revoke(session: AsyncSession) -> None:
     assert await has_role(user, "admin", GLOBAL, None, session) is False
 
 
+async def test_can_cascades_from_global_to_whitelist(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "admin", ["email.whitelist.read"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    await session.flush()
+    # A global grant satisfies a check at the descendant whitelist scope.
+    assert await can(user, EMAIL_WHITELIST_READ, WHITELIST, None, session) is True
+
+
+async def test_can_allows_direct_whitelist_grant(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "wl", ["email.whitelist.read"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="whitelist", scope_object_id=None))
+    await session.flush()
+    assert await can(user, EMAIL_WHITELIST_READ, WHITELIST, None, session) is True
+
+
+async def test_can_denies_whitelist_without_grant(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert await can(user, EMAIL_WHITELIST_READ, WHITELIST, None, session) is False
+
+
+async def test_can_child_grant_does_not_satisfy_parent_check(session: AsyncSession) -> None:
+    # Cascade is parent->child only: a whitelist (child) grant must NOT satisfy a GLOBAL check.
+    user = await make_user(session, "alice")
+    role = await make_role(session, "wl", ["email.whitelist.read"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="whitelist", scope_object_id=None))
+    await session.flush()
+    assert await can(user, EMAIL_WHITELIST_READ, GLOBAL, None, session) is False
+
+
 def test_facade_exposes_public_surface() -> None:
     from app.core.permissions import PERMISSIONS
     from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, PermissionScope
