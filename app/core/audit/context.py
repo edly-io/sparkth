@@ -67,7 +67,14 @@ invariants at construction, while exposing the uniform read surface
 
 @dataclass(slots=True)
 class AuditContext:
-    """Request-scoped origin metadata merged into every recorded event."""
+    """Ambient origin metadata for the current unit of work, merged into
+    every recorded event.
+
+    A unit of work is usually an HTTP request (seeded by the middleware,
+    which fills the ``request_*`` fields), but CLI commands, background
+    tasks, and non-REST surfaces (MCP, chat) carry the same context with
+    their own ``source`` and the ``request_*`` fields left ``None``.
+    """
 
     request_id: str | None = None
     request_ip: str | None = None
