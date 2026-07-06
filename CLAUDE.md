@@ -90,8 +90,10 @@ Current modules (see the source for the full API — do not duplicate it here):
   from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
   `app.core.analytics.exceptions` directly. Implementation lives in `app/core/analytics/`.
 - [`app/lib/audit.py`](app/lib/audit.py) — audit trail public API. Import audit functionality from here
-  (`record_event`, `record_event_now`, the actor classes `UserActor` / `SystemActor` / `AnonymousActor`
-  (union alias `AuditActor`), `AuditContext`, `AuditContextMiddleware`, `AuditEventRegistry`,
+  (`record_event`, `record_event_now`, the self-describing event classes (`BaseAuditEvent`,
+  `LoginAuditEvent`, registered on the `AUDIT_EVENTS` hook) and their value objects (`AuditTarget`,
+  `AuditChange`, `AuditToolCall`, `AuditModelInfo`), the actor classes `UserActor` / `SystemActor` /
+  `AnonymousActor` (union alias `AuditActor`), `AuditContext`, `AuditContextMiddleware`,
   `AuditOutcome`, `AuditSource`, the context helpers, and the audit exceptions); never
   import from `app.core.audit.*` directly. Implementation lives in `app/core/audit/`. Unlike analytics
   (best-effort), audit writes are fail-closed: mutating and AI actions must not proceed if their audit

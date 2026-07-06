@@ -3,7 +3,9 @@ caller's session (mutations and their audit records commit or roll back
 together), enriches from the request context, redacts secrets, and stores the
 canonical bytes the tamper-evidence sealer will later hash."""
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import ClassVar
 
 import pytest
 from sqlmodel import select
@@ -13,9 +15,13 @@ from app.core.audit.canonical import canonicalize
 from app.core.audit.redaction import REDACTED
 from app.lib.audit import (
     AnonymousActor,
+    AuditChange,
     AuditContext,
     AuditOutcome,
     AuditSource,
+    AuditToolCall,
+    BaseAuditEvent,
+    LoginAuditEvent,
     UnknownAuditEventTypeError,
     UserActor,
     audit_context,
@@ -28,7 +34,7 @@ ACTOR = UserActor(id="1", label="alice")
 
 
 async def test_record_event_persists_with_caller_session(session: AsyncSession) -> None:
-    await record_event(session, "auth.login", outcome=AuditOutcome.SUCCESS, actor=ACTOR)
+    await record_event(session, LoginAuditEvent(outcome=AuditOutcome.SUCCESS, actor=ACTOR))
     await session.commit()
 
     event = (await session.exec(select(AuditEvent))).one()
@@ -43,15 +49,19 @@ async def test_record_event_persists_with_caller_session(session: AsyncSession) 
 
 
 async def test_record_event_does_not_commit_the_caller_session(session: AsyncSession) -> None:
-    await record_event(session, "auth.login", outcome=AuditOutcome.SUCCESS, actor=ACTOR)
+    await record_event(session, LoginAuditEvent(outcome=AuditOutcome.SUCCESS, actor=ACTOR))
     await session.rollback()
 
     assert (await session.exec(select(AuditEvent))).all() == []
 
 
-async def test_unknown_event_type_raises(session: AsyncSession) -> None:
+async def test_unregistered_event_class_raises(session: AsyncSession) -> None:
+    @dataclass(frozen=True, slots=True, kw_only=True)
+    class NeverRegistered(BaseAuditEvent):
+        event_type: ClassVar[str] = "nope.never"
+
     with pytest.raises(UnknownAuditEventTypeError):
-        await record_event(session, "nope.never", outcome=AuditOutcome.SUCCESS, actor=ACTOR)
+        await record_event(session, NeverRegistered(outcome=AuditOutcome.SUCCESS, actor=ACTOR))
 
 
 async def test_request_context_enriches_the_event(session: AsyncSession) -> None:
@@ -63,7 +73,7 @@ async def test_request_context_enriches_the_event(session: AsyncSession) -> None
         actor=ACTOR,
     )
     with audit_context(context):
-        await record_event(session, "auth.login", outcome=AuditOutcome.SUCCESS)
+        await record_event(session, LoginAuditEvent(outcome=AuditOutcome.SUCCESS))
     await session.commit()
 
     event = (await session.exec(select(AuditEvent))).one()
@@ -74,14 +84,12 @@ async def test_request_context_enriches_the_event(session: AsyncSession) -> None
     assert event.actor_id == "1"
 
 
-async def test_explicit_actor_overrides_context_actor(session: AsyncSession) -> None:
+async def test_event_actor_overrides_context_actor(session: AsyncSession) -> None:
     context = AuditContext(actor=UserActor(id="1", label="alice"))
     with audit_context(context):
         await record_event(
             session,
-            "auth.login",
-            outcome=AuditOutcome.FAILURE,
-            actor=AnonymousActor(label="mallory"),
+            LoginAuditEvent(outcome=AuditOutcome.FAILURE, actor=AnonymousActor(label="mallory")),
         )
     await session.commit()
 
@@ -92,7 +100,7 @@ async def test_explicit_actor_overrides_context_actor(session: AsyncSession) -> 
 
 
 async def test_event_without_actor_records_anonymous(session: AsyncSession) -> None:
-    await record_event(session, "auth.login", outcome=AuditOutcome.FAILURE)
+    await record_event(session, LoginAuditEvent(outcome=AuditOutcome.FAILURE))
     await session.commit()
 
     event = (await session.exec(select(AuditEvent))).one()
@@ -103,15 +111,17 @@ async def test_event_without_actor_records_anonymous(session: AsyncSession) -> N
 async def test_secret_payloads_are_redacted_before_persistence(session: AsyncSession) -> None:
     await record_event(
         session,
-        "auth.login",
-        outcome=AuditOutcome.SUCCESS,
-        actor=ACTOR,
-        tool_args={"auth": {"api_token": "s3cret"}, "course_id": 5},
-        new_values={"password": "hunter2", "name": "n"},
+        LoginAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            actor=ACTOR,
+            tool=AuditToolCall(name="canvas_create_course", args={"auth": {"api_token": "s3cret"}, "course_id": 5}),
+            change=AuditChange(new={"password": "hunter2", "name": "n"}),
+        ),
     )
     await session.commit()
 
     event = (await session.exec(select(AuditEvent))).one()
+    assert event.tool_name == "canvas_create_course"
     assert event.tool_args == {"auth": REDACTED, "course_id": 5}
     assert event.new_values == {"password": REDACTED, "name": "n"}
 
@@ -120,10 +130,7 @@ async def test_canonical_bytes_are_reproducible(session: AsyncSession) -> None:
     occurred_at = datetime(2026, 7, 3, 12, 0, 0, tzinfo=timezone.utc)
     await record_event(
         session,
-        "auth.login",
-        outcome=AuditOutcome.SUCCESS,
-        actor=ACTOR,
-        occurred_at=occurred_at,
+        LoginAuditEvent(outcome=AuditOutcome.SUCCESS, actor=ACTOR, occurred_at=occurred_at),
     )
     await session.commit()
 
@@ -147,7 +154,7 @@ async def test_canonical_bytes_are_reproducible(session: AsyncSession) -> None:
 
 
 async def test_record_event_now_commits_standalone(session: AsyncSession) -> None:
-    await record_event_now("auth.login", outcome=AuditOutcome.FAILURE, actor=ACTOR)
+    await record_event_now(LoginAuditEvent(outcome=AuditOutcome.FAILURE, actor=ACTOR))
 
     event = (await session.exec(select(AuditEvent))).one()
     assert event.outcome == "failure"
