@@ -1,10 +1,10 @@
 """Per-request audit context.
 
-The ASGI middleware seeds an :class:`AuditContext` into a contextvar at the
-edge, so deep call sites (tool executors, services) can attribute events to an
-actor and a request origin without threading a request object through every
+The ASGI middleware seeds an :class:`AuditRequestContext` into a contextvar at
+the edge, so deep call sites (tool executors, services) can attribute events to
+an actor and a request origin without threading a request object through every
 layer. Code that runs outside a request (background tasks, CLI) either sees an
-empty context or installs its own via :func:`audit_context`.
+empty :class:`AuditSystemContext` or installs its own via :func:`audit_context`.
 """
 
 from contextlib import contextmanager
@@ -65,31 +65,59 @@ invariants at construction, while exposing the uniform read surface
 """
 
 
-@dataclass(slots=True)
-class AuditContext:
-    """Ambient origin metadata for the current unit of work, merged into
-    every recorded event.
+@dataclass(slots=True, kw_only=True)
+class AuditRequestContext:
+    """Origin metadata for a unit of work that arrived over the network.
 
-    A unit of work is usually an HTTP request (seeded by the middleware,
-    which fills the ``request_*`` fields), but CLI commands, background
-    tasks, and non-REST surfaces (MCP, chat) carry the same context with
-    their own ``source`` and the ``request_*`` fields left ``None``.
+    Seeded by the ASGI middleware for HTTP requests (``source=REST``);
+    the MCP and chat capture seams will seed their own with their source.
+    ``request_id`` is mandatory (the producer generates one at the edge);
+    ``request_ip`` and ``user_agent`` stay optional because a request can
+    genuinely lack them.
     """
 
-    request_id: str | None = None
+    request_id: str
     request_ip: str | None = None
     user_agent: str | None = None
+    source: AuditSource = AuditSource.REST
+    actor: AuditActor | None = None
+
+
+@dataclass(slots=True, kw_only=True)
+class AuditSystemContext:
+    """Origin metadata for a unit of work with no network edge.
+
+    CLI commands (``source=CLI``) and platform-initiated jobs carry this
+    shape; it is also the empty fallback outside any installed context.
+    There is no request, so the ``request_*`` fields are structurally
+    absent, not merely unset.
+    """
+
     source: AuditSource = AuditSource.SYSTEM
     actor: AuditActor | None = None
+    request_id: ClassVar[None] = None
+    request_ip: ClassVar[None] = None
+    user_agent: ClassVar[None] = None
+
+
+AuditContext = AuditRequestContext | AuditSystemContext
+"""Origin metadata for the current unit of work, merged into every recorded
+event.
+
+A closed tagged union, like :data:`AuditActor`: each member carries only the
+fields its origin can actually have, while exposing the uniform read surface
+(``request_id``/``request_ip``/``user_agent``/``source``/``actor``) the
+recorder flattens into the event row.
+"""
 
 
 _audit_context: ContextVar[AuditContext | None] = ContextVar("audit_context", default=None)
 
 
 def current_audit_context() -> AuditContext:
-    """Return the active context, or an empty one outside any request."""
+    """Return the active context, or an empty system one outside any request."""
     context = _audit_context.get()
-    return context if context is not None else AuditContext()
+    return context if context is not None else AuditSystemContext()
 
 
 @contextmanager
@@ -116,6 +144,6 @@ def bind_audit_actor(actor: AuditActor) -> None:
     """
     context = _audit_context.get()
     if context is None:
-        context = AuditContext()
+        context = AuditSystemContext()
         _audit_context.set(context)
     context.actor = actor

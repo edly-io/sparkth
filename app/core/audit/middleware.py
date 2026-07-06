@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.core.audit.context import AuditContext, audit_context
+from app.core.audit.context import AuditRequestContext, audit_context
 from app.core.audit.enums import AuditSource
 
 
@@ -25,7 +25,7 @@ class AuditContextMiddleware:
             return
 
         headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])}
-        context = AuditContext(
+        context = AuditRequestContext(
             request_id=uuid4().hex,
             request_ip=self._client_ip(scope, headers),
             user_agent=headers.get("user-agent"),

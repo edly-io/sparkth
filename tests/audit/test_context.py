@@ -11,8 +11,9 @@ from app.core.audit.middleware import AuditContextMiddleware
 from app.lib.audit import (
     AnonymousActor,
     AuditActorType,
-    AuditContext,
+    AuditRequestContext,
     AuditSource,
+    AuditSystemContext,
     SystemActor,
     UserActor,
     audit_context,
@@ -45,7 +46,7 @@ async def test_default_context_is_empty() -> None:
 
 
 async def test_middleware_seeds_request_metadata() -> None:
-    seen: dict[str, AuditContext] = {}
+    seen: dict[str, AuditRequestContext | AuditSystemContext] = {}
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         seen["context"] = current_audit_context()
@@ -61,7 +62,7 @@ async def test_middleware_seeds_request_metadata() -> None:
 
 
 async def test_middleware_prefers_x_forwarded_for_first_hop() -> None:
-    seen: dict[str, AuditContext] = {}
+    seen: dict[str, AuditRequestContext | AuditSystemContext] = {}
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         seen["context"] = current_audit_context()
@@ -96,12 +97,24 @@ async def test_middleware_passes_non_http_scopes_through_untouched() -> None:
 
 
 async def test_bind_audit_actor_sets_actor_on_current_context() -> None:
-    with audit_context(AuditContext()):
+    with audit_context(AuditSystemContext()):
         bind_audit_actor(UserActor(id="7", label="alice"))
         actor = current_audit_context().actor
         assert actor is not None
         assert actor.id == "7"
         assert actor.label == "alice"
+
+
+def test_system_context_never_carries_request_metadata() -> None:
+    context = AuditSystemContext(source=AuditSource.CLI)
+    assert context.request_id is None
+    assert context.request_ip is None
+    assert context.user_agent is None
+
+
+def test_request_context_requires_a_request_id() -> None:
+    with pytest.raises(TypeError):
+        AuditRequestContext()  # type: ignore[call-arg]
 
 
 def test_actor_type_is_fixed_per_class() -> None:

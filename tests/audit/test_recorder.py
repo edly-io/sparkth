@@ -16,9 +16,10 @@ from app.core.audit.redaction import REDACTED
 from app.lib.audit import (
     AnonymousActor,
     AuditChange,
-    AuditContext,
     AuditOutcome,
+    AuditRequestContext,
     AuditSource,
+    AuditSystemContext,
     AuditToolCall,
     BaseAuditEvent,
     LoginAuditEvent,
@@ -65,7 +66,7 @@ async def test_unregistered_event_class_raises(session: AsyncSession) -> None:
 
 
 async def test_request_context_enriches_the_event(session: AsyncSession) -> None:
-    context = AuditContext(
+    context = AuditRequestContext(
         request_id="req-1",
         request_ip="9.9.9.9",
         user_agent="pytest-agent",
@@ -85,7 +86,7 @@ async def test_request_context_enriches_the_event(session: AsyncSession) -> None
 
 
 async def test_event_actor_overrides_context_actor(session: AsyncSession) -> None:
-    context = AuditContext(actor=UserActor(id="1", label="alice"))
+    context = AuditSystemContext(actor=UserActor(id="1", label="alice"))
     with audit_context(context):
         await record_event(
             session,
