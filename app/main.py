@@ -9,9 +9,9 @@ from starlette.types import Lifespan
 
 from app.api.v1.api import api_router
 from app.core.analytics.registry import EventRegistry
+from app.core.audit.middleware import AuditContextMiddleware
 from app.core.config import get_settings
 from app.core.routes.hooks import PLUGIN_ROUTERS
-from app.lib.audit import AuditContextMiddleware
 from app.lib.log import configure_logging, get_logger
 from app.lib.permissions.registry import initialize_permission_scopes_registry, initialize_permissions_registry
 from app.lib.plugins import PluginAccessMiddleware, get_plugin_loader
@@ -99,7 +99,8 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     """
     EventRegistry()  # populate default event schemas before the first request
     # Core audit event classes register on the AUDIT_EVENTS hook when
-    # app.core.audit.events imports (pulled in via app.lib.audit above).
+    # app.core.audit.events imports (pulled in through api_router's endpoints,
+    # which import from app.lib.audit).
     application = FastAPI(lifespan=lifespan)
     application.mount("/ai", mcp_app)
     application.add_middleware(

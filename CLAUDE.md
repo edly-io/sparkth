@@ -93,8 +93,8 @@ Current modules (see the source for the full API — do not duplicate it here):
   (`record_event`, `record_event_now`, the self-describing event classes (`BaseAuditEvent`,
   `LoginAuditEvent`, registered on the `AUDIT_EVENTS` hook) and their value objects (`AuditTarget`,
   `AuditChange`, `AuditToolCall`, `AuditModelInfo`), the actor classes `UserActor` / `SystemActor` /
-  `AnonymousActor` (union alias `AuditActor`), `AuditContext`, `AuditContextMiddleware`,
-  `AuditOutcome`, `AuditSource`, the context helpers, and the audit exceptions); never
+  `AnonymousActor` (union alias `AuditActor`), `AuditContext`, `AuditOutcome`, `AuditSource`,
+  the context helpers, and the audit exceptions); never
   import from `app.core.audit.*` directly. Implementation lives in `app/core/audit/`. Unlike analytics
   (best-effort), audit writes are fail-closed: mutating and AI actions must not proceed if their audit
   record cannot be written.

@@ -33,7 +33,6 @@ from app.core.audit.events import (
     LoginAuditEvent,
 )
 from app.core.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
-from app.core.audit.middleware import AuditContextMiddleware
 from app.core.audit.recorder import record_event, record_event_now
 
 __all__ = [
@@ -43,7 +42,6 @@ __all__ = [
     "AuditActorType",
     "AuditChange",
     "AuditContext",
-    "AuditContextMiddleware",
     "AuditModelInfo",
     "AuditOutcome",
     "AuditSource",
