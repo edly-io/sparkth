@@ -1,3 +1,5 @@
+import pytest
+
 from sparkth.core.analytics.schemas import AssessmentSubmitted, UserLoggedIn
 from sparkth.lib.analytics import AnalyticsEventSchema
 
@@ -25,3 +27,12 @@ def test_identity_attrs_are_not_pydantic_fields() -> None:
 def test_payload_round_trips_without_identity_attrs() -> None:
     model = UserLoggedIn.model_validate({"username": "alice"})
     assert model.model_dump(mode="json") == {"username": "alice"}
+
+
+def test_subclass_missing_identity_classvars_is_rejected() -> None:
+    # __init_subclass__ enforces the identity ClassVars at class-definition time,
+    # so a schema that omits them fails on definition — not later at registration.
+    with pytest.raises(TypeError, match="_IncompleteEvent"):
+
+        class _IncompleteEvent(AnalyticsEventSchema):
+            detail: str  # forgot event_type and version

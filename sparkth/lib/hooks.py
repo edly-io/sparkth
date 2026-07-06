@@ -1,5 +1,5 @@
 import weakref
-from typing import Generic, Iterator, Protocol, TypeVar
+from typing import Callable, Generic, Iterator, Protocol, TypeVar
 
 from sparkth.lib.plugins import SparkthPlugin
 
@@ -12,6 +12,7 @@ class HasName(Protocol):
 
 N = TypeVar("N", bound=HasName)
 T = TypeVar("T")
+K = TypeVar("K")
 
 
 class BasePluginHook(Generic[T]):
@@ -109,3 +110,35 @@ class SingleNamedItemHook(Generic[N]):
     def get(self, name: str, default: N | None = None) -> N | None:
         """Return the item registered under ``name``, or ``default`` if none is registered."""
         return self._items.get(name, default)
+
+
+class KeyedItemHook(Generic[K, T]):
+    """A flat hook keyed by a caller-supplied key function.
+
+    Generalizes :class:`SingleNamedItemHook` (which keys by ``item.name``) to any
+    hashable key — e.g. a composite ``(event_type, version)``. Adding a second item
+    whose key is already present raises ``ValueError``. Callers that want a domain-specific error
+    validate before / translate around ``add_item`` (as the analytics factory does).
+    """
+
+    def __init__(self, key: Callable[[T], K]) -> None:
+        self._key = key
+        self._items: dict[K, T] = {}
+
+    def add_item(self, item: T) -> None:
+        key = self._key(item)
+        if key in self._items:
+            raise ValueError(f"Duplicate hook item for key {key!r}")
+        self._items[key] = item
+
+    def get(self, key: K) -> T | None:
+        """Return the item registered under ``key``, or ``None`` if none is registered."""
+        return self._items.get(key)
+
+    def remove(self, key: K) -> None:
+        """Remove the item registered under ``key`` if present; a no-op otherwise.
+
+        Lets callers undo a registration (e.g. test cleanup) without reaching into
+        the hook's internal storage.
+        """
+        self._items.pop(key, None)

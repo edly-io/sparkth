@@ -12,8 +12,8 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.analytics import get_event_schema
 from sparkth.core.analytics.models import raw_events
-from sparkth.core.analytics.registry import EventRegistry
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -42,7 +42,7 @@ async def ingest_event(
         pydantic.ValidationError: The payload does not satisfy the schema.
         sqlalchemy.exc.SQLAlchemyError: The insert failed.
     """
-    schema = EventRegistry().resolve(event_type, version)
+    schema = get_event_schema(event_type, version)
     validated = schema.model_validate(payload)
 
     try:

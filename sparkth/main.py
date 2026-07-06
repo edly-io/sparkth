@@ -8,12 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import Lifespan
 
 from sparkth.api.v1.api import api_router
-from sparkth.core.analytics.registry import EventRegistry
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
-from sparkth.lib.analytics import initialize_event_registry
 from sparkth.lib.log import configure_logging, get_logger
 from sparkth.lib.plugins import PluginAccessMiddleware, get_plugin_loader
 from sparkth.mcp.server import mcp, register_plugin_tools

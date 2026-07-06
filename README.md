@@ -467,6 +467,68 @@ from where, and with what effect. The implementation lives in `sparkth/core/audi
 API in `sparkth/lib/audit/`; unlike analytics (best-effort), audit writes are fail-closed, so a
 mutating or AI action whose audit record cannot be written does not proceed.
 
+## Analytics Event Schemas
+
+Analytics events are validated against **versioned schemas** before they are stored. Each
+schema is a self-describing `AnalyticsEventSchema` subclass that declares its own
+`event_type` string and integer `version`, and is registered on the **`ANALYTICS_EVENTS`**
+hook — the single source of truth the emission gateway resolves against. This mirrors the
+permission vocabulary above: declare in code at import time, no separate store and no startup
+drain. Import everything from `sparkth.lib.analytics`, never from `sparkth.core.analytics.*` directly.
+
+### Declaring an event schema
+
+Core events are declared in `sparkth.core.analytics`; a plugin declares its own from its
+`__init__` with `register_event_schema(self, MyEvent)` — the analytics analog of
+`Permission.create()`.
+
+```python
+from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
+
+class CourseCompleted(AnalyticsEventSchema):
+    event_type = "mycourseplugin.course_completed"  # namespaced under the plugin name
+    version = 1
+
+    learner_id: str
+    course_id: str
+
+# from the plugin's __init__:
+register_event_schema(self, CourseCompleted)
+```
+
+`register_event_schema` enforces three guards at import time, so a misconfigured plugin fails
+fast at startup instead of at first emit:
+
+- **Namespace** — `event_type` must be prefixed with the plugin's name, else
+  `EventNamespaceError`. This stops a plugin from squatting a core event name or another
+  plugin's namespace.
+- **Collision** — any class claiming an already-registered `(event_type, version)` raises
+  `DuplicateEventTypeError`. Registration is not idempotent: re-registering the *same* class
+  is fatal too.
+- **Identity** — a schema missing `event_type`/`version` raises `TypeError`.
+
+> Always declare via `register_event_schema`, not by calling `ANALYTICS_EVENTS.add_item`
+> directly — the registration function is what applies the namespace guard. Core events (which
+> carry no plugin prefix) are seeded directly in `sparkth.core.analytics`.
+
+### Emitting an event
+
+All events are emitted server-side through `ingest_event`, which resolves the schema by
+`(event_type, version)`, validates the payload against it, and lands one immutable row in the
+analytics database:
+
+```python
+from sparkth.lib.analytics import ingest_event
+
+await ingest_event(
+    session, "mycourseplugin.course_completed", 1,
+    {"learner_id": "u1", "course_id": "c1"}, actor_id=str(user.id),
+)
+```
+
+Resolve a registered schema by identity with `get_event_schema(event_type, version)` (raises
+`UnknownEventTypeError` if none is registered).
+
 ## Contributing
 
 Contributions are welcome. Open a pull request against `main` and a maintainer will take a look.

@@ -11,7 +11,7 @@ or with another plugin's events. Registration enforces this and rejects a
 duplicate ``(event_type, version)`` claimed by a different class.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,7 +21,8 @@ class AnalyticsEventSchema(BaseModel):
 
     Subclasses set ``event_type`` and ``version`` as class attributes and declare
     the payload as ordinary Pydantic fields. Those two are ``ClassVar`` — identity
-    metadata, not part of the validated payload.
+    metadata, not part of the validated payload — and are required: a subclass that
+    omits either fails at definition time (``__init_subclass__``).
 
     Extra fields are forbidden so a producer sending unexpected keys gets a
     ``422`` rather than having those fields silently dropped from the stored row.
@@ -31,3 +32,9 @@ class AnalyticsEventSchema(BaseModel):
 
     event_type: ClassVar[str]
     version: ClassVar[int]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        missing = [attr for attr in ("event_type", "version") if not hasattr(cls, attr)]
+        if missing:
+            raise TypeError(f"{cls.__qualname__} must declare {missing} as class attributes")
