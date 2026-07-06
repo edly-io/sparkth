@@ -23,7 +23,7 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.analytics import UnknownEventTypeError, ingest_event
-from app.lib.audit import AuditActor, AuditOutcome, record_event_now
+from app.lib.audit import AnonymousActor, AuditOutcome, UserActor, record_event_now
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
 from app.lib.permissions import Permission, can
@@ -176,7 +176,7 @@ async def login_for_access_token(
 
     # Audit writes are fail-closed and committed independently of this request
     # (record_event_now), so a failed attempt stays on record despite the 401.
-    attempted_actor = AuditActor(type="anonymous", label=form_data.username)
+    attempted_actor = AnonymousActor(label=form_data.username)
 
     # Check if user exists and has a password set (Google-only users won't have one)
     if not user or not user.hashed_password:
@@ -226,11 +226,7 @@ async def login_for_access_token(
     await record_event_now(
         "auth.login",
         outcome=AuditOutcome.SUCCESS,
-        actor=AuditActor(
-            type="user",
-            id=str(user.id) if user.id is not None else None,
-            label=user.username,
-        ),
+        actor=UserActor(id=str(user.id), label=user.username),
     )
 
     background_tasks.add_task(

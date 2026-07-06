@@ -10,18 +10,59 @@ empty context or installs its own via :func:`audit_context`.
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Iterator
+from typing import ClassVar, Iterator
 
-from app.core.audit.enums import AuditSource
+from app.core.audit.enums import AuditActorType, AuditSource
 
 
 @dataclass(frozen=True, slots=True)
-class AuditActor:
-    """Who performed the action: ``type`` is user/system/anonymous."""
+class UserActor:
+    """An authenticated identity.
 
-    type: str
-    id: str | None = None
+    ``id`` is the immutable user ID and is mandatory: attribution must never
+    hang off a mutable field. ``label`` is a display-only convenience (e.g.
+    the username at the time of the event).
+    """
+
+    id: str
     label: str | None = None
+    type: ClassVar[AuditActorType] = AuditActorType.USER
+
+
+@dataclass(frozen=True, slots=True)
+class SystemActor:
+    """The platform acting on its own: scheduler, CLI, background jobs.
+
+    There is no user behind the action, so there is no ``id``; ``label``
+    names the component (e.g. ``"cli"``).
+    """
+
+    label: str | None = None
+    id: ClassVar[None] = None
+    type: ClassVar[AuditActorType] = AuditActorType.SYSTEM
+
+
+@dataclass(frozen=True, slots=True)
+class AnonymousActor:
+    """An unauthenticated caller.
+
+    ``label`` carries a *claimed*, untrusted identity (e.g. the username
+    typed into a failed login); it is evidence of what was attempted, never
+    an attribution, which is why the class has no ``id``.
+    """
+
+    label: str | None = None
+    id: ClassVar[None] = None
+    type: ClassVar[AuditActorType] = AuditActorType.ANONYMOUS
+
+
+AuditActor = UserActor | SystemActor | AnonymousActor
+"""Who performed the action.
+
+A closed tagged union: each member fixes ``type`` and enforces its own field
+invariants at construction, while exposing the uniform read surface
+(``type``/``id``/``label``) the recorder flattens into the event row.
+"""
 
 
 @dataclass(slots=True)

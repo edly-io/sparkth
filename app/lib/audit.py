@@ -11,15 +11,26 @@ fail-closed, meaning an event that cannot be written fails the mutating or AI
 action it records.
 """
 
-from app.core.audit.context import AuditActor, AuditContext, audit_context, bind_audit_actor, current_audit_context
-from app.core.audit.enums import AuditOutcome, AuditSource
+from app.core.audit.context import (
+    AnonymousActor,
+    AuditActor,
+    AuditContext,
+    SystemActor,
+    UserActor,
+    audit_context,
+    bind_audit_actor,
+    current_audit_context,
+)
+from app.core.audit.enums import AuditActorType, AuditOutcome, AuditSource
 from app.core.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
 from app.core.audit.middleware import AuditContextMiddleware
 from app.core.audit.recorder import record_event, record_event_now
 from app.core.audit.registry import AuditEventDefinition, AuditEventRegistry
 
 __all__ = [
+    "AnonymousActor",
     "AuditActor",
+    "AuditActorType",
     "AuditContext",
     "AuditContextMiddleware",
     "AuditEventDefinition",
@@ -27,7 +38,9 @@ __all__ = [
     "AuditOutcome",
     "AuditSource",
     "DuplicateAuditEventTypeError",
+    "SystemActor",
     "UnknownAuditEventTypeError",
+    "UserActor",
     "audit_context",
     "bind_audit_actor",
     "current_audit_context",

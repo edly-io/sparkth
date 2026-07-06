@@ -15,7 +15,7 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit.canonical import canonicalize
-from app.core.audit.context import AuditActor, current_audit_context
+from app.core.audit.context import AnonymousActor, AuditActor, current_audit_context
 from app.core.audit.enums import AuditOutcome
 from app.core.audit.redaction import redact
 from app.core.audit.registry import AuditEventRegistry
@@ -23,7 +23,7 @@ from app.lib.db import session_scope
 from app.models.audit import AuditEvent
 from app.models.base import utc_now
 
-_ANONYMOUS = AuditActor(type="anonymous")
+_ANONYMOUS = AnonymousActor()
 
 
 async def record_event(
@@ -71,7 +71,7 @@ async def record_event(
             "event_type": definition.event_type,
             "occurred_at": resolved_occurred_at.isoformat(),
             "source": context.source.value,
-            "actor": {"type": resolved_actor.type, "id": resolved_actor.id, "label": resolved_actor.label},
+            "actor": {"type": resolved_actor.type.value, "id": resolved_actor.id, "label": resolved_actor.label},
             "outcome": outcome.value,
             "target": {"type": target_type, "id": target_id},
             "error_detail": error_detail,
@@ -88,7 +88,7 @@ async def record_event(
         category=definition.category,
         action=definition.action,
         source=context.source.value,
-        actor_type=resolved_actor.type,
+        actor_type=resolved_actor.type.value,
         actor_id=resolved_actor.id,
         actor_label=resolved_actor.label,
         request_ip=context.request_ip,

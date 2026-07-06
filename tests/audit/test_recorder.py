@@ -12,18 +12,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit.canonical import canonicalize
 from app.core.audit.redaction import REDACTED
 from app.lib.audit import (
-    AuditActor,
+    AnonymousActor,
     AuditContext,
     AuditOutcome,
     AuditSource,
     UnknownAuditEventTypeError,
+    UserActor,
     audit_context,
     record_event,
     record_event_now,
 )
 from app.models.audit import AuditEvent
 
-ACTOR = AuditActor(type="user", id="1", label="alice")
+ACTOR = UserActor(id="1", label="alice")
 
 
 async def test_record_event_persists_with_caller_session(session: AsyncSession) -> None:
@@ -74,13 +75,13 @@ async def test_request_context_enriches_the_event(session: AsyncSession) -> None
 
 
 async def test_explicit_actor_overrides_context_actor(session: AsyncSession) -> None:
-    context = AuditContext(actor=AuditActor(type="user", id="1", label="alice"))
+    context = AuditContext(actor=UserActor(id="1", label="alice"))
     with audit_context(context):
         await record_event(
             session,
             "auth.login",
             outcome=AuditOutcome.FAILURE,
-            actor=AuditActor(type="anonymous", label="mallory"),
+            actor=AnonymousActor(label="mallory"),
         )
     await session.commit()
 

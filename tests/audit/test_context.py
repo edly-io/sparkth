@@ -5,8 +5,20 @@ events without threading a request object through every layer."""
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
 
+import pytest
+
 from app.core.audit.middleware import AuditContextMiddleware
-from app.lib.audit import AuditActor, AuditContext, AuditSource, audit_context, bind_audit_actor, current_audit_context
+from app.lib.audit import (
+    AnonymousActor,
+    AuditActorType,
+    AuditContext,
+    AuditSource,
+    SystemActor,
+    UserActor,
+    audit_context,
+    bind_audit_actor,
+    current_audit_context,
+)
 
 Scope = MutableMapping[str, Any]
 Message = MutableMapping[str, Any]
@@ -85,8 +97,24 @@ async def test_middleware_passes_non_http_scopes_through_untouched() -> None:
 
 async def test_bind_audit_actor_sets_actor_on_current_context() -> None:
     with audit_context(AuditContext()):
-        bind_audit_actor(AuditActor(type="user", id="7", label="alice"))
+        bind_audit_actor(UserActor(id="7", label="alice"))
         actor = current_audit_context().actor
         assert actor is not None
         assert actor.id == "7"
         assert actor.label == "alice"
+
+
+def test_actor_type_is_fixed_per_class() -> None:
+    assert UserActor(id="1").type is AuditActorType.USER
+    assert SystemActor().type is AuditActorType.SYSTEM
+    assert AnonymousActor().type is AuditActorType.ANONYMOUS
+
+
+def test_user_actor_requires_an_id() -> None:
+    with pytest.raises(TypeError):
+        UserActor()  # type: ignore[call-arg]
+
+
+def test_system_and_anonymous_actors_never_carry_an_id() -> None:
+    assert SystemActor(label="cli").id is None
+    assert AnonymousActor(label="mallory").id is None
