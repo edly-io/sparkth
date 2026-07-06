@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions.exceptions import PermissionNotFound, RoleNotFound
+from app.core.permissions.exceptions import InvalidScopeObjectId, PermissionNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.core.permissions.scopes import GLOBAL, PermissionScope, get_permission_scope
 from app.lib.auth import get_current_user
@@ -227,6 +227,20 @@ async def has_role(
     return result.first() is not None
 
 
+def _validate_scope_object_id(permission_scope: PermissionScope, scope_object_id: str | None) -> None:
+    """Enforce the (scope, object id) pairing (replaces the former DB CHECK).
+
+    Objectless scopes name no object; object-bearing scopes must. Raises InvalidScopeObjectId
+    on a mismatch. The database no longer enforces this — the scope vocabulary lives in code.
+    """
+    if permission_scope.objectless and scope_object_id is not None:
+        logger.error("Objectless scope %r was given object id %r", permission_scope.name, scope_object_id)
+        raise InvalidScopeObjectId(permission_scope.name, scope_object_id)
+    if not permission_scope.objectless and scope_object_id is None:
+        logger.error("Object-bearing scope %r requires an object id", permission_scope.name)
+        raise InvalidScopeObjectId(permission_scope.name, scope_object_id)
+
+
 async def assign_role(
     user_id: int,
     role_name: str,
@@ -240,8 +254,10 @@ async def assign_role(
     between the existence check and our insert, the unique index rejects ours; we recover by
     re-querying and returning the winner instead of surfacing the IntegrityError.
 
-    Raises RoleNotFound if the role does not exist.
+    Raises RoleNotFound if the role does not exist. Raises InvalidScopeObjectId if the
+    (permission_scope, scope_object_id) pairing is invalid (see _validate_scope_object_id).
     """
+    _validate_scope_object_id(permission_scope, scope_object_id)
     role = (await session.exec(select(Role).where(Role.name == role_name))).one_or_none()
     if role is None or role.id is None:
         raise RoleNotFound(role_name)
