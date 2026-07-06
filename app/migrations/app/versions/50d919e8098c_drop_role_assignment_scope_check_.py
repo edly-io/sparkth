@@ -30,7 +30,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Recreate the original CHECK (global-only objectless)."""
+    """Recreate the original CHECK (global-only objectless).
+
+    CAVEAT: If any role_assignment rows exist at an objectless non-global scope
+    (e.g., scope='whitelist' with scope_object_id=NULL), the constraint recreation
+    will fail. Such rows must be deleted before downgrading.
+    """
     op.create_check_constraint(
         "ck_role_assignment_scope",
         "role_assignment",

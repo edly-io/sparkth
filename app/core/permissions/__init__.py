@@ -256,10 +256,10 @@ def _validate_scope_object_id(permission_scope: PermissionScope, scope_object_id
     on a mismatch. The database no longer enforces this — the scope vocabulary lives in code.
     """
     if permission_scope.objectless and scope_object_id is not None:
-        logger.error("Objectless scope %r was given object id %r", permission_scope.name, scope_object_id)
+        logger.warning("Objectless scope %r was given object id %r", permission_scope.name, scope_object_id)
         raise InvalidScopeObjectId(permission_scope.name, scope_object_id)
     if not permission_scope.objectless and scope_object_id is None:
-        logger.error("Object-bearing scope %r requires an object id", permission_scope.name)
+        logger.warning("Object-bearing scope %r requires an object id", permission_scope.name)
         raise InvalidScopeObjectId(permission_scope.name, scope_object_id)
 
 
