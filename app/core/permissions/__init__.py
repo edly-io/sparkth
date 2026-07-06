@@ -126,6 +126,16 @@ EMAIL_WHITELIST_READ = Permission.create("email.whitelist.read")
 EMAIL_WHITELIST_CREATE = Permission.create("email.whitelist.create")
 EMAIL_WHITELIST_DELETE = Permission.create("email.whitelist.delete")
 
+# The role-management permissions gate the role-management API (app/api/v1/permissions).
+ROLE_CREATE = Permission.create("role.create")
+ROLE_READ = Permission.create("role.read")
+ROLE_UPDATE = Permission.create("role.update")
+ROLE_DELETE = Permission.create("role.delete")
+
+# Reading the permission vocabulary itself (the assignable-permissions listing), distinct from
+# reading roles.
+PERMISSION_READ = Permission.create("permission.read")
+
 
 def _active_assignment_at_scope(
     user_id: int | None,

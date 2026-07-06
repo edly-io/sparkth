@@ -86,11 +86,13 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`app/lib/permissions/`](app/lib/permissions/__init__.py) — permissions public API
   (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
   `assign_role`, `revoke_role`, `get_permission`,
-  `get_permission_scope`, `RoleNotFound`, `Permission`); the
+  `get_permission_scope`, `Permission`); the
   `PERMISSIONS` / `PERMISSION_SCOPES` hooks are imported from the
-  `app.lib.permissions.hooks` submodule, and the `PermissionScope` class and the
-  `GLOBAL` scope from the `app.lib.permissions.scopes` submodule. Plugins
-  declare their own via `Permission.create()` / `PermissionScope.create()`. Never import
+  `app.lib.permissions.hooks` submodule, the `PermissionScope` class and the
+  `GLOBAL` scope from the `app.lib.permissions.scopes` submodule, and the permission
+  exception classes (`RoleNotFound`, `PermissionNotFound`, `PermissionScopeNotFound`)
+  from the `app.lib.permissions.exceptions` submodule. Plugins declare their own via
+  `Permission.create()` / `PermissionScope.create()`. Never import
   from `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
 - [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
   from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
