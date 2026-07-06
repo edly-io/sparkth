@@ -142,3 +142,9 @@ GLOBAL = ObjectlessPermissionScope.create("global")
 # objectless container scope under GLOBAL. A role assigned at this scope manages the whole
 # whitelist; a GLOBAL grant cascades down to it. See issue #489.
 WHITELIST = ObjectlessPermissionScope.create("whitelist", parent=GLOBAL)
+
+# Role management is delegable per-role: a role assigned at this scope authorizes managing one
+# specific role (named by scope_object_id — the role's id), rather than every role. It is an
+# object-bearing PermissionScope (there are many roles) hanging off GLOBAL, so a GLOBAL grant
+# cascades down to it and existing global admins keep full role-management authority. See #490.
+ROLE = PermissionScope.create("role", parent=GLOBAL)

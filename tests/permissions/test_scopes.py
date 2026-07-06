@@ -7,7 +7,7 @@ from app.core.permissions.scopes import (
     PermissionScope,
     get_permission_scope,
 )
-from app.lib.permissions.scopes import WHITELIST
+from app.lib.permissions.scopes import ROLE, WHITELIST
 
 
 def test_create_with_unregistered_parent_raises() -> None:
@@ -29,6 +29,19 @@ def test_whitelist_scope_registered_under_global() -> None:
     assert isinstance(WHITELIST, ObjectlessPermissionScope)
     assert WHITELIST.parent is GLOBAL
     assert WHITELIST.get_parents() == [GLOBAL]
+
+
+def test_role_scope_registered_under_global() -> None:
+    # The role scope names one specific role (via scope_object_id), so it is an object-bearing
+    # PermissionScope (not an ObjectlessPermissionScope like global/whitelist); it hangs directly
+    # off the global root.
+    assert get_permission_scope("role") is ROLE
+    assert isinstance(ROLE, PermissionScope)
+    assert not isinstance(ROLE, ObjectlessPermissionScope)
+    assert ROLE.parent is GLOBAL
+    assert ROLE.get_parents() == [GLOBAL]
+    # A global grant cascades to a role-scoped check; the role itself carries the checked id.
+    assert ROLE.scope_chain("5") == [("role", "5"), ("global", None)]
 
 
 class TestPermissionScope:
