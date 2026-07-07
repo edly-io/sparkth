@@ -6,7 +6,7 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/core_plugins/*/plugin.py`
+**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/plugins/*/plugin.py`
 
 A plugin contributes its capabilities from its `__init__` — one consistent pattern
 across all contribution types (a `PluginCollectionHook` holds many items per plugin,
@@ -30,7 +30,7 @@ Consumers iterate the hooks: `sparkth/mcp/main.py` registers `MCP_TOOLS` with th
 server, the chat tool registry converts them to LangChain tools, and `sparkth/main.py`
 mounts plugin routes.
 
-Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `sparkth/plugins/config_base.py` for the base class.
+Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `sparkth/core/plugins/config_base.py` for the base class.
 
 A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hooks.py`): an
 `LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
@@ -42,7 +42,7 @@ Plugin registration list lives at `sparkth/core/config.py:PLUGINS` as `"module.p
 
 ## 2. Plugin Lifecycle Management
 
-**Files:** `sparkth/plugins/loader.py`, `sparkth/main.py` (`assemble_app()` + lifespan handler)
+**Files:** `sparkth/core/plugins/loader.py`, `sparkth/main.py` (`assemble_app()` + lifespan handler)
 
 The `PluginLoader` singleton manages discovery → load → unload. Route registration is DB-free and happens in `assemble_app()` at import time, so the full route map (and OpenAPI schema) exists without a running server. The FastAPI lifespan context manager owns the stateful side: it calls `get_plugin_service().get_or_create_all()` on startup and unloads plugins on shutdown. Each plugin can contribute:
 
@@ -50,7 +50,7 @@ The `PluginLoader` singleton manages discovery → load → unload. Route regist
 - **Middleware:** Starlette middleware
 - **MCP tools:** via the `MCP_TOOLS` hook (see §1)
 
-`PluginAccessMiddleware` (`sparkth/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
+`PluginAccessMiddleware` (`sparkth/core/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
 
 ---
 
@@ -118,7 +118,7 @@ async def endpoint(
 
 ## 8. Custom Exception Hierarchy
 
-**File:** `sparkth/plugins/exceptions.py`
+**File:** `sparkth/core/plugins/exceptions.py`
 
 ```
 PluginError (base)
@@ -132,7 +132,7 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 
 ## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `sparkth/core_plugins/chat/service.py`, `sparkth/core_plugins/chat/intent_router.py`, `sparkth/core_plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
+**Files:** `sparkth/plugins/chat/service.py`, `sparkth/plugins/chat/intent_router.py`, `sparkth/plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
 
 - `ChatService` owns conversation logic and history management
 - LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `sparkth/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin

@@ -42,7 +42,7 @@ frontend/
   components/    # Reusable UI components (settings/, ui/)
 
 tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, permissions/, rag/, services/
-                 # Plugin tests are co-located (sparkth/core_plugins/<plugin>/tests/).
+                 # Plugin tests are co-located (sparkth/plugins/<plugin>/tests/).
                  # Shared fixtures: sparkth/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
 ```
@@ -82,7 +82,7 @@ Current modules (see the source for the full API — do not duplicate it here):
   issue #379).
 - [`sparkth/lib/plugins.py`](sparkth/lib/plugins.py) — plugin framework public API.
   Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`); never import
-  from `sparkth.plugins`, `sparkth.plugins.base`, `sparkth.plugins.config_base` or `sparkth.plugins.middleware` directly. Implementation lives in `sparkth/plugins/`.
+  from `sparkth.core.plugins`, `sparkth.core.plugins.base`, `sparkth.core.plugins.config_base` or `sparkth.core.plugins.middleware` directly. Implementation lives in `sparkth/core/plugins/`.
 - [`sparkth/lib/permissions/`](sparkth/lib/permissions/__init__.py) — permissions public API
   (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
   `assign_role`, `revoke_role`, `get_permission`,
@@ -217,7 +217,7 @@ The rule applies to both new work and incidental changes. If you touch a file an
 
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
-- **Plugin** → `sparkth/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
+- **Plugin** → `sparkth/plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
 - **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `sparkth/<module>/` (api, core, llm, permissions, rag, services)
 
   RAG is core, so RAG tests live at `tests/rag/` (not co-located under `sparkth/rag/`); the
@@ -417,7 +417,7 @@ Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/P
 | Topic | File |
 |---|---|
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
-| Plugin development guide | [sparkth/plugins/PLUGIN_GUIDE.md](sparkth/plugins/PLUGIN_GUIDE.md) |
+| Plugin development guide | [sparkth/core/plugins/PLUGIN_GUIDE.md](sparkth/core/plugins/PLUGIN_GUIDE.md) |
 | Frontend plugin development | [frontend/README.md](frontend/README.md) |
 | GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
 

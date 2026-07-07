@@ -1,19 +1,19 @@
 """Public API for the plugin framework.
 
 All plugins and external modules import the plugin-authoring surface from here.
-Nothing outside ``app/lib/plugins`` should import from ``sparkth.plugins``,
-``sparkth.plugins.base``, ``sparkth.plugins.config_base`` or ``sparkth.plugins.middleware``
+Nothing outside ``app/lib/plugins`` should import from ``sparkth.core.plugins``,
+``sparkth.core.plugins.base``, ``sparkth.core.plugins.config_base`` or ``sparkth.core.plugins.middleware``
 directly.
 """
 
 from typing import TYPE_CHECKING, Any
 
-from sparkth.plugins import get_plugin_loader
-from sparkth.plugins.base import SparkthPlugin
-from sparkth.plugins.config_base import PluginConfig
+from sparkth.core.plugins import get_plugin_loader
+from sparkth.core.plugins.base import SparkthPlugin
+from sparkth.core.plugins.config_base import PluginConfig
 
 if TYPE_CHECKING:
-    from sparkth.plugins.middleware import PluginAccessMiddleware
+    from sparkth.core.plugins.middleware import PluginAccessMiddleware
 
 __all__ = ["get_plugin_loader", "PluginConfig", "SparkthPlugin", "PluginAccessMiddleware"]
 
@@ -24,7 +24,7 @@ def __getattr__(name: str) -> Any:
     # during that bootstrap, so importing the middleware eagerly closes a circular
     # import. Resolve it lazily on first access, once modules are initialized.
     if name == "PluginAccessMiddleware":
-        from sparkth.plugins.middleware import PluginAccessMiddleware
+        from sparkth.core.plugins.middleware import PluginAccessMiddleware
 
         return PluginAccessMiddleware
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

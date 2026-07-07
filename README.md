@@ -15,7 +15,7 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
 | ReDoc | https://sparkth.edly.space/redoc |
 
 ## Guides
-- [Backend Plugin Implementation](./sparkth/plugins/PLUGIN_GUIDE.md)
+- [Backend Plugin Implementation](./sparkth/core/plugins/PLUGIN_GUIDE.md)
 - [Frontend Plugin Implementation](./frontend/README.md)
 
 ## Development

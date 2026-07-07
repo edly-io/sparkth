@@ -53,11 +53,11 @@ def get_settings() -> Settings:
 # List of plugin module paths to load (all enabled by default)
 # Format: "module.path:ClassName"
 PLUGINS = [
-    "sparkth.core_plugins.canvas.plugin:CanvasPlugin",
-    "sparkth.core_plugins.openedx.plugin:OpenEdxPlugin",
-    "sparkth.core_plugins.chat.plugin:ChatPlugin",
-    "sparkth.core_plugins.googledrive.plugin:GoogleDrivePlugin",
-    "sparkth.core_plugins.slack.plugin:Slack",
+    "sparkth.plugins.canvas.plugin:CanvasPlugin",
+    "sparkth.plugins.openedx.plugin:OpenEdxPlugin",
+    "sparkth.plugins.chat.plugin:ChatPlugin",
+    "sparkth.plugins.googledrive.plugin:GoogleDrivePlugin",
+    "sparkth.plugins.slack.plugin:Slack",
 ]
 
 
