@@ -3,7 +3,6 @@ from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
-from app.core.permissions.exceptions import PermissionScopeNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from app.lib.permissions import Permission
@@ -74,7 +73,7 @@ async def test_dependency_resolves_scope_from_path_params(session: AsyncSession,
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="course", scope_object_id="5"))
     await session.flush()
 
-    dep = Permission("assignment.grade").require("course", "course_id")
+    dep = Permission("assignment.grade").require(course_scope, "course_id")
 
     granted = Request({"type": "http", "path_params": {"course_id": "5"}})
     assert await dep(granted, user, session) is user
@@ -90,7 +89,7 @@ async def test_dependency_raises_for_missing_scope_param(session: AsyncSession, 
     # failure. The dependency raises a plain exception (FastAPI turns it into a 500), never a
     # silent 403.
     user = await _seed(session, "dave", None)
-    dep = Permission("assignment.grade").require("course", "course_id")
+    dep = Permission("assignment.grade").require(course_scope, "course_id")
     with pytest.raises(RuntimeError):
         await dep(_request(), user, session)
 
@@ -113,26 +112,19 @@ async def test_dependency_denies_admin_role_without_the_checked_permission(sessi
     assert exc.value.status_code == 403
 
 
-def test_require_with_unregistered_scope_raises() -> None:
-    # A scope name that was never registered via PermissionScope.create() is a wiring error;
-    # require() raises at call time (route-definition/import time) so it fails fast at startup.
-    with pytest.raises(PermissionScopeNotFound):
-        Permission("assignment.grade").require("does-not-exist", "course_id")
-
-
 def test_require_objectless_scope_rejects_scope_param() -> None:
-    # global is objectless -> naming a path param is a wiring error, caught at definition time.
+    # GLOBAL is objectless -> naming a path param is a wiring error, caught at definition time.
     with pytest.raises(ValueError):
-        Permission("assignment.grade").require("global", "course_id")
+        Permission("assignment.grade").require(GLOBAL, "course_id")
 
 
 def test_require_object_bearing_scope_requires_scope_param(course_scope: PermissionScope) -> None:
     with pytest.raises(ValueError):
-        Permission("assignment.grade").require("course")
+        Permission("assignment.grade").require(course_scope)
 
 
 async def test_require_objectless_scope_allows_no_param(session: AsyncSession) -> None:
-    # require("global") with no object id resolves and authorizes a global grant.
+    # require(GLOBAL) with no object id authorizes a global grant.
     user = await _seed(session, "gwen", "assignment.grade")
-    dep = Permission("assignment.grade").require("global")
+    dep = Permission("assignment.grade").require(GLOBAL)
     assert await dep(_request(), user, session) is user

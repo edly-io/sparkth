@@ -24,7 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.permissions.exceptions import InvalidScopeObjectId, PermissionNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.core.permissions.scopes import GLOBAL, PermissionScope, get_permission_scope
+from app.core.permissions.scopes import GLOBAL, PermissionScope
 from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.hooks import SingleNamedItemHook
@@ -92,28 +92,32 @@ class Permission:
         """
         return self._require_permission(GLOBAL, None)
 
-    def require(self, permission_scope: str, scope_param: str | None = None) -> Callable[..., Awaitable[User]]:
-        """Return a FastAPI dependency enforcing this permission at a named scope.
+    def require(
+        self, permission_scope: PermissionScope, scope_param: str | None = None
+    ) -> Callable[..., Awaitable[User]]:
+        """Return a FastAPI dependency enforcing this permission at a scope.
 
         Args:
-            permission_scope: A registered scope kind's name (e.g. ``"course"``, ``"whitelist"``).
-                Resolved via ``get_permission_scope``; an unregistered name raises
-                ``PermissionScopeNotFound`` here (at route-definition/import time).
+            permission_scope: The scope to check at, as a declared ``PermissionScope`` object
+                (e.g. ``GLOBAL``, ``WHITELIST``, your ``COURSE``). Pass the registered instance,
+                not its name — this keeps scope references object-based, like the RBAC engine
+                functions, so a typo is an import error rather than a silent lookup miss.
             scope_param: The route path parameter carrying the scope object id, resolved from
                 ``request.path_params`` per request. Omit for an objectless scope (it names no
                 object). Supplying it for an objectless scope, or omitting it for an
                 object-bearing one, is a wiring error and raises ``ValueError`` at definition time.
         """
-        scope = get_permission_scope(permission_scope)
-        if scope.objectless and scope_param is not None:
+        if permission_scope.objectless and scope_param is not None:
             raise ValueError(
-                f"Scope {scope.name!r} is objectless and names no object; drop the scope_param {scope_param!r}"
+                f"Scope {permission_scope.name!r} is objectless and names no object; "
+                f"drop the scope_param {scope_param!r}"
             )
-        if not scope.objectless and scope_param is None:
+        if not permission_scope.objectless and scope_param is None:
             raise ValueError(
-                f"Scope {scope.name!r} is object-bearing; require() needs a scope_param naming its path parameter"
+                f"Scope {permission_scope.name!r} is object-bearing; "
+                "require() needs a scope_param naming its path parameter"
             )
-        return self._require_permission(scope, scope_param)
+        return self._require_permission(permission_scope, scope_param)
 
 
 # Every permission the platform knows; Permission.create() registers each one here.

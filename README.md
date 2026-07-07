@@ -396,11 +396,13 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
 **Gate an endpoint on a permission** — call `.require_in_global_scope()` or
-`.require(scope_name, scope_param=None)` on the permission itself. `scope_param` names the path
-parameter that carries the scope object id; it is **optional** — omit it for an objectless scope
-(e.g. `require("whitelist")`), and supply it for an object-bearing one (e.g.
-`require("course", "course_id")`). Supplying `scope_param` for an objectless scope, or omitting it
-for an object-bearing one, is a wiring error and **raises `ValueError`** at definition time:
+`.require(scope, scope_param=None)` on the permission itself. `scope` is a declared
+`PermissionScope` **object** (e.g. `GLOBAL`, `WHITELIST`, your `COURSE`), not its name — pass the
+registered instance. `scope_param` names the path parameter that carries the scope object id; it is
+**optional** — omit it for an objectless scope (e.g. `require(WHITELIST)`), and supply it for an
+object-bearing one (e.g. `require(COURSE, "course_id")`). Supplying `scope_param` for an objectless
+scope, or omitting it for an object-bearing one, is a wiring error and **raises `ValueError`** at
+definition time:
 
 ```python
 from fastapi import Depends
@@ -411,6 +413,9 @@ from fastapi import Depends
 # Permission.create(...) results.
 from app.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_CREATE, THING_READ
 
+# Scope objects come from app.lib.permissions.scopes (WHITELIST is shipped; COURSE is illustrative).
+from app.lib.permissions.scopes import COURSE, WHITELIST
+
 # Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
 async def list_things(): ...
@@ -418,16 +423,16 @@ async def list_things(): ...
 # Global scope, injected so the route can use the authorized user:
 async def create_thing(user: User = Depends(THING_CREATE.require_in_global_scope())): ...
 
-# Objectless scope check — "whitelist" is a singleton, so there is no object id to read from the
+# Objectless scope check — WHITELIST is a singleton, so there is no object id to read from the
 # URL and no scope_param to pass:
-@router.get("/whitelist", dependencies=[Depends(EMAIL_WHITELIST_READ.require("whitelist"))])
+@router.get("/whitelist", dependencies=[Depends(EMAIL_WHITELIST_READ.require(WHITELIST))])
 async def list_whitelist(): ...
 
-# Scoped check — pass the scope kind's *name* (not the PermissionScope object) and the path
-# parameter that carries the object id; the id is read from the URL on each request:
+# Scoped check — pass the scope's PermissionScope object and the path parameter that carries the
+# object id; the id is read from the URL on each request:
 @router.patch(
     "/courses/{course_id}",
-    dependencies=[Depends(COURSE_EDIT.require("course", "course_id"))],  # reads {course_id}
+    dependencies=[Depends(COURSE_EDIT.require(COURSE, "course_id"))],  # reads {course_id}
 )
 async def edit_course(course_id: int): ...
 ```
@@ -439,11 +444,10 @@ the permission identically. Behavior:
 
 | Scenario | Trigger | Result |
 |---|---|---|
-| Authorized | The user holds the permission at the resolved scope | The route runs; the dependency returns the `User`. |
+| Authorized | The user holds the permission at that scope | The route runs; the dependency returns the `User`. |
 | Not granted | The user lacks the permission at that scope | **403** `Permission denied`. |
-| Unregistered scope | `require("course", …)` where `"course"` was never declared via `PermissionScope.create()` | `PermissionScopeNotFound` is raised **at startup** (when the route module is imported) — a wiring error surfaces immediately, never as a silent per-request denial. |
-| Objectless/object-bearing mismatch | `require("whitelist", "some_param")` (a `scope_param` given for an objectless scope) or `require("course")` (no `scope_param` for an object-bearing scope) | `ValueError` is raised **at definition time** (when `.require(...)` is called, i.e. when the route module is imported) — a wiring error, never a silent 403. |
-| Misconfigured path param | `require("course", "course_id")` on a route whose path has no `{course_id}` | The dependency raises a plain exception, which FastAPI turns into a **500** (`Permission scope is misconfigured` is logged server-side, not returned to the client) — surfaced as a server error, not a silent 403. |
+| Objectless/object-bearing mismatch | `require(WHITELIST, "some_param")` (a `scope_param` given for an objectless scope) or `require(COURSE)` (no `scope_param` for an object-bearing scope) | `ValueError` is raised **at definition time** (when `.require(...)` is called, i.e. when the route module is imported) — a wiring error, never a silent 403. |
+| Misconfigured path param | `require(COURSE, "course_id")` on a route whose path has no `{course_id}` | The dependency raises a plain exception, which FastAPI turns into a **500** (`Permission scope is misconfigured` is logged server-side, not returned to the client) — surfaced as a server error, not a silent 403. |
 
 `require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter — it
 calls `_require_permission` directly rather than going through `require()`'s scope-name and
