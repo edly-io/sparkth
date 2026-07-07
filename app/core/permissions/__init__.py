@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions.exceptions import InvalidScopeObjectId, PermissionNotFound, RoleNotFound
+from app.core.permissions.exceptions import PermissionNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.core.permissions.scopes import GLOBAL, PermissionScope
 from app.lib.auth import get_current_user
@@ -107,16 +107,7 @@ class Permission:
                 object). Supplying it for an objectless scope, or omitting it for an
                 object-bearing one, is a wiring error and raises ``ValueError`` at definition time.
         """
-        if permission_scope.objectless and scope_param is not None:
-            raise ValueError(
-                f"Scope {permission_scope.name!r} is objectless and names no object; "
-                f"drop the scope_param {scope_param!r}"
-            )
-        if not permission_scope.objectless and scope_param is None:
-            raise ValueError(
-                f"Scope {permission_scope.name!r} is object-bearing; "
-                "require() needs a scope_param naming its path parameter"
-            )
+        permission_scope.validate_scope_param(scope_param)
         return self._require_permission(permission_scope, scope_param)
 
 
@@ -159,27 +150,21 @@ def _active_assignment_at_scope(
     """WHERE clauses selecting a user's active assignments that satisfy a check at one scope,
     honouring the scope hierarchy.
 
-    A grant at the checked scope itself, or at any *objectless* ancestor, satisfies the check
-    (parent -> child cascade). Objectless ancestors (``global``, ``whitelist``) name no object,
-    so their id in the chain is NULL and is resolvable here. An object-bearing ancestor (e.g.
-    ``course`` under an ``org``) would need a materialized path to resolve its id, so it is not
-    walked yet (deferred; see issue #420 Phase 2).
+    The (scope, object_id) pairs a grant may occupy come from ``PermissionScope.scope_chain`` —
+    the scope itself plus any ancestor that cascades (objectless ancestors cascade with a NULL id;
+    object-bearing ancestors need a materialized path and are deferred, see issue #420 Phase 2).
 
     Shared by the read-side checks (``can`` and ``has_role``). The write operations
     (``assign_role``, ``revoke_role``) target the exact assignment row and must NOT use this —
     they never cascade to ancestor scopes.
     """
-    scope_pairs: list[tuple[str, str | None]] = [(permission_scope.name, scope_object_id)]
-    for ancestor in permission_scope.get_parents():
-        if ancestor.objectless:
-            scope_pairs.append((ancestor.name, None))
     scope_clause = or_(
         *(
             and_(
                 col(RoleAssignment.scope) == name,
                 col(RoleAssignment.scope_object_id) == object_id,
             )
-            for name, object_id in scope_pairs
+            for name, object_id in permission_scope.scope_chain(scope_object_id)
         )
     )
     return (
@@ -253,20 +238,6 @@ async def has_role(
     return result.first() is not None
 
 
-def _validate_scope_object_id(permission_scope: PermissionScope, scope_object_id: str | None) -> None:
-    """Enforce the (scope, object id) pairing (replaces the former DB CHECK).
-
-    Objectless scopes name no object; object-bearing scopes must. Raises InvalidScopeObjectId
-    on a mismatch. The database no longer enforces this — the scope vocabulary lives in code.
-    """
-    if permission_scope.objectless and scope_object_id is not None:
-        logger.warning("Objectless scope %r was given object id %r", permission_scope.name, scope_object_id)
-        raise InvalidScopeObjectId(permission_scope.name, scope_object_id)
-    if not permission_scope.objectless and scope_object_id is None:
-        logger.warning("Object-bearing scope %r requires an object id", permission_scope.name)
-        raise InvalidScopeObjectId(permission_scope.name, scope_object_id)
-
-
 async def assign_role(
     user_id: int,
     role_name: str,
@@ -281,9 +252,9 @@ async def assign_role(
     re-querying and returning the winner instead of surfacing the IntegrityError.
 
     Raises RoleNotFound if the role does not exist. Raises InvalidScopeObjectId if the
-    (permission_scope, scope_object_id) pairing is invalid (see _validate_scope_object_id).
+    (permission_scope, scope_object_id) pairing is invalid (see PermissionScope.validate_object_id).
     """
-    _validate_scope_object_id(permission_scope, scope_object_id)
+    permission_scope.validate_object_id(scope_object_id)
     role = (await session.exec(select(Role).where(Role.name == role_name))).one_or_none()
     if role is None or role.id is None:
         raise RoleNotFound(role_name)

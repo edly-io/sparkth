@@ -238,7 +238,7 @@ This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEM
 The loader constructs every plugin as `plugin_class(plugin_name)` (`app/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, and scope kinds via `PermissionScope.create`.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, and scope kinds via `ObjectlessScope.create` / `ObjectScope.create`.
 
 ```python
 # app/core_plugins/myappplugin/plugin.py
@@ -273,7 +273,7 @@ async def process_data(input: str) -> str:
     return f"Processed: {input}"
 ```
 
-Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` — the `PermissionScope` class comes from `app.lib.permissions.scopes`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
+Scope kinds register the same way, through `ObjectScope.create("course", parent=...)` (or `ObjectlessScope.create(...)` for a singleton scope) — the scope classes come from `app.lib.permissions.scopes`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
 
 ### Where do plugin routes get mounted?
 

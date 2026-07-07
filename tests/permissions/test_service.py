@@ -22,7 +22,7 @@ from app.lib.permissions import (
     has_role,
     revoke_role,
 )
-from app.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
+from app.lib.permissions.scopes import GLOBAL, WHITELIST, ObjectScope, PermissionScope
 from app.models.user import User
 
 
@@ -112,9 +112,9 @@ async def test_assign_role_requires_object_id_on_object_bearing_scope(session: A
     user = await make_user(session, "alice")
     assert user.id is not None
     await make_role(session, "grader", [])
-    # PermissionScope("course") defaults to objectless=False -> object-bearing -> needs an id.
+    # ObjectScope is object-bearing, so an assignment must be given an object id.
     with pytest.raises(InvalidScopeObjectId):
-        await assign_role(user.id, "grader", PermissionScope("course"), None, session)
+        await assign_role(user.id, "grader", ObjectScope("course"), None, session)
 
 
 async def test_assign_role_allows_objectless_whitelist_scope(session: AsyncSession) -> None:
@@ -238,10 +238,10 @@ async def test_has_role_is_scope_specific(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     assert user.id is not None
     await make_role(session, "grader", [])
-    await assign_role(user.id, "grader", PermissionScope("course"), "1", session)
+    await assign_role(user.id, "grader", ObjectScope("course"), "1", session)
     # The same role at a different scope must not satisfy the global check.
     assert await has_role(user, "grader", GLOBAL, None, session) is False
-    assert await has_role(user, "grader", PermissionScope("course"), "1", session) is True
+    assert await has_role(user, "grader", ObjectScope("course"), "1", session) is True
 
 
 async def test_has_role_false_after_revoke(session: AsyncSession) -> None:
@@ -289,7 +289,7 @@ async def test_can_child_grant_does_not_satisfy_parent_check(session: AsyncSessi
 
 def test_facade_exposes_public_surface() -> None:
     from app.core.permissions import PERMISSIONS
-    from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, PermissionScope
+    from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, ObjectlessScope, ObjectScope, PermissionScope
     from app.lib import permissions as facade
     from app.lib.permissions import exceptions as exceptions_facade
     from app.lib.permissions import hooks as hooks_facade
@@ -314,6 +314,8 @@ def test_facade_exposes_public_surface() -> None:
     # The scope class and the GLOBAL root are re-exported from the app.lib.permissions.scopes
     # submodule (not the package facade), so plugins import them from there.
     assert scopes_facade.PermissionScope is PermissionScope
+    assert scopes_facade.ObjectlessScope is ObjectlessScope
+    assert scopes_facade.ObjectScope is ObjectScope
     assert scopes_facade.GLOBAL is GLOBAL
 
 
@@ -387,7 +389,7 @@ def test_get_permission_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_get_permission_scope_returns_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
-    scope = PermissionScope("course")
+    scope = ObjectScope("course")
     hook.add_item(scope)
     monkeypatch.setattr("app.core.permissions.scopes.PERMISSION_SCOPES", hook)
 
