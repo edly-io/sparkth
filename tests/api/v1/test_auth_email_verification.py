@@ -8,9 +8,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core import security
 from sparkth.core.config import get_settings
-from sparkth.models.email_verification import EmailVerificationToken
-from sparkth.models.user import User
-from sparkth.models.whitelist import WhitelistedEmail
+from sparkth.core.models.email_verification import EmailVerificationToken
+from sparkth.core.models.user import User
+from sparkth.core.models.whitelist import WhitelistedEmail
 
 
 def _uniq(prefix: str) -> str:

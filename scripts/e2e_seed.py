@@ -21,11 +21,11 @@ import os
 from sqlmodel import select
 
 from sparkth.core.db import dispose_engine
+from sparkth.core.models.base import utc_now
+from sparkth.core.models.user import User
+from sparkth.core.models.whitelist import WhitelistedEmail
 from sparkth.core.security import get_password_hash
 from sparkth.lib.db import session_scope
-from sparkth.models.base import utc_now
-from sparkth.models.user import User
-from sparkth.models.whitelist import WhitelistedEmail
 
 
 async def seed() -> None:

@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from sparkth.core.models.llm import LLMConfig
 from sparkth.llm.service import LLMConfigService
-from sparkth.models.llm import LLMConfig
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

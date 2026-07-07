@@ -20,11 +20,11 @@ from sparkth.core.google_auth import (
     generate_google_login_url,
     get_google_user_info,
 )
+from sparkth.core.models.base import utc_now
+from sparkth.core.models.user import User
 from sparkth.lib.analytics import UnknownEventTypeError, ingest_event
 from sparkth.lib.db import analytics_session_scope, get_async_session
 from sparkth.lib.log import get_logger
-from sparkth.models.base import utc_now
-from sparkth.models.user import User
 from sparkth.schemas import (
     GoogleAuthUrl,
     ResendVerificationRequest,

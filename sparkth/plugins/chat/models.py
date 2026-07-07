@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, UniqueConstraint
 from sqlmodel import Column, Field, Relationship, SQLModel, Text
 from uuid6 import uuid7
 
-from sparkth.models.base import TimestampedModel
+from sparkth.lib.models import TimestampedModel
 
 MessageType = Literal["text", "attachment"]
 

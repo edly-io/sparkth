@@ -13,10 +13,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.cli import users
+from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role
 from sparkth.lib.permissions import has_role
 from sparkth.lib.permissions.scopes import GLOBAL
-from sparkth.models.user import User
 
 
 async def test_create_user_persists_a_hashed_user(session: AsyncSession) -> None:

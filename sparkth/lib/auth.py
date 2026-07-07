@@ -12,8 +12,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core import security
+from sparkth.core.models.user import User
 from sparkth.lib.db import get_async_session
-from sparkth.models.user import User
 
 security_scheme = HTTPBearer()
 

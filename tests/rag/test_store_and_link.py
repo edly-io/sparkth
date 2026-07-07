@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.lib.documents import Document, DocumentStatus
-from sparkth.models.user import User
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 from sparkth.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks
 from sparkth.rag.types import Chunk, ChunkInput, ChunkMetadata

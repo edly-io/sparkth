@@ -71,6 +71,14 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`sparkth/lib/settings.py`](sparkth/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
   `sparkth.core.config` directly. Implementation lives in `sparkth/core/config.py`.
+- [`sparkth/lib/encryption.py`](sparkth/lib/encryption.py) — symmetric encryption. Import
+  `get_encryption_service` / `EncryptionService` from here (Fernet encryption of secrets at
+  rest, e.g. stored LLM API keys); never import from `sparkth.core.encryption` directly.
+  Implementation lives in `sparkth/core/encryption.py`.
+- [`sparkth/lib/models.py`](sparkth/lib/models.py) — data-model public API. Import the models
+  plugins consume from here (`User`, `LLMConfig`, and the `TimestampedModel` /
+  `SoftDeleteModel` mixins + `utc_now`); never import from `sparkth.core.models.*` directly.
+  Implementation lives in `sparkth/core/models/`.
 - [`sparkth/lib/rag.py`](sparkth/lib/rag.py) — RAG public API. Import RAG functionality
   from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
   `IngestionResult`, `RagStatus`, RAG exceptions); never import from `sparkth.rag.*`
@@ -81,8 +89,13 @@ Current modules (see the source for the full API — do not duplicate it here):
   import from `sparkth.llm.*` directly. Implementation lives in `sparkth/llm/` (see
   issue #379).
 - [`sparkth/lib/plugins.py`](sparkth/lib/plugins.py) — plugin framework public API.
-  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`); never import
-  from `sparkth.core.plugins`, `sparkth.core.plugins.base`, `sparkth.core.plugins.config_base` or `sparkth.core.plugins.middleware` directly. Implementation lives in `sparkth/core/plugins/`.
+  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`,
+  `PluginConfig`, `PluginAccessMiddleware`) as well as `PluginService` / `get_plugin_service`
+  and the plugin-service exceptions (`ConfigValidationError`, `InternalServerError`,
+  `PluginDisabledError`, `UserPluginResponse`); never import from `sparkth.core.plugins`,
+  `sparkth.core.plugins.base`, `sparkth.core.plugins.config_base`,
+  `sparkth.core.plugins.middleware` or `sparkth.core.plugins.service` directly.
+  Implementation lives in `sparkth/core/plugins/`.
 - [`sparkth/lib/permissions/`](sparkth/lib/permissions/__init__.py) — permissions public API
   (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
   `assign_role`, `revoke_role`, `get_permission`,

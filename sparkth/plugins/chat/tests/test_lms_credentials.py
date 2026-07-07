@@ -85,7 +85,7 @@ class TestBuildLmsCredentialsMessage:
     async def test_returns_hint_when_no_plugins_configured(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_authenticate")]
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value={}),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -95,7 +95,7 @@ class TestBuildLmsCredentialsMessage:
     async def test_openedx_credentials_included(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_authenticate")]
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=_OPENEDX_PLUGIN_MAP),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -108,7 +108,7 @@ class TestBuildLmsCredentialsMessage:
     async def test_canvas_credentials_included(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("canvas_get_courses")]
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=_CANVAS_PLUGIN_MAP),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -120,7 +120,7 @@ class TestBuildLmsCredentialsMessage:
     async def test_both_lms_credentials_included(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_create_course_run"), _make_tool("canvas_create_course")]
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=_BOTH_PLUGIN_MAP),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -132,7 +132,7 @@ class TestBuildLmsCredentialsMessage:
         """Rule 5 (use credentials automatically) must not appear when no credentials are configured."""
         tools = [_make_tool("openedx_authenticate")]
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value={}),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -143,7 +143,7 @@ class TestBuildLmsCredentialsMessage:
         """Rule 5 must appear and credentials must follow it when configured."""
         tools = [_make_tool("openedx_authenticate")]
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=_OPENEDX_PLUGIN_MAP),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -156,7 +156,7 @@ class TestBuildLmsCredentialsMessage:
         tools = [_make_tool("openedx_authenticate")]
         plugin_map = {"open-edx": _make_user_plugin({"lms_url": "not-a-url"})}
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=plugin_map),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
@@ -166,7 +166,7 @@ class TestBuildLmsCredentialsMessage:
         tools = [_make_tool("openedx_authenticate")]
         plugin_map = {"open-edx": _make_user_plugin({})}
         with patch(
-            "sparkth.services.plugin.PluginService.get_user_plugin_map",
+            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=plugin_map),
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)

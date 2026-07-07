@@ -87,7 +87,7 @@ async def endpoint(
 
 ## 5. Database: Async-First SQLModel
 
-**Files:** `sparkth/core/db.py`, `sparkth/models/base.py`, `sparkth/models/*.py`
+**Files:** `sparkth/core/db.py`, `sparkth/core/models/base.py`, `sparkth/core/models/*.py`
 
 - A single `async_engine` (asyncpg) backs all application and CLI database access, obtained via `session_scope` / `get_async_session` (`sparkth/lib/db.py`)
 - URL conversion handled in `db.py`: `postgresql://` → `postgresql+asyncpg://`

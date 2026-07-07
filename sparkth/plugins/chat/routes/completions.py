@@ -17,7 +17,7 @@ from sparkth.lib.llm import (
     get_provider,
 )
 from sparkth.lib.log import get_logger
-from sparkth.models.user import User
+from sparkth.lib.models import User
 from sparkth.plugins.chat.classifier import HistoryTurn
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS

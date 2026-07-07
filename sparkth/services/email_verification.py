@@ -9,9 +9,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.config import get_settings
 from sparkth.core.email import send_email
+from sparkth.core.models.email_verification import EmailVerificationToken
+from sparkth.core.models.user import User
 from sparkth.lib.log import get_logger
-from sparkth.models.email_verification import EmailVerificationToken
-from sparkth.models.user import User
 
 settings = get_settings()
 logger = get_logger(__name__)

@@ -8,8 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
+from sparkth.core.models.user import User
 from sparkth.core.security import get_password_hash
-from sparkth.models.user import User
 
 LOGIN_URL = "/api/v1/auth/login"
 

@@ -37,9 +37,9 @@ import sparkth.core.db as core_db
 import sparkth.lib.db as db
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
+from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.main import app
-from sparkth.models.user import User
 
 
 @pytest.fixture(autouse=True)

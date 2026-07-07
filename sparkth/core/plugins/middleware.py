@@ -8,10 +8,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
+from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.routes import get_route_plugin_name
 from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
-from sparkth.models.plugin import Plugin, UserPlugin
 
 logger = get_logger(__name__)
 

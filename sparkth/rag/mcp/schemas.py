@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 
 # NOTE: RagStatus lives in sparkth.rag.enums; importing it here would create a circular import
-# via sparkth.rag.enums → sparkth.rag.models → sparkth.models.__init__ → sparkth.rag.models.
+# via sparkth.rag.enums → sparkth.rag.models → sparkth.core.models.__init__ → sparkth.rag.models.
 # Using str avoids the cycle — RagStatus is a StrEnum so values are already plain strings.
 
 

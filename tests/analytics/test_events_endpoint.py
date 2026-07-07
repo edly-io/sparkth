@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
-from sparkth.models.user import User
+from sparkth.core.models.user import User
 
 URL = "/api/v1/events/"
 

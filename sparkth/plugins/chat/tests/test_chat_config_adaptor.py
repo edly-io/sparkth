@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from sparkth.models import LLMConfig
+from sparkth.lib.models import LLMConfig
 from sparkth.plugins.chat.adapter import ChatConfigAdapter
 
 

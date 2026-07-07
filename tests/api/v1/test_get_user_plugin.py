@@ -1,7 +1,7 @@
 from fastapi import status
 from httpx import AsyncClient
 
-from sparkth.models.user import User
+from sparkth.core.models.user import User
 
 
 async def test_get_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:

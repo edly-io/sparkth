@@ -5,9 +5,9 @@ from collections.abc import AsyncGenerator
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.main import app
-from sparkth.models.user import User
 
 _TEST_USER = User(
     id=1,

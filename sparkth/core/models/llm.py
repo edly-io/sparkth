@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import Column, Index, Text, text
 from sqlmodel import DateTime, Field, SQLModel
 
-from sparkth.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.core.models.base import SoftDeleteModel, TimestampedModel
 
 
 class LLMConfig(TimestampedModel, SoftDeleteModel, SQLModel, table=True):

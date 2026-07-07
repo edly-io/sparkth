@@ -4,7 +4,7 @@ from sqlalchemy import Column, Index, Text, text
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlmodel import Field, SQLModel
 
-from sparkth.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.lib.models import SoftDeleteModel, TimestampedModel
 from sparkth.plugins.slack.enums import ConnectionEventType, ResponseType
 
 

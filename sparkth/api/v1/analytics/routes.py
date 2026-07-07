@@ -15,11 +15,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.analytics.schemas import EmitEventRequest, EmitEventResponse
 from sparkth.core.analytics.registry import EventRegistry
+from sparkth.core.models.user import User
 from sparkth.lib.analytics import UnknownEventTypeError, ingest_event
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_analytics_session
 from sparkth.lib.log import get_logger
-from sparkth.models.user import User
 
 logger = get_logger(__name__)
 

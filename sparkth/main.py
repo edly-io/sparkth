@@ -10,11 +10,11 @@ from starlette.types import Lifespan
 from sparkth.api.v1.api import api_router
 from sparkth.core.analytics.registry import EventRegistry
 from sparkth.core.config import get_settings
+from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
 from sparkth.lib.log import configure_logging, get_logger
 from sparkth.lib.plugins import PluginAccessMiddleware, get_plugin_loader
 from sparkth.mcp.server import mcp, register_plugin_tools
-from sparkth.services.plugin import get_plugin_service
 
 configure_logging()
 

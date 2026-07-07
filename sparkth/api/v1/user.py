@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import has_role
 from sparkth.lib.permissions.scopes import GLOBAL
-from sparkth.models.user import User
 from sparkth.schemas import User as UserSchema
 
 router = APIRouter()

@@ -3,7 +3,7 @@
 from sqlalchemy import Index, text
 from sqlmodel import Field
 
-from sparkth.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.core.models.base import SoftDeleteModel, TimestampedModel
 
 
 class Role(TimestampedModel, table=True):

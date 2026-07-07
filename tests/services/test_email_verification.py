@@ -8,8 +8,8 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.models.email_verification import EmailVerificationToken
-from sparkth.models.user import User
+from sparkth.core.models.email_verification import EmailVerificationToken
+from sparkth.core.models.user import User
 from sparkth.services import email_verification as svc
 from sparkth.services.email_verification import (
     EmailVerificationService,

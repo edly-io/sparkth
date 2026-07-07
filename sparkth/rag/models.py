@@ -3,7 +3,7 @@
 from sqlalchemy import Column, Text
 from sqlmodel import Field, SQLModel
 
-from sparkth.models.base import TimestampedModel
+from sparkth.core.models.base import TimestampedModel
 
 
 class DocumentChunkLink(SQLModel, table=True):

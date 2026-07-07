@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.log import get_logger
-from sparkth.models.user import User
+from sparkth.lib.models import User
 
 __all__ = [
     "require_user_id",

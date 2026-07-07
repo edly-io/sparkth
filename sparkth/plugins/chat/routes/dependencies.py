@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.models.user import User
+from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.service import ChatService, get_chat_service
 

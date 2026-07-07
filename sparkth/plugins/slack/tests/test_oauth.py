@@ -9,7 +9,7 @@ import pytest
 from itsdangerous import BadSignature, SignatureExpired
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.models.user import User
+from sparkth.lib.models import User
 from sparkth.plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from sparkth.plugins.slack.models import SlackWorkspace
 from sparkth.plugins.slack.oauth import (

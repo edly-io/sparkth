@@ -5,9 +5,9 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.llm import LLMConfig
 from sparkth.llm.exceptions import LLMConfigValidationError
 from sparkth.llm.providers import get_models_for_provider
-from sparkth.models.llm import LLMConfig
 
 _EMPTY_LLM_FIELDS: dict[str, None] = {"llm_config_name": None, "llm_provider": None, "llm_model": None}
 

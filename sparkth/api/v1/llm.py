@@ -3,6 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.llm import LLMConfig
+from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.llm import (
@@ -24,8 +26,6 @@ from sparkth.lib.llm import (
     get_provider_catalog,
 )
 from sparkth.lib.log import get_logger
-from sparkth.models.llm import LLMConfig
-from sparkth.models.user import User
 
 logger = get_logger(__name__)
 router = APIRouter()

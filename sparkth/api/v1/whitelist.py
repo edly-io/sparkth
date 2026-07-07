@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import (
     EMAIL_WHITELIST_CREATE,
@@ -9,7 +10,6 @@ from sparkth.lib.permissions import (
     EMAIL_WHITELIST_READ,
 )
 from sparkth.lib.permissions.scopes import WHITELIST
-from sparkth.models.user import User
 from sparkth.schemas import WhitelistedEmailCreate, WhitelistedEmailResponse
 from sparkth.services.whitelist import WhitelistService
 

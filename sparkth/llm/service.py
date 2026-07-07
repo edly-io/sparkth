@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.llm import LLMConfig
 from sparkth.lib.log import get_logger
 from sparkth.llm.exceptions import (
     LLMConfigDuplicateNameError,
@@ -16,7 +17,6 @@ from sparkth.llm.exceptions import (
 )
 from sparkth.llm.protocols import SupportsCache, SupportsEncryption
 from sparkth.llm.providers import get_models_for_provider
-from sparkth.models.llm import LLMConfig
 
 logger = get_logger(__name__)
 

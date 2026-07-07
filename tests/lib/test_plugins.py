@@ -24,6 +24,12 @@ class TestPluginsPublicApi:
             "PluginConfig",
             "PluginAccessMiddleware",
             "get_plugin_loader",
+            "PluginService",
+            "get_plugin_service",
+            "ConfigValidationError",
+            "InternalServerError",
+            "PluginDisabledError",
+            "UserPluginResponse",
         }
 
 
@@ -41,6 +47,10 @@ class TestPluginsImportSafety:
 
     def test_resolves_access_middleware_lazily(self) -> None:
         assert isinstance(plugins_api.PluginAccessMiddleware, type)
+
+    def test_resolves_plugin_service_lazily(self) -> None:
+        assert isinstance(plugins_api.PluginService, type)
+        assert callable(plugins_api.get_plugin_service)
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
         with pytest.raises(AttributeError):

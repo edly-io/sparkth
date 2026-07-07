@@ -4,6 +4,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core import permissions as permissions_module
+from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import (
     InvalidScopeObjectId,
     PermissionNotFound,
@@ -23,7 +24,6 @@ from sparkth.lib.permissions import (
     revoke_role,
 )
 from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
-from sparkth.models.user import User
 
 
 def test_global_scope_name() -> None:

@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document, DocumentStatus
-from sparkth.models.user import User
+from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment
 from sparkth.plugins.chat.service import ChatService
 

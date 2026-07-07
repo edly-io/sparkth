@@ -8,8 +8,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.cli import roles
+from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment
-from sparkth.models.user import User
 
 
 @pytest.fixture

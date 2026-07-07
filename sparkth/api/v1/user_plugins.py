@@ -10,12 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import get_current_user
-from sparkth.lib.db import get_async_session
-from sparkth.lib.log import get_logger
-from sparkth.models.plugin import Plugin
-from sparkth.models.user import User
-from sparkth.services.plugin import (
+from sparkth.core.models.plugin import Plugin
+from sparkth.core.models.user import User
+from sparkth.core.plugins.service import (
     ConfigValidationError,
     InternalServerError,
     PluginDisabledError,
@@ -23,6 +20,9 @@ from sparkth.services.plugin import (
     UserPluginResponse,
     get_plugin_service,
 )
+from sparkth.lib.auth import get_current_user
+from sparkth.lib.db import get_async_session
+from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
 

@@ -17,8 +17,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.models import User
 from sparkth.main import app
-from sparkth.models.user import User
 from sparkth.plugins.googledrive.config import GoogleDriveSettings
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
 

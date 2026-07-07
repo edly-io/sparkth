@@ -45,7 +45,7 @@ def test_assemble_app_is_db_free(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sparkth.main.get_plugin_service", _explode)
     monkeypatch.setattr("sparkth.lib.db.get_async_session", _explode)
     monkeypatch.setattr("sparkth.lib.db.session_scope", _explode)
-    monkeypatch.setattr("sparkth.services.plugin.get_plugin_service", _explode)
+    monkeypatch.setattr("sparkth.core.plugins.service.get_plugin_service", _explode)
 
     assert _route_paths(assemble_app())
 

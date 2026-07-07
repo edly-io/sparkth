@@ -12,8 +12,8 @@ from itsdangerous import SignatureExpired
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.models import User
 from sparkth.main import app
-from sparkth.models.user import User
 from sparkth.plugins.slack.config import SlackConfig
 from sparkth.plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,

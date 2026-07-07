@@ -5,7 +5,7 @@ from typing import Optional
 from sqlmodel import Field
 
 from sparkth.core.documents.enums import DocumentStatus
-from sparkth.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.core.models.base import SoftDeleteModel, TimestampedModel
 
 
 class Document(TimestampedModel, SoftDeleteModel, table=True):

@@ -20,9 +20,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.models import User
 from sparkth.lib.settings import get_settings
 from sparkth.main import app
-from sparkth.models.user import User
 from sparkth.plugins.slack.config import SlackSettings
 from sparkth.plugins.slack.models import SlackWorkspace
 from sparkth.plugins.slack.service import encrypt_token

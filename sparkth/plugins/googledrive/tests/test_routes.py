@@ -12,7 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document, DocumentStatus
-from sparkth.models.user import User
+from sparkth.lib.models import User
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
 
 # ---------------------------------------------------------------------------

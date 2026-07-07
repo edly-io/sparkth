@@ -11,8 +11,8 @@ from itsdangerous import URLSafeTimedSerializer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.models import utc_now
 from sparkth.lib.settings import get_settings
-from sparkth.models.base import utc_now
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 
 # Google OAuth endpoints

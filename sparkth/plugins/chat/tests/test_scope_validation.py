@@ -10,10 +10,9 @@ from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.config import get_settings
-from sparkth.core.encryption import get_encryption_service
-from sparkth.models.llm import LLMConfig
-from sparkth.models.user import User
+from sparkth.lib.encryption import get_encryption_service
+from sparkth.lib.models import LLMConfig, User
+from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from sparkth.plugins.chat.routes.utils import stream_out_of_scope_refusal

@@ -6,7 +6,7 @@ import pytest
 
 from sparkth.lib.config import get_plugin_adapter
 from sparkth.lib.llm import LLMConfigAdapter
-from sparkth.models import LLMConfig
+from sparkth.lib.models import LLMConfig
 from sparkth.plugins.slack.adapter import SlackConfigAdapter
 
 

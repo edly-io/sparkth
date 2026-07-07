@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.models.user import User
+from sparkth.lib.models import User
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 from sparkth.plugins.googledrive.oauth import (
     decode_state,

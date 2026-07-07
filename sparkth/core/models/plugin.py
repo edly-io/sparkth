@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import UniqueConstraint
 from sqlmodel import JSON, Column, Field, Relationship
 
-from sparkth.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.core.models.base import SoftDeleteModel, TimestampedModel
 
 
 class Plugin(TimestampedModel, SoftDeleteModel, table=True):

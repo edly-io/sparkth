@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import PermissionNotFound, RoleNotFound
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
@@ -29,7 +30,6 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.log import get_logger
-from sparkth.models.user import User
 
 logger = get_logger(__name__)
 

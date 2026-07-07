@@ -3,6 +3,7 @@ import asyncio
 import typer
 from sqlmodel import select
 
+from sparkth.core.models.user import User
 from sparkth.lib.db import session_scope
 
 # Aliased to avoid colliding with this module's own ``assign_role`` Typer command.
@@ -10,7 +11,6 @@ from sparkth.lib.permissions import assign_role as grant_role
 from sparkth.lib.permissions import get_permission_scope
 from sparkth.lib.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound, RoleNotFound
 from sparkth.lib.plugins import get_plugin_loader
-from sparkth.models.user import User
 
 app = typer.Typer(help="Role management commands")
 

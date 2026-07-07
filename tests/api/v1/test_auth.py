@@ -5,8 +5,8 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.core.security import get_password_hash
-from sparkth.models.user import User
 from sparkth.services.whitelist import WhitelistService
 
 

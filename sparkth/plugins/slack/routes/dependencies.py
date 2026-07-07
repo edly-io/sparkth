@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 
 from sparkth.lib.auth import get_current_user
-from sparkth.models.user import User
+from sparkth.lib.models import User
 
 
 def require_user_id(current_user: User = Depends(get_current_user)) -> int:

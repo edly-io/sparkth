@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from sparkth.core.config import get_settings
+from sparkth.core.models import *  # noqa: F403
 
 # Imported so SQLModel.metadata carries the permission tables for autogenerate.
 from sparkth.core.permissions.models import (  # noqa: F401
@@ -13,7 +14,6 @@ from sparkth.core.permissions.models import (  # noqa: F401
     RolePermission,
 )
 from sparkth.lib.plugins import get_plugin_loader
-from sparkth.models import *  # noqa: F403
 
 settings = get_settings()
 

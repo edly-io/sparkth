@@ -18,6 +18,7 @@ from sparkth.lib.db import get_async_session, session_scope
 from sparkth.lib.documents import list_ready_documents
 from sparkth.lib.llm import BaseChatProvider, get_llm_service, get_provider
 from sparkth.lib.log import get_logger
+from sparkth.lib.plugins import PluginService
 from sparkth.plugins.slack.client import SlackClient
 from sparkth.plugins.slack.config import SlackConfig, get_slack_settings
 from sparkth.plugins.slack.constants import (
@@ -41,7 +42,6 @@ from sparkth.plugins.slack.types import (
     LogsResponse,
     RagSourcesResponse,
 )
-from sparkth.services.plugin import PluginService
 
 router: APIRouter = APIRouter()
 router.include_router(oauth_router)

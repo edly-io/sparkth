@@ -3,8 +3,8 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.config import iter_plugin_config_schemas
+from sparkth.lib.plugins import PluginService
 from sparkth.plugins.chat.constants import LMS_RULES
-from sparkth.services.plugin import PluginService
 
 
 def _lms_tool_prefixes() -> tuple[str, ...]:

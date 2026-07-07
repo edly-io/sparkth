@@ -10,11 +10,10 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.config import get_settings
-from sparkth.core.encryption import get_encryption_service
 from sparkth.lib.documents import Document, DocumentStatus
-from sparkth.models.llm import LLMConfig
-from sparkth.models.user import User
+from sparkth.lib.encryption import get_encryption_service
+from sparkth.lib.models import LLMConfig, User
+from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.exceptions import RAGIntentRouterError
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.schemas import RAGRoutingDecision

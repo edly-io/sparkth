@@ -1,7 +1,7 @@
 """Shared fixtures for RAG tests.
 
 The generic test environment is set by the sparkth.testing plugin (registered in the
-root conftest), which also imports sparkth.main -> sparkth.models at startup. That
+root conftest), which also imports sparkth.main -> sparkth.core.models at startup. That
 early import keeps the model registry stable for RAG tests.
 """
 

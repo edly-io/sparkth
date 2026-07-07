@@ -3,8 +3,8 @@ from typing import cast
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.models.plugin import Plugin, UserPlugin
-from sparkth.models.user import User
+from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.user import User
 
 
 @pytest.fixture

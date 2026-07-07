@@ -5,11 +5,12 @@ import pydantic
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.plugins import get_plugin_loader
+from sparkth.core.plugins.config_base import PluginConfig
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
-from sparkth.lib.plugins import PluginConfig, get_plugin_loader
-from sparkth.models.plugin import Plugin, UserPlugin
 
 logger = get_logger(__name__)
 
@@ -70,7 +71,9 @@ class PluginService:
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
         if not issubclass(config_class, PluginConfig):
-            logger.error(f"'{plugin.name.title()}Config' must inherit from plugins.config_base.PluginConfig")
+            logger.error(
+                f"'{plugin.name.title()}Config' must inherit from sparkth.core.plugins.config_base.PluginConfig"
+            )
             raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
 
         try:

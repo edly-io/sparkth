@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 from pypdf import PdfReader
 
+from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
-from sparkth.models.user import User
 
 router: APIRouter = APIRouter()
 

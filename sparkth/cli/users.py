@@ -3,13 +3,13 @@ import asyncio
 import typer
 from sqlmodel import select
 
+from sparkth.core.models.base import utc_now
+from sparkth.core.models.user import User
 from sparkth.core.security import get_password_hash
 from sparkth.lib.db import session_scope
 from sparkth.lib.permissions import assign_role
 from sparkth.lib.permissions.exceptions import RoleNotFound
 from sparkth.lib.permissions.scopes import GLOBAL
-from sparkth.models.base import utc_now
-from sparkth.models.user import User
 
 app = typer.Typer(help="User management commands")
 

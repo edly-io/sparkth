@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship
 
-from sparkth.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.lib.models import SoftDeleteModel, TimestampedModel
 
 
 class DriveOAuthToken(TimestampedModel, SoftDeleteModel, table=True):

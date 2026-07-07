@@ -3,7 +3,7 @@ from pydantic import EmailStr, ValidationError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.models.whitelist import WhitelistedEmail
+from sparkth.core.models.whitelist import WhitelistedEmail
 
 
 class _EmailValidator(_PydanticBase):
