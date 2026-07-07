@@ -44,8 +44,11 @@ def configure_logging(level: int = logging.INFO) -> None:
 def get_logger(name: str) -> logging.Logger:
     """Return the Sparkth logger for ``name`` (typically ``__name__``).
 
-    Loggers are namespaced under ``sparkth.`` and propagate to the root logger
-    configured by :func:`configure_logging`.
+    Loggers are namespaced under ``sparkth`` and propagate to the root logger
+    configured by :func:`configure_logging`. Application modules pass ``__name__``,
+    which already starts with ``sparkth`` (the package name), so it is used as-is;
+    any other name is prefixed with ``sparkth.`` to keep every logger under the
+    single ``sparkth`` root.
 
     Args:
         name: Logger name, typically ``__name__`` of the calling module.
@@ -53,4 +56,6 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         Logger instance.
     """
+    if name == "sparkth" or name.startswith("sparkth."):
+        return logging.getLogger(name)
     return logging.getLogger(f"sparkth.{name}")
