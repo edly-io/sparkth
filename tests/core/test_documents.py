@@ -2,15 +2,15 @@
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.documents.enums import DocumentStatus
-from app.core.documents.models import Document
-from app.core.documents.service import (
+from sparkth.core.documents.enums import DocumentStatus
+from sparkth.core.documents.models import Document
+from sparkth.core.documents.service import (
     create_document,
     get_document,
     soft_delete_document,
     update_document_status,
 )
-from app.lib.documents import list_ready_documents
+from sparkth.lib.documents import list_ready_documents
 
 
 class TestDocumentModel:

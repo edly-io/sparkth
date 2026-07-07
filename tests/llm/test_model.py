@@ -1,6 +1,6 @@
 """Tests for LLMConfig SQLModel."""
 
-from app.models.llm import LLMConfig
+from sparkth.models.llm import LLMConfig
 
 
 def test_llm_config_defaults() -> None:

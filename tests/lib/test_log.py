@@ -1,10 +1,10 @@
-"""Tests for the centralized logging library (app.lib.log)."""
+"""Tests for the centralized logging library (sparkth.lib.log)."""
 
 import logging
 
 import pytest
 
-from app.lib.log import configure_logging, get_logger
+from sparkth.lib.log import configure_logging, get_logger
 
 
 def test_get_logger_is_namespaced_under_sparkth() -> None:

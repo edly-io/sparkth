@@ -11,12 +11,12 @@ from sqlalchemy import event
 from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.permissions.routes.roles import _build_role_response
-from app.core.db import get_engine
-from app.core.permissions import PERMISSIONS, Permission
-from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.auth import get_current_user
-from app.models.user import User
+from sparkth.api.v1.permissions.routes.roles import _build_role_response
+from sparkth.core.db import get_engine
+from sparkth.core.permissions import PERMISSIONS, Permission
+from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.lib.auth import get_current_user
+from sparkth.models.user import User
 
 
 def _record_statement(

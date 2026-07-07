@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.lib.documents import DocumentStatus
-from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
-from app.rag.models import DocumentChunk
-from app.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready
-from app.rag.types import RAGContext
+from sparkth.lib.documents import DocumentStatus
+from sparkth.rag.exceptions import DocumentNotFoundError, RAGNotReadyError
+from sparkth.rag.models import DocumentChunk
+from sparkth.rag.retrieval.utils import _lookup_document, format_chunks_as_context, validate_documents_ready
+from sparkth.rag.types import RAGContext
 
 
 def _make_session() -> AsyncMock:

@@ -3,9 +3,9 @@ from collections.abc import Generator
 import pytest
 from pydantic import ValidationError
 
-from app.core.analytics.registry import EventRegistry
-from app.core.analytics.schemas import AssessmentSubmitted
-from app.lib.analytics import AnalyticsEventSchema, DuplicateEventTypeError, UnknownEventTypeError
+from sparkth.core.analytics.registry import EventRegistry
+from sparkth.core.analytics.schemas import AssessmentSubmitted
+from sparkth.lib.analytics import AnalyticsEventSchema, DuplicateEventTypeError, UnknownEventTypeError
 
 
 class _SampleEvent(AnalyticsEventSchema):
@@ -154,7 +154,7 @@ def test_assessment_submitted_rejects_extra_fields() -> None:
 
 
 def test_user_logged_in_rejects_extra_fields() -> None:
-    from app.core.analytics.schemas.v1.user_logged_in import UserLoggedIn
+    from sparkth.core.analytics.schemas.v1.user_logged_in import UserLoggedIn
 
     with pytest.raises(ValidationError):
         UserLoggedIn.model_validate({"username": "alice", "extra": "bad"})

@@ -4,8 +4,8 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.analytics.models import raw_events
-from app.models.user import User
+from sparkth.core.analytics.models import raw_events
+from sparkth.models.user import User
 
 URL = "/api/v1/events/"
 

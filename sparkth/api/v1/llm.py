@@ -1,0 +1,177 @@
+"""REST endpoints for LLMConfig management."""
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from sparkth.lib.auth import get_current_user
+from sparkth.lib.db import get_async_session
+from sparkth.lib.llm import (
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    LLMConfigCreate,
+    LLMConfigDuplicateNameError,
+    LLMConfigListResponse,
+    LLMConfigNotFoundError,
+    LLMConfigResponse,
+    LLMConfigRotateKey,
+    LLMConfigService,
+    LLMConfigSetActive,
+    LLMConfigUpdate,
+    LLMConfigValidationError,
+    ProviderCatalogResponse,
+    ProviderInfo,
+    get_llm_service,
+    get_provider_catalog,
+)
+from sparkth.lib.log import get_logger
+from sparkth.models.llm import LLMConfig
+from sparkth.models.user import User
+
+logger = get_logger(__name__)
+router = APIRouter()
+
+
+@router.get("/providers", response_model=ProviderCatalogResponse)
+async def list_providers(
+    current_user: User = Depends(get_current_user),
+) -> ProviderCatalogResponse:
+    """Return the catalog of supported LLM providers and their available models."""
+    return ProviderCatalogResponse(
+        providers=[ProviderInfo(id=p["id"], label=p["label"], models=p["models"]) for p in get_provider_catalog()],
+        default_provider=DEFAULT_PROVIDER,
+        default_model=DEFAULT_MODEL,
+    )
+
+
+def _to_response(config: LLMConfig) -> LLMConfigResponse:
+    return LLMConfigResponse.model_validate(config)
+
+
+@router.post("/configs", response_model=LLMConfigResponse, status_code=status.HTTP_201_CREATED)
+async def create_llm_config(
+    body: LLMConfigCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: LLMConfigService = Depends(get_llm_service),
+) -> LLMConfigResponse:
+    try:
+        config = await service.create(
+            session=session,
+            user_id=current_user.id,  # type: ignore[arg-type]
+            name=body.name,
+            provider=body.provider,
+            model=body.model,
+            api_key=body.api_key,
+        )
+        await session.commit()
+        return _to_response(config)
+    except LLMConfigDuplicateNameError as exc:
+        logger.warning("LLMConfig name conflict for user %s: %s", current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/configs", response_model=LLMConfigListResponse)
+async def list_llm_configs(
+    include_inactive: bool = Query(default=False),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: LLMConfigService = Depends(get_llm_service),
+) -> LLMConfigListResponse:
+    configs = await service.list(session=session, user_id=current_user.id, include_inactive=include_inactive)  # type: ignore[arg-type]
+    return LLMConfigListResponse(
+        configs=[_to_response(c) for c in configs],
+        total=len(configs),
+    )
+
+
+@router.patch("/configs/{config_id}", response_model=LLMConfigResponse)
+async def update_llm_config(
+    config_id: int,
+    body: LLMConfigUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: LLMConfigService = Depends(get_llm_service),
+) -> LLMConfigResponse:
+    if not body.name and not body.model:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Empty body. Nothing to update.")
+
+    try:
+        config = await service.update(
+            session=session,
+            user_id=current_user.id,  # type: ignore[arg-type]
+            config_id=config_id,
+            name=body.name,
+            model=body.model,
+        )
+        await session.commit()
+        return _to_response(config)
+    except LLMConfigDuplicateNameError as exc:
+        logger.warning("LLMConfig name conflict updating config %s for user %s: %s", config_id, current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except LLMConfigValidationError as exc:
+        logger.warning("Validation error updating LLMConfig %s: %s", config_id, exc)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for user %s: %s", config_id, current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.put("/configs/{config_id}/key", response_model=LLMConfigResponse)
+async def rotate_llm_config_key(
+    config_id: int,
+    body: LLMConfigRotateKey,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: LLMConfigService = Depends(get_llm_service),
+) -> LLMConfigResponse:
+    try:
+        config = await service.rotate_key(
+            session=session,
+            user_id=current_user.id,  # type: ignore[arg-type]
+            config_id=config_id,
+            api_key=body.api_key,
+        )
+        await session.commit()
+        return _to_response(config)
+    except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for key rotation (user %s): %s", config_id, current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.patch("/configs/{config_id}/active", response_model=LLMConfigResponse)
+async def set_llm_config_active(
+    config_id: int,
+    body: LLMConfigSetActive,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: LLMConfigService = Depends(get_llm_service),
+) -> LLMConfigResponse:
+    try:
+        config = await service.set_active(
+            session=session,
+            user_id=current_user.id,  # type: ignore[arg-type]
+            config_id=config_id,
+            is_active=body.is_active,
+        )
+        await session.commit()
+        return _to_response(config)
+    except LLMConfigNotFoundError as exc:
+        logger.warning("LLMConfig %s not found for active state update (user %s): %s", config_id, current_user.id, exc)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete("/configs/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_llm_config(
+    config_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: LLMConfigService = Depends(get_llm_service),
+) -> None:
+    deleted = await service.delete(
+        session=session,
+        user_id=current_user.id,  # type: ignore[arg-type]
+        config_id=config_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
+    await session.commit()

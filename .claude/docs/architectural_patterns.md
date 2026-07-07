@@ -6,63 +6,63 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `app/lib/hooks.py`, `app/lib/mcp/hooks.py`, `app/lib/routes.py`, `app/lib/config/hooks.py`, `app/core_plugins/*/plugin.py`
+**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/core_plugins/*/plugin.py`
 
 A plugin contributes its capabilities from its `__init__` — one consistent pattern
 across all contribution types (a `PluginCollectionHook` holds many items per plugin,
-a `PluginHook` holds one; `app/lib/hooks.py` also defines a `SingleNamedItemHook` —
+a `PluginHook` holds one; `sparkth/lib/hooks.py` also defines a `SingleNamedItemHook` —
 a flat, name-keyed set not grouped by plugin — used for the permission/scope vocabulary):
 
 ```
 SparkthPlugin.__init__
-  ├── register_router(self, router)                                   # app/lib/routes.py
-  ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # app/lib/mcp/hooks.py
-  ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # app/lib/config/hooks.py
-  └── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # app/lib/config/hooks.py
+  ├── register_router(self, router)                                   # sparkth/lib/routes.py
+  ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # sparkth/lib/mcp/hooks.py
+  ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # sparkth/lib/config/hooks.py
+  └── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
 ```
 
-`register_router` (`app/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
+`register_router` (`sparkth/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
 deriving both the prefix and OpenAPI tags from the plugin instance automatically.
 
-A `Tool` (`app/lib/mcp/hooks.py`) derives its name from the handler method, its
+A `Tool` (`sparkth/lib/mcp/hooks.py`) derives its name from the handler method, its
 description from the handler docstring, and its input schema from the signature.
-Consumers iterate the hooks: `app/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
-server, the chat tool registry converts them to LangChain tools, and `app/main.py`
+Consumers iterate the hooks: `sparkth/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
+server, the chat tool registry converts them to LangChain tools, and `sparkth/main.py`
 mounts plugin routes.
 
-Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `app/plugins/config_base.py` for the base class.
+Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `sparkth/plugins/config_base.py` for the base class.
 
-A plugin may also contribute a `CONFIG_ADAPTERS` entry (`app/lib/config/hooks.py`): an
+A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hooks.py`): an
 `LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
-plugin name via `get_plugin_adapter` (`app/lib/config`), so the framework never names a concrete plugin.
+plugin name via `get_plugin_adapter` (`sparkth/lib/config`), so the framework never names a concrete plugin.
 
-Plugin registration list lives at `app/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
+Plugin registration list lives at `sparkth/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
 
 ---
 
 ## 2. Plugin Lifecycle Management
 
-**Files:** `app/plugins/loader.py`, `app/main.py` (`assemble_app()` + lifespan handler)
+**Files:** `sparkth/plugins/loader.py`, `sparkth/main.py` (`assemble_app()` + lifespan handler)
 
 The `PluginLoader` singleton manages discovery → load → unload. Route registration is DB-free and happens in `assemble_app()` at import time, so the full route map (and OpenAPI schema) exists without a running server. The FastAPI lifespan context manager owns the stateful side: it calls `get_plugin_service().get_or_create_all()` on startup and unloads plugins on shutdown. Each plugin can contribute:
 
-- **Routes:** via `register_router` (`app/lib/routes.py`), mounted with `FastAPI.include_router()`
+- **Routes:** via `register_router` (`sparkth/lib/routes.py`), mounted with `FastAPI.include_router()`
 - **Middleware:** Starlette middleware
 - **MCP tools:** via the `MCP_TOOLS` hook (see §1)
 
-`PluginAccessMiddleware` (`app/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
+`PluginAccessMiddleware` (`sparkth/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
 
 ---
 
 ## 3. FastAPI Layered Architecture
 
-**Files:** `app/main.py`, `app/api/v1/`, `app/services/`, `app/core/db.py`
+**Files:** `sparkth/main.py`, `sparkth/api/v1/`, `sparkth/services/`, `sparkth/core/db.py`
 
 ```
 Request → Middleware → APIRouter → Endpoint function → Service layer → AsyncSession
 ```
 
-- Endpoint functions stay thin; business logic lives in `app/services/`
+- Endpoint functions stay thin; business logic lives in `sparkth/services/`
 - All DB access is async: `AsyncSession` injected via `Depends(get_async_session)`
 - Plugin routes are mounted dynamically by the plugin loader at startup
 
@@ -70,7 +70,7 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 
 ## 4. Dependency Injection via FastAPI `Depends`
 
-**Files:** `app/api/v1/auth.py`, `app/api/v1/user.py`, `app/core/db.py`
+**Files:** `sparkth/api/v1/auth.py`, `sparkth/api/v1/user.py`, `sparkth/core/db.py`
 
 Auth and DB session are injected uniformly:
 
@@ -87,11 +87,11 @@ async def endpoint(
 
 ## 5. Database: Async-First SQLModel
 
-**Files:** `app/core/db.py`, `app/models/base.py`, `app/models/*.py`
+**Files:** `sparkth/core/db.py`, `sparkth/models/base.py`, `sparkth/models/*.py`
 
-- A single `async_engine` (asyncpg) backs all application and CLI database access, obtained via `session_scope` / `get_async_session` (`app/lib/db.py`)
+- A single `async_engine` (asyncpg) backs all application and CLI database access, obtained via `session_scope` / `get_async_session` (`sparkth/lib/db.py`)
 - URL conversion handled in `db.py`: `postgresql://` → `postgresql+asyncpg://`
-- Alembic migrations are the one exception: `app/migrations/env.py` builds its own synchronous engine, converting the URL back to `postgresql://`
+- Alembic migrations are the one exception: `sparkth/migrations/env.py` builds its own synchronous engine, converting the URL back to `postgresql://`
 - SQLite used for tests; PostgreSQL for production
 - All models inherit from `TimestampedModel` (adds `created_at`, `updated_at`) or `SoftDeleteModel` (adds `deleted_at`)
 
@@ -99,7 +99,7 @@ async def endpoint(
 
 ## 6. Settings: `pydantic-settings` Singleton
 
-**File:** `app/core/config.py`
+**File:** `sparkth/core/config.py`
 
 `Settings` class loads from `.env` via pydantic-settings. `get_settings()` is wrapped with `@lru_cache` so configuration is loaded once per process. All modules import `get_settings()` rather than accessing env vars directly.
 
@@ -107,7 +107,7 @@ async def endpoint(
 
 ## 7. JWT + OAuth2 Authentication
 
-**Files:** `app/core/security.py`, `app/api/v1/auth.py`, `app/core/google_auth.py`
+**Files:** `sparkth/core/security.py`, `sparkth/api/v1/auth.py`, `sparkth/core/google_auth.py`
 
 - Tokens: HS512, 8-day expiry, signed with `SECRET_KEY`
 - Passwords: Argon2 via pwdlib
@@ -118,7 +118,7 @@ async def endpoint(
 
 ## 8. Custom Exception Hierarchy
 
-**File:** `app/plugins/exceptions.py`
+**File:** `sparkth/plugins/exceptions.py`
 
 ```
 PluginError (base)
@@ -132,13 +132,13 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 
 ## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `app/core_plugins/chat/service.py`, `app/core_plugins/chat/intent_router.py`, `app/core_plugins/chat/middleware.py`, `app/llm/providers.py`, `app/llm/service.py`, `app/core/encryption.py`, `app/core/cache.py`
+**Files:** `sparkth/core_plugins/chat/service.py`, `sparkth/core_plugins/chat/intent_router.py`, `sparkth/core_plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
 
 - `ChatService` owns conversation logic and history management
-- LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `app/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
+- LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `sparkth/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
 - `RAGIntentRouter` (`intent_router.py`) decides how to route a user turn
-- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`app/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
-- Redis (`app/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
+- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`sparkth/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
+- Redis (`sparkth/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 
 ---
 
@@ -152,6 +152,6 @@ Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => imp
 
 ## 11. MCP Tool Registration Pipeline
 
-**Files:** `app/mcp/server.py`, `app/lib/mcp/hooks.py`
+**Files:** `sparkth/mcp/server.py`, `sparkth/lib/mcp/hooks.py`
 
-`register_plugin_tools()` iterates the `MCP_TOOLS` hook (each entry a `Tool` contributed by a plugin from its `__init__`), validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`app/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.
+`register_plugin_tools()` iterates the `MCP_TOOLS` hook (each entry a `Tool` contributed by a plugin from its `__init__`), validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`sparkth/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.

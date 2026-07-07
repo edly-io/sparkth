@@ -11,7 +11,7 @@ pre-commit:
 
     python-typecheck:
       glob: "**/*.py"
-      run: uv run mypy --strict app/ tests/
+      run: uv run mypy --strict sparkth/ tests/
 
     frontend-format:
       root: "frontend/"

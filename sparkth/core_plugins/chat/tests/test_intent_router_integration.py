@@ -1,0 +1,787 @@
+"""Integration tests for RAG Intent Router wired into the chat completion flow."""
+
+import json
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import anthropic
+import httpx
+import pytest
+from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from sparkth.core.config import get_settings
+from sparkth.core.encryption import get_encryption_service
+from sparkth.core_plugins.chat.exceptions import RAGIntentRouterError
+from sparkth.core_plugins.chat.models import Conversation
+from sparkth.core_plugins.chat.schemas import RAGRoutingDecision
+from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.models.llm import LLMConfig
+from sparkth.models.user import User
+
+
+def _parse_sse_events(content: bytes) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line in content.decode().splitlines():
+        if line.startswith("data: "):
+            try:
+                events.append(json.loads(line[6:]))
+            except json.JSONDecodeError:
+                pass
+    return events
+
+
+class _SeededData:
+    def __init__(self, conv_id: int, conv_uuid: str, llm_config_id: int) -> None:
+        self.conv_id = conv_id
+        self.conv_uuid = conv_uuid
+        self.llm_config_id = llm_config_id
+
+
+async def _seed(session: AsyncSession, user_id: int) -> _SeededData:
+    settings = get_settings()
+    enc = get_encryption_service(settings.LLM_ENCRYPTION_KEY)
+    llm_config = LLMConfig(
+        user_id=user_id,
+        name="test-cfg",
+        provider="openai",
+        model="gpt-4o",
+        encrypted_key=enc.encrypt("sk-test"),
+        masked_key="sk-***",
+        is_active=True,
+    )
+    session.add(llm_config)
+    await session.flush()
+    llm_config_id = llm_config.id or 0  # capture before expiry
+
+    conv = Conversation(
+        user_id=user_id,
+        provider="openai",
+        model="gpt-4o",
+        llm_config_id=llm_config_id,
+    )
+    session.add(conv)
+    await session.flush()
+    conv_id = conv.id or 0  # capture before expiry
+    conv_uuid = str(conv.uuid)
+    await session.commit()
+    return _SeededData(conv_id=conv_id, conv_uuid=conv_uuid, llm_config_id=llm_config_id)
+
+
+def _mock_document(document_id: int = 1, name: str = "lecture.pdf") -> Document:
+    return Document(id=document_id, user_id=1, name=name, status=DocumentStatus.READY)
+
+
+class TestIntentRouterIntegration:
+    """End-to-end tests verifying the router is wired correctly into chat_completion."""
+
+    @pytest.mark.asyncio
+    async def test_on_topic_non_streaming_triggers_rag(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """On-topic query with persisted attachments should invoke RAG (non-streaming)."""
+        seed = await _seed(session, current_user.id or 1)
+
+        mock_decision = RAGRoutingDecision(should_retrieve=True, reason="document query")
+        mock_msg = MagicMock()
+        mock_msg.id = 1
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.routes.completions.resolve_document_blocks",
+                new_callable=AsyncMock,
+            ) as mock_resolve,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+        ):
+            # Scope classifier says in-scope
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            # Router says retrieve=True
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(return_value=mock_decision)
+            mock_router_cls.return_value = mock_router
+
+            # One READY attachment exists
+            mock_list_attachments.return_value = [_mock_document()]
+
+            # RAG resolution returns the original messages unchanged
+            mock_resolve.return_value = [MagicMock(role="user", content="Summarize the document")]
+
+            # Provider returns a simple response
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_provider.send_message = AsyncMock(
+                return_value={
+                    "content": "Here is the summary.",
+                    "role": "assistant",
+                    "tool_calls": None,
+                    "metadata": {"usage_metadata": {"total_tokens": 50}},
+                }
+            )
+            mock_get_provider.return_value = mock_provider
+            mock_add_msg.return_value = mock_msg
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize the document"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        # Router was called — confirming it's wired in
+        mock_router.decide.assert_called_once()
+        # RAG resolution was called — confirming retrieve=True triggered it
+        mock_resolve.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_off_topic_streaming_emits_skipping_rag_event(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """Off-topic query with attachments should emit skipping_rag SSE event (streaming)."""
+        seed = await _seed(session, current_user.id or 1)
+
+        mock_decision = RAGRoutingDecision(should_retrieve=False, reason="chit-chat unrelated to documents")
+        mock_msg = MagicMock()
+        mock_msg.id = 1
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            # Patch the whole stream so we control the SSE output directly.
+            # This test's goal is to verify the router is called with retrieve=False
+            # and the route passes rag_routing_reason to ChatStreamProcessor correctly.
+            patch("sparkth.core_plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(return_value=mock_decision)
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_document()]
+            mock_get_msgs.return_value = []
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+            mock_add_msg.return_value = mock_msg
+
+            expected_reason = mock_decision.reason
+            mock_instance = MagicMock()
+
+            async def _fake_stream_gen() -> Any:
+                yield f"data: {json.dumps({'status': 'skipping_rag', 'reason': expected_reason, 'done': False})}\n\n"
+                yield f"data: {json.dumps({'token': 'Hi!', 'done': False})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
+
+            mock_instance.stream.return_value = _fake_stream_gen()
+            mock_processor_cls.return_value = mock_instance
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "How is the weather?"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": True,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        events = _parse_sse_events(response.content)
+        skipping = [e for e in events if e.get("status") == "skipping_rag"]
+        assert len(skipping) == 1
+        assert skipping[0]["reason"] == "chit-chat unrelated to documents"
+        # Router was called and decided not to retrieve
+        mock_router.decide.assert_called_once()
+        assert mock_decision.should_retrieve is False
+        # rag_routing_reason is the 10th positional arg to ChatStreamProcessor
+        assert mock_processor_cls.call_args.args[9] == "chit-chat unrelated to documents"
+
+    @pytest.mark.asyncio
+    async def test_on_topic_streaming_emits_scanning_attachments_event(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """On-topic streaming query with attachments should emit scanning_attachments event."""
+        seed = await _seed(session, current_user.id or 1)
+
+        mock_decision = RAGRoutingDecision(should_retrieve=True, reason="document query")
+        mock_msg = MagicMock()
+        mock_msg.id = 1
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.routes.completions.ChatStreamProcessor",
+            ) as mock_processor_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(return_value=mock_decision)
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_document()]
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+            mock_add_msg.return_value = mock_msg
+
+            mock_instance = MagicMock()
+
+            # Produce a scanning_attachments event from the mocked stream
+            async def _fake_stream_gen() -> Any:
+                yield f"data: {json.dumps({'status': 'scanning_attachments', 'file_count': 1, 'done': False})}\n\n"
+                yield f"data: {json.dumps({'token': 'Summary.', 'done': False})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
+
+            mock_instance.stream.return_value = _fake_stream_gen()
+            mock_processor_cls.return_value = mock_instance
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize chapter 1"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": True,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        events = _parse_sse_events(response.content)
+        scanning = [e for e in events if e.get("status") == "scanning_attachments"]
+        assert len(scanning) == 1
+        assert scanning[0]["file_count"] == 1
+        # Router was called with retrieve=True
+        mock_router.decide.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_attachments_skips_router_silently(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """When no attachments exist, router is never called and no SSE events are emitted."""
+        seed = await _seed(session, current_user.id or 1)
+
+        mock_msg = MagicMock()
+        mock_msg.id = 1
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router_cls.return_value = MagicMock()
+            mock_list_attachments.return_value = []  # no attachments
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+
+            async def _stream(*args: Any, **kwargs: Any) -> Any:
+                yield {"type": "token", "content": "Hi!"}
+
+            mock_provider.stream_message = _stream
+            mock_get_provider.return_value = mock_provider
+            mock_add_msg.return_value = mock_msg
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": True,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        # Router class was never instantiated
+        mock_router_cls.assert_not_called()
+        # No router SSE events in stream
+        events = _parse_sse_events(response.content)
+        router_events = [e for e in events if e.get("status") in ("scanning_attachments", "skipping_rag")]
+        assert router_events == []
+
+    @pytest.mark.asyncio
+    async def test_router_failure_returns_502(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """Router raising RAGIntentRouterError must surface as HTTP 502 (fail-closed)."""
+        seed = await _seed(session, current_user.id or 1)
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("LLM call failed"))
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_document()]
+            mock_get_msgs.return_value = []
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 502
+
+
+# Helpers for document seeding
+
+
+async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.pdf") -> int:
+    document = Document(user_id=user_id, name=name, status=DocumentStatus.READY)
+    session.add(document)
+    await session.flush()
+    document_id = cast(int, document.id)
+    await session.commit()
+    return document_id
+
+
+def _base_patches() -> tuple[Any, ...]:
+    """Return the common patch stack shared by ownership-check tests."""
+    return (
+        patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+        patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier"),
+        patch("sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
+        patch("sparkth.core_plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
+        patch("sparkth.core_plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
+        patch("sparkth.core_plugins.chat.service.ChatService.get_conversation_messages", new_callable=AsyncMock),
+        patch("sparkth.core_plugins.chat.routes.completions.get_provider"),
+    )
+
+
+def _configure_base_mocks(
+    mock_cls_cls: MagicMock,
+    mock_list: AsyncMock,
+    mock_add_msg: AsyncMock,
+    mock_get_msgs: AsyncMock,
+    mock_get_provider: MagicMock,
+) -> None:
+    mock_scope = MagicMock()
+    mock_scope.classify = AsyncMock(return_value=True)
+    mock_cls_cls.return_value = mock_scope
+    mock_list.return_value = []
+    mock_get_msgs.return_value = []
+    mock_msg = MagicMock()
+    mock_msg.id = 99
+    mock_add_msg.return_value = mock_msg
+
+    mock_provider = MagicMock()
+    mock_provider.system_prompt = ""
+    mock_provider.create_llm.return_value = MagicMock()
+    mock_provider.send_message = AsyncMock(
+        return_value={
+            "content": "OK.",
+            "role": "assistant",
+            "tool_calls": None,
+            "metadata": {"usage_metadata": {"total_tokens": 10}},
+        }
+    )
+    mock_get_provider.return_value = mock_provider
+
+
+class TestDocumentIdsOwnershipCheck:
+    """Tests for the document_ids ownership-filter in chat_completion (routes.py:334-356).
+
+    Verifies: all-owned IDs are each attached, mixed owned/unowned only attaches
+    owned and logs a warning, all-unowned attaches nothing and logs a warning
+    without raising a 4xx.
+    """
+
+    @pytest.mark.asyncio
+    async def test_all_owned_ids_are_attached(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """document_ids all owned by the current user → attach_document called for each."""
+        seed = await _seed(session, current_user.id or 1)
+        document1_id = await _seed_document(session, current_user.id or 1, "doc1.pdf")
+        document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.attach_document",
+                new_callable=AsyncMock,
+            ) as mock_attach,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+        ):
+            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                    "document_ids": [document1_id, document2_id],
+                },
+            )
+
+        assert response.status_code == 200
+        attached_ids = {call.args[2] for call in mock_attach.call_args_list}
+        assert attached_ids == {document1_id, document2_id}
+
+    @pytest.mark.asyncio
+    async def test_mixed_owned_unowned_attaches_only_owned(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """Owned ID is attached; non-existent ID is skipped — no 4xx, no attach for bad ID."""
+        seed = await _seed(session, current_user.id or 1)
+        owned_id = await _seed_document(session, current_user.id or 1, "owned.pdf")
+        unowned_id = 9999  # does not exist in the DB
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.attach_document",
+                new_callable=AsyncMock,
+            ) as mock_attach,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+        ):
+            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                    "document_ids": [owned_id, unowned_id],
+                },
+            )
+
+        assert response.status_code == 200
+        attached_ids = {call.args[2] for call in mock_attach.call_args_list}
+        assert attached_ids == {owned_id}
+        assert unowned_id not in attached_ids
+
+    @pytest.mark.asyncio
+    async def test_all_unowned_ids_no_attach_no_error(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """All non-existent document_ids: no attach calls, 200 returned (not 4xx)."""
+        seed = await _seed(session, current_user.id or 1)
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.attach_document",
+                new_callable=AsyncMock,
+            ) as mock_attach,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+        ):
+            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                    "document_ids": [9997, 9998],
+                },
+            )
+
+        assert response.status_code == 200
+        mock_attach.assert_not_called()
+
+
+class TestProviderApiErrorPersistence:
+    """Provider API errors at the route handler level must be saved to DB."""
+
+    @pytest.mark.asyncio
+    async def test_provider_api_error_during_rag_routing_persists_error_to_db(
+        self,
+        client: AsyncClient,
+        current_user: Any,
+        session: AsyncSession,
+    ) -> None:
+        """A 529 (overloaded) from the provider during RAG routing must write
+        an is_error=True message to DB so reloading shows the error card."""
+        seed = await _seed(session, current_user.id or 1)
+        mock_msg = MagicMock()
+        mock_msg.id = 99
+
+        mock_request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+        overloaded_exc = anthropic.APIStatusError(
+            "Overloaded",
+            response=httpx.Response(529, request=mock_request),
+            body={"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}},
+        )
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(side_effect=overloaded_exc)
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_document()]
+            mock_get_msgs.return_value = []
+            mock_add_msg.return_value = mock_msg
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize the document"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 502
+        error_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("is_error") is True]
+        assert len(error_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_rag_intent_router_error_persists_error_to_db(
+        self,
+        client: AsyncClient,
+        current_user: Any,
+        session: AsyncSession,
+    ) -> None:
+        """A RAGIntentRouterError must write an is_error=True message to DB."""
+        seed = await _seed(session, current_user.id or 1)
+        mock_msg = MagicMock()
+        mock_msg.id = 99
+
+        with (
+            patch("sparkth.core_plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch("sparkth.core_plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+            patch("sparkth.core_plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.core_plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.list_conversation_attachments",
+                new_callable=AsyncMock,
+            ) as mock_list_attachments,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.add_message",
+                new_callable=AsyncMock,
+            ) as mock_add_msg,
+            patch(
+                "sparkth.core_plugins.chat.service.ChatService.get_conversation_messages",
+                new_callable=AsyncMock,
+            ) as mock_get_msgs,
+        ):
+            mock_scope = AsyncMock()
+            mock_scope.classify = AsyncMock(return_value=True)
+            mock_cls_cls.return_value = mock_scope
+
+            mock_router = MagicMock()
+            mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("router failed"))
+            mock_router_cls.return_value = mock_router
+
+            mock_list_attachments.return_value = [_mock_document()]
+            mock_get_msgs.return_value = []
+            mock_add_msg.return_value = mock_msg
+
+            mock_provider = MagicMock()
+            mock_provider.system_prompt = ""
+            mock_provider.create_llm.return_value = MagicMock()
+            mock_get_provider.return_value = mock_provider
+
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": seed.llm_config_id,
+                    "messages": [{"role": "user", "content": "Summarize the document"}],
+                    "conversation_id": seed.conv_uuid,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 502
+        error_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("is_error") is True]
+        assert len(error_calls) == 1

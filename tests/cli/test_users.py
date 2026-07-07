@@ -1,6 +1,6 @@
-"""Tests for the user-management CLI commands (app.cli.users).
+"""Tests for the user-management CLI commands (sparkth.cli.users).
 
-The CLI calls :func:`app.lib.db.session_scope` directly rather than going through
+The CLI calls :func:`sparkth.lib.db.session_scope` directly rather than going through
 the ``get_async_session`` FastAPI dependency. ``session_scope`` is now engine-backed,
 so the CLI hits the same in-memory test database as the ``session`` fixture (they
 share one ``StaticPool`` connection); no patching is needed — we just assert through
@@ -12,11 +12,11 @@ import typer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.cli import users
-from app.core.permissions.models import Role
-from app.lib.permissions import has_role
-from app.lib.permissions.scopes import GLOBAL
-from app.models.user import User
+from sparkth.cli import users
+from sparkth.core.permissions.models import Role
+from sparkth.lib.permissions import has_role
+from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.models.user import User
 
 
 async def test_create_user_persists_a_hashed_user(session: AsyncSession) -> None:

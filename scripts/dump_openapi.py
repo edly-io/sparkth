@@ -10,13 +10,13 @@ import logging
 import sys
 
 # Redirect all log output to stderr before importing app modules so that the
-# only thing written to stdout is the JSON schema. app.main calls
+# only thing written to stdout is the JSON schema. sparkth.main calls
 # configure_logging() at import time, which uses logging.basicConfig; basicConfig
 # is a no-op when handlers are already attached, so adding a stderr handler
 # here pre-empts the stdout handler that configure_logging would otherwise add.
 logging.basicConfig(stream=sys.stderr)
 
-from app.main import assemble_app  # noqa: E402
+from sparkth.main import assemble_app  # noqa: E402
 
 
 def main() -> None:

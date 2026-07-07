@@ -4,9 +4,9 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.auth import get_current_user
-from app.models import User
-from app.services.plugin import PluginService, get_plugin_service
+from sparkth.lib.auth import get_current_user
+from sparkth.models import User
+from sparkth.services.plugin import PluginService, get_plugin_service
 
 
 async def test_list_user_plugins_basic(client: AsyncClient, user_plugins: User) -> None:

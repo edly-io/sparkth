@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.llm.service import LLMConfigService
-from app.models.llm import LLMConfig
+from sparkth.llm.service import LLMConfigService
+from sparkth.models.llm import LLMConfig
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -275,7 +275,7 @@ async def test_update_name_only_leaves_model_unchanged() -> None:
 
 @pytest.mark.asyncio
 async def test_update_invalid_model_raises_validation_error() -> None:
-    from app.llm.exceptions import LLMConfigValidationError
+    from sparkth.llm.exceptions import LLMConfigValidationError
 
     service, _, _ = _make_service()
     config = LLMConfig(

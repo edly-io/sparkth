@@ -8,10 +8,10 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.email_verification import EmailVerificationToken
-from app.models.user import User
-from app.services import email_verification as svc
-from app.services.email_verification import (
+from sparkth.models.email_verification import EmailVerificationToken
+from sparkth.models.user import User
+from sparkth.services import email_verification as svc
+from sparkth.services.email_verification import (
     EmailVerificationService,
     TokenExpiredError,
     TokenInvalidError,

@@ -7,8 +7,8 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.plugin import Plugin, UserPlugin
-from app.services.plugin import PluginService
+from sparkth.models.plugin import Plugin, UserPlugin
+from sparkth.services.plugin import PluginService
 
 
 def _make_plugin(name: str = "chat", plugin_id: int = 1) -> Plugin:
@@ -80,7 +80,7 @@ async def test_update_config_revalidates_stored_model_override_against_new_provi
     """Partial PUT changing llm_config_id must re-validate the stored llm_model_override."""
     from unittest.mock import MagicMock
 
-    from app.models.llm import LLMConfig
+    from sparkth.models.llm import LLMConfig
 
     stored = {"llm_config_id": 1, "llm_model_override": "gpt-4o"}
     old_user_plugin = UserPlugin(user_id=1, plugin_id=1, enabled=True, config=stored)
@@ -160,8 +160,8 @@ def _patch_bootstrap(plugins: list[_FakePlugin]) -> Any:
     schemas_by_name = {p.name: _fake_config_class(p.schema) for p in plugins}
 
     return (
-        patch("app.services.plugin.get_plugin_loader", return_value=_FakeLoader(plugins)),
-        patch("app.services.plugin.get_plugin_config_schema", side_effect=schemas_by_name.get),
+        patch("sparkth.services.plugin.get_plugin_loader", return_value=_FakeLoader(plugins)),
+        patch("sparkth.services.plugin.get_plugin_config_schema", side_effect=schemas_by_name.get),
     )
 
 

@@ -2,8 +2,8 @@ import gc
 
 import pytest
 
-from app.lib.hooks import PluginCollectionHook, PluginHook, SingleNamedItemHook
-from app.lib.plugins import SparkthPlugin
+from sparkth.lib.hooks import PluginCollectionHook, PluginHook, SingleNamedItemHook
+from sparkth.lib.plugins import SparkthPlugin
 
 
 def _plugin(name: str) -> SparkthPlugin:

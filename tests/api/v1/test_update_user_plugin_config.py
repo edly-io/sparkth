@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import status
 from httpx import AsyncClient
 
-from app.models.user import User
-from app.services.plugin import ConfigValidationError
+from sparkth.models.user import User
+from sparkth.services.plugin import ConfigValidationError
 
 
 async def test_update_plugin_not_configured_success(client: AsyncClient, user_plugins: User) -> None:
@@ -16,19 +16,19 @@ async def test_update_plugin_not_configured_success(client: AsyncClient, user_pl
 
     with (
         patch(
-            "app.services.plugin.PluginService.apply_preprocess",
+            "sparkth.services.plugin.PluginService.apply_preprocess",
             new=AsyncMock(return_value=payload["config"]),
         ),
         patch(
-            "app.services.plugin.PluginService.apply_postprocess",
+            "sparkth.services.plugin.PluginService.apply_postprocess",
             new=AsyncMock(return_value=payload["config"]),
         ),
         patch(
-            "app.services.plugin.PluginService.apply_cache_sync",
+            "sparkth.services.plugin.PluginService.apply_cache_sync",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.plugin.PluginService.update_user_plugin_config",
+            "sparkth.services.plugin.PluginService.update_user_plugin_config",
             new=AsyncMock(return_value=mock_user_plugin),
         ),
         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", new=AsyncMock()),
@@ -53,24 +53,24 @@ async def test_update_plugin_success(client: AsyncClient, user_plugins: User) ->
 
     with (
         patch(
-            "app.services.plugin.PluginService.apply_preprocess",
+            "sparkth.services.plugin.PluginService.apply_preprocess",
             new=AsyncMock(return_value=payload["config"]),
         ),
         patch(
-            "app.services.plugin.PluginService.apply_postprocess",
+            "sparkth.services.plugin.PluginService.apply_postprocess",
             new=AsyncMock(return_value=payload["config"]),
         ),
         patch(
-            "app.services.plugin.PluginService.apply_cache_sync",
+            "sparkth.services.plugin.PluginService.apply_cache_sync",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.plugin.PluginService.update_user_plugin_config",
+            "sparkth.services.plugin.PluginService.update_user_plugin_config",
             new=AsyncMock(return_value=mock_user_plugin),
         ),
         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", new=AsyncMock()),
         patch("sqlalchemy.ext.asyncio.AsyncSession.refresh", new=AsyncMock()),
-        patch("app.services.plugin.PluginService.validate_user_config", return_value=payload),
+        patch("sparkth.services.plugin.PluginService.validate_user_config", return_value=payload),
     ):
         response = await client.put("/api/v1/user-plugins/plugin_b/config", json=payload)
 
@@ -108,7 +108,7 @@ async def test_update_user_disabled_plugin(client: AsyncClient, user_plugins: Us
 
 async def test_update_user_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
     with patch(
-        "app.services.plugin.PluginService.validate_user_config",
+        "sparkth.services.plugin.PluginService.validate_user_config",
         side_effect=ConfigValidationError("Invalid config"),
     ):
         response = await client.put(

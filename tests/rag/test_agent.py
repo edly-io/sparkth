@@ -8,9 +8,9 @@ from langchain_core.exceptions import LangChainException
 from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
-from app.rag.exceptions import RAGRetrievalError
-from app.rag.retrieval.agent import run_agentic_rag_retrieval
-from app.rag.schemas import RAGSearchAgentResponse, SectionRef
+from sparkth.rag.exceptions import RAGRetrievalError
+from sparkth.rag.retrieval.agent import run_agentic_rag_retrieval
+from sparkth.rag.schemas import RAGSearchAgentResponse, SectionRef
 
 
 def _make_validation_error() -> ValidationError:
@@ -25,10 +25,10 @@ class TestRunRagSearch:
     """Tests for run_agentic_rag_retrieval covering structured response and error paths."""
 
     def _patch_agent(self, agent: Any) -> Any:
-        return patch("app.rag.retrieval.agent.create_agent", return_value=agent)
+        return patch("sparkth.rag.retrieval.agent.create_agent", return_value=agent)
 
     def _patch_build_tools(self) -> Any:
-        return patch("app.rag.retrieval.agent.build_search_tools", return_value=[])
+        return patch("sparkth.rag.retrieval.agent.build_search_tools", return_value=[])
 
     def _make_agent(self, return_value: dict[str, Any]) -> MagicMock:
         agent = MagicMock()

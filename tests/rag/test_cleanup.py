@@ -3,9 +3,9 @@
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.documents import Document
-from app.rag.cleanup import cleanup_deleted_documents
-from app.rag.models import DocumentChunk, DocumentChunkLink
+from sparkth.lib.documents import Document
+from sparkth.rag.cleanup import cleanup_deleted_documents
+from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 
 
 def _document(doc_id: int, *, is_deleted: bool) -> Document:

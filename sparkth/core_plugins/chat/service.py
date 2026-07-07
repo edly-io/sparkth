@@ -1,0 +1,297 @@
+import json
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import col, func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from sparkth.core_plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
+from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.lib.log import get_logger
+
+logger = get_logger(__name__)
+
+
+class ChatService:
+    async def create_conversation(
+        self,
+        session: AsyncSession,
+        user_id: int,
+        llm_config_id: int | None,
+        provider: str,
+        model: str,
+        title: str | None = None,
+        system_prompt: str | None = None,
+    ) -> Conversation:
+        conversation = Conversation(
+            user_id=user_id,
+            llm_config_id=llm_config_id,
+            provider=provider,
+            model=model,
+            title=title,
+            system_prompt=system_prompt,
+        )
+
+        session.add(conversation)
+        await session.commit()
+        await session.refresh(conversation)
+
+        logger.info("Created conversation %s for user %s", conversation.id, user_id)
+        return conversation
+
+    async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
+        statement = select(Conversation).where(
+            Conversation.uuid == uuid,
+            Conversation.user_id == user_id,
+        )
+        result = await session.exec(statement)
+        return result.first()
+
+    async def list_conversations(
+        self, session: AsyncSession, user_id: int, limit: int = 50, offset: int = 0
+    ) -> tuple[list[Conversation], int]:
+        count_statement = select(func.count(col(Conversation.id))).where(
+            Conversation.user_id == user_id,
+        )
+        total = (await session.exec(count_statement)).one()
+
+        statement = (
+            select(Conversation)
+            .where(
+                Conversation.user_id == user_id,
+            )
+            .order_by(col(Conversation.created_at).desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await session.exec(statement)
+        conversations = list(result.all())
+
+        return conversations, total
+
+    async def add_message(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        role: str,
+        content: str,
+        tokens_used: int | None = None,
+        cost: float | None = None,
+        metadata: dict[str, Any] | None = None,
+        is_error: bool = False,
+        message_type: MessageType = "text",
+        attachment_name: str | None = None,
+        attachment_size: int | None = None,
+    ) -> Message:
+        metadata_json = json.dumps(metadata) if metadata else None
+
+        message = Message(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            tokens_used=tokens_used,
+            cost=cost,
+            model_metadata=metadata_json,
+            is_error=is_error,
+            message_type=message_type,
+            attachment_name=attachment_name,
+            attachment_size=attachment_size,
+        )
+
+        session.add(message)
+
+        if tokens_used or cost:
+            statement = select(Conversation).where(Conversation.id == conversation_id)
+            result = await session.exec(statement)
+            conversation = result.first()
+
+            if conversation:
+                if tokens_used:
+                    conversation.total_tokens_used += tokens_used
+                if cost:
+                    conversation.total_cost += cost
+                session.add(conversation)
+
+        await session.commit()
+        await session.refresh(message)
+
+        return message
+
+    async def get_conversation_messages(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+        exclude_errors: bool = True,
+    ) -> list[Message]:
+        """
+        Return conversation messages, optionally excluding error messages.
+        """
+        statement = (
+            select(Message).where(Message.conversation_id == conversation_id).order_by(col(Message.created_at).asc())
+        )
+
+        if exclude_errors:
+            statement = statement.where(Message.is_error == False)  # noqa: E712
+
+        if limit is not None:
+            statement = statement.limit(limit)
+
+        if offset is not None:
+            statement = statement.offset(offset)
+
+        result = await session.exec(statement)
+        return list(result.all())
+
+    async def get_last_conversation_message(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+    ) -> Message | None:
+        """Return the most recently created message for a conversation, or None."""
+        statement = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(col(Message.created_at).desc())
+            .limit(1)
+        )
+        result = await session.exec(statement)
+        return result.first()
+
+    async def update_conversation_title(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        user_id: int,
+        title: str,
+    ) -> None:
+        statement = select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+        result = await session.exec(statement)
+        conversation = result.first()
+        if conversation:
+            conversation.title = title
+            session.add(conversation)
+            await session.commit()
+        else:
+            logger.warning("Conversation %s not found for title update", conversation_id)
+
+    async def attach_document(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        document_id: int,
+    ) -> ConversationAttachment:
+        """Attach a document to a conversation (upsert-safe)."""
+        # Check if already exists
+        stmt = select(ConversationAttachment).where(
+            ConversationAttachment.conversation_id == conversation_id,
+            ConversationAttachment.document_id == document_id,
+        )
+        result = await session.exec(stmt)
+        existing = result.first()
+        if existing is not None:
+            logger.info(
+                "Document %s already attached to conversation %s",
+                document_id,
+                conversation_id,
+            )
+            return existing
+
+        # Try to insert new
+        attachment = ConversationAttachment(
+            conversation_id=conversation_id,
+            document_id=document_id,
+        )
+        session.add(attachment)
+        try:
+            await session.flush()
+            await session.commit()
+            await session.refresh(attachment)
+            logger.info(
+                "Document %s attached to conversation %s",
+                document_id,
+                conversation_id,
+            )
+            return attachment
+        except IntegrityError:
+            # Race condition — another process inserted between our check and insert
+            await session.rollback()
+            # Query again to get the existing row
+            result = await session.exec(stmt)
+            existing = result.first()
+            if existing is None:
+                logger.error(
+                    "IntegrityError but row not found after rollback for conversation_id=%s, document_id=%s",
+                    conversation_id,
+                    document_id,
+                )
+                raise
+            return existing
+
+    async def detach_document(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        document_id: int,
+    ) -> None:
+        """Detach a document from a conversation."""
+        stmt = select(ConversationAttachment).where(
+            ConversationAttachment.conversation_id == conversation_id,
+            ConversationAttachment.document_id == document_id,
+        )
+        result = await session.exec(stmt)
+        attachment = result.first()
+        if attachment:
+            await session.delete(attachment)
+            await session.commit()
+            logger.info(
+                "Document %s detached from conversation %s",
+                document_id,
+                conversation_id,
+            )
+
+    async def get_user_owned_document(
+        self,
+        session: AsyncSession,
+        document_id: int,
+        user_id: int,
+    ) -> Document | None:
+        """Return the document if it belongs to user, else None."""
+        stmt = select(Document).where(
+            Document.id == document_id,
+            Document.user_id == user_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        result = await session.exec(stmt)
+        return result.first()
+
+    async def list_conversation_attachments(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+    ) -> list[Document]:
+        """List READY documents attached to a conversation."""
+        stmt = (
+            select(Document)
+            .join(
+                ConversationAttachment,
+                ConversationAttachment.document_id == Document.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ConversationAttachment.conversation_id == conversation_id,
+                col(Document.status) == DocumentStatus.READY,
+                Document.is_deleted == False,  # noqa: E712
+            )
+        )
+        result = await session.exec(stmt)
+        return list(result.all())
+
+
+def get_chat_service() -> ChatService:
+    """Dependency to get chat service."""
+    return ChatService()

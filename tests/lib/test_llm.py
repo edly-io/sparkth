@@ -1,13 +1,13 @@
-"""Tests for the app.lib.llm public API surface.
+"""Tests for the sparkth.lib.llm public API surface.
 
-Everything here is imported from app.lib.llm only — this suite exercises the
+Everything here is imported from sparkth.lib.llm only — this suite exercises the
 public boundary, never the LLM internals behind it.
 """
 
 import pytest
 
-import app.lib.llm as llm_api
-from app.lib.llm import (
+import sparkth.lib.llm as llm_api
+from sparkth.lib.llm import (
     BaseChatProvider,
     LLMConfigAdapter,
     LLMConfigDuplicateNameError,

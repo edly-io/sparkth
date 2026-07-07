@@ -1,0 +1,376 @@
+import asyncio
+import inspect
+import json
+from typing import Any, get_type_hints
+
+from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import BaseModel, Field, ValidationError, create_model
+
+from sparkth.lib.log import get_logger
+from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+
+logger = get_logger(__name__)
+
+
+class ToolRegistry:
+    """Registry for managing LangChain tools."""
+
+    def __init__(self) -> None:
+        self._tools: dict[str, BaseTool] = {}
+        self._initialized = False
+
+    def register_tool(self, tool: BaseTool) -> None:
+        """Register a tool."""
+        self._tools[tool.name] = tool
+        logger.info("Registered tool: %s", tool.name)
+
+    async def get_tool(self, name: str) -> BaseTool | None:
+        """Get a tool by name."""
+        if not self._initialized:
+            self.discover_plugin_tools()
+        return self._tools.get(name)
+
+    async def get_all_tools(self) -> list[BaseTool]:
+        """Get all registered tools."""
+        if not self._initialized:
+            self.discover_plugin_tools()
+        return list(self._tools.values())
+
+    async def get_tools_by_names(self, names: list[str]) -> list[BaseTool]:
+        """Get specific tools by their names."""
+        if not self._initialized:
+            self.discover_plugin_tools()
+        return [self._tools[name] for name in names if name in self._tools]
+
+    async def get_tool_schemas(self) -> list[dict[str, Any]]:
+        """Get schemas for all tools."""
+        if not self._initialized:
+            self.discover_plugin_tools()
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.args if hasattr(tool, "args") else {},
+            }
+            for tool in self._tools.values()
+        ]
+
+    def discover_plugin_tools(self) -> None:
+        """Discover and register tools from all loaded plugins.
+
+        Plugins are instantiated once at the process entrypoint (which populates
+        the MCP_TOOLS hook); this only runs during request handling, well after
+        startup, so it just reads the hook.
+        """
+        if self._initialized:
+            return
+
+        for plugin, mcp_tool in MCP_TOOLS.iter_items():
+            if plugin.name == "chat":
+                continue
+
+            try:
+                langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
+                self.register_tool(langchain_tool)
+            except (KeyError, TypeError, ValueError, ValidationError) as e:
+                logger.error(
+                    "Failed to convert MCP tool '%s' to LangChain tool: %s",
+                    mcp_tool.name,
+                    e,
+                    exc_info=True,
+                )
+
+        self._initialized = True
+        logger.info("Discovered %d tools from plugins", len(self._tools))
+
+    def reset(self) -> None:
+        """Clear all registered tools and force re-discovery on next access."""
+        self._initialized = False
+        self._tools = {}
+
+    def _get_handler_type_hints(self, handler: Any) -> dict[str, Any]:
+        """Extract type hints from the handler function."""
+        try:
+            func = handler.__func__ if hasattr(handler, "__func__") else handler
+            hints = get_type_hints(func)
+            hints.pop("return", None)
+            hints.pop("self", None)
+            return hints
+        except (TypeError, NameError, AttributeError) as e:
+            logger.debug("Could not get type hints: %s", e)
+            return {}
+
+    def _build_args_schema_from_handler(
+        self, name: str, handler: Any, handler_hints: dict[str, Any]
+    ) -> type[BaseModel] | None:
+        """
+        Build an args_schema Pydantic model directly from the handler's type hints.
+
+        When the handler takes a single Pydantic model parameter (e.g. ``payload: CreateCourseArgs``),
+        the model itself is used as args_schema. This flattens the schema for the LLM so it sees
+        fields like ``org``, ``auth``, etc. directly instead of a wrapper ``payload`` object.
+        The corresponding ``_convert_args_to_handler_types`` handles re-wrapping the flat
+        kwargs back into the expected model.
+
+        For handlers with multiple parameters, a dynamic model is built preserving
+        original types (including nested Pydantic models).
+
+        Falls back to None if hints are unavailable.
+        """
+        try:
+            if not handler_hints:
+                return None
+
+            func = handler.__func__ if hasattr(handler, "__func__") else handler
+            sig = inspect.signature(func)
+            params = {k: v for k, v in sig.parameters.items() if k != "self"}
+
+            # Single Pydantic model parameter → use the model directly as args_schema
+            # so the LLM sees its fields as top-level tool parameters.
+            if len(params) == 1:
+                param_name = next(iter(params))
+                param_type = handler_hints.get(param_name)
+                if param_type and isinstance(param_type, type) and issubclass(param_type, BaseModel):
+                    return param_type  # type: ignore[no-any-return]
+
+            # Multiple parameters → build a dynamic model preserving original types
+            field_definitions: dict[str, Any] = {}
+
+            for param_name, param in params.items():
+                param_type = handler_hints.get(param_name)
+                if param_type is None:
+                    continue
+
+                if param.default is inspect.Parameter.empty:
+                    field_definitions[param_name] = (param_type, Field(...))
+                else:
+                    field_definitions[param_name] = (param_type, Field(default=param.default))
+
+            if not field_definitions:
+                return None
+
+            return create_model(name + "Input", **field_definitions)
+        except (TypeError, ValueError, AttributeError) as e:
+            logger.debug("Could not build args_schema from handler hints for '%s': %s", name, e)
+            return None
+
+    def _convert_mcp_to_langchain_tool(self, mcp_tool: Tool) -> BaseTool:
+        """Convert an MCP tool definition to a LangChain tool."""
+        name = mcp_tool.name
+        description = mcp_tool.description
+        handler = mcp_tool.handler
+        input_schema = mcp_tool.input_schema
+
+        logger.debug("Tool '%s' input schema: %s", name, json.dumps(input_schema, indent=2))
+
+        handler_hints = self._get_handler_type_hints(handler)
+        args_schema = self._build_args_schema_from_handler(
+            name, handler, handler_hints
+        ) or self._json_schema_to_pydantic(name, input_schema)
+
+        async def tool_func(**kwargs: Any) -> str:
+            """Async wrapper for MCP tool handler."""
+            try:
+                logger.debug("Tool '%s' received raw args: %s", name, kwargs)
+
+                # Convert arguments to match handler's expected types
+                converted_args = self._convert_args_to_handler_types(kwargs, handler_hints)
+                logger.debug("Tool '%s' converted args: %s", name, converted_args)
+                result = await handler(**converted_args)
+
+                if isinstance(result, (dict, list)):
+                    return json.dumps(result, indent=2, default=str)
+                if isinstance(result, BaseModel):
+                    return result.model_dump_json(indent=2)
+                return str(result)
+            except (ValidationError, ValueError, TypeError, RuntimeError) as e:
+                logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
+                return f"Error executing tool: {str(e)}"
+
+        def sync_tool_func(**kwargs: Any) -> str:
+            """Sync wrapper for MCP tool handler."""
+            try:
+                logger.debug("Tool '%s' received raw args (sync): %s", name, kwargs)
+                converted_args = self._convert_args_to_handler_types(kwargs, handler_hints)
+                logger.debug("Tool '%s' converted args (sync): %s", name, converted_args)
+
+                loop = asyncio.new_event_loop()
+                try:
+                    result = loop.run_until_complete(handler(**converted_args))
+                finally:
+                    loop.close()
+
+                if isinstance(result, (dict, list)):
+                    return json.dumps(result, indent=2, default=str)
+                if isinstance(result, BaseModel):
+                    return result.model_dump_json(indent=2)
+                return str(result)
+            except (ValidationError, ValueError, TypeError, RuntimeError) as e:
+                logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
+                return f"Error executing tool: {str(e)}"
+
+        return StructuredTool(
+            name=name,
+            description=description,
+            func=sync_tool_func,
+            coroutine=tool_func,
+            args_schema=args_schema,
+        )
+
+    def _convert_args_to_handler_types(self, args: dict[str, Any], handler_hints: dict[str, Any]) -> dict[str, Any]:
+        """
+        Convert arguments to match the handler's expected types.
+
+        Handles:
+        - Flattened single-model params: when the handler expects one Pydantic model
+          (e.g. ``payload: CreateCourseArgs``) but the LLM sent flat kwargs matching
+          the model's fields, all kwargs are bundled into the model.
+        - JSON strings -> dict -> Pydantic model
+        - dict -> Pydantic model
+        - Already correct type -> pass through
+        """
+        # Single-Pydantic-param with flattened kwargs: the LLM sent the model's
+        # fields directly (because args_schema was the model itself).
+        if len(handler_hints) == 1:
+            param_name, expected_type = next(iter(handler_hints.items()))
+            is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
+            if is_pydantic and param_name not in args:
+                return {param_name: self._convert_to_pydantic(args, expected_type)}
+
+        converted = {}
+
+        for arg_name, arg_value in args.items():
+            expected_type = handler_hints.get(arg_name)
+
+            if expected_type is None:
+                converted[arg_name] = arg_value
+                continue
+
+            is_pydantic = isinstance(expected_type, type) and issubclass(expected_type, BaseModel)
+            if is_pydantic:
+                converted[arg_name] = self._convert_to_pydantic(arg_value, expected_type)
+            else:
+                converted[arg_name] = arg_value
+
+        return converted
+
+    def _convert_to_pydantic(self, value: Any, model_class: type[BaseModel]) -> BaseModel:
+        """
+        Convert a value to a Pydantic model instance.
+
+        Handles:
+        - Already a model instance -> return as-is
+        - dict -> create model from dict
+        - JSON string -> parse and create model
+        """
+        # Already the correct type
+        if isinstance(value, model_class):
+            return value
+
+        # It's a dict, create model directly
+        if isinstance(value, dict):
+            return model_class(**value)
+
+        # It's a string, try to parse as JSON
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return model_class(**parsed)
+                else:
+                    raise ValueError(f"Expected dict after JSON parsing, got {type(parsed)}")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Failed to parse JSON string: {e}")
+
+        # Unknown type
+        raise ValueError(f"Cannot convert {type(value)} to {model_class.__name__}")
+
+    def _json_schema_to_pydantic(self, model_name: str, json_schema: dict[str, Any]) -> type[BaseModel]:
+        """Convert JSON Schema to a Pydantic model."""
+        properties = json_schema.get("properties", {})
+        required = json_schema.get("required", [])
+        defs = json_schema.get("$defs", {})
+
+        field_definitions: dict[str, Any] = {}
+
+        for field_name, field_schema in properties.items():
+            # Resolve $ref if present
+            resolved_schema = self._resolve_ref(field_schema, defs)
+            field_type = self._get_python_type(resolved_schema)
+            field_description = resolved_schema.get("description", "")
+            is_required = field_name in required
+
+            if is_required:
+                field_definitions[field_name] = (
+                    field_type,
+                    Field(..., description=field_description),
+                )
+            else:
+                default_value = resolved_schema.get("default")
+                field_definitions[field_name] = (
+                    field_type | None,
+                    Field(default=default_value, description=field_description),
+                )
+
+        return create_model(model_name + "Input", **field_definitions)
+
+    def _resolve_ref(self, schema: dict[str, Any], defs: dict[str, Any]) -> dict[str, Any]:
+        """Resolve a $ref in a schema."""
+        if not isinstance(schema, dict):
+            return schema
+
+        if "$ref" in schema:
+            ref_path = schema["$ref"]
+            if ref_path.startswith("#/$defs/"):
+                def_name = ref_path.split("/")[-1]
+                if def_name in defs:
+                    resolved: dict[str, Any] = defs[def_name].copy()
+                    for key, value in schema.items():
+                        if key != "$ref":
+                            resolved[key] = value
+                    return resolved
+
+        return schema
+
+    def _get_python_type(self, json_schema: dict[str, Any]) -> type:
+        """Map JSON Schema type to Python type."""
+        json_type = json_schema.get("type", "string")
+
+        if "anyOf" in json_schema:
+            types = [t.get("type") for t in json_schema["anyOf"] if t.get("type") and t.get("type") != "null"]
+            if types:
+                json_type = types[0]
+
+        type_map = {
+            "string": str,
+            "integer": int,
+            "number": float,
+            "boolean": bool,
+            "array": list,
+            "object": dict,
+            "null": type(None),
+        }
+        return type_map.get(json_type, str)
+
+
+def get_parameters_schema(args_schema: type[BaseModel] | dict[str, Any] | None) -> dict[str, Any]:
+    """Normalise an args_schema into a plain dict suitable for serialisation."""
+    if args_schema is None:
+        return {}
+    if isinstance(args_schema, dict):
+        return args_schema
+    return args_schema.model_json_schema()
+
+
+_tool_registry = ToolRegistry()
+
+
+def get_tool_registry() -> ToolRegistry:
+    """Get the global tool registry."""
+    return _tool_registry
+
+
+async def refresh_tools() -> None:
+    """Force refresh of tools from plugins."""
+    _tool_registry.reset()
+    _tool_registry.discover_plugin_tools()

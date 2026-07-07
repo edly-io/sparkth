@@ -5,9 +5,9 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import get_password_hash
-from app.models.user import User
-from app.services.whitelist import WhitelistService
+from sparkth.core.security import get_password_hash
+from sparkth.models.user import User
+from sparkth.services.whitelist import WhitelistService
 
 
 def _uniq(prefix: str) -> str:
@@ -45,7 +45,7 @@ async def test_create_user(client: AsyncClient, session: AsyncSession) -> None:
 
     await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -70,7 +70,7 @@ async def test_create_user_existing_username(client: AsyncClient, session: Async
     new_email = f"{_uniq('another')}@example.com"
     await WhitelistService.add_entry(session, value=new_email, added_by_id=1)
 
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -90,7 +90,7 @@ async def test_create_user_existing_email(client: AsyncClient, session: AsyncSes
 
     await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -106,7 +106,7 @@ async def test_create_user_existing_email(client: AsyncClient, session: AsyncSes
 
 # Optional: Add a test for when registration is disabled
 async def test_registration_disabled(client: AsyncClient) -> None:
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", False):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", False):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -164,7 +164,7 @@ class TestPasswordComplexity:
         email = f"{username}@example.com"
         await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
-        with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+        with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
             response = await client.post(
                 "/api/v1/auth/register",
                 json={

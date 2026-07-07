@@ -3,11 +3,11 @@ from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
-from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
-from app.lib.permissions import Permission
-from app.lib.permissions.scopes import GLOBAL
-from app.models.user import User
+from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
+from sparkth.lib.permissions import Permission
+from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.models.user import User
 
 
 def _request() -> Request:

@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI, status
 from httpx import ASGITransport, AsyncClient
 
-from app.lib.auth import get_current_user
-from app.models.user import User
-from app.services.plugin import ConfigValidationError, InternalServerError, PluginService
+from sparkth.lib.auth import get_current_user
+from sparkth.models.user import User
+from sparkth.services.plugin import ConfigValidationError, InternalServerError, PluginService
 
 
 async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
@@ -27,19 +27,19 @@ async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: 
 
     with (
         patch(
-            "app.services.plugin.PluginService.get_by_name",
+            "sparkth.services.plugin.PluginService.get_by_name",
             new=AsyncMock(return_value=mock_plugin),
         ),
         patch(
-            "app.services.plugin.PluginService.get_user_plugin",
+            "sparkth.services.plugin.PluginService.get_user_plugin",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "app.services.plugin.PluginService.create_user_plugin",
+            "sparkth.services.plugin.PluginService.create_user_plugin",
             new=AsyncMock(return_value=mock_user_plugin),
         ),
         patch(
-            "app.services.plugin.PluginService.validate_user_config",
+            "sparkth.services.plugin.PluginService.validate_user_config",
             return_value=payload,
         ),
     ):
@@ -96,7 +96,7 @@ async def test_configure_user_plugin_already_configured(client: AsyncClient, use
 
 async def test_configure_user_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
     with patch(
-        "app.services.plugin.PluginService.validate_user_config",
+        "sparkth.services.plugin.PluginService.validate_user_config",
         side_effect=ConfigValidationError("Invalid config"),
     ):
         response = await client.post(

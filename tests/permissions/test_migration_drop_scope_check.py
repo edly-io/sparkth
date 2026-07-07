@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_migration_drops_scope_check_constraint() -> None:
-    versions = Path(__file__).parent.parent.parent / "app" / "migrations" / "app" / "versions"
+    versions = Path(__file__).parent.parent.parent / "sparkth" / "migrations" / "app" / "versions"
     matches = [
         p
         for p in versions.glob("*.py")

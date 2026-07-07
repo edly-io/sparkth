@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.lib.mcp.hooks import resolve_schema_refs, type_to_json_schema
+from sparkth.lib.mcp.hooks import resolve_schema_refs, type_to_json_schema
 
 
 # Test models

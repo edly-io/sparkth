@@ -14,8 +14,8 @@ import openai
 import pytest
 from google.api_core import exceptions as google_exceptions
 
-from app.core_plugins.chat.routes.utils.stream_processor import streaming_error_message
-from app.llm.providers import (
+from sparkth.core_plugins.chat.routes.utils.stream_processor import streaming_error_message
+from sparkth.llm.providers import (
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
     get_models_for_provider,
@@ -106,26 +106,26 @@ class TestProviderModels:
 
 class TestChatUserConfig:
     """
-    ChatUserConfig lives in app.core_plugins.chat.config.
+    ChatUserConfig lives in sparkth.core_plugins.chat.config.
     It now uses llm_config_id (FK to LLMConfig) and an optional
     llm_model_override instead of inline provider/model/key fields.
     """
 
     def test_valid_config_with_llm_config_id(self) -> None:
-        from app.core_plugins.chat.config import ChatUserConfig
+        from sparkth.core_plugins.chat.config import ChatUserConfig
 
         cfg = ChatUserConfig(llm_config_id=1)
         assert cfg.llm_config_id == 1
         assert cfg.llm_model_override is None
 
     def test_llm_model_override_defaults_to_none(self) -> None:
-        from app.core_plugins.chat.config import ChatUserConfig
+        from sparkth.core_plugins.chat.config import ChatUserConfig
 
         cfg = ChatUserConfig(llm_config_id=42)
         assert cfg.llm_model_override is None
 
     def test_llm_model_override_can_be_set(self) -> None:
-        from app.core_plugins.chat.config import ChatUserConfig
+        from sparkth.core_plugins.chat.config import ChatUserConfig
 
         cfg = ChatUserConfig(llm_config_id=1, llm_model_override="claude-opus-4-5")
         assert cfg.llm_model_override == "claude-opus-4-5"
@@ -133,7 +133,7 @@ class TestChatUserConfig:
     def test_missing_llm_config_id_raises_validation_error(self) -> None:
         from pydantic import ValidationError
 
-        from app.core_plugins.chat.config import ChatUserConfig
+        from sparkth.core_plugins.chat.config import ChatUserConfig
 
         with pytest.raises(ValidationError):
             ChatUserConfig()  # type: ignore[call-arg]
