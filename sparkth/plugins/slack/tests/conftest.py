@@ -5,7 +5,7 @@ import os
 # Slack OAuth credentials default to "" in core config, so they are optional for
 # app boot. Set test values before importing app modules so settings-reading
 # tests see them. This env is plugin-local — it stays out of the shared
-# sparkth.testing module.
+# sparkth.lib.testing module.
 os.environ.setdefault("SLACK_CLIENT_ID", "test-slack-client-id")
 os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")

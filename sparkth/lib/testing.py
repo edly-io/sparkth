@@ -1,12 +1,12 @@
 """Shared pytest fixtures and test environment for the backend test suite.
 
-This module lives under ``app/`` (rather than in a conftest) so that it travels
-with the core package: a plugin extracted into its own repository can register
-the same shared fixtures via ``pytest_plugins = ["sparkth.testing"]`` in its own
-conftest.
+This module lives under ``sparkth/lib/`` (rather than in a conftest) so that it
+travels with the public library: a plugin extracted into its own repository can
+register the same shared fixtures via ``pytest_plugins = ["sparkth.lib.testing"]``
+in its own conftest.
 
 Importing this module sets the generic test environment variables as a side
-effect, so it must be imported before any ``app.*`` module that reads settings.
+effect, so it must be imported before any ``sparkth.*`` module that reads settings.
 Plugin-specific environment (e.g. ``SLACK_*``) belongs in that plugin's own
 conftest, not here.
 """

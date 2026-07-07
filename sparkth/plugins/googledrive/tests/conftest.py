@@ -1,7 +1,7 @@
 """Fixtures for Google Drive plugin tests.
 
 Shared fixtures (``session``, ``engine``, the generic test environment, the
-autouse cache/email stubs, …) come from :mod:`sparkth.testing`, registered globally
+autouse cache/email stubs, …) come from :mod:`sparkth.lib.testing`, registered globally
 as a pytest plugin by the root ``conftest.py``. This file only adds Google
 Drive-specific pieces: test data and mocks. All handlers
 are async, so tests use the shared async ``session`` fixture throughout.
