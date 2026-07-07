@@ -18,21 +18,30 @@ Useful URLs:
 
 ## Key Directories
 
+The package has three tiers: `core/` (shared internals plugins depend on), `lib/`
+(the façade to core — the only surface plugins import from, stays outside `core/`),
+and `plugins/` (the built-in plugins).
+
 ```
 sparkth/
-  core/          # Settings, DB engines, security (JWT/OAuth)
-  analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema registry, schemas, gateway (raw_events). Login emits user.logged_in.
-  lib/           # Curated public API for app + plugins (see below)
-  models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
-  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events (analytics emission gateway)
-  plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py
-  core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
+  core/          # Shared internals plugins depend on (reached only via sparkth/lib)
+    config.py      # Settings; also encryption.py, security.py (JWT/OAuth), cache.py, db.py, email.py
+    models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
+    plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
+    permissions/   # Scoped-RBAC engine (roles, scopes, defaults)
+    analytics/     # Analytics DB + emission gateway write path: engine/sessions, registries, schemas, gateway
+    routes/        # Plugin route-registration helpers
+  lib/           # Curated public façade to core — the only surface plugins import from (see below)
+  plugins/       # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
+  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events, permissions
+  llm/           # LLM provider abstraction + config service (behind sparkth/lib/llm)
   mcp/           # FastMCP server, tool registration, prompts/
-  services/      # Business logic layer, plugin adapters
+  services/      # Business logic layer (email verification, whitelist)
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user and role management)
+  main.py        # FastAPI app assembly + lifespan
   migrations/
-    app/        # Alembic versions for the main application DB
+    app/         # Alembic versions for the main application DB
     analytics/   # Alembic versions for the separate analytics DB (TimescaleDB)
 
 frontend/

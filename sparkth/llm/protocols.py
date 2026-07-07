@@ -1,4 +1,4 @@
-"""Structural interfaces app/llm depends on"""
+"""Structural interfaces sparkth/llm depends on"""
 
 from typing import Protocol
 

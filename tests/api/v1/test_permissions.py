@@ -1,4 +1,4 @@
-"""Tests for the role-management API (app/api/v1/permissions)."""
+"""Tests for the role-management API (sparkth/api/v1/permissions)."""
 
 import functools
 import uuid

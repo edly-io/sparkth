@@ -16,7 +16,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.dialects.postgresql import JSONB
 
 # Registry every analytics table attaches to. The analytics Alembic env
-# (app/migrations/analytics/env.py) uses this as its target_metadata.
+# (sparkth/migrations/analytics/env.py) uses this as its target_metadata.
 analytics_metadata = MetaData()
 
 # Append-only, time-partitioned store of validated analytics events. The analytics

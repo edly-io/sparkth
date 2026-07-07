@@ -1,7 +1,7 @@
 """Role CRUD and role-permission grant management backing the role-management API.
 
 Module-level async functions, consistent with the engine in this package. The
-role-management API (``app/api/v1/permissions``) imports them from here directly.
+role-management API (``sparkth/api/v1/permissions``) imports them from here directly.
 """
 
 from sqlmodel import col, select

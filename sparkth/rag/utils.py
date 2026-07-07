@@ -16,7 +16,7 @@ from sparkth.rag.types import DocumentSection
 
 
 def get_asset(file_name: str, file_extension: str) -> str | dict[str, Any]:
-    """Read a file from app/rag/assets and return its contents.
+    """Read a file from sparkth/rag/assets and return its contents.
 
     Returns a str for .txt files and a dict for .json files.
     """

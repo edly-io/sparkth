@@ -1,7 +1,7 @@
 """Public API for the LLM library.
 
 All plugins and external modules import LLM functionality from here. Nothing
-outside ``app/llm/`` should import from ``sparkth.llm.*`` directly.
+outside ``sparkth/llm/`` should import from ``sparkth.llm.*`` directly.
 """
 
 from sparkth.core.cache import get_cache_service

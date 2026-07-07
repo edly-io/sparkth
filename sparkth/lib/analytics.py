@@ -2,7 +2,7 @@
 
 All application code and plugins import analytics functionality from here rather
 than reaching into ``sparkth.core.analytics.*`` directly. Implementation lives in
-``app/core/analytics/``.
+``sparkth/core/analytics/``.
 """
 
 from sparkth.core.analytics.exceptions import DuplicateEventTypeError, UnknownEventTypeError

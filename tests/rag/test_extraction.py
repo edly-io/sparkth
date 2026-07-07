@@ -1,7 +1,7 @@
 """
 tests/rag/test_extraction.py
 
-Unit tests for app/rag/extraction.
+Unit tests for sparkth/rag/extraction.
 Covers: PDF, DOCX, HTML, TXT extraction + public API routing + error handling.
 """
 

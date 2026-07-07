@@ -5,7 +5,7 @@ cannot be migrated (the RAG migration needs pgvector, and others need Postgres
 enum types), so the schema is created with SQLModel.metadata.create_all, the
 same way the unit-test suite builds its schema.
 
-Metadata is populated exactly as app/migrations/env.py does it: `from sparkth.core.models
+Metadata is populated exactly as sparkth/migrations/env.py does it: `from sparkth.core.models
 import *` registers the core tables and get_plugin_loader() registers the plugin
 tables, so SQLModel.metadata is complete before create_all runs.
 """

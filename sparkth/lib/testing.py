@@ -14,7 +14,7 @@ conftest, not here.
 import os
 
 # Set test environment variables BEFORE importing app modules.
-# This must happen before app/core/config.py calls get_settings(), which caches
+# This must happen before sparkth/core/config.py calls get_settings(), which caches
 # the settings on first use.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("ANALYTICS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")

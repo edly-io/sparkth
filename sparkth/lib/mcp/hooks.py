@@ -37,8 +37,8 @@ class Tool:
         return generate_input_schema(self.handler)
 
 
-# MCP tools contributed by plugins, consumed by the MCP server (app/mcp/main.py)
-# and the chat tool registry (app/core_plugins/chat/tools.py).
+# MCP tools contributed by plugins, consumed by the MCP server (sparkth/mcp/main.py)
+# and the chat tool registry (sparkth/plugins/chat/tools.py).
 MCP_TOOLS: PluginCollectionHook[Tool] = PluginCollectionHook()
 
 
