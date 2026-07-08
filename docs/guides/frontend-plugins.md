@@ -1,12 +1,15 @@
-# Frontend Plugin Implementation Guide
+# Frontend plugin development
 
-This document explains how to implement and register a new frontend plugin in the application.
+This guide explains how to implement and register a new frontend plugin in the application.
+It is the frontend counterpart to the [backend plugin development guide](plugins.md).
 
 The plugin system is designed to be:
 
 - Modular
 - Lazy-loaded
 - Route-based
+
+> All paths in this guide are relative to the `frontend/` directory.
 
 ## Plugin Directory
 
@@ -96,12 +99,13 @@ export const examplePlugin: PluginDefinition = {
 
 At a minimum, a plugin must define:
 
-- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's derived name — see "Plugin Name Derivation" in [`sparkth/core/plugins/PLUGIN_GUIDE.md`](../sparkth/core/plugins/PLUGIN_GUIDE.md) — so the UI resolves to the right backend plugin)
+- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's derived name — see "Plugin Name Derivation" in the [backend plugin development guide](plugins.md) — so the UI resolves to the right backend plugin)
 - `displayName` – user-facing name
 - `description` – short description
 - `loadComponent` – lazy-loaded UI component
 
-For more details, see `PluginDefinition` defined [here](./lib/plugins/types.ts).
+For more details, see the `PluginDefinition` type in
+[`frontend/lib/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/lib/plugins/types.ts).
 
 ## 4. Publicly Export the Plugin
 

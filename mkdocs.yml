@@ -1,0 +1,60 @@
+site_name: Sparkth
+site_description: AI-first, open-source learning platform — developer documentation
+repo_url: https://github.com/edly-io/sparkth
+docs_dir: docs
+# Output goes to site/ (git-ignored). Built locally with `make docs`; not published.
+
+theme:
+  name: material
+  favicon: img/favicon.ico
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_if_no_docstring: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Guides:
+      - Configuration: guides/configuration.md
+      - User management: guides/user-management.md
+      - Backend plugin development: guides/plugins.md
+      - Frontend plugin development: guides/frontend-plugins.md
+      - Permissions: guides/permissions.md
+  - Reference:
+      - Configuration: reference/configuration.md
+      - Python API:
+          - Public library (sparkth.lib): reference/lib.md
+          - Plugin authoring: reference/plugins.md
+          - Permissions: reference/permissions.md

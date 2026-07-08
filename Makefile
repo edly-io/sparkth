@@ -126,6 +126,16 @@ cli: ## Run CLI tool (make cli -- users --help)
 mypy: ## Run mypy type checking
 	uv run mypy --strict sparkth/ tests/ scripts/
 
+##@ Documentation
+# Docs deps live in the isolated `docs` dependency group, kept out of the default dev install.
+.PHONY: docs
+docs: ## Build the documentation site (guides + generated Python API reference → site/)
+	uv run --group docs mkdocs build --strict
+
+.PHONY: docs.serve
+docs.serve: ## Serve the documentation site with live reload (http://127.0.0.1:8000)
+	uv run --group docs mkdocs serve
+
 ##@ Docker
 .PHONY: docker.build
 docker.build: ## Build the Docker image

@@ -63,81 +63,12 @@ tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, pe
 from, instead of reaching into `sparkth.core.*` (or other internal packages) directly
 — every internal symbol a plugin imports becomes an implicit public API and blocks
 refactoring (see issue #379). When a core capability is needed beyond `sparkth/core`,
-expose it through `sparkth/lib` and import it from there.
+expose it through `sparkth/lib` and import it from there, never from `sparkth.core.*`,
+`sparkth.llm.*`, or `sparkth.rag.*`.
 
-Current modules (see the source for the full API — do not duplicate it here):
-
-- [`sparkth/lib/log.py`](sparkth/lib/log.py) — logging. Obtain loggers via `get_logger`
-  (never `logging.getLogger`); `configure_logging` is the single logging setup,
-  called once per process entrypoint.
-- [`sparkth/lib/db.py`](sparkth/lib/db.py) — database sessions. Use `session_scope` /
-  `get_async_session` for the main DB; `analytics_session_scope` /
-  `get_analytics_session` for the analytics DB. Implementation lives in
-  `sparkth/core/db.py` (main) and `sparkth/core/analytics/db.py` (analytics).
-- [`sparkth/lib/auth.py`](sparkth/lib/auth.py) — authentication dependency. Import
-  `get_current_user` from here (the FastAPI dependency that resolves the authenticated
-  `User` from the bearer token) — its single canonical home; every caller (routes, the
-  permission gate) imports it from there. Implementation lives in `sparkth/lib/auth.py`.
-- [`sparkth/lib/settings.py`](sparkth/lib/settings.py) — application settings. Read settings
-  via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
-  `sparkth.core.config` directly. Implementation lives in `sparkth/core/config.py`.
-- [`sparkth/lib/encryption.py`](sparkth/lib/encryption.py) — symmetric encryption. Import
-  `get_encryption_service` / `EncryptionService` from here (Fernet encryption of secrets at
-  rest, e.g. stored LLM API keys); never import from `sparkth.core.encryption` directly.
-  Implementation lives in `sparkth/core/encryption.py`.
-- [`sparkth/lib/models.py`](sparkth/lib/models.py) — data-model public API. Import the models
-  plugins consume from here (`User`, `LLMConfig`, and the `TimestampedModel` /
-  `SoftDeleteModel` mixins + `utc_now`); never import from `sparkth.core.models.*` directly.
-  Implementation lives in `sparkth/core/models/`.
-- [`sparkth/lib/rag.py`](sparkth/lib/rag.py) — RAG public API. Import RAG functionality
-  from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
-  `IngestionResult`, `RagStatus`, RAG exceptions); never import from `sparkth.rag.*`
-  directly. Implementation lives in `sparkth/rag/` (see issue #398).
-- [`sparkth/lib/llm.py`](sparkth/lib/llm.py) — LLM public API. Import LLM functionality
-  from here (`BaseChatProvider`, `get_provider`, `LLMConfigService`,
-  `get_llm_service`, `LLMConfigAdapter`, and the `LLMConfig*` exceptions); never
-  import from `sparkth.llm.*` directly. Implementation lives in `sparkth/llm/` (see
-  issue #379).
-- [`sparkth/lib/plugins.py`](sparkth/lib/plugins.py) — plugin framework public API.
-  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`,
-  `PluginConfig`, `PluginAccessMiddleware`) as well as `PluginService` / `get_plugin_service`
-  and the plugin-service exceptions (`ConfigValidationError`, `InternalServerError`,
-  `PluginDisabledError`, `UserPluginResponse`); never import from `sparkth.core.plugins`,
-  `sparkth.core.plugins.base`, `sparkth.core.plugins.config_base`,
-  `sparkth.core.plugins.middleware` or `sparkth.core.plugins.service` directly.
-  Implementation lives in `sparkth/core/plugins/`.
-- [`sparkth/lib/permissions/`](sparkth/lib/permissions/__init__.py) — permissions public API
-  (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
-  `assign_role`, `revoke_role`, `get_permission`,
-  `get_permission_scope`, `Permission`); the
-  `PERMISSIONS` / `PERMISSION_SCOPES` hooks are imported from the
-  `sparkth.lib.permissions.hooks` submodule, the `PermissionScope` class and the
-  `GLOBAL` scope from the `sparkth.lib.permissions.scopes` submodule, and the permission
-  exception classes (`RoleNotFound`, `PermissionNotFound`, `PermissionScopeNotFound`)
-  from the `sparkth.lib.permissions.exceptions` submodule. Plugins declare their own via
-  `Permission.create()` / `PermissionScope.create()`. Never import
-  from `sparkth.core.permissions.*` directly. Implementation lives in `sparkth/core/permissions/`.
-- [`sparkth/lib/analytics/`](sparkth/lib/analytics/__init__.py) — analytics gateway public API.
-  Import analytics functionality from here (`ingest_event`, `AnalyticsEventSchema`,
-  `register_analytics_event`, `EventRegistry`, `UnknownEventTypeError`,
-  `DuplicateEventTypeError`, `EventNamespaceError`); never import from `sparkth.core.analytics.*`
-  directly. Plugins subclass `AnalyticsEventSchema` (declaring `event_type` — namespaced under 
-  the plugin name, e.g. `"slack.message_received"` — and `version`; events are server-only by
-  default, set `server_only = False` to allow client emission), register it from their
-  `__init__` via `ANALYTICS_SCHEMAS.add_item(self, MyEvent)`, and emit it through `ingest_event`.
-  Implementation lives in `sparkth/core/analytics/`.
-- [`sparkth/lib/audit/`](sparkth/lib/audit/__init__.py) — audit trail public API. Import the write path
-  (`record_event`, `record_event_now`) from here; the self-describing event classes (`BaseAuditEvent`
-  and its category tiers `MutationAuditEvent` / `AIActionAuditEvent`, plus `LoginAuditEvent`), their
-  value objects (`AuditTarget`, `AuditChange`, `AuditToolCall`,
-  `AuditModelInfo`), and `AuditOutcome` from the `sparkth.lib.audit.events` submodule; the actor classes
-  (`UserActor` / `SystemActor` / `AnonymousActor`, union alias `AuditActor`), the context classes
-  (`AuditRequestContext` / `AuditSystemContext`, union alias `AuditContext`), `AuditActorType`,
-  `AuditSource`, and the context helpers from `sparkth.lib.audit.context`; the `AUDIT_EVENTS` hook from
-  `sparkth.lib.audit.hooks`; and the audit exceptions from `sparkth.lib.audit.exceptions`. Never
-  import from `sparkth.core.audit.*` directly. Implementation lives in `sparkth/core/audit/`. Unlike analytics
-  (best-effort), audit writes are fail-closed: mutating and AI actions must not proceed if their audit
-  record cannot be written.
+The module-by-module reference is generated from the docstrings — build it with
+`make docs` (see the [Python API reference](docs/reference/lib.md)). Do not maintain an
+API listing here or in the README; keep the docstrings authoritative.
 
 ## Essential Commands
 
@@ -186,32 +117,19 @@ make services.logs      # Tail logs for the service containers (make services.lo
 make db-shell           # PostgreSQL shell
 make db-shell-analytics  # PostgreSQL shell on the analytics database
 make create-user        # Create user (pass args after --)
+
+# Documentation (mkdocs + mkdocstrings; docs deps in the isolated `docs` group)
+make docs               # Build the docs site (guides + generated Python API reference) to site/
+make docs.serve         # Live-preview the docs site at http://127.0.0.1:8000
 ```
 
 ## Environment Setup
 
 `.env` is committed with working dev defaults (localhost-first: it points at the backing services published by `docker-compose.yml`). For sensitive credentials (Google OAuth, Slack) and local overrides, create a `.env.local` file (git-ignored) — it takes precedence over `.env` and is read by both the native backend and `docker compose`. See the production checklist at the top of `.env` for values that must change before deploying.
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `ANALYTICS_DATABASE_URL` | PostgreSQL connection for the separate analytics database (TimescaleDB). Same instance as `DATABASE_URL` by default (Option B); point at another host to isolate it. |
-| `SECRET_KEY` | JWT signing key |
-| `LLM_ENCRYPTION_KEY` | Fernet key for encrypting stored LLM API keys |
-| `REDIS_URL` | Redis for chat session caching and the email-verification resend rate-limit bucket |
-| `GOOGLE_CLIENT_ID/SECRET` | Google OAuth (add to `.env.local`) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_TLS` | Outbound SMTP — dev default is Mailpit (bundled); use Amazon SES, Mailgun, etc. in production |
-| `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | From-header for verification + other transactional emails |
-| `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
-| `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |
-| `FRONTEND_BASE_URL` | Base URL used in verification email links |
-| `TRUSTED_PROXY_HOPS` | Reverse-proxy hops to trust when resolving client IPs from `X-Forwarded-For` (default 0: header ignored, socket peer used); the audit trail records this IP as evidence |
-| `CHAT_MAX_TOOL_EXECUTIONS` | Max tool-call iterations the LLM may perform per request (default 50) |
-| `CHAT_TITLE_MAX_LENGTH` | Max characters for the auto-extracted conversation title (default 60) |
-| `CHAT_TITLE_PROMPT_MAX_CHARS` | Max characters from first user message sent to title-generation LLM (default 500) |
-| `CHAT_TITLE_LLM_MAX_TOKENS` | Max tokens the title-generation LLM may produce (default 20) |
-| `CHAT_TITLE_DB_MAX_LENGTH` | Max characters stored in the conversation title column (default 255) |
-| `CHAT_TITLE_LLM_TEMPERATURE` | Temperature for title-generation LLM calls (default 0.3) |
+**`.env` is the source of truth for the full, current list of variables and their dev
+defaults** — it carries a comment on every variable, so read it there rather than
+duplicating the list here.
 
 CI uses `DATABASE_URL=sqlite+aiosqlite:///./test.db`. Tests always run against SQLite.
 
@@ -253,7 +171,7 @@ Documentation includes:
 
 The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
 
-**Permission system → README.** Whenever you change the permission system — declare or remove a permission or scope kind (via `Permission.create()` / `PermissionScope.create()`, which feed the `PERMISSIONS` / `PERMISSION_SCOPES` hooks), add or remove a role, or change how scopes, the lookup helpers, or assignments behave — update the "Permission Management System" section of [`README.md`](README.md) in the same PR. The shipped scopes/roles tables and the extension guide must stay accurate so the README grows with the codebase and is reviewed alongside the change.
+**Permission system → docs.** Whenever you change the permission system — declare or remove a permission or scope kind (via `Permission.create()` / `PermissionScope.create()`, which feed the `PERMISSIONS` / `PERMISSION_SCOPES` hooks), add or remove a role, or change how scopes, the lookup helpers, or assignments behave — update the permissions guide [`docs/guides/permissions.md`](docs/guides/permissions.md) in the same PR (the class/function detail comes from the docstrings, rendered by `make docs`). The shipped scopes/roles tables and the extension guide must stay accurate so the docs grow with the codebase and are reviewed alongside the change.
 
 ### Test Layout
 
@@ -459,8 +377,12 @@ Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/P
 | Topic | File |
 |---|---|
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
-| Plugin development guide | [sparkth/core/plugins/PLUGIN_GUIDE.md](sparkth/core/plugins/PLUGIN_GUIDE.md) |
-| Frontend plugin development | [frontend/README.md](frontend/README.md) |
+| Backend plugin development guide | [docs/guides/plugins.md](docs/guides/plugins.md) |
+| Frontend plugin development guide | [docs/guides/frontend-plugins.md](docs/guides/frontend-plugins.md) |
+| Permissions guide | [docs/guides/permissions.md](docs/guides/permissions.md) |
+| Configuration guide (setup) | [docs/guides/configuration.md](docs/guides/configuration.md) |
+| Configuration reference (variables) | [docs/reference/configuration.md](docs/reference/configuration.md) |
+| User management guide | [docs/guides/user-management.md](docs/guides/user-management.md) |
 | GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
 
 ## GitHub Project Management

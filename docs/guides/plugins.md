@@ -39,17 +39,7 @@ class MyAppPluginConfig(PluginConfig):
 
 On its own, these are plain optional integers and strings — Pydantic only checks the types. Cross-field validation (does `llm_config_id` actually belong to this user? is `llm_model_override` a valid model for the linked provider?) requires a config adapter, described in the [Plugin Config Adapters](#plugin-config-adapters-llm-aware-plugins) section below.
 
-#### Supported providers and models
-
-The current implementation supports three providers. Valid `llm_model_override` values must come from this list for the provider of the linked `LLMConfig`.
-
-| Provider | Valid models |
-|---|---|
-| `openai` | `gpt-4o`, `gpt-4o-mini`, `o1`, `o1-mini`, `o3-mini` |
-| `anthropic` | `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-sonnet-4-20250514` |
-| `google` | `gemini-2.0-flash`, `gemini-1.5-pro`, `gemini-1.5-flash` |
-
-The canonical source is `PROVIDER_MODELS` in `sparkth/llm/providers.py`. That dict is the single truth for validation — the table above is a snapshot, so check the source when in doubt.
+Valid `llm_model_override` values must be a legal model for the linked `LLMConfig`'s provider. The single source of truth is `PROVIDER_MODELS` in `sparkth/llm/providers.py`.
 
 
 ### LMS Plugins: Automatic Credential Injection
@@ -112,13 +102,11 @@ If your plugin config includes `llm_config_id` and `llm_model_override`, registe
 
 ### What the adapter does
 
-`LLMConfigAdapter` (from `sparkth.llm.adapter`) hooks into the config pipeline via three methods:
-
-| Method | When called | What it does |
-|---|---|---|
-| `preprocess_config` | Before saving config (POST and PUT) | Verifies `llm_config_id` belongs to the user and is active. Validates `llm_model_override` is a legal model for that config's provider. Raises `ValueError` on any violation. |
-| `postprocess_config` | Before returning config in API responses | Resolves `llm_config_id` into `llm_config_name`, `llm_provider`, and `llm_model` read-only fields for the frontend. |
-| `sync_cache` | After a successful PUT | No-op by default; override to invalidate or warm caches when config changes. |
+`LLMConfigAdapter` (import from `sparkth.lib.llm`) hooks into the config pipeline via three
+methods — `preprocess_config` (validates on save), `postprocess_config` (resolves read-only
+fields for the frontend), and `sync_cache` (a no-op override point for cache invalidation).
+See the [`LLMConfigAdapter` reference](../reference/lib.md#llm) for the exact signatures and
+behaviour.
 
 ### Adding an adapter for your plugin
 
@@ -284,7 +272,7 @@ async def process_data(input: str) -> str:
     return f"Processed: {input}"
 ```
 
-Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` (or `ObjectlessPermissionScope.create(...)` for a singleton scope) — the scope classes come from `sparkth.lib.permissions.scopes`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
+Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` (or `ObjectlessPermissionScope.create(...)` for a singleton scope) — the scope classes come from `sparkth.lib.permissions.scopes`. See the [permissions guide](permissions.md) for how scope hierarchy and assignments work.
 
 Analytics event schemas register through `register_event_schema(self, MyEvent)`: define an `AnalyticsEventSchema` subclass (from `sparkth.lib.analytics`) declaring its own `event_type` and `version`, then register it from `__init__`. The `event_type` **must** be namespaced under the plugin's name (`"myappplugin.data_processed"`), or registration raises `EventNamespaceError` at import; a second class claiming the same `(event_type, version)` raises `DuplicateEventTypeError`. Emit a registered event server-side with `ingest_event` (also from `sparkth.lib.analytics`). See the "Analytics Event Schemas" section of the project README for the full write path.
 
