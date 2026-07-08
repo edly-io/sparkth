@@ -1,9 +1,18 @@
 from pydantic import BaseModel as _PydanticBase
 from pydantic import EmailStr, ValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.whitelist import WhitelistedEmail
+from sparkth.lib.log import get_logger
+from sparkth.services.whitelist.exceptions import (
+    InvalidWhitelistValue,
+    WhitelistEntryAlreadyExists,
+    WhitelistEntryNotFound,
+)
+
+logger = get_logger(__name__)
 
 
 class _EmailValidator(_PydanticBase):
@@ -30,18 +39,18 @@ class WhitelistService:
                 or domain_part.endswith(".")
                 or ".." in domain_part
             ):
-                raise ValueError(f"Invalid domain format: {value}")
+                raise InvalidWhitelistValue(f"Invalid domain format: {value}")
             entry_type = "domain"
         else:
             try:
                 _EmailValidator(email=normalized)
             except ValidationError as exc:
-                raise ValueError(f"Invalid email format: {value}") from exc
+                raise InvalidWhitelistValue(f"Invalid email format: {value}") from exc
             entry_type = "email"
 
         result = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
         if result.one_or_none() is not None:
-            raise ValueError(f"Entry already exists: {normalized}")
+            raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}")
 
         entry = WhitelistedEmail(
             value=normalized,
@@ -49,7 +58,12 @@ class WhitelistService:
             added_by_id=added_by_id,
         )
         session.add(entry)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
+            raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}") from exc
         await session.refresh(entry)
         return entry
 
@@ -58,7 +72,7 @@ class WhitelistService:
         result = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.id == entry_id))
         entry = result.one_or_none()
         if entry is None:
-            raise ValueError(f"Whitelist entry not found: {entry_id}")
+            raise WhitelistEntryNotFound(f"Whitelist entry not found: {entry_id}")
 
         await session.delete(entry)
         await session.commit()

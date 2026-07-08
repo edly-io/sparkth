@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
@@ -34,22 +33,11 @@ async def add_whitelist_entry(
     current_user: User = Depends(EMAIL_WHITELIST_CREATE.require(WHITELIST)),
     session: AsyncSession = Depends(get_async_session),
 ) -> WhitelistedEmailResponse:
-    try:
-        entry = await WhitelistService.add_entry(
-            session,
-            value=payload.value,
-            added_by_id=current_user.id,  # type: ignore[arg-type]
-        )
-    except ValueError as exc:
-        msg = str(exc)
-        if "already exists" in msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg) from None
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg) from None
-    except IntegrityError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Entry already exists: {payload.value}",
-        ) from None
+    entry = await WhitelistService.add_entry(
+        session,
+        value=payload.value,
+        added_by_id=current_user.id,  # type: ignore[arg-type]
+    )
     return WhitelistedEmailResponse.model_validate(entry)
 
 
@@ -62,10 +50,4 @@ async def remove_whitelist_entry(
     entry_id: int,
     session: AsyncSession = Depends(get_async_session),
 ) -> None:
-    try:
-        await WhitelistService.remove_entry(session, entry_id=entry_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Whitelist entry not found",
-        ) from None
+    await WhitelistService.remove_entry(session, entry_id=entry_id)

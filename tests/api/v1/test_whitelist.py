@@ -141,6 +141,7 @@ class TestAddWhitelist:
         await client.post("/api/v1/whitelist/", json={"value": email})
         response = await client.post("/api/v1/whitelist/", json={"value": email})
         assert response.status_code == 409
+        assert "already exists" in response.json()["detail"]
 
     async def test_add_invalid_returns_422(self, client: AsyncClient, session: AsyncSession) -> None:
         admin = await _create_user_with_permissions(session, _WHITELIST_PERMISSIONS)
@@ -148,6 +149,7 @@ class TestAddWhitelist:
 
         response = await client.post("/api/v1/whitelist/", json={"value": "not-valid"})
         assert response.status_code == 422
+        assert "Invalid" in response.json()["detail"]
 
     async def test_read_only_user_cannot_create(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _create_user_with_permissions(session, ["email.whitelist.read"])
@@ -182,6 +184,7 @@ class TestRemoveWhitelist:
 
         response = await client.delete("/api/v1/whitelist/999999")
         assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
 
     async def test_regular_user_gets_403(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _create_regular_user(session)
@@ -218,3 +221,19 @@ class TestWhitelistManagerScope:
         _override_current_user(client, manager)
         response = await client.post("/api/v1/whitelist/", json={"value": "a@b.com"})
         assert response.status_code == 403
+
+
+class TestWhitelistExceptionRegistration:
+    def test_domain_exceptions_are_registered(self) -> None:
+        """The API package registers its 3 domain exceptions on the central registry."""
+        from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
+        from sparkth.services.whitelist import (
+            InvalidWhitelistValue,
+            WhitelistEntryAlreadyExists,
+            WhitelistEntryNotFound,
+        )
+
+        registered = dict(EXCEPTION_HANDLERS.iter_items())
+        assert WhitelistEntryAlreadyExists in registered
+        assert WhitelistEntryNotFound in registered
+        assert InvalidWhitelistValue in registered
