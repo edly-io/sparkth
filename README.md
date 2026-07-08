@@ -432,6 +432,13 @@ the permission identically. Behavior:
 `require_in_global_scope()` uses the shipped `GLOBAL` scope and names no path parameter, so
 it can never hit the last two rows.
 
+## Audit Trail
+
+Sparkth keeps an append-only audit trail of security-relevant and AI actions: who did what, when,
+from where, and with what effect. The implementation lives in `app/core/audit/` with its public API
+in `app/lib/audit.py`; unlike analytics (best-effort), audit writes are fail-closed, so a mutating
+or AI action whose audit record cannot be written does not proceed.
+
 ## Contributing
 
 Contributions are welcome. Open a pull request against `main` and a maintainer will take a look.
