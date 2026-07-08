@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.core.permissions.scopes import PERMISSION_SCOPES, ObjectScope, PermissionScope
+from app.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from app.lib.permissions import Permission
 from app.lib.permissions.scopes import GLOBAL
 from app.models.user import User
@@ -22,7 +22,7 @@ def course_scope(monkeypatch: pytest.MonkeyPatch) -> PermissionScope:
     patch its backing dict via monkeypatch (auto-restored) rather than calling create()/
     add_item(), which would leak the scope into every later test.
     """
-    scope = ObjectScope("course", parent=GLOBAL)
+    scope = PermissionScope("course", parent=GLOBAL)
     monkeypatch.setitem(PERMISSION_SCOPES._items, "course", scope)
     return scope
 

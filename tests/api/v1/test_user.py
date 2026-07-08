@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.permissions.models import Role
 from app.lib.auth import get_current_user
 from app.lib.permissions import assign_role
-from app.lib.permissions.scopes import GLOBAL, ObjectScope
+from app.lib.permissions.scopes import GLOBAL, PermissionScope
 from app.models.user import User
 
 
@@ -80,7 +80,7 @@ async def test_me_admin_role_at_other_scope_does_not_grant_global_admin(
     assert user.id is not None
     session.add(Role(name="admin"))
     await session.flush()
-    await assign_role(user.id, "admin", ObjectScope("course"), "1", session)
+    await assign_role(user.id, "admin", PermissionScope("course"), "1", session)
     _override_current_user(client, user)
 
     response = await client.get("/api/v1/user/me")

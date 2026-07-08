@@ -3,12 +3,12 @@
 Application code and plugins import the permissions surface from here, never from
 ``app.core.permissions`` or the hook modules directly. A plugin declares its
 permissions and scope kinds from its ``__init__`` with ``Permission.create()`` and
-``ObjectScope.create()`` (or ``ObjectlessScope.create()`` for a singleton scope)::
+``PermissionScope.create()`` (or ``ObjectlessPermissionScope.create()`` for a singleton scope)::
 
     from app.lib.permissions import Permission
-    from app.lib.permissions.scopes import GLOBAL, ObjectScope
+    from app.lib.permissions.scopes import GLOBAL, PermissionScope
 
-    ObjectScope.create("course", parent=GLOBAL)
+    PermissionScope.create("course", parent=GLOBAL)
     Permission.create("course.grade")
 """
 
