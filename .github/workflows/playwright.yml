@@ -1,9 +1,9 @@
 name: Playwright Tests
 
 on:
+  # No `branches` filter: run on PRs targeting any branch, not just main, so
+  # stacked PRs (based on another feature branch) still get the full suite.
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
