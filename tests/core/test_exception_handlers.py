@@ -12,7 +12,7 @@ from sparkth.lib.exception_handlers import (
     status_handler,
 )
 from sparkth.lib.hooks import TypeKeyedHook
-from sparkth.main import _register_exception_handlers
+from sparkth.main import _register_exception_handlers, assemble_app
 
 
 def test_register_status_adds_handler_to_injected_hook() -> None:
@@ -104,3 +104,20 @@ def test_custom_handler_can_read_exception_attributes() -> None:
 def test_global_registry_ships_empty() -> None:
     # Guards the scope line: this issue delivers the mechanism, not any mapping.
     assert list(EXCEPTION_HANDLERS.iter_items()) == []
+
+
+def test_assemble_app_wires_handlers_from_global_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _AssembleWiringProbe(Exception):
+        pass
+
+    # assemble_app() calls _register_exception_handlers(application) with no explicit
+    # hook, so it uses the default parameter value, which was bound to the real
+    # EXCEPTION_HANDLERS object at function-definition time. Patching a module-level
+    # symbol wouldn't reach that already-bound default, so we inject directly into the
+    # global hook's internal dict instead. monkeypatch.setitem removes the entry again
+    # on teardown, keeping this isolated from test_global_registry_ships_empty.
+    monkeypatch.setitem(EXCEPTION_HANDLERS._items, _AssembleWiringProbe, status_handler(599))
+
+    app = assemble_app()
+
+    assert _AssembleWiringProbe in app.exception_handlers
