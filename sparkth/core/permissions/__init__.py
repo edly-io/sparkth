@@ -141,6 +141,9 @@ ROLE_DELETE = Permission.create("role.delete")
 # reading roles.
 PERMISSION_READ = Permission.create("permission.read")
 
+# The analytics read permission gates the in-app analytics dashboards / read API.
+ANALYTICS_READ = Permission.create("analytics.read")
+
 
 def _active_assignment_at_scope(
     user_id: int | None,

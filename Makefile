@@ -58,6 +58,10 @@ migrations: ## Apply Alembic migrations for both the app and analytics databases
 	uv run alembic upgrade head
 	uv run alembic -c alembic_analytics.ini upgrade head
 
+.PHONY: analytics-backfill
+analytics-backfill: ## Backfill continuous aggregates full history (run once after migrating on Postgres; no-op on SQLite)
+	uv run python -m sparkth.cli.main analytics backfill-aggregates $(ARGS)
+
 .PHONY: rag-cleanup
 rag-cleanup: ## Run the RAG cleanup task (native)
 	uv run python -m sparkth.rag.cleanup

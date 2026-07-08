@@ -13,6 +13,7 @@ permissions and scope kinds from its ``__init__`` with ``Permission.create()`` a
 """
 
 from sparkth.core.permissions import (
+    ANALYTICS_READ,
     EMAIL_WHITELIST_CREATE,
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
@@ -46,4 +47,5 @@ __all__ = [
     "ROLE_UPDATE",
     "ROLE_DELETE",
     "PERMISSION_READ",
+    "ANALYTICS_READ",
 ]

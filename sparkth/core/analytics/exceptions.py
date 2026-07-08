@@ -33,3 +33,11 @@ class EventNamespaceError(Exception):
         super().__init__(
             f"Plugin '{plugin_name}' registered event '{event_type}', which is not namespaced under '{plugin_name}.'"
         )
+
+
+class ContinuousAggregateNotFound(Exception):
+    """Raised when a backfill targets a continuous aggregate that does not exist."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"No continuous aggregate named '{name}' exists in the analytics database")
