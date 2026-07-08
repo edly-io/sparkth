@@ -21,7 +21,9 @@ from app.core.google_auth import (
     get_google_user_info,
 )
 from app.lib.analytics import UnknownEventTypeError, ingest_event
-from app.lib.audit import AnonymousActor, AuditOutcome, LoginAuditEvent, UserActor, record_event_now
+from app.lib.audit import record_event_now
+from app.lib.audit.context import AnonymousActor, UserActor
+from app.lib.audit.events import AuditOutcome, LoginAuditEvent
 from app.lib.db import analytics_session_scope, get_async_session
 from app.lib.log import get_logger
 from app.models.base import utc_now

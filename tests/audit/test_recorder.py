@@ -14,22 +14,23 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit.canonical import canonicalize
 from app.core.audit.constants import REDACTED
 from app.core.audit.models import AuditEvent
-from app.lib.audit import (
+from app.lib.audit import record_event, record_event_now
+from app.lib.audit.context import (
     AnonymousActor,
-    AuditChange,
-    AuditOutcome,
     AuditRequestContext,
     AuditSource,
     AuditSystemContext,
+    UserActor,
+    audit_context,
+)
+from app.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
     AuditToolCall,
     BaseAuditEvent,
     LoginAuditEvent,
-    UnknownAuditEventTypeError,
-    UserActor,
-    audit_context,
-    record_event,
-    record_event_now,
 )
+from app.lib.audit.exceptions import UnknownAuditEventTypeError
 
 ACTOR = UserActor(id="1", label="alice")
 

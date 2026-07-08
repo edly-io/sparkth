@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from app.core.audit.middleware import AuditContextMiddleware
-from app.lib.audit import (
+from app.lib.audit.context import (
     AnonymousActor,
     AuditActorType,
     AuditRequestContext,
