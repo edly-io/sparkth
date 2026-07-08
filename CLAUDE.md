@@ -113,6 +113,7 @@ make frontend.build.api  # Regenerate frontend/lib/api/generated.ts from the bac
 
 # Database
 make migrations         # Apply Alembic migrations for both app and analytics databases (native)
+make analytics-backfill # Full-refresh TimescaleDB continuous aggregates (run once after an analytics migration adds one; no-op on SQLite). Pass -- --name <cagg> to target one
 make services.logs      # Tail logs for the service containers (make services.logs [service])
 make db-shell           # PostgreSQL shell
 make db-shell-analytics  # PostgreSQL shell on the analytics database
@@ -217,6 +218,15 @@ both. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
 databases never share metadata: app models use `SQLModel.metadata`, analytics
 tables use `sparkth.core.analytics.models.analytics_metadata`.
+
+**Continuous aggregates need a one-off backfill after migrating.** A TimescaleDB
+continuous aggregate is created `WITH NO DATA` (creating it with data would backfill
+inside Alembic's transaction), and its refresh policy only covers a trailing window —
+so once the first policy run advances the materialization watermark, buckets older than
+that window vanish from the view and pre-migration history is lost. After applying an
+analytics migration that adds a continuous aggregate, run `make analytics-backfill` once
+on PostgreSQL to full-refresh it (`refresh_continuous_aggregate` over the whole range).
+It is idempotent and a no-op on SQLite.
 
 ### Preventing Split Heads
 

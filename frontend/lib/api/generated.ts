@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/api/v1/analytics/login-activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Login Activity
+         * @description Return daily login counts (newest first) for the last ``days`` calendar days.
+         *
+         *     Days with no logins are omitted from the series (no zero-fill); consumers must
+         *     tolerate gaps.
+         */
+        get: operations["login_activity_api_v1_analytics_login_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -1591,6 +1614,16 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /**
+         * LoginActivityPoint
+         * @description One day's login count. ``day`` is an ISO ``YYYY-MM-DD`` string.
+         */
+        LoginActivityPoint: {
+            /** Day */
+            day: string;
+            /** Login Count */
+            login_count: number;
+        };
         /** LogsResponse */
         LogsResponse: {
             /**
@@ -1944,6 +1977,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login_activity_api_v1_analytics_login_activity_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginActivityPoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     google_authorize_api_v1_auth_google_authorize_get: {
         parameters: {
             query?: never;
