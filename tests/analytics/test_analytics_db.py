@@ -1,11 +1,11 @@
 from sqlalchemy import MetaData, text
 from sqlmodel import SQLModel
 
-from app.core.analytics.db import get_analytics_engine
-from app.core.analytics.models import analytics_metadata
-from app.core.db import get_engine
-from app.lib.db import analytics_session_scope
-from app.lib.settings import get_settings
+from sparkth.core.analytics.db import get_analytics_engine
+from sparkth.core.analytics.models import analytics_metadata
+from sparkth.core.db import get_engine
+from sparkth.lib.db import analytics_session_scope
+from sparkth.lib.settings import get_settings
 
 
 def test_settings_exposes_analytics_database_url() -> None:

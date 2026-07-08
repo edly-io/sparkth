@@ -1,5 +1,5 @@
-from app.core.analytics.schemas import AssessmentSubmitted, UserLoggedIn
-from app.lib.analytics import AnalyticsEventSchema
+from sparkth.core.analytics.schemas import AssessmentSubmitted, UserLoggedIn
+from sparkth.lib.analytics import AnalyticsEventSchema
 
 
 def test_core_schemas_subclass_base() -> None:

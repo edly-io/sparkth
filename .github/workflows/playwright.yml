@@ -1,9 +1,9 @@
 name: Playwright Tests
 
 on:
+  # No `branches` filter: run on PRs targeting any branch, not just main, so
+  # stacked PRs (based on another feature branch) still get the full suite.
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
@@ -94,7 +94,7 @@ jobs:
       SMTP_FROM_EMAIL: no-reply@sparkth.local
       SMTP_FROM_NAME: Sparkth
       # The API serves the built frontend statically on the same origin in
-      # production (see app/main.py), so the suite runs against :7727 with no
+      # production (see sparkth/main.py), so the suite runs against :7727 with no
       # /api proxy gap to bridge.
       FRONTEND_BASE_URL: http://localhost:7727
       FIRST_SUPERUSER: admin
@@ -151,7 +151,7 @@ jobs:
 
       - name: Start API (serves frontend + API on :7727)
         run: |
-          uv run uvicorn app.main:app --host 0.0.0.0 --port 7727 > api.log 2>&1 &
+          uv run uvicorn sparkth.main:app --host 0.0.0.0 --port 7727 > api.log 2>&1 &
           for i in {1..60}; do
             curl -fsS http://localhost:7727/docs > /dev/null && break
             echo "waiting for API ($i)..."

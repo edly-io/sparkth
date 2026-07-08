@@ -6,9 +6,9 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.documents import Document
-from app.rag.models import DocumentChunk, DocumentChunkLink
-from app.rag.utils import get_rag_ingested_document_structure
+from sparkth.lib.documents import Document
+from sparkth.rag.models import DocumentChunk, DocumentChunkLink
+from sparkth.rag.utils import get_rag_ingested_document_structure
 
 # (chapter, section, subsection, [chunk ids]) — chunk ids drive the section ordering
 # (sections are ordered by the minimum chunk id within each group).
@@ -76,7 +76,7 @@ class TestGetRagIngestedDocumentStructure:
 
     async def test_sqlalchemy_error_raises(self) -> None:
         with patch(
-            "app.rag.utils._fetch_document",
+            "sparkth.rag.utils._fetch_document",
             new=AsyncMock(side_effect=SQLAlchemyError("DB error")),
         ):
             with pytest.raises(SQLAlchemyError):

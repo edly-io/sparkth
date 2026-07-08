@@ -1,6 +1,6 @@
 """Unit tests for RAG chunk formatting utilities."""
 
-from app.lib.rag import RetrievedChunk, format_document_chunks_as_llm_context
+from sparkth.lib.rag import RetrievedChunk, format_document_chunks_as_llm_context
 
 
 def _chunk(

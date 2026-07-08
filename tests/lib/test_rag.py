@@ -1,6 +1,6 @@
-"""Tests for the app.lib.rag public API surface and ingest_document.
+"""Tests for the sparkth.lib.rag public API surface and ingest_document.
 
-Everything here is imported from app.lib.rag only — this suite exercises the
+Everything here is imported from sparkth.lib.rag only — this suite exercises the
 public boundary, never the RAG internals behind it.
 """
 
@@ -8,17 +8,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import app.lib.rag as rag_api
-import app.rag.utils as rag_utils
-from app.lib.rag import (
+import sparkth.lib.rag as rag_api
+import sparkth.rag.utils as rag_utils
+from sparkth.lib.rag import (
     DocumentSection,
     ScannedPDFError,
     UnsupportedFileTypeError,
     agentic_retrieve_context,
     ingest_document,
 )
-from app.rag.models import DocumentChunk
-from app.rag.types import RAGContext
+from sparkth.rag.models import DocumentChunk
+from sparkth.rag.types import RAGContext
 
 
 class TestRagPublicApi:
@@ -60,8 +60,8 @@ class TestIngestDocument:
         chunker = MagicMock()
         chunker.return_value.chunk.return_value = []
         with (
-            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
-            patch("app.rag.ingestion.DocumentChunker", chunker),
+            patch("sparkth.rag.ingestion.extract_to_markdown", return_value=extraction),
+            patch("sparkth.rag.ingestion.DocumentChunker", chunker),
         ):
             result = await ingest_document("a.txt", b"x", 10)
         assert result.new_chunks == 0
@@ -69,7 +69,7 @@ class TestIngestDocument:
 
     @pytest.mark.asyncio
     async def test_scanned_pdf_propagates(self) -> None:
-        with patch("app.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")):
+        with patch("sparkth.rag.ingestion.extract_to_markdown", side_effect=ScannedPDFError("a.pdf")):
             with pytest.raises(ScannedPDFError):
                 await ingest_document("a.pdf", b"x", 10)
 
@@ -81,9 +81,9 @@ class TestIngestDocument:
         chunker = MagicMock()
         chunker.return_value.chunk.return_value = [MagicMock()]
         with (
-            patch("app.rag.ingestion.extract_to_markdown", return_value=extraction),
-            patch("app.rag.ingestion.DocumentChunker", chunker),
-            patch("app.rag.ingestion.store_and_link_chunks", return_value=(1, 0)) as mock_store,
+            patch("sparkth.rag.ingestion.extract_to_markdown", return_value=extraction),
+            patch("sparkth.rag.ingestion.DocumentChunker", chunker),
+            patch("sparkth.rag.ingestion.store_and_link_chunks", return_value=(1, 0)) as mock_store,
         ):
             result = await ingest_document("a.txt", b"x", 10)
         assert result.new_chunks == 1
@@ -128,9 +128,10 @@ class TestRetrieveContext:
             formatted_text="",
         )
         with (
-            patch("app.rag.retrieval.validate_documents_ready", new=AsyncMock()),
+            patch("sparkth.rag.retrieval.validate_documents_ready", new=AsyncMock()),
             patch(
-                "app.rag.retrieval.get_context_via_agent_with_isolated_session", new=AsyncMock(return_value=mock_ctx)
+                "sparkth.rag.retrieval.get_context_via_agent_with_isolated_session",
+                new=AsyncMock(return_value=mock_ctx),
             ) as mock_fn,
         ):
             result = await agentic_retrieve_context("q", [10], MagicMock())

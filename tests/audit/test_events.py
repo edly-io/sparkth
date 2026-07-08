@@ -8,9 +8,9 @@ from typing import ClassVar
 
 import pytest
 
-from app.lib.audit.events import AuditChange, AuditOutcome, BaseAuditEvent, LoginAuditEvent
-from app.lib.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
-from app.lib.audit.hooks import AUDIT_EVENTS
+from sparkth.lib.audit.events import AuditChange, AuditOutcome, BaseAuditEvent, LoginAuditEvent
+from sparkth.lib.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
+from sparkth.lib.audit.hooks import AUDIT_EVENTS
 
 
 def test_core_login_event_is_registered() -> None:

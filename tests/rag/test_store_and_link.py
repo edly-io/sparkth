@@ -1,4 +1,4 @@
-"""Tests for app.rag.store.store_and_link_chunks — chunk storage + dedup + linking."""
+"""Tests for sparkth.rag.store.store_and_link_chunks — chunk storage + dedup + linking."""
 
 import hashlib
 from unittest.mock import AsyncMock, MagicMock
@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.documents import Document, DocumentStatus
-from app.models.user import User
-from app.rag.models import DocumentChunk, DocumentChunkLink
-from app.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks
-from app.rag.types import Chunk, ChunkInput, ChunkMetadata
+from sparkth.core.models.user import User
+from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.rag.models import DocumentChunk, DocumentChunkLink
+from sparkth.rag.store import ChunkStoreService, copy_document_chunk_links, store_and_link_chunks
+from sparkth.rag.types import Chunk, ChunkInput, ChunkMetadata
 
 
 def _make_async_session() -> AsyncMock:

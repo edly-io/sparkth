@@ -1,14 +1,14 @@
-"""Tests for the plugin-config helpers in app.lib.config.
+"""Tests for the plugin-config helpers in sparkth.lib.config.
 
 Exercises the CONFIG_ADAPTERS hook and its lookup helpers, mirroring the
-CONFIG_SCHEMAS pattern. Everything is imported from the public app.lib.config
+CONFIG_SCHEMAS pattern. Everything is imported from the public sparkth.lib.config
 surface, never the framework internals behind it.
 """
 
-from app.lib.config import get_plugin_adapter, iter_plugin_adapters
-from app.lib.config.hooks import CONFIG_ADAPTERS
-from app.lib.llm import LLMConfigAdapter
-from app.lib.plugins import SparkthPlugin
+from sparkth.lib.config import get_plugin_adapter, iter_plugin_adapters
+from sparkth.lib.config.hooks import CONFIG_ADAPTERS
+from sparkth.lib.llm import LLMConfigAdapter
+from sparkth.lib.plugins import SparkthPlugin
 
 
 def test_get_plugin_adapter_returns_registered_adapter() -> None:

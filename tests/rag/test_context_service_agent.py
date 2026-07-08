@@ -6,11 +6,11 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.models import DocumentChunk
-from app.rag.retrieval.agent import get_context_via_agent
-from app.rag.schemas import RAGSearchAgentResponse, SectionRef
-from app.rag.types import RAGContext
+from sparkth.rag.exceptions import DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError
+from sparkth.rag.models import DocumentChunk
+from sparkth.rag.retrieval.agent import get_context_via_agent
+from sparkth.rag.schemas import RAGSearchAgentResponse, SectionRef
+from sparkth.rag.types import RAGContext
 
 
 class TestGetContextViaAgent:
@@ -39,9 +39,9 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[mock_chunk])
 
         with (
-            patch("app.rag.retrieval.agent._lookup_document", return_value=mock_doc),
-            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
+            patch("sparkth.rag.retrieval.agent._lookup_document", return_value=mock_doc),
+            patch("sparkth.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("sparkth.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="bio.pdf",
@@ -73,9 +73,9 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
         with (
-            patch("app.rag.retrieval.agent._lookup_document", return_value=mock_doc),
-            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
+            patch("sparkth.rag.retrieval.agent._lookup_document", return_value=mock_doc),
+            patch("sparkth.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("sparkth.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="test.pdf",
@@ -98,7 +98,7 @@ class TestGetContextViaAgent:
         """Missing document raises DocumentNotFoundError."""
         mock_session = AsyncMock(spec=AsyncSession)
 
-        with patch("app.rag.retrieval.agent._lookup_document") as mock_lookup:
+        with patch("sparkth.rag.retrieval.agent._lookup_document") as mock_lookup:
             mock_lookup.side_effect = DocumentNotFoundError("Not found")
 
             with pytest.raises(DocumentNotFoundError):
@@ -114,7 +114,7 @@ class TestGetContextViaAgent:
         """RAGNotReadyError is raised when document is not ready."""
         mock_session = AsyncMock(spec=AsyncSession)
 
-        with patch("app.rag.retrieval.agent._lookup_document") as mock_lookup:
+        with patch("sparkth.rag.retrieval.agent._lookup_document") as mock_lookup:
             mock_lookup.side_effect = RAGNotReadyError(1, "processing")
 
             with pytest.raises(RAGNotReadyError):
@@ -134,8 +134,8 @@ class TestGetContextViaAgent:
         mock_doc.name = "test.pdf"
 
         with (
-            patch("app.rag.retrieval.agent._lookup_document", return_value=mock_doc),
-            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("sparkth.rag.retrieval.agent._lookup_document", return_value=mock_doc),
+            patch("sparkth.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
         ):
             mock_agent.side_effect = RAGRetrievalError("Agent failed")
 
@@ -159,9 +159,9 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(side_effect=SQLAlchemyError("DB error"))
 
         with (
-            patch("app.rag.retrieval.agent._lookup_document", return_value=mock_doc),
-            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
+            patch("sparkth.rag.retrieval.agent._lookup_document", return_value=mock_doc),
+            patch("sparkth.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("sparkth.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="test.pdf",
@@ -188,9 +188,9 @@ class TestGetContextViaAgent:
         mock_store.fetch_chunks_by_sections = AsyncMock(return_value=[])
 
         with (
-            patch("app.rag.retrieval.agent._lookup_document", return_value=mock_doc),
-            patch("app.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
-            patch("app.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
+            patch("sparkth.rag.retrieval.agent._lookup_document", return_value=mock_doc),
+            patch("sparkth.rag.retrieval.agent.run_agentic_rag_retrieval", new_callable=AsyncMock) as mock_agent,
+            patch("sparkth.rag.retrieval.agent.ChunkStoreService", return_value=mock_store),
         ):
             mock_agent.return_value = RAGSearchAgentResponse(
                 source_name="test.pdf",

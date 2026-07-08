@@ -1,4 +1,4 @@
-"""Tests for the DB-free app factory in app.main (assemble_app)."""
+"""Tests for the DB-free app factory in sparkth.main (assemble_app)."""
 
 from typing import Any
 
@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from app.main import app, assemble_app
+from sparkth.main import app, assemble_app
 
 PLUGIN_SENTINEL_PATHS = [
     "/api/v1/chat/completions",
@@ -40,12 +40,12 @@ def test_assemble_app_is_db_free(monkeypatch: pytest.MonkeyPatch) -> None:
     def _explode(*args: Any, **kwargs: Any) -> None:
         raise AssertionError("assemble_app must not touch the database")
 
-    # Patch the consumer binding (app.main imports it by value) plus the
+    # Patch the consumer binding (sparkth.main imports it by value) plus the
     # defining modules, so both existing references and future lazy imports trip.
-    monkeypatch.setattr("app.main.get_plugin_service", _explode)
-    monkeypatch.setattr("app.lib.db.get_async_session", _explode)
-    monkeypatch.setattr("app.lib.db.session_scope", _explode)
-    monkeypatch.setattr("app.services.plugin.get_plugin_service", _explode)
+    monkeypatch.setattr("sparkth.main.get_plugin_service", _explode)
+    monkeypatch.setattr("sparkth.lib.db.get_async_session", _explode)
+    monkeypatch.setattr("sparkth.lib.db.session_scope", _explode)
+    monkeypatch.setattr("sparkth.core.plugins.service.get_plugin_service", _explode)
 
     assert _route_paths(assemble_app())
 

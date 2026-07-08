@@ -7,9 +7,9 @@ import typer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.cli import roles
-from app.core.permissions.models import Role, RoleAssignment
-from app.models.user import User
+from sparkth.cli import roles
+from sparkth.core.models.user import User
+from sparkth.core.permissions.models import Role, RoleAssignment
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ async def cli_session(session: AsyncSession) -> AsyncGenerator[AsyncSession, Non
     async def scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
-    with patch("app.cli.roles.session_scope", scope):
+    with patch("sparkth.cli.roles.session_scope", scope):
         yield session
 
 
@@ -55,17 +55,21 @@ async def test_assign_role_unknown_role_exits(cli_session: AsyncSession) -> None
 
 async def test_assign_role_non_global_scope_without_id_exits(cli_session: AsyncSession) -> None:
     await _seed_user_and_role(cli_session)
+    # "course" is not a registered scope kind app-wide, so this now exits via get_permission_scope
+    # raising PermissionScopeNotFound — the pairing check never runs. The dangling
+    # (scope="course", scope_object_id=NULL) row must still not be created.
     with pytest.raises(typer.Exit):
         await roles._assign_role("alice", "admin", "course", None)
-    # the dangling (scope="course", scope_object_id=NULL) row must not be created
     assert (await cli_session.exec(select(RoleAssignment))).all() == []
 
 
 async def test_assign_role_global_scope_with_id_exits(cli_session: AsyncSession) -> None:
     await _seed_user_and_role(cli_session)
+    # "global" is objectless; passing an id is a contradiction now caught via the engine's
+    # InvalidScopeObjectId, not a hardcoded CLI pairing check. The contradictory
+    # (scope="global", scope_object_id="42") row must not be created.
     with pytest.raises(typer.Exit):
         await roles._assign_role("alice", "admin", "global", "42")
-    # the contradictory (scope="global", scope_object_id="42") row must not be created
     assert (await cli_session.exec(select(RoleAssignment))).all() == []
 
 
@@ -75,4 +79,32 @@ async def test_assign_role_unknown_scope_exits(cli_session: AsyncSession) -> Non
     # rather than silently persisting a no-op assignment.
     with pytest.raises(typer.Exit):
         await roles._assign_role("alice", "admin", "corse", "42")
+    assert (await cli_session.exec(select(RoleAssignment))).all() == []
+
+
+async def test_assign_role_objectless_whitelist_scope_no_id_succeeds(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "whitelist", None)
+    assignment = (await cli_session.exec(select(RoleAssignment))).one()
+    assert assignment.scope == "whitelist"
+    assert assignment.scope_object_id is None
+
+
+async def test_assign_role_object_bearing_role_scope_with_id_succeeds(cli_session: AsyncSession) -> None:
+    # The role scope is object-bearing: delegating management of one role (issue #490) is done with
+    # --scope role --scope-object-id <role id>. This is the documented delegation command; the id is
+    # stored verbatim (scope_object_id is polymorphic, not a foreign key).
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "role", "5")
+    assignment = (await cli_session.exec(select(RoleAssignment))).one()
+    assert assignment.scope == "role"
+    assert assignment.scope_object_id == "5"
+
+
+async def test_assign_role_objectless_whitelist_scope_with_id_exits(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    # whitelist is objectless — passing --scope-object-id is a contradiction and must be rejected
+    # cleanly (not an uncaught InvalidScopeObjectId), and must persist no row.
+    with pytest.raises(typer.Exit):
+        await roles._assign_role("alice", "admin", "whitelist", "42")
     assert (await cli_session.exec(select(RoleAssignment))).all() == []

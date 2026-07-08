@@ -6,9 +6,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.auth import get_current_user
-from app.models.user import User
+from sparkth.core.models.user import User
+from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.lib.auth import get_current_user
 
 _WHITELIST_PERMISSIONS = ["email.whitelist.read", "email.whitelist.create", "email.whitelist.delete"]
 
@@ -34,6 +34,28 @@ async def _create_user_with_permissions(session: AsyncSession, permissions: list
     for permission in permissions:
         session.add(RolePermission(role_id=role.id, permission=permission))
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="global", scope_object_id=None))
+    await session.flush()
+    return user
+
+
+async def _create_whitelist_manager(session: AsyncSession, permissions: list[str]) -> User:
+    """A user whose role is assigned at the whitelist scope (no global grant) — a Whitelist Manager."""
+    user = User(
+        name="Manager",
+        username=_uniq("manager"),
+        email=f"{_uniq('manager')}@example.com",
+        hashed_password="fakehash",
+    )
+    session.add(user)
+    await session.flush()
+    assert user.id is not None
+    role = Role(name=_uniq("role"))
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    for permission in permissions:
+        session.add(RolePermission(role_id=role.id, permission=permission))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="whitelist", scope_object_id=None))
     await session.flush()
     return user
 
@@ -166,4 +188,33 @@ class TestRemoveWhitelist:
         _override_current_user(client, user)
 
         response = await client.delete("/api/v1/whitelist/1")
+        assert response.status_code == 403
+
+
+class TestWhitelistManagerScope:
+    async def test_manager_can_list(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, _WHITELIST_PERMISSIONS)
+        _override_current_user(client, manager)
+        response = await client.get("/api/v1/whitelist/")
+        assert response.status_code == 200
+
+    async def test_manager_can_create(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, _WHITELIST_PERMISSIONS)
+        _override_current_user(client, manager)
+        email = f"{_uniq('user')}@example.com"
+        response = await client.post("/api/v1/whitelist/", json={"value": email})
+        assert response.status_code == 201
+
+    async def test_manager_can_delete(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, _WHITELIST_PERMISSIONS)
+        _override_current_user(client, manager)
+        email = f"{_uniq('user')}@example.com"
+        entry_id = (await client.post("/api/v1/whitelist/", json={"value": email})).json()["id"]
+        response = await client.delete(f"/api/v1/whitelist/{entry_id}")
+        assert response.status_code == 204
+
+    async def test_read_only_manager_cannot_create(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, ["email.whitelist.read"])
+        _override_current_user(client, manager)
+        response = await client.post("/api/v1/whitelist/", json={"value": "a@b.com"})
         assert response.status_code == 403

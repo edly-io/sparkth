@@ -1,0 +1,69 @@
+import asyncio
+
+import typer
+from sqlmodel import select
+
+from sparkth.core.models.user import User
+from sparkth.lib.db import session_scope
+
+# Aliased to avoid colliding with this module's own ``assign_role`` Typer command.
+from sparkth.lib.permissions import assign_role as grant_role
+from sparkth.lib.permissions import get_permission_scope
+from sparkth.lib.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound, RoleNotFound
+from sparkth.lib.plugins import get_plugin_loader
+
+app = typer.Typer(help="Role management commands")
+
+
+@app.command("assign-role")
+def assign_role(
+    identifier: str = typer.Argument(..., help="Username or email of the user"),
+    role: str = typer.Argument(..., help="Role name to assign"),
+    scope: str = typer.Option("global", "--scope"),
+    scope_object_id: str | None = typer.Option(None, "--scope-object-id"),
+) -> None:
+    """Assign a role to a user, looked up by username or email, at an optional scope."""
+    asyncio.run(_assign_role(identifier, role, scope, scope_object_id))
+
+
+async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: str | None) -> None:
+    """Resolve the user, assign the role, and commit the change.
+
+    Separate from the Typer command because Typer entrypoints are synchronous while the
+    database layer is async; this is the awaited implementation. Exits non-zero if the user or
+    role is missing, the scope kind is unknown, or the scope and object id contradict each other
+    (an objectless scope given an object id, or an object-bearing scope given none — enforced by
+    the engine's assign_role).
+    """
+    # Validate the scope kind against the registered vocabulary so a mistyped --scope fails
+    # loudly instead of persisting a no-op assignment.
+    get_plugin_loader()
+    try:
+        permission_scope = get_permission_scope(scope)
+    except PermissionScopeNotFound:
+        typer.secho(f"Unknown scope kind: '{scope}'", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+    async with session_scope() as session:
+        user = (
+            await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
+        ).first()
+        if user is None or user.id is None:
+            typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        try:
+            await grant_role(user.id, role, permission_scope, scope_object_id, session)
+        except RoleNotFound:
+            typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
+            raise typer.Exit(code=1) from None
+        except InvalidScopeObjectId:
+            typer.secho(
+                f"Invalid --scope-object-id for scope '{scope}': "
+                "objectless scopes take no object id; object-bearing scopes require one.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1) from None
+        await session.commit()
+        typer.secho(
+            f"Assigned role '{role}' to {user.username} (scope: {scope}).",
+            fg=typer.colors.GREEN,
+        )

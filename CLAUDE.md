@@ -18,21 +18,31 @@ Useful URLs:
 
 ## Key Directories
 
+The package has three tiers: `core/` (shared internals plugins depend on), `lib/`
+(the façade to core — the only surface plugins import from, stays outside `core/`),
+and `plugins/` (the built-in plugins).
+
 ```
-app/
-  core/          # Settings, DB engines, security (JWT/OAuth)
-  analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema registry, schemas, gateway (raw_events). Login emits user.logged_in.
-  lib/           # Curated public API for app + plugins (see below)
-  models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
-  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events (analytics emission gateway)
-  plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py
-  core_plugins/  # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
+sparkth/
+  core/          # Shared internals plugins depend on (reached only via sparkth/lib)
+    config.py      # Settings; also encryption.py, security.py (JWT/OAuth), cache.py, db.py, email.py
+    models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
+    plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
+    permissions/   # Scoped-RBAC engine (roles, scopes, defaults)
+    analytics/     # Analytics DB + emission gateway write path: engine/sessions, registries, schemas, gateway
+    audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context
+    routes/        # Plugin route-registration helpers
+  lib/           # Curated public façade to core — the only surface plugins import from (see below)
+  plugins/       # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
+  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events, permissions
+  llm/           # LLM provider abstraction + config service (behind sparkth/lib/llm)
   mcp/           # FastMCP server, tool registration, prompts/
-  services/      # Business logic layer, plugin adapters
+  services/      # Business logic layer (email verification, whitelist)
   rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
   cli/           # Typer CLI (user and role management)
+  main.py        # FastAPI app assembly + lifespan
   migrations/
-    app/        # Alembic versions for the main application DB
+    app/         # Alembic versions for the main application DB
     analytics/   # Alembic versions for the separate analytics DB (TimescaleDB)
 
 frontend/
@@ -42,70 +52,83 @@ frontend/
   components/    # Reusable UI components (settings/, ui/)
 
 tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, permissions/, rag/, services/
-                 # Plugin tests are co-located (app/core_plugins/<plugin>/tests/).
-                 # Shared fixtures: app/testing.py. See "Test Layout".
+                 # Plugin tests are co-located (sparkth/plugins/<plugin>/tests/).
+                 # Shared fixtures: sparkth/lib/testing.py. See "Test Layout".
 .github/workflows/ # CI: lint → type-check → test on every PR
 ```
 
-## Public Library (`app/lib/`)
+## Public Library (`sparkth/lib/`)
 
-`app/lib/` is the curated, stable API that application code **and plugins** import
-from, instead of reaching into `app.core.*` (or other internal packages) directly
+`sparkth/lib/` is the curated, stable API that application code **and plugins** import
+from, instead of reaching into `sparkth.core.*` (or other internal packages) directly
 — every internal symbol a plugin imports becomes an implicit public API and blocks
-refactoring (see issue #379). When a core capability is needed beyond `app/core`,
-expose it through `app/lib` and import it from there.
+refactoring (see issue #379). When a core capability is needed beyond `sparkth/core`,
+expose it through `sparkth/lib` and import it from there.
 
 Current modules (see the source for the full API — do not duplicate it here):
 
-- [`app/lib/log.py`](app/lib/log.py) — logging. Obtain loggers via `get_logger`
+- [`sparkth/lib/log.py`](sparkth/lib/log.py) — logging. Obtain loggers via `get_logger`
   (never `logging.getLogger`); `configure_logging` is the single logging setup,
   called once per process entrypoint.
-- [`app/lib/db.py`](app/lib/db.py) — database sessions. Use `session_scope` /
+- [`sparkth/lib/db.py`](sparkth/lib/db.py) — database sessions. Use `session_scope` /
   `get_async_session` for the main DB; `analytics_session_scope` /
   `get_analytics_session` for the analytics DB. Implementation lives in
-  `app/core/db.py` (main) and `app/core/analytics/db.py` (analytics).
-- [`app/lib/auth.py`](app/lib/auth.py) — authentication dependency. Import
+  `sparkth/core/db.py` (main) and `sparkth/core/analytics/db.py` (analytics).
+- [`sparkth/lib/auth.py`](sparkth/lib/auth.py) — authentication dependency. Import
   `get_current_user` from here (the FastAPI dependency that resolves the authenticated
   `User` from the bearer token) — its single canonical home; every caller (routes, the
-  permission gate) imports it from there. Implementation lives in `app/lib/auth.py`.
-- [`app/lib/settings.py`](app/lib/settings.py) — application settings. Read settings
+  permission gate) imports it from there. Implementation lives in `sparkth/lib/auth.py`.
+- [`sparkth/lib/settings.py`](sparkth/lib/settings.py) — application settings. Read settings
   via `get_settings` (e.g. `get_settings().SECRET_KEY`); never import from
-  `app.core.config` directly. Implementation lives in `app/core/config.py`.
-- [`app/lib/rag.py`](app/lib/rag.py) — RAG public API. Import RAG functionality
+  `sparkth.core.config` directly. Implementation lives in `sparkth/core/config.py`.
+- [`sparkth/lib/encryption.py`](sparkth/lib/encryption.py) — symmetric encryption. Import
+  `get_encryption_service` / `EncryptionService` from here (Fernet encryption of secrets at
+  rest, e.g. stored LLM API keys); never import from `sparkth.core.encryption` directly.
+  Implementation lives in `sparkth/core/encryption.py`.
+- [`sparkth/lib/models.py`](sparkth/lib/models.py) — data-model public API. Import the models
+  plugins consume from here (`User`, `LLMConfig`, and the `TimestampedModel` /
+  `SoftDeleteModel` mixins + `utc_now`); never import from `sparkth.core.models.*` directly.
+  Implementation lives in `sparkth/core/models/`.
+- [`sparkth/lib/rag.py`](sparkth/lib/rag.py) — RAG public API. Import RAG functionality
   from here (`ingest_document`, `agentic_retrieve_context`, `RetrievedChunk`,
-  `IngestionResult`, `RagStatus`, RAG exceptions); never import from `app.rag.*`
-  directly. Implementation lives in `app/rag/` (see issue #398).
-- [`app/lib/llm.py`](app/lib/llm.py) — LLM public API. Import LLM functionality
+  `IngestionResult`, `RagStatus`, RAG exceptions); never import from `sparkth.rag.*`
+  directly. Implementation lives in `sparkth/rag/` (see issue #398).
+- [`sparkth/lib/llm.py`](sparkth/lib/llm.py) — LLM public API. Import LLM functionality
   from here (`BaseChatProvider`, `get_provider`, `LLMConfigService`,
   `get_llm_service`, `LLMConfigAdapter`, and the `LLMConfig*` exceptions); never
-  import from `app.llm.*` directly. Implementation lives in `app/llm/` (see
+  import from `sparkth.llm.*` directly. Implementation lives in `sparkth/llm/` (see
   issue #379).
-- [`app/lib/plugins.py`](app/lib/plugins.py) — plugin framework public API.
-  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`, `PluginConfig`, `PluginAccessMiddleware`); never import
-  from `app.plugins`, `app.plugins.base`, `app.plugins.config_base` or `app.plugins.middleware` directly. Implementation lives in `app/plugins/`.
-- [`app/lib/permissions/`](app/lib/permissions/__init__.py) — permissions public API
+- [`sparkth/lib/plugins.py`](sparkth/lib/plugins.py) — plugin framework public API.
+  Plugins import their authoring surface from here (`get_plugin_loader`, `SparkthPlugin`,
+  `PluginConfig`, `PluginAccessMiddleware`) as well as `PluginService` / `get_plugin_service`
+  and the plugin-service exceptions (`ConfigValidationError`, `InternalServerError`,
+  `PluginDisabledError`, `UserPluginResponse`); never import from `sparkth.core.plugins`,
+  `sparkth.core.plugins.base`, `sparkth.core.plugins.config_base`,
+  `sparkth.core.plugins.middleware` or `sparkth.core.plugins.service` directly.
+  Implementation lives in `sparkth/core/plugins/`.
+- [`sparkth/lib/permissions/`](sparkth/lib/permissions/__init__.py) — permissions public API
   (scoped RBAC). Import the permission surface from here (`can`, `has_role`,
   `assign_role`, `revoke_role`, `get_permission`,
   `get_permission_scope`, `Permission`); the
   `PERMISSIONS` / `PERMISSION_SCOPES` hooks are imported from the
-  `app.lib.permissions.hooks` submodule, the `PermissionScope` class and the
-  `GLOBAL` scope from the `app.lib.permissions.scopes` submodule, and the permission
+  `sparkth.lib.permissions.hooks` submodule, the `PermissionScope` class and the
+  `GLOBAL` scope from the `sparkth.lib.permissions.scopes` submodule, and the permission
   exception classes (`RoleNotFound`, `PermissionNotFound`, `PermissionScopeNotFound`)
-  from the `app.lib.permissions.exceptions` submodule. Plugins declare their own via
+  from the `sparkth.lib.permissions.exceptions` submodule. Plugins declare their own via
   `Permission.create()` / `PermissionScope.create()`. Never import
-  from `app.core.permissions.*` directly. Implementation lives in `app/core/permissions/`.
-- [`app/lib/analytics.py`](app/lib/analytics.py) — analytics gateway public API. Import analytics functionality
-  from here (`ingest_event`, `UnknownEventTypeError`); never import from `app.core.analytics.gateway` or
-  `app.core.analytics.exceptions` directly. Implementation lives in `app/core/analytics/`.
-- [`app/lib/audit/`](app/lib/audit/__init__.py) — audit trail public API. Import the write path
+  from `sparkth.core.permissions.*` directly. Implementation lives in `sparkth/core/permissions/`.
+- [`sparkth/lib/analytics.py`](sparkth/lib/analytics.py) — analytics gateway public API. Import analytics functionality
+  from here (`ingest_event`, `UnknownEventTypeError`); never import from `sparkth.core.analytics.gateway` or
+  `sparkth.core.analytics.exceptions` directly. Implementation lives in `sparkth/core/analytics/`.
+- [`sparkth/lib/audit/`](sparkth/lib/audit/__init__.py) — audit trail public API. Import the write path
   (`record_event`, `record_event_now`) from here; the self-describing event classes (`BaseAuditEvent`,
   `LoginAuditEvent`), their value objects (`AuditTarget`, `AuditChange`, `AuditToolCall`,
-  `AuditModelInfo`), and `AuditOutcome` from the `app.lib.audit.events` submodule; the actor classes
+  `AuditModelInfo`), and `AuditOutcome` from the `sparkth.lib.audit.events` submodule; the actor classes
   (`UserActor` / `SystemActor` / `AnonymousActor`, union alias `AuditActor`), the context classes
   (`AuditRequestContext` / `AuditSystemContext`, union alias `AuditContext`), `AuditActorType`,
-  `AuditSource`, and the context helpers from `app.lib.audit.context`; the `AUDIT_EVENTS` hook from
-  `app.lib.audit.hooks`; and the audit exceptions from `app.lib.audit.exceptions`. Never
-  import from `app.core.audit.*` directly. Implementation lives in `app/core/audit/`. Unlike analytics
+  `AuditSource`, and the context helpers from `sparkth.lib.audit.context`; the `AUDIT_EVENTS` hook from
+  `sparkth.lib.audit.hooks`; and the audit exceptions from `sparkth.lib.audit.exceptions`. Never
+  import from `sparkth.core.audit.*` directly. Implementation lives in `sparkth/core/audit/`. Unlike analytics
   (best-effort), audit writes are fail-closed: mutating and AI actions must not proceed if their audit
   record cannot be written.
 
@@ -229,17 +252,17 @@ The rule applies to both new work and incidental changes. If you touch a file an
 
 Tests live next to the code they own, so each plugin stays a self-contained, portable unit (plugins are expected to move into their own repositories eventually). Place a new test by what it covers:
 
-- **Plugin** → `app/core_plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
-- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `app/<module>/` (api, core, llm, permissions, rag, services)
+- **Plugin** → `sparkth/plugins/<plugin>/tests/test_*.py` (canvas, chat, googledrive, openedx, slack)
+- **Core / cross-cutting** → `tests/<module>/test_*.py` mirroring `sparkth/<module>/` (api, core, llm, permissions, rag, services)
 
-  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `app/rag/`); the
-  RAG MCP tooling under `app/rag/mcp/` is mirrored by `tests/rag/mcp/`.
+  RAG is core, so RAG tests live at `tests/rag/` (not co-located under `sparkth/rag/`); the
+  RAG MCP tooling under `sparkth/rag/mcp/` is mirrored by `tests/rag/mcp/`.
 
 How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
-- Shared fixtures (`engine`, `session`, `client`, `setup_plugins_and_user`, …) and the generic test environment live in [`app/testing.py`](app/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["app.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
-- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `app/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- Shared fixtures (`engine`, `session`, `client`, `setup_plugins_and_user`, …) and the generic test environment live in [`sparkth/lib/testing.py`](sparkth/lib/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["sparkth.lib.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
+- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `sparkth/lib/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 ## Database Migrations
@@ -263,12 +286,12 @@ make migrations
 ```
 
 The project has **two independent Alembic lineages**: the application database
-(`alembic.ini` → `app/migrations/app/`) and the analytics database
-(`alembic_analytics.ini` → `app/migrations/analytics/`). `make migrations` applies
+(`alembic.ini` → `sparkth/migrations/app/`) and the analytics database
+(`alembic_analytics.ini` → `sparkth/migrations/analytics/`). `make migrations` applies
 both. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
 databases never share metadata: app models use `SQLModel.metadata`, analytics
-tables use `app.core.analytics.models.analytics_metadata`.
+tables use `sparkth.core.analytics.models.analytics_metadata`.
 
 ### Preventing Split Heads
 
@@ -302,7 +325,7 @@ This rule applies to all layers: API endpoints, services, plugins, MCP tools, an
 
 ```python
 # ✅ Good — specific exception, logged, re-raise is a conscious choice
-from app.lib.log import get_logger
+from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -429,7 +452,7 @@ Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/P
 | Topic | File |
 |---|---|
 | Architectural patterns & design decisions | [.claude/docs/architectural_patterns.md](.claude/docs/architectural_patterns.md) |
-| Plugin development guide | [app/plugins/PLUGIN_GUIDE.md](app/plugins/PLUGIN_GUIDE.md) |
+| Plugin development guide | [sparkth/core/plugins/PLUGIN_GUIDE.md](sparkth/core/plugins/PLUGIN_GUIDE.md) |
 | Frontend plugin development | [frontend/README.md](frontend/README.md) |
 | GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
 

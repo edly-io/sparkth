@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkStoreService
-from app.rag.types import ChunkInput
+from sparkth.rag.store import ChunkStoreService
+from sparkth.rag.types import ChunkInput
 
 
 def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
@@ -39,8 +39,8 @@ async def test_store_chunks_splits_into_batches() -> None:
     mock_session.expunge_all = MagicMock()
 
     with (
-        patch("app.rag.store.get_rag_settings") as mock_settings,
-        patch("app.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(25).side_effect),
+        patch("sparkth.rag.store.get_rag_settings") as mock_settings,
+        patch("sparkth.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(25).side_effect),
     ):
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
         rows = await service.store_chunks(mock_session, chunks)
@@ -65,8 +65,8 @@ async def test_store_chunks_single_batch_when_chunks_fit() -> None:
     mock_session.expunge_all = MagicMock()
 
     with (
-        patch("app.rag.store.get_rag_settings") as mock_settings,
-        patch("app.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(5).side_effect),
+        patch("sparkth.rag.store.get_rag_settings") as mock_settings,
+        patch("sparkth.rag.store.DocumentChunk", side_effect=_make_mock_chunk_class(5).side_effect),
     ):
         mock_settings.return_value.RAG_STORE_BATCH_SIZE = 32
         rows = await service.store_chunks(mock_session, chunks)

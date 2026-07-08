@@ -5,16 +5,16 @@ from unittest.mock import AsyncMock, patch
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.lib.documents import Document, DocumentStatus
-from app.rag.mcp.tools import (
+from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.rag.mcp.tools import (
     get_chunk_stats,
     get_document_metadata,
     get_document_structure,
     list_document_sections,
     search_section_by_keyword,
 )
-from app.rag.models import DocumentChunk, DocumentChunkLink
-from app.rag.types import DocumentSection
+from sparkth.rag.models import DocumentChunk, DocumentChunkLink
+from sparkth.rag.types import DocumentSection
 
 
 async def _seed_document(
@@ -113,7 +113,7 @@ class TestGetDocumentStructure:
             )
         ]
         with patch(
-            "app.rag.mcp.tools.get_rag_ingested_document_structure",
+            "sparkth.rag.mcp.tools.get_rag_ingested_document_structure",
             new_callable=AsyncMock,
             return_value=expected,
         ) as mock_get_rag_ingested_structure:

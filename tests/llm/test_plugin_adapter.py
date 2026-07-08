@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.llm.adapter import LLMConfigAdapter
-from app.models import LLMConfig
+from sparkth.core.models import LLMConfig
+from sparkth.llm.adapter import LLMConfigAdapter
 
 
 class ConcreteAdapter(LLMConfigAdapter):

@@ -4,7 +4,7 @@ from unittest.mock import patch
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.services.whitelist import WhitelistService
+from sparkth.services.whitelist import WhitelistService
 
 
 def _uniq(prefix: str) -> str:
@@ -15,7 +15,7 @@ async def test_register_allowed_email(client: AsyncClient, session: AsyncSession
     email = f"{_uniq('user')}@example.com"
     await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -35,7 +35,7 @@ async def test_register_allowed_by_domain(client: AsyncClient, session: AsyncSes
     await WhitelistService.add_entry(session, value=f"@{domain_suffix}", added_by_id=1)
 
     local = uuid.uuid4().hex[:8]
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -49,7 +49,7 @@ async def test_register_allowed_by_domain(client: AsyncClient, session: AsyncSes
 
 
 async def test_register_blocked_email(client: AsyncClient) -> None:
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={
@@ -64,7 +64,7 @@ async def test_register_blocked_email(client: AsyncClient) -> None:
 
 
 async def test_register_blocked_when_whitelist_empty(client: AsyncClient) -> None:
-    with patch("app.api.v1.auth.settings.REGISTRATION_ENABLED", True):
+    with patch("sparkth.api.v1.auth.settings.REGISTRATION_ENABLED", True):
         response = await client.post(
             "/api/v1/auth/register",
             json={

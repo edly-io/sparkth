@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkStoreService
-from app.rag.types import ChunkInput
+from sparkth.rag.store import ChunkStoreService
+from sparkth.rag.types import ChunkInput
 
 
 def _make_chunks(n: int, source: str = "test.pdf") -> list[ChunkInput]:
@@ -28,7 +28,7 @@ class TestStoreMemory:
         mock_session.expunge_all = AsyncMock()
 
         # Patch DocumentChunk to have assignable id attribute
-        with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
+        with patch("sparkth.rag.store.DocumentChunk") as mock_chunk_class:
             # Configure mock chunk instances to have id attributes
             mock_chunks = []
             for i in range(3):
@@ -56,7 +56,7 @@ class TestStoreMemory:
         mock_session.flush = AsyncMock()
         mock_session.expunge_all = AsyncMock()
 
-        with patch("app.rag.store.get_rag_settings") as mock_settings:
+        with patch("sparkth.rag.store.get_rag_settings") as mock_settings:
             mock_settings.return_value.RAG_STORE_BATCH_SIZE = 10
             await service.store_chunks(mock_session, chunks)
 

@@ -2,9 +2,9 @@ import pytest
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.analytics.exceptions import UnknownEventTypeError
-from app.core.analytics.gateway import ingest_event
-from app.core.analytics.models import raw_events
+from sparkth.core.analytics.exceptions import UnknownEventTypeError
+from sparkth.core.analytics.gateway import ingest_event
+from sparkth.core.analytics.models import raw_events
 
 GOOD_PAYLOAD = {"learner_id": "u1", "competency_id": "c1", "score": 0.9, "passed": True}
 

@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 import aiosmtplib
 import pytest
 
-from app.core import email as email_module
-from app.core.email import send_email
+from sparkth.core import email as email_module
+from sparkth.core.email import send_email
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ class TestSendEmail:
             await send_email(to="a@b.com", subject="x", html_body="<p>x</p>", text_body="x")
 
     async def test_sends_message_with_text_and_html_parts(self, smtp_settings: None) -> None:
-        with patch("app.core.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
+        with patch("sparkth.core.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             await send_email(
                 to="alice@example.com",
                 subject="Hello",
@@ -46,7 +46,7 @@ class TestSendEmail:
         assert "text/html" in types
 
     async def test_passes_smtp_connection_args(self, smtp_settings: None) -> None:
-        with patch("app.core.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
+        with patch("sparkth.core.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             await send_email(to="a@b.com", subject="s", html_body="<p>h</p>", text_body="h")
 
         kwargs = mock_send.call_args.kwargs
@@ -58,7 +58,7 @@ class TestSendEmail:
 
     async def test_logs_and_reraises_on_smtp_exception(self, smtp_settings: None) -> None:
         with patch(
-            "app.core.email.aiosmtplib.send",
+            "sparkth.core.email.aiosmtplib.send",
             new_callable=AsyncMock,
             side_effect=aiosmtplib.SMTPException("boom"),
         ):

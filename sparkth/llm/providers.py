@@ -1,0 +1,508 @@
+import asyncio
+import inspect
+import json
+from abc import ABC, abstractmethod
+from typing import Any, AsyncIterator, TypedDict
+from uuid import UUID
+
+import httpx
+from langchain_anthropic import ChatAnthropic
+from langchain_core.callbacks.base import AsyncCallbackHandler
+from langchain_core.exceptions import LangChainException
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, LLMResult
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+from pydantic import ValidationError
+
+from sparkth.lib.log import get_logger
+
+logger = get_logger(__name__)
+
+
+def serialize_result(result: Any) -> str:
+    """Safely serialize any result to a string."""
+    if result is None:
+        return "null"
+    if isinstance(result, str):
+        return result
+    if isinstance(result, (dict, list)):
+        try:
+            return json.dumps(result, indent=2, default=str)
+        except (TypeError, ValueError):
+            return str(result)
+    return str(result)
+
+
+class StreamingCallbackHandler(AsyncCallbackHandler):
+    def __init__(self) -> None:
+        self.tokens: list[str] = []
+        self.done = False
+        self.error: BaseException | None = None
+
+    async def on_llm_new_token(
+        self,
+        token: str,
+        *,
+        chunk: GenerationChunk | ChatGenerationChunk | None = None,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.tokens.append(token)
+
+    async def on_llm_end(
+        self,
+        response: LLMResult,
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.done = True
+
+    async def on_llm_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.error = error
+        self.done = True
+
+    async def aiter(self) -> AsyncIterator[str]:
+        index = 0
+        while not self.done or index < len(self.tokens):
+            if index < len(self.tokens):
+                yield self.tokens[index]
+                index += 1
+            else:
+                await asyncio.sleep(0.01)
+
+        if self.error:
+            raise self.error
+
+
+class BaseChatProvider(ABC):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tool_executions: int = 50,
+        max_retries: int = 2,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_tool_executions = max_tool_executions
+        self.max_retries = max_retries
+        self._llm: Any = None
+        self.system_prompt = system_prompt or ""
+
+    @abstractmethod
+    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
+        pass
+
+    def create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
+        """Public interface for creating a configured LangChain LLM instance."""
+        return self._create_llm(streaming=streaming, callbacks=callbacks)
+
+    def _convert_messages(self, messages: list[dict[str, Any]]) -> list[BaseMessage]:
+        """Convert dict messages to LangChain message objects."""
+        langchain_messages: list[BaseMessage] = []
+
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "system":
+                langchain_messages.append(SystemMessage(content=content))
+            elif role == "assistant":
+                langchain_messages.append(AIMessage(content=content))
+            else:
+                langchain_messages.append(HumanMessage(content=content))
+
+        return langchain_messages
+
+    async def send_message(
+        self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
+    ) -> dict[str, Any]:
+        """Send a message and get a response, with optional tool usage."""
+        llm = self._create_llm(streaming=False)
+
+        try:
+            if tools:
+                # Use tool execution loop for tool-enabled conversations
+                return await self._send_message_with_tools(llm, messages, tools)
+            else:
+                # Use simple invocation for non-tool conversations
+                return await self._send_message_simple(llm, messages)
+        except (LangChainException, ValidationError, ValueError, RuntimeError, httpx.RemoteProtocolError) as e:
+            logger.error(f"Error in send_message: {e}")
+            raise
+
+    async def _send_message_simple(self, llm: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        """Send a message without tools."""
+        langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
+        langchain_messages.extend(self._convert_messages(messages))
+
+        response = await llm.ainvoke(langchain_messages)
+
+        return {
+            "content": response.content,
+            "role": "assistant",
+            "model": self.model,
+            "tool_calls": None,
+            "metadata": {
+                "response_metadata": getattr(response, "response_metadata", {}),
+                "usage_metadata": getattr(response, "usage_metadata", {}),
+            },
+        }
+
+    async def _send_message_with_tools(
+        self, llm: Any, messages: list[dict[str, Any]], tools: list[Any]
+    ) -> dict[str, Any]:
+        """Send a message with tool support using a manual tool execution loop."""
+        llm_with_tools = llm.bind_tools(tools)
+
+        langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
+        langchain_messages.extend(self._convert_messages(messages))
+
+        tool_executions = []
+        max_tool_executions = self.max_tool_executions
+        total_executions = 0
+        limit_reached = False
+
+        while True:
+            response = await llm_with_tools.ainvoke(langchain_messages)
+
+            if hasattr(response, "tool_calls") and response.tool_calls:
+                langchain_messages.append(response)
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call.get("name", "")
+                    tool_args = tool_call.get("args", {})
+                    tool_id = tool_call.get("id", "")
+
+                    if total_executions >= max_tool_executions:
+                        logger.warning(
+                            f"Tool execution limit ({max_tool_executions}) reached. Skipping remaining tool calls."
+                        )
+                        langchain_messages.append(
+                            ToolMessage(
+                                content="Tool execution limit reached; call was not executed.",
+                                tool_call_id=tool_id,
+                                name=tool_name,
+                            )
+                        )
+                        limit_reached = True
+                        continue
+
+                    logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
+                    tool_result = await self._execute_tool(tool_name, tool_args, tools)
+                    serialized_result = serialize_result(tool_result)
+
+                    tool_executions.append(
+                        {
+                            "tool": tool_name,
+                            "tool_input": tool_args,
+                            "output": serialized_result[:500],
+                        }
+                    )
+
+                    langchain_messages.append(
+                        ToolMessage(
+                            content=serialized_result,
+                            tool_call_id=tool_id,
+                            name=tool_name,
+                        )
+                    )
+                    total_executions += 1
+
+                if limit_reached:
+                    break
+            else:
+                break
+
+        if limit_reached:
+            logger.warning("Requesting final response after tool limit was reached.")
+            response = await llm_with_tools.ainvoke(langchain_messages)
+
+        content = response.content
+        if isinstance(content, list):
+            text_parts = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    text_parts.append(block)
+            content = "".join(text_parts)
+
+        return {
+            "content": content,
+            "role": "assistant",
+            "model": self.model,
+            "tool_calls": None,
+            "metadata": {
+                "tool_executions": tool_executions,
+                "num_executions": total_executions,
+                "limit_reached": limit_reached,
+                "response_metadata": getattr(response, "response_metadata", {}),
+                "usage_metadata": getattr(response, "usage_metadata", {}),
+            },
+        }
+
+    async def _execute_tool(self, tool_name: str, tool_args: dict[str, Any], tools: list[Any]) -> Any:
+        """Execute a tool by name with the given arguments."""
+        for tool in tools:
+            if tool.name == tool_name:
+                try:
+                    # Validate args against schema if available
+                    if hasattr(tool, "args_schema") and tool.args_schema is not None:
+                        try:
+                            validated = tool.args_schema(**tool_args)
+                            tool_args = validated.model_dump()
+                        except (ValidationError, TypeError, ValueError) as e:
+                            logger.warning(f"Tool '{tool_name}' argument validation failed: {e}")
+                            return f"Invalid arguments for tool '{tool_name}': {e}"
+
+                    result = None
+
+                    # Try different invocation methods
+                    if hasattr(tool, "coroutine") and tool.coroutine is not None:
+                        result = await tool.coroutine(**tool_args)
+                    elif hasattr(tool, "ainvoke"):
+                        result = await tool.ainvoke(tool_args)
+                    elif hasattr(tool, "invoke"):
+                        result = tool.invoke(tool_args)
+                    elif hasattr(tool, "func") and tool.func is not None:
+                        if inspect.iscoroutinefunction(tool.func):
+                            result = await tool.func(**tool_args)
+                        else:
+                            result = tool.func(**tool_args)
+                    elif hasattr(tool, "_run"):
+                        result = tool._run(**tool_args)
+                    elif hasattr(tool, "run"):
+                        result = tool.run(**tool_args)
+                    else:
+                        return f"Tool '{tool_name}' has no callable method"
+
+                    logger.info(f"Tool '{tool_name}' executed successfully")
+                    return result
+
+                # NOTE: Kept broad here intentionally — tool handlers are user-supplied
+                # plugins that can raise anything. Narrowing would silently swallow
+                # legitimate errors from arbitrary third-party tool implementations.
+                except Exception as e:
+                    logger.error(f"Error executing tool '{tool_name}': {e}", exc_info=True)
+                    return f"Error executing tool '{tool_name}': {str(e)}"
+
+        return f"Tool '{tool_name}' not found"
+
+    async def stream_message(
+        self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream a message response, with optional tool usage.
+
+        Yields typed event dicts:
+          {"type": "token",     "content": str}   — text to display
+          {"type": "tool_start","name": str}       — tool execution beginning
+          {"type": "tool_end",  "name": str}       — tool execution finished
+        """
+        if tools:
+            async for event in self._stream_message_with_tools(messages, tools):
+                yield event
+        else:
+            async for token in self._stream_message_simple(messages):
+                yield {"type": "token", "content": token}
+
+    async def _stream_message_simple(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
+        """Stream a message without tools."""
+        callback = StreamingCallbackHandler()
+        llm = self._create_llm(streaming=True, callbacks=[callback])
+
+        langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
+        langchain_messages.extend(self._convert_messages(messages))
+
+        task = asyncio.create_task(llm.ainvoke(langchain_messages))
+
+        try:
+            async for token in callback.aiter():
+                yield token
+            await task
+        except (LangChainException, asyncio.CancelledError, RuntimeError, httpx.RemoteProtocolError) as e:
+            logger.error(f"Error in stream_message_simple: {e}")
+            task.cancel()
+            raise
+
+    async def _stream_message_with_tools(
+        self, messages: list[dict[str, Any]], tools: list[Any]
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Tool-loop streaming: silences intermediate LLM chatter, emits tool events,
+        and yields only the final response as token events."""
+        llm = self._create_llm(streaming=False)
+        llm_with_tools = llm.bind_tools(tools)
+
+        langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
+        langchain_messages.extend(self._convert_messages(messages))
+
+        max_tool_executions = self.max_tool_executions
+        total_executions = 0
+
+        while True:
+            response = await llm_with_tools.ainvoke(langchain_messages)
+
+            if hasattr(response, "tool_calls") and response.tool_calls:
+                langchain_messages.append(response)
+                for tool_call in response.tool_calls:
+                    if total_executions >= max_tool_executions:
+                        logger.warning(f"Tool execution limit ({max_tool_executions}) reached, stopping.")
+                        return
+
+                    tool_name = tool_call.get("name", "")
+                    tool_args = tool_call.get("args", {})
+                    tool_id = tool_call.get("id", "")
+
+                    yield {"type": "tool_start", "name": tool_name}
+                    logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
+                    tool_result = await self._execute_tool(tool_name, tool_args, tools)
+                    serialized_result = serialize_result(tool_result)
+                    yield {"type": "tool_end", "name": tool_name}
+
+                    langchain_messages.append(
+                        ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
+                    )
+                    total_executions += 1
+            else:
+                # Final response is already in `response` — yield its content directly.
+                content = getattr(response, "content", "")
+                if isinstance(content, str) and content:
+                    yield {"type": "token", "content": content}
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text = block.get("text", "")
+                            if text:
+                                yield {"type": "token", "content": text}
+                break
+
+
+class OpenAIProvider(BaseChatProvider):
+    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatOpenAI:
+        return ChatOpenAI(  # type: ignore[call-arg]
+            api_key=self.api_key,
+            model=self.model,
+            temperature=self.temperature,
+            streaming=streaming,
+            callbacks=callbacks or [],
+            max_retries=self.max_retries,
+        )
+
+
+class AnthropicProvider(BaseChatProvider):
+    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatAnthropic:
+        return ChatAnthropic(  # type: ignore[call-arg]
+            api_key=self.api_key,
+            model=self.model,
+            temperature=self.temperature,
+            streaming=streaming,
+            callbacks=callbacks or [],
+            max_retries=self.max_retries,
+        )
+
+
+class GoogleProvider(BaseChatProvider):
+    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatGoogleGenerativeAI:
+        return ChatGoogleGenerativeAI(
+            google_api_key=self.api_key,
+            model=self.model,
+            temperature=self.temperature,
+            streaming=streaming,
+            callbacks=callbacks or [],
+            max_retries=self.max_retries,
+        )
+
+
+PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "google": GoogleProvider,
+}
+
+DEFAULT_PROVIDER = "anthropic"
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+PROVIDER_MODELS: dict[str, list[str]] = {
+    "openai": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o1",
+        "o1-mini",
+        "o3-mini",
+    ],
+    "anthropic": [
+        "claude-opus-4-5",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5",
+        "claude-sonnet-4-20250514",
+    ],
+    "google": [
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+    ],
+}
+
+_registry_only = set(PROVIDER_REGISTRY) - set(PROVIDER_MODELS)
+_models_only = set(PROVIDER_MODELS) - set(PROVIDER_REGISTRY)
+if _registry_only or _models_only:
+    raise ValueError(
+        f"PROVIDER_REGISTRY and PROVIDER_MODELS are out of sync. "
+        f"Registry only: {_registry_only}, Models only: {_models_only}"
+    )
+
+
+def get_provider(
+    provider_name: str,
+    api_key: str,
+    model: str,
+    system_prompt: str | None = None,
+    temperature: float = 0.7,
+    max_tool_executions: int = 50,
+    max_retries: int = 2,
+) -> BaseChatProvider:
+    """Get a chat provider instance."""
+    provider_class = PROVIDER_REGISTRY.get(provider_name.lower())
+
+    if not provider_class:
+        supported = ", ".join(PROVIDER_REGISTRY.keys())
+        raise ValueError(f"Unsupported provider: {provider_name}. Supported providers: {supported}")
+
+    return provider_class(api_key, model, system_prompt, temperature, max_tool_executions, max_retries)
+
+
+def get_supported_providers() -> list[str]:
+    """Get list of supported provider names."""
+    return list(PROVIDER_REGISTRY.keys())
+
+
+def get_models_for_provider(provider: str) -> list[str]:
+    """Get the list of available model IDs for a given provider."""
+    return PROVIDER_MODELS.get(provider.lower(), [])
+
+
+class ProviderCatalogEntry(TypedDict):
+    id: str
+    label: str
+    models: list[str]
+
+
+def get_provider_catalog() -> list[ProviderCatalogEntry]:
+    """Return all providers with their available models."""
+    return [{"id": p, "label": p.capitalize(), "models": PROVIDER_MODELS[p]} for p in PROVIDER_REGISTRY]

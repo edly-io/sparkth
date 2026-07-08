@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from app.core.audit.middleware import AuditContextMiddleware
-from app.lib.audit.context import (
+from sparkth.core.audit.middleware import AuditContextMiddleware
+from sparkth.lib.audit.context import (
     AnonymousActor,
     AuditActorType,
     AuditRequestContext,
@@ -20,7 +20,7 @@ from app.lib.audit.context import (
     bind_audit_actor,
     current_audit_context,
 )
-from app.lib.settings import get_settings
+from sparkth.lib.settings import get_settings
 
 Scope = MutableMapping[str, Any]
 Message = MutableMapping[str, Any]

@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.lib.mcp.hooks import Tool, generate_input_schema
+from sparkth.lib.mcp.hooks import Tool, generate_input_schema
 
 
 class _Payload:

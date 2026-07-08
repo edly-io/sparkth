@@ -4,8 +4,8 @@ from collections.abc import Generator
 
 import pytest
 
-from app.core.analytics.registry import EventRegistry
-from app.core.analytics.schemas import AnalyticsEventSchema
+from sparkth.core.analytics.registry import EventRegistry
+from sparkth.core.analytics.schemas import AnalyticsEventSchema
 
 
 class _SimpleClientEvent(AnalyticsEventSchema):

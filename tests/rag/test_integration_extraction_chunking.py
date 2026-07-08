@@ -7,9 +7,9 @@ import io
 
 import pytest
 
-from app.rag.ingestion.chunking import DocumentChunker
-from app.rag.ingestion.extraction import extract_to_markdown
-from app.rag.types import Chunk
+from sparkth.rag.ingestion.chunking import DocumentChunker
+from sparkth.rag.ingestion.extraction import extract_to_markdown
+from sparkth.rag.types import Chunk
 
 
 def _run(data: bytes, filename: str) -> list[Chunk]:

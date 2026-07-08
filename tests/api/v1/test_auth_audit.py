@@ -10,9 +10,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.audit.models import AuditEvent
-from app.core.security import get_password_hash
-from app.models.user import User
+from sparkth.core.audit.models import AuditEvent
+from sparkth.core.models.user import User
+from sparkth.core.security import get_password_hash
 
 PASSWORD = "Sup3rSecret!"
 
@@ -99,7 +99,7 @@ async def test_login_is_fail_closed_when_audit_write_fails(
     async def broken_record(*args: object, **kwargs: object) -> None:
         raise SQLAlchemyError("audit unavailable")
 
-    monkeypatch.setattr("app.api.v1.auth.record_event_now", broken_record)
+    monkeypatch.setattr("sparkth.api.v1.auth.record_event_now", broken_record)
 
     with raises(SQLAlchemyError):
         await client.post("/api/v1/auth/login", json={"username": user.username, "password": PASSWORD})

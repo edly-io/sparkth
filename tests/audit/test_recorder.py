@@ -11,11 +11,11 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.audit.canonical import canonicalize
-from app.core.audit.constants import REDACTED
-from app.core.audit.models import AuditEvent
-from app.lib.audit import record_event, record_event_now
-from app.lib.audit.context import (
+from sparkth.core.audit.canonical import canonicalize
+from sparkth.core.audit.constants import REDACTED
+from sparkth.core.audit.models import AuditEvent
+from sparkth.lib.audit import record_event, record_event_now
+from sparkth.lib.audit.context import (
     AnonymousActor,
     AuditRequestContext,
     AuditSource,
@@ -23,14 +23,14 @@ from app.lib.audit.context import (
     UserActor,
     audit_context,
 )
-from app.lib.audit.events import (
+from sparkth.lib.audit.events import (
     AuditChange,
     AuditOutcome,
     AuditToolCall,
     BaseAuditEvent,
     LoginAuditEvent,
 )
-from app.lib.audit.exceptions import UnknownAuditEventTypeError
+from sparkth.lib.audit.exceptions import UnknownAuditEventTypeError
 
 ACTOR = UserActor(id="1", label="alice")
 

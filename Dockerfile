@@ -56,4 +56,4 @@ USER nonroot
 
 WORKDIR /app
 
-CMD ["fastapi", "run", "app/main.py"]
+CMD ["fastapi", "run", "sparkth/main.py"]

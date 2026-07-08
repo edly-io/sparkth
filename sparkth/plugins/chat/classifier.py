@@ -1,0 +1,133 @@
+"""LLM-based scope classifier for the learning design assistant."""
+
+from typing import Any, Literal, TypedDict
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.exceptions import LangChainException
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, ValidationError
+
+from sparkth.lib.log import get_logger
+
+logger = get_logger(__name__)
+
+_CLASSIFIER_SYSTEM_PROMPT = """You are a binary intent classifier for a learning design assistant chatbot.
+
+The chatbot's purpose is ONLY to help users design and create online educational content. Decide whether the user's message is within that scope.
+
+IMPORTANT: Evaluate scope using the full conversation, not the latest message in isolation. If the user's message is a direct reply to a question the assistant asked (e.g., answering "Who is the audience?" with a role or name), it is IN SCOPE — even if the message looks unrelated on its own.
+
+IN SCOPE — respond in_scope: true:
+- Designing or creating courses, lessons, or modules
+- Writing learning objectives, outcomes, or competencies
+- Building curriculum, syllabi, or course outlines
+- Creating educational assessments (quizzes, exams, knowledge checks)
+- Applying instructional design principles (cognitive load, scaffolding, spaced repetition, ILO alignment)
+- Reviewing, editing, or improving educational content
+- Analyzing a target audience for a course
+- Short answers, clarifications, or confirmations that are replies to the assistant's own course-creation questions
+- Publishing, managing, or retrieving courses on LMS platforms (Canvas, Open edX) — including creating, reading, listing, updating, or deleting courses, modules, pages, quizzes, and other course components via available tools
+- Loading, reading, summarising, or referencing attached documents — users attach documents to inform course design, so any message referencing "these documents", "this document", "the attached material", "load into context", etc. is IN SCOPE
+- Any message where the user has attached documents to the conversation and is asking about their content, structure, or how to use them for course creation
+
+OUT OF SCOPE — respond in_scope: false:
+- General knowledge questions (history facts, geography, science trivia, current events)
+- Writing, debugging, or explaining code
+- Personal advice (medical, legal, financial, psychological)
+- Creative writing unrelated to course content (poems, fiction, stories)
+- Real-time information (news, weather, stock prices)
+- Translating or rewriting documents unrelated to course design
+- Any task not related to building or improving educational content"""  # noqa: E501
+
+# Cheapest capable model per provider — classification uses few tokens and needs low latency
+_CLASSIFIER_MODELS: dict[str, str] = {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5",
+    "google": "gemini-2.0-flash",
+}
+
+_MAX_HISTORY_TURNS = 6
+
+
+class HistoryTurn(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class _ScopeResult(BaseModel):
+    in_scope: bool
+
+
+class ScopeClassifier:
+    """LLM-based scope classifier for the learning design assistant.
+
+    Uses a cheap, fast model with structured output to classify whether a user
+    query is within the assistant's learning design scope.
+
+    Fails open (returns True) on any error — the main LLM's system prompt acts
+    as a safety net for borderline cases.
+    """
+
+    def __init__(self, provider_name: str, api_key: str) -> None:
+        classifier_model = _CLASSIFIER_MODELS.get(provider_name)
+        if classifier_model is None:
+            raise ValueError(f"Unsupported provider for classifier: {provider_name!r}")
+
+        llm: Any
+        match provider_name:
+            case "openai":
+                llm = ChatOpenAI(api_key=api_key, model=classifier_model, temperature=0)  # type: ignore[call-arg]
+            case "anthropic":
+                llm = ChatAnthropic(api_key=api_key, model=classifier_model, temperature=0)  # type: ignore[call-arg]
+            case "google":
+                llm = ChatGoogleGenerativeAI(google_api_key=api_key, model=classifier_model, temperature=0)
+
+        self._chain: Any = llm.with_structured_output(_ScopeResult)
+
+    async def classify(
+        self,
+        query: str,
+        history: list[HistoryTurn] | None = None,
+        attached_document_names: list[str] | None = None,
+    ) -> bool:
+        """Return True if the query is within learning design scope.
+
+        Accepts optional conversation history and the names of any documents
+        currently attached to the conversation so the classifier can factor in
+        document-related queries correctly.
+
+        Fails open on any error — the main LLM's system prompt handles
+        out-of-scope requests as a fallback.
+        """
+        if not query.strip():
+            return True
+
+        # Build messages: system prompt + up to last 6 history turns + current query
+        messages: list[BaseMessage] = [SystemMessage(content=_CLASSIFIER_SYSTEM_PROMPT)]
+        for turn in (history or [])[-_MAX_HISTORY_TURNS:]:
+            role = turn.get("role", "")
+            content = turn.get("content", "")
+            if not isinstance(content, str):
+                continue
+            if role == "assistant":
+                messages.append(AIMessage(content=content))
+            elif role == "user":
+                messages.append(HumanMessage(content=content))
+
+        # Prepend attachment context so the classifier knows documents are in play.
+        user_message = query
+        if attached_document_names:
+            document_list = ", ".join(f'"{n}"' for n in attached_document_names)
+            user_message = (
+                f"[The user has attached the following documents to this conversation: {document_list}]\n\n{query}"
+            )
+        messages.append(HumanMessage(content=user_message))
+
+        try:
+            result: _ScopeResult = await self._chain.ainvoke(messages)
+            return result.in_scope
+        except (LangChainException, ValidationError) as exc:
+            logger.warning("Scope classifier failed, defaulting to in_scope=True: %s", exc)
+            return True

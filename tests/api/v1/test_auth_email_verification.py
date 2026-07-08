@@ -6,11 +6,11 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import security
-from app.core.config import get_settings
-from app.models.email_verification import EmailVerificationToken
-from app.models.user import User
-from app.models.whitelist import WhitelistedEmail
+from sparkth.core import security
+from sparkth.core.config import get_settings
+from sparkth.core.models.email_verification import EmailVerificationToken
+from sparkth.core.models.user import User
+from sparkth.core.models.whitelist import WhitelistedEmail
 
 
 def _uniq(prefix: str) -> str:
@@ -35,7 +35,7 @@ class TestRegisterSendsVerificationEmail:
         await session.commit()
 
         with patch(
-            "app.api.v1.auth.send_verification_email",
+            "sparkth.api.v1.auth.send_verification_email",
             new_callable=AsyncMock,
         ) as mock_send:
             response = await client.post(
@@ -74,7 +74,7 @@ class TestRegisterSendsVerificationEmail:
         await _whitelist(session, mixed.lower())
         await session.commit()
 
-        with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock):
+        with patch("sparkth.api.v1.auth.send_verification_email", new_callable=AsyncMock):
             response = await client.post(
                 "/api/v1/auth/register",
                 json={
@@ -136,7 +136,7 @@ class TestLoginBlocksUnverified:
 
 class TestVerifyEmailEndpoint:
     async def test_happy_path_marks_user_verified(self, client: AsyncClient, session: AsyncSession) -> None:
-        from app.services.email_verification import EmailVerificationService
+        from sparkth.services.email_verification import EmailVerificationService
 
         username = _uniq("u")
         user = User(
@@ -166,7 +166,7 @@ class TestVerifyEmailEndpoint:
     async def test_expired_token_returns_400(self, client: AsyncClient, session: AsyncSession) -> None:
         from datetime import datetime, timezone
 
-        from app.services.email_verification import EmailVerificationService
+        from sparkth.services.email_verification import EmailVerificationService
 
         username = _uniq("u")
         user = User(
@@ -193,7 +193,7 @@ class TestVerifyEmailEndpoint:
         assert response.json()["detail"] == "expired_token"
 
     async def test_used_token_returns_400(self, client: AsyncClient, session: AsyncSession) -> None:
-        from app.services.email_verification import EmailVerificationService
+        from sparkth.services.email_verification import EmailVerificationService
 
         username = _uniq("u")
         user = User(
@@ -224,7 +224,7 @@ class TestResendEndpoint:
         from collections.abc import AsyncIterator
         from contextlib import asynccontextmanager
 
-        from app.api.v1 import auth as auth_module
+        from sparkth.api.v1 import auth as auth_module
 
         store: dict[str, str] = {}
 
@@ -249,7 +249,7 @@ class TestResendEndpoint:
 
     async def test_unknown_email_returns_202(self, client: AsyncClient) -> None:
         with patch(
-            "app.api.v1.auth.send_verification_email",
+            "sparkth.api.v1.auth.send_verification_email",
             new_callable=AsyncMock,
         ) as mock_send:
             response = await client.post(
@@ -272,7 +272,7 @@ class TestResendEndpoint:
         await session.flush()
 
         with patch(
-            "app.api.v1.auth.send_verification_email",
+            "sparkth.api.v1.auth.send_verification_email",
             new_callable=AsyncMock,
         ) as mock_send:
             response = await client.post(
@@ -296,7 +296,7 @@ class TestResendEndpoint:
         await session.flush()
 
         with patch(
-            "app.api.v1.auth.send_verification_email",
+            "sparkth.api.v1.auth.send_verification_email",
             new_callable=AsyncMock,
         ) as mock_send:
             response = await client.post(
@@ -321,7 +321,7 @@ class TestResendEndpoint:
         session.add(user)
         await session.flush()
 
-        with patch("app.api.v1.auth.send_verification_email", new_callable=AsyncMock):
+        with patch("sparkth.api.v1.auth.send_verification_email", new_callable=AsyncMock):
             first = await client.post(
                 "/api/v1/auth/verify-email/resend",
                 json={"email": email},

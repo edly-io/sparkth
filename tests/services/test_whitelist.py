@@ -3,7 +3,7 @@ import uuid
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.services.whitelist import WhitelistService
+from sparkth.services.whitelist import WhitelistService
 
 
 def _uniq(prefix: str) -> str:

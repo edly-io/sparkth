@@ -8,11 +8,11 @@ import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 
-from app.lib.auth import get_current_user
-from app.lib.db import get_async_session
-from app.lib.llm import get_llm_service
-from app.main import app
-from app.models.user import User
+from sparkth.core.models.user import User
+from sparkth.lib.auth import get_current_user
+from sparkth.lib.db import get_async_session
+from sparkth.lib.llm import get_llm_service
+from sparkth.main import app
 
 _LLM_ENDPOINTS = [
     ("POST", "/api/v1/llm/configs"),
@@ -55,7 +55,7 @@ async def llm_client() -> AsyncGenerator[AsyncClient, None]:
 
 @pytest.mark.asyncio
 async def test_create_config_returns_201(llm_client: AsyncClient) -> None:
-    from app.models import LLMConfig
+    from sparkth.core.models import LLMConfig
 
     mock_service = MagicMock()
     created = LLMConfig(
@@ -91,7 +91,7 @@ async def test_create_config_returns_201(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_list_configs_returns_only_current_user(llm_client: AsyncClient) -> None:
-    from app.models import LLMConfig
+    from sparkth.core.models import LLMConfig
 
     mock_service = MagicMock()
     configs = [
@@ -120,7 +120,7 @@ async def test_list_configs_returns_only_current_user(llm_client: AsyncClient) -
 
 @pytest.mark.asyncio
 async def test_update_config_with_valid_model_returns_200(llm_client: AsyncClient) -> None:
-    from app.models import LLMConfig
+    from sparkth.core.models import LLMConfig
 
     mock_service = MagicMock()
     updated = LLMConfig(
@@ -144,7 +144,7 @@ async def test_update_config_with_valid_model_returns_200(llm_client: AsyncClien
 
 @pytest.mark.asyncio
 async def test_update_config_with_invalid_model_returns_400(llm_client: AsyncClient) -> None:
-    from app.llm.exceptions import LLMConfigValidationError
+    from sparkth.llm.exceptions import LLMConfigValidationError
 
     mock_service = MagicMock()
     mock_service.update = AsyncMock(
@@ -182,7 +182,7 @@ async def test_delete_not_found_returns_404(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_deactivate_config_returns_200(llm_client: AsyncClient) -> None:
-    from app.models import LLMConfig
+    from sparkth.core.models import LLMConfig
 
     mock_service = MagicMock()
     deactivated = LLMConfig(
@@ -208,7 +208,7 @@ async def test_deactivate_config_returns_200(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_activate_config_returns_200(llm_client: AsyncClient) -> None:
-    from app.models import LLMConfig
+    from sparkth.core.models import LLMConfig
 
     mock_service = MagicMock()
     activated = LLMConfig(
@@ -233,7 +233,7 @@ async def test_activate_config_returns_200(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_set_active_not_found_returns_404(llm_client: AsyncClient) -> None:
-    from app.llm.exceptions import LLMConfigNotFoundError
+    from sparkth.llm.exceptions import LLMConfigNotFoundError
 
     mock_service = MagicMock()
     mock_service.set_active = AsyncMock(side_effect=LLMConfigNotFoundError(99, 1))
@@ -246,7 +246,7 @@ async def test_set_active_not_found_returns_404(llm_client: AsyncClient) -> None
 
 @pytest.mark.asyncio
 async def test_rotate_key_returns_200(llm_client: AsyncClient) -> None:
-    from app.models import LLMConfig
+    from sparkth.core.models import LLMConfig
 
     mock_service = MagicMock()
     rotated = LLMConfig(
@@ -272,7 +272,7 @@ async def test_rotate_key_returns_200(llm_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_rotate_key_not_found_returns_404(llm_client: AsyncClient) -> None:
-    from app.llm.exceptions import LLMConfigNotFoundError
+    from sparkth.llm.exceptions import LLMConfigNotFoundError
 
     mock_service = MagicMock()
     mock_service.rotate_key = AsyncMock(side_effect=LLMConfigNotFoundError(99, 1))
@@ -285,7 +285,7 @@ async def test_rotate_key_not_found_returns_404(llm_client: AsyncClient) -> None
 
 @pytest.mark.asyncio
 async def test_create_duplicate_name_returns_409(llm_client: AsyncClient) -> None:
-    from app.llm.exceptions import LLMConfigDuplicateNameError
+    from sparkth.llm.exceptions import LLMConfigDuplicateNameError
 
     mock_service = MagicMock()
     mock_service.create = AsyncMock(side_effect=LLMConfigDuplicateNameError("My Key"))

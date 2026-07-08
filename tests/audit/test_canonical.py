@@ -5,7 +5,7 @@ would make an honest row read as tampered."""
 
 import pytest
 
-from app.core.audit.canonical import canonicalize
+from sparkth.core.audit.canonical import canonicalize
 
 
 def test_key_order_does_not_change_bytes() -> None:
