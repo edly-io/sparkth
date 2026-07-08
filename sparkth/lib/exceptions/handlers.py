@@ -3,13 +3,13 @@
 This module was generated with LLM (Claude) assistance.
 
 Core and plugins register how a domain exception renders as an HTTP response from here,
-never from ``sparkth.core.exception_handlers``. Use ``register_status`` for the common
+never from ``sparkth.core.exceptions.handlers``. Use ``register_status`` for the common
 type→status case, ``register_exception_handler`` for a custom handler, and ``status_handler``
 to build the standard ``{"detail": str(exc)}`` responder. Implementation lives in
-``sparkth/core/exception_handlers.py``.
+``sparkth/core/exceptions/handlers.py``.
 """
 
-from sparkth.core.exception_handlers import (
+from sparkth.core.exceptions.handlers import (
     ExceptionHandler,
     register_exception_handler,
     register_status,

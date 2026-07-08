@@ -4,7 +4,7 @@ This module was generated with LLM (Claude) assistance.
 
 Core and plugins register how a domain exception renders as an HTTP response here;
 ``sparkth.main.assemble_app`` wires the registry onto the app at startup. Import the
-public surface from ``sparkth.lib.exception_handlers``, never from this module.
+public surface from ``sparkth.lib.exceptions.handlers``, never from this module.
 """
 
 from fastapi.responses import JSONResponse

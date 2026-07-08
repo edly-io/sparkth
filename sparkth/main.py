@@ -10,7 +10,7 @@ from starlette.types import Lifespan
 from sparkth.api.v1.api import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
-from sparkth.core.exception_handlers import EXCEPTION_HANDLERS, ExceptionHandler
+from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS, ExceptionHandler
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
 from sparkth.lib.hooks import TypeKeyedHook

@@ -4,8 +4,8 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from sparkth.core.exception_handlers import EXCEPTION_HANDLERS
-from sparkth.lib.exception_handlers import (
+from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
+from sparkth.lib.exceptions.handlers import (
     ExceptionHandler,
     register_exception_handler,
     register_status,

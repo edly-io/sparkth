@@ -289,7 +289,7 @@ how one renders as an HTTP response, register it from `__init__` — the registr
 onto the app at startup:
 
 ```python
-from sparkth.lib.exception_handlers import register_status
+from sparkth.lib.exceptions.handlers import register_status
 
 class MyAppError(Exception):
     """Raised when the plugin cannot process a request."""
