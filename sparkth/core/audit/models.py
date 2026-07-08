@@ -19,7 +19,7 @@ from sparkth.core.audit.canonical import canonicalize
 from sparkth.core.audit.constants import ANONYMOUS_ACTOR
 from sparkth.core.audit.events import BaseAuditEvent
 from sparkth.core.audit.redaction import redact
-from sparkth.core.audit.types import AuditContext
+from sparkth.core.audit.types import AuditChange, AuditContext, AuditModelInfo, AuditToolCall
 from sparkth.core.models.base import TimestampedModel, utc_now
 
 
@@ -103,7 +103,14 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
         """
         actor = event.actor or context.actor or ANONYMOUS_ACTOR
         occurred_at = event.occurred_at or utc_now()
-        change, target, tool, model = event.change, event.target, event.tool, event.model
+        target = event.target
+        # The mutation and AI-provenance slots exist only on the matching
+        # event-class tiers (MutationAuditEvent / AIActionAuditEvent); the row
+        # and canonical form always serialize every slot, absent ones as None.
+        change: AuditChange | None = getattr(event, "change", None)
+        tool: AuditToolCall | None = getattr(event, "tool", None)
+        model: AuditModelInfo | None = getattr(event, "model", None)
+        purpose: str | None = getattr(event, "purpose", None)
         redacted_old = redact(change.old) if change is not None and change.old is not None else None
         redacted_new = redact(change.new) if change is not None and change.new is not None else None
         redacted_args = redact(tool.args) if tool is not None and tool.args is not None else None
@@ -128,7 +135,7 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
                     "name": model.name if model is not None else None,
                     "version": model.version if model is not None else None,
                 },
-                "purpose": event.purpose,
+                "purpose": purpose,
             }
         )
 
@@ -154,6 +161,6 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
             model_provider=model.provider if model is not None else None,
             model_name=model.name if model is not None else None,
             model_version=model.version if model is not None else None,
-            purpose=event.purpose,
+            purpose=purpose,
             canonical_bytes=canonical_bytes,
         )

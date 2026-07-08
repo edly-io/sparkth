@@ -121,8 +121,9 @@ Current modules (see the source for the full API — do not duplicate it here):
   from here (`ingest_event`, `UnknownEventTypeError`); never import from `sparkth.core.analytics.gateway` or
   `sparkth.core.analytics.exceptions` directly. Implementation lives in `sparkth/core/analytics/`.
 - [`sparkth/lib/audit/`](sparkth/lib/audit/__init__.py) — audit trail public API. Import the write path
-  (`record_event`, `record_event_now`) from here; the self-describing event classes (`BaseAuditEvent`,
-  `LoginAuditEvent`), their value objects (`AuditTarget`, `AuditChange`, `AuditToolCall`,
+  (`record_event`, `record_event_now`) from here; the self-describing event classes (`BaseAuditEvent`
+  and its category tiers `MutationAuditEvent` / `AIActionAuditEvent`, plus `LoginAuditEvent`), their
+  value objects (`AuditTarget`, `AuditChange`, `AuditToolCall`,
   `AuditModelInfo`), and `AuditOutcome` from the `sparkth.lib.audit.events` submodule; the actor classes
   (`UserActor` / `SystemActor` / `AnonymousActor`, union alias `AuditActor`), the context classes
   (`AuditRequestContext` / `AuditSystemContext`, union alias `AuditContext`), `AuditActorType`,

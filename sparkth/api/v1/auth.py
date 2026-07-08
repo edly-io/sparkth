@@ -25,7 +25,7 @@ from sparkth.core.models.user import User
 from sparkth.lib.analytics import UnknownEventTypeError, ingest_event
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.context import AnonymousActor, UserActor
-from sparkth.lib.audit.events import AuditOutcome, LoginAuditEvent
+from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent
 from sparkth.lib.db import analytics_session_scope, get_async_session
 from sparkth.lib.log import get_logger
 from sparkth.schemas import (
@@ -139,14 +139,17 @@ async def login_for_access_token(
 
     # Audit writes are fail-closed and committed independently of this request
     # (record_event_now), so a failed attempt stays on record despite the 401.
-    attempted_actor = AnonymousActor(label=form_data.username)
+    # The typed username is a claimed, unverified identity: it is recorded as
+    # the event's target (type "username"), never as the actor.
+    attempted_target = AuditTarget(type="username", id=form_data.username)
 
     # Check if user exists and has a password set (Google-only users won't have one)
     if not user or not user.hashed_password:
         await record_event_now(
             LoginAuditEvent(
                 outcome=AuditOutcome.FAILURE,
-                actor=attempted_actor,
+                actor=AnonymousActor(),
+                target=attempted_target,
                 error_detail="unknown username, or account has no password login",
             )
         )
@@ -158,7 +161,12 @@ async def login_for_access_token(
 
     if not security.verify_password(form_data.password, user.hashed_password):
         await record_event_now(
-            LoginAuditEvent(outcome=AuditOutcome.FAILURE, actor=attempted_actor, error_detail="incorrect password")
+            LoginAuditEvent(
+                outcome=AuditOutcome.FAILURE,
+                actor=AnonymousActor(),
+                target=attempted_target,
+                error_detail="incorrect password",
+            )
         )
         raise HTTPException(
             status_code=401,
@@ -168,7 +176,12 @@ async def login_for_access_token(
 
     if not user.email_verified:
         await record_event_now(
-            LoginAuditEvent(outcome=AuditOutcome.DENIED, actor=attempted_actor, error_detail="email not verified")
+            LoginAuditEvent(
+                outcome=AuditOutcome.DENIED,
+                actor=AnonymousActor(),
+                target=attempted_target,
+                error_detail="email not verified",
+            )
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -3,8 +3,8 @@
 Actors (who), contexts (where from), and the grouped event envelope fields
 (what and with what effect). Pure frozen-or-plain dataclasses whose only
 behavior is their own invariants; the contextvar plumbing lives in
-:mod:`app.core.audit.context` and the event classes in
-:mod:`app.core.audit.events`.
+:mod:`sparkth.core.audit.context` and the event classes in
+:mod:`sparkth.core.audit.events`.
 """
 
 from collections.abc import Mapping
@@ -44,16 +44,17 @@ class SystemActor:
 
 @dataclass(frozen=True, slots=True)
 class AnonymousActor:
-    """An unauthenticated caller.
+    """An unauthenticated caller: a pure marker with no identity fields.
 
-    ``label`` carries a *claimed*, untrusted identity (e.g. the username
-    typed into a failed login); it is evidence of what was attempted, never
-    an attribution, which is why the class has no per-instance ``id`` (the
-    ClassVar pins it to ``None`` for the uniform read surface).
+    A claimed-but-unverified identity (e.g. the username typed into a failed
+    login) is evidence about the *event*, not the actor, and rides on the
+    event's :class:`AuditTarget` (see the ``auth.login`` capture). The
+    ClassVars pin ``id`` and ``label`` to ``None`` for the uniform read
+    surface.
     """
 
-    label: str | None = None
     id: ClassVar[None] = None
+    label: ClassVar[None] = None
     type: ClassVar[AuditActorType] = AuditActorType.ANONYMOUS
 
 

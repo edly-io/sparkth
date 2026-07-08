@@ -1,7 +1,7 @@
 """Constants for the audit subsystem.
 
-Internal to :mod:`app.core.audit`; nothing here is re-exported through the
-:mod:`app.lib.audit` public surface.
+Internal to :mod:`sparkth.core.audit`; nothing here is re-exported through the
+:mod:`sparkth.lib.audit` public surface.
 """
 
 from sparkth.core.audit.types import AnonymousActor

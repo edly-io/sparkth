@@ -150,6 +150,13 @@ def test_user_actor_requires_an_id() -> None:
         UserActor()  # type: ignore[call-arg]
 
 
-def test_system_and_anonymous_actors_never_carry_an_id() -> None:
+def test_system_actor_never_carries_an_id() -> None:
     assert SystemActor(label="cli").id is None
-    assert AnonymousActor(label="mallory").id is None
+
+
+def test_anonymous_actor_is_a_pure_marker() -> None:
+    actor = AnonymousActor()
+    assert actor.id is None
+    assert actor.label is None
+    with pytest.raises(TypeError):
+        AnonymousActor(label="mallory")  # type: ignore[call-arg]

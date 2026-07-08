@@ -8,7 +8,16 @@ from typing import ClassVar
 
 import pytest
 
-from sparkth.lib.audit.events import AuditChange, AuditOutcome, BaseAuditEvent, LoginAuditEvent
+from sparkth.lib.audit.events import (
+    AIActionAuditEvent,
+    AuditChange,
+    AuditModelInfo,
+    AuditOutcome,
+    AuditToolCall,
+    BaseAuditEvent,
+    LoginAuditEvent,
+    MutationAuditEvent,
+)
 from sparkth.lib.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
 
@@ -53,6 +62,41 @@ def test_event_type_must_be_category_dot_action() -> None:
 
 def test_fail_open_defaults_to_false() -> None:
     assert LoginAuditEvent.fail_open is False
+
+
+def test_base_events_carry_no_mutation_or_ai_fields() -> None:
+    with pytest.raises(TypeError):
+        LoginAuditEvent(outcome=AuditOutcome.SUCCESS, change=AuditChange(new={"a": 1}))  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        LoginAuditEvent(outcome=AuditOutcome.SUCCESS, tool=AuditToolCall(name="t"))  # type: ignore[call-arg]
+
+
+def test_mutation_events_carry_a_change() -> None:
+    @dataclass(frozen=True, slots=True, kw_only=True)
+    class CourseUpdate(MutationAuditEvent):
+        event_type: ClassVar[str] = "course.update"
+
+    event = CourseUpdate(outcome=AuditOutcome.SUCCESS, change=AuditChange(new={"name": "b"}))
+    assert event.change is not None
+    with pytest.raises(TypeError):
+        CourseUpdate(outcome=AuditOutcome.SUCCESS, tool=AuditToolCall(name="t"))  # type: ignore[call-arg]
+
+
+def test_ai_action_events_carry_provenance_and_change() -> None:
+    @dataclass(frozen=True, slots=True, kw_only=True)
+    class ToolCall(AIActionAuditEvent):
+        event_type: ClassVar[str] = "ai.tool_call"
+
+    event = ToolCall(
+        outcome=AuditOutcome.SUCCESS,
+        tool=AuditToolCall(name="canvas_create_course"),
+        model=AuditModelInfo(provider="anthropic"),
+        purpose="course generation",
+        change=AuditChange(new={"id": 1}),
+    )
+    assert event.tool is not None
+    assert event.model is not None
+    assert event.change is not None
 
 
 def test_audit_change_accepts_create_update_and_delete_shapes() -> None:

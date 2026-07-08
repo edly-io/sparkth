@@ -7,7 +7,7 @@ request object through every layer. Code that runs outside a request
 (background tasks, CLI) either sees an empty
 :class:`~app.core.audit.types.AuditSystemContext` or installs its own via
 :func:`audit_context`. The context and actor dataclasses themselves live in
-:mod:`app.core.audit.types`.
+:mod:`sparkth.core.audit.types`.
 """
 
 from contextlib import contextmanager

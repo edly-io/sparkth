@@ -2,14 +2,14 @@
 
 An audit event type is a frozen dataclass subclassing :class:`BaseAuditEvent`:
 the class carries its own identity (``event_type``, ``fail_open``) as
-ClassVars and only grouped envelope fields, so :func:`app.lib.audit.record_event`
+ClassVars and only grouped envelope fields, so :func:`sparkth.lib.audit.record_event`
 takes the session and one event object instead of a flat argument list.
 
 Event classes are registered on the module-level :data:`AUDIT_EVENTS` hook
 (mirroring the permissions hooks and the analytics schema registry): the
 taxonomy stays explicit, a duplicate event type collides loudly, and plugins
 can register their own event classes without editing core. The grouped
-envelope value objects live in :mod:`app.core.audit.types`.
+envelope value objects live in :mod:`sparkth.core.audit.types`.
 """
 
 from dataclasses import dataclass
@@ -31,9 +31,13 @@ class BaseAuditEvent:
     read-class event type out of the default fail-closed write semantics:
     mutating and AI event types must keep the default ``False``.
 
-    ``actor`` and ``occurred_at`` are optional because the recorder resolves
-    them (context actor or anonymous; current time). The grouped fields only
-    apply to some categories: a login carries neither ``target`` nor ``tool``.
+    The base carries only the fields every category has. ``actor`` and
+    ``occurred_at`` are optional because the recorder resolves them (context
+    actor or anonymous; current time). ``target`` is what the action acted
+    on; for a failed login it carries the *claimed* username as untrusted
+    evidence. Mutation snapshots live on :class:`MutationAuditEvent` and AI
+    provenance on :class:`AIActionAuditEvent`, so a category never exposes
+    fields it cannot have.
     """
 
     event_type: ClassVar[str]
@@ -44,10 +48,6 @@ class BaseAuditEvent:
     error_detail: str | None = None
     occurred_at: datetime | None = None
     target: AuditTarget | None = None
-    change: AuditChange | None = None
-    tool: AuditToolCall | None = None
-    model: AuditModelInfo | None = None
-    purpose: str | None = None
 
     @property
     def category(self) -> str:
@@ -58,13 +58,38 @@ class BaseAuditEvent:
         return self.event_type.partition(".")[2]
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MutationAuditEvent(BaseAuditEvent):
+    """Base for events that change stored state.
+
+    ``change`` carries the redactable before/after snapshots (the NIST AU-3
+    "what effect" field); a denied or failed mutation may have none.
+    """
+
+    change: AuditChange | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AIActionAuditEvent(MutationAuditEvent):
+    """Base for AI-driven actions (tool calls, generations).
+
+    Extends the mutation base because AI actions often mutate; read-only AI
+    actions leave ``change`` unset. ``purpose`` is reserved for FERPA
+    disclosure logging.
+    """
+
+    tool: AuditToolCall | None = None
+    model: AuditModelInfo | None = None
+    purpose: str | None = None
+
+
 E = TypeVar("E", bound=BaseAuditEvent)
 
 
 class AuditEventTypeHook(KeyedClassHook[BaseAuditEvent]):
     """Hook mapping event types to their event classes.
 
-    A :class:`app.lib.hooks.KeyedClassHook` keyed by ``event_type``, adding
+    A :class:`sparkth.lib.hooks.KeyedClassHook` keyed by ``event_type``, adding
     the ``category.action`` format check and the audit exception types.
     """
 

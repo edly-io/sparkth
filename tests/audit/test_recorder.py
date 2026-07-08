@@ -24,6 +24,7 @@ from sparkth.lib.audit.context import (
     audit_context,
 )
 from sparkth.lib.audit.events import (
+    AIActionAuditEvent,
     AuditChange,
     AuditOutcome,
     AuditToolCall,
@@ -31,8 +32,17 @@ from sparkth.lib.audit.events import (
     LoginAuditEvent,
 )
 from sparkth.lib.audit.exceptions import UnknownAuditEventTypeError
+from sparkth.lib.audit.hooks import AUDIT_EVENTS
 
 ACTOR = UserActor(id="1", label="alice")
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ToolCallAuditEvent(AIActionAuditEvent):
+    """AI-category event registered for exercising the full envelope."""
+
+    event_type: ClassVar[str] = "test.tool_call"
 
 
 async def test_record_event_persists_with_caller_session(session: AsyncSession) -> None:
@@ -91,14 +101,14 @@ async def test_event_actor_overrides_context_actor(session: AsyncSession) -> Non
     with audit_context(context):
         await record_event(
             session,
-            LoginAuditEvent(outcome=AuditOutcome.FAILURE, actor=AnonymousActor(label="mallory")),
+            LoginAuditEvent(outcome=AuditOutcome.FAILURE, actor=AnonymousActor()),
         )
     await session.commit()
 
     event = (await session.exec(select(AuditEvent))).one()
     assert event.actor_type == "anonymous"
     assert event.actor_id is None
-    assert event.actor_label == "mallory"
+    assert event.actor_label is None
 
 
 async def test_event_without_actor_records_anonymous(session: AsyncSession) -> None:
@@ -113,7 +123,7 @@ async def test_event_without_actor_records_anonymous(session: AsyncSession) -> N
 async def test_secret_payloads_are_redacted_before_persistence(session: AsyncSession) -> None:
     await record_event(
         session,
-        LoginAuditEvent(
+        ToolCallAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             actor=ACTOR,
             tool=AuditToolCall(name="canvas_create_course", args={"auth": {"api_token": "s3cret"}, "course_id": 5}),

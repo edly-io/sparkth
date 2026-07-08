@@ -66,7 +66,10 @@ async def test_wrong_password_records_failure_event(client: AsyncClient, session
     assert event.outcome == "failure"
     assert event.actor_type == "anonymous"
     assert event.actor_id is None
-    assert event.actor_label == user.username
+    assert event.actor_label is None
+    # The claimed identity is evidence about the event's target, not the actor.
+    assert event.target_type == "username"
+    assert event.target_id == user.username
     assert event.error_detail is not None
 
 
@@ -77,7 +80,8 @@ async def test_unknown_username_records_failure_event(client: AsyncClient, sessi
 
     (event,) = await _login_events(session)
     assert event.outcome == "failure"
-    assert event.actor_label == username
+    assert event.target_type == "username"
+    assert event.target_id == username
 
 
 async def test_unverified_email_records_denied_event(client: AsyncClient, session: AsyncSession) -> None:
@@ -88,7 +92,8 @@ async def test_unverified_email_records_denied_event(client: AsyncClient, sessio
 
     (event,) = await _login_events(session)
     assert event.outcome == "denied"
-    assert event.actor_label == user.username
+    assert event.target_type == "username"
+    assert event.target_id == user.username
 
 
 async def test_login_is_fail_closed_when_audit_write_fails(

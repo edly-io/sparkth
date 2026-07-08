@@ -13,7 +13,8 @@ class AuditActorType(StrEnum):
     ANONYMOUS: someone acted, but we don't know (or can't trust) who they
     are. The canonical case is a failed login: the caller typed a username,
     but since they failed authentication the event cannot be attributed to
-    that account's identity, so ``id`` stays empty.
+    that account's identity. The actor carries no identity fields at all; the
+    claimed username is recorded on the event's target as untrusted evidence.
 
     SYSTEM: no human behind the action, the platform itself did it
     (scheduled jobs, background tasks, CLI maintenance commands, automated
@@ -21,7 +22,7 @@ class AuditActorType(StrEnum):
 
     The taxonomy is closed: unlike event types, plugins must not invent new
     actor kinds. Each value has a dedicated actor class in
-    :mod:`app.core.audit.context`; the classes fix ``type`` per kind and
+    :mod:`sparkth.core.audit.context`; the classes fix ``type`` per kind and
     enforce the per-kind field invariants at construction.
     """
 
