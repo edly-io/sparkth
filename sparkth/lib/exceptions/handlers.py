@@ -8,6 +8,9 @@ from here, never from ``sparkth.core.exceptions.handlers``. Implementation lives
 ``sparkth/core/exceptions/handlers.py``.
 """
 
-from sparkth.core.exceptions.handlers import register_exception_handler
+from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS, register_exception_handler
 
-__all__ = ["register_exception_handler"]
+__all__ = [
+    "EXCEPTION_HANDLERS",
+    "register_exception_handler",
+]
