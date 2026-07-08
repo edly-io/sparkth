@@ -463,9 +463,9 @@ calls `_require_permission` directly rather than going through `require()`'s sco
 ## Audit Trail
 
 Sparkth keeps an append-only audit trail of security-relevant and AI actions: who did what, when,
-from where, and with what effect. The implementation lives in `app/core/audit/` with its public API
-in `app/lib/audit/`; unlike analytics (best-effort), audit writes are fail-closed, so a mutating
-or AI action whose audit record cannot be written does not proceed.
+from where, and with what effect. The implementation lives in `sparkth/core/audit/` with its public
+API in `sparkth/lib/audit/`; unlike analytics (best-effort), audit writes are fail-closed, so a
+mutating or AI action whose audit record cannot be written does not proceed.
 
 ## Contributing
 
