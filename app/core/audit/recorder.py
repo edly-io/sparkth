@@ -11,14 +11,13 @@ the recorder itself still raises, and the call site decides.
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit.canonical import canonicalize
-from app.core.audit.context import AnonymousActor, current_audit_context
+from app.core.audit.constants import ANONYMOUS_ACTOR
+from app.core.audit.context import current_audit_context
 from app.core.audit.events import AUDIT_EVENTS, BaseAuditEvent
 from app.core.audit.models import AuditEvent
 from app.core.audit.redaction import redact
 from app.lib.db import session_scope
 from app.models.base import utc_now
-
-_ANONYMOUS = AnonymousActor()
 
 
 async def record_event(session: AsyncSession, event: BaseAuditEvent) -> AuditEvent:
@@ -38,7 +37,7 @@ async def record_event(session: AsyncSession, event: BaseAuditEvent) -> AuditEve
     """
     AUDIT_EVENTS.require(type(event))
     context = current_audit_context()
-    actor = event.actor or context.actor or _ANONYMOUS
+    actor = event.actor or context.actor or ANONYMOUS_ACTOR
     occurred_at = event.occurred_at or utc_now()
     change, target, tool, model = event.change, event.target, event.tool, event.model
     redacted_old = redact(change.old) if change is not None and change.old is not None else None

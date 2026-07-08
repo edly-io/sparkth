@@ -12,8 +12,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit.canonical import canonicalize
+from app.core.audit.constants import REDACTED
 from app.core.audit.models import AuditEvent
-from app.core.audit.redaction import REDACTED
 from app.lib.audit import (
     AnonymousActor,
     AuditChange,

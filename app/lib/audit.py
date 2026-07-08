@@ -13,13 +13,6 @@ action it records.
 """
 
 from app.core.audit.context import (
-    AnonymousActor,
-    AuditActor,
-    AuditContext,
-    AuditRequestContext,
-    AuditSystemContext,
-    SystemActor,
-    UserActor,
     audit_context,
     bind_audit_actor,
     current_audit_context,
@@ -27,15 +20,24 @@ from app.core.audit.context import (
 from app.core.audit.enums import AuditActorType, AuditOutcome, AuditSource
 from app.core.audit.events import (
     AUDIT_EVENTS,
-    AuditChange,
-    AuditModelInfo,
-    AuditTarget,
-    AuditToolCall,
     BaseAuditEvent,
     LoginAuditEvent,
 )
 from app.core.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
 from app.core.audit.recorder import record_event, record_event_now
+from app.core.audit.types import (
+    AnonymousActor,
+    AuditActor,
+    AuditChange,
+    AuditContext,
+    AuditModelInfo,
+    AuditRequestContext,
+    AuditSystemContext,
+    AuditTarget,
+    AuditToolCall,
+    SystemActor,
+    UserActor,
+)
 
 __all__ = [
     "AUDIT_EVENTS",

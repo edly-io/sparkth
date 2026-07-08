@@ -2,7 +2,8 @@
 inline (Canvas nests an `auth` payload with an api_token; OpenEdx passes
 username/password), so the redactor strips them before persistence."""
 
-from app.core.audit.redaction import MAX_DEPTH, REDACTED, redact
+from app.core.audit.constants import MAX_DEPTH, REDACTED
+from app.core.audit.redaction import redact
 
 
 def test_auth_subtree_is_redacted_wholesale() -> None:

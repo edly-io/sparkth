@@ -8,60 +8,18 @@ takes the session and one event object instead of a flat argument list.
 Event classes are registered on the module-level :data:`AUDIT_EVENTS` hook
 (mirroring the permissions hooks and the analytics schema registry): the
 taxonomy stays explicit, a duplicate event type collides loudly, and plugins
-can register their own event classes without editing core.
+can register their own event classes without editing core. The grouped
+envelope value objects live in :mod:`app.core.audit.types`.
 """
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar, TypeVar
+from typing import ClassVar, TypeVar
 
-from app.core.audit.context import AuditActor
 from app.core.audit.enums import AuditOutcome
 from app.core.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
+from app.core.audit.types import AuditActor, AuditChange, AuditModelInfo, AuditTarget, AuditToolCall
 from app.lib.hooks import KeyedClassHook
-
-
-@dataclass(frozen=True, slots=True)
-class AuditTarget:
-    """The entity the action acted on (the NIST AU-3 what field)."""
-
-    type: str
-    id: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class AuditChange:
-    """Before/after snapshots of a mutation; redacted before persistence.
-
-    The pair encodes the mutation kind: a create has no ``old``, a delete has
-    no ``new``, an update carries both. At least one side is required; events
-    without a mutation carry no ``AuditChange`` at all.
-    """
-
-    old: Mapping[str, Any] | None = None
-    new: Mapping[str, Any] | None = None
-
-    def __post_init__(self) -> None:
-        if self.old is None and self.new is None:
-            raise ValueError("AuditChange requires at least one of 'old' or 'new'")
-
-
-@dataclass(frozen=True, slots=True)
-class AuditToolCall:
-    """The tool invocation behind an AI action; args are redacted before persistence."""
-
-    name: str
-    args: Mapping[str, Any] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class AuditModelInfo:
-    """AI provenance: which model produced or drove the action."""
-
-    provider: str | None = None
-    name: str | None = None
-    version: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -148,7 +106,7 @@ class AuditEventTypeHook(KeyedClassHook[BaseAuditEvent]):
             raise UnknownAuditEventTypeError(event_cls.event_type)
 
 
-AUDIT_EVENTS = AuditEventTypeHook()
+AUDIT_EVENTS: AuditEventTypeHook = AuditEventTypeHook()
 
 
 @AUDIT_EVENTS.register

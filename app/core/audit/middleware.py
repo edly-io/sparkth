@@ -4,8 +4,9 @@ from uuid import uuid4
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.core.audit.context import AuditRequestContext, audit_context
+from app.core.audit.context import audit_context
 from app.core.audit.enums import AuditSource
+from app.core.audit.types import AuditRequestContext
 from app.lib.settings import get_settings
 
 
