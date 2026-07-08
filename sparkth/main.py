@@ -10,10 +10,9 @@ from starlette.types import Lifespan
 from sparkth.api.v1.api import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
-from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS, ExceptionHandler
+from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
-from sparkth.lib.hooks import TypeKeyedHook
 from sparkth.lib.log import configure_logging, get_logger
 from sparkth.lib.plugins import PluginAccessMiddleware, get_plugin_loader
 from sparkth.mcp.server import mcp, register_plugin_tools
@@ -90,16 +89,14 @@ def _register_plugin_routes(application: FastAPI) -> None:
         application.include_router(router)
 
 
-def _register_exception_handlers(
-    application: FastAPI, hook: TypeKeyedHook[ExceptionHandler] = EXCEPTION_HANDLERS
-) -> None:
+def _register_exception_handlers(application: FastAPI) -> None:
     """Wire every registered exception handler onto the app (parallels _register_plugin_routes).
 
     Iterates the EXCEPTION_HANDLERS registry (populated by core/plugins at import/plugin-load
     time) and calls add_exception_handler per type -> handler, inheriting Starlette's
-    MRO-correct dispatch. ``hook`` defaults to the global registry and is injectable for tests.
+    MRO-correct dispatch.
     """
-    for exc_type, handler in hook.iter_items():
+    for exc_type, handler in EXCEPTION_HANDLERS.iter_items():
         application.add_exception_handler(exc_type, handler)
 
 

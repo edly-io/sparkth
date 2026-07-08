@@ -285,22 +285,21 @@ from the plugin instance. The router above is reachable at
 ### Rendering plugin exceptions as HTTP responses
 
 A plugin's domain exceptions stay HTTP-agnostic (plain `Exception` subclasses). To control
-how one renders as an HTTP response, register it from `__init__` — the registration is wired
+how one renders as an HTTP response, map it to a status from `__init__` — the mapping is wired
 onto the app at startup:
 
 ```python
-from sparkth.lib.exceptions.handlers import register_status
+from sparkth.lib.exceptions.handlers import register_exception_handler
 
 class MyAppError(Exception):
     """Raised when the plugin cannot process a request."""
 
 # inside MyAppPlugin.__init__:
-register_status(MyAppError, 409)
+register_exception_handler(MyAppError, 409)
 ```
 
 Now any route that raises `MyAppError` returns `409` with `{"detail": str(exc)}` — no
-per-route `try/except`. For a richer body/headers, use `register_exception_handler` with a
-custom handler instead. A handler registered on a base exception also catches its subclasses.
+per-route `try/except`. A mapping on a base exception also catches its subclasses.
 
 ## Register in core/config.py
 ```python
