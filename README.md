@@ -15,7 +15,7 @@ Sparkth is hosted at [https://sparkth.edly.space](https://sparkth.edly.space) wi
 | ReDoc | https://sparkth.edly.space/redoc |
 
 ## Guides
-- [Backend Plugin Implementation](./app/plugins/PLUGIN_GUIDE.md)
+- [Backend Plugin Implementation](./sparkth/core/plugins/PLUGIN_GUIDE.md)
 - [Frontend Plugin Implementation](./frontend/README.md)
 
 ## Development
@@ -242,8 +242,8 @@ A user is authorized when they hold, through an active `role_assignment` at the 
 
 The vocabulary the system draws on — which permission strings and which scope kinds exist — is declared in application code, not kept in a catalogue table.
 
-- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in `app.core.permissions`; plugins declare their own from their `__init__`. The hook is the single source of truth — nothing is copied into a separate store.
-- **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared this way in `app.core.permissions.scopes`; plugins declare their own from their `__init__`. As with permissions, the hook is the single source of truth — nothing is copied into a separate store.
+- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in `sparkth.core.permissions`; plugins declare their own from their `__init__`. The hook is the single source of truth — nothing is copied into a separate store.
+- **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared this way in `sparkth.core.permissions.scopes`; plugins declare their own from their `__init__`. As with permissions, the hook is the single source of truth — nothing is copied into a separate store.
 
 Each hook is a `SingleNamedItemHook` keyed by name: declaring two permissions or two scope kinds with the same name **raises `ValueError`**, so a collision fails fast at import time instead of being silently ignored.
 
@@ -258,15 +258,15 @@ for what is actually *granted* and *assigned*.
 
 ### The `Permission` class
 
-A `Permission` is a named unit of authorization — the right to perform one action, written as a dotted string such as `assignment.grade`. A role grants a set of permissions (one `role_permission` row each); `can()` authorizes a request when the user holds, at the relevant scope, a role whose permissions include the one being checked. Import it from `app.lib.permissions` (never from `app.core.permissions`):
+A `Permission` is a named unit of authorization — the right to perform one action, written as a dotted string such as `assignment.grade`. A role grants a set of permissions (one `role_permission` row each); `can()` authorizes a request when the user holds, at the relevant scope, a role whose permissions include the one being checked. Import it from `sparkth.lib.permissions` (never from `sparkth.core.permissions`):
 
 ```python
-from app.lib.permissions import Permission
+from sparkth.lib.permissions import Permission
 ```
 
 **State** — a permission carries one field, `name: str` (the dotted string). It defines no custom `__eq__`, so two `Permission` objects are equal only when they are the *same* object — equality is identity, not name.
 
-**`Permission.create(name)`** — the way to declare one. It constructs the permission, **registers it on the `PERMISSIONS` hook** (the single source of truth for the permission vocabulary), and returns it. Registration is what makes collisions fail fast: declaring two permissions with the same name **raises `ValueError`** at import time. Declare core permissions in `app.core.permissions`; a plugin declares its own from its `__init__`. Bind the result to a constant and reference that instance everywhere:
+**`Permission.create(name)`** — the way to declare one. It constructs the permission, **registers it on the `PERMISSIONS` hook** (the single source of truth for the permission vocabulary), and returns it. Registration is what makes collisions fail fast: declaring two permissions with the same name **raises `ValueError`** at import time. Declare core permissions in `sparkth.core.permissions`; a plugin declares its own from its `__init__`. Bind the result to a constant and reference that instance everywhere:
 
 ```python
 COURSE_GRADE = Permission.create("course.grade")
@@ -276,10 +276,10 @@ COURSE_GRADE = Permission.create("course.grade")
 
 ### The `PermissionScope` class
 
-A `PermissionScope` is a named **kind** of boundary a role can be assigned at — `global`, `course`, `quiz`, and so on. It answers *where* a role applies; how a scope kind maps onto the `scope` / `scope_object_id` columns of `role_assignment` is covered under [Scopes](#scopes). Import the classes from `app.lib.permissions.scopes`:
+A `PermissionScope` is a named **kind** of boundary a role can be assigned at — `global`, `course`, `quiz`, and so on. It answers *where* a role applies; how a scope kind maps onto the `scope` / `scope_object_id` columns of `role_assignment` is covered under [Scopes](#scopes). Import the classes from `sparkth.lib.permissions.scopes`:
 
 ```python
-from app.lib.permissions.scopes import GLOBAL, ObjectlessPermissionScope, PermissionScope
+from sparkth.lib.permissions.scopes import GLOBAL, ObjectlessPermissionScope, PermissionScope
 ```
 
 `PermissionScope` is the scope for an **object-bearing** kind — the common case (e.g. `course`, `quiz` — many instances, each identified by a `scope_object_id`). The rarer singleton that names no object (`global`, `whitelist`) is **`ObjectlessPermissionScope`**, a subclass that overrides the object-id rules, the route wiring, and how the scope cascades. The kind — not a boolean flag — decides those; each is a method (`validate_object_id`, `validate_scope_param`, and the cascade contribution behind `scope_chain`).
@@ -295,7 +295,7 @@ As with `Permission`, there is no custom `__eq__` — equality is identity.
 
 **`get_parents() -> list[PermissionScope]`** — returns this scope's ancestors nearest-first (`[parent, grandparent, …]`) by walking `parent` pointers, ending at the root (an empty list for a root scope). `can()` and `has_role()` use it (through `scope_chain`) to cascade a grant **parent → child**: a grant at an `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any descendant, because such an ancestor names no object (its `scope_object_id` is always `NULL`) and needs no per-object resolution. Object-bearing multi-level cascade (e.g. a grant at one `org` applying automatically to its `course`s) still needs a materialized path to resolve which descendant objects belong to which ancestor object, and remains deferred (issue #420 Phase 2).
 
-**`PermissionScope.create(name, parent=None)` / `ObjectlessPermissionScope.create(name, parent=None)`** — the way to declare a scope kind. It constructs the scope, **registers it on the `PERMISSION_SCOPES` hook**, and returns it; a duplicate name **raises `ValueError`**, and a `parent` must already be registered (the `global` root always is). Use `PermissionScope` for an object-bearing kind like `course` (the common case) and `ObjectlessPermissionScope` for a singleton that names no object (e.g. `global`, `whitelist`). Declare core scopes in `app.core.permissions.scopes`; a plugin declares its own from its `__init__`:
+**`PermissionScope.create(name, parent=None)` / `ObjectlessPermissionScope.create(name, parent=None)`** — the way to declare a scope kind. It constructs the scope, **registers it on the `PERMISSION_SCOPES` hook**, and returns it; a duplicate name **raises `ValueError`**, and a `parent` must already be registered (the `global` root always is). Use `PermissionScope` for an object-bearing kind like `course` (the common case) and `ObjectlessPermissionScope` for a singleton that names no object (e.g. `global`, `whitelist`). Declare core scopes in `sparkth.core.permissions.scopes`; a plugin declares its own from its `__init__`:
 
 ```python
 COURSE = PermissionScope.create("course", parent=GLOBAL)
@@ -347,12 +347,12 @@ Grants and revokes are idempotent. Assigning a role to a *user* is a separate co
 
 ### Extending the permission system
 
-**Declare a permission or scope kind** — a plugin declares its own from its `__init__`, exactly as it registers tools or config. Core declarations (not tied to any plugin) live in `app.core.permissions` (permissions) and `app.core.permissions.scopes` (scope kinds). Import everything you need from `app.lib.permissions` (the `PermissionScope` class and the `GLOBAL` scope come from its `app.lib.permissions.scopes` submodule) — never from `app.core` or the hook modules directly.
+**Declare a permission or scope kind** — a plugin declares its own from its `__init__`, exactly as it registers tools or config. Core declarations (not tied to any plugin) live in `sparkth.core.permissions` (permissions) and `sparkth.core.permissions.scopes` (scope kinds). Import everything you need from `sparkth.lib.permissions` (the `PermissionScope` class and the `GLOBAL` scope come from its `sparkth.lib.permissions.scopes` submodule) — never from `sparkth.core` or the hook modules directly.
 
 ```python
-from app.lib.permissions import Permission
-from app.lib.permissions.scopes import GLOBAL, PermissionScope
-from app.lib.plugins import SparkthPlugin
+from sparkth.lib.permissions import Permission
+from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
+from sparkth.lib.plugins import SparkthPlugin
 
 class GraderPlugin(SparkthPlugin):
     def __init__(self, name: str) -> None:
@@ -391,8 +391,8 @@ make cli -- roles assign-role alice role-manager --scope role --scope-object-id 
 From application code, call `assign_role`:
 
 ```python
-from app.lib.permissions import assign_role
-from app.lib.permissions.scopes import GLOBAL
+from sparkth.lib.permissions import assign_role
+from sparkth.lib.permissions.scopes import GLOBAL
 
 # Pass a declared PermissionScope instance (GLOBAL is the shipped root; COURSE is your
 # PermissionScope.create("course", …) result). The platform-wide GLOBAL scope names
@@ -415,13 +415,13 @@ definition time:
 from fastapi import Depends
 
 # Import your declared permission instances (don't reconstruct them) from the module that owns
-# them — app.lib.permissions for the platform's shipped permissions, or your plugin's module for
+# them — sparkth.lib.permissions for the platform's shipped permissions, or your plugin's module for
 # ones the plugin declares. EMAIL_WHITELIST_READ, THING_READ, THING_CREATE and COURSE_EDIT are
 # Permission.create(...) results.
-from app.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_CREATE, THING_READ
+from sparkth.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_CREATE, THING_READ
 
-# Scope objects come from app.lib.permissions.scopes (WHITELIST is shipped; COURSE is illustrative).
-from app.lib.permissions.scopes import COURSE, WHITELIST
+# Scope objects come from sparkth.lib.permissions.scopes (WHITELIST is shipped; COURSE is illustrative).
+from sparkth.lib.permissions.scopes import COURSE, WHITELIST
 
 # Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])

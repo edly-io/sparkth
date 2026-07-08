@@ -1,4 +1,4 @@
-from app.core.analytics.models import analytics_metadata, raw_events
+from sparkth.core.analytics.models import analytics_metadata, raw_events
 
 
 def test_raw_events_is_registered_on_analytics_metadata() -> None:

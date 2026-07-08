@@ -1,18 +1,18 @@
-"""Tests for the role-CRUD engine functions (app.core.permissions.roles)."""
+"""Tests for the role-CRUD engine functions (sparkth.core.permissions.roles)."""
 
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions import PERMISSIONS, Permission, roles
-from app.core.permissions.exceptions import (
+from sparkth.core.permissions import PERMISSIONS, Permission, roles
+from sparkth.core.permissions.exceptions import (
     PermissionNotFound,
     RoleAlreadyExists,
     RoleInUse,
     RoleNotFound,
 )
-from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.permissions.scopes import GLOBAL
+from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.lib.permissions.scopes import GLOBAL
 
 
 @pytest.fixture(autouse=True)

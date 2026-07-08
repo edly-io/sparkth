@@ -1,8 +1,8 @@
-"""Tests for the application settings public API (app.lib.settings)."""
+"""Tests for the application settings public API (sparkth.lib.settings)."""
 
-from app.core.config import Settings
-from app.core.config import get_settings as core_get_settings
-from app.lib.settings import get_settings
+from sparkth.core.config import Settings
+from sparkth.core.config import get_settings as core_get_settings
+from sparkth.lib.settings import get_settings
 
 
 def test_get_settings_shim_wires_to_core_function() -> None:

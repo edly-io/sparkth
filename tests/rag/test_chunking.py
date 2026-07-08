@@ -1,6 +1,6 @@
-from app.rag.enums import DocType
-from app.rag.ingestion.chunking import DocumentChunker
-from app.rag.types import Chunk, ChunkMetadata, ExtractionResult
+from sparkth.rag.enums import DocType
+from sparkth.rag.ingestion.chunking import DocumentChunker
+from sparkth.rag.types import Chunk, ChunkMetadata, ExtractionResult
 
 STRUCTURED_MD = """\
 # Introduction to Machine Learning

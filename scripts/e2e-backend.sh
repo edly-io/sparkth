@@ -14,4 +14,4 @@ rm -f e2e.db e2e.db-*
 uv run python scripts/e2e_init_db.py
 uv run python scripts/e2e_seed.py
 
-exec uv run uvicorn app.main:app --host 0.0.0.0 --port 7727
+exec uv run uvicorn sparkth.main:app --host 0.0.0.0 --port 7727

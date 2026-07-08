@@ -1,6 +1,6 @@
 """Tests for RAG public data types."""
 
-from app.rag.types import DocumentSection, RetrievedChunk
+from sparkth.rag.types import DocumentSection, RetrievedChunk
 
 
 class TestDocumentSection:

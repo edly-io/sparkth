@@ -6,9 +6,9 @@ import inspect
 def test_engine_has_explicit_pool_config() -> None:
     """Verify the engine is created with explicit pool_size and max_overflow."""
     # Verify the source code contains the pool configuration parameters
-    import app.core.db
+    import sparkth.core.db
 
-    source = inspect.getsource(app.core.db)
+    source = inspect.getsource(sparkth.core.db)
 
     # Check that the source code contains the pool configuration parameters
     assert "pool_size=3" in source
@@ -16,6 +16,6 @@ def test_engine_has_explicit_pool_config() -> None:
     assert "pool_recycle=1800" in source
 
     # Verify the engine provider builds a usable engine
-    from app.core.db import get_engine
+    from sparkth.core.db import get_engine
 
     assert get_engine() is not None

@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.rag.store import ChunkStoreService
-from app.rag.types import ChunkInput
+from sparkth.rag.store import ChunkStoreService
+from sparkth.rag.types import ChunkInput
 
 
 class TestChunkInput:
@@ -81,7 +81,7 @@ class TestChunkStoreService:
         mock_session.flush = AsyncMock()
         mock_session.expunge_all = AsyncMock()
 
-        with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
+        with patch("sparkth.rag.store.DocumentChunk") as mock_chunk_class:
             mock_chunk1 = MagicMock()
             mock_chunk1.id = 1
             mock_chunk2 = MagicMock()
@@ -114,7 +114,7 @@ class TestChunkStoreService:
         mock_session.flush = AsyncMock()
         mock_session.expunge_all = AsyncMock()
 
-        with patch("app.rag.store.DocumentChunk") as mock_chunk_class:
+        with patch("sparkth.rag.store.DocumentChunk") as mock_chunk_class:
             mock_chunk = MagicMock()
             mock_chunk.id = 123
             mock_chunk.source_name = "lecture.pdf"
@@ -167,16 +167,16 @@ class TestChunkStoreService:
 class TestDocumentChunkModel:
     def test_embedding_column_removed(self) -> None:
         """DocumentChunk must no longer have an embedding column."""
-        from app.rag.models import DocumentChunk
+        from sparkth.rag.models import DocumentChunk
 
         assert not hasattr(DocumentChunk, "embedding")
 
     def test_embedding_model_column_removed(self) -> None:
-        from app.rag.models import DocumentChunk
+        from sparkth.rag.models import DocumentChunk
 
         assert not hasattr(DocumentChunk, "embedding_model")
 
     def test_embedding_provider_column_removed(self) -> None:
-        from app.rag.models import DocumentChunk
+        from sparkth.rag.models import DocumentChunk
 
         assert not hasattr(DocumentChunk, "embedding_provider")

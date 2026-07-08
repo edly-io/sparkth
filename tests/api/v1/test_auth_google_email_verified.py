@@ -6,9 +6,9 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
-from app.models.user import User
-from app.models.whitelist import WhitelistedEmail
+from sparkth.core.config import get_settings
+from sparkth.core.models.user import User
+from sparkth.core.models.whitelist import WhitelistedEmail
 
 
 def _uniq(prefix: str) -> str:
@@ -34,12 +34,12 @@ class TestGoogleCallbackVerification:
 
         with (
             patch(
-                "app.api.v1.auth.exchange_auth_code",
+                "sparkth.api.v1.auth.exchange_auth_code",
                 new_callable=AsyncMock,
                 return_value={"access_token": "fake"},
             ),
             patch(
-                "app.api.v1.auth.get_google_user_info",
+                "sparkth.api.v1.auth.get_google_user_info",
                 new_callable=AsyncMock,
                 return_value={
                     "id": _uniq("gid"),
@@ -72,12 +72,12 @@ class TestGoogleCallbackVerification:
 
         with (
             patch(
-                "app.api.v1.auth.exchange_auth_code",
+                "sparkth.api.v1.auth.exchange_auth_code",
                 new_callable=AsyncMock,
                 return_value={"access_token": "fake"},
             ),
             patch(
-                "app.api.v1.auth.get_google_user_info",
+                "sparkth.api.v1.auth.get_google_user_info",
                 new_callable=AsyncMock,
                 return_value={
                     "id": _uniq("gid"),

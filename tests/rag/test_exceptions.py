@@ -1,6 +1,6 @@
 """Tests for RAG ingestion exception hierarchy."""
 
-from app.rag.exceptions import (
+from sparkth.rag.exceptions import (
     RAGError,
     RAGIngestionError,
     UnsupportedFileTypeError,

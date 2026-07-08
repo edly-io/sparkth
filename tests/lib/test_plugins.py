@@ -1,14 +1,14 @@
-"""Tests for the app.lib.plugins public API surface.
+"""Tests for the sparkth.lib.plugins public API surface.
 
-Everything here is imported from app.lib.plugins only — this suite exercises the
+Everything here is imported from sparkth.lib.plugins only — this suite exercises the
 public plugin-authoring boundary, never the plugin framework internals behind it.
 """
 
 import pytest
 from pydantic import ValidationError
 
-import app.lib.plugins as plugins_api
-from app.lib.plugins import PluginConfig, SparkthPlugin
+import sparkth.lib.plugins as plugins_api
+from sparkth.lib.plugins import PluginConfig, SparkthPlugin
 
 
 class TestPluginsPublicApi:
@@ -24,6 +24,12 @@ class TestPluginsPublicApi:
             "PluginConfig",
             "PluginAccessMiddleware",
             "get_plugin_loader",
+            "PluginService",
+            "get_plugin_service",
+            "ConfigValidationError",
+            "InternalServerError",
+            "PluginDisabledError",
+            "UserPluginResponse",
         }
 
 
@@ -32,15 +38,19 @@ class TestPluginsImportSafety:
         import importlib
 
         # A re-import must succeed: the facade is imported during framework
-        # bootstrap (app.lib.hooks -> app.lib.plugins), so it must stay free of
-        # import cycles back through app.lib.hooks.
-        importlib.import_module("app.lib.plugins")
+        # bootstrap (sparkth.lib.hooks -> sparkth.lib.plugins), so it must stay free of
+        # import cycles back through sparkth.lib.hooks.
+        importlib.import_module("sparkth.lib.plugins")
 
     def test_exposes_plugin_loader(self) -> None:
         assert callable(plugins_api.get_plugin_loader)
 
     def test_resolves_access_middleware_lazily(self) -> None:
         assert isinstance(plugins_api.PluginAccessMiddleware, type)
+
+    def test_resolves_plugin_service_lazily(self) -> None:
+        assert isinstance(plugins_api.PluginService, type)
+        assert callable(plugins_api.get_plugin_service)
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
         with pytest.raises(AttributeError):

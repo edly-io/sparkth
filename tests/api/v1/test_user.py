@@ -12,11 +12,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.permissions.models import Role
-from app.lib.auth import get_current_user
-from app.lib.permissions import assign_role
-from app.lib.permissions.scopes import GLOBAL, PermissionScope
-from app.models.user import User
+from sparkth.core.models.user import User
+from sparkth.core.permissions.models import Role
+from sparkth.lib.auth import get_current_user
+from sparkth.lib.permissions import assign_role
+from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
 
 async def _create_user(session: AsyncSession, username: str) -> User:

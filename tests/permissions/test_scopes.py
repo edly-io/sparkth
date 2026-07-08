@@ -1,13 +1,13 @@
 import pytest
 
-from app.core.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound
-from app.core.permissions.scopes import (
+from sparkth.core.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound
+from sparkth.core.permissions.scopes import (
     GLOBAL,
     ObjectlessPermissionScope,
     PermissionScope,
     get_permission_scope,
 )
-from app.lib.permissions.scopes import ROLE, WHITELIST
+from sparkth.lib.permissions.scopes import ROLE, WHITELIST
 
 
 def test_create_with_unregistered_parent_raises() -> None:

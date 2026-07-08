@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.lib.rag import agentic_retrieve_context as retrieve_chunks
-from app.rag.enums import RagStatus
-from app.rag.exceptions import DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError
-from app.rag.models import DocumentChunk
-from app.rag.types import RAGContext, RetrievedChunk
+from sparkth.lib.rag import agentic_retrieve_context as retrieve_chunks
+from sparkth.rag.enums import RagStatus
+from sparkth.rag.exceptions import DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError
+from sparkth.rag.models import DocumentChunk
+from sparkth.rag.types import RAGContext, RetrievedChunk
 
 
 def _ctx(source: str, *contents: str) -> RAGContext:
@@ -34,9 +34,9 @@ class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_maps_chunks_to_retrieved_chunks(self) -> None:
         with (
-            patch("app.rag.retrieval.validate_documents_ready", new=AsyncMock()),
+            patch("sparkth.rag.retrieval.validate_documents_ready", new=AsyncMock()),
             patch(
-                "app.rag.retrieval.get_context_via_agent_with_isolated_session",
+                "sparkth.rag.retrieval.get_context_via_agent_with_isolated_session",
                 new=AsyncMock(side_effect=[_ctx("a.pdf", "alpha"), _ctx("b.pdf", "beta")]),
             ),
         ):
@@ -51,10 +51,10 @@ class TestRetrieveChunks:
         get_ctx = AsyncMock()
         with (
             patch(
-                "app.rag.retrieval.validate_documents_ready",
+                "sparkth.rag.retrieval.validate_documents_ready",
                 new=AsyncMock(side_effect=DocumentNotFoundError("nope")),
             ),
-            patch("app.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
+            patch("sparkth.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
         ):
             with pytest.raises(DocumentNotFoundError):
                 await retrieve_chunks("q", [10], MagicMock())
@@ -65,10 +65,10 @@ class TestRetrieveChunks:
         get_ctx = AsyncMock()
         with (
             patch(
-                "app.rag.retrieval.validate_documents_ready",
+                "sparkth.rag.retrieval.validate_documents_ready",
                 new=AsyncMock(side_effect=RAGNotReadyError(10, str(RagStatus.PROCESSING))),
             ),
-            patch("app.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
+            patch("sparkth.rag.retrieval.get_context_via_agent_with_isolated_session", new=get_ctx),
         ):
             with pytest.raises(RAGNotReadyError):
                 await retrieve_chunks("q", [10], MagicMock())
@@ -77,9 +77,9 @@ class TestRetrieveChunks:
     @pytest.mark.asyncio
     async def test_retrieval_error_propagates(self) -> None:
         with (
-            patch("app.rag.retrieval.validate_documents_ready", new=AsyncMock()),
+            patch("sparkth.rag.retrieval.validate_documents_ready", new=AsyncMock()),
             patch(
-                "app.rag.retrieval.get_context_via_agent_with_isolated_session",
+                "sparkth.rag.retrieval.get_context_via_agent_with_isolated_session",
                 new=AsyncMock(side_effect=RAGRetrievalError("agent boom")),
             ),
         ):

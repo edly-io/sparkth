@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.analytics.models import raw_events
-from app.core.security import get_password_hash
-from app.models.user import User
+from sparkth.core.analytics.models import raw_events
+from sparkth.core.models.user import User
+from sparkth.core.security import get_password_hash
 
 LOGIN_URL = "/api/v1/auth/login"
 
@@ -50,7 +50,7 @@ async def test_login_succeeds_even_if_analytics_emit_fails(
     await _make_verified_user(session, "resilientlogin", "testpassword")
 
     # Analytics is fire-and-forget: a gateway failure must never break login.
-    with patch("app.api.v1.auth.ingest_event", side_effect=SQLAlchemyError("boom")):
+    with patch("sparkth.api.v1.auth.ingest_event", side_effect=SQLAlchemyError("boom")):
         response = await client.post(LOGIN_URL, json={"username": "resilientlogin", "password": "testpassword"})
 
     assert response.status_code == 200
@@ -67,7 +67,7 @@ async def test_unexpected_analytics_error_does_not_break_login(client: AsyncClie
     """
     await _make_verified_user(session, "unexpectederrorlogin", "testpassword")
 
-    with patch("app.api.v1.auth.ingest_event", side_effect=RuntimeError("unexpected internal error")):
+    with patch("sparkth.api.v1.auth.ingest_event", side_effect=RuntimeError("unexpected internal error")):
         response = await client.post(LOGIN_URL, json={"username": "unexpectederrorlogin", "password": "testpassword"})
 
     assert response.status_code == 200
@@ -86,7 +86,7 @@ async def test_login_succeeds_when_analytics_session_unavailable(client: AsyncCl
         raise SQLAlchemyError("analytics database unreachable")
         yield  # pragma: no cover -- unreachable, makes this a generator
 
-    with patch("app.api.v1.auth.analytics_session_scope", _failing_scope):
+    with patch("sparkth.api.v1.auth.analytics_session_scope", _failing_scope):
         response = await client.post(LOGIN_URL, json={"username": "analyticsdownlogin", "password": "testpassword"})
 
     assert response.status_code == 200

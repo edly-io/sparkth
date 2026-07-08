@@ -1,8 +1,8 @@
-"""Tests for the public database-session API (app.lib.db)."""
+"""Tests for the public database-session API (sparkth.lib.db)."""
 
 from sqlmodel import select
 
-from app.lib.db import session_scope
+from sparkth.lib.db import session_scope
 
 
 async def test_session_scope_defaults_to_expire_on_commit_false() -> None:

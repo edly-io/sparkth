@@ -7,9 +7,9 @@ import typer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.cli import roles
-from app.core.permissions.models import Role, RoleAssignment
-from app.models.user import User
+from sparkth.cli import roles
+from sparkth.core.models.user import User
+from sparkth.core.permissions.models import Role, RoleAssignment
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ async def cli_session(session: AsyncSession) -> AsyncGenerator[AsyncSession, Non
     async def scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
-    with patch("app.cli.roles.session_scope", scope):
+    with patch("sparkth.cli.roles.session_scope", scope):
         yield session
 
 

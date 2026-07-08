@@ -3,16 +3,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import permissions as permissions_module
-from app.core.permissions.exceptions import (
+from sparkth.core import permissions as permissions_module
+from sparkth.core.models.user import User
+from sparkth.core.permissions.exceptions import (
     InvalidScopeObjectId,
     PermissionNotFound,
     PermissionScopeNotFound,
     RoleNotFound,
 )
-from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.lib.hooks import SingleNamedItemHook
-from app.lib.permissions import (
+from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.lib.hooks import SingleNamedItemHook
+from sparkth.lib.permissions import (
     EMAIL_WHITELIST_READ,
     Permission,
     assign_role,
@@ -22,8 +23,7 @@ from app.lib.permissions import (
     has_role,
     revoke_role,
 )
-from app.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
-from app.models.user import User
+from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
 
 
 def test_global_scope_name() -> None:
@@ -288,12 +288,12 @@ async def test_can_child_grant_does_not_satisfy_parent_check(session: AsyncSessi
 
 
 def test_facade_exposes_public_surface() -> None:
-    from app.core.permissions import PERMISSIONS
-    from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, ObjectlessPermissionScope, PermissionScope
-    from app.lib import permissions as facade
-    from app.lib.permissions import exceptions as exceptions_facade
-    from app.lib.permissions import hooks as hooks_facade
-    from app.lib.permissions import scopes as scopes_facade
+    from sparkth.core.permissions import PERMISSIONS
+    from sparkth.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, ObjectlessPermissionScope, PermissionScope
+    from sparkth.lib import permissions as facade
+    from sparkth.lib.permissions import exceptions as exceptions_facade
+    from sparkth.lib.permissions import hooks as hooks_facade
+    from sparkth.lib.permissions import scopes as scopes_facade
 
     assert facade.can is can
     assert facade.assign_role is assign_role
@@ -301,17 +301,17 @@ def test_facade_exposes_public_surface() -> None:
     assert facade.has_role is has_role
     assert facade.get_permission is get_permission
     assert facade.get_permission_scope is get_permission_scope
-    # Permission exception classes are re-exported from the app.lib.permissions.exceptions
+    # Permission exception classes are re-exported from the sparkth.lib.permissions.exceptions
     # submodule (not the package facade), mirroring the hooks and scopes submodules.
     assert not hasattr(facade, "RoleNotFound")
     assert exceptions_facade.RoleNotFound is RoleNotFound
     assert exceptions_facade.PermissionNotFound is PermissionNotFound
     assert exceptions_facade.PermissionScopeNotFound is PermissionScopeNotFound
-    # The registration hooks are re-exported from the app.lib.permissions.hooks submodule
+    # The registration hooks are re-exported from the sparkth.lib.permissions.hooks submodule
     # (not the package facade), so plugins import them from there.
     assert hooks_facade.PERMISSIONS is PERMISSIONS
     assert hooks_facade.PERMISSION_SCOPES is PERMISSION_SCOPES
-    # The scope class and the GLOBAL root are re-exported from the app.lib.permissions.scopes
+    # The scope class and the GLOBAL root are re-exported from the sparkth.lib.permissions.scopes
     # submodule (not the package facade), so plugins import them from there.
     assert scopes_facade.PermissionScope is PermissionScope
     assert scopes_facade.ObjectlessPermissionScope is ObjectlessPermissionScope
@@ -373,14 +373,14 @@ def test_get_permission_returns_registered(monkeypatch: pytest.MonkeyPatch) -> N
     hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
     permission = Permission("assignment.grade")
     hook.add_item(permission)
-    monkeypatch.setattr("app.core.permissions.PERMISSIONS", hook)
+    monkeypatch.setattr("sparkth.core.permissions.PERMISSIONS", hook)
 
     assert get_permission("assignment.grade") is permission
 
 
 def test_get_permission_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
     hook: SingleNamedItemHook[Permission] = SingleNamedItemHook()
-    monkeypatch.setattr("app.core.permissions.PERMISSIONS", hook)
+    monkeypatch.setattr("sparkth.core.permissions.PERMISSIONS", hook)
 
     with pytest.raises(PermissionNotFound):
         get_permission("nope")
@@ -390,14 +390,14 @@ def test_get_permission_scope_returns_registered(monkeypatch: pytest.MonkeyPatch
     hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
     scope = PermissionScope("course")
     hook.add_item(scope)
-    monkeypatch.setattr("app.core.permissions.scopes.PERMISSION_SCOPES", hook)
+    monkeypatch.setattr("sparkth.core.permissions.scopes.PERMISSION_SCOPES", hook)
 
     assert get_permission_scope("course") is scope
 
 
 def test_get_permission_scope_raises_for_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
     hook: SingleNamedItemHook[PermissionScope] = SingleNamedItemHook()
-    monkeypatch.setattr("app.core.permissions.scopes.PERMISSION_SCOPES", hook)
+    monkeypatch.setattr("sparkth.core.permissions.scopes.PERMISSION_SCOPES", hook)
 
     with pytest.raises(PermissionScopeNotFound):
         get_permission_scope("course")

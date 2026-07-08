@@ -60,16 +60,16 @@ migrations: ## Apply Alembic migrations for both the app and analytics databases
 
 .PHONY: rag-cleanup
 rag-cleanup: ## Run the RAG cleanup task (native)
-	uv run python -m app.rag.cleanup
+	uv run python -m sparkth.rag.cleanup
 
 ##@ User Management
 .PHONY: create-user
 create-user: ## Create user (make create-user -- --username john)
-	uv run python -m app.cli.main users create-user $(ARGS)
+	uv run python -m sparkth.cli.main users create-user $(ARGS)
 
 .PHONY: reset-password
 reset-password: ## Reset password (make reset-password -- username)
-	uv run python -m app.cli.main users reset-password $(ARGS)
+	uv run python -m sparkth.cli.main users reset-password $(ARGS)
 
 ##@ Frontend
 .PHONY: frontend.build
@@ -112,7 +112,7 @@ backend.install.dev.githooks: ## Install git hooks
 
 .PHONY: backend.up.dev
 backend.up.dev: ## Run FastAPI server locally
-	uv run fastapi dev app/main.py --host 0.0.0.0 --port 7727
+	uv run fastapi dev sparkth/main.py --host 0.0.0.0 --port 7727
 
 .PHONY: lock
 lock: ## Update uv lockfile
@@ -120,11 +120,11 @@ lock: ## Update uv lockfile
 
 .PHONY: cli
 cli: ## Run CLI tool (make cli -- users --help)
-	uv run python -m app.cli.main $(ARGS)
+	uv run python -m sparkth.cli.main $(ARGS)
 
 .PHONY: mypy
 mypy: ## Run mypy type checking
-	uv run mypy --strict app/ tests/ scripts/
+	uv run mypy --strict sparkth/ tests/ scripts/
 
 ##@ Docker
 .PHONY: docker.build
