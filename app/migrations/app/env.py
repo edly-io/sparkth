@@ -4,6 +4,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
+# Imported so SQLModel.metadata carries the audit table for autogenerate.
+from app.core.audit.models import AuditEvent  # noqa: F401
 from app.core.config import get_settings
 
 # Imported so SQLModel.metadata carries the permission tables for autogenerate.

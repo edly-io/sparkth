@@ -13,9 +13,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit.canonical import canonicalize
 from app.core.audit.context import AnonymousActor, current_audit_context
 from app.core.audit.events import AUDIT_EVENTS, BaseAuditEvent
+from app.core.audit.models import AuditEvent
 from app.core.audit.redaction import redact
 from app.lib.db import session_scope
-from app.models.audit import AuditEvent
 from app.models.base import utc_now
 
 _ANONYMOUS = AnonymousActor()

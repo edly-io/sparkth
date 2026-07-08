@@ -10,8 +10,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit.models import AuditEvent
 from app.core.security import get_password_hash
-from app.models.audit import AuditEvent
 from app.models.user import User
 
 PASSWORD = "Sup3rSecret!"

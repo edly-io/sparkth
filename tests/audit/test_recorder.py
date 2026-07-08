@@ -12,6 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit.canonical import canonicalize
+from app.core.audit.models import AuditEvent
 from app.core.audit.redaction import REDACTED
 from app.lib.audit import (
     AnonymousActor,
@@ -29,7 +30,6 @@ from app.lib.audit import (
     record_event,
     record_event_now,
 )
-from app.models.audit import AuditEvent
 
 ACTOR = UserActor(id="1", label="alice")
 
