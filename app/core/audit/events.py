@@ -19,6 +19,7 @@ from typing import Any, ClassVar, TypeVar
 from app.core.audit.context import AuditActor
 from app.core.audit.enums import AuditOutcome
 from app.core.audit.exceptions import DuplicateAuditEventTypeError, UnknownAuditEventTypeError
+from app.lib.hooks import KeyedClassHook
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,17 +94,12 @@ class BaseAuditEvent:
 E = TypeVar("E", bound=BaseAuditEvent)
 
 
-class AuditEventTypeHook:
-    """Flat hook mapping event types to their event classes.
+class AuditEventTypeHook(KeyedClassHook[BaseAuditEvent]):
+    """Hook mapping event types to their event classes.
 
-    Like :class:`app.lib.hooks.SingleNamedItemHook` but keyed by
-    ``event_type`` and duplicate-tolerant for the *same* class (module
-    re-imports must stay idempotent); a *different* class claiming a
-    registered event type raises.
+    A :class:`app.lib.hooks.KeyedClassHook` keyed by ``event_type``, adding
+    the ``category.action`` format check and the audit exception types.
     """
-
-    def __init__(self) -> None:
-        self._types: dict[str, type[BaseAuditEvent]] = {}
 
     def register(self, event_cls: type[E]) -> type[E]:
         """Register ``event_cls`` under its event type; usable as a decorator.
@@ -117,10 +113,8 @@ class AuditEventTypeHook:
         category, _, action = event_type.partition(".")
         if not category or not action:
             raise ValueError(f"Audit event type must be 'category.action', got '{event_type}'")
-        existing = self._types.get(event_type)
-        if existing is not None and existing is not event_cls:
+        if not self.add_class(event_type, event_cls):
             raise DuplicateAuditEventTypeError(event_type)
-        self._types[event_type] = event_cls
         return event_cls
 
     def resolve(self, event_type: str) -> type[BaseAuditEvent]:
@@ -129,10 +123,10 @@ class AuditEventTypeHook:
         Raises:
             UnknownAuditEventTypeError: No class is registered.
         """
-        try:
-            return self._types[event_type]
-        except KeyError:
-            raise UnknownAuditEventTypeError(event_type) from None
+        event_cls = self.get(event_type)
+        if event_cls is None:
+            raise UnknownAuditEventTypeError(event_type)
+        return event_cls
 
     def require(self, event_cls: type[BaseAuditEvent]) -> None:
         """Assert ``event_cls`` is the registered class for its event type.
@@ -141,7 +135,7 @@ class AuditEventTypeHook:
             UnknownAuditEventTypeError: The class (or its event type) is not
                 registered; recording it is a programming error.
         """
-        if self._types.get(event_cls.event_type) is not event_cls:
+        if self.get(event_cls.event_type) is not event_cls:
             raise UnknownAuditEventTypeError(event_cls.event_type)
 
 
