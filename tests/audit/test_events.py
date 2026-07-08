@@ -10,6 +10,7 @@ import pytest
 
 from app.lib.audit import (
     AUDIT_EVENTS,
+    AuditChange,
     AuditOutcome,
     BaseAuditEvent,
     DuplicateAuditEventTypeError,
@@ -58,3 +59,15 @@ def test_event_type_must_be_category_dot_action() -> None:
 
 def test_fail_open_defaults_to_false() -> None:
     assert LoginAuditEvent.fail_open is False
+
+
+def test_audit_change_accepts_create_update_and_delete_shapes() -> None:
+    assert AuditChange(new={"name": "a"}).old is None
+    assert AuditChange(old={"name": "a"}).new is None
+    change = AuditChange(old={"name": "a"}, new={"name": "b"})
+    assert (change.old, change.new) == ({"name": "a"}, {"name": "b"})
+
+
+def test_audit_change_with_neither_side_raises() -> None:
+    with pytest.raises(ValueError, match="old.*new|new.*old"):
+        AuditChange()

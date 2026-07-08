@@ -32,10 +32,19 @@ class AuditTarget:
 
 @dataclass(frozen=True, slots=True)
 class AuditChange:
-    """Before/after snapshots of a mutation; redacted before persistence."""
+    """Before/after snapshots of a mutation; redacted before persistence.
+
+    The pair encodes the mutation kind: a create has no ``old``, a delete has
+    no ``new``, an update carries both. At least one side is required; events
+    without a mutation carry no ``AuditChange`` at all.
+    """
 
     old: Mapping[str, Any] | None = None
     new: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.old is None and self.new is None:
+            raise ValueError("AuditChange requires at least one of 'old' or 'new'")
 
 
 @dataclass(frozen=True, slots=True)

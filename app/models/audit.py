@@ -64,7 +64,10 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
     target_type: str | None = Field(default=None, max_length=100)
     target_id: str | None = Field(default=None, max_length=255)
 
-    # Mutation diffs
+    # Before/after snapshots of a mutation (AU-3 "what effect"), redacted
+    # before persistence. The pair encodes the mutation kind: a create has no
+    # old, a delete has no new, an update has both, and non-mutation events
+    # (e.g. a login) have neither.
     old_values: dict[str, Any] | None = Field(default=None, sa_column=_json_column())
     new_values: dict[str, Any] | None = Field(default=None, sa_column=_json_column())
 
