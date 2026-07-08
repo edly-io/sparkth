@@ -4,7 +4,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import permissions as permissions_module
-from app.core.permissions.exceptions import PermissionNotFound, PermissionScopeNotFound, RoleNotFound
+from app.core.permissions.exceptions import (
+    InvalidScopeObjectId,
+    PermissionNotFound,
+    PermissionScopeNotFound,
+    RoleNotFound,
+)
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
 from app.lib.hooks import SingleNamedItemHook
 from app.lib.permissions import (
@@ -17,7 +22,7 @@ from app.lib.permissions import (
     has_role,
     revoke_role,
 )
-from app.lib.permissions.scopes import GLOBAL, PermissionScope
+from app.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
 from app.models.user import User
 
 
@@ -62,33 +67,6 @@ async def test_role_assignment_non_global_scope_round_trips(session: AsyncSessio
     assert assignment.scope_object_id == "42"
 
 
-async def test_global_scope_with_object_id_is_rejected(session: AsyncSession) -> None:
-    role = Role(name="grader")
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-
-    # The scope CHECK constraint rejects a global scope carrying an object id. The
-    # savepoint isolates the rollback from the fixture's outer transaction.
-    with pytest.raises(IntegrityError):
-        async with session.begin_nested():
-            session.add(RoleAssignment(user_id=1, role_id=role.id, scope=GLOBAL.name, scope_object_id="42"))
-            await session.flush()
-
-
-async def test_non_global_scope_without_object_id_is_rejected(session: AsyncSession) -> None:
-    role = Role(name="grader")
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-
-    # The scope CHECK constraint rejects a non-global scope that omits its object id.
-    with pytest.raises(IntegrityError):
-        async with session.begin_nested():
-            session.add(RoleAssignment(user_id=1, role_id=role.id, scope="course", scope_object_id=None))
-            await session.flush()
-
-
 async def test_role_permission_round_trips(session: AsyncSession) -> None:
     role = Role(name="grader")
     session.add(role)
@@ -120,6 +98,35 @@ async def make_role(session: AsyncSession, name: str, permissions: list[str]) ->
         session.add(RolePermission(role_id=role.id, permission=permission))
     await session.flush()
     return role
+
+
+async def test_assign_role_rejects_object_id_on_objectless_scope(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", [])
+    with pytest.raises(InvalidScopeObjectId):
+        await assign_role(user.id, "grader", GLOBAL, "42", session)
+
+
+async def test_assign_role_requires_object_id_on_object_bearing_scope(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", [])
+    # PermissionScope is object-bearing, so an assignment must be given an object id.
+    with pytest.raises(InvalidScopeObjectId):
+        await assign_role(user.id, "grader", PermissionScope("course"), None, session)
+
+
+async def test_assign_role_allows_objectless_whitelist_scope(session: AsyncSession) -> None:
+    # The former ck_role_assignment_scope CHECK forbade (non-global, NULL); it has been dropped,
+    # and the whitelist scope is objectless, so a (whitelist, NULL) grant is valid.
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "wl", ["email.whitelist.read"])
+    assignment = await assign_role(user.id, "wl", WHITELIST, None, session)
+    assert assignment.id is not None
+    assert assignment.scope == "whitelist"
+    assert assignment.scope_object_id is None
 
 
 async def test_can_denies_without_assignment(session: AsyncSession) -> None:
@@ -246,9 +253,43 @@ async def test_has_role_false_after_revoke(session: AsyncSession) -> None:
     assert await has_role(user, "admin", GLOBAL, None, session) is False
 
 
+async def test_can_cascades_from_global_to_whitelist(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "admin", ["email.whitelist.read"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    await session.flush()
+    # A global grant satisfies a check at the descendant whitelist scope.
+    assert await can(user, EMAIL_WHITELIST_READ, WHITELIST, None, session) is True
+
+
+async def test_can_allows_direct_whitelist_grant(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "wl", ["email.whitelist.read"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="whitelist", scope_object_id=None))
+    await session.flush()
+    assert await can(user, EMAIL_WHITELIST_READ, WHITELIST, None, session) is True
+
+
+async def test_can_denies_whitelist_without_grant(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert await can(user, EMAIL_WHITELIST_READ, WHITELIST, None, session) is False
+
+
+async def test_can_child_grant_does_not_satisfy_parent_check(session: AsyncSession) -> None:
+    # Cascade is parent->child only: a whitelist (child) grant must NOT satisfy a GLOBAL check.
+    user = await make_user(session, "alice")
+    role = await make_role(session, "wl", ["email.whitelist.read"])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="whitelist", scope_object_id=None))
+    await session.flush()
+    assert await can(user, EMAIL_WHITELIST_READ, GLOBAL, None, session) is False
+
+
 def test_facade_exposes_public_surface() -> None:
     from app.core.permissions import PERMISSIONS
-    from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, PermissionScope
+    from app.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, ObjectlessPermissionScope, PermissionScope
     from app.lib import permissions as facade
     from app.lib.permissions import exceptions as exceptions_facade
     from app.lib.permissions import hooks as hooks_facade
@@ -273,6 +314,7 @@ def test_facade_exposes_public_surface() -> None:
     # The scope class and the GLOBAL root are re-exported from the app.lib.permissions.scopes
     # submodule (not the package facade), so plugins import them from there.
     assert scopes_facade.PermissionScope is PermissionScope
+    assert scopes_facade.ObjectlessPermissionScope is ObjectlessPermissionScope
     assert scopes_facade.GLOBAL is GLOBAL
 
 

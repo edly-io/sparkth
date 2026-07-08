@@ -1,4 +1,5 @@
 from app.core.permissions.exceptions import (
+    InvalidScopeObjectId,
     PermissionNotFound,
     PermissionScopeNotFound,
     RoleAlreadyExists,
@@ -12,4 +13,5 @@ __all__ = [
     "RoleInUse",
     "PermissionNotFound",
     "PermissionScopeNotFound",
+    "InvalidScopeObjectId",
 ]

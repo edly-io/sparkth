@@ -38,6 +38,28 @@ async def _create_user_with_permissions(session: AsyncSession, permissions: list
     return user
 
 
+async def _create_whitelist_manager(session: AsyncSession, permissions: list[str]) -> User:
+    """A user whose role is assigned at the whitelist scope (no global grant) — a Whitelist Manager."""
+    user = User(
+        name="Manager",
+        username=_uniq("manager"),
+        email=f"{_uniq('manager')}@example.com",
+        hashed_password="fakehash",
+    )
+    session.add(user)
+    await session.flush()
+    assert user.id is not None
+    role = Role(name=_uniq("role"))
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    for permission in permissions:
+        session.add(RolePermission(role_id=role.id, permission=permission))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="whitelist", scope_object_id=None))
+    await session.flush()
+    return user
+
+
 async def _create_regular_user(session: AsyncSession) -> User:
     user = User(
         name="Regular",
@@ -166,4 +188,33 @@ class TestRemoveWhitelist:
         _override_current_user(client, user)
 
         response = await client.delete("/api/v1/whitelist/1")
+        assert response.status_code == 403
+
+
+class TestWhitelistManagerScope:
+    async def test_manager_can_list(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, _WHITELIST_PERMISSIONS)
+        _override_current_user(client, manager)
+        response = await client.get("/api/v1/whitelist/")
+        assert response.status_code == 200
+
+    async def test_manager_can_create(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, _WHITELIST_PERMISSIONS)
+        _override_current_user(client, manager)
+        email = f"{_uniq('user')}@example.com"
+        response = await client.post("/api/v1/whitelist/", json={"value": email})
+        assert response.status_code == 201
+
+    async def test_manager_can_delete(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, _WHITELIST_PERMISSIONS)
+        _override_current_user(client, manager)
+        email = f"{_uniq('user')}@example.com"
+        entry_id = (await client.post("/api/v1/whitelist/", json={"value": email})).json()["id"]
+        response = await client.delete(f"/api/v1/whitelist/{entry_id}")
+        assert response.status_code == 204
+
+    async def test_read_only_manager_cannot_create(self, client: AsyncClient, session: AsyncSession) -> None:
+        manager = await _create_whitelist_manager(session, ["email.whitelist.read"])
+        _override_current_user(client, manager)
+        response = await client.post("/api/v1/whitelist/", json={"value": "a@b.com"})
         assert response.status_code == 403

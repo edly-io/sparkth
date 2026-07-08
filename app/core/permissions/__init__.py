@@ -17,14 +17,14 @@ and plugins import from there, never from this module directly.
 from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.permissions.exceptions import PermissionNotFound, RoleNotFound
 from app.core.permissions.models import Role, RoleAssignment, RolePermission
-from app.core.permissions.scopes import GLOBAL, PermissionScope, get_permission_scope
+from app.core.permissions.scopes import GLOBAL, PermissionScope
 from app.lib.auth import get_current_user
 from app.lib.db import get_async_session
 from app.lib.hooks import SingleNamedItemHook
@@ -92,18 +92,23 @@ class Permission:
         """
         return self._require_permission(GLOBAL, None)
 
-    def require(self, permission_scope: str, scope_param: str) -> Callable[..., Awaitable[User]]:
-        """Return a FastAPI dependency enforcing this permission at a named scope.
+    def require(
+        self, permission_scope: PermissionScope, scope_param: str | None = None
+    ) -> Callable[..., Awaitable[User]]:
+        """Return a FastAPI dependency enforcing this permission at a scope.
 
         Args:
-            permission_scope: A registered scope kind's name (e.g. ``"course"``). Resolved via
-                ``get_permission_scope``; an unregistered name raises ``PermissionScopeNotFound``
-                here (at route-definition/import time) so misconfiguration fails fast at startup.
-            scope_param: The name of the route's path parameter carrying the scope object id;
-                resolved from ``request.path_params`` on each request.
+            permission_scope: The scope to check at, as a declared ``PermissionScope`` object
+                (e.g. ``GLOBAL``, ``WHITELIST``, your ``COURSE``). Pass the registered instance,
+                not its name — this keeps scope references object-based, like the RBAC engine
+                functions, so a typo is an import error rather than a silent lookup miss.
+            scope_param: The route path parameter carrying the scope object id, resolved from
+                ``request.path_params`` per request. Omit for an objectless scope (it names no
+                object). Supplying it for an objectless scope, or omitting it for an
+                object-bearing one, is a wiring error and raises ``ValueError`` at definition time.
         """
-        scope = get_permission_scope(permission_scope)
-        return self._require_permission(scope, scope_param)
+        permission_scope.validate_scope_param(scope_param)
+        return self._require_permission(permission_scope, scope_param)
 
 
 # Every permission the platform knows; Permission.create() registers each one here.
@@ -142,24 +147,30 @@ def _active_assignment_at_scope(
     permission_scope: PermissionScope,
     scope_object_id: str | None,
 ) -> tuple[ColumnElement[bool], ...]:
-    """WHERE clauses selecting a user's active role assignments at one permission scope.
+    """WHERE clauses selecting a user's active assignments that satisfy a check at one scope,
+    honouring the scope hierarchy.
 
-    Shared by the read-side checks (``can`` and ``has_role``) so they resolve a scope
-    identically — the single place to change when scope hierarchy lands, which keeps the
-    two from diverging.
+    The (scope, object_id) pairs a grant may occupy come from ``PermissionScope.scope_chain`` —
+    the scope itself plus any ancestor that cascades (objectless ancestors cascade with a NULL id;
+    object-bearing ancestors need a materialized path and are deferred, see issue #420 Phase 2).
 
-    TODO(scope hierarchy): matches the exact (scope, scope_object_id) only — a role granted
-    at a parent scope does not yet cascade to descendants (see PermissionScope.get_parents()).
-    Cascading is the end goal and lands here.
-
-    The write operations (``assign_role``, ``revoke_role``) deliberately target the exact
-    assignment row and must NOT use this — they never cascade to parent scopes.
+    Shared by the read-side checks (``can`` and ``has_role``). The write operations
+    (``assign_role``, ``revoke_role``) target the exact assignment row and must NOT use this —
+    they never cascade to ancestor scopes.
     """
+    scope_clause = or_(
+        *(
+            and_(
+                col(RoleAssignment.scope) == name,
+                col(RoleAssignment.scope_object_id) == object_id,
+            )
+            for name, object_id in permission_scope.scope_chain(scope_object_id)
+        )
+    )
     return (
         col(RoleAssignment.user_id) == user_id,
         col(RoleAssignment.is_deleted) == False,
-        col(RoleAssignment.scope) == permission_scope.name,
-        col(RoleAssignment.scope_object_id) == scope_object_id,
+        scope_clause,
     )
 
 
@@ -240,8 +251,10 @@ async def assign_role(
     between the existence check and our insert, the unique index rejects ours; we recover by
     re-querying and returning the winner instead of surfacing the IntegrityError.
 
-    Raises RoleNotFound if the role does not exist.
+    Raises RoleNotFound if the role does not exist. Raises InvalidScopeObjectId if the
+    (permission_scope, scope_object_id) pairing is invalid (see PermissionScope.validate_object_id).
     """
+    permission_scope.validate_object_id(scope_object_id)
     role = (await session.exec(select(Role).where(Role.name == role_name))).one_or_none()
     if role is None or role.id is None:
         raise RoleNotFound(role_name)

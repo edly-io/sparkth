@@ -1,6 +1,6 @@
 """Scoped-RBAC table models. Authored with LLM (Claude) assistance."""
 
-from sqlalchemy import CheckConstraint, Index, text
+from sqlalchemy import Index, text
 from sqlmodel import Field
 
 from app.models.base import SoftDeleteModel, TimestampedModel
@@ -27,8 +27,8 @@ class RoleAssignment(TimestampedModel, SoftDeleteModel, table=True):
     __tablename__ = "role_assignment"
     __table_args__ = (
         # At most one active assignment per (user, role, scope). scope_object_id is
-        # NULL for global scope, and SQL treats NULLs as distinct, so coalesce
-        # collapses it to '' to make global rows collide too.
+        # NULL for objectless scopes, and SQL treats NULLs as distinct, so coalesce
+        # collapses it to '' to make those rows collide too.
         Index(
             "uq_role_assignment_active",
             "user_id",
@@ -39,13 +39,9 @@ class RoleAssignment(TimestampedModel, SoftDeleteModel, table=True):
             sqlite_where=text("is_deleted = 0"),
             postgresql_where=text("is_deleted = false"),
         ),
-        # A scope is the pair (scope, scope_object_id): the global scope names no
-        # object, every other scope must. Enforced in the database so no code path
-        # can persist a contradictory pair.
-        CheckConstraint(
-            "(scope = 'global' AND scope_object_id IS NULL) OR (scope != 'global' AND scope_object_id IS NOT NULL)",
-            name="ck_role_assignment_scope",
-        ),
+        # The (scope, scope_object_id) pairing — objectless scopes name no object, others
+        # must — is enforced in application code (assign_role), not a DB CHECK, so the
+        # database stays ignorant of the scope vocabulary declared via PERMISSION_SCOPES.
     )
 
     id: int | None = Field(default=None, primary_key=True)
