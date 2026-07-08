@@ -46,7 +46,12 @@ def _uniq(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
-async def _create_user_with_permissions(session: AsyncSession, permissions: list[str]) -> User:
+async def _create_user_with_permissions(
+    session: AsyncSession,
+    permissions: list[str],
+    scope: str = "global",
+    scope_object_id: str | None = None,
+) -> User:
     user = User(name="Admin", username=_uniq("admin"), email=f"{_uniq('admin')}@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
@@ -57,7 +62,7 @@ async def _create_user_with_permissions(session: AsyncSession, permissions: list
     assert role.id is not None
     for permission in permissions:
         session.add(RolePermission(role_id=role.id, permission=permission))
-    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="global", scope_object_id=None))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
     await session.flush()
     return user
 
@@ -290,3 +295,105 @@ async def test_create_role_permission_fetches_role_once(client: AsyncClient, ses
     assert response.status_code == 200
     role_by_id_selects = [s for s in statements if "from role where" in " ".join(s.lower().split())]
     assert len(role_by_id_selects) == 1, role_by_id_selects
+
+
+# --- Per-role scoping (issue #490) -------------------------------------------------------------
+# The endpoints addressing one role by {role_id} authorize at the object-bearing `role` scope, so a
+# grant can be delegated to a single role. A global grant still satisfies them via the cascade.
+
+
+async def _create_target_role(session: AsyncSession) -> Role:
+    """A plain role with an id, used as the object a per-role grant is scoped to."""
+    role = Role(name=_uniq("target"))
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    return role
+
+
+async def test_role_scoped_manager_can_manage_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_role(session)
+    other = await _create_target_role(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["role.update"], "role", str(target.id))
+    )
+    # Commit the setup so it survives each request's session close (a read request rolls back the
+    # shared in-memory transaction, which would otherwise wipe uncommitted setup rows).
+    await session.commit()
+    # Can update the role it is scoped to.
+    ok = await client.patch(f"/api/v1/permissions/roles/{target.id}", json={"description": "d"})
+    assert ok.status_code == 200
+    # Cannot touch a different role.
+    denied = await client.patch(f"/api/v1/permissions/roles/{other.id}", json={"description": "d"})
+    assert denied.status_code == 403
+
+
+async def test_role_scoped_manager_can_edit_that_roles_permissions(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_role(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["role.update"], "role", str(target.id))
+    )
+    await session.commit()
+    added = await client.post(
+        f"/api/v1/permissions/roles/{target.id}/permissions", json={"permission": "assignment.grade"}
+    )
+    assert added.status_code == 200
+    assert "assignment.grade" in added.json()["permissions"]
+    removed = await client.delete(f"/api/v1/permissions/roles/{target.id}/permissions/assignment.grade")
+    assert removed.status_code == 204
+
+
+async def test_role_scoped_reader_can_get_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_role(session)
+    other = await _create_target_role(session)
+    _override_current_user(client, await _create_user_with_permissions(session, ["role.read"], "role", str(target.id)))
+    await session.commit()
+    assert (await client.get(f"/api/v1/permissions/roles/{target.id}")).status_code == 200
+    assert (await client.get(f"/api/v1/permissions/roles/{other.id}")).status_code == 403
+
+
+async def test_role_scoped_deleter_can_delete_that_role(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_role(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["role.delete"], "role", str(target.id))
+    )
+    await session.commit()
+    assert (await client.delete(f"/api/v1/permissions/roles/{target.id}")).status_code == 204
+
+
+async def test_role_scoped_grant_does_not_authorize_global_endpoints(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    # A per-role grant must not leak into the list-all / create / vocabulary endpoints, which stay
+    # gated at the global scope (a role-scoped grant does not cascade UP to global).
+    target = await _create_target_role(session)
+    _override_current_user(
+        client,
+        await _create_user_with_permissions(
+            session, ["role.read", "role.create", "permission.read"], "role", str(target.id)
+        ),
+    )
+    await session.commit()
+    assert (await client.get("/api/v1/permissions/roles")).status_code == 403
+    assert (await client.post("/api/v1/permissions/roles", json={"name": _uniq("x")})).status_code == 403
+    assert (await client.get("/api/v1/permissions")).status_code == 403
+
+
+async def test_global_admin_still_manages_every_role(client: AsyncClient, session: AsyncSession) -> None:
+    # Existing global admins keep full authority over per-role endpoints via the global->role cascade.
+    target = await _create_target_role(session)
+    _override_current_user(client, await _create_user_with_permissions(session, ROLE_PERMISSIONS))
+    await session.commit()
+    assert (await client.get(f"/api/v1/permissions/roles/{target.id}")).status_code == 200
+    assert (await client.patch(f"/api/v1/permissions/roles/{target.id}", json={"description": "d"})).status_code == 200
+    assert (await client.delete(f"/api/v1/permissions/roles/{target.id}")).status_code == 204
+
+
+async def test_unauthorized_user_gets_403_before_404_on_missing_role(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    # The permission gate runs before the route's role lookup: an unauthorized user hitting a
+    # nonexistent role id is denied (403), not told it is missing (404).
+    _override_current_user(client, await _create_user_with_permissions(session, []))
+    await session.commit()
+    assert (await client.get("/api/v1/permissions/roles/99999")).status_code == 403

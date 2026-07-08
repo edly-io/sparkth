@@ -310,36 +310,40 @@ A scope answers *where* a role applies. It is the pair of two columns on `role_a
 - **`scope`** — the *kind* of boundary (e.g. `global`, `course`, `quiz`), one of the kinds declared through the `PERMISSION_SCOPES` hook. It is a free-form string, not a foreign key.
 - **`scope_object_id`** — *which* specific entity of that kind (e.g. the id of one course). It is polymorphic — it points at whatever domain table the scope kind maps to, so it is deliberately **not** a foreign key.
 
-A scope kind may name a parent (`ObjectScope.create(name, parent=…)`), so kinds form a hierarchy from a narrow boundary up to a broader one, and every scope kind is either a **`PermissionScope`** — which names one object of its kind — or an **`ObjectlessPermissionScope`**, a singleton with no object to name, so its `role_assignment` rows carry `scope_object_id = NULL`. The `global` scope is the objectless root: it applies everywhere. `whitelist` is a second `ObjectlessPermissionScope`, nested under `global`, for the singleton registration-whitelist feature (see [Shipped with the app](#shipped-with-the-app)).
+> **Scope is *where*, not *what* — it is not a power level.** Authorization is purely permission-based: `can()` authorizes a request only when the user's role actually contains the checked permission. Assigning a role at the `global` scope grants **only** the permissions that role holds, applied platform-wide — it is **not** an admin or superuser tier and confers no permission the role lacks. So a "Role Manager" role holding only `role.*` (plus `permission.read`) assigned at `global` can manage *every* role yet has no other access (e.g. none to the whitelist). The `admin` role is far-reaching because of the permissions it *bundles*, not the scope it is assigned at; there is no superuser bypass (`is_superuser` was removed).
+
+A scope kind may name a parent (`PermissionScope.create(name, parent=…)`), so kinds form a hierarchy from a narrow boundary up to a broader one, and every scope kind is either a **`PermissionScope`** — which names one object of its kind — or an **`ObjectlessPermissionScope`**, a singleton with no object to name, so its `role_assignment` rows carry `scope_object_id = NULL`. The `global` scope is the objectless root: it applies everywhere. `whitelist` is a second `ObjectlessPermissionScope`, nested under `global`, for the singleton registration-whitelist feature. `role` is an object-bearing `PermissionScope`, also nested under `global`, that names one role by id so role management can be delegated per-role (see [Shipped with the app](#shipped-with-the-app)).
 
 Every `ObjectlessPermissionScope` requires `scope_object_id` to be `NULL`; every `PermissionScope` (e.g. `course`) requires a non-`NULL` `scope_object_id`. This pairing is enforced in application code — `assign_role` calls the scope's `validate_object_id`, which raises `InvalidScopeObjectId` on a mismatch — **not** a database `CHECK` constraint, so the database stays ignorant of the scope vocabulary declared via `PERMISSION_SCOPES`.
 
-`can()` and `has_role()` cascade a grant **parent → child**: a grant at an `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any of its descendants, because such an ancestor names no object (its `scope_object_id` is always `NULL`) and needs no per-object resolution. Object-bearing (`PermissionScope`) multi-level cascade (e.g. a grant at one `org` applying automatically to its `course`s) still needs a materialized path and remains deferred (issue #420 Phase 2).
+`can()` and `has_role()` cascade a grant **parent → child**: a grant at an `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any of its descendants, because such an ancestor names no object (its `scope_object_id` is always `NULL`) and needs no per-object resolution. A `global` grant therefore satisfies a `role`-scoped check for any role. Object-bearing (`PermissionScope`) multi-level cascade (e.g. a grant at one `org` applying automatically to its `course`s) still needs a materialized path and remains deferred (issue #420 Phase 2).
 
 #### Shipped with the app
 
 | Kind | Names | Notes |
 |---|---|---|
-| **Scopes** | `global`, `whitelist` | `global` is the root scope; applies platform-wide; objectless, so `scope_object_id` is `NULL`. `whitelist` is an objectless singleton container scope nested under `global`; a role assigned here manages the whole registration whitelist without a global grant; `scope_object_id` is also `NULL`. |
-| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete`; `role.create`, `role.read`, `role.update`, `role.delete`; `permission.read` | The `email.whitelist.*` permissions gate the registration email-whitelist endpoints (at the `whitelist` scope); the `role.*` permissions gate the role-management API, and `permission.read` gates listing the assignable permission vocabulary (see [Managing roles at runtime](#managing-roles-at-runtime)). |
+| **Scopes** | `global`, `whitelist`, `role` | `global` is the root scope; applies platform-wide; objectless, so `scope_object_id` is `NULL`. `whitelist` is an objectless singleton container scope nested under `global`; a role assigned here manages the whole registration whitelist without a global grant; `scope_object_id` is also `NULL`. `role` is an **object-bearing** scope nested under `global`; a role assigned here manages one specific role (its `scope_object_id` is that role's id), so role management can be delegated per-role without a global grant. A `global` grant cascades down to both. |
+| **Permissions** | `email.whitelist.read`, `email.whitelist.create`, `email.whitelist.delete`; `role.create`, `role.read`, `role.update`, `role.delete`; `permission.read` | The `email.whitelist.*` permissions gate the registration email-whitelist endpoints (at the `whitelist` scope); the `role.*` permissions gate the role-management API — the endpoints addressing one role by id gate at the `role` scope (delegable per-role), while listing all roles and creating a role stay global — and `permission.read` gates listing the assignable permission vocabulary (see [Managing roles at runtime](#managing-roles-at-runtime)). |
 | **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, and the `permission.read` permissions. The seed migration also assigns it at the `global` scope to every account that was a superuser when the migration ran — a one-time backfill, not an ongoing rule. |
 
 ### Managing roles at runtime
 
-Roles and their permission grants are managed at runtime through the role-management REST API under `/api/v1/permissions`, gated by the `role.*` and `permission.read` permissions. Permissions and scope kinds themselves are **not** editable here — they are declared in code (platform defaults or plugin hooks); this API only grants already-declared permissions to roles.
+Roles and their permission grants are managed at runtime through the role-management REST API under `/api/v1/permissions`, gated by the `role.*` and `permission.read` permissions. The endpoints that address one role by `{role_id}` authorize at the `role` scope keyed by that id, so management of a single role can be delegated; the rest (listing all roles, creating a role, and reading the permission vocabulary) stay at the `global` scope. A `global` grant satisfies the per-role checks via the scope cascade, so existing global admins keep full authority. Permissions and scope kinds themselves are **not** editable here — they are declared in code (platform defaults or plugin hooks); this API only grants already-declared permissions to roles.
 
-| Method & path | Permission | Purpose |
-|---|---|---|
-| `GET /permissions` | `permission.read` | List the permission strings assignable to a role. |
-| `GET /permissions/roles` | `role.read` | List every role with its permission grants. |
-| `POST /permissions/roles` | `role.create` | Create a role (`409` if the name is taken). |
-| `GET /permissions/roles/{role_id}` | `role.read` | Fetch one role (`404` if missing). |
-| `PATCH /permissions/roles/{role_id}` | `role.update` | Rename or re-describe a role (`404` missing, `409` name taken). |
-| `DELETE /permissions/roles/{role_id}` | `role.delete` | Delete a role (`409` while it still has an active assignment). |
-| `POST /permissions/roles/{role_id}/permissions` | `role.update` | Grant a registered permission to a role (`422` if the permission is not registered). |
-| `DELETE /permissions/roles/{role_id}/permissions/{permission}` | `role.update` | Revoke a permission from a role. |
+| Method & path | Permission | Scope | Purpose |
+|---|---|---|---|
+| `GET /permissions` | `permission.read` | `global` | List the permission strings assignable to a role. |
+| `GET /permissions/roles` | `role.read` | `global` | List every role with its permission grants. |
+| `POST /permissions/roles` | `role.create` | `global` | Create a role (`409` if the name is taken). |
+| `GET /permissions/roles/{role_id}` | `role.read` | `role` | Fetch one role (`404` if missing). |
+| `PATCH /permissions/roles/{role_id}` | `role.update` | `role` | Rename or re-describe a role (`404` missing, `409` name taken). |
+| `DELETE /permissions/roles/{role_id}` | `role.delete` | `role` | Delete a role (`409` while it still has an active assignment). |
+| `POST /permissions/roles/{role_id}/permissions` | `role.update` | `role` | Grant a registered permission to a role (`422` if the permission is not registered). |
+| `DELETE /permissions/roles/{role_id}/permissions/{permission}` | `role.update` | `role` | Revoke a permission from a role. |
 
 Grants and revokes are idempotent. Assigning a role to a *user* is a separate concern handled by `assign_role` / the CLI (see [Assign a role to a user](#extending-the-permission-system)), not by this API.
+
+> **Accepted limitation.** A per-role manager holding `role.update` on a role can grant that role **any** registered permission — the same capability a global `role.update` holder already has; per-role delegation narrows *who* holds it, not *what* it can grant. Restricting the grantable permission set is out of scope (a separate concern).
 
 ### Extending the permission system
 
@@ -378,6 +382,8 @@ make cli -- roles assign-role john admin
 make cli -- roles assign-role jane "Whitelist Manager" --scope whitelist
 # or scoped to one object — pass the scope kind and the object id
 make cli -- roles assign-role john grader --scope course --scope-object-id 42
+# delegate management of just one role — the object id is that role's id
+make cli -- roles assign-role alice role-manager --scope role --scope-object-id 5
 ```
 
 `--scope` must name a declared scope kind (`global`, or any added via `PermissionScope.create()` / `ObjectlessPermissionScope.create()`); an unknown kind is rejected rather than persisted as a no-op assignment. Whether `--scope-object-id` is required depends on the scope kind: an `ObjectlessPermissionScope` (`global`, `whitelist`) must be assigned *without* one; a `PermissionScope` (like `course`) must be assigned *with* one. The CLI defers this check to `assign_role`, which raises `InvalidScopeObjectId` on a mismatch and exits non-zero with a clean error rather than persisting a contradictory row.

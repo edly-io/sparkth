@@ -1,8 +1,12 @@
 """Role sub-router (mounted at ``/roles``): role CRUD and managing a role's permission grants.
 
-Roles are created and edited here by end users with the ``role.*`` permissions. Permissions and
-scopes themselves are NOT manageable through this API — they are declared in code (platform
-defaults or plugin hooks); this API only assigns the already-registered permissions to roles.
+Roles are created and edited here by end users with the ``role.*`` permissions. The endpoints that
+address one role by ``{role_id}`` (get/update/delete and its permission grants) authorize at the
+``role`` scope (``require(ROLE, "role_id")``), so a grant can be delegated to a single role; a
+global grant still satisfies them via the scope cascade. Listing all roles and creating a role stay
+global. Permissions and scopes themselves are NOT manageable through this API — they are declared in
+code (platform defaults or plugin hooks); this API only assigns the already-registered permissions
+to roles.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +18,7 @@ from app.core.permissions.models import Role
 from app.lib.db import get_async_session
 from app.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE
 from app.lib.permissions.exceptions import PermissionNotFound, RoleAlreadyExists, RoleInUse, RoleNotFound
+from app.lib.permissions.scopes import ROLE
 
 router = APIRouter()
 
@@ -73,7 +78,7 @@ async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_a
 @router.get(
     "/{role_id}",
     response_model=RoleResponse,
-    dependencies=[Depends(ROLE_READ.require_in_global_scope())],
+    dependencies=[Depends(ROLE_READ.require(ROLE, "role_id"))],
 )
 async def get_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
     """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions)."""
@@ -87,7 +92,7 @@ async def get_role(role_id: int, session: AsyncSession = Depends(get_async_sessi
 @router.patch(
     "/{role_id}",
     response_model=RoleResponse,
-    dependencies=[Depends(ROLE_UPDATE.require_in_global_scope())],
+    dependencies=[Depends(ROLE_UPDATE.require(ROLE, "role_id"))],
 )
 async def update_role(
     role_id: int, payload: RoleUpdate, session: AsyncSession = Depends(get_async_session)
@@ -105,7 +110,7 @@ async def update_role(
 @router.delete(
     "/{role_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(ROLE_DELETE.require_in_global_scope())],
+    dependencies=[Depends(ROLE_DELETE.require(ROLE, "role_id"))],
 )
 async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
     """Delete a role (refused with 409 while it still has active assignments). Returns 204 No Content."""
@@ -120,7 +125,7 @@ async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_se
 @router.post(
     "/{role_id}/permissions",
     response_model=RoleResponse,
-    dependencies=[Depends(ROLE_UPDATE.require_in_global_scope())],
+    dependencies=[Depends(ROLE_UPDATE.require(ROLE, "role_id"))],
 )
 async def create_role_permission(
     role_id: int, payload: RolePermissionAdd, session: AsyncSession = Depends(get_async_session)
@@ -138,7 +143,7 @@ async def create_role_permission(
 @router.delete(
     "/{role_id}/permissions/{permission}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(ROLE_UPDATE.require_in_global_scope())],
+    dependencies=[Depends(ROLE_UPDATE.require(ROLE, "role_id"))],
 )
 async def delete_role_permission(
     role_id: int, permission: str, session: AsyncSession = Depends(get_async_session)

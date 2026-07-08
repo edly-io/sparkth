@@ -90,6 +90,17 @@ async def test_assign_role_objectless_whitelist_scope_no_id_succeeds(cli_session
     assert assignment.scope_object_id is None
 
 
+async def test_assign_role_object_bearing_role_scope_with_id_succeeds(cli_session: AsyncSession) -> None:
+    # The role scope is object-bearing: delegating management of one role (issue #490) is done with
+    # --scope role --scope-object-id <role id>. This is the documented delegation command; the id is
+    # stored verbatim (scope_object_id is polymorphic, not a foreign key).
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "role", "5")
+    assignment = (await cli_session.exec(select(RoleAssignment))).one()
+    assert assignment.scope == "role"
+    assert assignment.scope_object_id == "5"
+
+
 async def test_assign_role_objectless_whitelist_scope_with_id_exits(cli_session: AsyncSession) -> None:
     await _seed_user_and_role(cli_session)
     # whitelist is objectless — passing --scope-object-id is a contradiction and must be rejected
