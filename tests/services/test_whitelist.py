@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import pytest
@@ -64,7 +65,7 @@ class TestAddEntry:
             await WhitelistService.add_entry(session, value="@example..com", added_by_id=1)
 
     async def test_integrity_error_race_raises_already_exists(
-        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
         """A unique-index race (commit raises IntegrityError) is translated, with rollback."""
         from sqlalchemy.exc import IntegrityError
@@ -86,10 +87,12 @@ class TestAddEntry:
         # A unique value is essential: the pre-check must return None so flow reaches the
         # monkeypatched commit (the IntegrityError path), not the pre-check duplicate path.
         email = f"{_uniq('race')}@example.com"
-        with pytest.raises(WhitelistEntryAlreadyExists, match="already exists"):
-            await WhitelistService.add_entry(session, value=email, added_by_id=1)
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(WhitelistEntryAlreadyExists, match="already exists"):
+                await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
         assert rollback_called is True
+        assert "Whitelist insert conflict" in caplog.text
 
 
 class TestRemoveEntry:
