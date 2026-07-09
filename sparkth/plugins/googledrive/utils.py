@@ -12,7 +12,13 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import session_scope
-from sparkth.lib.documents import Document, DocumentStatus, create_document, update_document_status
+from sparkth.lib.documents import (
+    Document,
+    DocumentStatus,
+    create_document,
+    soft_delete_document,
+    update_document_status,
+)
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
     ScannedPDFError,
@@ -26,6 +32,22 @@ from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 
 logger = get_logger(__name__)
+
+
+async def soft_delete_drive_file(session: AsyncSession, drive_file: DriveFile) -> None:
+    """Soft-delete a DriveFile and its linked Document, if any.
+
+    Soft-deleting the Document is what lets the RAG cleanup job
+    (sparkth.rag.cleanup.cleanup_deleted_documents) collect the file's orphaned
+    chunks. Chunks still linked to another live document are preserved by that
+    job's reference counting. Flushes but does not commit; the caller owns the
+    transaction.
+    """
+    drive_file.soft_delete()
+    session.add(drive_file)
+    await session.flush()
+    if drive_file.document_id is not None:
+        await soft_delete_document(session, drive_file.document_id)
 
 
 def _resolve_filename(drive_file: DriveFile) -> str:
