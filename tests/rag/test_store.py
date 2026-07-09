@@ -140,18 +140,6 @@ class TestChunkStoreService:
         assert call_args.token_count == 100
         mock_session.flush.assert_awaited_once()
 
-    async def test_delete_by_source(self, service: ChunkStoreService) -> None:
-        mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.rowcount = 5
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        count = await service.delete_by_source(mock_session, "old.pdf")
-
-        assert count == 5
-        mock_session.execute.assert_awaited_once()
-        mock_session.flush.assert_awaited_once()
-
     async def test_get_sources(self, service: ChunkStoreService) -> None:
         mock_session = AsyncMock()
         mock_result = MagicMock()

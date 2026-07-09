@@ -6,10 +6,9 @@ retrieval uses it to fetch chunks by section.
 """
 
 import hashlib
-from typing import Any, cast
+from typing import Any
 
-from sqlalchemy import and_, delete, or_
-from sqlalchemy.engine import CursorResult
+from sqlalchemy import and_, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -118,23 +117,6 @@ class ChunkStoreService:
 
         result = await session.exec(stmt)
         return list(result.all())
-
-    async def delete_by_source(
-        self,
-        session: AsyncSession,
-        source_name: str,
-    ) -> int:
-        """Delete all chunks for a given source document. Returns count deleted.
-
-        Note: this method flushes but does not commit. The caller is
-        responsible for committing (or rolling back) the transaction.
-        """
-        stmt = delete(DocumentChunk).where(col(DocumentChunk.source_name) == source_name)
-        result = await session.execute(stmt)
-        await session.flush()
-        count: int = cast(CursorResult[Any], result).rowcount
-        logger.info("Deleted %d chunks for source='%s'", count, source_name)
-        return count
 
     async def get_sources(
         self,
