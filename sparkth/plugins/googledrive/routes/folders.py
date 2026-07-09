@@ -24,7 +24,7 @@ from sparkth.plugins.googledrive.schemas import (
     SyncFolderRequest,
     SyncStatusResponse,
 )
-from sparkth.plugins.googledrive.utils import process_folder_rag
+from sparkth.plugins.googledrive.utils import process_folder_rag, soft_delete_drive_file
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -258,8 +258,7 @@ async def delete_folder(
         )
     )
     for f in files_result.all():
-        f.soft_delete()
-        session.add(f)
+        await soft_delete_drive_file(session, f)
 
     folder.soft_delete()
     session.add(folder)

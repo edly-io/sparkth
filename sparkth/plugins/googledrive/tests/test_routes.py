@@ -209,6 +209,30 @@ class TestDeleteFolder:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @pytest.mark.asyncio
+    async def test_delete_soft_deletes_linked_documents(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        test_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """DELETE /folders/{id} should soft-delete each contained file's Document."""
+        document = Document(user_id=cast(int, test_user.id), name="linked.pdf")
+        session.add(document)
+        await session.commit()
+        await session.refresh(document)
+        test_file.document_id = document.id
+        session.add(test_file)
+        await session.commit()
+
+        response = await drive_client.delete(f"/api/v1/google-drive/folders/{test_folder.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        await session.refresh(document)
+        assert document.is_deleted is True
+
 
 class TestSyncFolder:
     @pytest.mark.asyncio
