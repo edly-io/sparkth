@@ -4,6 +4,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
+# Imported so SQLModel.metadata carries the audit table for autogenerate.
+from sparkth.core.audit.models import AuditEvent  # noqa: F401
 from sparkth.core.config import get_settings
 from sparkth.core.models import *  # noqa: F403
 

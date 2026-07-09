@@ -2,7 +2,7 @@ import gc
 
 import pytest
 
-from sparkth.lib.hooks import PluginCollectionHook, PluginHook, SingleNamedItemHook
+from sparkth.lib.hooks import KeyedClassHook, PluginCollectionHook, PluginHook, SingleNamedItemHook
 from sparkth.lib.plugins import SparkthPlugin
 
 
@@ -142,3 +142,44 @@ def test_single_named_item_hook_get_returns_default_for_unknown_name() -> None:
     fallback = _Named("fallback")
 
     assert hook.get("missing", fallback) is fallback
+
+
+class _Event:
+    """Minimal base for classes registered on a KeyedClassHook."""
+
+
+class _LoginEvent(_Event):
+    pass
+
+
+class _OtherEvent(_Event):
+    pass
+
+
+def test_keyed_class_hook_stores_class_under_key() -> None:
+    hook: KeyedClassHook[_Event] = KeyedClassHook()
+
+    assert hook.add_class("auth.login", _LoginEvent) is True
+    assert hook.get("auth.login") is _LoginEvent
+
+
+def test_keyed_class_hook_readding_same_class_is_idempotent() -> None:
+    hook: KeyedClassHook[_Event] = KeyedClassHook()
+    hook.add_class("auth.login", _LoginEvent)
+
+    assert hook.add_class("auth.login", _LoginEvent) is True
+    assert hook.get("auth.login") is _LoginEvent
+
+
+def test_keyed_class_hook_reports_collision_and_keeps_first_class() -> None:
+    hook: KeyedClassHook[_Event] = KeyedClassHook()
+    hook.add_class("auth.login", _LoginEvent)
+
+    assert hook.add_class("auth.login", _OtherEvent) is False
+    assert hook.get("auth.login") is _LoginEvent
+
+
+def test_keyed_class_hook_get_returns_none_for_unknown_key() -> None:
+    hook: KeyedClassHook[_Event] = KeyedClassHook()
+
+    assert hook.get("missing") is None

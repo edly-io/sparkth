@@ -54,6 +54,37 @@ class PluginCollectionHook(BasePluginHook[list[T]]):
                 yield plugin, plugin_item
 
 
+class KeyedClassHook(Generic[T]):
+    """A flat hook holding classes keyed by an explicit string.
+
+    Unlike :class:`SingleNamedItemHook` (instances keyed by their ``name``),
+    this hook stores *classes* under a caller-derived key, and re-adding the
+    same class under its key is a no-op so module re-imports stay idempotent.
+    Only a *different* class claiming an occupied key is a collision, reported
+    by ``add_class`` returning ``False`` so domain hooks can raise their own
+    exception type.
+    """
+
+    def __init__(self) -> None:
+        self._classes: dict[str, type[T]] = {}
+
+    def add_class(self, key: str, item_cls: type[T]) -> bool:
+        """Store ``item_cls`` under ``key``.
+
+        Returns ``True`` if stored (or already stored), ``False`` when a
+        different class already claims ``key`` (the stored class is kept).
+        """
+        existing = self._classes.get(key)
+        if existing is not None and existing is not item_cls:
+            return False
+        self._classes[key] = item_cls
+        return True
+
+    def get(self, key: str) -> type[T] | None:
+        """Return the class stored under ``key``, or ``None`` if the key is free."""
+        return self._classes.get(key)
+
+
 class SingleNamedItemHook(Generic[N]):
     """A flat hook holding items identified by a unique ``name``.
 

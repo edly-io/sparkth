@@ -9,6 +9,7 @@ from starlette.types import Lifespan
 
 from sparkth.api.v1.api import api_router
 from sparkth.core.analytics.registry import EventRegistry
+from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
@@ -96,6 +97,9 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     route map; production startup passes the real lifespan below.
     """
     EventRegistry()  # populate default event schemas before the first request
+    # Core audit event classes register on the AUDIT_EVENTS hook when
+    # app.core.audit.events imports (pulled in through api_router's endpoints,
+    # which import from app.lib.audit).
     application = FastAPI(lifespan=lifespan)
     application.mount("/ai", mcp_app)
     application.add_middleware(
@@ -108,6 +112,9 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
             "/api/v1/auth",
         ],
     )
+    # Added after PluginAccessMiddleware so it wraps it (outermost): the audit
+    # context must exist before any other middleware or handler runs.
+    application.add_middleware(AuditContextMiddleware)
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)
     return application

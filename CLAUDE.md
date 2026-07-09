@@ -30,6 +30,7 @@ sparkth/
     plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
     permissions/   # Scoped-RBAC engine (roles, scopes, defaults)
     analytics/     # Analytics DB + emission gateway write path: engine/sessions, registries, schemas, gateway
+    audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context
     routes/        # Plugin route-registration helpers
   lib/           # Curated public façade to core — the only surface plugins import from (see below)
   plugins/       # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
@@ -119,6 +120,18 @@ Current modules (see the source for the full API — do not duplicate it here):
 - [`sparkth/lib/analytics.py`](sparkth/lib/analytics.py) — analytics gateway public API. Import analytics functionality
   from here (`ingest_event`, `UnknownEventTypeError`); never import from `sparkth.core.analytics.gateway` or
   `sparkth.core.analytics.exceptions` directly. Implementation lives in `sparkth/core/analytics/`.
+- [`sparkth/lib/audit/`](sparkth/lib/audit/__init__.py) — audit trail public API. Import the write path
+  (`record_event`, `record_event_now`) from here; the self-describing event classes (`BaseAuditEvent`
+  and its category tiers `MutationAuditEvent` / `AIActionAuditEvent`, plus `LoginAuditEvent`), their
+  value objects (`AuditTarget`, `AuditChange`, `AuditToolCall`,
+  `AuditModelInfo`), and `AuditOutcome` from the `sparkth.lib.audit.events` submodule; the actor classes
+  (`UserActor` / `SystemActor` / `AnonymousActor`, union alias `AuditActor`), the context classes
+  (`AuditRequestContext` / `AuditSystemContext`, union alias `AuditContext`), `AuditActorType`,
+  `AuditSource`, and the context helpers from `sparkth.lib.audit.context`; the `AUDIT_EVENTS` hook from
+  `sparkth.lib.audit.hooks`; and the audit exceptions from `sparkth.lib.audit.exceptions`. Never
+  import from `sparkth.core.audit.*` directly. Implementation lives in `sparkth/core/audit/`. Unlike analytics
+  (best-effort), audit writes are fail-closed: mutating and AI actions must not proceed if their audit
+  record cannot be written.
 
 ## Essential Commands
 
@@ -186,6 +199,7 @@ make create-user        # Create user (pass args after --)
 | `EMAIL_VERIFICATION_TOKEN_TTL_HOURS` | Lifetime of an email-verification token (default 24) |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS` | Per-email cooldown on the resend endpoint (default 60) |
 | `FRONTEND_BASE_URL` | Base URL used in verification email links |
+| `TRUSTED_PROXY_HOPS` | Reverse-proxy hops to trust when resolving client IPs from `X-Forwarded-For` (default 0: header ignored, socket peer used); the audit trail records this IP as evidence |
 | `CHAT_MAX_TOOL_EXECUTIONS` | Max tool-call iterations the LLM may perform per request (default 50) |
 | `CHAT_TITLE_MAX_LENGTH` | Max characters for the auto-extracted conversation title (default 60) |
 | `CHAT_TITLE_PROMPT_MAX_CHARS` | Max characters from first user message sent to title-generation LLM (default 500) |

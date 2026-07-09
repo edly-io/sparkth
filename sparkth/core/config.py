@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_DIR: Path = Path("frontend/out")
     REGISTRATION_ENABLED: bool = False
+    # Number of trusted reverse-proxy hops in front of the app. 0 (default)
+    # means X-Forwarded-For is ignored entirely (the header is client-forgeable)
+    # and the socket peer address is used, e.g. for the audit trail's request_ip.
+    TRUSTED_PROXY_HOPS: int = 0
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""
