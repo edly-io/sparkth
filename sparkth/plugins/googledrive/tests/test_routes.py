@@ -377,6 +377,45 @@ class TestRefreshFolder:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @pytest.mark.asyncio
+    async def test_refresh_soft_deletes_document_of_removed_file(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        test_user: User,
+        test_oauth_token: DriveOAuthToken,
+        mock_valid_access_token: None,
+        session: AsyncSession,
+    ) -> None:
+        """A file gone from Drive has its DriveFile and linked Document soft-deleted."""
+        document = Document(user_id=cast(int, test_user.id), name="linked.pdf")
+        session.add(document)
+        await session.commit()
+        await session.refresh(document)
+        test_file.document_id = document.id
+        session.add(test_file)
+        await session.commit()
+
+        with (
+            patch("sparkth.plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
+            patch("sparkth.plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
+        ):
+            mock_client = AsyncMock()
+            mock_client.list_files.return_value = {"files": []}
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_cls.return_value = mock_client
+            mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+
+            response = await drive_client.post(f"/api/v1/google-drive/folders/{test_folder.id}/refresh")
+
+        assert response.status_code == status.HTTP_200_OK
+        await session.refresh(test_file)
+        await session.refresh(document)
+        assert test_file.is_deleted is True
+        assert document.is_deleted is True
+
 
 # ---------------------------------------------------------------------------
 # File Endpoints

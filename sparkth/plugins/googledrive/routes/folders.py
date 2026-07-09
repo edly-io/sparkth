@@ -373,8 +373,7 @@ async def _sync_folder_files(session: AsyncSession, folder: DriveFolder, user_id
 
     for file_id, existing_file in existing_map.items():
         if file_id not in drive_file_ids:
-            existing_file.soft_delete()
-            session.add(existing_file)
+            await soft_delete_drive_file(session, existing_file)
 
     folder.last_synced_at = now
     folder.sync_status = "synced"
