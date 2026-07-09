@@ -233,7 +233,7 @@ class TestWhitelistExceptionRegistration:
             WhitelistEntryNotFound,
         )
 
-        registered = dict(EXCEPTION_HANDLERS.iter_items())
+        registered = dict(EXCEPTION_HANDLERS.iter_values())
         assert WhitelistEntryAlreadyExists in registered
         assert WhitelistEntryNotFound in registered
         assert InvalidWhitelistValue in registered

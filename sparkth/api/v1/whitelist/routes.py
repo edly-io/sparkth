@@ -1,3 +1,5 @@
+from typing import cast
+
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -36,7 +38,7 @@ async def add_whitelist_entry(
     entry = await WhitelistService.add_entry(
         session,
         value=payload.value,
-        added_by_id=current_user.id,  # type: ignore[arg-type]
+        added_by_id=cast(int, current_user.id),
     )
     return WhitelistedEmailResponse.model_validate(entry)
 

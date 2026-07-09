@@ -48,10 +48,9 @@ class WhitelistService:
                 raise InvalidWhitelistValue(f"Invalid email format: {value}") from exc
             entry_type = "email"
 
-        result = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
-        if result.one_or_none() is not None:
-            raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}")
-
+        # No pre-check SELECT: the unique index on ``value`` is the single, atomic guard
+        # against duplicates. A check-then-insert would both cost an extra round trip and
+        # leave a race window where two concurrent adds pass the check and both insert.
         entry = WhitelistedEmail(
             value=normalized,
             entry_type=entry_type,
@@ -62,15 +61,22 @@ class WhitelistService:
             await session.commit()
         except IntegrityError as exc:
             await session.rollback()
-            logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
-            raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}") from exc
+            # An IntegrityError here is not necessarily a duplicate value: the insert also
+            # carries the added_by_id foreign key, which fails if the referencing user was
+            # deleted mid-request. Re-query to tell the two apart (portably, without parsing
+            # DB-specific error text) rather than assuming a unique-value conflict.
+            existing = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
+            if existing.one_or_none() is not None:
+                logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
+                raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}") from exc
+            logger.exception("Unexpected integrity error inserting whitelist value %s", normalized)
+            raise
         await session.refresh(entry)
         return entry
 
     @staticmethod
     async def remove_entry(session: AsyncSession, *, entry_id: int) -> None:
-        result = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.id == entry_id))
-        entry = result.one_or_none()
+        entry = await session.get(WhitelistedEmail, entry_id)
         if entry is None:
             raise WhitelistEntryNotFound(f"Whitelist entry not found: {entry_id}")
 
