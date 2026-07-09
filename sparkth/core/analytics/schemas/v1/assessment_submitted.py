@@ -1,9 +1,8 @@
 """Analytics event schema: ``assessment.submitted`` (v1).
 
 A representative event that proves the registry + versioning + gateway path. It is
-not yet emitted by any producer — producer wiring is a later phase. Server-only by
-the inherited default: it must be emitted by trusted server-side callers, never the
-HTTP endpoint.
+not yet emitted by any producer — producer wiring is a later phase. Emitted
+server-side via ``ingest_event`` like every analytics event.
 """
 
 from sparkth.core.analytics.schemas import AnalyticsEventSchema

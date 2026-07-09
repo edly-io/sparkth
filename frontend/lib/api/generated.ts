@@ -221,33 +221,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/events/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Emit Event
-         * @description Validate an analytics event against its versioned schema and land it.
-         *
-         *     Only client-emittable event types are accepted here. Server-only types (e.g.
-         *     ``assessment.submitted``) must be emitted by server-side callers via
-         *     `ingest_event` directly.
-         *
-         *     ``occurred_at`` is always set to the server's current time; the client cannot
-         *     supply it. Unknown event types and invalid payloads are rejected with ``422``.
-         */
-        post: operations["emit_event_api_v1_events__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/google-drive/browse": {
         parameters: {
             query?: never;
@@ -1499,24 +1472,6 @@ export interface components {
             /** Sync Status */
             sync_status: string;
         };
-        /** EmitEventRequest */
-        EmitEventRequest: {
-            /** Event Type */
-            event_type: string;
-            /** Occurred At */
-            occurred_at?: string | null;
-            /** Payload */
-            payload: {
-                [key: string]: unknown;
-            };
-            /** Version */
-            version: number;
-        };
-        /** EmitEventResponse */
-        EmitEventResponse: {
-            /** Accepted */
-            accepted: boolean;
-        };
         /**
          * FileRagStatusResponse
          * @description RAG processing status for a single file.
@@ -2387,39 +2342,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageResponse"] | null;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    emit_event_api_v1_events__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EmitEventRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EmitEventResponse"];
                 };
             };
             /** @description Validation Error */

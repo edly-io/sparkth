@@ -1,20 +1,17 @@
 """Shared base for all analytics event payload schemas.
 
 An ``AnalyticsEventSchema`` is a Pydantic model that also declares its own
-identity — the ``event_type`` string and integer ``version`` — and its emission
-policy (``server_only``) as class attributes. This lets registration take the
-class alone (``register(MyEvent)``): the type string, the payload shape, and the
-policy live in one place and cannot drift apart.
+identity — the ``event_type`` string and integer ``version`` — as class
+attributes. This lets registration take the class alone (``register(MyEvent)``):
+the type string and the payload shape live in one place and cannot drift apart.
 
 Namespacing convention: plugin events MUST prefix ``event_type`` with the plugin
 name (e.g. ``"slack.message_received"``) so they cannot collide with core events
-or with another plugin's events. This is a convention only at this stage —
-enforcement will be added when the plugin registration drain is wired in.
-A *different* class claiming an already-registered ``(event_type, version)`` is a
-startup-fatal ``DuplicateEventTypeError`` (see ``EventRegistry.register``).
+or with another plugin's events. Registration enforces this and rejects a
+duplicate ``(event_type, version)`` claimed by a different class.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -22,10 +19,10 @@ from pydantic import BaseModel, ConfigDict
 class AnalyticsEventSchema(BaseModel):
     """Base class for analytics event payload schemas.
 
-    Subclasses set ``event_type`` and ``version`` (and, to allow client emission,
-    ``server_only = False``) as class attributes and declare the payload as
-    ordinary Pydantic fields. Those three are ``ClassVar`` — identity/policy
-    metadata, not part of the validated payload.
+    Subclasses set ``event_type`` and ``version`` as class attributes and declare
+    the payload as ordinary Pydantic fields. Those two are ``ClassVar`` — identity
+    metadata, not part of the validated payload — and are required: a subclass that
+    omits either fails at definition time (``__init_subclass__``).
 
     Extra fields are forbidden so a producer sending unexpected keys gets a
     ``422`` rather than having those fields silently dropped from the stored row.
@@ -35,8 +32,9 @@ class AnalyticsEventSchema(BaseModel):
 
     event_type: ClassVar[str]
     version: ClassVar[int]
-    # Default-deny: an event is server-only unless it explicitly opts in. When
-    # True, the event may only be emitted by trusted server-side callers via
-    # ingest_event directly; the HTTP emission endpoint rejects it with 403.
-    # A plugin sets server_only = False to allow authenticated clients to emit it.
-    server_only: ClassVar[bool] = True
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        missing = [attr for attr in ("event_type", "version") if not hasattr(cls, attr)]
+        if missing:
+            raise TypeError(f"{cls.__qualname__} must declare {missing} as class attributes")

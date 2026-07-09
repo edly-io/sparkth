@@ -6,7 +6,7 @@ Patterns that appear across multiple files in the Sparkth codebase.
 
 ## 1. Plugin System: Hook-Based Contribution
 
-**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/plugins/*/plugin.py`
+**Files:** `sparkth/lib/hooks.py`, `sparkth/lib/mcp/hooks.py`, `sparkth/lib/routes.py`, `sparkth/lib/config/hooks.py`, `sparkth/lib/analytics/hooks.py`, `sparkth/plugins/*/plugin.py`
 
 A plugin contributes its capabilities from its `__init__` — one consistent pattern
 across all contribution types (a `PluginCollectionHook` holds many items per plugin,
@@ -18,7 +18,8 @@ SparkthPlugin.__init__
   ├── register_router(self, router)                                   # sparkth/lib/routes.py
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # sparkth/lib/mcp/hooks.py
   ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # sparkth/lib/config/hooks.py
-  └── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
+  ├── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
+  └── register_event_schema(self, MyEvent)                           # sparkth/lib/analytics
 ```
 
 `register_router` (`sparkth/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
@@ -35,6 +36,15 @@ Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-use
 A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hooks.py`): an
 `LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
 plugin name via `get_plugin_adapter` (`sparkth/lib/config`), so the framework never names a concrete plugin.
+
+A plugin may also register analytics event schemas via `register_event_schema(self, MyEvent)`
+(`sparkth/lib/analytics`): self-describing `AnalyticsEventSchema` subclasses that declare their own
+`event_type`/`version`. Registration runs at import time from the plugin's `__init__` and adds
+to the `ANALYTICS_EVENTS` hook the gateway resolves against. `register_event_schema`
+enforces three startup-fatal guards a plain permission does not need: the `event_type` must be
+namespaced under the plugin name (`EventNamespaceError`), a different class on an existing
+`(event_type, version)` is a `DuplicateEventTypeError`, and a schema missing its identity
+ClassVars is a `TypeError`. All events are emitted server-side via `ingest_event`.
 
 Plugin registration list lives at `sparkth/core/config.py:PLUGINS` as `"module.path:ClassName"` strings.
 

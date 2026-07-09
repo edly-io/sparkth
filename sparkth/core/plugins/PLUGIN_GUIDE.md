@@ -238,13 +238,14 @@ This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEM
 The loader constructs every plugin as `plugin_class(plugin_name)` (`sparkth/core/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, and scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`, and analytics event schemas via `register_event_schema`.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
 from fastapi import APIRouter
 
 from sparkth.plugins.myappplugin.config import MyAppPluginConfig
+from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.permissions import Permission
@@ -259,6 +260,15 @@ async def get_data():
     return {"message": "Hello from my plugin"}
 
 
+# An analytics event this plugin emits. `event_type` MUST be namespaced under the
+# plugin name; `version` lets the payload evolve without breaking older producers.
+class MyAppDataProcessed(AnalyticsEventSchema):
+    event_type = "myappplugin.data_processed"
+    version = 1
+
+    input_length: int
+
+
 # Plugin class
 class MyAppPlugin(SparkthPlugin):
     def __init__(self, plugin_name: str) -> None:
@@ -267,6 +277,7 @@ class MyAppPlugin(SparkthPlugin):
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
         Permission.create("myapp.process")
+        register_event_schema(self, MyAppDataProcessed)
 
 async def process_data(input: str) -> str:
     """Process some input and return the result."""
@@ -274,6 +285,8 @@ async def process_data(input: str) -> str:
 ```
 
 Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` (or `ObjectlessPermissionScope.create(...)` for a singleton scope) — the scope classes come from `sparkth.lib.permissions.scopes`. See the "Permission Management System" section of the project README for how scope hierarchy and assignments work.
+
+Analytics event schemas register through `register_event_schema(self, MyEvent)`: define an `AnalyticsEventSchema` subclass (from `sparkth.lib.analytics`) declaring its own `event_type` and `version`, then register it from `__init__`. The `event_type` **must** be namespaced under the plugin's name (`"myappplugin.data_processed"`), or registration raises `EventNamespaceError` at import; a second class claiming the same `(event_type, version)` raises `DuplicateEventTypeError`. Emit a registered event server-side with `ingest_event` (also from `sparkth.lib.analytics`). See the "Analytics Event Schemas" section of the project README for the full write path.
 
 ### Where do plugin routes get mounted?
 

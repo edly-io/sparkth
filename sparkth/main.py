@@ -8,7 +8,6 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import Lifespan
 
 from sparkth.api.v1.api import api_router
-from sparkth.core.analytics.registry import EventRegistry
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
 from sparkth.core.plugins.service import get_plugin_service
@@ -96,7 +95,6 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     Pass lifespan=None (the default) for codegen and tests that only need the
     route map; production startup passes the real lifespan below.
     """
-    EventRegistry()  # populate default event schemas before the first request
     # Core audit event classes register on the AUDIT_EVENTS hook when
     # app.core.audit.events imports (pulled in through api_router's endpoints,
     # which import from app.lib.audit).
