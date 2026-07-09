@@ -225,13 +225,28 @@ class TestDeleteFolder:
         await session.refresh(document)
         test_file.document_id = document.id
         session.add(test_file)
+
+        second_document = Document(user_id=cast(int, test_user.id), name="linked_second.pdf")
+        session.add(second_document)
+        await session.commit()
+        await session.refresh(second_document)
+        second_file = DriveFile(
+            folder_id=cast(int, test_folder.id),
+            user_id=cast(int, test_user.id),
+            drive_file_id="drive_file_second",
+            name="test_document_second.pdf",
+            document_id=second_document.id,
+        )
+        session.add(second_file)
         await session.commit()
 
         response = await drive_client.delete(f"/api/v1/google-drive/folders/{test_folder.id}")
 
         assert response.status_code == status.HTTP_200_OK
         await session.refresh(document)
+        await session.refresh(second_document)
         assert document.is_deleted is True
+        assert second_document.is_deleted is True
 
 
 class TestSyncFolder:
