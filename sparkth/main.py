@@ -96,7 +96,7 @@ def _register_exception_handlers(application: FastAPI) -> None:
     time) and calls add_exception_handler per type -> handler, inheriting Starlette's
     MRO-correct dispatch.
     """
-    for exc_type, handler in EXCEPTION_HANDLERS.iter_items():
+    for exc_type, handler in EXCEPTION_HANDLERS.iter_values():
         application.add_exception_handler(exc_type, handler)
 
 

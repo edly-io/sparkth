@@ -116,9 +116,10 @@ class KeyedItemHook(Generic[K, T]):
     """A flat hook keyed by a caller-supplied key function.
 
     Generalizes :class:`SingleNamedItemHook` (which keys by ``item.name``) to any
-    hashable key — e.g. a composite ``(event_type, version)``. Adding a second item
-    whose key is already present raises ``ValueError``. Callers that want a domain-specific error
-    validate before / translate around ``add_item`` (as the analytics factory does).
+    hashable key — e.g. a composite ``(event_type, version)``, or a field of the item
+    such as the ``exc_type`` in an ``(exc_type, handler)`` entry. Adding a second item
+    whose key is already present raises ``ValueError``. Callers that want a domain-specific
+    error validate before / translate around ``add_item`` (as the analytics factory does).
     """
 
     def __init__(self, key: Callable[[T], K]) -> None:
@@ -142,3 +143,7 @@ class KeyedItemHook(Generic[K, T]):
         the hook's internal storage.
         """
         self._items.pop(key, None)
+
+    def iter_values(self) -> Iterator[T]:
+        """Yield the registered items in insertion order."""
+        yield from self._items.values()

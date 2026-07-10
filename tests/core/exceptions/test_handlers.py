@@ -28,13 +28,13 @@ def _restore_registry() -> Iterator[None]:
 def test_register_exception_handler_registers_on_global_registry() -> None:
     register_exception_handler(ValueError, 422)
 
-    assert ValueError in dict(EXCEPTION_HANDLERS.iter_items())
+    assert ValueError in dict(EXCEPTION_HANDLERS.iter_values())
 
 
 def test_register_exception_handler_rejects_duplicate_type() -> None:
     register_exception_handler(ValueError, 409)
 
-    with pytest.raises(ValueError, match="Duplicate hook item for type"):
+    with pytest.raises(ValueError, match="Duplicate hook item for key"):
         register_exception_handler(ValueError, 400)
 
 
@@ -80,7 +80,7 @@ def test_handler_on_base_class_catches_subclass_via_mro() -> None:
 
 def test_global_registry_ships_empty() -> None:
     # Guards the scope: this issue delivers the mechanism, not any mapping.
-    assert list(EXCEPTION_HANDLERS.iter_items()) == []
+    assert list(EXCEPTION_HANDLERS.iter_values()) == []
 
 
 def test_assemble_app_wires_handlers_from_global_registry() -> None:
