@@ -12,6 +12,9 @@ from starlette.requests import Request
 from starlette.types import ExceptionHandler
 
 from sparkth.lib.hooks import KeyedItemHook
+from sparkth.lib.log import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "EXCEPTION_HANDLERS",
@@ -32,10 +35,22 @@ def register_exception_handler(exc_type: type[Exception], status_code: int) -> N
 
     Registers a handler on the global ``EXCEPTION_HANDLERS`` registry that renders the
     exception as ``{"detail": str(exc)}``. A second registration for the same type raises
-    ``ValueError``.
+    ``ValueError``, as does a ``status_code`` outside the 4xx/5xx error range — this
+    registry is for error statuses only.
+
+    Starlette does not log exceptions that a handler renders, so the handler logs every
+    occurrence itself at ``warning`` — otherwise a mapped type leaves no trace and a spike
+    of a given status is undiagnosable.
+
+    Because ``str(exc)`` is sent to the client verbatim, a registered exception type must
+    carry a client-safe message: no internal identifiers, filesystem paths, SQL, stack
+    detail, or secrets. Keep sensitive context in the logged exception, not its message.
     """
+    if not 400 <= status_code <= 599:
+        raise ValueError(f"status_code must be a 4xx/5xx error status, got {status_code}")
 
     async def handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.warning("Handled %s -> HTTP %d: %s", type(exc).__name__, status_code, exc)
         return JSONResponse(status_code=status_code, content={"detail": str(exc)})
 
     EXCEPTION_HANDLERS.add_item((exc_type, handler))

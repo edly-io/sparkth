@@ -31,6 +31,12 @@ def test_register_exception_handler_registers_on_global_registry() -> None:
     assert ValueError in dict(EXCEPTION_HANDLERS.iter_values())
 
 
+@pytest.mark.parametrize("status_code", [20, 200, 302, 600, 0, -1])
+def test_register_exception_handler_rejects_non_error_status(status_code: int) -> None:
+    with pytest.raises(ValueError, match="status_code"):
+        register_exception_handler(ValueError, status_code)
+
+
 def test_register_exception_handler_rejects_duplicate_type() -> None:
     register_exception_handler(ValueError, 409)
 
