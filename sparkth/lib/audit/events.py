@@ -7,7 +7,15 @@ register it on the hook from :mod:`sparkth.lib.audit.hooks`.
 """
 
 from sparkth.core.audit.enums import AuditOutcome
-from sparkth.core.audit.events import AIActionAuditEvent, BaseAuditEvent, LoginAuditEvent, MutationAuditEvent
+from sparkth.core.audit.events import (
+    AIActionAuditEvent,
+    BaseAuditEvent,
+    LoginAuditEvent,
+    MutationAuditEvent,
+    ToolCompletedAuditEvent,
+    ToolFailedAuditEvent,
+    ToolInvokedAuditEvent,
+)
 from sparkth.core.audit.types import AuditChange, AuditModelInfo, AuditTarget, AuditToolCall
 
 __all__ = [
@@ -20,4 +28,7 @@ __all__ = [
     "BaseAuditEvent",
     "LoginAuditEvent",
     "MutationAuditEvent",
+    "ToolCompletedAuditEvent",
+    "ToolFailedAuditEvent",
+    "ToolInvokedAuditEvent",
 ]

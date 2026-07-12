@@ -62,6 +62,22 @@ async def test_middleware_seeds_request_metadata() -> None:
     assert context.source == AuditSource.REST
 
 
+async def test_middleware_stamps_mcp_source_on_the_ai_mount() -> None:
+    """Requests to the MCP mount are a different audit surface than REST:
+    events they produce must carry source=mcp."""
+    seen: dict[str, AuditRequestContext | AuditSystemContext] = {}
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        seen["context"] = current_audit_context()
+
+    middleware = AuditContextMiddleware(app)
+    scope = _http_scope(headers=[])
+    scope["path"] = "/ai/mcp"
+    await middleware(scope, _receive, _send)
+
+    assert seen["context"].source == AuditSource.MCP
+
+
 async def _ip_seen_by_app(headers: list[tuple[bytes, bytes]]) -> str | None:
     seen: dict[str, AuditRequestContext | AuditSystemContext] = {}
 

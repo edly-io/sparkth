@@ -1,5 +1,6 @@
 """Agentic RAG retrieval — LangGraph ReAct agent + orchestration for one document."""
 
+from collections.abc import Mapping
 from typing import Any
 
 from langchain.agents import create_agent
@@ -10,6 +11,8 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit.context import AuditSource, ai_audit_context
+from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.log import get_logger
 from sparkth.rag.config import get_rag_settings
 from sparkth.rag.exceptions import RAGRetrievalError
@@ -21,6 +24,25 @@ from sparkth.rag.types import RAGContext
 from sparkth.rag.utils import get_asset
 
 logger = get_logger(__name__)
+
+
+def _llm_model_info(llm: Any) -> AuditModelInfo | None:
+    """Model identity of a LangChain LLM, as LangChain itself reports it.
+
+    Every LangChain chat model standardizes its identity for tracing via
+    ``_get_ls_params()`` (``ls_provider`` / ``ls_model_name``); both are
+    recorded verbatim (e.g. ``google_genai``). An object without that surface
+    is not a LangChain chat model and gets no model provenance.
+    """
+    try:
+        params: Mapping[str, Any] = llm._get_ls_params()
+    except (AttributeError, TypeError):
+        return None
+    name = params.get("ls_model_name")
+    if not isinstance(name, str):
+        return None
+    provider = params.get("ls_provider")
+    return AuditModelInfo(provider=provider if isinstance(provider, str) else None, name=name)
 
 
 async def run_agentic_rag_retrieval(llm: Any, document_id: int, user_query: str) -> RAGSearchAgentResponse:
@@ -50,10 +72,13 @@ async def run_agentic_rag_retrieval(llm: Any, document_id: int, user_query: str)
         system_message = SystemMessage(content=prompt_template)
         human_message = HumanMessage(content=user_query)
 
-        result = await agent.ainvoke(
-            {"messages": [system_message, human_message]},
-            config={"recursion_limit": get_rag_settings().RAG_AGENT_MAX_RECURSION},
-        )
+        # Tool calls made inside the agent are audited by the wrapped tools;
+        # the context attributes them to the RAG surface and driving model.
+        with ai_audit_context(source=AuditSource.RAG, model=_llm_model_info(llm)):
+            result = await agent.ainvoke(
+                {"messages": [system_message, human_message]},
+                config={"recursion_limit": get_rag_settings().RAG_AGENT_MAX_RECURSION},
+            )
         decision: RAGSearchAgentResponse | None = result.get("structured_response")
         if decision is None:
             logger.warning("Agent produced no structured_response for document %d", document_id)

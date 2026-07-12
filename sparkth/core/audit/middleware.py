@@ -36,10 +36,18 @@ class AuditContextMiddleware:
             request_id=uuid4().hex,
             request_ip=self._client_ip(scope, headers),
             user_agent=headers.get("user-agent"),
-            source=AuditSource.REST,
+            source=self._source(scope),
         )
         with audit_context(context):
             await self.app(scope, receive, send)
+
+    @staticmethod
+    def _source(scope: Scope) -> AuditSource:
+        """MCP for the FastMCP mount (mounted at ``/ai`` in main.py), REST otherwise."""
+        path: str = scope.get("path", "")
+        if path == "/ai" or path.startswith("/ai/"):
+            return AuditSource.MCP
+        return AuditSource.REST
 
     @staticmethod
     def _client_ip(scope: Scope, headers: dict[str, str]) -> str | None:
