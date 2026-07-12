@@ -21,7 +21,7 @@ os.environ.setdefault("ANALYTICS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from contextlib import asynccontextmanager
 from typing import Any, cast
 from unittest.mock import AsyncMock, patch
@@ -29,12 +29,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth.core.analytics.db as analytics_db
 import sparkth.core.db as core_db
 import sparkth.lib.db as db
+from sparkth.core.audit.models import AuditEvent
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.user import User
@@ -110,6 +111,27 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with db.session_scope() as s:
         yield s
+
+
+# What the audit_events fixture yields: awaited to fetch the rows on demand.
+AuditEventsFetcher = Callable[[], Awaitable[list[AuditEvent]]]
+
+
+@pytest.fixture
+def audit_events(session: AsyncSession) -> AuditEventsFetcher:
+    """Fetch all audit rows in insertion order.
+
+    Shared by every audit-capture test (core wrapper, chat provider seam, RAG
+    agent tools, MCP server), so the query lives once. Returns a coroutine
+    factory rather than a snapshot because tests read the rows *after* driving
+    the code under test.
+    """
+
+    async def _fetch() -> list[AuditEvent]:
+        result = await session.exec(select(AuditEvent).order_by(col(AuditEvent.id)))
+        return list(result.all())
+
+    return _fetch
 
 
 @pytest.fixture

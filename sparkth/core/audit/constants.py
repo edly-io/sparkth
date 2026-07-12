@@ -38,3 +38,9 @@ SECRET_KEYS = frozenset(
 
 # Default actor recorded when neither the event nor the context names one.
 ANONYMOUS_ACTOR = AnonymousActor()
+
+# Target type carried by the tool.invoked / tool.completed / tool.failed pair.
+# Both events of one execution share a generated target id, so an invocation
+# whose process crashed mid-execution is detectable as an invoked event with
+# no matching outcome event.
+TOOL_INVOCATION_TARGET_TYPE = "tool_invocation"
