@@ -9,7 +9,7 @@ from starlette.types import Lifespan
 
 from sparkth.api.v1.api import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
-from sparkth.core.config import get_settings
+from sparkth.core.config import MCP_MOUNT_PATH, get_settings
 from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
@@ -111,7 +111,7 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     # app.core.audit.events imports (pulled in through api_router's endpoints,
     # which import from app.lib.audit).
     application = FastAPI(lifespan=lifespan)
-    application.mount("/ai", mcp_app)
+    application.mount(MCP_MOUNT_PATH, mcp_app)
     application.add_middleware(
         PluginAccessMiddleware,
         exclude_paths=[

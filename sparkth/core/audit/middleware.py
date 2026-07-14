@@ -7,6 +7,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from sparkth.core.audit.context import audit_context
 from sparkth.core.audit.enums import AuditSource
 from sparkth.core.audit.types import AuditRequestContext
+from sparkth.core.config import MCP_MOUNT_PATH
 from sparkth.lib.settings import get_settings
 
 
@@ -43,9 +44,9 @@ class AuditContextMiddleware:
 
     @staticmethod
     def _source(scope: Scope) -> AuditSource:
-        """MCP for the FastMCP mount (mounted at ``/ai`` in main.py), REST otherwise."""
+        """MCP for requests under :data:`MCP_MOUNT_PATH`, REST otherwise."""
         path: str = scope.get("path", "")
-        if path == "/ai" or path.startswith("/ai/"):
+        if path == MCP_MOUNT_PATH or path.startswith(f"{MCP_MOUNT_PATH}/"):
             return AuditSource.MCP
         return AuditSource.REST
 
