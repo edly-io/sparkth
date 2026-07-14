@@ -58,6 +58,9 @@ async def run_agentic_rag_retrieval(llm: Any, document_id: int, user_query: str)
 
     Raises:
         RAGRetrievalError: If a metadata query or agent invocation fails
+        AuditCaptureError: A fail-closed audit write for one of the agent's
+            tool calls failed; propagates untouched so an audit-store outage
+            surfaces as a hard failure, never as a silent tool error
     """
     try:
         agent_tools = build_search_tools(document_id)

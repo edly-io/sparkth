@@ -3,11 +3,20 @@ the wrapped handlers, and the ``ToolCallAuditMiddleware`` backstop records
 protocol-level failures that never reach a handler (unknown tool, input
 validation), per ADR-0002 seam table row three."""
 
-import pytest
-from fastmcp import Client
-from fastmcp.exceptions import ToolError
+from types import SimpleNamespace
+from typing import Any, cast
 
+import mcp.types as mt
+import pytest
+from fastmcp import Client, FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.server.middleware import CallNext, MiddlewareContext
+from fastmcp.tools.tool import ToolResult
+from sqlalchemy.exc import OperationalError
+
+from sparkth.lib.audit import audited_tool_handler
 from sparkth.lib.testing import AuditEventsFetcher
+from sparkth.mcp.audit import ToolCallAuditMiddleware
 from sparkth.mcp.server import mcp
 
 
@@ -49,3 +58,49 @@ async def test_handler_level_failure_is_not_double_recorded(audit_events: AuditE
     rows = await audit_events()
     failures = [row for row in rows if row.action == "failed"]
     assert len(failures) == 1
+
+
+async def test_runtime_handler_failure_is_recorded_exactly_once(audit_events: AuditEventsFetcher) -> None:
+    """A wrapped handler that raises during execution records the failure
+    itself; the middleware backstop must observe that (via the recording
+    contextvar propagating back through FastMCP) and stay silent."""
+    server = FastMCP(name="test-audit")
+    server.add_middleware(ToolCallAuditMiddleware())
+
+    @server.tool
+    @audited_tool_handler
+    async def exploding_tool(course_id: int) -> str:
+        """Always fails at runtime."""
+        raise RuntimeError("boom")
+
+    async with Client(server) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("exploding_tool", {"course_id": 1})
+
+    rows = await audit_events()
+    assert [(row.category, row.action) for row in rows] == [("tool", "invoked"), ("tool", "failed")]
+
+
+async def test_backstop_write_failure_does_not_replace_the_original_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the audit store is down, the backstop's own write failure is
+    logged, not raised: the protocol error that triggered the backstop must
+    surface unchanged instead of being masked by an audit-infra error."""
+
+    async def broken_write(event: Any) -> Any:
+        raise OperationalError("INSERT", {}, Exception("audit db down"))
+
+    monkeypatch.setattr("sparkth.mcp.audit.record_event_now", broken_write)
+
+    async def failing_call_next(ctx: MiddlewareContext[mt.CallToolRequestParams]) -> ToolResult:
+        raise ToolError("unknown tool")
+
+    context = cast(
+        "MiddlewareContext[mt.CallToolRequestParams]",
+        SimpleNamespace(message=mt.CallToolRequestParams(name="no_such_tool", arguments={})),
+    )
+    call_next = cast("CallNext[mt.CallToolRequestParams, ToolResult]", failing_call_next)
+
+    with pytest.raises(ToolError, match="unknown tool"):
+        await ToolCallAuditMiddleware().on_call_tool(context, call_next)
