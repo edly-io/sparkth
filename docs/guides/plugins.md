@@ -376,12 +376,15 @@ for handler, category in tools:
 `Tool` wraps the handler with `sparkth.lib.audit.audited_tool_handler` at
 construction: every execution, on every surface (the MCP server, chat, RAG),
 records a `tool.invoked` event *before* the handler runs and a
-`tool.completed` or `tool.failed` event after. The write is fail-closed: if
-the invocation record cannot be committed, the tool call is refused. Tool
+`tool.completed` or `tool.failed` event after. Handlers must be `async`; the
+wrapper rejects a sync handler with a `TypeError` at construction. The write
+is fail-closed: if the invocation record cannot be committed, the tool call
+is refused with `sparkth.lib.audit.exceptions.AuditCaptureError`. Tool
 arguments are redacted before persistence (any `auth` payload and secret-named
-keys like `token` or `password` are replaced wholesale), but do not put
-secrets or free-text PII in argument names or values that redaction cannot
-recognize. Handlers need no audit code of their own.
+keys like `token` or `password` are replaced wholesale), and exception
+messages recorded on failure are scrubbed of secret-keyed values and length
+bounded, but do not put secrets or free-text PII in argument names or values
+that redaction cannot recognize. Handlers need no audit code of their own.
 
 ## Complete Example
 

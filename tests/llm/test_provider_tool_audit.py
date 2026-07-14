@@ -8,8 +8,10 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
+from sqlalchemy.exc import OperationalError
 
 from sparkth.lib.audit import audited_tool_handler
+from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.llm.providers import AnthropicProvider, GoogleProvider, OpenAIProvider
 
@@ -91,6 +93,25 @@ async def test_stream_message_tool_calls_are_audited(
     assert (completed.category, completed.action) == ("tool", "completed")
     assert invoked.source == "chat"
     assert invoked.model_provider == "anthropic"
+
+
+async def test_audit_capture_outage_is_a_hard_failure_not_a_tool_error_string(
+    provider: AnthropicProvider, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fail-closed capture refusal must surface past the chat loop's broad
+    tool-error handling instead of degrading into a model-visible error string
+    that leaves no record and no surfaced failure."""
+
+    async def broken_write(event: Any) -> Any:
+        raise OperationalError("INSERT", {}, Exception("audit db down"))
+
+    monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", broken_write)
+
+    with pytest.raises(AuditCaptureError):
+        await provider.send_message(
+            messages=[{"role": "user", "content": "look up course 5"}],
+            tools=[_lookup_course_tool()],
+        )
 
 
 def test_every_provider_declares_its_provider_name() -> None:

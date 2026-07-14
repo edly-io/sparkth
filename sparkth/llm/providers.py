@@ -17,6 +17,7 @@ from pydantic import ValidationError
 
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
+from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -317,6 +318,13 @@ class BaseChatProvider(ABC):
 
                     logger.info(f"Tool '{tool_name}' executed successfully")
                     return result
+
+                # A fail-closed capture refusal is the audit infrastructure
+                # failing, not the tool: it must surface as a hard failure,
+                # never degrade into a model-visible error string.
+                except AuditCaptureError:
+                    logger.exception(f"Audit capture failed for tool '{tool_name}'")
+                    raise
 
                 # NOTE: Kept broad here intentionally — tool handlers are user-supplied
                 # plugins that can raise anything. Narrowing would silently swallow

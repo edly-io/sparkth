@@ -3,14 +3,15 @@
 refuses the call, per ADR-0002 fail-closed semantics) plus a ``tool.completed``
 or ``tool.failed`` outcome event, paired by a shared invocation target id."""
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import OperationalError
 
 from sparkth.core.audit.constants import REDACTED, TOOL_INVOCATION_TARGET_TYPE
-from sparkth.lib.audit import audited_tool_handler
+from sparkth.core.audit.execution import AsyncToolHandler
+from sparkth.lib.audit import audited_tool_handler, record_event_now
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import (
     AuditModelInfo,
@@ -18,6 +19,7 @@ from sparkth.lib.audit.events import (
     ToolFailedAuditEvent,
     ToolInvokedAuditEvent,
 )
+from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
 from sparkth.lib.mcp.hooks import generate_input_schema
 from sparkth.lib.testing import AuditEventsFetcher
@@ -90,10 +92,97 @@ async def test_invoked_write_failure_refuses_execution(monkeypatch: pytest.Monke
     monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", broken_write)
     wrapped = audited_tool_handler(side_effect_tool)
 
-    with pytest.raises(OperationalError):
+    with pytest.raises(AuditCaptureError):
         await wrapped()
 
     assert executed is False
+
+
+async def test_completed_write_failure_raises_audit_capture_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A tool call whose outcome cannot be attested is an audit-infra failure,
+    surfaced as the distinct capture error, not as a storage error the
+    execution seams could mistake for an ordinary tool failure."""
+    writes = 0
+
+    async def flaky_write(event: Any) -> Any:
+        nonlocal writes
+        writes += 1
+        if writes > 1:
+            raise OperationalError("INSERT", {}, Exception("audit db down"))
+        return None
+
+    monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", flaky_write)
+    wrapped = audited_tool_handler(sample_tool)
+
+    with pytest.raises(AuditCaptureError):
+        await wrapped(course_id=1)
+
+
+async def test_failed_write_failure_surfaces_the_handler_error(
+    audit_events: AuditEventsFetcher, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An audit-store outage after the handler raised must not replace the
+    handler's exception: the invocation is already on record, and a missing
+    outcome event is the crash-detection signal."""
+    real_write = record_event_now
+    writes = 0
+
+    async def flaky_write(event: Any) -> Any:
+        nonlocal writes
+        writes += 1
+        if writes > 1:
+            raise OperationalError("INSERT", {}, Exception("audit db down"))
+        return await real_write(event)
+
+    monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", flaky_write)
+
+    async def exploding_tool() -> None:
+        """Always fails."""
+        raise RuntimeError("boom")
+
+    wrapped = audited_tool_handler(exploding_tool)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await wrapped()
+
+    rows = await audit_events()
+    assert [(row.category, row.action) for row in rows] == [("tool", "invoked")]
+
+
+def test_sync_handler_is_rejected_at_wrap_time() -> None:
+    """A sync handler would record ``tool.invoked`` and then fail on ``await``
+    at every call; the wrapper narrows the contract loudly instead."""
+
+    def sync_tool(course_id: int) -> str:
+        """Not a coroutine function."""
+        return "ok"
+
+    with pytest.raises(TypeError, match="async"):
+        # The cast models how sync handlers slip through in practice: the
+        # seams accept Callable[..., Any], so only the runtime guard catches it.
+        audited_tool_handler(cast("AsyncToolHandler", sync_tool))
+
+
+async def test_handler_error_detail_is_scrubbed(audit_events: AuditEventsFetcher) -> None:
+    """Pydantic validation errors echo the failing input back; the recorded
+    error detail must not carry it into the store."""
+
+    class Course(BaseModel):
+        course_id: int
+
+    async def validating_tool(raw_id: str) -> Course:
+        """Validates its input."""
+        return Course.model_validate({"course_id": raw_id})
+
+    wrapped = audited_tool_handler(validating_tool)
+
+    with pytest.raises(ValidationError):
+        await wrapped(raw_id="s3cret-value")
+
+    failed = (await audit_events())[1]
+    assert (failed.category, failed.action) == ("tool", "failed")
+    assert failed.error_detail is not None
+    assert "s3cret-value" not in failed.error_detail
 
 
 async def test_positional_args_are_recorded_by_parameter_name(audit_events: AuditEventsFetcher) -> None:

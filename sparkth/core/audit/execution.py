@@ -5,9 +5,14 @@ table): plugin tools are wrapped at :class:`sparkth.lib.mcp.hooks.Tool`
 construction, the RAG agent tools and the FastMCP server's directly-registered
 tools wrap explicitly. Failure semantics are fail-closed (NIST AU-5): a
 ``tool.invoked`` event is committed *before* the handler runs, so a write
-failure refuses the call and a crash mid-execution still leaves the
+failure refuses the call (surfaced as the distinct
+:class:`~sparkth.core.audit.exceptions.AuditCaptureError` so execution seams
+never mistake it for a tool error) and a crash mid-execution still leaves the
 invocation on record; a second ``tool.completed`` / ``tool.failed`` event
-records the outcome. Corrections are new events, never updates.
+records the outcome. A ``tool.failed`` write that itself fails is logged and
+suppressed: the invocation is already on record, so the handler's own
+exception surfaces and the missing outcome event is the abnormal-termination
+signal. Corrections are new events, never updates.
 """
 
 import functools
@@ -19,13 +24,19 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 
 from sparkth.core.audit.constants import MAX_DEPTH, REDACTED, TOOL_INVOCATION_TARGET_TYPE
 from sparkth.core.audit.context import current_model_info
 from sparkth.core.audit.enums import AuditOutcome
 from sparkth.core.audit.events import ToolCompletedAuditEvent, ToolFailedAuditEvent, ToolInvokedAuditEvent
+from sparkth.core.audit.exceptions import AuditCaptureError
 from sparkth.core.audit.recorder import record_event_now
+from sparkth.core.audit.redaction import scrub_error_detail
 from sparkth.core.audit.types import AuditTarget, AuditToolCall
+from sparkth.lib.log import get_logger
+
+logger = get_logger(__name__)
 
 AsyncToolHandler = Callable[..., Awaitable[Any]]
 
@@ -62,12 +73,27 @@ def audited_tool_handler(handler: AsyncToolHandler) -> AsyncToolHandler:
     actor come from the audit context as usual. Already-wrapped handlers are
     returned unchanged, so seams can wrap defensively.
 
+    Raises:
+        TypeError: ``handler`` is not a coroutine function. Every seam
+            (FastMCP, the chat tool wrappers, the RAG agent) awaits the
+            handler, so a sync handler would run its side effects and then
+            fail on ``await`` at every call; refusing at wrap time keeps the
+            contract loud.
+
     Raises (from the returned wrapper):
-        sqlalchemy.exc.SQLAlchemyError: The ``tool.invoked`` write failed; the
-            handler was **not** executed (fail-closed refusal).
+        AuditCaptureError: The ``tool.invoked`` write failed and the handler
+            was **not** executed (fail-closed refusal), or the handler
+            succeeded but the ``tool.completed`` write failed (the outcome
+            cannot be attested). The failed storage error is chained as the
+            cause.
     """
     if getattr(handler, "__audit_wrapped__", False):
         return handler
+    if not inspect.iscoroutinefunction(handler):
+        raise TypeError(
+            f"audited_tool_handler requires an async handler; "
+            f"'{getattr(handler, '__name__', handler)}' is not a coroutine function"
+        )
 
     @functools.wraps(handler)
     async def audited(*args: Any, **kwargs: Any) -> Any:
@@ -75,9 +101,13 @@ def audited_tool_handler(handler: AsyncToolHandler) -> AsyncToolHandler:
         model = current_model_info()
         target = AuditTarget(type=TOOL_INVOCATION_TARGET_TYPE, id=uuid4().hex)
 
-        await record_event_now(
-            ToolInvokedAuditEvent(outcome=AuditOutcome.SUCCESS, tool=call, model=model, target=target)
-        )
+        try:
+            await record_event_now(
+                ToolInvokedAuditEvent(outcome=AuditOutcome.SUCCESS, tool=call, model=model, target=target)
+            )
+        except SQLAlchemyError as exc:
+            logger.exception("Audit 'tool.invoked' write failed; refusing tool '%s'", handler.__name__)
+            raise AuditCaptureError("tool.invoked", handler.__name__) from exc
         _execution_recorded.set(True)
         try:
             result = await handler(*args, **kwargs)
@@ -85,19 +115,29 @@ def audited_tool_handler(handler: AsyncToolHandler) -> AsyncToolHandler:
         # that can raise anything, the failure is recorded as the audit event
         # this except exists for, and the exception is always re-raised.
         except Exception as exc:
-            await record_event_now(
-                ToolFailedAuditEvent(
-                    outcome=AuditOutcome.FAILURE,
-                    tool=call,
-                    model=model,
-                    target=target,
-                    error_detail=f"{type(exc).__name__}: {exc}",
+            try:
+                await record_event_now(
+                    ToolFailedAuditEvent(
+                        outcome=AuditOutcome.FAILURE,
+                        tool=call,
+                        model=model,
+                        target=target,
+                        error_detail=scrub_error_detail(exc),
+                    )
                 )
-            )
+            except SQLAlchemyError:
+                # The invocation is already on record; a missing outcome event
+                # is the abnormal-termination signal, so the handler's own
+                # error must surface, not the audit store's.
+                logger.exception("Audit 'tool.failed' write failed for tool '%s'", handler.__name__)
             raise
-        await record_event_now(
-            ToolCompletedAuditEvent(outcome=AuditOutcome.SUCCESS, tool=call, model=model, target=target)
-        )
+        try:
+            await record_event_now(
+                ToolCompletedAuditEvent(outcome=AuditOutcome.SUCCESS, tool=call, model=model, target=target)
+            )
+        except SQLAlchemyError as exc:
+            logger.exception("Audit 'tool.completed' write failed for tool '%s'", handler.__name__)
+            raise AuditCaptureError("tool.completed", handler.__name__) from exc
         return result
 
     # setattr keeps mypy strict happy: functions have no declared attributes.
