@@ -226,7 +226,7 @@ This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEM
 The loader constructs every plugin as `plugin_class(plugin_name)` (`sparkth/core/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
 
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`, and analytics event schemas via `register_event_schema`.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`, analytics event schemas via `register_event_schema` and exception→HTTP mappings via `register_status` / `register_exception_handler`.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -281,6 +281,25 @@ Analytics event schemas register through `register_event_schema(self, MyEvent)`:
 `register_router` mounts the router at `/api/v1/<plugin-name>` automatically, derived
 from the plugin instance. The router above is reachable at
 `http://localhost:7727/api/v1/my-app/`.
+
+### Rendering plugin exceptions as HTTP responses
+
+A plugin's domain exceptions stay HTTP-agnostic (plain `Exception` subclasses). To control
+how one renders as an HTTP response, map it to a status from `__init__` — the mapping is wired
+onto the app at startup:
+
+```python
+from sparkth.lib.exceptions.handlers import register_exception_handler
+
+class MyAppError(Exception):
+    """Raised when the plugin cannot process a request."""
+
+# inside MyAppPlugin.__init__:
+register_exception_handler(MyAppError, 409)
+```
+
+Now any route that raises `MyAppError` returns `409` with `{"detail": str(exc)}` — no
+per-route `try/except`. A mapping on a base exception also catches its subclasses.
 
 ## Register in core/config.py
 ```python

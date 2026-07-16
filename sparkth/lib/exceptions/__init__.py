@@ -1,3 +1,12 @@
+"""Legacy HTTP-carrying exceptions, kept for existing LMS-client callers.
+
+These classes predate the exception→HTTP mapping standard (CLAUDE.md,
+"Domain exceptions → HTTP responses"): they carry ``status_code`` on the exception
+itself. New code must NOT follow this pattern — raise an HTTP-agnostic domain exception
+and map it to a status via ``register_exception_handler`` (``sparkth.lib.exceptions.handlers``)
+instead.
+"""
+
 from sparkth.lib.enums import Method
 
 

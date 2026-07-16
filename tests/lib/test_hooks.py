@@ -199,3 +199,19 @@ def test_keyed_item_hook_remove_is_noop_for_unknown_key() -> None:
 
     # No KeyError for a key that was never registered.
     hook.remove(("missing", 1))
+
+
+def test_keyed_item_hook_iter_values_yields_added_items_in_insertion_order() -> None:
+    hook = _keyed_hook()
+    first = _Keyed("a", 1)
+    second = _Keyed("b", 1)
+    hook.add_item(first)
+    hook.add_item(second)
+
+    assert list(hook.iter_values()) == [first, second]
+
+
+def test_keyed_item_hook_iter_values_is_empty_when_unused() -> None:
+    hook = _keyed_hook()
+
+    assert list(hook.iter_values()) == []

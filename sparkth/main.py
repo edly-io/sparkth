@@ -10,6 +10,7 @@ from starlette.types import Lifespan
 from sparkth.api.v1.api import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import get_settings
+from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
 from sparkth.lib.log import configure_logging, get_logger
@@ -88,6 +89,17 @@ def _register_plugin_routes(application: FastAPI) -> None:
         application.include_router(router)
 
 
+def _register_exception_handlers(application: FastAPI) -> None:
+    """Wire every registered exception handler onto the app (parallels _register_plugin_routes).
+
+    Iterates the EXCEPTION_HANDLERS registry (populated by core/plugins at import/plugin-load
+    time) and calls add_exception_handler per type -> handler, inheriting Starlette's
+    MRO-correct dispatch.
+    """
+    for exc_type, handler in EXCEPTION_HANDLERS.iter_values():
+        application.add_exception_handler(exc_type, handler)
+
+
 def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     """
     Build the fully-routed FastAPI app. DB-free: no I/O and no event loop required.
@@ -115,6 +127,7 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     application.add_middleware(AuditContextMiddleware)
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)
+    _register_exception_handlers(application)
     return application
 
 
