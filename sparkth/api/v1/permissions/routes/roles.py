@@ -9,7 +9,7 @@ code (platform defaults or plugin hooks); this API only assigns the already-regi
 to roles.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.schemas import RoleCreate, RolePermissionAdd, RoleResponse, RoleUpdate
@@ -17,7 +17,6 @@ from sparkth.core.permissions import roles as role_engine
 from sparkth.core.permissions.models import Role
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE
-from sparkth.lib.permissions.exceptions import PermissionNotFound, RoleAlreadyExists, RoleInUse, RoleNotFound
 from sparkth.lib.permissions.scopes import ROLE
 
 router = APIRouter()
@@ -68,10 +67,7 @@ async def list_roles(session: AsyncSession = Depends(get_async_session)) -> list
 )
 async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
     """Create a role. Returns the created RoleResponse (id, name, description, permissions)."""
-    try:
-        role = await role_engine.create_role(payload.name, payload.description, session)
-    except RoleAlreadyExists as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    role = await role_engine.create_role(payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
 
@@ -82,10 +78,7 @@ async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_a
 )
 async def get_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
     """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions)."""
-    try:
-        role = await role_engine.get_role(role_id, session)
-    except RoleNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
+    role = await role_engine.get_role(role_id, session)
     return await _role_to_response(role, session)
 
 
@@ -98,12 +91,7 @@ async def update_role(
     role_id: int, payload: RoleUpdate, session: AsyncSession = Depends(get_async_session)
 ) -> RoleResponse:
     """Update a role's name and/or description. Returns the updated RoleResponse."""
-    try:
-        role = await role_engine.update_role(role_id, payload.name, payload.description, session)
-    except RoleNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
-    except RoleAlreadyExists as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    role = await role_engine.update_role(role_id, payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
 
@@ -114,12 +102,7 @@ async def update_role(
 )
 async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
     """Delete a role (refused with 409 while it still has active assignments). Returns 204 No Content."""
-    try:
-        await role_engine.delete_role(role_id, session)
-    except RoleNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
-    except RoleInUse as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    await role_engine.delete_role(role_id, session)
 
 
 @router.post(
@@ -131,12 +114,7 @@ async def create_role_permission(
     role_id: int, payload: RolePermissionAdd, session: AsyncSession = Depends(get_async_session)
 ) -> RoleResponse:
     """Grant a registered permission to the role (idempotent). Returns the updated RoleResponse."""
-    try:
-        role = await role_engine.add_role_permission(role_id, payload.permission, session)
-    except RoleNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
-    except PermissionNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from None
+    role = await role_engine.add_role_permission(role_id, payload.permission, session)
     return await _role_to_response(role, session)
 
 
@@ -149,7 +127,4 @@ async def delete_role_permission(
     role_id: int, permission: str, session: AsyncSession = Depends(get_async_session)
 ) -> None:
     """Revoke a permission from the role (idempotent). Returns 204 No Content."""
-    try:
-        await role_engine.remove_role_permission(role_id, permission, session)
-    except RoleNotFound as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
+    await role_engine.remove_role_permission(role_id, permission, session)

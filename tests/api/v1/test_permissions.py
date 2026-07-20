@@ -100,6 +100,7 @@ async def test_create_duplicate_role_returns_409(client: AsyncClient, session: A
     await client.post("/api/v1/permissions/roles", json={"name": "grader"})
     response = await client.post("/api/v1/permissions/roles", json={"name": "grader"})
     assert response.status_code == 409
+    assert response.json()["detail"] == "Role already exists: grader"
 
 
 async def test_list_roles_returns_them(client: AsyncClient, session: AsyncSession) -> None:
@@ -122,6 +123,7 @@ async def test_get_missing_role_returns_404(client: AsyncClient, session: AsyncS
     _override_current_user(client, await _create_user_with_permissions(session, ROLE_PERMISSIONS))
     response = await client.get("/api/v1/permissions/roles/99999")
     assert response.status_code == 404
+    assert response.json()["detail"] == "Role not found: 99999"
 
 
 async def test_update_role(client: AsyncClient, session: AsyncSession) -> None:
@@ -163,6 +165,7 @@ async def test_delete_assigned_role_returns_409(client: AsyncClient, session: As
     await session.flush()
     response = await client.delete(f"/api/v1/permissions/roles/{created['id']}")
     assert response.status_code == 409
+    assert response.json()["detail"] == f"Role is still assigned and cannot be deleted: {created['id']}"
 
 
 async def test_add_permission_grants_it(client: AsyncClient, session: AsyncSession) -> None:
@@ -182,6 +185,7 @@ async def test_add_unregistered_permission_returns_422(client: AsyncClient, sess
         f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "bogus.unregistered"}
     )
     assert response.status_code == 422
+    assert response.json()["detail"] == "Permission not found: bogus.unregistered"
 
 
 async def test_add_duplicate_permission_is_idempotent(client: AsyncClient, session: AsyncSession) -> None:
@@ -397,3 +401,21 @@ async def test_unauthorized_user_gets_403_before_404_on_missing_role(
     _override_current_user(client, await _create_user_with_permissions(session, []))
     await session.commit()
     assert (await client.get("/api/v1/permissions/roles/99999")).status_code == 403
+
+
+class TestPermissionExceptionRegistration:
+    def test_domain_exceptions_are_registered(self) -> None:
+        """The API package registers its 4 role-management domain exceptions on the central registry."""
+        from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
+        from sparkth.lib.permissions.exceptions import (
+            PermissionNotFound,
+            RoleAlreadyExists,
+            RoleInUse,
+            RoleNotFound,
+        )
+
+        registered = dict(EXCEPTION_HANDLERS.iter_values())
+        assert RoleNotFound in registered
+        assert RoleAlreadyExists in registered
+        assert RoleInUse in registered
+        assert PermissionNotFound in registered
