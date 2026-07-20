@@ -48,7 +48,10 @@ class LoginActivityPoint(BaseModel):
 _PG_SQL = text(
     "SELECT to_char(day AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, login_count "
     "FROM login_activity_daily "
-    "WHERE (day AT TIME ZONE 'UTC')::date >= (now() AT TIME ZONE 'UTC')::date - :days "
+    # CAST(:days AS integer) is required: with a bare `- :days`, asyncpg leaves the bound
+    # parameter untyped and PostgreSQL cannot resolve the `date - ?` operator (it also binds
+    # :days for LIMIT), failing with "operator does not exist: date >= integer".
+    "WHERE (day AT TIME ZONE 'UTC')::date >= (now() AT TIME ZONE 'UTC')::date - CAST(:days AS integer) "
     "ORDER BY day DESC "
     "LIMIT :days"
 )

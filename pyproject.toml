@@ -109,6 +109,9 @@ module = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "pg: requires a real PostgreSQL/TimescaleDB analytics database; runs only when ANALYTICS_TEST_PG_URL is set (see tests/analytics/pg/). The default SQLite suite skips these.",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",
 ]

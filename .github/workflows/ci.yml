@@ -66,5 +66,56 @@ jobs:
 
       # Single high-level target so a CI failure reproduces locally with
       # exactly `make test.backend` (lint + mypy + pytest + format check).
+      # The default suite runs on SQLite; TimescaleDB-only tests (the `pg` marker)
+      # are skipped here and covered by the analytics-timescale job below.
       - name: Run backend tests
         run: make test.backend
+
+  # Always run the TimescaleDB lane.
+  analytics-timescale:
+    name: Analytics TimescaleDB Lane
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      timescaledb:
+        image: timescale/timescaledb-ha:pg18
+        env:
+          POSTGRES_USER: sparkth
+          POSTGRES_PASSWORD: sparkth_password
+          POSTGRES_DB: sparkth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sparkth -d sparkth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Only the analytics DB needs a real instance; the rest of the app uses the
+      # in-memory SQLite defaults set by sparkth/lib/testing.py. The pg fixtures run the
+      # analytics migrations against this URL (so the continuous aggregate exists).
+      ANALYTICS_TEST_PG_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics_test
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --dev
+
+      - name: Create analytics test database
+        env:
+          PGPASSWORD: sparkth_password
+        run: psql -h localhost -U sparkth -d sparkth -c "CREATE DATABASE sparkth_analytics_test;"
+
+      - name: Run TimescaleDB test lane
+        run: uv run pytest -m pg tests/analytics/pg -v

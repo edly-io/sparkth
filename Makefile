@@ -162,6 +162,11 @@ test.backend.pytest: ## Run backend unit tests (make test.backend.pytest [path] 
 test.backend.format: ## Run backend formatting tests
 	$(MAKE) lint.format.backend check=1
 
+.PHONY: test.backend.analytics
+test.backend.analytics: services.up ## Run the TimescaleDB test lane (starts backing services; see tests/analytics/pg/). Override ANALYTICS_TEST_PG_URL to target another instance.
+	ANALYTICS_TEST_PG_URL="$${ANALYTICS_TEST_PG_URL:-postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics_test}" \
+		uv run pytest -m pg $(ARGS)
+
 .PHONY: test.frontend
 test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, api drift, typecheck, unit and formatting tests
 
