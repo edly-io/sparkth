@@ -8,8 +8,9 @@ formatter for the free-text ``error_detail`` an event carries). The rest of the 
 into submodules: :mod:`sparkth.lib.audit.events` (event classes, value
 objects, outcomes), :mod:`sparkth.lib.audit.context` (actors, contexts,
 context helpers), :mod:`sparkth.lib.audit.execution` (protocol-layer capture
-plumbing), :mod:`sparkth.lib.audit.hooks` (the ``AUDIT_EVENTS`` hook), and
-:mod:`sparkth.lib.audit.exceptions`. Never import from
+plumbing), :mod:`sparkth.lib.audit.callbacks` (framework-level capture for
+LangChain tool runs), :mod:`sparkth.lib.audit.hooks` (the ``AUDIT_EVENTS``
+hook), and :mod:`sparkth.lib.audit.exceptions`. Never import from
 ``sparkth.core.audit.*`` directly; implementation lives in
 :mod:`sparkth.core.audit`.
 
