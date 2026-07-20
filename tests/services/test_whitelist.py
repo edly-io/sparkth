@@ -1,9 +1,15 @@
+import logging
 import uuid
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.services.whitelist import WhitelistService
+from sparkth.services.whitelist import (
+    InvalidWhitelistValue,
+    WhitelistEntryAlreadyExists,
+    WhitelistEntryNotFound,
+    WhitelistService,
+)
 
 
 def _uniq(prefix: str) -> str:
@@ -31,32 +37,106 @@ class TestAddEntry:
         email = f"{_uniq('user')}@example.com"
         await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
-        with pytest.raises(ValueError, match="already exists"):
+        with pytest.raises(WhitelistEntryAlreadyExists, match="already exists"):
             await WhitelistService.add_entry(session, value=email, added_by_id=1)
 
     async def test_add_invalid_email_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="Invalid email"):
+        with pytest.raises(InvalidWhitelistValue, match="Invalid email"):
             await WhitelistService.add_entry(session, value="not-an-email", added_by_id=1)
 
     async def test_add_invalid_domain_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="Invalid domain"):
+        with pytest.raises(InvalidWhitelistValue, match="Invalid domain"):
             await WhitelistService.add_entry(session, value="@", added_by_id=1)
 
     async def test_add_domain_without_dot_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="Invalid domain"):
+        with pytest.raises(InvalidWhitelistValue, match="Invalid domain"):
             await WhitelistService.add_entry(session, value="@localhost", added_by_id=1)
 
     async def test_add_domain_with_leading_dot_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="Invalid domain"):
+        with pytest.raises(InvalidWhitelistValue, match="Invalid domain"):
             await WhitelistService.add_entry(session, value="@.example.com", added_by_id=1)
 
     async def test_add_domain_with_trailing_dot_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="Invalid domain"):
+        with pytest.raises(InvalidWhitelistValue, match="Invalid domain"):
             await WhitelistService.add_entry(session, value="@example.com.", added_by_id=1)
 
     async def test_add_domain_with_consecutive_dots_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="Invalid domain"):
+        with pytest.raises(InvalidWhitelistValue, match="Invalid domain"):
             await WhitelistService.add_entry(session, value="@example..com", added_by_id=1)
+
+    async def test_integrity_error_race_raises_already_exists(
+        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A unique-value race — the value is present after the failed commit — maps to already-exists.
+
+        Simulates a concurrent request that committed the same value between our pre-check
+        and our commit: the value ends up present, so the IntegrityError is a genuine
+        duplicate conflict and must be translated (with rollback).
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        real_commit = session.commit
+        real_rollback = session.rollback
+        rollback_called = False
+
+        async def failing_commit() -> None:
+            # The row actually lands (as a concurrent writer's would), then the unique index
+            # surfaces the conflict to us.
+            await real_commit()
+            raise IntegrityError("INSERT", {}, Exception("duplicate key"))
+
+        async def tracking_rollback() -> None:
+            nonlocal rollback_called
+            rollback_called = True
+            await real_rollback()
+
+        monkeypatch.setattr(session, "commit", failing_commit)
+        monkeypatch.setattr(session, "rollback", tracking_rollback)
+
+        # A unique value is essential: the pre-check must return None so flow reaches the
+        # monkeypatched commit (the IntegrityError path), not the pre-check duplicate path.
+        email = f"{_uniq('race')}@example.com"
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(WhitelistEntryAlreadyExists, match="already exists"):
+                await WhitelistService.add_entry(session, value=email, added_by_id=1)
+
+        assert rollback_called is True
+        assert "Whitelist insert conflict" in caplog.text
+
+    async def test_integrity_error_non_duplicate_reraises(
+        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A non-duplicate IntegrityError (e.g. the added_by_id FK) is not disguised as a duplicate.
+
+        When the commit fails but no row with this value exists, the failure is something
+        other than a unique-value conflict (for instance the ``added_by_id`` foreign key, if
+        the referencing user was deleted mid-request). It must surface as itself, not as a
+        misleading "already exists".
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        real_rollback = session.rollback
+        rollback_called = False
+
+        async def failing_commit() -> None:
+            raise IntegrityError("INSERT", {}, Exception("FOREIGN KEY constraint failed"))
+
+        async def tracking_rollback() -> None:
+            nonlocal rollback_called
+            rollback_called = True
+            await real_rollback()
+
+        monkeypatch.setattr(session, "commit", failing_commit)
+        monkeypatch.setattr(session, "rollback", tracking_rollback)
+
+        email = f"{_uniq('fk')}@example.com"
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(IntegrityError):
+                await WhitelistService.add_entry(session, value=email, added_by_id=1)
+
+        assert rollback_called is True
+        assert "Whitelist insert conflict" not in caplog.text
+        assert "Unexpected integrity error" in caplog.text
 
 
 class TestRemoveEntry:
@@ -70,7 +150,7 @@ class TestRemoveEntry:
         assert all(e.value != email for e in entries)
 
     async def test_remove_nonexistent_raises(self, session: AsyncSession) -> None:
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(WhitelistEntryNotFound, match="not found"):
             await WhitelistService.remove_entry(session, entry_id=999999)
 
 

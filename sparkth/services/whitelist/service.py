@@ -1,9 +1,18 @@
 from pydantic import BaseModel as _PydanticBase
 from pydantic import EmailStr, ValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.whitelist import WhitelistedEmail
+from sparkth.lib.log import get_logger
+from sparkth.services.whitelist.exceptions import (
+    InvalidWhitelistValue,
+    WhitelistEntryAlreadyExists,
+    WhitelistEntryNotFound,
+)
+
+logger = get_logger(__name__)
 
 
 class _EmailValidator(_PydanticBase):
@@ -30,35 +39,46 @@ class WhitelistService:
                 or domain_part.endswith(".")
                 or ".." in domain_part
             ):
-                raise ValueError(f"Invalid domain format: {value}")
+                raise InvalidWhitelistValue(f"Invalid domain format: {value}")
             entry_type = "domain"
         else:
             try:
                 _EmailValidator(email=normalized)
             except ValidationError as exc:
-                raise ValueError(f"Invalid email format: {value}") from exc
+                raise InvalidWhitelistValue(f"Invalid email format: {value}") from exc
             entry_type = "email"
 
-        result = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
-        if result.one_or_none() is not None:
-            raise ValueError(f"Entry already exists: {normalized}")
-
+        # No pre-check SELECT: the unique index on ``value`` is the single, atomic guard
+        # against duplicates. A check-then-insert would both cost an extra round trip and
+        # leave a race window where two concurrent adds pass the check and both insert.
         entry = WhitelistedEmail(
             value=normalized,
             entry_type=entry_type,
             added_by_id=added_by_id,
         )
         session.add(entry)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            # An IntegrityError here is not necessarily a duplicate value: the insert also
+            # carries the added_by_id foreign key, which fails if the referencing user was
+            # deleted mid-request. Re-query to tell the two apart (portably, without parsing
+            # DB-specific error text) rather than assuming a unique-value conflict.
+            existing = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
+            if existing.one_or_none() is not None:
+                logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
+                raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}") from exc
+            logger.exception("Unexpected integrity error inserting whitelist value %s", normalized)
+            raise
         await session.refresh(entry)
         return entry
 
     @staticmethod
     async def remove_entry(session: AsyncSession, *, entry_id: int) -> None:
-        result = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.id == entry_id))
-        entry = result.one_or_none()
+        entry = await session.get(WhitelistedEmail, entry_id)
         if entry is None:
-            raise ValueError(f"Whitelist entry not found: {entry_id}")
+            raise WhitelistEntryNotFound(f"Whitelist entry not found: {entry_id}")
 
         await session.delete(entry)
         await session.commit()

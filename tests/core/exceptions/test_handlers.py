@@ -14,8 +14,8 @@ def _restore_registry() -> Iterator[None]:
     """Isolate each test from the process-global EXCEPTION_HANDLERS registry.
 
     Registration always targets the global registry, so every test snapshots it on entry and
-    restores it on exit — preserving the ships-empty invariant and avoiding duplicate-key
-    collisions across tests.
+    restores it on exit — avoiding duplicate-key collisions and leaked registrations across
+    tests.
     """
     snapshot = dict(EXCEPTION_HANDLERS._items)
     try:
@@ -82,11 +82,6 @@ def test_handler_on_base_class_catches_subclass_via_mro() -> None:
 
     assert response.status_code == 422
     assert response.json() == {"detail": "nope"}
-
-
-def test_global_registry_ships_empty() -> None:
-    # Guards the scope: this issue delivers the mechanism, not any mapping.
-    assert list(EXCEPTION_HANDLERS.iter_values()) == []
 
 
 def test_assemble_app_wires_handlers_from_global_registry() -> None:
