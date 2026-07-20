@@ -29,6 +29,7 @@ from sparkth.plugins.googledrive.schemas import (
     PaginatedResponse,
     RenameFileRequest,
 )
+from sparkth.plugins.googledrive.utils import soft_delete_drive_file
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -393,8 +394,7 @@ async def delete_file(
     if not drive_file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    drive_file.soft_delete()
-    session.add(drive_file)
+    await soft_delete_drive_file(session, drive_file)
     await session.commit()
 
     return {"detail": "File removed from Sparkth successfully"}

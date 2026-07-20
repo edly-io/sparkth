@@ -1,10 +1,12 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.lib.models import User
 from sparkth.lib.rag import ScannedPDFError, UnsupportedFileTypeError
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
@@ -14,6 +16,7 @@ from sparkth.plugins.googledrive.utils import (
     _process_single_file,
     _resolve_filename,
     process_folder_rag,
+    soft_delete_drive_file,
 )
 
 
@@ -426,3 +429,35 @@ class TestProcessFolderRag:
 
         # Must not raise.
         await process_folder_rag(1, user_id=1, access_token="tok")
+
+
+# soft_delete_drive_file
+class TestSoftDeleteDriveFile:
+    async def test_soft_deletes_file_and_linked_document(
+        self,
+        session: AsyncSession,
+        test_user: User,
+        test_file: DriveFile,
+    ) -> None:
+        document = Document(user_id=cast(int, test_user.id), name="linked.pdf")
+        session.add(document)
+        await session.flush()
+        test_file.document_id = document.id
+        session.add(test_file)
+        await session.flush()
+
+        await soft_delete_drive_file(session, test_file)
+
+        assert test_file.is_deleted is True
+        assert document.is_deleted is True
+
+    async def test_soft_deletes_file_without_linked_document(
+        self,
+        session: AsyncSession,
+        test_file: DriveFile,
+    ) -> None:
+        assert test_file.document_id is None  # fixture default
+
+        await soft_delete_drive_file(session, test_file)
+
+        assert test_file.is_deleted is True

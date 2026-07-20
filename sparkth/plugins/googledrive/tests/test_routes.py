@@ -209,6 +209,45 @@ class TestDeleteFolder:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @pytest.mark.asyncio
+    async def test_delete_soft_deletes_linked_documents(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        test_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """DELETE /folders/{id} should soft-delete each contained file's Document."""
+        document = Document(user_id=cast(int, test_user.id), name="linked.pdf")
+        session.add(document)
+        await session.commit()
+        await session.refresh(document)
+        test_file.document_id = document.id
+        session.add(test_file)
+
+        second_document = Document(user_id=cast(int, test_user.id), name="linked_second.pdf")
+        session.add(second_document)
+        await session.commit()
+        await session.refresh(second_document)
+        second_file = DriveFile(
+            folder_id=cast(int, test_folder.id),
+            user_id=cast(int, test_user.id),
+            drive_file_id="drive_file_second",
+            name="test_document_second.pdf",
+            document_id=second_document.id,
+        )
+        session.add(second_file)
+        await session.commit()
+
+        response = await drive_client.delete(f"/api/v1/google-drive/folders/{test_folder.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        await session.refresh(document)
+        await session.refresh(second_document)
+        assert document.is_deleted is True
+        assert second_document.is_deleted is True
+
 
 class TestSyncFolder:
     @pytest.mark.asyncio
@@ -352,6 +391,45 @@ class TestRefreshFolder:
         response = await drive_client.post("/api/v1/google-drive/folders/99999/refresh")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_refresh_soft_deletes_document_of_removed_file(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        test_user: User,
+        test_oauth_token: DriveOAuthToken,
+        mock_valid_access_token: None,
+        session: AsyncSession,
+    ) -> None:
+        """A file gone from Drive has its DriveFile and linked Document soft-deleted."""
+        document = Document(user_id=cast(int, test_user.id), name="linked.pdf")
+        session.add(document)
+        await session.commit()
+        await session.refresh(document)
+        test_file.document_id = document.id
+        session.add(test_file)
+        await session.commit()
+
+        with (
+            patch("sparkth.plugins.googledrive.routes.folders.GoogleDriveClient") as mock_client_cls,
+            patch("sparkth.plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
+        ):
+            mock_client = AsyncMock()
+            mock_client.list_files.return_value = {"files": []}
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_cls.return_value = mock_client
+            mock_client_cls.FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+
+            response = await drive_client.post(f"/api/v1/google-drive/folders/{test_folder.id}/refresh")
+
+        assert response.status_code == status.HTTP_200_OK
+        await session.refresh(test_file)
+        await session.refresh(document)
+        assert test_file.is_deleted is True
+        assert document.is_deleted is True
 
 
 # ---------------------------------------------------------------------------
@@ -673,6 +751,29 @@ class TestDeleteFile:
         response = await drive_client.delete("/api/v1/google-drive/files/99999")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_delete_soft_deletes_linked_document(
+        self,
+        drive_client: AsyncClient,
+        test_file: DriveFile,
+        test_user: User,
+        session: AsyncSession,
+    ) -> None:
+        """DELETE /files/{id} should soft-delete the file's linked Document."""
+        document = Document(user_id=cast(int, test_user.id), name="linked.pdf")
+        session.add(document)
+        await session.commit()
+        await session.refresh(document)
+        test_file.document_id = document.id
+        session.add(test_file)
+        await session.commit()
+
+        response = await drive_client.delete(f"/api/v1/google-drive/files/{test_file.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        await session.refresh(document)
+        assert document.is_deleted is True
 
 
 # ---------------------------------------------------------------------------
