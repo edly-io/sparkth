@@ -191,6 +191,19 @@ How the suite is wired:
 - The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `sparkth/lib/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
+**TimescaleDB test lane.** The suite runs on in-memory SQLite by default. Tests that need a
+real PostgreSQL/TimescaleDB — those exercising continuous aggregates, whose SQL (`_PG_SQL`)
+and DDL (the analytics migrations) SQLite cannot represent — carry the `pg` marker (applied
+module-wide via `pytestmark = pytest.mark.pg`) and live under
+[`tests/analytics/pg/`](tests/analytics/pg/). They **skip** unless
+`ANALYTICS_TEST_PG_URL` points at a real instance, so a plain `pytest` and the default CI job
+stay green with no extra infrastructure. Run them with `make test.backend.analytics` (it starts the backing
+services, which provide the Postgres/Timescale instance) or in the `analytics-timescale`
+CI job (runs on every non-draft PR). The pg fixtures apply the analytics migrations to
+the target DB (so the aggregate exists and the migration DDL is exercised) and reset state via
+truncate + full refresh between tests — continuous aggregates can't use transaction-rollback
+isolation because `refresh_continuous_aggregate` cannot run inside a transaction.
+
 ## Database Migrations
 
 **Never edit an existing migration file. No exceptions.**
