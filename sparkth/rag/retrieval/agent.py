@@ -75,8 +75,9 @@ async def run_agentic_rag_retrieval(llm: Any, document_id: int, user_query: str)
         system_message = SystemMessage(content=prompt_template)
         human_message = HumanMessage(content=user_query)
 
-        # Tool calls made inside the agent are audited by the wrapped tools;
-        # the context attributes them to the RAG surface and driving model.
+        # Tool calls made inside the agent are recorded by the process-global
+        # LangChain audit callback; the context attributes them to the RAG
+        # surface and driving model.
         with ai_audit_context(source=AuditSource.RAG, model=_llm_model_info(llm)):
             result = await agent.ainvoke(
                 {"messages": [system_message, human_message]},
