@@ -1,7 +1,7 @@
 """Process-global LangChain callback handler auditing every tool execution.
 
 The framework-level companion to
-:func:`sparkth.core.audit.execution.audited_tool_handler`: instead of wrapping
+:func:`sparkth.core.audit.execution.audited_tool`: instead of wrapping
 individual tool callables, this handler hooks LangChain's callback system (the
 same extension point tracing uses) so every tool run the framework performs is
 recorded automatically, with no per-tool or per-agent wiring. Importing this
@@ -19,6 +19,12 @@ surfaces and the missing outcome event stays the abnormal-termination signal.
 Tools whose executions are already recorded at the handler level (the chat
 registry's hook-wrapped handlers) carry :data:`AUDIT_AT_HANDLER_TAG` in their
 ``tags`` so their runs are skipped and never double-recorded.
+
+In-flight run tracking is bounded: a run cancelled between callbacks never
+gets a terminal callback (LangChain fires ``on_tool_error`` only for
+``Exception`` and ``KeyboardInterrupt``), so once
+:data:`~sparkth.core.audit.constants.MAX_TRACKED_TOOL_RUNS` entries are held
+the oldest is dropped rather than leaking for the process lifetime.
 """
 
 from contextvars import ContextVar
@@ -30,7 +36,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.tracers.context import register_configure_hook
 from sqlalchemy.exc import SQLAlchemyError
 
-from sparkth.core.audit.constants import MAX_DEPTH, TOOL_INVOCATION_TARGET_TYPE
+from sparkth.core.audit.constants import MAX_DEPTH, MAX_TRACKED_TOOL_RUNS, TOOL_INVOCATION_TARGET_TYPE
 from sparkth.core.audit.context import current_model_info
 from sparkth.core.audit.enums import AuditOutcome
 from sparkth.core.audit.events import ToolCompletedAuditEvent, ToolFailedAuditEvent, ToolInvokedAuditEvent
@@ -97,6 +103,18 @@ class AuditToolCallbackHandler(AsyncCallbackHandler):
         except SQLAlchemyError as exc:
             logger.exception("Audit 'tool.invoked' write failed; refusing tool '%s'", name)
             raise AuditCaptureError("tool.invoked", name) from exc
+        # Bound the in-flight map: a run cancelled before its terminal
+        # callback is never popped, so evict oldest-first instead of leaking.
+        # An evicted run's invocation stays on record; its missing outcome
+        # event is the abnormal-termination signal, exactly as for a crash.
+        while len(self._runs) >= MAX_TRACKED_TOOL_RUNS:
+            orphan_id = next(iter(self._runs))
+            orphan = self._runs.pop(orphan_id)
+            logger.warning(
+                "Audit tool-run tracking dropped the oldest in-flight run (tool '%s'); "
+                "its outcome event can no longer be recorded",
+                orphan.call.name,
+            )
         self._runs[run_id] = run
 
     async def on_tool_end(
