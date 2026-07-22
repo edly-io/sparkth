@@ -6,6 +6,7 @@ skipped: their executions are already recorded at the handler level."""
 
 from collections.abc import Iterator
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from langchain_core.callbacks.manager import AsyncCallbackManager
@@ -181,6 +182,40 @@ async def test_secret_args_are_redacted(audit_events: AuditEventsFetcher) -> Non
     assert invoked.tool_args is not None
     assert invoked.tool_args["auth"] == REDACTED
     assert invoked.tool_args["course_id"] == 1
+
+
+async def test_run_tracking_is_bounded_and_evicts_oldest_first(
+    active_audit_callbacks: AuditToolCallbackHandler,
+    audit_events: AuditEventsFetcher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run cancelled between callbacks never gets a terminal callback
+    (LangChain fires ``on_tool_error`` only for ``Exception`` and
+    ``KeyboardInterrupt``, not ``asyncio.CancelledError``), so in-flight run
+    tracking must stay bounded instead of accumulating for the process
+    lifetime. The oldest entry is dropped first, and a dropped run's late
+    outcome callback is a no-op: its invocation stays on record with no
+    outcome event, the same signal a crash leaves."""
+    monkeypatch.setattr("sparkth.core.audit.callbacks.MAX_TRACKED_TOOL_RUNS", 2)
+    handler = active_audit_callbacks
+
+    first, second, third = uuid4(), uuid4(), uuid4()
+    for run_id in (first, second, third):
+        await handler.on_tool_start({"name": "orphaned_tool"}, "{}", run_id=run_id)
+
+    await handler.on_tool_end("late", run_id=first)
+    await handler.on_tool_end("ok", run_id=third)
+
+    rows = await audit_events()
+    assert [(row.category, row.action) for row in rows] == [
+        ("tool", "invoked"),
+        ("tool", "invoked"),
+        ("tool", "invoked"),
+        ("tool", "completed"),
+    ]
+    # The completed event belongs to the still-tracked third run, not the
+    # evicted first one.
+    assert rows[3].target_id == rows[2].target_id
 
 
 def test_handler_reaches_every_callback_manager(active_audit_callbacks: AuditToolCallbackHandler) -> None:

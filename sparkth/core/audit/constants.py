@@ -41,6 +41,15 @@ SECRET_KEYS = frozenset(
 # payload); the audit row needs the failure's shape, not the full payload.
 MAX_ERROR_DETAIL_LENGTH = 1000
 
+# Upper bound on in-flight tool runs tracked by the LangChain callback
+# handler. A run cancelled between callbacks (client disconnect, agent
+# timeout) never gets a terminal callback, so without a bound orphaned
+# entries would accumulate for the process lifetime. The bound sits far above
+# any real tool-run concurrency, so an evicted entry is almost certainly an
+# orphan; if a live run is ever evicted, its outcome event is simply never
+# written, which is the same abnormal-termination signal a crash leaves.
+MAX_TRACKED_TOOL_RUNS = 1024
+
 # Default actor recorded when neither the event nor the context names one.
 ANONYMOUS_ACTOR = AnonymousActor()
 
