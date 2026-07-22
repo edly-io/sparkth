@@ -1,7 +1,7 @@
 """Audit trail public API: the curated surface for recording audit events.
 
 The write path lives here (:func:`record_event`, :func:`record_event_now`),
-together with the AI tool-execution seam (:func:`audited_tool_handler`, which
+together with the AI tool-execution seam (:func:`audited_tool`, which
 records the fail-closed ``tool.invoked`` / ``tool.completed`` / ``tool.failed``
 pair around every tool handler) and :func:`scrub_error_detail` (the secret-safe
 formatter for the free-text ``error_detail`` an event carries). The rest of the surface is split by concern
@@ -20,12 +20,12 @@ fail-closed, meaning an event that cannot be written fails the mutating or AI
 action it records.
 """
 
-from sparkth.core.audit.execution import audited_tool_handler
+from sparkth.core.audit.execution import audited_tool
 from sparkth.core.audit.recorder import record_event, record_event_now
 from sparkth.core.audit.redaction import scrub_error_detail
 
 __all__ = [
-    "audited_tool_handler",
+    "audited_tool",
     "record_event",
     "record_event_now",
     "scrub_error_detail",

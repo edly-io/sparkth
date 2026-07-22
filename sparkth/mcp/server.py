@@ -3,7 +3,7 @@ from typing import Any, Callable
 from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from sparkth.lib.audit import audited_tool_handler
+from sparkth.lib.audit import audited_tool
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.mcp.audit import ToolCallAuditMiddleware
@@ -30,7 +30,7 @@ mcp.add_middleware(ToolCallAuditMiddleware())
 # Tools registered directly on the server bypass the MCP_TOOLS hook (whose
 # Tool dataclass audit-wraps handlers), so they must wrap explicitly.
 @mcp.tool
-@audited_tool_handler
+@audited_tool
 async def get_course_generation_prompt_tool(
     course_params: CourseGenerationPromptRequest,
 ) -> str:

@@ -71,7 +71,7 @@ class TestRAGAgentToolCoverage:
 class TestNoUnauditedConstructionSites:
     """Source-level guard: the only modules allowed to build executable tools
     are the audited seams. A new construction site must be wired through
-    ``audited_tool_handler`` and added here deliberately."""
+    ``audited_tool`` and added here deliberately."""
 
     ALLOWED = {
         Path("plugins/chat/tools.py"),  # converts already-wrapped Tool.handler

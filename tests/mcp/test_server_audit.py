@@ -14,7 +14,7 @@ from fastmcp.server.middleware import CallNext, MiddlewareContext
 from fastmcp.tools.tool import ToolResult
 from sqlalchemy.exc import OperationalError
 
-from sparkth.lib.audit import audited_tool_handler
+from sparkth.lib.audit import audited_tool
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.mcp.audit import ToolCallAuditMiddleware
 from sparkth.mcp.server import mcp
@@ -68,7 +68,7 @@ async def test_runtime_handler_failure_is_recorded_exactly_once(audit_events: Au
     server.add_middleware(ToolCallAuditMiddleware())
 
     @server.tool
-    @audited_tool_handler
+    @audited_tool
     async def exploding_tool(course_id: int) -> str:
         """Always fails at runtime."""
         raise RuntimeError("boom")

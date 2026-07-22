@@ -1,7 +1,7 @@
 """Protocol-level audit backstop for the FastMCP server.
 
 Successful tool calls (and handler-raised failures) are recorded by the
-audited handler wrapper (:func:`sparkth.lib.audit.audited_tool_handler`); this
+audited handler wrapper (:func:`sparkth.lib.audit.audited_tool`); this
 middleware covers the calls that never reach a handler (unknown tool names
 and input-validation rejections), so every ``tools/call`` on ``/ai/mcp``
 leaves a record either way (ADR-0002 seam table row three). The one failure
