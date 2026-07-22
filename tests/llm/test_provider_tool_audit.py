@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
 from sqlalchemy.exc import OperationalError
 
-from sparkth.lib.audit import audited_tool_handler
+from sparkth.lib.audit import audited_tool
 from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.llm.providers import AnthropicProvider, GoogleProvider, OpenAIProvider
@@ -43,7 +43,7 @@ def _lookup_course_tool() -> StructuredTool:
         return {"course_id": course_id}
 
     return StructuredTool.from_function(
-        coroutine=audited_tool_handler(lookup_course),
+        coroutine=audited_tool(lookup_course),
         name="lookup_course",
         description="Look up a course.",
     )

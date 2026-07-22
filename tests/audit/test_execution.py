@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 
 from sparkth.core.audit.constants import REDACTED, TOOL_INVOCATION_TARGET_TYPE
 from sparkth.core.audit.execution import AsyncToolHandler
-from sparkth.lib.audit import audited_tool_handler, record_event_now
+from sparkth.lib.audit import audited_tool, record_event_now
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import (
     AuditModelInfo,
@@ -37,7 +37,7 @@ def test_tool_event_types_are_registered() -> None:
 
 
 async def test_success_records_invoked_and_completed_pair(audit_events: AuditEventsFetcher) -> None:
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
 
     result = await wrapped(course_id=7, title="Algebra")
 
@@ -63,7 +63,7 @@ async def test_failure_records_failed_event_and_reraises(audit_events: AuditEven
         """Always fails."""
         raise RuntimeError("boom")
 
-    wrapped = audited_tool_handler(exploding_tool)
+    wrapped = audited_tool(exploding_tool)
 
     with pytest.raises(RuntimeError, match="boom"):
         await wrapped(course_id=1)
@@ -90,7 +90,7 @@ async def test_invoked_write_failure_refuses_execution(monkeypatch: pytest.Monke
         raise OperationalError("INSERT", {}, Exception("audit db down"))
 
     monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", broken_write)
-    wrapped = audited_tool_handler(side_effect_tool)
+    wrapped = audited_tool(side_effect_tool)
 
     with pytest.raises(AuditCaptureError):
         await wrapped()
@@ -112,7 +112,7 @@ async def test_completed_write_failure_raises_audit_capture_error(monkeypatch: p
         return None
 
     monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", flaky_write)
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
 
     with pytest.raises(AuditCaptureError):
         await wrapped(course_id=1)
@@ -140,7 +140,7 @@ async def test_failed_write_failure_surfaces_the_handler_error(
         """Always fails."""
         raise RuntimeError("boom")
 
-    wrapped = audited_tool_handler(exploding_tool)
+    wrapped = audited_tool(exploding_tool)
 
     with pytest.raises(RuntimeError, match="boom"):
         await wrapped()
@@ -160,7 +160,7 @@ def test_sync_handler_is_rejected_at_wrap_time() -> None:
     with pytest.raises(TypeError, match="async"):
         # The cast models how sync handlers slip through in practice: the
         # seams accept Callable[..., Any], so only the runtime guard catches it.
-        audited_tool_handler(cast("AsyncToolHandler", sync_tool))
+        audited_tool(cast("AsyncToolHandler", sync_tool))
 
 
 async def test_handler_error_detail_is_scrubbed(audit_events: AuditEventsFetcher) -> None:
@@ -174,7 +174,7 @@ async def test_handler_error_detail_is_scrubbed(audit_events: AuditEventsFetcher
         """Validates its input."""
         return Course.model_validate({"course_id": raw_id})
 
-    wrapped = audited_tool_handler(validating_tool)
+    wrapped = audited_tool(validating_tool)
 
     with pytest.raises(ValidationError):
         await wrapped(raw_id="s3cret-value")
@@ -186,7 +186,7 @@ async def test_handler_error_detail_is_scrubbed(audit_events: AuditEventsFetcher
 
 
 async def test_positional_args_are_recorded_by_parameter_name(audit_events: AuditEventsFetcher) -> None:
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
 
     await wrapped(3, "Physics")
 
@@ -199,7 +199,7 @@ async def test_secret_args_are_redacted(audit_events: AuditEventsFetcher) -> Non
         """Tool taking a credentials payload."""
         return "ok"
 
-    wrapped = audited_tool_handler(authed_tool)
+    wrapped = audited_tool(authed_tool)
 
     await wrapped(auth={"api_url": "https://x", "token": "s3cret"}, course_id=1)
 
@@ -222,7 +222,7 @@ async def test_pydantic_args_are_dumped_and_redacted(audit_events: AuditEventsFe
         """Tool taking a Pydantic payload."""
         return "ok"
 
-    wrapped = audited_tool_handler(model_tool)
+    wrapped = audited_tool(model_tool)
 
     await wrapped(payload=Payload(name="course", auth=Credentials(username="u", password="p")))
 
@@ -231,7 +231,7 @@ async def test_pydantic_args_are_dumped_and_redacted(audit_events: AuditEventsFe
 
 
 async def test_model_identity_and_source_come_from_ai_audit_context(audit_events: AuditEventsFetcher) -> None:
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
     model = AuditModelInfo(provider="anthropic", name="claude-sonnet-5", version="claude-sonnet-5-20250929")
 
     with ai_audit_context(source=AuditSource.CHAT, model=model):
@@ -246,7 +246,7 @@ async def test_model_identity_and_source_come_from_ai_audit_context(audit_events
 
 
 async def test_without_ai_context_model_columns_stay_empty(audit_events: AuditEventsFetcher) -> None:
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
 
     await wrapped(course_id=1)
 
@@ -257,14 +257,14 @@ async def test_without_ai_context_model_columns_stay_empty(audit_events: AuditEv
 
 
 def test_wrapper_marks_handler_as_audited() -> None:
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
     assert getattr(wrapped, "__audit_wrapped__", False) is True
 
 
 def test_wrapper_preserves_handler_identity_and_schema() -> None:
     """ADR-0002 schema-identity regression: the generated input schema must be
     byte-identical after wrapping, or every tool's LLM-facing contract drifts."""
-    wrapped = audited_tool_handler(sample_tool)
+    wrapped = audited_tool(sample_tool)
 
     assert wrapped.__name__ == "sample_tool"
     assert wrapped.__doc__ == sample_tool.__doc__
@@ -272,5 +272,5 @@ def test_wrapper_preserves_handler_identity_and_schema() -> None:
 
 
 def test_wrapping_twice_is_idempotent() -> None:
-    wrapped = audited_tool_handler(sample_tool)
-    assert audited_tool_handler(wrapped) is wrapped
+    wrapped = audited_tool(sample_tool)
+    assert audited_tool(wrapped) is wrapped

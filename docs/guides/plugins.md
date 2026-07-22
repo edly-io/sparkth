@@ -373,7 +373,7 @@ for handler, category in tools:
 
 ### Tool executions are audited
 
-`Tool` wraps the handler with `sparkth.lib.audit.audited_tool_handler` at
+`Tool` wraps the handler with `sparkth.lib.audit.audited_tool` at
 construction: every execution, on every surface (the MCP server, chat, RAG),
 records a `tool.invoked` event *before* the handler runs and a
 `tool.completed` or `tool.failed` event after. Handlers must be `async`; the

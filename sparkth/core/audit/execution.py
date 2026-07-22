@@ -63,7 +63,7 @@ def tool_execution_recording() -> Iterator[Callable[[], bool]]:
         _execution_recorded.reset(token)
 
 
-def audited_tool_handler(handler: AsyncToolHandler) -> AsyncToolHandler:
+def audited_tool(handler: AsyncToolHandler) -> AsyncToolHandler:
     """Wrap an async tool handler so every execution is audited.
 
     Wrapping preserves the handler's name, docstring, signature, and type
@@ -91,7 +91,7 @@ def audited_tool_handler(handler: AsyncToolHandler) -> AsyncToolHandler:
         return handler
     if not inspect.iscoroutinefunction(handler):
         raise TypeError(
-            f"audited_tool_handler requires an async handler; "
+            f"audited_tool requires an async handler; "
             f"'{getattr(handler, '__name__', handler)}' is not a coroutine function"
         )
 
