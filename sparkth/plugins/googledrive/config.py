@@ -19,14 +19,14 @@ class GoogleDriveConfig(PluginConfig):
 class GoogleDriveSettings(BaseSettings):
     """Environment-level settings for the Google Drive plugin.
 
-    Reads from the same ``.env`` / environment variables as the core
-    ``Settings`` class.  Kept separate so Drive-specific config does not
-    bleed into the application core.
+    Reads from the same ``.env`` / ``.env.local`` files and environment
+    variables as the core ``Settings`` class.  Kept separate so
+    Drive-specific config does not bleed into the application core.
 
     Use ``get_googledrive_settings()`` to obtain a cached instance.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="ignore")
 
     GOOGLE_DRIVE_REDIRECT_URI: str
     DRIVE_MAX_UPLOAD_BYTES: int = 30 * 1024 * 1024
