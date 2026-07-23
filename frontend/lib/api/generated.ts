@@ -1050,7 +1050,8 @@ export interface paths {
          * @description Fetch the current authenticated user from the JWT token.
          *
          *     ``is_admin`` is derived here from whether the user holds the global ``admin``
-         *     role; it is not a stored column.
+         *     role, and ``permissions`` from the effective permission names the user holds at
+         *     the global scope; neither is a stored column.
          *
          *     Raises:
          *         HTTPException: If no user is authenticated.
@@ -1885,6 +1886,11 @@ export interface components {
             is_admin: boolean;
             /** Name */
             name: string;
+            /**
+             * Permissions
+             * @default []
+             */
+            permissions: string[];
             /** Username */
             username: string;
         };

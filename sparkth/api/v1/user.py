@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.permissions import has_role
+from sparkth.lib.permissions import get_user_permissions, has_role
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.schemas import User as UserSchema
 
@@ -19,7 +19,8 @@ async def get_user(
     """Fetch the current authenticated user from the JWT token.
 
     ``is_admin`` is derived here from whether the user holds the global ``admin``
-    role; it is not a stored column.
+    role, and ``permissions`` from the effective permission names the user holds at
+    the global scope; neither is a stored column.
 
     Raises:
         HTTPException: If no user is authenticated.
@@ -33,4 +34,7 @@ async def get_user(
 
     # "global" is the root scope; admin-ness is membership of the admin role there.
     is_admin = await has_role(current_user, "admin", GLOBAL, None, session)
-    return UserSchema.model_validate(current_user).model_copy(update={"is_admin": is_admin})
+    # Effective global-scope permissions, so the frontend can gate nav precisely
+    # (there is no admin bypass — analytics.read must be granted via a role).
+    permissions = await get_user_permissions(current_user, GLOBAL, None, session)
+    return UserSchema.model_validate(current_user).model_copy(update={"is_admin": is_admin, "permissions": permissions})
