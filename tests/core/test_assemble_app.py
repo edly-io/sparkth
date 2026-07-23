@@ -1,12 +1,15 @@
 """Tests for the DB-free app factory in sparkth.main (assemble_app)."""
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from starlette.routing import Mount
 
-from sparkth.main import app, assemble_app
+from sparkth.core.config import get_settings
+from sparkth.main import app, assemble_app, mount_frontend
 
 PLUGIN_SENTINEL_PATHS = [
     "/api/v1/chat/completions",
@@ -55,3 +58,43 @@ def test_openapi_schema_contains_plugin_endpoints() -> None:
     schema = assemble_app().openapi()
     for path in PLUGIN_SENTINEL_PATHS:
         assert path in schema["paths"]
+
+
+def _has_frontend_mount(application: FastAPI) -> bool:
+    return any(isinstance(route, Mount) and route.name == "frontend" for route in application.routes)
+
+
+def test_mount_frontend_skipped_when_serving_disabled(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """SERVE_FRONTEND=false must win even when a stale export directory exists."""
+    monkeypatch.setattr(get_settings(), "SERVE_FRONTEND", False)
+    monkeypatch.setattr(get_settings(), "FRONTEND_DIR", tmp_path)
+    application = FastAPI()
+
+    mount_frontend(application)
+
+    assert not _has_frontend_mount(application)
+
+
+def test_mount_frontend_mounts_when_enabled_and_dir_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(get_settings(), "SERVE_FRONTEND", True)
+    monkeypatch.setattr(get_settings(), "FRONTEND_DIR", tmp_path)
+    application = FastAPI()
+
+    mount_frontend(application)
+
+    assert _has_frontend_mount(application)
+
+
+def test_mount_frontend_skipped_when_dir_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(get_settings(), "SERVE_FRONTEND", True)
+    monkeypatch.setattr(get_settings(), "FRONTEND_DIR", tmp_path / "missing")
+    application = FastAPI()
+
+    mount_frontend(application)
+
+    assert not _has_frontend_mount(application)
+
+
+def test_serve_frontend_defaults_to_disabled() -> None:
+    """Native/dev runs must not serve a static export unless explicitly enabled."""
+    assert get_settings().SERVE_FRONTEND is False
