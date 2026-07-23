@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+from sqlalchemy import String
 from sqlmodel import Field
 
 from sparkth.core.documents.enums import DocumentStatus
@@ -23,5 +24,8 @@ class Document(TimestampedModel, SoftDeleteModel, table=True):
     name: str = Field(max_length=500)
     mime_type: Optional[str] = Field(default=None, max_length=255)
 
-    status: DocumentStatus = Field(default=DocumentStatus.QUEUED)
+    # Stored as a plain string: the documents.status column is varchar, and a
+    # native-enum mapping would emit ::documentstatus casts that fail on
+    # PostgreSQL because no such type exists.
+    status: DocumentStatus = Field(default=DocumentStatus.QUEUED, sa_type=String)
     error: Optional[str] = Field(default=None)
