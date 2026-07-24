@@ -11,6 +11,7 @@ interface MobileSidebarProps {
     avatar?: string;
     plan?: string;
     is_admin?: boolean;
+    canViewAnalytics?: boolean;
   };
   onLogout?: () => void;
 }
