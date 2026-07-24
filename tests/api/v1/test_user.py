@@ -13,7 +13,7 @@ from sqlalchemy.orm import make_transient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role, RolePermission
+from sparkth.core.permissions.models import Role
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions import assign_role
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
@@ -87,31 +87,3 @@ async def test_me_admin_role_at_other_scope_does_not_grant_global_admin(
 
     assert response.status_code == 200
     assert response.json()["is_admin"] is False
-
-
-async def test_me_includes_granted_global_permissions(client: AsyncClient, session: AsyncSession) -> None:
-    user = await _create_user(session, "perms")
-    assert user.id is not None
-    role = Role(name="analytics-reader")
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    session.add(RolePermission(role_id=role.id, permission="analytics.read"))
-    await session.flush()
-    await assign_role(user.id, "analytics-reader", GLOBAL, None, session)
-    _override_current_user(client, user)
-
-    response = await client.get("/api/v1/user/me")
-
-    assert response.status_code == 200
-    assert "analytics.read" in response.json()["permissions"]
-
-
-async def test_me_permissions_empty_for_ungranted_user(client: AsyncClient, session: AsyncSession) -> None:
-    user = await _create_user(session, "noperms")
-    _override_current_user(client, user)
-
-    response = await client.get("/api/v1/user/me")
-
-    assert response.status_code == 200
-    assert response.json()["permissions"] == []

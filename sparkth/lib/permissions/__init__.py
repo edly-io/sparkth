@@ -26,7 +26,6 @@ from sparkth.core.permissions import (
     assign_role,
     can,
     get_permission,
-    get_user_permissions,
     has_role,
     revoke_role,
 )
@@ -37,7 +36,6 @@ __all__ = [
     "can",
     "get_permission",
     "get_permission_scope",
-    "get_user_permissions",
     "has_role",
     "revoke_role",
     "Permission",
