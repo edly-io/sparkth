@@ -36,9 +36,10 @@ Changing this flag does not affect existing users.
 Controls whether the backend serves the static frontend export (`FRONTEND_DIR`,
 default `frontend/out`) at `/`.
 
-- If `SERVE_FRONTEND=true` and the export directory exists, the backend serves the
-  frontend on its own port — the single-container production setup. The production
-  image sets this via `ENV` in the `Dockerfile`.
+- If `SERVE_FRONTEND=true`, the backend serves the frontend on its own port — the
+  single-container production setup. The production image sets this via `ENV` in the
+  `Dockerfile`. Startup fails if the export directory is missing: build it first with
+  `make frontend.build`.
 - If `SERVE_FRONTEND=false`, the backend serves only the API and MCP endpoints. This is
   the dev default: use the Next.js dev server on `:3000`, which proxies `/api` to the
   backend. It also prevents a leftover local `frontend/out` build from being served

@@ -85,14 +85,15 @@ def test_mount_frontend_mounts_when_enabled_and_dir_exists(monkeypatch: pytest.M
     assert _has_frontend_mount(application)
 
 
-def test_mount_frontend_skipped_when_dir_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_mount_frontend_raises_when_dir_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """SERVE_FRONTEND=true with a missing export directory must abort startup —
+    serving the API without the frontend it was asked to serve is never intended."""
     monkeypatch.setattr(get_settings(), "SERVE_FRONTEND", True)
     monkeypatch.setattr(get_settings(), "FRONTEND_DIR", tmp_path / "missing")
     application = FastAPI()
 
-    mount_frontend(application)
-
-    assert not _has_frontend_mount(application)
+    with pytest.raises(RuntimeError):
+        mount_frontend(application)
 
 
 def test_serve_frontend_defaults_to_disabled() -> None:

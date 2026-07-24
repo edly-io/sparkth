@@ -57,17 +57,12 @@ mcp_app = mcp.http_app(path="/mcp")
 def mount_frontend(application: FastAPI) -> None:
     """Mount the static frontend export at "/" when serving is enabled.
 
-    Serving is opt-in via SERVE_FRONTEND (the production image enables it) and
-    additionally requires FRONTEND_DIR to exist.
+    Serving is opt-in via SERVE_FRONTEND (the production image enables it).
+    Startup fails (StaticFiles raises RuntimeError) if FRONTEND_DIR is missing:
+    the app must never come up half-served when asked to serve the frontend.
     """
     frontend_settings = get_settings()
     if not frontend_settings.SERVE_FRONTEND:
-        return
-    if not frontend_settings.FRONTEND_DIR.exists():
-        logger.warning(
-            "SERVE_FRONTEND is enabled but frontend directory %s does not exist; frontend not mounted",
-            frontend_settings.FRONTEND_DIR,
-        )
         return
     application.mount("/", StaticFiles(directory=frontend_settings.FRONTEND_DIR, html=True), name="frontend")
 
