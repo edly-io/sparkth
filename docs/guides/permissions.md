@@ -173,3 +173,9 @@ The returned dependency resolves the current user, checks the permission, and re
 authenticated `User`. Put it in `dependencies=[...]` to gate a route, or inject it as a
 parameter (`user: User = Depends(...)`) when the handler needs the authorized user — both
 enforce the permission identically. A missing permission yields **403**.
+
+**Check the current user's permission** — a client (e.g. the web UI) can ask whether the
+authenticated user holds a permission via `GET /api/v1/permissions/can?permission=<name>`
+(optionally `&scope=<kind>&scope_object_id=<id>`), which returns `{"allowed": true|false}`.
+It is backed by `can()` and is a convenience for gating UI — not a security boundary, since
+every endpoint still enforces its own permission and returns 403.

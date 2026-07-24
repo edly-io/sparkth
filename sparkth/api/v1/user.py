@@ -24,7 +24,6 @@ async def get_user(
     Raises:
         HTTPException: If no user is authenticated.
     """
-
     if not current_user or not current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
