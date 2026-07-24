@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # 60 minutes * 24 hours * 8 days = 11520 minutes
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_DIR: Path = Path("frontend/out")
+    # Serve the static frontend export from FRONTEND_DIR at "/". Off by default so
+    # native/dev runs never serve a stale export; the production image enables it.
+    SERVE_FRONTEND: bool = False
     REGISTRATION_ENABLED: bool = False
     # Number of trusted reverse-proxy hops in front of the app. 0 (default)
     # means X-Forwarded-For is ignored entirely (the header is client-forgeable)

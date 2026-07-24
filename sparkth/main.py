@@ -54,6 +54,19 @@ except PackageNotFoundError:
 mcp_app = mcp.http_app(path="/mcp")
 
 
+def mount_frontend(application: FastAPI) -> None:
+    """Mount the static frontend export at "/" when serving is enabled.
+
+    Serving is opt-in via SERVE_FRONTEND (the production image enables it).
+    Startup fails (StaticFiles raises RuntimeError) if FRONTEND_DIR is missing:
+    the app must never come up half-served when asked to serve the frontend.
+    """
+    frontend_settings = get_settings()
+    if not frontend_settings.SERVE_FRONTEND:
+        return
+    application.mount("/", StaticFiles(directory=frontend_settings.FRONTEND_DIR, html=True), name="frontend")
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """
@@ -68,11 +81,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
             # Mount frontend static files AFTER plugin routes are registered,
             # so plugin API routes take precedence over the catch-all "/" mount.
-            frontend_settings = get_settings()
-            if frontend_settings.FRONTEND_DIR.exists():
-                application.mount(
-                    "/", StaticFiles(directory=frontend_settings.FRONTEND_DIR, html=True), name="frontend"
-                )
+            mount_frontend(application)
 
             yield
 

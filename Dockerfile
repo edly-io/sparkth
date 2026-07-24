@@ -51,6 +51,9 @@ COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+# The production image bundles the frontend export and serves it from the
+# backend; real env vars win over the .env default, so this stays on in k8s.
+ENV SERVE_FRONTEND="true"
 
 USER nonroot
 

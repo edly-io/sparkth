@@ -95,7 +95,8 @@ jobs:
       SMTP_FROM_NAME: Sparkth
       # The API serves the built frontend statically on the same origin in
       # production (see sparkth/main.py), so the suite runs against :7727 with no
-      # /api proxy gap to bridge.
+      # /api proxy gap to bridge. Static serving is opt-in, so enable it here.
+      SERVE_FRONTEND: "true"
       FRONTEND_BASE_URL: http://localhost:7727
       FIRST_SUPERUSER: admin
       FIRST_SUPERUSER_PASSWORD: "Sparkth-admin-1!"
