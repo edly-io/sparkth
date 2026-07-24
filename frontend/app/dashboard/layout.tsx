@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import "@/lib/plugins";
 import { useAuth } from "@/lib/auth-context";
+import { checkPermission } from "@/lib/permissions";
 import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/components/AppSidebar";
 import MobileSidebar from "@/components/MobileSidebar";
@@ -32,7 +34,14 @@ function DashboardContent({
   logout,
 }: {
   children: React.ReactNode;
-  user: { name?: string; email?: string; avatar?: string; plan?: string; is_admin?: boolean };
+  user: {
+    name?: string;
+    email?: string;
+    avatar?: string;
+    plan?: string;
+    is_admin?: boolean;
+    canViewAnalytics?: boolean;
+  };
   logout: () => void;
 }) {
   const { isCollapsed, toggleCollapsed } = useSidebar();
@@ -65,6 +74,24 @@ function DashboardContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, isAuthenticated, loading, logout } = useAuth();
 
+  const [canViewAnalytics, setCanViewAnalytics] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    checkPermission(token, "analytics.read")
+      .then((allowed) => {
+        if (active) setCanViewAnalytics(allowed);
+      })
+      .catch((error) => {
+        if (active) setCanViewAnalytics(false);
+        console.error("Failed to check analytics permission:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
   if (!loading && !isAuthenticated) {
     redirect("/login");
   }
@@ -84,6 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     email: user?.email,
     plan: "Free Plan",
     is_admin: user?.is_admin,
+    canViewAnalytics,
   };
 
   return (
