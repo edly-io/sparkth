@@ -14,6 +14,7 @@ import {
   PanelLeft,
   Shield,
   Key,
+  ChartColumn,
 } from "lucide-react";
 import { ComponentType } from "react";
 import { useEnabledPlugins } from "@/lib/plugins/context";
@@ -32,6 +33,7 @@ interface AppSidebarProps {
     avatar?: string;
     plan?: string;
     is_admin?: boolean;
+    permissions?: string[];
   };
   basePath?: string;
   onLogout?: () => void;
@@ -229,6 +231,30 @@ export default function AppSidebar({
                 )}
               </Link>
             </div>
+
+            {user?.permissions?.includes("analytics.read") && (
+              <div>
+                <Link
+                  href={`${basePath}/analytics`}
+                  onClick={handleNavClick}
+                  className={`
+                    flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                    ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                    ${
+                      isActiveRoute("analytics")
+                        ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                        : "text-foreground hover:bg-surface-variant"
+                    }
+                  `}
+                  title={isCollapsed ? "Analytics" : undefined}
+                >
+                  <ChartColumn className="w-5 h-5 flex-shrink-0" />
+                  {!(isCollapsed && variant === "desktop") && (
+                    <span className="font-medium">Analytics</span>
+                  )}
+                </Link>
+              </div>
+            )}
 
             {user?.is_admin && (
               <div>
