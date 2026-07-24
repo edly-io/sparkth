@@ -3,12 +3,15 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Env files every BaseSettings class in the app and plugins must read, in order:
+# `.env` holds dev defaults; `.env.local` (git-ignored) holds sensitive creds and
+# local overrides and takes precedence. Real environment variables (CI, prod/k8s)
+# still win over both. Plugins import this via sparkth.lib.settings.
+ENV_FILES = (".env", ".env.local")
+
 
 class Settings(BaseSettings):
-    # `.env` holds dev defaults; `.env.local` (git-ignored) holds sensitive creds and
-    # local overrides and takes precedence. Real environment variables (CI, prod/k8s)
-    # still win over both.
-    model_config = SettingsConfigDict(env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILES, env_file_encoding="utf-8", extra="ignore")
     DATABASE_URL: str
     ANALYTICS_DATABASE_URL: str
     SECRET_KEY: str

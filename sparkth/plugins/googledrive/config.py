@@ -5,6 +5,7 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from sparkth.lib.plugins import PluginConfig
+from sparkth.lib.settings import ENV_FILES
 
 
 class GoogleDriveConfig(PluginConfig):
@@ -26,7 +27,7 @@ class GoogleDriveSettings(BaseSettings):
     Use ``get_googledrive_settings()`` to obtain a cached instance.
     """
 
-    model_config = SettingsConfigDict(env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILES, env_file_encoding="utf-8", extra="ignore")
 
     GOOGLE_DRIVE_REDIRECT_URI: str
     DRIVE_MAX_UPLOAD_BYTES: int = 30 * 1024 * 1024

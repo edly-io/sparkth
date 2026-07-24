@@ -6,6 +6,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from sparkth.lib.plugins import PluginConfig
+from sparkth.lib.settings import ENV_FILES
 
 
 class SlackSettings(BaseSettings):
@@ -13,7 +14,7 @@ class SlackSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="SLACK_",
-        env_file=(".env", ".env.local"),
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         extra="ignore",
     )
