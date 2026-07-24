@@ -4,12 +4,13 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from sparkth.lib.plugins import PluginConfig
+from sparkth.lib.settings import ENV_FILES
 
 
 class ChatSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CHAT_",
-        env_file=".env",
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         extra="ignore",
     )
