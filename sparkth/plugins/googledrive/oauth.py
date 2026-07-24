@@ -2,7 +2,7 @@
 
 import base64
 import hashlib
-from datetime import timedelta, timezone
+from datetime import timedelta
 from typing import Any
 
 import aiohttp
@@ -216,11 +216,7 @@ async def get_valid_access_token(session: AsyncSession, user_id: int, client_id:
     now = utc_now()
     buffer = timedelta(minutes=5)
 
-    token_expiry = token_record.token_expiry
-    if token_expiry.tzinfo is None:
-        token_expiry = token_expiry.replace(tzinfo=timezone.utc)
-
-    if token_expiry <= now + buffer:
+    if token_record.token_expiry <= now + buffer:
         refresh_tok = decrypt_token(token_record.refresh_token_encrypted)
         token_data = await refresh_access_token(refresh_tok, client_id, client_secret)
 
