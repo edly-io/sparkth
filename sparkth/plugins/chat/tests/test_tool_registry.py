@@ -4,6 +4,7 @@ import pytest
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
+from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.plugins.chat.tools import ToolRegistry
 
@@ -203,6 +204,15 @@ class TestConvertMcpToLangchainTool:
         assert "payload" not in props
         assert "org" in props
         assert "auth" in props
+
+    def test_converted_tool_is_tagged_as_audited_at_handler(self, registry: ToolRegistry) -> None:
+        """The converted tool delegates to the hook-wrapped ``Tool.handler``,
+        which already records the execution; the tag tells the process-global
+        LangChain audit callback to skip the run so it is never recorded twice."""
+        lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(Tool(_handler_plain_types)))
+
+        assert lc_tool.tags is not None
+        assert AUDIT_AT_HANDLER_TAG in lc_tool.tags
 
     def test_multi_param_preserves_param_names(self, registry: ToolRegistry) -> None:
         mcp_tool = Tool(_handler_multi_params)

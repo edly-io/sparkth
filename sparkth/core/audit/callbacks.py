@@ -6,8 +6,8 @@ individual tool callables, this handler hooks LangChain's callback system (the
 same extension point tracing uses) so every tool run the framework performs is
 recorded automatically, with no per-tool or per-agent wiring. Importing this
 module registers the :data:`audit_tool_callbacks` hook for the whole process
-via ``register_configure_hook``; the handler is active whenever that
-contextvar holds an instance.
+via ``register_configure_hook``, and the contextvar's default instance makes
+the handler active everywhere from then on.
 
 Failure semantics mirror the wrapper (NIST AU-5 fail-closed): ``raise_error``
 plus ``run_inline`` make the ``tool.invoked`` write complete before the tool
@@ -168,7 +168,10 @@ class AuditToolCallbackHandler(AsyncCallbackHandler):
 
 # Process-global registration: LangChain's CallbackManager.configure() adds
 # the ContextVar's value to every run (the mechanism tracing integrations
-# use). Inactive while the value is None; the execution seams switch over to
-# it (and away from per-tool wrapping) by giving it a default instance.
-audit_tool_callbacks: ContextVar[AuditToolCallbackHandler | None] = ContextVar("audit_tool_callbacks", default=None)
+# use). The default instance makes the handler active everywhere without a
+# set() call, which would not propagate across task contexts; tests deactivate
+# it per-context by setting None.
+audit_tool_callbacks: ContextVar[AuditToolCallbackHandler | None] = ContextVar(
+    "audit_tool_callbacks", default=AuditToolCallbackHandler()
+)
 register_configure_hook(audit_tool_callbacks, inheritable=True)

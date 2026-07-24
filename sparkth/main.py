@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Lifespan
 
+import sparkth.lib.audit.callbacks  # noqa: F401  # registers the process-global LangChain audit callback on import
 from sparkth.api.v1.api import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import MCP_MOUNT_PATH, get_settings

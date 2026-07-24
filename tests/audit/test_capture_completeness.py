@@ -1,13 +1,17 @@
 """ADR-0002 completeness test: every tool-execution entry point in the
-codebase must go through the audited wrapper, so new execution paths cannot
-appear silently. Structural checks cover the known seams (the ``Tool`` hook
-dataclass, the FastMCP server, the RAG agent tools); a source scan pins the
-set of modules allowed to construct executable tools at all."""
+codebase must be audited, so new execution paths cannot appear silently.
+Structural checks cover the known seams: the ``Tool`` hook dataclass and the
+FastMCP server go through the audited wrapper, while LangChain-executed agent
+tools are covered by the process-global callback handler. A source scan pins
+the set of modules allowed to construct executable tools at all."""
 
 from pathlib import Path
 from typing import Any
 
+from langchain_core.callbacks.manager import AsyncCallbackManager
+
 import sparkth
+from sparkth.lib.audit.callbacks import AuditToolCallbackHandler
 from sparkth.lib.mcp.hooks import Tool, generate_input_schema
 from sparkth.mcp.server import mcp
 from sparkth.rag.mcp.agent_tools import build_search_tools
@@ -60,12 +64,23 @@ class TestFastMCPServerCoverage:
         assert any(isinstance(m, ToolCallAuditMiddleware) for m in mcp.middleware)
 
 
-class TestRAGAgentToolCoverage:
-    def test_all_rag_search_tools_are_audited(self) -> None:
+class TestLangChainExecutionCoverage:
+    """In-process agent tools (the RAG search agent's, and any future ones)
+    are plain coroutines: their executions are recorded by the process-global
+    LangChain callback handler, active by default, not by per-tool wrapping.
+    tests/audit/test_langchain_callback.py exercises the recording itself;
+    tests/rag/mcp/test_agent_tools_audit.py exercises it through a RAG tool."""
+
+    def test_audit_callback_handler_is_active_by_default(self) -> None:
+        manager = AsyncCallbackManager.configure()
+        assert any(isinstance(handler, AuditToolCallbackHandler) for handler in manager.inheritable_handlers)
+
+    def test_rag_search_tools_rely_on_the_callback_not_wrapping(self) -> None:
+        """The decorators are gone on purpose; if per-tool wrapping returns,
+        runs would be double-recorded (wrapper plus untagged callback run)."""
         tools = build_search_tools(document_id=1)
         assert tools
-        unaudited = [tool.name for tool in tools if not _is_audited(tool.coroutine)]
-        assert unaudited == []
+        assert [tool.name for tool in tools if _is_audited(tool.coroutine)] == []
 
 
 class TestNoUnauditedConstructionSites:
@@ -74,8 +89,8 @@ class TestNoUnauditedConstructionSites:
     ``audited_tool`` and added here deliberately."""
 
     ALLOWED = {
-        Path("plugins/chat/tools.py"),  # converts already-wrapped Tool.handler
-        Path("rag/mcp/agent_tools.py"),  # wraps its coroutines explicitly
+        Path("plugins/chat/tools.py"),  # converts already-wrapped Tool.handler (tagged for the callback)
+        Path("rag/mcp/agent_tools.py"),  # plain coroutines; runs recorded by the callback handler
         Path("rag/retrieval/agent.py"),  # consumes build_search_tools only
         Path("mcp/server.py"),  # direct @mcp.tool registrations, wrapped explicitly
     }
