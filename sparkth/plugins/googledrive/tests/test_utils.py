@@ -3,6 +3,7 @@
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document, DocumentStatus
@@ -397,6 +398,31 @@ class TestProcessFolderRag:
         await self._seed_folder(session)
 
         await process_folder_rag(1, user_id=1, access_token="tok")
+
+    async def test_retries_failed_document_to_ready(self, session: AsyncSession) -> None:
+        """A failed document is retried and reaches READY. The DriveFile rows are
+        loaded in a session that closes before per-file processing, so the retry
+        path must re-bind each file to the per-file session — a detached instance
+        cannot be refreshed or flushed there."""
+        await self._seed_folder(
+            session,
+            _make_drive_file(file_id=1, document_id=10),
+            documents=[Document(id=10, user_id=1, name="retry.pdf", status=DocumentStatus.FAILED)],
+        )
+
+        with (
+            patch("sparkth.plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"%PDF-1.4\n")),
+            patch(
+                "sparkth.plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(return_value=MagicMock(new_chunks=1, reused_chunks=0)),
+            ),
+        ):
+            await process_folder_rag(1, user_id=1, access_token="tok")
+
+        session.expire_all()
+        document = (await session.exec(select(Document).where(col(Document.id) == 10))).first()
+        assert document is not None
+        assert document.status == DocumentStatus.READY
 
     @patch("sparkth.plugins.googledrive.utils._process_single_file")
     async def test_skips_ready_and_processing_files(self, mock_process: AsyncMock, session: AsyncSession) -> None:

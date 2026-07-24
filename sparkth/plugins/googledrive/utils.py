@@ -254,10 +254,20 @@ async def _process_with_semaphore(
     access_token: str,
     semaphore: asyncio.Semaphore,
 ) -> None:
-    """Process one file with semaphore-based concurrency control."""
+    """Process one file with semaphore-based concurrency control.
+
+    Re-fetches the DriveFile inside the per-file session: the caller's
+    instances come from a session that is already closed, and a detached
+    instance cannot be refreshed or flushed here.
+    """
     async with semaphore:
         async with session_scope() as file_session:
-            await _process_single_file(drive_file, user_id, access_token, file_session)
+            result = await file_session.exec(select(DriveFile).where(col(DriveFile.id) == drive_file.id))
+            bound_file = result.first()
+            if bound_file is None:
+                logger.warning("Drive file %s disappeared before RAG processing.", drive_file.id)
+                return
+            await _process_single_file(bound_file, user_id, access_token, file_session)
         gc.collect()
         if sys.platform == "linux":
             try:
