@@ -1,5 +1,6 @@
 """Unit tests for the Document model and document service."""
 
+from sqlalchemy import Enum
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.documents.enums import DocumentStatus
@@ -38,6 +39,17 @@ class TestDocumentModel:
         await session.flush()
 
         assert doc.mime_type is None
+
+    def test_status_column_is_native_enum_with_value_labels(self) -> None:
+        """documents.status is a native ``documentstatus`` enum whose labels are
+        the DocumentStatus *values* (lowercase), matching the rows already stored
+        in the column (the SQLite test lane renders the enum as VARCHAR, so only
+        this guard catches a label/data mismatch)."""
+        column_type = Document.metadata.tables["documents"].columns["status"].type
+
+        assert isinstance(column_type, Enum)
+        assert column_type.name == "documentstatus"
+        assert column_type.enums == [status.value for status in DocumentStatus]
 
 
 class TestRegisterDocument:
