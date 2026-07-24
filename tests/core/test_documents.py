@@ -1,6 +1,6 @@
 """Unit tests for the Document model and document service."""
 
-from sqlalchemy import Enum, String
+from sqlalchemy import Enum
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.documents.enums import DocumentStatus
@@ -40,14 +40,16 @@ class TestDocumentModel:
 
         assert doc.mime_type is None
 
-    def test_status_column_stored_as_plain_string(self) -> None:
-        """documents.status is varchar in the database schema; a native-enum
-        mapping would emit ``::documentstatus`` casts that fail on PostgreSQL
-        because no such type exists (the SQLite test lane cannot catch this)."""
+    def test_status_column_is_native_enum_with_value_labels(self) -> None:
+        """documents.status is a native ``documentstatus`` enum whose labels are
+        the DocumentStatus *values* (lowercase), matching the rows already stored
+        in the column (the SQLite test lane renders the enum as VARCHAR, so only
+        this guard catches a label/data mismatch)."""
         column_type = Document.metadata.tables["documents"].columns["status"].type
 
-        assert not isinstance(column_type, Enum)
-        assert isinstance(column_type, String)
+        assert isinstance(column_type, Enum)
+        assert column_type.name == "documentstatus"
+        assert column_type.enums == [status.value for status in DocumentStatus]
 
 
 class TestRegisterDocument:
