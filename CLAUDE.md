@@ -30,7 +30,7 @@ sparkth/
     plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
     permissions/   # Scoped-RBAC engine (roles, scopes, defaults)
     analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema hook (ANALYTICS_EVENTS), schemas (self-describing AnalyticsEventSchema base; plugins register via register_event_schema at import time), gateway (raw_events). Login emits user.logged_in.
-    audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context
+    audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context, audited tool execution (execution.py wraps every AI tool handler; fail-closed tool.invoked/completed/failed pair)
     routes/        # Plugin route-registration helpers
   lib/           # Curated public façade to core — the only surface plugins import from (see below)
   plugins/       # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)

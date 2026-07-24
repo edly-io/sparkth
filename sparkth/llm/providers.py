@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import json
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, TypedDict
+from typing import Any, AsyncIterator, ClassVar, TypedDict
 from uuid import UUID
 
 import httpx
@@ -15,6 +15,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
+from sparkth.lib.audit.context import AuditSource, ai_audit_context
+from sparkth.lib.audit.events import AuditModelInfo
+from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -89,6 +92,10 @@ class StreamingCallbackHandler(AsyncCallbackHandler):
 
 
 class BaseChatProvider(ABC):
+    # Stable provider identifier recorded as AI provenance on audit events;
+    # subclasses set it to their PROVIDER_REGISTRY key.
+    provider_name: ClassVar[str]
+
     def __init__(
         self,
         api_key: str,
@@ -166,10 +173,25 @@ class BaseChatProvider(ABC):
             },
         }
 
+    def _audit_model_info(self, response: Any) -> AuditModelInfo:
+        """Model identity recorded as audit provenance on tool executions.
+
+        ``version`` is the exact model the provider reported on the response
+        that requested the tool calls (OpenAI exposes ``model_name``,
+        Anthropic ``model``); ``name`` is the model as configured.
+        """
+        metadata = getattr(response, "response_metadata", None) or {}
+        version = metadata.get("model_name") or metadata.get("model")
+        return AuditModelInfo(provider=self.provider_name, name=self.model, version=version)
+
     async def _send_message_with_tools(
         self, llm: Any, messages: list[dict[str, Any]], tools: list[Any]
     ) -> dict[str, Any]:
-        """Send a message with tool support using a manual tool execution loop."""
+        """Send a message with tool support using a manual tool execution loop.
+
+        Tool executions run inside an ``ai_audit_context`` so the audited tool
+        wrapper attributes them to the chat surface and this model.
+        """
         llm_with_tools = llm.bind_tools(tools)
 
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
@@ -205,7 +227,8 @@ class BaseChatProvider(ABC):
                         continue
 
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-                    tool_result = await self._execute_tool(tool_name, tool_args, tools)
+                    with ai_audit_context(source=AuditSource.CHAT, model=self._audit_model_info(response)):
+                        tool_result = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
 
                     tool_executions.append(
@@ -296,6 +319,13 @@ class BaseChatProvider(ABC):
                     logger.info(f"Tool '{tool_name}' executed successfully")
                     return result
 
+                # A fail-closed capture refusal is the audit infrastructure
+                # failing, not the tool: it must surface as a hard failure,
+                # never degrade into a model-visible error string.
+                except AuditCaptureError:
+                    logger.exception(f"Audit capture failed for tool '{tool_name}'")
+                    raise
+
                 # NOTE: Kept broad here intentionally — tool handlers are user-supplied
                 # plugins that can raise anything. Narrowing would silently swallow
                 # legitimate errors from arbitrary third-party tool implementations.
@@ -371,7 +401,8 @@ class BaseChatProvider(ABC):
 
                     yield {"type": "tool_start", "name": tool_name}
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-                    tool_result = await self._execute_tool(tool_name, tool_args, tools)
+                    with ai_audit_context(source=AuditSource.CHAT, model=self._audit_model_info(response)):
+                        tool_result = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
                     yield {"type": "tool_end", "name": tool_name}
 
@@ -394,6 +425,8 @@ class BaseChatProvider(ABC):
 
 
 class OpenAIProvider(BaseChatProvider):
+    provider_name: ClassVar[str] = "openai"
+
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatOpenAI:
         return ChatOpenAI(  # type: ignore[call-arg]
             api_key=self.api_key,
@@ -406,6 +439,8 @@ class OpenAIProvider(BaseChatProvider):
 
 
 class AnthropicProvider(BaseChatProvider):
+    provider_name: ClassVar[str] = "anthropic"
+
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatAnthropic:
         return ChatAnthropic(  # type: ignore[call-arg]
             api_key=self.api_key,
@@ -418,6 +453,8 @@ class AnthropicProvider(BaseChatProvider):
 
 
 class GoogleProvider(BaseChatProvider):
+    provider_name: ClassVar[str] = "google"
+
     def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
             google_api_key=self.api_key,

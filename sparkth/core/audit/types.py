@@ -68,8 +68,9 @@ AuditActor = UserActor | SystemActor | AnonymousActor
 class AuditRequestContext:
     """Origin metadata for a unit of work that arrived over the network.
 
-    Seeded by the ASGI middleware for HTTP requests (``source=REST``);
-    the MCP and chat capture seams will seed their own with their source.
+    Seeded by the ASGI middleware for HTTP requests (``source=REST``, or
+    ``MCP`` for the FastMCP mount); the chat and RAG seams derive a copy with
+    their source via :func:`sparkth.core.audit.context.ai_audit_context`.
     ``request_id`` is mandatory (the producer generates one at the edge);
     ``request_ip`` and ``user_agent`` stay optional because a request can
     genuinely lack them.

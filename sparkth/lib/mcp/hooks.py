@@ -5,6 +5,7 @@ from typing import Any, get_type_hints
 
 from pydantic import BaseModel
 
+from sparkth.lib.audit import audited_tool
 from sparkth.lib.hooks import PluginCollectionHook
 from sparkth.lib.log import get_logger
 
@@ -19,10 +20,19 @@ class Tool:
     ``MCP_TOOLS.add_item(self, Tool(self.my_method, category="..."))``. The tool's
     ``name`` and ``description`` are derived from the bound handler (its name and
     docstring); the input schema is auto-generated from the handler signature.
+
+    The handler is wrapped for audit at construction
+    (:func:`sparkth.lib.audit.audited_tool`), so every execution path
+    that consumes the hook (the FastMCP server and the chat tool registry)
+    records the tool call without instrumenting each consumer. Wrapping
+    preserves the handler's name, docstring, and generated input schema.
     """
 
     handler: Callable[..., Any]
     category: str | None = None
+
+    def __post_init__(self) -> None:
+        self.handler = audited_tool(self.handler)
 
     @property
     def name(self) -> str:
