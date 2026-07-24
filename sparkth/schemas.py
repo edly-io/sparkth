@@ -29,11 +29,6 @@ class User(UserBase):
     # column. Defaults to False so endpoints that return the ORM user directly (e.g.
     # register) report a non-admin; /user/me computes and sets the real value.
     is_admin: bool = False
-    # Effective permission names the user holds at the GLOBAL scope. Like is_admin,
-    # this is derived from the permission system, not a stored column, and defaults
-    # to [] so responses that return the ORM user directly (e.g. register) stay
-    # non-privileged; /user/me computes the real value.
-    permissions: list[str] = []
     email_verified: bool
 
     model_config = ConfigDict(from_attributes=True)

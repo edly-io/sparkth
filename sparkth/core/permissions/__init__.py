@@ -220,30 +220,6 @@ async def can(
     return result.first() is not None
 
 
-async def get_user_permissions(
-    user: User,
-    permission_scope: PermissionScope,
-    scope_object_id: str | None,
-    session: AsyncSession,
-) -> list[str]:
-    """Return the distinct permission names user holds at the given permission scope.
-
-    The all-names counterpart of :func:`can`: same active-assignment selection
-    (honouring the objectless-ancestor cascade via ``_active_assignment_at_scope``),
-    but returns every distinct ``RolePermission.permission`` rather than testing a
-    single one. Used by ``/user/me`` to expose the caller's effective global-scope
-    permissions to the frontend for nav gating.
-    """
-    statement = (
-        select(RolePermission.permission)
-        .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))
-        .where(*_active_assignment_at_scope(user.id, permission_scope, scope_object_id))
-        .distinct()
-    )
-    result = await session.exec(statement)
-    return list(result.all())
-
-
 async def has_role(
     user: User,
     role_name: str,

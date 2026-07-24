@@ -174,19 +174,8 @@ authenticated `User`. Put it in `dependencies=[...]` to gate a route, or inject 
 parameter (`user: User = Depends(...)`) when the handler needs the authorized user — both
 enforce the permission identically. A missing permission yields **403**.
 
-**Read a user's permissions** — to list every permission a user effectively holds
-at a scope (rather than testing one with `can()`), call `get_user_permissions`. It
-runs the same active-assignment selection as `can()` — honouring the objectless-ancestor
-cascade — but returns all distinct permission names. `/user/me` uses it to expose the
-caller's global-scope permissions to the frontend for precise nav gating.
-
-```python
-from sparkth.lib.permissions import get_user_permissions
-from sparkth.lib.permissions.scopes import GLOBAL
-
-# every permission `user` holds platform-wide:
-names = await get_user_permissions(user, GLOBAL, None, session)
-```
-
-There is no admin/superuser bypass, so this reflects only permissions actually
-granted through a role assignment.
+**Check the current user's permission** — a client (e.g. the web UI) can ask whether the
+authenticated user holds a permission via `GET /api/v1/permissions/can?permission=<name>`
+(optionally `&scope=<kind>&scope_object_id=<id>`), which returns `{"allowed": true|false}`.
+It is backed by `can()` and is a convenience for gating UI — not a security boundary, since
+every endpoint still enforces its own permission and returns 403.
