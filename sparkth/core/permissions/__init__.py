@@ -147,6 +147,13 @@ ROLE_READ = Permission.create("role.read")
 ROLE_UPDATE = Permission.create("role.update")
 ROLE_DELETE = Permission.create("role.delete")
 
+# The group-management permissions gate the group-management API (sparkth/api/v1/permissions).
+# Membership and group-role grants are CLI-managed and carry no REST gate of their own.
+GROUP_CREATE = Permission.create("group.create")
+GROUP_READ = Permission.create("group.read")
+GROUP_UPDATE = Permission.create("group.update")
+GROUP_DELETE = Permission.create("group.delete")
+
 # Reading the permission vocabulary itself (the assignable-permissions listing), distinct from
 # reading roles.
 PERMISSION_READ = Permission.create("permission.read")
