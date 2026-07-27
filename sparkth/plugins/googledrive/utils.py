@@ -243,13 +243,13 @@ async def _process_single_file(
         await session.refresh(drive_file)
         await update_document_status(session, document_id, DocumentStatus.FAILED, "Database integrity error")
         await session.commit()
-    except Exception:
+    except Exception as exc:
         # Deliberate lifecycle backstop, not lazy catching: PROCESSING was committed
         # before ingestion, and later syncs skip in-flight documents, so any unexpected
         # error escaping here would wedge the document in PROCESSING forever. The
         # folder-level gather only logs — it cannot fix the status. Roll back the
         # partial work, record the failure, and swallow (fully handled here).
-        logger.exception("Unexpected error while processing '%s'", log_name)
+        logger.exception("Unexpected error while processing '%s': %s", log_name, exc)
         await session.rollback()
         await update_document_status(session, document_id, DocumentStatus.FAILED, "Processing failed")
         await session.commit()
