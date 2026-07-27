@@ -4,7 +4,9 @@ Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
 dependency layer, and the RBAC engine functions (``can``, ``has_role``,
 ``assign_role``, ``revoke_role``) together with the ``get_permission`` /
-``get_permission_scope`` lookups.
+``get_permission_scope`` lookups. The read-side checks resolve a user's roles as
+their own active assignments plus the assignments of any group they actively
+belong to, both matched against the same scope chain.
 
 These live in one module on purpose: the ``require*`` gate needs ``can`` while the
 engine functions need the ``Permission`` class and the ``PERMISSIONS`` hook, so
@@ -26,7 +28,13 @@ from sqlmodel.sql.expression import SelectOfScalar
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import PermissionNotFound, RoleNotFound
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.models import (
+    GroupMembership,
+    GroupRoleAssignment,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
@@ -190,14 +198,40 @@ def _user_role_ids_at_scope(
     )
 
 
+def _group_role_ids_at_scope(
+    user_id: int | None,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None,
+) -> SelectOfScalar[int]:
+    """Subquery of role ids granted at the scope to any group the user actively belongs to."""
+    active_membership_group_ids = select(GroupMembership.group_id).where(
+        col(GroupMembership.user_id) == user_id,
+        col(GroupMembership.is_deleted) == False,
+    )
+    return select(GroupRoleAssignment.role_id).where(
+        col(GroupRoleAssignment.group_id).in_(active_membership_group_ids),
+        col(GroupRoleAssignment.is_deleted) == False,
+        _scope_clause(
+            col(GroupRoleAssignment.scope),
+            col(GroupRoleAssignment.scope_object_id),
+            permission_scope,
+            scope_object_id,
+        ),
+    )
+
+
 def _granted_role_ids_clause(
     role_id_column: Mapped[int] | Mapped[int | None],
     user_id: int | None,
     permission_scope: PermissionScope,
     scope_object_id: str | None,
 ) -> ColumnElement[bool]:
-    """Whether ``role_id_column`` is a role the user holds at the scope."""
-    return role_id_column.in_(_user_role_ids_at_scope(user_id, permission_scope, scope_object_id))
+    """Whether ``role_id_column`` is a role the user holds at the scope — via their own
+    assignments or via an assignment to a group they actively belong to."""
+    return or_(
+        role_id_column.in_(_user_role_ids_at_scope(user_id, permission_scope, scope_object_id)),
+        role_id_column.in_(_group_role_ids_at_scope(user_id, permission_scope, scope_object_id)),
+    )
 
 
 async def _find_active_assignment(
