@@ -38,6 +38,30 @@ class RoleInUse(Exception):
         self.role_id = role_id
 
 
+class GroupNotFound(Exception):
+    """Raised when a group referenced by id or name does not exist."""
+
+    def __init__(self, group: str) -> None:
+        super().__init__(f"Group not found: {group}")
+        self.group = group
+
+
+class GroupAlreadyExists(Exception):
+    """Raised when creating or renaming a group to a name that is already taken."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Group already exists: {name}")
+        self.name = name
+
+
+class GroupInUse(Exception):
+    """Raised when deleting a group that still has active role assignments."""
+
+    def __init__(self, group_id: int) -> None:
+        super().__init__(f"Group still has active role assignments and cannot be deleted: {group_id}")
+        self.group_id = group_id
+
+
 class InvalidScopeObjectId(Exception):
     """Raised when a (scope, object id) pairing is invalid.
 
