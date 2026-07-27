@@ -5,9 +5,11 @@ cannot be migrated (the RAG migration needs pgvector, and others need Postgres
 enum types), so the schema is created with SQLModel.metadata.create_all, the
 same way the unit-test suite builds its schema.
 
-Metadata is populated exactly as sparkth/migrations/env.py does it: `from sparkth.core.models
-import *` registers the core tables and get_plugin_loader() registers the plugin
-tables, so SQLModel.metadata is complete before create_all runs.
+Metadata is populated exactly as sparkth/migrations/app/env.py does it: `from
+sparkth.core.models import *` plus the audit and permission models registers the core
+tables and get_plugin_loader() registers the plugin tables, so SQLModel.metadata is
+complete before create_all runs. Keep the import list in sync with that env.py —
+a model missing here silently yields a database without its table.
 """
 
 import asyncio
@@ -16,8 +18,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import SQLModel
 
+# Imported so SQLModel.metadata carries the audit table, as in migrations/app/env.py.
+from sparkth.core.audit.models import AuditEvent  # noqa: F401
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models import *  # noqa: F403
+
+# Imported so SQLModel.metadata carries the permission tables, as in migrations/app/env.py.
+from sparkth.core.permissions.models import (  # noqa: F401
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import get_plugin_loader
 
