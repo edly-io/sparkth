@@ -44,7 +44,10 @@ class CacheService:
             raise RuntimeError("Failed to establish Redis connection")
 
         try:
-            value: str | None = await self._redis.get(key)
+            value: bytes | str | None = await self._redis.get(key)
+            # The client is created with decode_responses=True, so values come back as str.
+            if isinstance(value, bytes):
+                return value.decode("utf-8")
             return value
         except RedisError as e:
             logger.warning(f"Cache get failed for key '{key}': {e}")

@@ -42,7 +42,7 @@ class StreamingCallbackHandler(AsyncCallbackHandler):
 
     async def on_llm_new_token(
         self,
-        token: str,
+        token: str | list[str | dict[str, Any]],
         *,
         chunk: GenerationChunk | ChatGenerationChunk | None = None,
         run_id: UUID,
@@ -50,7 +50,11 @@ class StreamingCallbackHandler(AsyncCallbackHandler):
         tags: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
-        self.tokens.append(token)
+        # Providers may emit content blocks instead of a plain string.
+        if isinstance(token, str):
+            self.tokens.append(token)
+        else:
+            self.tokens.extend(part if isinstance(part, str) else str(part.get("text", "")) for part in token)
 
     async def on_llm_end(
         self,
