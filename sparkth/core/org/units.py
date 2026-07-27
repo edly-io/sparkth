@@ -6,7 +6,7 @@ parent, ``move_org_unit`` rewrites the moved subtree in one UPDATE. Nothing here
 the permission engine — the tree is inert data. Authored with LLM (Claude) assistance.
 """
 
-from sqlalchemy import func, update
+from sqlalchemy import func, inspect, update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -53,14 +53,8 @@ async def list_org_units(session: AsyncSession) -> list[OrgUnit]:
 
 
 async def get_org_unit(unit_id: int, session: AsyncSession) -> OrgUnit:
-    """Return the org unit with unit_id, or raise OrgUnitNotFound.
-
-    Uses populate_existing so a unit already in the session's identity map — e.g. a
-    descendant whose path was rewritten by another unit's move_org_unit bulk UPDATE in
-    the same session — is re-read from the database rather than returned with stale or
-    partially-expired attributes.
-    """
-    unit = await session.get(OrgUnit, unit_id, populate_existing=True)
+    """Return the org unit with unit_id, or raise OrgUnitNotFound."""
+    unit = await session.get(OrgUnit, unit_id)
     if unit is None:
         raise OrgUnitNotFound(str(unit_id))
     return unit
@@ -111,6 +105,23 @@ async def move_org_unit(unit_id: int, new_parent_id: int | None, session: AsyncS
         .where(col(OrgUnit.path).startswith(old_prefix))
         .values(path=new_prefix + func.substr(OrgUnit.path, len(old_prefix) + 1))
     )
+    # The UPDATE's SET clause is SQL-side (func.substr), so SQLAlchemy's automatic
+    # synchronize_session="fetch" fallback (triggered because that clause isn't
+    # Python-evaluable) only partially expires the `path` attribute on matched in-session
+    # objects — e.g. a descendant loaded earlier in this session — rather than the whole
+    # instance. A bare session.get() only re-queries when the *whole* instance is expired,
+    # so a partially-expired object would be handed back unchanged, and the first plain
+    # `.path` access on it would attempt an illegal sync lazy-load under AsyncSession.
+    # Refresh exactly those affected objects now, inside this function, rather than
+    # leaving them expired for whichever caller touches them next — identified via
+    # expired_attributes so this never itself reads a possibly-expired column, and never
+    # disturbing unrelated objects (like the new parent) that the rewrite didn't touch.
+    for loaded in session.identity_map.values():
+        if not isinstance(loaded, OrgUnit):
+            continue
+        state = inspect(loaded)
+        if state is not None and state.expired_attributes:
+            await session.refresh(loaded)
     await session.commit()
     await session.refresh(unit)
     return unit
