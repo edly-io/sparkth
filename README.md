@@ -215,12 +215,14 @@ Core events are declared in `sparkth.core.analytics`; a plugin declares its own 
 ```python
 from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
 
+
 class CourseCompleted(AnalyticsEventSchema):
     event_type = "mycourseplugin.course_completed"  # namespaced under the plugin name
     version = 1
 
     learner_id: str
     course_id: str
+
 
 # from the plugin's __init__:
 register_event_schema(self, CourseCompleted)
@@ -251,8 +253,11 @@ analytics database:
 from sparkth.lib.analytics import ingest_event
 
 await ingest_event(
-    session, "mycourseplugin.course_completed", 1,
-    {"learner_id": "u1", "course_id": "c1"}, actor_id=str(user.id),
+    session,
+    "mycourseplugin.course_completed",
+    1,
+    {"learner_id": "u1", "course_id": "c1"},
+    actor_id=str(user.id),
 )
 ```
 

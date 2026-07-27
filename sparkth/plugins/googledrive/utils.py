@@ -282,7 +282,7 @@ async def _process_with_semaphore(
         if sys.platform == "linux":
             try:
                 ctypes.CDLL("libc.so.6").malloc_trim(0)
-            except (OSError, AttributeError):
+            except OSError, AttributeError:
                 pass
 
 

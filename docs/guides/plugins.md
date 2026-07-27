@@ -11,6 +11,7 @@ Define a config class for the plugin that must inherit from `sparkth.lib.plugins
 from pydantic import Field
 from sparkth.lib.plugins import PluginConfig
 
+
 class MyAppPluginConfig(PluginConfig):
     config_field: str = Field(..., description="...")
 
@@ -25,6 +26,7 @@ If your plugin lets users pick an AI model to power some feature (e.g. answer sy
 # sparkth/plugins/myappplugin/config.py
 from pydantic import Field
 from sparkth.lib.plugins import PluginConfig
+
 
 class MyAppPluginConfig(PluginConfig):
     llm_config_id: int | None = Field(
@@ -65,11 +67,7 @@ class MyLmsConfig(PluginConfig):
         Human-readable credential block included in the LLM system prompt.
         Return None (or omit the override) for non-LMS plugins.
         """
-        return (
-            "My <LMS> credentials:\n"
-            f"  api_url: {self.api_url}\n"
-            f"  api_key: {self.api_key}"
-        )
+        return f"My <LMS> credentials:\n  api_url: {self.api_url}\n  api_key: {self.api_key}"
 ```
 
 Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is contributed to the `CONFIG_SCHEMAS` hook (see below).
@@ -118,6 +116,7 @@ For the default behaviour (LLM config ownership check + model override validatio
 # sparkth/plugins/myappplugin/adapter.py
 from sparkth.llm.adapter import LLMConfigAdapter
 
+
 class MyAppPluginConfigAdapter(LLMConfigAdapter):
     pass
 ```
@@ -153,6 +152,7 @@ Override a method when the default behaviour isn't enough. Always call `super()`
 from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.llm.adapter import LLMConfigAdapter
+
 
 class MyAppPluginConfigAdapter(LLMConfigAdapter):
     async def preprocess_config(
@@ -243,6 +243,7 @@ from sparkth.lib.plugins import SparkthPlugin
 # Create router outside the class
 router = APIRouter()
 
+
 @router.get("/")
 async def get_data():
     return {"message": "Hello from my plugin"}
@@ -266,6 +267,7 @@ class MyAppPlugin(SparkthPlugin):
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
         Permission.create("myapp.process")
         register_event_schema(self, MyAppDataProcessed)
+
 
 async def process_data(input: str) -> str:
     """Process some input and return the result."""
@@ -291,8 +293,10 @@ onto the app at startup:
 ```python
 from sparkth.lib.exceptions.handlers import register_exception_handler
 
+
 class MyAppError(Exception):
     """Raised when the plugin cannot process a request."""
+
 
 # inside MyAppPlugin.__init__:
 register_exception_handler(MyAppError, 409)
@@ -350,6 +354,7 @@ class MyAppPlugin(SparkthPlugin):
         super().__init__(plugin_name)
         MCP_TOOLS.add_item(self, Tool(my_tool, category="my-category"))
 
+
 async def my_tool(param1: str, param2: int = 0) -> dict:
     """One-line summary the LLM sees as the tool description.
 
@@ -383,9 +388,11 @@ from sparkth.lib.plugins import SparkthPlugin
 # Router
 router = APIRouter()
 
+
 @router.get("/{city}")
 async def get_weather_route(city: str):
     return {"city": city, "temp": 20}
+
 
 # Plugin (class name WeatherPlugin → derived name "weather")
 class WeatherPlugin(SparkthPlugin):

@@ -94,6 +94,7 @@ from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.plugins import SparkthPlugin
 
+
 class GraderPlugin(SparkthPlugin):
     def __init__(self, name: str) -> None:
         super().__init__(name)
@@ -152,13 +153,16 @@ from fastapi import Depends
 from sparkth.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_READ
 from sparkth.lib.permissions.scopes import COURSE, WHITELIST
 
+
 # Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
 async def list_things(): ...
 
+
 # Objectless scope — WHITELIST is a singleton, so no scope_param:
 @router.get("/whitelist", dependencies=[Depends(EMAIL_WHITELIST_READ.require(WHITELIST))])
 async def list_whitelist(): ...
+
 
 # Object-bearing scope — pass the PermissionScope object and the path parameter carrying
 # the object id (read from the URL on each request):
