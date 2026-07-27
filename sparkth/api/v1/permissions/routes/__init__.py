@@ -1,12 +1,13 @@
-"""Permissions API router: the assignable-permission listing plus the mounted role sub-router.
+"""Permissions API router: the assignable-permission listing plus the mounted sub-routers.
 
 The router is mounted at ``/permissions``. The permission vocabulary is read here (``GET
-/permissions``); role management lives under ``/permissions/roles`` via the role sub-router.
+/permissions``); role management lives under ``/permissions/roles`` via the role sub-router,
+group management under ``/permissions/groups`` via the group sub-router.
 """
 
 from fastapi import APIRouter, Depends
 
-from sparkth.api.v1.permissions.routes import roles
+from sparkth.api.v1.permissions.routes import groups, roles
 from sparkth.core.permissions.roles import available_permissions
 from sparkth.lib.permissions import PERMISSION_READ
 
@@ -24,3 +25,4 @@ async def list_permissions() -> list[str]:
 
 
 router.include_router(roles.router, prefix="/roles")
+router.include_router(groups.router, prefix="/groups")
