@@ -3,10 +3,10 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Column, UniqueConstraint
 from sqlmodel import Field, Relationship
 
-from sparkth.lib.models import SoftDeleteModel, TimestampedModel
+from sparkth.lib.models import SoftDeleteModel, TimestampedModel, TZDateTime
 
 
 class DriveOAuthToken(TimestampedModel, SoftDeleteModel, table=True):
@@ -19,7 +19,9 @@ class DriveOAuthToken(TimestampedModel, SoftDeleteModel, table=True):
 
     access_token_encrypted: str = Field(max_length=2000)
     refresh_token_encrypted: str = Field(max_length=2000)
-    token_expiry: datetime
+    # timestamptz: the plugin writes aware UTC datetimes and asyncpg rejects
+    # them on a naive timestamp column.
+    token_expiry: datetime = Field(sa_column=Column(TZDateTime(), nullable=False))
     scopes: str = Field(max_length=1000)
 
 
@@ -36,7 +38,7 @@ class DriveFolder(TimestampedModel, SoftDeleteModel, table=True):
     drive_folder_name: str = Field(max_length=500)
     drive_parent_id: Optional[str] = Field(default=None, max_length=255)
 
-    last_synced_at: Optional[datetime] = Field(default=None)
+    last_synced_at: Optional[datetime] = Field(default=None, sa_column=Column(TZDateTime()))
     sync_status: str = Field(default="pending", max_length=50)
     sync_error: Optional[str] = Field(default=None)
 
@@ -57,9 +59,10 @@ class DriveFile(TimestampedModel, SoftDeleteModel, table=True):
     mime_type: Optional[str] = Field(default=None, max_length=255)
     size: Optional[int] = Field(default=None)
     md5_checksum: Optional[str] = Field(default=None, max_length=64)
-    modified_time: Optional[datetime] = Field(default=None)
+    # timestamptz: Google's API reports modified_time as an aware timestamp.
+    modified_time: Optional[datetime] = Field(default=None, sa_column=Column(TZDateTime()))
 
-    last_synced_at: Optional[datetime] = Field(default=None)
+    last_synced_at: Optional[datetime] = Field(default=None, sa_column=Column(TZDateTime()))
 
     # SHA-256 hash of downloaded file contents
     content_hash: Optional[str] = Field(default=None, max_length=64, index=True)

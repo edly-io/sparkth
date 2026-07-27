@@ -8,54 +8,11 @@ Useful URLs:
 - MCP server: `/ai/mcp`
 - Docs: `/docs`
 
-## Tech Stack
-
-**Backend:** Python 3.14, FastAPI, SQLModel (async), PostgreSQL, Redis, Alembic, FastMCP, LangChain (OpenAI/Anthropic/Google), pydantic-settings
-
-**Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, Radix UI, Bun
-
-**Tooling:** uv (Python packages), Ruff (lint/format), mypy strict, pytest + pytest-asyncio, Docker Compose
-
 ## Key Directories
 
 The package has three tiers: `core/` (shared internals plugins depend on), `lib/`
 (the façade to core — the only surface plugins import from, stays outside `core/`),
 and `plugins/` (the built-in plugins).
-
-```
-sparkth/
-  core/          # Shared internals plugins depend on (reached only via sparkth/lib)
-    config.py      # Settings; also encryption.py, security.py (JWT/OAuth), cache.py, db.py, email.py
-    models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
-    plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
-    permissions/   # Scoped-RBAC engine (roles, groups, scopes, defaults)
-    analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema hook (ANALYTICS_EVENTS), schemas (self-describing AnalyticsEventSchema base; plugins register via register_event_schema at import time), gateway (raw_events). Login emits user.logged_in.
-    audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context
-    routes/        # Plugin route-registration helpers
-  lib/           # Curated public façade to core — the only surface plugins import from (see below)
-  plugins/       # Built-in plugins: canvas/, openedx/, chat/, googledrive/, slack/ (each with tests/)
-  api/v1/        # REST endpoints: auth, user, user-plugins, file-parser, events, permissions
-  llm/           # LLM provider abstraction + config service (behind sparkth/lib/llm)
-  mcp/           # FastMCP server, tool registration, prompts/
-  services/      # Business logic layer (email verification, whitelist)
-  rag/           # RAG pipeline: extraction, chunking, storage, agent-driven retrieval, cleanup
-  cli/           # Typer CLI (user and role management)
-  main.py        # FastAPI app assembly + lifespan
-  migrations/
-    app/         # Alembic versions for the main application DB
-    analytics/   # Alembic versions for the separate analytics DB (TimescaleDB)
-
-frontend/
-  app/           # Next.js pages: login, register, dashboard/[pluginName]
-  plugins/       # Plugin UI implementations (chat/, google-drive/)
-  lib/plugins/   # Plugin system: types.ts, registry.ts, context.tsx
-  components/    # Reusable UI components (settings/, ui/)
-
-tests/           # Core / cross-cutting tests: api/, analytics/, core/, llm/, permissions/, rag/, services/
-                 # Plugin tests are co-located (sparkth/plugins/<plugin>/tests/).
-                 # Shared fixtures: sparkth/lib/testing.py. See "Test Layout".
-.github/workflows/ # CI: lint → type-check → test on every PR
-```
 
 ## Public Library (`sparkth/lib/`)
 
@@ -72,57 +29,7 @@ API listing here or in the README; keep the docstrings authoritative.
 
 ## Essential Commands
 
-```bash
-# Backing services (Docker): Postgres, Redis, Mailpit — the backend/frontend run natively
-make services.up     # Start backing services in the background
-make services.down   # Stop service containers
-make services.clean  # Stop services + wipe data volumes
-
-# Local backend (requires uv) — connects to the backing services above
-make backend.install.dev    # Install dev dependencies
-make backend.up.dev         # FastAPI on http://0.0.0.0:7727 (MCP server mounted at /ai/mcp; hot reload)
-make test                   # Run all tests (frontend + backend)
-make test.backend           # Run all backend tests
-make test.backend.pytest    # Run unit tests with pytest
-make test.backend.format    # Run backend formatting tests
-make test.frontend          # Run all frontend tests
-make test.frontend.vitest   # Run unit tests with vitest
-make test.frontend.format   # Run frontend formatting tests
-make test.e2e               # Run Playwright E2E tests against an ephemeral SQLite DB (see README.md)
-make test.e2e.ui            # Run Playwright E2E tests in interactive UI mode
-make test.e2e.install       # Install Playwright browsers (one-time)
-make mypy                   # mypy --strict
-
-# Linting
-make lint                    # Check lint errors (frontend + backend)
-make lint.fix                # Auto-fix lint errors (frontend + backend)
-make lint.format             # Format code (frontend + backend)
-make lint.format check=1     # Dry-run format check (no rewrites)
-make lint.frontend           # Check frontend lint errors (oxlint)
-make lint.backend            # Check backend lint errors (ruff)
-make lint.fix.frontend       # Auto-fix frontend lint errors (oxlint)
-make lint.fix.backend        # Auto-fix backend lint errors (ruff)
-make lint.format.frontend    # Format frontend code (oxfmt)
-make lint.format.backend     # Format backend code (ruff)
-make lint.frontend.react-doctor  # React health check on files changed vs main (CI gate)
-
-# Local frontend
-make frontend.up.dev # Next.js dev server on :3000 (proxies /api to the backend; needs `make backend.up.dev` running)
-make frontend.build  # Static export → frontend/out/ (served by the backend in production)
-make frontend.build.api  # Regenerate frontend/lib/api/generated.ts from the backend OpenAPI schema (run after backend API changes; called automatically by make frontend.build)
-
-# Database
-make migrations         # Apply Alembic migrations for both app and analytics databases (native)
-make analytics-backfill # Full-refresh TimescaleDB continuous aggregates (run once after an analytics migration adds one; no-op on SQLite). Pass -- --name <cagg> to target one
-make services.logs      # Tail logs for the service containers (make services.logs [service])
-make db-shell           # PostgreSQL shell
-make db-shell-analytics  # PostgreSQL shell on the analytics database
-make create-user        # Create user (pass args after --)
-
-# Documentation (mkdocs + mkdocstrings; docs deps in the isolated `docs` group)
-make docs               # Build the docs site (guides + generated Python API reference) to site/
-make docs.serve         # Live-preview the docs site at http://127.0.0.1:8000
-```
+Run `make help` for the full, self-documenting target list.
 
 ## Environment Setup
 
@@ -269,51 +176,6 @@ This rule applies to all layers: API endpoints, services, plugins, MCP tools, an
 3. **Re-raise or not — developer's call.** If the caller can recover or needs to know, re-raise (the original or a domain-specific exception). If the error is fully handled at this level, swallowing is acceptable — but the log entry is still mandatory.
 4. **Never silence exceptions silently.** A bare `except` or `except Exception` with no log is always wrong.
 
-### Examples
-
-```python
-# ✅ Good — specific exception, logged, re-raise is a conscious choice
-from sparkth.lib.log import get_logger
-
-logger = get_logger(__name__)
-
-# Re-raising (caller needs to know)
-try:
-    result = await canvas_client.get_course(course_id)
-except HTTPStatusError as exc:
-    # When you need the full traceback (not just the message):
-    logger.exception("Canvas API error fetching course %s", course_id)
-    # or equivalently:
-    logger.error("Canvas API error fetching course %s: %s", course_id, exc, exc_info=True)
-    raise
-
-# Not re-raising (fully handled here)
-try:
-    await cache.set(key, value)
-except RedisError as exc:
-    logger.warning("Cache write failed for key %s: %s", key, exc)
-    # continue without cache — non-fatal
-
-# ✅ Good — multiple specific exceptions
-try:
-    data = json.loads(raw)
-except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-    logger.error("Failed to parse response payload: %s", exc)
-    raise ValueError("Invalid response format") from exc
-
-# ❌ Bad — bare except, no log
-try:
-    result = await some_service.call()
-except Exception:
-    pass
-
-# ❌ Bad — catches too broadly, replaces with a vague error
-try:
-    result = await some_service.call()
-except Exception as exc:
-    raise RuntimeError("something went wrong") from exc
-```
-
 ### Choosing whether to re-raise
 
 | Situation | Recommendation |
@@ -321,17 +183,6 @@ except Exception as exc:
 | Error is fatal to the current request/operation | Re-raise (original or domain exception) |
 | Error is non-fatal and a fallback exists | Swallow — but log at `warning` or `error` level |
 | Unsure | Re-raise — it's always safer to surface than to hide |
-
-### Finding the right exceptions to catch
-
-- Check the library's documentation or source for declared exceptions.
-- For `httpx` use `httpx.HTTPStatusError`, `httpx.RequestError`.
-- For SQLAlchemy/SQLModel use `sqlalchemy.exc.SQLAlchemyError` and its subclasses.
-- For Redis use `redis.exceptions.RedisError` and its subclasses.
-- For FastAPI/Starlette use `fastapi.HTTPException`, `starlette.exceptions.HTTPException`.
-- For LangChain use `langchain_core.exceptions.LangChainException`, `OutputParserException`, and provider-specific errors.
-- For standard I/O use `OSError`, `FileNotFoundError`, `PermissionError`, etc.
-- For Pydantic use `pydantic.ValidationError`.
 
 ### Domain exceptions → HTTP responses (REST routes)
 
@@ -367,68 +218,12 @@ routes.
    models turn bad input into a `422` before it reaches domain logic — do not hand-validate it
    in the route.
 
-## Commit Messages
+## Commit Messages and Pull Requests
 
-Every commit must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
-enforced by [`commitlint`](.github/workflows/commitlint.yml) on every PR.
-
-```
-<type>[(<scope>)]: <short description>
-
-[optional body — explain WHY, not what]
-```
-
-**Types** (all conventional-commits types are accepted):
-
-| Type | Use for |
-|---|---|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `test` | Adding or correcting tests |
-| `docs` | Documentation only |
-| `chore` | Maintenance tasks (dependency bumps, tooling config, …) |
-| `build` | Changes to the build system or external dependencies |
-| `ci` | Changes to CI configuration files and scripts |
-| `perf` | Performance improvement |
-| `revert` | Reverts a previous commit |
-| `style` | Formatting changes that do not affect meaning |
-
-**Scope** (optional, but recommended for clarity):
-Common scopes: `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are fine when none of these fit (e.g. `auth`, `docker`, `deps`).
-
-**Rules:**
-- Subject line: max 72 chars, lowercase, no trailing period
-- Use imperative mood — "add auth" not "added auth"
-- Body required when change needs context — why was this needed?
-- One logical change per commit — do not bundle unrelated changes
-- Never commit directly to `main`
-
-**Examples:**
-```
-feat(api): add JWT refresh token endpoint
-
-fix(migrations): handle missing plugins table on startup
-
-refactor(rag): extract vectorstore into separate service
-
-test(mcp): add integration tests for tool registration
-
-chore(ci): pin uv version in GitHub Actions
-
-docs: update environment variable reference table
-```
-
-## Pull Request Descriptions
-
-Every PR must use the template in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). It auto-populates on GitHub.
-
-**Rules:**
-- Title: `<type>[(<scope>)]: short description` — max 70 chars, lowercase
-- "What" must name the problem solved, not just the mechanism
-- Every non-trivial code path needs a test step
-- Flag breaking changes and migration requirements explicitly — never bury them
-
+Commit message and PR-description conventions live in the
+[`sparkth-project-management`](.claude/skills/sparkth-project-management/SKILL.md)
+skill. Conventional Commits are enforced by
+[`commitlint`](.github/workflows/commitlint.yml) on every PR. Never commit directly to `main`.
 ## Additional Documentation
 
 | Topic | File |

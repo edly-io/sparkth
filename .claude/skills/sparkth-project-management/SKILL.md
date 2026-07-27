@@ -136,3 +136,49 @@ gh pr create --title "fix(plugins): mount chat_router once via plugin loader" \
 
 If the PR description or any part of it was written with LLM help, include the
 LLM notice described in the "LLM-generated content" section above.
+
+## Commit messages follow Conventional Commits
+
+Every commit must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
+enforced by [`commitlint`](../../../.github/workflows/commitlint.yml) on every PR.
+
+```
+<type>[(<scope>)]: <short description>
+
+[optional body — explain WHY, not what]
+```
+
+All conventional-commits types are accepted (`feat`, `fix`, `refactor`, `test`,
+`docs`, `chore`, `build`, `ci`, `perf`, `revert`, `style`).
+
+**Scope** (optional, but recommended for clarity):
+Common scopes: `api` | `frontend` | `plugins` | `rag` | `mcp` | `migrations` | `ci` | `core` — custom scopes are fine when none of these fit (e.g. `auth`, `docker`, `deps`).
+
+**Rules:**
+- Subject line: max 72 chars, lowercase, no trailing period
+- Use imperative mood — "add auth" not "added auth"
+- Body required when change needs context — why was this needed?
+- One logical change per commit — do not bundle unrelated changes
+- Never commit directly to `main`
+
+**Examples:**
+```
+feat(api): add JWT refresh token endpoint
+
+fix(migrations): handle missing plugins table on startup
+
+refactor(rag): extract vectorstore into separate service
+
+test(mcp): add integration tests for tool registration
+
+chore(ci): pin uv version in GitHub Actions
+
+docs: update environment variable reference table
+```
+
+## Pull request titles and content rules
+
+- Title: `<type>[(<scope>)]: short description` — max 70 chars, lowercase
+- "What" must name the problem solved, not just the mechanism
+- Every non-trivial code path needs a test step
+- Flag breaking changes and migration requirements explicitly — never bury them

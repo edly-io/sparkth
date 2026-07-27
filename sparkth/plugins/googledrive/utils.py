@@ -243,6 +243,16 @@ async def _process_single_file(
         await session.refresh(drive_file)
         await update_document_status(session, document_id, DocumentStatus.FAILED, "Database integrity error")
         await session.commit()
+    except Exception as exc:
+        # Deliberate lifecycle backstop, not lazy catching: PROCESSING was committed
+        # before ingestion, and later syncs skip in-flight documents, so any unexpected
+        # error escaping here would wedge the document in PROCESSING forever. The
+        # folder-level gather only logs — it cannot fix the status. Roll back the
+        # partial work, record the failure, and swallow (fully handled here).
+        logger.exception("Unexpected error while processing '%s': %s", log_name, exc)
+        await session.rollback()
+        await update_document_status(session, document_id, DocumentStatus.FAILED, "Processing failed")
+        await session.commit()
     finally:
         session.expunge_all()
         gc.collect()
@@ -254,10 +264,20 @@ async def _process_with_semaphore(
     access_token: str,
     semaphore: asyncio.Semaphore,
 ) -> None:
-    """Process one file with semaphore-based concurrency control."""
+    """Process one file with semaphore-based concurrency control.
+
+    Re-fetches the DriveFile inside the per-file session: the caller's
+    instances come from a session that is already closed, and a detached
+    instance cannot be refreshed or flushed here.
+    """
     async with semaphore:
         async with session_scope() as file_session:
-            await _process_single_file(drive_file, user_id, access_token, file_session)
+            result = await file_session.exec(select(DriveFile).where(col(DriveFile.id) == drive_file.id))
+            bound_file = result.first()
+            if bound_file is None:
+                logger.warning("Drive file %s disappeared before RAG processing.", drive_file.id)
+                return
+            await _process_single_file(bound_file, user_id, access_token, file_session)
         gc.collect()
         if sys.platform == "linux":
             try:
