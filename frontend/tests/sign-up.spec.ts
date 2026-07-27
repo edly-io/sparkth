@@ -63,7 +63,10 @@ test.describe("sign up", () => {
 
     // The user can now log in.
     await logInViaUi(page, user.username, user.password);
-    await expect(page).toHaveURL(/\/dashboard|\/$/);
+    // Leaving /login is the observable success signal; a trailing-"/" pattern
+    // would match the login page itself (`trailingSlash: true`) and assert
+    // nothing. See the same note in login.spec.ts.
+    await expect(page).not.toHaveURL(/\/login/);
   });
 });
 
