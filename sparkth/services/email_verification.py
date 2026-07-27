@@ -147,5 +147,5 @@ async def send_verification_email(*, to: str, name: str, raw_token: str) -> None
             html_body=html_body,
             text_body=text_body,
         )
-    except (RuntimeError, aiosmtplib.SMTPException):
+    except RuntimeError, aiosmtplib.SMTPException:
         logger.exception("Failed to send verification email to %s", to)

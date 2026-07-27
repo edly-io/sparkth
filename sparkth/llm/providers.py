@@ -29,7 +29,7 @@ def serialize_result(result: Any) -> str:
     if isinstance(result, (dict, list)):
         try:
             return json.dumps(result, indent=2, default=str)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return str(result)
     return str(result)
 
