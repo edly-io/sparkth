@@ -40,6 +40,16 @@ async def test_duplicate_sibling_name_is_rejected(session: AsyncSession) -> None
             session.add(OrgUnit(name="CS Dept", parent_id=root.id, path="/1/3/"))
 
 
+async def test_duplicate_root_name_is_rejected(session: AsyncSession) -> None:
+    # Two roots share parent_id NULL; coalesce(parent_id, 0) in the unique index makes
+    # them collide despite SQL's NULL-is-distinct semantics.
+    session.add(OrgUnit(name="University X", path="/1/"))
+    await session.flush()
+    with pytest.raises(IntegrityError):
+        async with session.begin_nested():
+            session.add(OrgUnit(name="University X", path="/2/"))
+
+
 async def test_same_name_under_different_parents_is_allowed(session: AsyncSession) -> None:
     a = OrgUnit(name="Faculty A", path="")
     b = OrgUnit(name="Faculty B", path="")

@@ -116,6 +116,7 @@ async def move_org_unit(unit_id: int, new_parent_id: int | None, session: AsyncS
     # leaving them expired for whichever caller touches them next — identified via
     # expired_attributes so this never itself reads a possibly-expired column, and never
     # disturbing unrelated objects (like the new parent) that the rewrite didn't touch.
+    # Session-wide by design: fetch-sync already limited expiry to UPDATE-touched rows, so filtering more is redundant.
     for loaded in session.identity_map.values():
         if not isinstance(loaded, OrgUnit):
             continue
