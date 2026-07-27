@@ -76,7 +76,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with plugin_lifespan():
             logger.info("Registering MCP tools from plugins...")
             register_plugin_tools()
-            all_tools = await asyncio.create_task(mcp.get_tools())
+            all_tools = await asyncio.create_task(mcp.list_tools())
             logger.info(f"MCP server ready with {len(all_tools)} total tool(s) registered")
 
             # Mount frontend static files AFTER plugin routes are registered,
