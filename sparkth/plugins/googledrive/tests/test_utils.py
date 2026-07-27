@@ -424,6 +424,31 @@ class TestProcessFolderRag:
         assert document is not None
         assert document.status == DocumentStatus.READY
 
+    async def test_unexpected_error_marks_document_failed(self, session: AsyncSession) -> None:
+        """An exception type outside the specific catch list must still end the document
+        in FAILED. PROCESSING is committed before ingestion, and later syncs skip
+        in-flight documents, so an escaping error would wedge the document forever."""
+        await self._seed_folder(
+            session,
+            _make_drive_file(file_id=1, document_id=10),
+            documents=[Document(id=10, user_id=1, name="wedge.pdf", status=DocumentStatus.FAILED)],
+        )
+
+        with (
+            patch("sparkth.plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"%PDF-1.4\n")),
+            patch(
+                "sparkth.plugins.googledrive.utils.ingest_document",
+                new=AsyncMock(side_effect=KeyError("unexpected")),
+            ),
+        ):
+            await process_folder_rag(1, user_id=1, access_token="tok")
+
+        session.expire_all()
+        document = (await session.exec(select(Document).where(col(Document.id) == 10))).first()
+        assert document is not None
+        assert document.status == DocumentStatus.FAILED
+        assert document.error == "Processing failed"
+
     @patch("sparkth.plugins.googledrive.utils._process_single_file")
     async def test_skips_ready_and_processing_files(self, mock_process: AsyncMock, session: AsyncSession) -> None:
         await self._seed_folder(
