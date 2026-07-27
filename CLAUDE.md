@@ -28,7 +28,7 @@ sparkth/
     config.py      # Settings; also encryption.py, security.py (JWT/OAuth), cache.py, db.py, email.py
     models/        # SQLModel DB models (base.py has TimestampedModel, SoftDeleteModel)
     plugins/       # Plugin framework: base.py (SparkthPlugin), loader.py, middleware.py, service.py (PluginService)
-    permissions/   # Scoped-RBAC engine (roles, scopes, defaults)
+    permissions/   # Scoped-RBAC engine (roles, groups, scopes, defaults)
     analytics/     # Analytics DB + emission gateway write path: engine/sessions, metadata registry, event schema hook (ANALYTICS_EVENTS), schemas (self-describing AnalyticsEventSchema base; plugins register via register_event_schema at import time), gateway (raw_events). Login emits user.logged_in.
     audit/         # Append-only audit trail: event classes, recorder, redaction, canonical bytes, request context
     routes/        # Plugin route-registration helpers

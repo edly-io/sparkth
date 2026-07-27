@@ -190,6 +190,15 @@ flags such as `REGISTRATION_ENABLED`, and the
 [user management guide](docs/guides/user-management.md) for creating users and resetting
 passwords.
 
+## Permissions
+
+Sparkth authorizes actions with a scoped role-based access control (RBAC) model: roles bundle
+permissions and are granted at scopes (platform-wide or per-object), to individual users or to
+**groups** — flat, named sets of users whose members all inherit the group's role grants, so
+bulk access is one grant instead of one assignment per user. Roles and groups are managed
+through the REST API under `/api/v1/permissions`; user-role assignment and group membership
+are managed via the CLI. See the [permissions guide](docs/guides/permissions.md).
+
 ## Audit Trail
 
 Sparkth keeps an append-only audit trail of security-relevant and AI actions: who did what, when,
