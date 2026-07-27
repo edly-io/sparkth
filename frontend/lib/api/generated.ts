@@ -1124,18 +1124,12 @@ export interface components {
         };
         /** Body_upload_file_api_v1_google_drive_folders__folder_id__files_post */
         Body_upload_file_api_v1_google_drive_folders__folder_id__files_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_text_api_v1_parser_upload_post */
         Body_upload_text_api_v1_parser_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** BotResponseLogItem */
@@ -1937,6 +1931,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
