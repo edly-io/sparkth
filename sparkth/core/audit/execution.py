@@ -1,9 +1,12 @@
 """Audited execution of AI tool handlers.
 
-The single wrapper every tool-execution path goes through (ADR-0002 seam
-table): plugin tools are wrapped at :class:`sparkth.lib.mcp.hooks.Tool`
-construction, the RAG agent tools and the FastMCP server's directly-registered
-tools wrap explicitly. Failure semantics are fail-closed (NIST AU-5): a
+The wrapper for tool-execution paths that call handlers directly (ADR-0002
+seam table): plugin tools are wrapped at :class:`sparkth.lib.mcp.hooks.Tool`
+construction and the FastMCP server's directly-registered tools wrap
+explicitly. Tools executed through LangChain (the RAG search agent's) carry
+no wrapping; the process-global callback handler in
+:mod:`sparkth.core.audit.callbacks` records those runs instead. Failure
+semantics are fail-closed (NIST AU-5): a
 ``tool.invoked`` event is committed *before* the handler runs, so a write
 failure refuses the call (surfaced as the distinct
 :class:`~sparkth.core.audit.exceptions.AuditCaptureError` so execution seams

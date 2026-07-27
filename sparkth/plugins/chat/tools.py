@@ -6,6 +6,7 @@ from typing import Any, get_type_hints
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
+from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 
@@ -209,12 +210,16 @@ class ToolRegistry:
                 logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
                 return f"Error executing tool: {str(e)}"
 
+        # The handler is already audit-wrapped (it comes from the MCP_TOOLS
+        # hook), so the tag tells the process-global LangChain audit callback
+        # to skip these runs rather than record them a second time.
         return StructuredTool(
             name=name,
             description=description,
             func=sync_tool_func,
             coroutine=tool_func,
             args_schema=args_schema,
+            tags=[AUDIT_AT_HANDLER_TAG],
         )
 
     def _convert_args_to_handler_types(self, args: dict[str, Any], handler_hints: dict[str, Any]) -> dict[str, Any]:

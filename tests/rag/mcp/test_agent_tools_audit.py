@@ -1,6 +1,6 @@
-"""The RAG agent tools bypass ``Tool.handler`` (they are built as LangChain
-``StructuredTool``s directly), so they are routed through the same audited
-wrapper explicitly, and the agent runner stamps the ``rag`` source."""
+"""The RAG agent tools are plain coroutines built as LangChain
+``StructuredTool``s: their executions are recorded by the process-global
+audit callback handler, and the agent runner stamps the ``rag`` source."""
 
 from typing import Any
 from unittest.mock import AsyncMock, patch
