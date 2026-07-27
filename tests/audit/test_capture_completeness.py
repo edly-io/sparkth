@@ -44,11 +44,11 @@ class TestFastMCPServerCoverage:
     async def test_every_registered_server_tool_is_audited(self) -> None:
         """Covers tools registered directly on the server (bypassing the
         MCP_TOOLS hook), e.g. get_course_generation_prompt_tool."""
-        tools = await mcp.get_tools()
+        tools = await mcp.list_tools()
         assert tools, "expected at least the course-generation tool"
         # FunctionTool.fn is the registered callable; getattr keeps the check
         # honest for any future tool subclass without a wrapped function.
-        unaudited = [name for name, tool in tools.items() if not _is_audited(getattr(tool, "fn", None))]
+        unaudited = [tool.name for tool in tools if not _is_audited(getattr(tool, "fn", None))]
         assert unaudited == []
 
     def test_server_records_protocol_level_failures(self) -> None:

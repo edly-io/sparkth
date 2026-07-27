@@ -11,7 +11,7 @@ import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import CallNext, MiddlewareContext
-from fastmcp.tools.tool import ToolResult
+from fastmcp.tools import ToolResult
 from sqlalchemy.exc import OperationalError
 
 from sparkth.lib.audit import audited_tool
