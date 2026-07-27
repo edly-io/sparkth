@@ -9,8 +9,36 @@ from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
 from sparkth.rag.exceptions import RAGRetrievalError
-from sparkth.rag.retrieval.agent import run_agentic_rag_retrieval
+from sparkth.rag.retrieval.agent import _llm_model_info, run_agentic_rag_retrieval
 from sparkth.rag.schemas import RAGSearchAgentResponse, SectionRef
+
+
+class TestLLMModelInfo:
+    """Model identity comes from LangChain's standardized tracing params."""
+
+    def test_reads_provider_and_model_from_ls_params(self) -> None:
+        from langchain_anthropic import ChatAnthropic
+        from pydantic import SecretStr
+
+        info = _llm_model_info(ChatAnthropic(anthropic_api_key=SecretStr("test"), model="claude-sonnet-5"))
+
+        assert info is not None
+        assert info.provider == "anthropic"
+        assert info.name == "claude-sonnet-5"
+
+    def test_records_langchain_provider_spelling_verbatim(self) -> None:
+        """The provider is evidence of what actually ran, recorded as LangChain
+        reports it (google_genai, not our registry's google)."""
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        info = _llm_model_info(ChatGoogleGenerativeAI(google_api_key="test", model="gemini-2.5-pro"))
+
+        assert info is not None
+        assert info.provider == "google_genai"
+        assert info.name == "gemini-2.5-pro"
+
+    def test_returns_none_for_a_non_langchain_object(self) -> None:
+        assert _llm_model_info(object()) is None
 
 
 def _make_validation_error() -> ValidationError:

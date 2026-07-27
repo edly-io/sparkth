@@ -195,7 +195,10 @@ passwords.
 Sparkth keeps an append-only audit trail of security-relevant and AI actions: who did what, when,
 from where, and with what effect. The implementation lives in `sparkth/core/audit/` with its public
 API in `sparkth/lib/audit/`; unlike analytics (best-effort), audit writes are fail-closed, so a
-mutating or AI action whose audit record cannot be written does not proceed.
+mutating or AI action whose audit record cannot be written does not proceed. Every AI tool
+execution, on every surface (the MCP server, chat, RAG), is recorded as a `tool.invoked` event
+committed before the handler runs plus a `tool.completed` or `tool.failed` outcome event, with
+redacted arguments and the model identity that drove the call.
 
 ## Analytics Event Schemas
 

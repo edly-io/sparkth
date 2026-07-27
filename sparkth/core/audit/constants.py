@@ -36,5 +36,16 @@ SECRET_KEYS = frozenset(
     }
 )
 
+# Upper bound on the persisted error_detail string. Exception messages can
+# embed arbitrarily large echoed inputs (a Pydantic error over a megabyte
+# payload); the audit row needs the failure's shape, not the full payload.
+MAX_ERROR_DETAIL_LENGTH = 1000
+
 # Default actor recorded when neither the event nor the context names one.
 ANONYMOUS_ACTOR = AnonymousActor()
+
+# Target type carried by the tool.invoked / tool.completed / tool.failed pair.
+# Both events of one execution share a generated target id, so an invocation
+# whose process crashed mid-execution is detectable as an invoked event with
+# no matching outcome event.
+TOOL_INVOCATION_TARGET_TYPE = "tool_invocation"

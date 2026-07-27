@@ -140,3 +140,33 @@ class LoginAuditEvent(BaseAuditEvent):
     """An authentication attempt: success, bad credentials, or denied."""
 
     event_type: ClassVar[str] = "auth.login"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ToolInvokedAuditEvent(AIActionAuditEvent):
+    """An AI tool call accepted for execution.
+
+    Committed *before* the handler runs (ADR-0002 fail-closed semantics): if
+    this event cannot be written, the tool call is refused. ``target`` carries
+    the generated invocation id shared with the outcome event.
+    """
+
+    event_type: ClassVar[str] = "tool.invoked"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ToolCompletedAuditEvent(AIActionAuditEvent):
+    """An AI tool call whose handler returned normally."""
+
+    event_type: ClassVar[str] = "tool.completed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ToolFailedAuditEvent(AIActionAuditEvent):
+    """An AI tool call whose handler raised, or that failed before reaching
+    a handler (protocol-level: unknown tool, input validation)."""
+
+    event_type: ClassVar[str] = "tool.failed"
