@@ -10,19 +10,24 @@ interface MobileSidebarProps {
     email?: string;
     avatar?: string;
     plan?: string;
-    is_admin?: boolean;
-    canViewAnalytics?: boolean;
   };
+  navPermissions?: Record<string, boolean>;
   onLogout?: () => void;
 }
 
-export default function MobileSidebar({ user, onLogout }: MobileSidebarProps) {
+export default function MobileSidebar({ user, navPermissions, onLogout }: MobileSidebarProps) {
   const { isOpen, close } = useSidebar();
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && close()}>
       <SheetContent side="left" className="p-0 w-64" hideCloseButton>
-        <AppSidebar user={user} onLogout={onLogout} variant="mobile" onNavigate={close} />
+        <AppSidebar
+          user={user}
+          navPermissions={navPermissions}
+          onLogout={onLogout}
+          variant="mobile"
+          onNavigate={close}
+        />
       </SheetContent>
     </Sheet>
   );
