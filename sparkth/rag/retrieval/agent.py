@@ -36,7 +36,7 @@ def _llm_model_info(llm: Any) -> AuditModelInfo | None:
     """
     try:
         params: Mapping[str, Any] = llm._get_ls_params()
-    except (AttributeError, TypeError):
+    except AttributeError, TypeError:
         return None
     name = params.get("ls_model_name")
     if not isinstance(name, str):
