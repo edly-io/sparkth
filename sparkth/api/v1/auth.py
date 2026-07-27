@@ -338,7 +338,7 @@ async def _get_resend_redis() -> AsyncIterator[Any]:
 
     Tests override this with a fake context manager.
     """
-    redis = aioredis.from_url(  # type: ignore[no-untyped-call]
+    redis = aioredis.from_url(
         settings.REDIS_URL,
         encoding="utf-8",
         decode_responses=True,

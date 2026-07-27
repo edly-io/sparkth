@@ -21,7 +21,7 @@ class CacheService:
     async def connect(self) -> None:
         if self._redis is None:
             try:
-                self._redis = await aioredis.from_url(  # type: ignore[no-untyped-call]
+                self._redis = await aioredis.from_url(
                     self.redis_url,
                     encoding="utf-8",
                     decode_responses=True,

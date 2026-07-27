@@ -131,7 +131,7 @@ class ToolRegistry:
                 param_name = next(iter(params))
                 param_type = handler_hints.get(param_name)
                 if param_type and isinstance(param_type, type) and issubclass(param_type, BaseModel):
-                    return param_type  # type: ignore[no-any-return]
+                    return param_type
 
             # Multiple parameters → build a dynamic model preserving original types
             field_definitions: dict[str, Any] = {}
