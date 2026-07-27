@@ -8,6 +8,17 @@ import pytest
 from sparkth.memory_profiler import log_memory_snapshot, profile_memory
 
 
+def _memprof_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """MEMPROF lines emitted to the console logger.
+
+    Scoped to the console logger on purpose: the profiler also mirrors every
+    line to the non-propagating "sparkth.memory_profiler.file" sink, and since
+    pytest 9.1 caplog attaches itself to non-propagating loggers too, so an
+    unfiltered caplog sees each line twice.
+    """
+    return [r.message for r in caplog.records if r.name == "sparkth.memory_profiler" and "MEMPROF" in r.message]
+
+
 def _make_settings(enabled: bool) -> object:
     """Create a lightweight settings stub with MEMORY_PROFILING_ENABLED."""
 
@@ -48,7 +59,7 @@ class TestProfileMemoryDisabled:
             async with profile_memory("test_stage"):
                 pass
 
-        assert not any("MEMPROF" in r.message for r in caplog.records)
+        assert not _memprof_lines(caplog)
 
     async def test_block_still_executes_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
@@ -74,7 +85,7 @@ class TestProfileMemoryEnabled:
             async with profile_memory("test_stage", file="doc.pdf"):
                 pass
 
-        memprof_lines = [r.message for r in caplog.records if "MEMPROF" in r.message]
+        memprof_lines = _memprof_lines(caplog)
         assert len(memprof_lines) == 1
         line = memprof_lines[0]
 
@@ -98,7 +109,7 @@ class TestProfileMemoryEnabled:
             async with profile_memory("test_stage", file=None):
                 pass
 
-        memprof_lines = [r.message for r in caplog.records if "MEMPROF" in r.message]
+        memprof_lines = _memprof_lines(caplog)
         assert len(memprof_lines) == 1
         assert "file=-" in memprof_lines[0]
 
@@ -116,7 +127,7 @@ class TestProfileMemoryExceptionHandling:
                 async with profile_memory("failing_stage"):
                     raise ValueError("boom")
 
-        memprof_lines = [r.message for r in caplog.records if "MEMPROF" in r.message]
+        memprof_lines = _memprof_lines(caplog)
         assert len(memprof_lines) == 1
         assert "stage=failing_stage" in memprof_lines[0]
 
@@ -136,7 +147,7 @@ class TestNestedProfileMemory:
                 async with profile_memory("inner"):
                     pass
 
-        memprof_lines = [r.message for r in caplog.records if "MEMPROF" in r.message]
+        memprof_lines = _memprof_lines(caplog)
         assert len(memprof_lines) == 2
         stages = [line.split("stage=")[1].split()[0] for line in memprof_lines]
         assert "inner" in stages
@@ -155,7 +166,7 @@ class TestNestedProfileMemory:
                 async with profile_memory("inner"):
                     pass
 
-        memprof_lines = [r.message for r in caplog.records if "MEMPROF" in r.message]
+        memprof_lines = _memprof_lines(caplog)
         assert len(memprof_lines) == 2
 
         # Inner line is emitted first (inner exits first)
@@ -200,7 +211,7 @@ class TestLogMemorySnapshot:
         with caplog.at_level(logging.INFO):
             log_memory_snapshot("test_snap")
 
-        assert not any("MEMPROF" in r.message for r in caplog.records)
+        assert not _memprof_lines(caplog)
 
     def test_emits_snapshot_when_enabled(
         self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -212,7 +223,7 @@ class TestLogMemorySnapshot:
         with caplog.at_level(logging.INFO):
             log_memory_snapshot("test_snap", extra_key="val")
 
-        memprof_lines = [r.message for r in caplog.records if "MEMPROF" in r.message]
+        memprof_lines = _memprof_lines(caplog)
         assert len(memprof_lines) == 1
         line = memprof_lines[0]
         assert "snapshot" in line
