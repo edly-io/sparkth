@@ -19,8 +19,10 @@ from collections.abc import Awaitable, Callable
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel.sql.expression import SelectOfScalar
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import PermissionNotFound, RoleNotFound
@@ -145,36 +147,57 @@ PERMISSION_READ = Permission.create("permission.read")
 ANALYTICS_READ = Permission.create("analytics.read")
 
 
-def _active_assignment_at_scope(
-    user_id: int | None,
+def _scope_clause(
+    scope_column: Mapped[str],
+    object_id_column: Mapped[str | None],
     permission_scope: PermissionScope,
     scope_object_id: str | None,
-) -> tuple[ColumnElement[bool], ...]:
-    """WHERE clauses selecting a user's active assignments that satisfy a check at one scope,
-    honouring the scope hierarchy.
+) -> ColumnElement[bool]:
+    """WHERE clause matching an assignment table's (scope, object id) columns against the
+    pairs a grant may occupy to satisfy a check at ``permission_scope``.
 
-    The (scope, object_id) pairs a grant may occupy come from ``PermissionScope.scope_chain`` —
-    the scope itself plus any ancestor that cascades (objectless ancestors cascade with a NULL id;
-    object-bearing ancestors need a materialized path and are deferred, see issue #420 Phase 2).
+    The pairs come from ``PermissionScope.scope_chain`` — the scope itself plus any ancestor
+    that cascades (objectless ancestors cascade with a NULL id; object-bearing ancestors need
+    a materialized path and are deferred, see issue #420 Phase 2).
 
-    Shared by the read-side checks (``can`` and ``has_role``). The write operations
-    (``assign_role``, ``revoke_role``) target the exact assignment row and must NOT use this —
-    they never cascade to ancestor scopes.
+    Read-side only (``can`` / ``has_role``). The write operations (``assign_role``,
+    ``revoke_role``) target the exact assignment row and must NOT use this — they never
+    cascade to ancestor scopes.
     """
-    scope_clause = or_(
+    return or_(
         *(
-            and_(
-                col(RoleAssignment.scope) == name,
-                col(RoleAssignment.scope_object_id) == object_id,
-            )
+            and_(scope_column == name, object_id_column == object_id)
             for name, object_id in permission_scope.scope_chain(scope_object_id)
         )
     )
-    return (
+
+
+def _user_role_ids_at_scope(
+    user_id: int | None,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None,
+) -> SelectOfScalar[int]:
+    """Subquery of role ids the user holds via their own active assignments at the scope."""
+    return select(RoleAssignment.role_id).where(
         col(RoleAssignment.user_id) == user_id,
         col(RoleAssignment.is_deleted) == False,
-        scope_clause,
+        _scope_clause(
+            col(RoleAssignment.scope),
+            col(RoleAssignment.scope_object_id),
+            permission_scope,
+            scope_object_id,
+        ),
     )
+
+
+def _granted_role_ids_clause(
+    role_id_column: Mapped[int] | Mapped[int | None],
+    user_id: int | None,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None,
+) -> ColumnElement[bool]:
+    """Whether ``role_id_column`` is a role the user holds at the scope."""
+    return role_id_column.in_(_user_role_ids_at_scope(user_id, permission_scope, scope_object_id))
 
 
 async def _find_active_assignment(
@@ -209,10 +232,9 @@ async def can(
     """Return whether user holds permission at the given permission scope."""
     statement = (
         select(RolePermission.permission)
-        .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))
         .where(
-            *_active_assignment_at_scope(user.id, permission_scope, scope_object_id),
             RolePermission.permission == permission.name,
+            _granted_role_ids_clause(col(RolePermission.role_id), user.id, permission_scope, scope_object_id),
         )
         .limit(1)
     )
@@ -229,11 +251,10 @@ async def has_role(
 ) -> bool:
     """Return whether user holds an active assignment of role_name at the given permission scope."""
     statement = (
-        select(RoleAssignment.id)
-        .join(Role, col(Role.id) == col(RoleAssignment.role_id))
+        select(Role.id)
         .where(
-            *_active_assignment_at_scope(user.id, permission_scope, scope_object_id),
             Role.name == role_name,
+            _granted_role_ids_clause(col(Role.id), user.id, permission_scope, scope_object_id),
         )
         .limit(1)
     )
