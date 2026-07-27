@@ -9,6 +9,9 @@ from sparkth.core.audit.models import AuditEvent  # noqa: F401
 from sparkth.core.config import get_settings
 from sparkth.core.models import *  # noqa: F403
 
+# Imported so SQLModel.metadata carries the org-tree tables for autogenerate.
+from sparkth.core.org.models import OrgMembership, OrgUnit  # noqa: F401
+
 # Imported so SQLModel.metadata carries the permission tables for autogenerate.
 from sparkth.core.permissions.models import (  # noqa: F401
     Role,
