@@ -39,7 +39,15 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_organizational_unit_name"), "organizational_unit", ["name"], unique=False)
     op.create_index(op.f("ix_organizational_unit_parent_id"), "organizational_unit", ["parent_id"], unique=False)
-    op.create_index(op.f("ix_organizational_unit_path"), "organizational_unit", ["path"], unique=False)
+    # varchar_pattern_ops so the Postgres btree serves LIKE-prefix descendant lookups
+    # (ignored on other dialects).
+    op.create_index(
+        op.f("ix_organizational_unit_path"),
+        "organizational_unit",
+        ["path"],
+        unique=False,
+        postgresql_ops={"path": "varchar_pattern_ops"},
+    )
     op.create_index(
         "uq_organizational_unit_sibling_name",
         "organizational_unit",

@@ -8,6 +8,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.organization.models import OrganizationalUnit, OrganizationMembership
 
 
+def test_path_index_uses_varchar_pattern_ops() -> None:
+    # Postgres btree under a non-C collation cannot serve LIKE 'prefix%'; without
+    # varchar_pattern_ops the descendant lookups would seq-scan in production.
+    table = OrganizationalUnit.metadata.tables["organizational_unit"]
+    index = next(ix for ix in table.indexes if ix.name == "ix_organizational_unit_path")
+    assert index.dialect_options["postgresql"]["ops"] == {"path": "varchar_pattern_ops"}
+
+
 async def test_organizational_unit_round_trips(session: AsyncSession) -> None:
     unit = OrganizationalUnit(name="University X", kind="university", path="")
     session.add(unit)

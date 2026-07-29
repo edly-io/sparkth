@@ -25,6 +25,14 @@ class OrganizationalUnit(TimestampedModel, table=True):
             text("coalesce(parent_id, 0)"),
             unique=True,
         ),
+        # varchar_pattern_ops so the Postgres btree serves the LIKE-prefix descendant
+        # lookups — under a non-C collation a plain btree cannot, and every subtree
+        # query would seq-scan. A no-op on SQLite.
+        Index(
+            "ix_organizational_unit_path",
+            "path",
+            postgresql_ops={"path": "varchar_pattern_ops"},
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -33,7 +41,7 @@ class OrganizationalUnit(TimestampedModel, table=True):
     # never engine input; institutions disagree on structure, so no level enum.
     kind: str | None = Field(default=None, max_length=50)
     parent_id: int | None = Field(default=None, foreign_key="organizational_unit.id", index=True)
-    path: str = Field(max_length=500, index=True)
+    path: str = Field(max_length=500)
 
 
 class OrganizationMembership(TimestampedModel, SoftDeleteModel, table=True):

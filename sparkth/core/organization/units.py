@@ -6,7 +6,7 @@ parent, ``move_organizational_unit`` rewrites the moved subtree in one UPDATE. N
 the permission engine — the tree is inert data. Authored with LLM (Claude) assistance.
 """
 
-from sqlalchemy import func, inspect, update
+from sqlalchemy import delete, func, inspect, update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -113,18 +113,11 @@ async def move_organizational_unit(
         .where(col(OrganizationalUnit.path).startswith(old_prefix))
         .values(path=new_prefix + func.substr(OrganizationalUnit.path, len(old_prefix) + 1))
     )
-    # The UPDATE's SET clause is SQL-side (func.substr), so SQLAlchemy's automatic
-    # synchronize_session="fetch" fallback (triggered because that clause isn't
-    # Python-evaluable) only partially expires the `path` attribute on matched in-session
-    # objects — e.g. a descendant loaded earlier in this session — rather than the whole
-    # instance. A bare session.get() only re-queries when the *whole* instance is expired,
-    # so a partially-expired object would be handed back unchanged, and the first plain
-    # `.path` access on it would attempt an illegal sync lazy-load under AsyncSession.
-    # Refresh exactly those affected objects now, inside this function, rather than
-    # leaving them expired for whichever caller touches them next — identified via
-    # expired_attributes so this never itself reads a possibly-expired column, and never
-    # disturbing unrelated objects (like the new parent) that the rewrite didn't touch.
-    # Session-wide by design: fetch-sync already limited expiry to UPDATE-touched rows, so filtering more is redundant.
+    # The SQL-side SET clause makes fetch-sync expire `path` on UPDATE-touched in-session
+    # units; under AsyncSession the next plain attribute access on them would raise
+    # (MissingGreenlet) instead of lazy-loading. Refresh exactly those units here so
+    # callers never inherit expired objects. (synchronize_session=False + expire_all is
+    # not equivalent: it expires everything, pushing that same failure onto every caller.)
     for loaded in session.identity_map.values():
         if not isinstance(loaded, OrganizationalUnit):
             continue
@@ -159,11 +152,9 @@ async def delete_organizational_unit(unit_id: int, session: AsyncSession) -> Non
     ).first()
     if active_member is not None:
         raise OrganizationalUnitInUse(unit_id)
-    for membership in (
-        await session.exec(
-            select(OrganizationMembership).where(OrganizationMembership.organizational_unit_id == unit_id)
-        )
-    ).all():
-        await session.delete(membership)
+    # Historical membership rows go in one bulk statement (same pattern as delete_group).
+    await session.execute(
+        delete(OrganizationMembership).where(col(OrganizationMembership.organizational_unit_id) == unit_id)
+    )
     await session.delete(unit)
     await session.commit()
