@@ -144,5 +144,7 @@ async def test_login_activity_endpoint_forbidden_without_permission(
 
 
 async def test_login_activity_endpoint_requires_authentication(client: AsyncClient) -> None:
+    # Missing credentials are a 401 (not a 403): FastAPI 0.140 corrected the
+    # security dependencies to answer per RFC 9110 with WWW-Authenticate.
     response = await client.get(URL, params={"days": 30})
-    assert response.status_code == 403
+    assert response.status_code == 401

@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 from starlette.routing import Mount
 
 from sparkth.core.config import get_settings
@@ -19,7 +19,18 @@ PLUGIN_SENTINEL_PATHS = [
 
 
 def _route_paths(application: FastAPI) -> set[str]:
-    return {route.path for route in application.routes if isinstance(route, APIRoute)}
+    """Every APIRoute path, prefixes applied.
+
+    Since FastAPI 0.140 include_router() no longer copies the sub-routes into
+    application.routes: it appends a single lazy _IncludedRouter branch instead.
+    iter_route_contexts flattens those branches back into per-route contexts
+    whose .path carries the include prefix.
+    """
+    return {
+        context.path
+        for context in iter_route_contexts(application.routes)
+        if isinstance(context.original_route, APIRoute) and context.path is not None
+    }
 
 
 def test_assemble_app_includes_core_routes() -> None:

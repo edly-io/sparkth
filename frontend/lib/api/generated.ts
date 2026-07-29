@@ -671,6 +671,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/permissions/can": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Permission
+         * @description Return whether the current user holds ``permission`` at the given scope.
+         *
+         *     A self-check any authenticated user may call about their own grants. It is not a security
+         *     boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
+         *     precisely. The permission and scope names are resolved against the registered vocabulary
+         *     (unknown → 422) and the decision is delegated to the engine's ``can()``.
+         */
+        get: operations["check_permission_api_v1_permissions_can_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/groups": {
         parameters: {
             query?: never;
@@ -1176,18 +1201,12 @@ export interface components {
         };
         /** Body_upload_file_api_v1_google_drive_folders__folder_id__files_post */
         Body_upload_file_api_v1_google_drive_folders__folder_id__files_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_text_api_v1_parser_upload_post */
         Body_upload_text_api_v1_parser_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** BotResponseLogItem */
@@ -1796,6 +1815,11 @@ export interface components {
              */
             total: number;
         };
+        /** PermissionCheckResponse */
+        PermissionCheckResponse: {
+            /** Allowed */
+            allowed: boolean;
+        };
         /** ProviderCatalogResponse */
         ProviderCatalogResponse: {
             /** Default Model */
@@ -2012,6 +2036,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -3347,6 +3375,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+        };
+    };
+    check_permission_api_v1_permissions_can_get: {
+        parameters: {
+            query: {
+                /** @description Permission name to check, e.g. 'analytics.read'. */
+                permission: string;
+                /** @description Scope kind to check at (defaults to 'global'). */
+                scope?: string;
+                /** @description Object id for an object-bearing scope. */
+                scope_object_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionCheckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

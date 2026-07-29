@@ -60,7 +60,7 @@ async def build_lms_credentials_message(
 
         try:
             config_instance = config_class(**user_plugin.config)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
 
         hint = config_instance.to_lms_credentials_hint()

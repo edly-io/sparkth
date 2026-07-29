@@ -94,6 +94,7 @@ from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.plugins import SparkthPlugin
 
+
 class GraderPlugin(SparkthPlugin):
     def __init__(self, name: str) -> None:
         super().__init__(name)
@@ -152,13 +153,16 @@ from fastapi import Depends
 from sparkth.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_READ
 from sparkth.lib.permissions.scopes import COURSE, WHITELIST
 
+
 # Global scope, as a route dependency:
 @router.get("/things", dependencies=[Depends(THING_READ.require_in_global_scope())])
 async def list_things(): ...
 
+
 # Objectless scope — WHITELIST is a singleton, so no scope_param:
 @router.get("/whitelist", dependencies=[Depends(EMAIL_WHITELIST_READ.require(WHITELIST))])
 async def list_whitelist(): ...
+
 
 # Object-bearing scope — pass the PermissionScope object and the path parameter carrying
 # the object id (read from the URL on each request):
@@ -173,3 +177,9 @@ The returned dependency resolves the current user, checks the permission, and re
 authenticated `User`. Put it in `dependencies=[...]` to gate a route, or inject it as a
 parameter (`user: User = Depends(...)`) when the handler needs the authorized user — both
 enforce the permission identically. A missing permission yields **403**.
+
+**Check the current user's permission** — a client (e.g. the web UI) can ask whether the
+authenticated user holds a permission via `GET /api/v1/permissions/can?permission=<name>`
+(optionally `&scope=<kind>&scope_object_id=<id>`), which returns `{"allowed": true|false}`.
+It is backed by `can()` and is a convenience for gating UI — not a security boundary, since
+every endpoint still enforces its own permission and returns 403.

@@ -16,6 +16,7 @@ from sparkth.lib.permissions.exceptions import (
     GroupInUse,
     GroupNotFound,
     PermissionNotFound,
+    PermissionScopeNotFound,
     RoleAlreadyExists,
     RoleInUse,
     RoleNotFound,
@@ -28,5 +29,6 @@ register_exception_handler(GroupNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(GroupAlreadyExists, status.HTTP_409_CONFLICT)
 register_exception_handler(GroupInUse, status.HTTP_409_CONFLICT)
 register_exception_handler(PermissionNotFound, status.HTTP_422_UNPROCESSABLE_CONTENT)
+register_exception_handler(PermissionScopeNotFound, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 __all__ = ["router"]
