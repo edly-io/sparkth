@@ -115,10 +115,12 @@ still has active role assignments). Membership and group-role grants are CLI-man
 mirroring how user-role assignment is CLI-only:
 
 ```bash
-# add a user (by username or email) to a group
+# add a user (by username or email) to a group, or remove one
 make cli -- groups add-member john cs-staff
-# grant a role to every member of a group, at the global scope
+make cli -- groups remove-member john cs-staff
+# grant a role to every member of a group, at the global scope — and take it back
 make cli -- groups assign-role-to-group cs-staff grader
+make cli -- groups revoke-role-from-group cs-staff grader
 # or scoped to one object — same --scope/--scope-object-id rules as roles assign-role
 make cli -- groups assign-role-to-group cs-staff grader --scope course --scope-object-id 42
 ```
