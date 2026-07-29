@@ -3,9 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 import DashboardLayout from "./layout";
 
-// The layout's only job under test is deriving `canViewAnalytics` from the
-// permission check, so stub every collaborator that would otherwise need a
-// router, a network client or a plugin registry.
+// The layout's only job under test is resolving the gated-nav permission map and
+// threading it to the sidebars, so stub every collaborator that would otherwise
+// need a router, a network client or a plugin registry.
 const auth = {
   token: "token-a" as string | null,
   user: { name: "A" },
@@ -23,18 +23,18 @@ vi.mock("@/lib/plugins/context", () => ({
 }));
 vi.mock("@/components/MobileSidebar", () => ({ default: () => null }));
 vi.mock("@/components/AppSidebar", () => ({
-  default: ({ user }: { user?: { canViewAnalytics?: boolean } }) => (
-    <div data-testid="analytics-flag">{String(user?.canViewAnalytics)}</div>
+  default: ({ navPermissions }: { navPermissions?: Record<string, boolean> }) => (
+    <div data-testid="nav-permissions">{JSON.stringify(navPermissions ?? null)}</div>
   ),
 }));
 
-const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/permissions", () => ({ checkPermission }));
+const resolveNavPermissions = vi.hoisted(() => vi.fn());
+vi.mock("@/components/NavItem", () => ({ resolveNavPermissions }));
 
-describe("DashboardLayout analytics gating", () => {
+describe("DashboardLayout nav permission gating", () => {
   beforeEach(() => {
     auth.token = "token-a";
-    checkPermission.mockReset();
+    resolveNavPermissions.mockReset();
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -42,37 +42,58 @@ describe("DashboardLayout analytics gating", () => {
     vi.restoreAllMocks();
   });
 
-  const flag = () => screen.getByTestId("analytics-flag").textContent;
+  const permissions = () => screen.getByTestId("nav-permissions").textContent;
 
-  it("grants the nav entry when the permission check allows it", async () => {
-    checkPermission.mockResolvedValue(true);
+  it("threads the resolved permission map to the sidebar", async () => {
+    resolveNavPermissions.mockResolvedValue({ analytics: true, admin: false });
 
     render(<DashboardLayout>child</DashboardLayout>);
 
-    await waitFor(() => expect(flag()).toBe("true"));
+    await waitFor(() =>
+      expect(permissions()).toBe(JSON.stringify({ analytics: true, admin: false })),
+    );
   });
 
-  it("fails closed when the permission check rejects", async () => {
-    checkPermission.mockRejectedValue(new Error("boom"));
+  it("grants nothing when resolution rejects outright", async () => {
+    resolveNavPermissions.mockRejectedValue(new Error("boom"));
 
     render(<DashboardLayout>child</DashboardLayout>);
 
     await waitFor(() => expect(console.error).toHaveBeenCalled());
-    expect(flag()).toBe("false");
+    expect(permissions()).toBe("{}");
   });
 
-  it("revokes a previously granted entry when a re-check for a new token fails", async () => {
-    checkPermission.mockResolvedValue(true);
+  it("clears previously granted entries when a re-resolve for a new token fails", async () => {
+    resolveNavPermissions.mockResolvedValue({ analytics: true, admin: true });
 
     const { rerender } = render(<DashboardLayout>child</DashboardLayout>);
-    await waitFor(() => expect(flag()).toBe("true"));
+    await waitFor(() =>
+      expect(permissions()).toBe(JSON.stringify({ analytics: true, admin: true })),
+    );
 
-    // Re-login as someone else: the token changes and the re-check errors out.
-    // The previous user's answer must not survive.
-    checkPermission.mockRejectedValue(new Error("boom"));
+    // Re-login as someone else: the token changes and the re-resolve errors out.
+    // The previous user's map must not survive.
+    resolveNavPermissions.mockRejectedValue(new Error("boom"));
     auth.token = "token-b";
     rerender(<DashboardLayout>child</DashboardLayout>);
 
-    await waitFor(() => expect(flag()).toBe("false"));
+    await waitFor(() => expect(permissions()).toBe("{}"));
+  });
+
+  it("clears the previous user's map immediately on a token change, before the re-resolve settles", async () => {
+    resolveNavPermissions.mockResolvedValueOnce({ analytics: true, admin: true });
+
+    const { rerender } = render(<DashboardLayout>child</DashboardLayout>);
+    await waitFor(() =>
+      expect(permissions()).toBe(JSON.stringify({ analytics: true, admin: true })),
+    );
+
+    // Re-login: new token, and the re-resolve is still in flight (never settles here). The
+    // previous user's gated entries must not linger while the new checks are pending.
+    resolveNavPermissions.mockReturnValueOnce(new Promise<Record<string, boolean>>(() => {}));
+    auth.token = "token-b";
+    rerender(<DashboardLayout>child</DashboardLayout>);
+
+    await waitFor(() => expect(permissions()).toBe("{}"));
   });
 });
