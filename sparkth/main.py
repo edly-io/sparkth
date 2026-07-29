@@ -7,9 +7,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Lifespan
 
+import sparkth.lib.audit.callbacks  # noqa: F401  # registers the process-global LangChain audit callback on import
 from sparkth.api.v1.api import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
-from sparkth.core.config import get_settings
+from sparkth.core.config import MCP_MOUNT_PATH, get_settings
 from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
@@ -76,7 +77,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with plugin_lifespan():
             logger.info("Registering MCP tools from plugins...")
             register_plugin_tools()
-            all_tools = await asyncio.create_task(mcp.get_tools())
+            all_tools = await asyncio.create_task(mcp.list_tools())
             logger.info(f"MCP server ready with {len(all_tools)} total tool(s) registered")
 
             # Mount frontend static files AFTER plugin routes are registered,
@@ -120,7 +121,7 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
     # app.core.audit.events imports (pulled in through api_router's endpoints,
     # which import from app.lib.audit).
     application = FastAPI(lifespan=lifespan)
-    application.mount("/ai", mcp_app)
+    application.mount(MCP_MOUNT_PATH, mcp_app)
     application.add_middleware(
         PluginAccessMiddleware,
         exclude_paths=[

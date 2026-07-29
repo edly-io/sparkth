@@ -7,6 +7,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from sparkth.core.audit.context import audit_context
 from sparkth.core.audit.enums import AuditSource
 from sparkth.core.audit.types import AuditRequestContext
+from sparkth.core.config import MCP_MOUNT_PATH
 from sparkth.lib.settings import get_settings
 
 
@@ -36,10 +37,18 @@ class AuditContextMiddleware:
             request_id=uuid4().hex,
             request_ip=self._client_ip(scope, headers),
             user_agent=headers.get("user-agent"),
-            source=AuditSource.REST,
+            source=self._source(scope),
         )
         with audit_context(context):
             await self.app(scope, receive, send)
+
+    @staticmethod
+    def _source(scope: Scope) -> AuditSource:
+        """MCP for requests under :data:`MCP_MOUNT_PATH`, REST otherwise."""
+        path: str = scope.get("path", "")
+        if path == MCP_MOUNT_PATH or path.startswith(f"{MCP_MOUNT_PATH}/"):
+            return AuditSource.MCP
+        return AuditSource.REST
 
     @staticmethod
     def _client_ip(scope: Scope, headers: dict[str, str]) -> str | None:

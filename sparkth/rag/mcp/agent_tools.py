@@ -4,6 +4,11 @@ Wraps the metadata functions in :mod:`sparkth.rag.mcp.tools` as LangChain
 ``StructuredTool`` instances, binding ``document_id`` via closure so the agent
 only ever sees query-relevant arguments. This replaces the previous
 out-of-process FastMCP server: the tools now run as direct Python calls.
+
+The coroutines carry no audit wrapping of their own: every LangChain tool run
+is recorded by the process-global callback handler
+(:mod:`sparkth.lib.audit.callbacks`), and the agent runner in
+:mod:`sparkth.rag.retrieval.agent` stamps the ``rag`` audit source.
 """
 
 from langchain_core.tools import StructuredTool

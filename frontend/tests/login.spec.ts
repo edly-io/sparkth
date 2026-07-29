@@ -9,7 +9,12 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test.describe("login", () => {
   test("logs a verified user into the dashboard", async ({ page }) => {
     await logInViaUi(page, firstSuperuser, firstSuperuserPassword);
-    await expect(page).toHaveURL(/\/dashboard|\/$/);
+    // Wait for the form to navigate away from /login: that only happens after
+    // the token is written to localStorage, so it is what keeps the goto below
+    // race-free. Do not match on a trailing "/" — `trailingSlash: true` serves
+    // the login page itself at /login/, so such a pattern passes immediately
+    // and the goto then runs before login has completed.
+    await expect(page).not.toHaveURL(/\/login/);
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
   });

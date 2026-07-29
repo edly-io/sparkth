@@ -66,7 +66,7 @@ class GoogleDriveClient:
                 if isinstance(error, dict) and "message" in error:
                     return str(error["message"])
             return text
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except json.JSONDecodeError, KeyError, TypeError:
             return text
 
     async def _request(

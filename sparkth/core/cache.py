@@ -21,7 +21,7 @@ class CacheService:
     async def connect(self) -> None:
         if self._redis is None:
             try:
-                self._redis = await aioredis.from_url(  # type: ignore[no-untyped-call]
+                self._redis = await aioredis.from_url(
                     self.redis_url,
                     encoding="utf-8",
                     decode_responses=True,
@@ -44,7 +44,10 @@ class CacheService:
             raise RuntimeError("Failed to establish Redis connection")
 
         try:
-            value: str | None = await self._redis.get(key)
+            value: bytes | str | None = await self._redis.get(key)
+            # The client is created with decode_responses=True, so values come back as str.
+            if isinstance(value, bytes):
+                return value.decode("utf-8")
             return value
         except RedisError as e:
             logger.warning(f"Cache get failed for key '{key}': {e}")

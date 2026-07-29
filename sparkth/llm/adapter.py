@@ -91,7 +91,7 @@ class LLMConfigAdapter:
         if raw_id is not None:
             try:
                 config_id = int(raw_id)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 config_id = None
         llm = await self._fetch_llm_config_any(session, user_id, config_id) if config_id is not None else None
         if llm is None:
