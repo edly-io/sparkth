@@ -163,32 +163,41 @@ Sparkth will generate a prompt that will help Claude generate this course.
 A self-contained single-host deployment lives in
 [`docker-compose.prod.yml`](docker-compose.prod.yml): the Sparkth application (with the
 frontend bundled), TimescaleDB/Postgres (hosting both the app and analytics databases),
-Redis, and a one-shot job that applies both Alembic migration lineages and backfills
-TimescaleDB continuous aggregates before the app starts.
+and Redis. Every service loads `.env` and then `.env.local` (later entries win);
+`.env.local` is mandatory, and compose fails to start without it.
 
 1. Complete the "MUST change in production" checklist at the top of `.env`, placing the
-   overrides in `.env.local` (git-ignored). Skip `DATABASE_URL`, `ANALYTICS_DATABASE_URL`
-   and `REDIS_URL`: the stack wires those to its own containers, so setting
-   `POSTGRES_PASSWORD` is enough for the database credentials.
+   overrides in `.env.local` (git-ignored). Point the connection URLs at the bundled
+   containers, using the same password as `POSTGRES_PASSWORD`:
+
+   ```bash
+   DATABASE_URL=postgresql://sparkth:<POSTGRES_PASSWORD>@db:5432/sparkth
+   ANALYTICS_DATABASE_URL=postgresql://sparkth:<POSTGRES_PASSWORD>@db:5432/sparkth_analytics
+   REDIS_URL=redis://redis:6379
+   ```
+
 2. Build the image with `make docker.build`, or let compose pull
    `ghcr.io/edly-io/sparkth:latest` from GHCR (set `SPARKTH_TAG` to pin a release).
 3. Start the stack:
 
    ```bash
-   make prod.up
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+4. Apply database migrations, on first start and after every upgrade. One command
+   applies both Alembic lineages (app and analytics) and backfills TimescaleDB
+   continuous aggregates (idempotent):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm sparkth python -m sparkth.cli.main migrate
    ```
 
 The app is published on port 7727 (`SPARKTH_HTTP_PORT` to change). TLS and email are
 intentionally not part of the stack: run a reverse proxy or load balancer in front of the
 published port (and set `TRUSTED_PROXY_HOPS` to match), and point `SMTP_*` at a real
 provider such as AWS SES. If the proxy runs on the same host, set
-`SPARKTH_HTTP_BIND=127.0.0.1` so clients cannot bypass it.
-
-Always drive the stack through the `make prod.*` targets (`prod.up`, `prod.down`,
-`prod.logs`, `prod.ps`, `prod.pull`): they pass both `--env-file` flags so your
-`.env.local` overrides reach compose interpolation (the database connection URLs are
-built from `POSTGRES_*`). For orchestrated deployments, the same image is published to
-GHCR by CI and runs under Kubernetes.
+`SPARKTH_HTTP_BIND=127.0.0.1` so clients cannot bypass it. For orchestrated deployments,
+the same image is published to GHCR by CI and runs under Kubernetes.
 
 ## Configuration
 
