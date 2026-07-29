@@ -130,6 +130,67 @@ async def test_move_name_collision_at_new_parent_raises(session: AsyncSession) -
         await units.move_organizational_unit(moving.id, a.id, session)
 
 
+async def test_patch_rename_and_move_validates_against_destination(session: AsyncSession) -> None:
+    # The current parent already holds the target name; the destination does not — the
+    # combined rename+move must validate against the destination's siblings and succeed.
+    root_a = await units.create_organizational_unit("A", None, None, session)
+    root_b = await units.create_organizational_unit("B", None, None, session)
+    assert root_a.id is not None and root_b.id is not None
+    await units.create_organizational_unit("X", None, root_a.id, session)
+    unit = await units.create_organizational_unit("Y", None, root_a.id, session)
+    assert unit.id is not None
+
+    patched = await units.patch_organizational_unit(unit.id, "X", None, True, root_b.id, session)
+
+    assert patched.name == "X"
+    assert patched.parent_id == root_b.id
+    assert patched.path == f"{root_b.path}{unit.id}/"
+
+
+async def test_patch_rename_away_from_destination_collision(session: AsyncSession) -> None:
+    # The destination holds a sibling with the unit's CURRENT name, but the patch renames
+    # away from it in the same call — validating the final state, this must succeed.
+    root_a = await units.create_organizational_unit("A", None, None, session)
+    root_b = await units.create_organizational_unit("B", None, None, session)
+    assert root_a.id is not None and root_b.id is not None
+    await units.create_organizational_unit("Y", None, root_b.id, session)
+    unit = await units.create_organizational_unit("Y", None, root_a.id, session)
+    assert unit.id is not None
+
+    patched = await units.patch_organizational_unit(unit.id, "Z", None, True, root_b.id, session)
+
+    assert patched.name == "Z"
+    assert patched.parent_id == root_b.id
+
+
+async def test_patch_is_atomic_when_move_fails(session: AsyncSession) -> None:
+    # A failing move (cycle) must leave the rename unapplied — nothing half-commits.
+    university, faculty, _ = await make_tree(session)
+    assert university.id is not None and faculty.id is not None
+    with pytest.raises(OrganizationCycleError):
+        await units.patch_organizational_unit(university.id, "Renamed U", None, True, faculty.id, session)
+    fresh = await units.get_organizational_unit(university.id, session)
+    assert fresh.name == "University X"
+
+
+async def test_patch_is_atomic_when_name_collides_at_destination(session: AsyncSession) -> None:
+    # A failing sibling-name check must leave the kind change unapplied too.
+    root_a = await units.create_organizational_unit("A", None, None, session)
+    root_b = await units.create_organizational_unit("B", None, None, session)
+    assert root_a.id is not None and root_b.id is not None
+    await units.create_organizational_unit("X", None, root_b.id, session)
+    unit = await units.create_organizational_unit("Y", None, root_a.id, session)
+    assert unit.id is not None
+
+    with pytest.raises(OrganizationalUnitAlreadyExists):
+        await units.patch_organizational_unit(unit.id, "X", "department", True, root_b.id, session)
+
+    fresh = await units.get_organizational_unit(unit.id, session)
+    assert fresh.name == "Y"
+    assert fresh.kind is None
+    assert fresh.parent_id == root_a.id
+
+
 async def test_delete_leaf_removes_it(session: AsyncSession) -> None:
     _, _, department = await make_tree(session)
     assert department.id is not None

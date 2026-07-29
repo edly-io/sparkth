@@ -64,25 +64,80 @@ async def get_organizational_unit(unit_id: int, session: AsyncSession) -> Organi
     return unit
 
 
+async def patch_organizational_unit(
+    unit_id: int,
+    name: str | None,
+    kind: str | None,
+    move: bool,
+    new_parent_id: int | None,
+    session: AsyncSession,
+) -> OrganizationalUnit:
+    """Rename/re-kind and/or re-parent a unit in one transaction and return it.
+
+    ``move=False`` leaves the parent alone (``new_parent_id`` is ignored); ``move=True``
+    re-parents to ``new_parent_id`` (None = make it a root). Validation runs against the
+    final state — the name is checked against the destination's siblings — and nothing
+    commits until every check has passed, so a combined rename+move can never half-apply.
+    Raises OrganizationalUnitNotFound (unit or new parent missing), OrganizationCycleError
+    (new parent is the unit itself or one of its descendants), or
+    OrganizationalUnitAlreadyExists (final name taken among the final siblings).
+    """
+    unit = await get_organizational_unit(unit_id, session)
+    moving = move and new_parent_id != unit.parent_id
+    new_parent: OrganizationalUnit | None = None
+    if moving and new_parent_id is not None:
+        new_parent = await get_organizational_unit(new_parent_id, session)
+        if new_parent.path.startswith(unit.path):
+            raise OrganizationCycleError(unit_id, new_parent.id if new_parent.id is not None else -1)
+    final_name = name if name is not None else unit.name
+    final_parent_id = new_parent_id if moving else unit.parent_id
+    if final_name != unit.name or moving:
+        await _ensure_sibling_name_free(final_name, final_parent_id, session, unit_id)
+    if name is not None:
+        unit.name = name
+    if kind is not None:
+        unit.kind = kind
+    unit.update_timestamp()
+    session.add(unit)
+    if moving:
+        old_prefix = unit.path
+        new_prefix = f"{new_parent.path if new_parent is not None else '/'}{unit.id}/"
+        unit.parent_id = new_parent_id
+        await session.flush()
+        # One UPDATE rewrites the unit and every descendant: swap the old prefix for the
+        # new. Portable: || concat and substr exist on both SQLite and PostgreSQL; the path
+        # alphabet is ids and slashes, so the LIKE prefix needs no wildcard escaping.
+        await session.execute(
+            update(OrganizationalUnit)
+            .where(col(OrganizationalUnit.path).startswith(old_prefix))
+            .values(path=new_prefix + func.substr(OrganizationalUnit.path, len(old_prefix) + 1))
+        )
+        # The SQL-side SET clause makes fetch-sync expire `path` on UPDATE-touched
+        # in-session units; under AsyncSession the next plain attribute access on them
+        # would raise (MissingGreenlet) instead of lazy-loading. Refresh exactly those
+        # units here so callers never inherit expired objects. (synchronize_session=False
+        # + expire_all is not equivalent: it expires everything, pushing that same failure
+        # onto every caller.)
+        for loaded in session.identity_map.values():
+            if not isinstance(loaded, OrganizationalUnit):
+                continue
+            state = inspect(loaded)
+            if state is not None and state.expired_attributes:
+                await session.refresh(loaded)
+    await session.commit()
+    await session.refresh(unit)
+    return unit
+
+
 async def update_organizational_unit(
     unit_id: int, name: str | None, kind: str | None, session: AsyncSession
 ) -> OrganizationalUnit:
     """Rename and/or re-kind a unit and return it (None = field unchanged).
 
     Raises OrganizationalUnitNotFound if the unit is missing, or OrganizationalUnitAlreadyExists if the new name
-    collides with a sibling. Re-parenting is move_organizational_unit, not this.
+    collides with a sibling. Re-parenting is move_organizational_unit or patch_organizational_unit, not this.
     """
-    unit = await get_organizational_unit(unit_id, session)
-    if name is not None and name != unit.name:
-        await _ensure_sibling_name_free(name, unit.parent_id, session, unit_id)
-        unit.name = name
-    if kind is not None:
-        unit.kind = kind
-    unit.update_timestamp()
-    session.add(unit)
-    await session.commit()
-    await session.refresh(unit)
-    return unit
+    return await patch_organizational_unit(unit_id, name, kind, False, None, session)
 
 
 async def move_organizational_unit(
@@ -94,39 +149,7 @@ async def move_organizational_unit(
     unit itself or one of its descendants), or OrganizationalUnitAlreadyExists (name taken among the
     new siblings). Rewrites the moved subtree's paths in a single UPDATE.
     """
-    unit = await get_organizational_unit(unit_id, session)
-    new_parent = await get_organizational_unit(new_parent_id, session) if new_parent_id is not None else None
-    if new_parent is not None and new_parent.path.startswith(unit.path):
-        raise OrganizationCycleError(unit_id, new_parent.id if new_parent.id is not None else -1)
-    await _ensure_sibling_name_free(unit.name, new_parent_id, session, unit_id)
-    old_prefix = unit.path
-    new_prefix = f"{new_parent.path if new_parent is not None else '/'}{unit.id}/"
-    unit.parent_id = new_parent_id
-    unit.update_timestamp()
-    session.add(unit)
-    await session.flush()
-    # One UPDATE rewrites the unit and every descendant: swap the old prefix for the new.
-    # Portable: || concat and substr exist on both SQLite and PostgreSQL; the path alphabet
-    # is ids and slashes, so the LIKE prefix needs no wildcard escaping.
-    await session.execute(
-        update(OrganizationalUnit)
-        .where(col(OrganizationalUnit.path).startswith(old_prefix))
-        .values(path=new_prefix + func.substr(OrganizationalUnit.path, len(old_prefix) + 1))
-    )
-    # The SQL-side SET clause makes fetch-sync expire `path` on UPDATE-touched in-session
-    # units; under AsyncSession the next plain attribute access on them would raise
-    # (MissingGreenlet) instead of lazy-loading. Refresh exactly those units here so
-    # callers never inherit expired objects. (synchronize_session=False + expire_all is
-    # not equivalent: it expires everything, pushing that same failure onto every caller.)
-    for loaded in session.identity_map.values():
-        if not isinstance(loaded, OrganizationalUnit):
-            continue
-        state = inspect(loaded)
-        if state is not None and state.expired_attributes:
-            await session.refresh(loaded)
-    await session.commit()
-    await session.refresh(unit)
-    return unit
+    return await patch_organizational_unit(unit_id, None, None, True, new_parent_id, session)
 
 
 async def delete_organizational_unit(unit_id: int, session: AsyncSession) -> None:
