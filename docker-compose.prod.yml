@@ -1,0 +1,117 @@
+# Production stack: Sparkth app, TimescaleDB/Postgres (app + analytics DBs),
+# Redis, and a one-shot migrations job that runs before the app starts.
+# Requires Docker Compose v2.24+. See the "Production" section of README.md.
+#
+# Run via the `make prod.*` targets (prod.up, prod.down, prod.logs, ...), or
+# pass both env files yourself:
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env --env-file .env.local up -d
+#
+# Both --env-file flags are required so the POSTGRES_* values from .env.local
+# reach the interpolated connection URLs below.
+
+name: sparkth-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# .env.local overrides .env (later entries win) and may be absent.
+x-env-files: &env-files
+  - .env
+  - path: .env.local
+    required: false
+
+# In-network URLs for the bundled services, overriding the localhost defaults
+# committed in .env. POSTGRES_PASSWORD is embedded, so it must be URL-safe.
+x-app-env: &app-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/${POSTGRES_DB:-sparkth}
+  ANALYTICS_DATABASE_URL: postgresql://${POSTGRES_USER:-sparkth}:${POSTGRES_PASSWORD:-sparkth_password}@db:5432/sparkth_analytics
+  REDIS_URL: redis://redis:6379
+
+# Shared base for the two services that run the application image.
+x-app-base: &app-base
+  image: ghcr.io/edly-io/sparkth:${SPARKTH_TAG:-latest}
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  env_file: *env-files
+  logging: *default-logging
+
+services:
+  sparkth:
+    <<: *app-base
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      # .env ships false for native dev; the production image must serve the
+      # bundled frontend.
+      SERVE_FRONTEND: "true"
+    ports:
+      # With a reverse proxy on the same host, set SPARKTH_HTTP_BIND=127.0.0.1.
+      - "${SPARKTH_HTTP_BIND:-0.0.0.0}:${SPARKTH_HTTP_PORT:-7727}:8000"
+    # Give in-flight requests (e.g. streamed LLM responses) time to finish.
+    stop_grace_period: 30s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Applies both Alembic lineages, then backfills TimescaleDB continuous
+  # aggregates (idempotent). The app starts only after this succeeds.
+  migrations:
+    <<: *app-base
+    restart: "no"
+    environment: *app-env
+    command:
+      - sh
+      - -ec
+      - |
+        alembic upgrade head
+        alembic -c alembic_analytics.ini upgrade head
+        python -m sparkth.cli.main analytics backfill-aggregates
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: docker.io/timescale/timescaledb-ha:pg18
+    restart: unless-stopped
+    # Postgres parallel workers use /dev/shm; Docker's 64 MB default is too
+    # small under analytical load.
+    shm_size: 256mb
+    env_file: *env-files
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # $$ defers expansion to the container shell, which always has
+      # POSTGRES_* from env_file (compose interpolation may not).
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  redis:
+    image: docker.io/redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  redis_data:

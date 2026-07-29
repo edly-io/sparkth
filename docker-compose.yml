@@ -4,7 +4,8 @@
 # run natively on the host; this file only provides the Postgres, Redis, and Mailpit
 # services they talk to. Ports are published on 127.0.0.1 so the native processes can
 # reach them. The application image itself is built only for production (see Dockerfile,
-# published to GHCR by CI and orchestrated by Kubernetes).
+# published to GHCR by CI): it runs under Kubernetes, or via docker-compose.prod.yml
+# for a self-contained single-host deployment (make prod.up).
 services:
   # Mailpit (local SMTP for development)
   # For production we should use a managed email services e.g AWS SES SMTP interface

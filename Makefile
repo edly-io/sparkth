@@ -145,6 +145,34 @@ docs.serve: ## Serve the documentation site with live reload (http://127.0.0.1:8
 docker.build: ## Build the Docker image
 	docker build -t ghcr.io/edly-io/sparkth:latest .
 
+##@ Production (Docker Compose)
+# Self-contained single-host deployment: app + TimescaleDB + Redis, with
+# migrations applied before the app starts (see docker-compose.prod.yml).
+# The prod compose file builds the app's connection URLs from POSTGRES_*, so
+# compose interpolation must read .env.local (when present) on top of .env;
+# these targets pass both --env-file flags for that reason.
+COMPOSE_PROD = docker compose -f docker-compose.prod.yml --env-file .env$(if $(wildcard .env.local), --env-file .env.local)
+
+.PHONY: prod.up
+prod.up: ## Start the production stack (runs migrations first, fails if anything doesn't come up)
+	$(COMPOSE_PROD) up -d --wait
+
+.PHONY: prod.down
+prod.down: ## Stop the production stack (keeps data volumes)
+	$(COMPOSE_PROD) down
+
+.PHONY: prod.pull
+prod.pull: ## Pull production stack images
+	$(COMPOSE_PROD) pull
+
+.PHONY: prod.logs
+prod.logs: ## Tail production stack logs (make prod.logs [service])
+	$(COMPOSE_PROD) logs -f $(ARGS)
+
+.PHONY: prod.ps
+prod.ps: ## Show production stack container status
+	$(COMPOSE_PROD) ps
+
 ##@ Testing
 .PHONY: test
 test: ## Run tests (with-coverage=1 to include coverage)

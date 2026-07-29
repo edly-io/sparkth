@@ -146,7 +146,9 @@ so once the first policy run advances the materialization watermark, buckets old
 that window vanish from the view and pre-migration history is lost. After applying an
 analytics migration that adds a continuous aggregate, run `make analytics-backfill` once
 on PostgreSQL to full-refresh it (`refresh_continuous_aggregate` over the whole range).
-It is idempotent and a no-op on SQLite.
+It is idempotent and a no-op on SQLite. The production compose stack
+(`docker-compose.prod.yml`) runs it automatically after migrations, so `make prod.up`
+needs no manual backfill step.
 
 ### Preventing Split Heads
 

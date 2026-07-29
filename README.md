@@ -160,25 +160,35 @@ Sparkth will generate a prompt that will help Claude generate this course.
 
 ## Production
 
-Build the Docker image:
+A self-contained single-host deployment lives in
+[`docker-compose.prod.yml`](docker-compose.prod.yml): the Sparkth application (with the
+frontend bundled), TimescaleDB/Postgres (hosting both the app and analytics databases),
+Redis, and a one-shot job that applies both Alembic migration lineages and backfills
+TimescaleDB continuous aggregates before the app starts.
 
-```bash
-make docker.build
-```
+1. Complete the "MUST change in production" checklist at the top of `.env`, placing the
+   overrides in `.env.local` (git-ignored). Skip `DATABASE_URL`, `ANALYTICS_DATABASE_URL`
+   and `REDIS_URL`: the stack wires those to its own containers, so setting
+   `POSTGRES_PASSWORD` is enough for the database credentials.
+2. Build the image with `make docker.build`, or let compose pull
+   `ghcr.io/edly-io/sparkth:latest` from GHCR (set `SPARKTH_TAG` to pin a release).
+3. Start the stack:
 
-Convert the development services from docker-compose.yml to a production setup and add the Sparkth application to the list of services:
+   ```bash
+   make prod.up
+   ```
 
-    sparkth:
-        image: ghcr.io/edly-io/sparkth:latest
-        restart: unless-stopped
-        env_file:
-            - .env
-            - .env.local
-        depends_on:
-            db:
-                condition: service_healthy
-            redis:
-                condition: service_healthy
+The app is published on port 7727 (`SPARKTH_HTTP_PORT` to change). TLS and email are
+intentionally not part of the stack: run a reverse proxy or load balancer in front of the
+published port (and set `TRUSTED_PROXY_HOPS` to match), and point `SMTP_*` at a real
+provider such as AWS SES. If the proxy runs on the same host, set
+`SPARKTH_HTTP_BIND=127.0.0.1` so clients cannot bypass it.
+
+Always drive the stack through the `make prod.*` targets (`prod.up`, `prod.down`,
+`prod.logs`, `prod.ps`, `prod.pull`): they pass both `--env-file` flags so your
+`.env.local` overrides reach compose interpolation (the database connection URLs are
+built from `POSTGRES_*`). For orchestrated deployments, the same image is published to
+GHCR by CI and runs under Kubernetes.
 
 ## Configuration
 
