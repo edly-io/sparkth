@@ -26,8 +26,8 @@ class User(UserBase):
     name: str
     username: str
     # Derived from the permission system (holding the global admin role), not a stored
-    # column. Defaults to False so endpoints returning the ORM user directly (register,
-    # login) report a non-admin; /user/me computes and sets the real value.
+    # column. Defaults to False so endpoints that return the ORM user directly (e.g.
+    # register) report a non-admin; /user/me computes and sets the real value.
     is_admin: bool = False
     email_verified: bool
 

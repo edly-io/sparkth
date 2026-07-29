@@ -59,6 +59,11 @@ def get_settings() -> Settings:
     return Settings()
 
 
+# Path the FastMCP app is mounted on (sparkth/main.py). The audit context
+# middleware stamps AuditSource.MCP on every request under this mount.
+MCP_MOUNT_PATH = "/ai"
+
+
 # Plugin Configuration
 # List of plugin module paths to load (all enabled by default)
 # Format: "module.path:ClassName"
