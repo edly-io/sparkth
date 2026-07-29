@@ -1,6 +1,6 @@
 import typer
 
-from sparkth.cli import analytics, roles, users
+from sparkth.cli import analytics, migrate, roles, users
 from sparkth.lib.log import configure_logging
 
 app = typer.Typer(help="Root command for all CLI tools")
@@ -8,6 +8,7 @@ app = typer.Typer(help="Root command for all CLI tools")
 app.add_typer(users.app, name="users")
 app.add_typer(roles.app, name="roles")
 app.add_typer(analytics.app, name="analytics")
+app.command("migrate")(migrate.migrate_command)
 
 
 def main() -> None:

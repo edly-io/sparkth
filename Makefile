@@ -54,9 +54,8 @@ db-shell-analytics: ## Open Postgres shell on the analytics database
 	docker compose exec db psql -U $${POSTGRES_USER:-sparkth} -d sparkth_analytics
 
 .PHONY: migrations
-migrations: ## Apply Alembic migrations for both the app and analytics databases (native)
-	uv run alembic upgrade head
-	uv run alembic -c alembic_analytics.ini upgrade head
+migrations: ## Apply migrations for both databases and backfill continuous aggregates (native)
+	uv run python -m sparkth.cli.main migrate
 
 .PHONY: analytics-backfill
 analytics-backfill: ## Backfill continuous aggregates full history (run once after migrating on Postgres; no-op on SQLite)

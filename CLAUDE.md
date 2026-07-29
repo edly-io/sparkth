@@ -133,8 +133,9 @@ make migrations
 
 The project has **two independent Alembic lineages**: the application database
 (`alembic.ini` → `sparkth/migrations/app/`) and the analytics database
-(`alembic_analytics.ini` → `sparkth/migrations/analytics/`). `make migrations` applies
-both. Generate an analytics migration with
+(`alembic_analytics.ini` → `sparkth/migrations/analytics/`). `make migrations` runs the
+`sparkth migrate` CLI command (`sparkth/cli/migrate.py`), which applies both lineages and
+then backfills continuous aggregates. Generate an analytics migration with
 `alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
 databases never share metadata: app models use `SQLModel.metadata`, analytics
 tables use `sparkth.core.analytics.models.analytics_metadata`.
@@ -143,12 +144,12 @@ tables use `sparkth.core.analytics.models.analytics_metadata`.
 continuous aggregate is created `WITH NO DATA` (creating it with data would backfill
 inside Alembic's transaction), and its refresh policy only covers a trailing window —
 so once the first policy run advances the materialization watermark, buckets older than
-that window vanish from the view and pre-migration history is lost. After applying an
-analytics migration that adds a continuous aggregate, run `make analytics-backfill` once
-on PostgreSQL to full-refresh it (`refresh_continuous_aggregate` over the whole range).
-It is idempotent and a no-op on SQLite. The production compose stack
-(`docker-compose.prod.yml`) runs it automatically after migrations, so `make prod.up`
-needs no manual backfill step.
+that window vanish from the view and pre-migration history is lost. The backfill
+full-refreshes every registered aggregate (`refresh_continuous_aggregate` over the whole
+range); it is idempotent and a no-op on SQLite. The `migrate` CLI command (and therefore
+`make migrations` and the production migration step in the README) runs it automatically
+after applying migrations; `make analytics-backfill` remains for refreshing a single
+aggregate by name.
 
 ### Preventing Split Heads
 
