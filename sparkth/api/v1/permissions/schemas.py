@@ -46,6 +46,8 @@ class GroupCreate(BaseModel):
 class GroupUpdate(BaseModel):
     # Both optional: a field left unset is unchanged (PATCH semantics). A fully-empty update
     # (neither field provided) is rejected by the validator below so it can't silently no-op.
+    # Known limitation (shared with RoleUpdate): because None means "unchanged", a description
+    # can never be cleared back to null through this schema — that needs an explicit sentinel.
     name: str | None = Field(default=None, min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=255)
 

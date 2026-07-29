@@ -52,6 +52,36 @@ async def test_add_member_unknown_group_exits(session: AsyncSession) -> None:
     assert excinfo.value.exit_code == 1
 
 
+async def test_remove_member_happy_path(session: AsyncSession, capsys: pytest.CaptureFixture[str]) -> None:
+    from sparkth.cli.groups import _add_member, _remove_member
+
+    user, group_id = await _seed_user_and_group(session)
+    await _add_member("alice", "cs-staff")
+    await _remove_member("alice", "cs-staff")
+    memberships = (await session.exec(select(GroupMembership).where(GroupMembership.group_id == group_id))).all()
+    assert len(memberships) == 1
+    assert memberships[0].is_deleted is True
+    assert "cs-staff" in capsys.readouterr().out
+
+
+async def test_remove_member_unknown_user_exits(session: AsyncSession) -> None:
+    from sparkth.cli.groups import _remove_member
+
+    await _seed_user_and_group(session)
+    with pytest.raises(typer.Exit) as excinfo:
+        await _remove_member("nobody", "cs-staff")
+    assert excinfo.value.exit_code == 1
+
+
+async def test_remove_member_unknown_group_exits(session: AsyncSession) -> None:
+    from sparkth.cli.groups import _remove_member
+
+    await _seed_user_and_group(session)
+    with pytest.raises(typer.Exit) as excinfo:
+        await _remove_member("alice", "nope")
+    assert excinfo.value.exit_code == 1
+
+
 async def test_assign_role_to_group_happy_path(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -100,6 +130,71 @@ async def test_assign_role_to_group_unknown_role_exits(session: AsyncSession, mo
     with pytest.raises(typer.Exit) as excinfo:
         await cli_groups._assign_role_to_group("cs-staff", "nope", "global", None)
     assert excinfo.value.exit_code == 1
+
+
+async def test_revoke_role_from_group_happy_path(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sparkth.cli.groups as cli_groups
+
+    monkeypatch.setattr(cli_groups, "get_plugin_loader", lambda: None)
+    _, group_id = await _seed_user_and_group(session)
+    session.add(Role(name="grader"))
+    await session.commit()
+    await cli_groups._assign_role_to_group("cs-staff", "grader", "global", None)
+
+    await cli_groups._revoke_role_from_group("cs-staff", "grader", "global", None)
+
+    assignments = (
+        await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.group_id == group_id))
+    ).all()
+    assert len(assignments) == 1
+    assert assignments[0].is_deleted is True
+    assert "grader" in capsys.readouterr().out
+
+
+async def test_revoke_role_from_group_unknown_scope_exits(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sparkth.cli.groups as cli_groups
+
+    monkeypatch.setattr(cli_groups, "get_plugin_loader", lambda: None)
+    await _seed_user_and_group(session)
+    with pytest.raises(typer.Exit) as excinfo:
+        await cli_groups._revoke_role_from_group("cs-staff", "grader", "bogus", None)
+    assert excinfo.value.exit_code == 1
+
+
+async def test_revoke_role_from_group_unknown_group_exits(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sparkth.cli.groups as cli_groups
+
+    monkeypatch.setattr(cli_groups, "get_plugin_loader", lambda: None)
+    await _seed_user_and_group(session)
+    with pytest.raises(typer.Exit) as excinfo:
+        await cli_groups._revoke_role_from_group("nope", "grader", "global", None)
+    assert excinfo.value.exit_code == 1
+
+
+async def _fake_member_command(identifier: str, group_name: str) -> None:
+    return None
+
+
+async def _fake_group_role_command(group_name: str, role: str, scope: str, scope_object_id: str | None) -> None:
+    return None
+
+
+def test_cli_wires_remove_member(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sparkth.cli.groups._remove_member", _fake_member_command)
+    result = CliRunner().invoke(root_cli, ["groups", "remove-member", "alice", "cs-staff"])
+    assert result.exit_code == 0
+
+
+def test_cli_wires_revoke_role_from_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sparkth.cli.groups._revoke_role_from_group", _fake_group_role_command)
+    result = CliRunner().invoke(root_cli, ["groups", "revoke-role-from-group", "cs-staff", "grader"])
+    assert result.exit_code == 0
 
 
 def test_cli_wires_add_member(monkeypatch: pytest.MonkeyPatch) -> None:
