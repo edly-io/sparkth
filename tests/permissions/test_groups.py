@@ -1,6 +1,10 @@
 """Tests for the group tables and the group engine functions
 (sparkth.core.permissions.groups). Authored with LLM (Claude) assistance."""
 
+from collections.abc import Awaitable, Callable
+from functools import partial
+from types import SimpleNamespace
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
@@ -111,6 +115,36 @@ async def make_role(session: AsyncSession, name: str, permissions: list[str]) ->
     return role
 
 
+_EMPTY_RESULT = SimpleNamespace(first=lambda: None)
+
+
+async def _exec_hiding_first_call(
+    statement: object,
+    real_exec: Callable[..., Awaitable[object]],
+    state: dict[str, bool],
+) -> object:
+    """``session.exec`` stand-in for race tests.
+
+    The first call (the duplicate-name pre-check) sees an empty result; later calls
+    delegate — simulating a concurrent create/rename committing between check and insert.
+    """
+    if not state["hidden"]:
+        state["hidden"] = True
+        return _EMPTY_RESULT
+    return await real_exec(statement)
+
+
+def _hide_duplicate_check(session: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the session's next exec (the duplicate-name check) see nothing."""
+    fake = partial(_exec_hiding_first_call, real_exec=session.exec, state={"hidden": False})
+    monkeypatch.setattr(session, "exec", fake)
+
+
+def test_group_exceptions_share_name_attribute() -> None:
+    assert GroupNotFound("cs-staff").name == "cs-staff"
+    assert GroupAlreadyExists("cs-staff").name == "cs-staff"
+
+
 async def test_create_group_persists(session: AsyncSession) -> None:
     group = await groups.create_group("cs-staff", "CS staff", session)
     assert group.id is not None
@@ -121,6 +155,28 @@ async def test_create_group_duplicate_name_raises(session: AsyncSession) -> None
     await groups.create_group("cs-staff", None, session)
     with pytest.raises(GroupAlreadyExists):
         await groups.create_group("cs-staff", None, session)
+
+
+async def test_create_group_race_raises_group_already_exists(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await groups.create_group("cs-staff", None, session)
+    # Hide the winner from the pre-insert check so the unique index fires — as if a
+    # concurrent create committed between the check and the insert.
+    _hide_duplicate_check(session, monkeypatch)
+    with pytest.raises(GroupAlreadyExists):
+        await groups.create_group("cs-staff", None, session)
+
+
+async def test_update_group_rename_race_raises_group_already_exists(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await groups.create_group("taken", None, session)
+    group = await groups.create_group("cs-staff", None, session)
+    assert group.id is not None
+    _hide_duplicate_check(session, monkeypatch)
+    with pytest.raises(GroupAlreadyExists):
+        await groups.update_group(group.id, "taken", None, session)
 
 
 async def test_get_group_missing_raises(session: AsyncSession) -> None:
@@ -287,6 +343,18 @@ async def test_delete_group_removes_membership_history(session: AsyncSession) ->
     with pytest.raises(GroupNotFound):
         await groups.get_group(group.id, session)
     rows = (await session.exec(select(GroupMembership).where(GroupMembership.group_id == group.id))).all()
+    assert rows == []
+
+
+async def test_delete_group_removes_assignment_history(session: AsyncSession) -> None:
+    # Revoked (soft-deleted) assignments do not block deletion; their rows go with the group.
+    group = await groups.create_group("graders", None, session)
+    await make_role(session, "grader", [])
+    assert group.id is not None
+    await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
+    await groups.revoke_role_from_group(group.id, "grader", GLOBAL, None, session)
+    await groups.delete_group(group.id, session)
+    rows = (await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.group_id == group.id))).all()
     assert rows == []
 
 

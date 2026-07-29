@@ -1,7 +1,7 @@
 """add group tables
 
 Revision ID: e69b161ed8ee
-Revises: 4aac177b2327
+Revises: b5bf23a5f00e
 Create Date: 2026-07-27 10:11:15.208659
 
 """

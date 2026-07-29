@@ -41,9 +41,9 @@ class RoleInUse(Exception):
 class GroupNotFound(Exception):
     """Raised when a group referenced by id or name does not exist."""
 
-    def __init__(self, group: str) -> None:
-        super().__init__(f"Group not found: {group}")
-        self.group = group
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Group not found: {name}")
+        self.name = name
 
 
 class GroupAlreadyExists(Exception):
