@@ -6,6 +6,7 @@ Module-level async functions mirroring the role engine. The CRUD functions commi
 Authored with LLM (Claude) assistance.
 """
 
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,12 +22,23 @@ from sparkth.core.permissions.scopes import PermissionScope
 
 
 async def create_group(name: str, description: str | None, session: AsyncSession) -> Group:
-    """Create and return a group. Raises GroupAlreadyExists if the name is already taken."""
+    """Create and return a group. Raises GroupAlreadyExists if the name is already taken.
+
+    Race-safe: when a concurrent create takes the name between the pre-check and the
+    commit, the unique-index IntegrityError is translated into GroupAlreadyExists (the
+    name index is the only constraint on user_group that can fire here). The membership
+    and assignment functions below use a savepoint for the same job because they only
+    flush; the CRUD functions own the commit, so translating there is enough.
+    """
     if (await session.exec(select(Group).where(Group.name == name))).first() is not None:
         raise GroupAlreadyExists(name)
     group = Group(name=name, description=description)
     session.add(group)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise GroupAlreadyExists(name)
     await session.refresh(group)
     return group
 
@@ -56,7 +68,8 @@ async def update_group(group_id: int, name: str | None, description: str | None,
     """Update a group's name and/or description and return it.
 
     A None argument leaves that field unchanged. Raises GroupNotFound if the group is
-    missing, or GroupAlreadyExists if name collides with another group.
+    missing, or GroupAlreadyExists if name collides with another group (race-safe, like
+    create_group).
     """
     group = await get_group(group_id, session)
     if name is not None and name != group.name:
@@ -67,7 +80,15 @@ async def update_group(group_id: int, name: str | None, description: str | None,
         group.description = description
     group.update_timestamp()
     session.add(group)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # A concurrent create/rename took the name between the pre-check and the commit;
+        # only the name unique index can fire here (translated like create_group).
+        await session.rollback()
+        if name is None:
+            raise
+        raise GroupAlreadyExists(name)
     await session.refresh(group)
     return group
 
@@ -93,13 +114,9 @@ async def delete_group(group_id: int, session: AsyncSession) -> None:
     if active is not None:
         raise GroupInUse(group_id)
     # The group_id foreign keys have no ON DELETE CASCADE, so remove dependents (membership
-    # rows and historical soft-deleted assignments) before deleting the group itself.
-    for membership in (await session.exec(select(GroupMembership).where(GroupMembership.group_id == group_id))).all():
-        await session.delete(membership)
-    for assignment in (
-        await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.group_id == group_id))
-    ).all():
-        await session.delete(assignment)
+    # rows and historical soft-deleted assignments) in bulk before deleting the group itself.
+    await session.execute(delete(GroupMembership).where(col(GroupMembership.group_id) == group_id))
+    await session.execute(delete(GroupRoleAssignment).where(col(GroupRoleAssignment.group_id) == group_id))
     await session.delete(group)
     await session.commit()
 
