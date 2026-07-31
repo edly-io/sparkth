@@ -307,6 +307,11 @@ def test_facade_exposes_public_surface() -> None:
     assert exceptions_facade.RoleNotFound is RoleNotFound
     assert exceptions_facade.PermissionNotFound is PermissionNotFound
     assert exceptions_facade.PermissionScopeNotFound is PermissionScopeNotFound
+    from sparkth.core.permissions.exceptions import GroupAlreadyExists, GroupInUse, GroupNotFound
+
+    assert exceptions_facade.GroupNotFound is GroupNotFound
+    assert exceptions_facade.GroupAlreadyExists is GroupAlreadyExists
+    assert exceptions_facade.GroupInUse is GroupInUse
     # The registration hooks are re-exported from the sparkth.lib.permissions.hooks submodule
     # (not the package facade), so plugins import them from there.
     assert hooks_facade.PERMISSIONS is PERMISSIONS

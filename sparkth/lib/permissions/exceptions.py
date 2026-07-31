@@ -1,4 +1,7 @@
 from sparkth.core.permissions.exceptions import (
+    GroupAlreadyExists,
+    GroupInUse,
+    GroupNotFound,
     InvalidScopeObjectId,
     PermissionNotFound,
     PermissionScopeNotFound,
@@ -8,6 +11,9 @@ from sparkth.core.permissions.exceptions import (
 )
 
 __all__ = [
+    "GroupNotFound",
+    "GroupAlreadyExists",
+    "GroupInUse",
     "RoleNotFound",
     "RoleAlreadyExists",
     "RoleInUse",
