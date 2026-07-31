@@ -91,6 +91,15 @@ Tests live next to the code they own, so each plugin stays a self-contained, por
   RAG is core, so RAG tests live at `tests/rag/` (not co-located under `sparkth/rag/`); the
   RAG MCP tooling under `sparkth/rag/mcp/` is mirrored by `tests/rag/mcp/`.
 
+**Frontend (Next.js) tests are the exception to "next to the code"** — every vitest test lives in a
+single central mirror under [`frontend/__tests__/`](frontend/__tests__/) that mirrors the source
+file's path: `components/ui/BarChart.tsx` → `frontend/__tests__/components/ui/BarChart.test.tsx`,
+and the `lib` suite sits under `frontend/__tests__/lib/` (e.g. `lib/analytics/` →
+`frontend/__tests__/lib/analytics.test.ts`). Always import the code under test via the `@/` alias,
+never a relative path — the mirror makes relative paths point at the wrong place. Vitest
+auto-discovers `__tests__/`; Playwright e2e specs stay in [`frontend/tests/`](frontend/tests/) and
+are excluded from vitest via `frontend/vitest.config.ts`.
+
 How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ChartColumn } from "lucide-react";
 
-import { NavItem } from "./NavItem";
+import { NavItem } from "@/components/NavItem/NavItem";
 
 describe("NavItem", () => {
   it("renders a link to href with the label and an icon", () => {

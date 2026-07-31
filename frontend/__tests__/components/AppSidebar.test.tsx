@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import AppSidebar from "./AppSidebar";
+import AppSidebar from "@/components/AppSidebar";
 
 // AppSidebar reads the current path and the enabled-plugins context; stub both
 // so the component renders in isolation on a non-chat, non-plugin route.

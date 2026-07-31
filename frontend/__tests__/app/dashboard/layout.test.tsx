@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-import DashboardLayout from "./layout";
+import DashboardLayout from "@/app/dashboard/layout";
 
 // The layout's only job under test is resolving the gated-nav permission map and
 // threading it to the sidebars, so stub every collaborator that would otherwise

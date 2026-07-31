@@ -15,7 +15,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { checkPermission } from "@/lib/permissions";
 import { getWhitelist } from "@/lib/api";
 import { redirect } from "next/navigation";
-import WhitelistPage from "./WhitelistPage";
+import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";
 
 beforeEach(() => {
   vi.clearAllMocks();
