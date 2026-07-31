@@ -21,6 +21,10 @@ rows include the permission — either through an active `role_assignment` of th
 through an active `group_role_assignment` of a group they actively belong to. `can()`
 resolves exactly this — it is the single authorization check.
 
+The organization tree (`organizational_unit`, `organization_membership`) is deliberately not part of this list:
+it classifies people, not permissions, and grants nothing on its own — see
+[Organizational structure](#organizational-structure).
+
 ## Permissions and scopes are declared in code
 
 The vocabulary the system draws on — which permission strings and which scope kinds exist —
@@ -130,6 +134,51 @@ From application code, use the façade (`sparkth.lib.permissions`): `add_group_m
 `get_group_by_name`. Group management authorizes at the **global scope only** for now — a
 per-group delegation scope (like the per-role `role` scope) waits on object-bearing scope
 cascade ([#420](https://github.com/edly-io/sparkth/issues/420) Phase 2).
+
+## Organizational structure
+
+The **organization structure** records where people sit in the institution — university, faculty,
+department — independently of what they're allowed to do. It lives in two tables:
+`organizational_unit` (a node, with `name`, an optional `kind` for reporting, `parent_id`, and a
+materialized `path`) and `organization_membership` (a user's seat in a unit).
+
+- **The tree is inert.** No `can()` code path reads it: authorization still resolves only
+  through `role_assignment` and `group_role_assignment`, exactly as described in
+  [The model](#the-model). Placing someone in "CS Department" grants them nothing by itself.
+- **It exists anyway because groups will need it.** Rule-driven group membership — deriving
+  "who's in this group" from tree position instead of a manual add — will read the tree
+  later. This mirrors Totara's split between contexts (which carry permissions) and
+  organization frameworks (which carry the org chart), with groups bridging the two. Sparkth
+  ships the chart now so that bridge has something to connect to
+  ([#420](https://github.com/edly-io/sparkth/issues/420)).
+- **The `path` is engine-maintained** — a root-first chain of ancestor ids including the unit
+  itself (e.g. `/1/7/42/` for unit 42 under 7 under root unit 1) — never set by hand. "Is X a
+  descendant of Y" is one indexable `LIKE`-prefix comparison against `path`, not a recursive
+  query.
+- **Membership does not inherit.** A member of "CS Department" is not thereby a member of
+  "Faculty of Science" or of any department nested under CS. Whether it should is a
+  rule-layer question, answered later, not something the tree itself decides.
+
+Structure is managed through the REST API under `/api/v1/organization/units` (CRUD, gated by the
+`organization.unit.*` permissions at the **global scope only** — a per-unit delegation scope waits on
+object-bearing cascade, [#420](https://github.com/edly-io/sparkth/issues/420) Phase 2).
+`PATCH` re-parents a unit whenever the request includes `parent_id` — an explicit
+`"parent_id": null` makes it a root. Moving a unit under itself or one of its own descendants
+is refused with **409** (`OrganizationCycleError`); deleting a unit that still has children or active
+members is refused the same way (`OrganizationalUnitInUse`), rather than choosing a cascade policy
+before real usage exists. Membership is CLI-managed, mirroring group membership:
+
+```bash
+# seat a user (by username or email) in a unit, addressed by id — names are only
+# unique among siblings, so id is the one stable way to address a unit from the CLI
+make cli -- organization add-member alice 42
+# remove them (a no-op if they were never a member)
+make cli -- organization remove-member alice 42
+```
+
+From application code, use the façade (`sparkth.lib.organization`): `create_organizational_unit`,
+`update_organizational_unit`, `move_organizational_unit`, `delete_organizational_unit`, `list_organizational_units`, `get_organizational_unit`,
+`add_organization_member`, `remove_organization_member`, `get_organization_members`.
 
 ## Extending the permission system
 

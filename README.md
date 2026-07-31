@@ -197,7 +197,9 @@ permissions and are granted at scopes (platform-wide or per-object), to individu
 **groups** — flat, named sets of users whose members all inherit the group's role grants, so
 bulk access is one grant instead of one assignment per user. Roles and groups are managed
 through the REST API under `/api/v1/permissions`; user-role assignment and group membership
-are managed via the CLI. See the [permissions guide](docs/guides/permissions.md).
+are managed via the CLI. A separate organization structure (`/api/v1/organization/units`) also exists, but
+purely as inert structure — it grants nothing on its own; groups and rule-driven membership
+will connect it to access later. See the [permissions guide](docs/guides/permissions.md).
 
 ## Audit Trail
 
