@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import "@/lib/plugins";
 import { useAuth } from "@/lib/auth-context";
-import { checkPermission } from "@/lib/permissions";
+import { resolveNavPermissions } from "@/components/NavItem";
 import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/components/AppSidebar";
 import MobileSidebar from "@/components/MobileSidebar";
@@ -32,6 +32,7 @@ function DashboardContent({
   children,
   user,
   logout,
+  navPermissions,
 }: {
   children: React.ReactNode;
   user: {
@@ -39,10 +40,9 @@ function DashboardContent({
     email?: string;
     avatar?: string;
     plan?: string;
-    is_admin?: boolean;
-    canViewAnalytics?: boolean;
   };
   logout: () => void;
+  navPermissions: Record<string, boolean>;
 }) {
   const { isCollapsed, toggleCollapsed } = useSidebar();
 
@@ -53,13 +53,14 @@ function DashboardContent({
         <div className="hidden lg:block">
           <AppSidebar
             user={user}
+            navPermissions={navPermissions}
             onLogout={logout}
             variant="desktop"
             isCollapsed={isCollapsed}
             onToggleCollapse={toggleCollapsed}
           />
         </div>
-        <MobileSidebar user={user} onLogout={logout} />
+        <MobileSidebar user={user} navPermissions={navPermissions} onLogout={logout} />
         <main className="flex-1 overflow-auto bg-background relative">
           <div className="absolute top-3 right-3 z-10 hidden lg:block">
             <ThemeToggle />
@@ -74,18 +75,18 @@ function DashboardContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, isAuthenticated, loading, logout } = useAuth();
 
-  const [canViewAnalytics, setCanViewAnalytics] = useState(false);
+  const [navPermissions, setNavPermissions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    setNavPermissions({});
     if (!token) return;
     let active = true;
-    checkPermission(token, "analytics.read")
-      .then((allowed) => {
-        if (active) setCanViewAnalytics(allowed);
+    resolveNavPermissions(token)
+      .then((perms) => {
+        if (active) setNavPermissions(perms);
       })
       .catch((error) => {
-        if (active) setCanViewAnalytics(false);
-        console.error("Failed to check analytics permission:", error);
+        console.error("Failed to resolve nav permissions:", error);
       });
     return () => {
       active = false;
@@ -110,14 +111,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     name: user?.name || user?.username,
     email: user?.email,
     plan: "Free Plan",
-    is_admin: user?.is_admin,
-    canViewAnalytics,
   };
 
   return (
     <PluginProvider token={token}>
       <SidebarProvider>
-        <DashboardContent user={userInfo} logout={logout}>
+        <DashboardContent user={userInfo} logout={logout} navPermissions={navPermissions}>
           {children}
         </DashboardContent>
       </SidebarProvider>
