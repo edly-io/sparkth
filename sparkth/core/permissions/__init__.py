@@ -154,6 +154,14 @@ GROUP_READ = Permission.create("group.read")
 GROUP_UPDATE = Permission.create("group.update")
 GROUP_DELETE = Permission.create("group.delete")
 
+# The organizational-unit management permissions gate the organization-structure API (sparkth/api/v1/org). Membership
+# mutations are CLI-managed and carry no REST gate of their own. Management is at the GLOBAL
+# scope only; a per-unit delegation scope waits on object-bearing cascade (#420 Phase 2).
+ORGANIZATION_UNIT_CREATE = Permission.create("organization.unit.create")
+ORGANIZATION_UNIT_READ = Permission.create("organization.unit.read")
+ORGANIZATION_UNIT_UPDATE = Permission.create("organization.unit.update")
+ORGANIZATION_UNIT_DELETE = Permission.create("organization.unit.delete")
+
 # Reading the permission vocabulary itself (the assignable-permissions listing), distinct from
 # reading roles.
 PERMISSION_READ = Permission.create("permission.read")
