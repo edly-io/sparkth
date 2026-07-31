@@ -14,8 +14,9 @@ import {
   PanelLeft,
   Key,
 } from "lucide-react";
-import { ComponentType } from "react";
-import { useEnabledPlugins } from "@/lib/plugins/context";
+import { usePluginContext } from "@/lib/plugins/context";
+import { sidebarItemsFrom, type SidebarItem } from "@/lib/plugins/metadata";
+import { resolvePluginIcon } from "@/lib/plugins/icons";
 import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/components/Spinner";
@@ -52,7 +53,8 @@ export default function AppSidebar({
   onToggleCollapse,
 }: AppSidebarProps) {
   const pathname = usePathname();
-  const { plugins, loading } = useEnabledPlugins();
+  const { userPlugins, loading } = usePluginContext();
+  const sidebarItems = sidebarItemsFrom(userPlugins);
 
   const isOnChatPlugin =
     pathname === `${basePath}/chat` || pathname?.startsWith(`${basePath}/chat/`);
@@ -151,18 +153,16 @@ export default function AppSidebar({
           </div>
         ) : (
           <>
-            {plugins
-              .filter((plugin) => plugin.showInSidebar !== false)
-              .map((plugin) => (
-                <PluginNavItem
-                  key={plugin.name}
-                  plugin={plugin}
-                  basePath={basePath}
-                  isActive={isActiveRoute(plugin.name)}
-                  onClick={handleNavClick}
-                  isCollapsed={isCollapsed && variant === "desktop"}
-                />
-              ))}
+            {sidebarItems.map((item) => (
+              <PluginNavItem
+                key={item.name}
+                item={item}
+                basePath={basePath}
+                isActive={isActiveRoute(item.name)}
+                onClick={handleNavClick}
+                isCollapsed={isCollapsed && variant === "desktop"}
+              />
+            ))}
 
             <div>
               <Link
@@ -332,37 +332,31 @@ export default function AppSidebar({
 }
 
 function PluginNavItem({
-  plugin,
+  item,
   basePath,
   isActive,
   onClick,
   isCollapsed,
 }: {
-  plugin: {
-    name: string;
-    displayName: string;
-    sidebarLabel?: string;
-    sidebarIcon?: ComponentType<{ className?: string }>;
-    description?: string;
-  };
+  item: SidebarItem;
   basePath: string;
   isActive: boolean;
   onClick?: () => void;
   isCollapsed?: boolean;
 }) {
-  const label = plugin.sidebarLabel || plugin.displayName;
-  const Icon = plugin.sidebarIcon;
+  const label = item.label;
+  const Icon = resolvePluginIcon(item.icon);
 
   return (
     <Link
-      href={`${basePath}/${plugin.name}`}
+      href={`${basePath}/${item.name}`}
       onClick={onClick}
       className={`
         flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
         ${isCollapsed ? "justify-center" : ""}
         ${isActive ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500" : "text-foreground hover:bg-surface-variant"}
       `}
-      title={isCollapsed ? label : plugin.description}
+      title={isCollapsed ? label : (item.description ?? undefined)}
     >
       {Icon ? (
         <Icon className="w-5 h-5 flex-shrink-0" />

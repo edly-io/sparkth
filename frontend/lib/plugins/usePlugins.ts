@@ -22,11 +22,6 @@ interface UsePluginResult {
   error: string | null;
 }
 
-interface UseSidebarPluginsResult {
-  plugins: PluginDefinition[];
-  loading: boolean;
-}
-
 // ============================================================================
 // Hooks
 // ============================================================================
@@ -160,26 +155,6 @@ export function usePluginState(token: string | null, pluginName: string): UsePlu
   return {
     plugin,
     ...state,
-  };
-}
-
-/**
- * Hook to get plugins for sidebar navigation
- * @param token - Authentication token
- * @returns Sidebar plugins sorted by order
- */
-export function useSidebarPlugins(token: string | null): UseSidebarPluginsResult {
-  const { enabledPlugins, loading } = usePlugins(token);
-
-  const sidebarPlugins = useMemo(() => {
-    return enabledPlugins
-      .filter((p) => p.showInSidebar)
-      .sort((a, b) => (a.sidebarOrder || 99) - (b.sidebarOrder || 99));
-  }, [enabledPlugins]);
-
-  return {
-    plugins: sidebarPlugins,
-    loading,
   };
 }
 

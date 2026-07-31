@@ -2,8 +2,8 @@
 
 import { Suspense, lazy, useMemo, useEffect, useState } from "react";
 import { Spinner } from "@/components/Spinner";
-import { PluginDefinition, emitPluginEvent } from "@/lib/plugins";
-import { usePlugin } from "@/lib/plugins/context";
+import { PluginDefinition, displayNameOf, emitPluginEvent } from "@/lib/plugins";
+import { usePlugin, usePluginContext } from "@/lib/plugins/context";
 import { PluginErrorBoundary } from "./PluginErrorBoundary";
 
 interface PluginRendererProps {
@@ -28,7 +28,11 @@ export default function PluginRenderer({
   pluginDef: overridePluginDef,
 }: PluginRendererProps) {
   const { isEnabled, config, context } = usePlugin(pluginName);
+  const { userPlugins } = usePluginContext();
   const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(overridePluginDef || null);
+
+  const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
+  const displayName = userPlugin ? displayNameOf(userPlugin) : pluginName;
 
   useEffect(() => {
     if (overridePluginDef) {
@@ -115,7 +119,7 @@ export default function PluginRenderer({
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-2">Plugin Disabled</h3>
           <p className="text-muted-foreground">
-            The plugin <strong>{pluginDef.displayName}</strong> is currently disabled.
+            The plugin <strong>{displayName}</strong> is currently disabled.
           </p>
         </div>
       </div>
@@ -123,12 +127,12 @@ export default function PluginRenderer({
   }
 
   if (!PluginComponent) {
-    return <PluginLoadingFallback displayName={pluginDef.displayName} />;
+    return <PluginLoadingFallback displayName={displayName} />;
   }
 
   return (
     <PluginErrorBoundary pluginName={pluginName}>
-      <Suspense fallback={<PluginLoadingFallback displayName={pluginDef.displayName} />}>
+      <Suspense fallback={<PluginLoadingFallback displayName={displayName} />}>
         <PluginComponent config={config} context={context} />
       </Suspense>
     </PluginErrorBoundary>
