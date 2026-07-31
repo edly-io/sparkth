@@ -1,0 +1,74 @@
+# Production stack: Sparkth app, TimescaleDB/Postgres (app + analytics DBs), and
+# Redis. See the "Production" section of README.md.
+#
+# Every service loads .env and then .env.local (later entries win). .env.local is
+# mandatory and must carry the production overrides listed at the top of .env,
+# including the in-network connection URLs (DATABASE_URL, ANALYTICS_DATABASE_URL,
+# REDIS_URL pointing at the db and redis services); compose fails to start if it
+# is missing. Migrations are not run automatically — apply them with the
+# `migrate` command documented in the README.
+
+services:
+  sparkth:
+    image: ghcr.io/edly-io/sparkth:${SPARKTH_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - .env
+      - .env.local
+    environment:
+      # .env ships false for native dev; the production image must serve the
+      # bundled frontend.
+      SERVE_FRONTEND: "true"
+    ports:
+      # With a reverse proxy on the same host, set SPARKTH_HTTP_BIND=127.0.0.1.
+      - "${SPARKTH_HTTP_BIND:-0.0.0.0}:${SPARKTH_HTTP_PORT:-7727}:8000"
+    # Give in-flight requests (e.g. streamed LLM responses) time to finish.
+    stop_grace_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  db:
+    image: docker.io/timescale/timescaledb-ha:pg18
+    restart: unless-stopped
+    # Postgres parallel workers use /dev/shm; Docker's 64 MB default is too
+    # small under analytical load.
+    shm_size: 256mb
+    env_file:
+      - .env
+      - .env.local
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # $$ defers expansion to the container shell, which always has
+      # POSTGRES_* from env_file (compose interpolation may not).
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-sparkth} -d $${POSTGRES_DB:-sparkth}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: docker.io/redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    env_file:
+      - .env
+      - .env.local
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
