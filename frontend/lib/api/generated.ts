@@ -634,6 +634,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Organizational Units
+         * @description List all organizational units (flat; clients rebuild the tree from parent_id/path).
+         */
+        get: operations["list_organizational_units_api_v1_organization_units_get"];
+        put?: never;
+        /**
+         * Create Organizational Unit
+         * @description Create an organizational unit (omit parent_id for a new root). Returns the created unit.
+         */
+        post: operations["create_organizational_unit_api_v1_organization_units_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/units/{unit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Organizational Unit
+         * @description Fetch an organizational unit by id.
+         */
+        get: operations["get_organizational_unit_api_v1_organization_units__unit_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Organizational Unit
+         * @description Delete an organizational unit (refused with 409 while it has children or active members).
+         */
+        delete: operations["delete_organizational_unit_api_v1_organization_units__unit_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Organizational Unit
+         * @description Rename/re-kind a unit and/or move it (a provided parent_id — null = make root — re-parents).
+         *
+         *     Applied atomically in one transaction: validation runs against the final state (a
+         *     combined rename+move checks the new name against the destination's siblings), and
+         *     nothing persists if any part fails.
+         */
+        patch: operations["update_organizational_unit_api_v1_organization_units__unit_id__patch"];
+        trace?: never;
+    };
     "/api/v1/parser/upload": {
         parameters: {
             query?: never;
@@ -1768,6 +1824,37 @@ export interface components {
             tool_calls?: {
                 [key: string]: unknown;
             }[] | null;
+        };
+        /** OrganizationalUnitCreate */
+        OrganizationalUnitCreate: {
+            /** Kind */
+            kind?: string | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id?: number | null;
+        };
+        /** OrganizationalUnitResponse */
+        OrganizationalUnitResponse: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: number | null;
+            /** Path */
+            path: string;
+        };
+        /** OrganizationalUnitUpdate */
+        OrganizationalUnitUpdate: {
+            /** Kind */
+            kind?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Parent Id */
+            parent_id?: number | null;
         };
         /** PaginatedResponse[DriveFileResponse] */
         PaginatedResponse_DriveFileResponse_: {
@@ -3322,6 +3409,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderCatalogResponse"];
+                };
+            };
+        };
+    };
+    list_organizational_units_api_v1_organization_units_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationalUnitResponse"][];
+                };
+            };
+        };
+    };
+    create_organizational_unit_api_v1_organization_units_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationalUnitCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationalUnitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_organizational_unit_api_v1_organization_units__unit_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationalUnitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_organizational_unit_api_v1_organization_units__unit_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_organizational_unit_api_v1_organization_units__unit_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationalUnitUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationalUnitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1,4 +1,4 @@
-"""Tests for the organizational-unit CRUD engine (sparkth.core.organization.units).
+"""Tests for the org-unit CRUD engine (sparkth.core.organization.units).
 Authored with LLM (Claude) assistance."""
 
 import pytest
@@ -235,3 +235,15 @@ async def test_delete_removes_membership_history(session: AsyncSession) -> None:
 async def test_delete_missing_raises(session: AsyncSession) -> None:
     with pytest.raises(OrganizationalUnitNotFound):
         await units.delete_organizational_unit(999, session)
+
+
+def test_facade_exposes_public_surface() -> None:
+    from sparkth.core.organization import memberships as core_memberships
+    from sparkth.core.organization import units as core_units
+    from sparkth.core.organization.exceptions import OrganizationalUnitNotFound as CoreOrganizationalUnitNotFound
+    from sparkth.lib import organization as facade
+
+    assert facade.create_organizational_unit is core_units.create_organizational_unit
+    assert facade.move_organizational_unit is core_units.move_organizational_unit
+    assert facade.add_organization_member is core_memberships.add_organization_member
+    assert facade.OrganizationalUnitNotFound is CoreOrganizationalUnitNotFound

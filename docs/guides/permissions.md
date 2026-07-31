@@ -78,8 +78,8 @@ descendants. Object-bearing multi-level cascade (e.g. a grant at one `org` apply
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. A `global` grant cascades down to both. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, and listing the assignable permission vocabulary respectively. |
-| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, and `permission.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `organization.unit.{create,read,update,delete}`; `permission.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, the organization-structure API, and listing the assignable permission vocabulary respectively. |
+| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, the four `organization.unit.*`, and `permission.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
