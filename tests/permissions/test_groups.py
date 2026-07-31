@@ -361,3 +361,12 @@ async def test_delete_group_removes_assignment_history(session: AsyncSession) ->
 async def test_delete_group_missing_raises(session: AsyncSession) -> None:
     with pytest.raises(GroupNotFound):
         await groups.delete_group(999, session)
+
+
+def test_group_permissions_are_registered() -> None:
+    from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE, get_permission
+
+    assert get_permission("group.create") is GROUP_CREATE
+    assert get_permission("group.read") is GROUP_READ
+    assert get_permission("group.update") is GROUP_UPDATE
+    assert get_permission("group.delete") is GROUP_DELETE

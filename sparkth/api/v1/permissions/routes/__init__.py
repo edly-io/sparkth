@@ -1,15 +1,16 @@
 """Permissions API router: assignable-permission listing, the self permission-check, and the
-mounted role sub-router.
+mounted sub-routers.
 
 The router is mounted at ``/permissions``. The permission vocabulary is read here (``GET
 /permissions``); ``GET /permissions/can`` answers whether the current user holds a permission;
-role management lives under ``/permissions/roles`` via the role sub-router.
+role management lives under ``/permissions/roles`` via the role sub-router, group management
+under ``/permissions/groups`` via the group sub-router.
 """
 
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.routes import roles
+from sparkth.api.v1.permissions.routes import groups, roles
 from sparkth.api.v1.permissions.schemas import PermissionCheckResponse
 from sparkth.core.models.user import User
 from sparkth.core.permissions.roles import available_permissions
@@ -50,3 +51,4 @@ async def check_permission(
 
 
 router.include_router(roles.router, prefix="/roles")
+router.include_router(groups.router, prefix="/groups")
