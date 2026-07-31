@@ -6,16 +6,20 @@ and functions, see the generated [permissions reference](../reference/permission
 
 ## The model
 
-Authorization data lives in three tables:
+Authorization data lives in six tables:
 
 - **`role`** — a named role (e.g. `admin`).
 - **`role_permission`** — the permissions a role grants. A permission is a free-form dotted
   string (e.g. `assignment.grade`); a role grants many.
 - **`role_assignment`** — grants a role to a user at a single scope.
+- **`user_group`** — a named, flat set of users (see [Groups](#groups)).
+- **`group_membership`** — a user's membership in a group.
+- **`group_role_assignment`** — grants a role to every member of a group at a single scope.
 
-A user is authorized when they hold, through an active `role_assignment` at the relevant
-scope, a role whose `role_permission` rows include the permission. `can()` resolves exactly
-this against the three tables — it is the single authorization check.
+A user is authorized when they hold, at the relevant scope, a role whose `role_permission`
+rows include the permission — either through an active `role_assignment` of their own or
+through an active `group_role_assignment` of a group they actively belong to. `can()`
+resolves exactly this — it is the single authorization check.
 
 ## Permissions and scopes are declared in code
 
@@ -74,13 +78,58 @@ descendants. Object-bearing multi-level cascade (e.g. a grant at one `org` apply
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. A `global` grant cascades down to both. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `permission.read` | Gate the registration email-whitelist endpoints, the role-management API, and listing the assignable permission vocabulary respectively. |
-| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, and `permission.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, and listing the assignable permission vocabulary respectively. |
+| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, and `permission.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
+
+## Groups
+
+A **group** is a flat, named set of users — the second assignee source for role grants.
+Granting a role to a group at a scope is one `group_role_assignment` row, and every active
+member holds that role there: "every math instructor gets the teacher role in course 42" is
+one grant instead of one `role_assignment` per instructor, and membership churn (someone
+joins or leaves the set) is a membership edit, not a grant edit.
+
+- Groups are **flat by design** — no group-in-group nesting. Organizational hierarchy
+  ("teachers belong to departments, which belong to universities") is a *scope*-hierarchy
+  concern, answered by where in the scope tree a group's grant is placed, not by nesting
+  groups (see [#420](https://github.com/edly-io/sparkth/issues/420) Phase 2 for
+  object-bearing cascade).
+- `can()` / `has_role()` resolve group grants through the **same scope chain** as direct
+  assignments — a group grant at `global` cascades to descendant scopes exactly like a
+  direct one, and `has_role` counting group grants means an admin role granted via a group
+  is a real admin.
+- Membership and group-role assignments are **soft-deleted**: removing a member (or revoking
+  a group's role) drops the inherited access immediately while keeping the history row for
+  auditing.
+- Membership rows carry a **`source`** column (`"manual"` today); rule-driven membership can
+  later own its `"rule"` rows without touching manually managed ones.
+
+Group structure is managed through the REST API under `/api/v1/permissions/groups`
+(CRUD, gated by the `group.*` permissions; deleting a group is refused with **409** while it
+still has active role assignments). Membership and group-role grants are CLI-managed,
+mirroring how user-role assignment is CLI-only:
+
+```bash
+# add a user (by username or email) to a group, or remove one
+make cli -- groups add-member john cs-staff
+make cli -- groups remove-member john cs-staff
+# grant a role to every member of a group, at the global scope — and take it back
+make cli -- groups assign-role-to-group cs-staff grader
+make cli -- groups revoke-role-from-group cs-staff grader
+# or scoped to one object — same --scope/--scope-object-id rules as roles assign-role
+make cli -- groups assign-role-to-group cs-staff grader --scope course --scope-object-id 42
+```
+
+From application code, use the façade (`sparkth.lib.permissions`): `add_group_member`,
+`remove_group_member`, `assign_role_to_group`, `revoke_role_from_group`,
+`get_group_by_name`. Group management authorizes at the **global scope only** for now — a
+per-group delegation scope (like the per-role `role` scope) waits on object-bearing scope
+cascade ([#420](https://github.com/edly-io/sparkth/issues/420) Phase 2).
 
 ## Extending the permission system
 
