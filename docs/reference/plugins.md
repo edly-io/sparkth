@@ -18,3 +18,9 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 ## Config hooks
 
 ::: sparkth.lib.config
+
+## Frontend metadata hooks
+
+::: sparkth.lib.frontend
+
+::: sparkth.lib.frontend.hooks

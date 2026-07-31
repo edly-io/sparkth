@@ -6,7 +6,6 @@ Manages plugin discovery and instantiation.
 
 import importlib
 import inspect
-import re
 from typing import Iterator, Type
 
 from sparkth.core.config import get_plugin_settings
@@ -25,7 +24,9 @@ class PluginLoader:
     Central SparkthPlugin class loader and instantiator.
 
     The list of plugins is parsed from the plugin settings. Then, each class is
-    instantiated and the corresponding object are stored in the loader instance.
+    instantiated with no arguments (every plugin declares its own name by
+    passing it positionally to ``super().__init__()``) and the resulting
+    objects are stored in the loader instance keyed by that declared name.
     """
 
     INSTANCE: "PluginLoader" | None = None
@@ -52,23 +53,45 @@ class PluginLoader:
             Continues loading other plugins if one fails.
             Check logs for any failures.
         """
-        for plugin_name, plugin_class in self.iter_plugin_classes():
+        for plugin_class in self.iter_plugin_classes():
             try:
-                plugin_instance = plugin_class(plugin_name)
+                # Concrete plugin classes declare a no-argument __init__ that
+                # passes their name to super().__init__(); only the base class
+                # takes the name parameter, hence the call-arg ignore.
+                plugin_instance = plugin_class()  # type: ignore[call-arg]
             except Exception as e:
                 # We catch a broad exception here because we don't want failing plugins
                 # to crash the app.
-                logger.error(f"Failed to load plugin '{plugin_name}'")
+                logger.error(f"Failed to load plugin class '{plugin_class.__name__}'")
                 logger.exception(e)
                 continue
+
+            try:
+                plugin_name = plugin_instance.name
+            except AttributeError as e:
+                logger.error(
+                    f"Plugin class '{plugin_class.__name__}' declares no name: "
+                    "its __init__ must pass the plugin name to super().__init__()"
+                )
+                logger.exception(e)
+                continue
+
+            if plugin_name in self._loaded_plugins:
+                existing_class = type(self._loaded_plugins[plugin_name]).__name__
+                logger.error(
+                    f"Duplicate plugin name '{plugin_name}': "
+                    f"'{plugin_class.__name__}' clashes with already-loaded '{existing_class}'; skipping it"
+                )
+                continue
+
             self._loaded_plugins[plugin_name] = plugin_instance
 
-    def iter_plugin_classes(self) -> Iterator[tuple[str, Type[SparkthPlugin]]]:
+    def iter_plugin_classes(self) -> Iterator[Type[SparkthPlugin]]:
         """
-        Discover all plugins defined in get_plugin_settings().
+        Discover all plugin classes defined in get_plugin_settings().
 
         Yields:
-            (name, class) tuples
+            SparkthPlugin subclasses
 
         Note:
             All plugins are enabled by default.
@@ -76,12 +99,12 @@ class PluginLoader:
         """
         for module_string in get_plugin_settings():
             try:
-                plugin_name, plugin_class = _load_plugin_class(module_string)
+                plugin_class = _load_plugin_class(module_string)
             except (PluginLoadError, PluginValidationError) as e:
                 logger.warning(f"Failed to discover plugin from '{module_string}'")
                 logger.exception(e)
                 continue
-            yield (plugin_name, plugin_class)
+            yield plugin_class
 
     def get_loaded_plugins(self) -> list[tuple[str, SparkthPlugin]]:
         """
@@ -97,7 +120,7 @@ class PluginLoader:
         self._loaded_plugins = {}
 
 
-def _load_plugin_class(module_string: str) -> tuple[str, Type[SparkthPlugin]]:
+def _load_plugin_class(module_string: str) -> Type[SparkthPlugin]:
     """
     Load a plugin class from module string.
 
@@ -105,7 +128,7 @@ def _load_plugin_class(module_string: str) -> tuple[str, Type[SparkthPlugin]]:
         module_string: Module string in format "module.path:ClassName"
 
     Returns:
-        Tuple of (plugin_name, plugin_class)
+        The plugin class
 
     Raises:
         PluginLoadError: If plugin cannot be loaded
@@ -138,21 +161,4 @@ def _load_plugin_class(module_string: str) -> tuple[str, Type[SparkthPlugin]]:
     if not (inspect.isclass(plugin_class) and issubclass(plugin_class, SparkthPlugin)):
         raise PluginValidationError(f"Class '{class_name}' must be a subclass of SparkthPlugin")
 
-    plugin_name = _class_name_to_plugin_name(class_name)
-
-    return plugin_name, plugin_class
-
-
-def _class_name_to_plugin_name(class_name: str) -> str:
-    """
-    Convert class name to plugin name.
-
-    Examples:
-        CanvasPlugin -> canvas
-        OpenEdxPlugin -> open-edx
-    """
-    if class_name.endswith("Plugin"):
-        class_name = class_name[:-6]
-
-    name = re.sub("([a-z0-9])([A-Z])", r"\1-\2", class_name)
-    return name.lower()
+    return plugin_class

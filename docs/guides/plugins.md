@@ -77,7 +77,7 @@ Both methods default to `None` on the base class, so non-LMS plugins require no 
 
 Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely.
 
-When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _derived_ name (the value passed to `__init__` — see [Plugin Name Derivation](#plugin-name-derivation) below), so no name string is needed at the call site.
+When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _declared_ name (the value you pass to `super().__init__()`, see [Plugin Names](#plugin-names) below), so no name string is needed at the call site.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -88,8 +88,8 @@ from sparkth.lib.plugins import SparkthPlugin
 
 
 class MyAppPlugin(SparkthPlugin):
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)
+    def __init__(self) -> None:
+        super().__init__("my-app")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
 ```
 
@@ -134,8 +134,8 @@ from sparkth.lib.plugins import SparkthPlugin
 
 
 class MyAppPlugin(SparkthPlugin):
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)
+    def __init__(self) -> None:
+        super().__init__("my-app")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         CONFIG_ADAPTERS.add_item(self, MyAppPluginConfigAdapter())
 ```
@@ -207,26 +207,25 @@ class MyAppPluginConfigAdapter(LLMConfigAdapter):
 ```
 
 
-## Plugin Name Derivation
+## Plugin Names
 
-You do **not** choose the plugin name freely. The `PluginLoader` instantiates each plugin with a name it derives from the class name (`_class_name_to_plugin_name` in `sparkth/core/plugins/loader.py`): it strips a trailing `Plugin` suffix and kebab-cases the rest.
+Every plugin **declares its own name explicitly** by passing it positionally to `super().__init__()`. Nothing is derived from the class name, and renaming the class never changes the plugin's identity:
 
-| Class name | Derived name |
-|---|---|
-| `CanvasPlugin` | `canvas` |
-| `OpenEdxPlugin` | `open-edx` |
-| `MyAppPlugin` | `my-app` |
-| `Slack` (no suffix) | `slack` |
+```python
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self) -> None:
+        super().__init__("my-app")
+```
 
-This derived name is what gets passed to your `__init__`, what the `CONFIG_SCHEMAS` hook resolves config classes by, and what `get_plugin_adapter` uses to look up your adapter from `CONFIG_ADAPTERS`. Name your class so the derived name is what you want.
+The name must be a kebab-case slug (lowercase letters, digits, single hyphens: `PLUGIN_NAME_PATTERN` in `sparkth/core/plugins/base.py`); `super().__init__()` raises `ValueError` otherwise. It appears in URLs (`/api/v1/<name>`, `/dashboard/<name>`), keys the plugin's database row, and is what every hook lookup (`CONFIG_SCHEMAS`, `CONFIG_ADAPTERS`, the frontend metadata hooks) resolves by, so treat it as permanent once released.
+
+The loader (`sparkth/core/plugins/loader.py`) constructs every plugin as `plugin_class()` with no arguments and indexes it under the declared name. A plugin that declares a name already taken by another plugin is skipped with an error in the logs.
 
 
 ## Basic Plugin Structure
 
-The loader constructs every plugin as `plugin_class(plugin_name)` (`sparkth/core/plugins/loader.py`), so `__init__` **must accept the derived `plugin_name` as its first positional argument** and pass it straight through to `super().__init__()`. Do not hard-code the name.
-
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, permissions via `Permission.create`, scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`, analytics event schemas via `register_event_schema` and exception→HTTP mappings via `register_status` / `register_exception_handler`.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, frontend metadata to `DISPLAY_INFO` / `SIDEBAR_ENTRIES` / `FRONTEND_APPS`, permissions via `Permission.create`, scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`, analytics event schemas via `register_event_schema` and exception→HTTP mappings via `register_status` / `register_exception_handler`.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -260,8 +259,8 @@ class MyAppDataProcessed(AnalyticsEventSchema):
 
 # Plugin class
 class MyAppPlugin(SparkthPlugin):
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)  # name is supplied by the plugin loader
+    def __init__(self) -> None:
+        super().__init__("my-app")  # the plugin declares its own name
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
@@ -280,9 +279,40 @@ Analytics event schemas register through `register_event_schema(self, MyEvent)`:
 
 ### Where do plugin routes get mounted?
 
-`register_router` mounts the router at `/api/v1/<plugin-name>` automatically, derived
-from the plugin instance. The router above is reachable at
+`register_router` mounts the router at `/api/v1/<plugin-name>` automatically, using
+the plugin instance's declared name. The router above is reachable at
 `http://localhost:7727/api/v1/my-app/`.
+
+## Frontend Metadata
+
+The backend is the single source of truth for what the frontend shows about a plugin. Declare it through three per-concern hooks from `sparkth.lib.frontend.hooks`, registered in `__init__` like every other hook. Human-facing names are passed positionally:
+
+```python
+from sparkth.lib.frontend.hooks import (
+    DISPLAY_INFO,
+    FRONTEND_APPS,
+    SIDEBAR_ENTRIES,
+    DisplayInfo,
+    FrontendApp,
+    SidebarEntry,
+)
+
+
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self) -> None:
+        super().__init__("my-app")
+        DISPLAY_INFO.add_item(self, DisplayInfo("My App", "What the plugin does, in one line", icon="sparkles"))
+        SIDEBAR_ENTRIES.add_item(self, SidebarEntry("My App", icon="sparkles", order=5))
+        FRONTEND_APPS.add_item(self, FrontendApp())
+```
+
+- **`DISPLAY_INFO`**: the human-facing identity (display name, description, optional icon) shown in settings and catalogs. Every plugin should register one; without it the plugin appears with only its slug name.
+- **`SIDEBAR_ENTRIES`**: a dashboard sidebar navigation entry (label, optional icon, sort order). Register only if the plugin should appear in the sidebar.
+- **`FRONTEND_APPS`**: marks the plugin as shipping a frontend page at `/dashboard/<plugin-name>`. Backend-only plugins skip it.
+
+Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names, never as components; the frontend resolves names to components.
+
+The declarations are exposed read-only on the user-plugins API (`display`, `sidebar`, and `has_frontend` on `UserPluginResponse`), so the frontend renders what the backend declares instead of keeping its own copy.
 
 ### Rendering plugin exceptions as HTTP responses
 
@@ -329,8 +359,8 @@ from sparkth.plugins.my_app.models import MyModel  # noqa: F401
 
 
 class MyAppPlugin(SparkthPlugin):
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)
+    def __init__(self) -> None:
+        super().__init__("my-app")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
 ```
@@ -350,8 +380,8 @@ Register each tool in `__init__`; pass an optional `category` to group it.
 
 ```python
 class MyAppPlugin(SparkthPlugin):
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)
+    def __init__(self) -> None:
+        super().__init__("my-app")
         MCP_TOOLS.add_item(self, Tool(my_tool, category="my-category"))
 
 
@@ -409,10 +439,10 @@ async def get_weather_route(city: str):
     return {"city": city, "temp": 20}
 
 
-# Plugin (class name WeatherPlugin → derived name "weather")
+# Plugin (declares its name explicitly)
 class WeatherPlugin(SparkthPlugin):
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)
+    def __init__(self) -> None:
+        super().__init__("weather")
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(self.get_weather, category="weather"))
 

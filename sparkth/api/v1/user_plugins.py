@@ -91,7 +91,7 @@ async def list_user_plugins(
         )
 
         result.append(
-            UserPluginResponse(
+            UserPluginResponse.for_plugin(
                 plugin_name=plugin.name,
                 enabled=user_plugin.enabled if user_plugin else True,
                 config=safe_config,
@@ -141,7 +141,7 @@ async def create_user_plugin(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
-    return UserPluginResponse(
+    return UserPluginResponse.for_plugin(
         plugin_name=plugin.name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
     )
 
@@ -168,11 +168,13 @@ async def get_user_plugin(
             current_user.id,  # type: ignore[arg-type]
             user_plugin.config or config_keys,
         )
-        return UserPluginResponse(
+        return UserPluginResponse.for_plugin(
             plugin_name=plugin_name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
         )
     else:
-        return UserPluginResponse(plugin_name=plugin_name, enabled=True, config=config_keys, is_core=plugin.is_core)
+        return UserPluginResponse.for_plugin(
+            plugin_name=plugin_name, enabled=True, config=config_keys, is_core=plugin.is_core
+        )
 
 
 @router.patch("/{plugin_name}", response_model=UserPluginResponse)
@@ -198,7 +200,7 @@ async def update_user_plugin(
         plugin.id,  # type: ignore[arg-type]
         request.enabled,
     )
-    return UserPluginResponse(
+    return UserPluginResponse.for_plugin(
         plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
     )
 
@@ -237,7 +239,7 @@ async def update_user_plugin_config(
     await PluginService.apply_cache_sync(plugin_name, session, current_user.id, user_plugin.config)
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
-    return UserPluginResponse(
+    return UserPluginResponse.for_plugin(
         plugin_name=plugin_name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
     )
 

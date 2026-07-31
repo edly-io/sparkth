@@ -62,16 +62,28 @@ class TestSparkthPluginConstruction:
         plugin = SparkthPlugin("demo")
         assert plugin.name == "demo"
 
-    def test_subclass_passes_name_through_super_init(self) -> None:
+    def test_subclass_declares_its_name_positionally(self) -> None:
         class DemoPlugin(SparkthPlugin):
-            def __init__(self, plugin_name: str) -> None:
-                super().__init__(plugin_name)
+            def __init__(self) -> None:
+                super().__init__("demo")
 
-        plugin = DemoPlugin("demo")
+        plugin = DemoPlugin()
         assert plugin.name == "demo"
 
     def test_repr_includes_plugin_name(self) -> None:
         assert repr(SparkthPlugin("demo")) == "<SparkthPlugin: demo>"
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        ["", "Has Space", "UPPER", "trailing-", "-leading", "under_score", "dot.name"],
+    )
+    def test_rejects_names_that_are_not_kebab_case_slugs(self, bad_name: str) -> None:
+        with pytest.raises(ValueError):
+            SparkthPlugin(bad_name)
+
+    @pytest.mark.parametrize("good_name", ["demo", "google-drive", "open-edx", "a1", "x2-y3"])
+    def test_accepts_kebab_case_slugs(self, good_name: str) -> None:
+        assert SparkthPlugin(good_name).name == good_name
 
 
 class TestPluginConfig:
