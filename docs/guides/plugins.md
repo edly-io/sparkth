@@ -306,13 +306,7 @@ class MyAppPlugin(SparkthPlugin):
         FRONTEND_APPS.add_item(self, FrontendApp())
 ```
 
-- **`DISPLAY_INFO`**: the human-facing identity (display name, description, optional icon) shown in settings and catalogs. Every plugin should register one; without it the plugin appears with only its slug name.
-- **`SIDEBAR_ENTRIES`**: a dashboard sidebar navigation entry (label, optional icon, sort order). Register only if the plugin should appear in the sidebar.
-- **`FRONTEND_APPS`**: marks the plugin as shipping a frontend page at `/dashboard/<plugin-name>`. Backend-only plugins skip it.
-
-Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names, never as components; the frontend resolves names to components.
-
-The declarations are exposed read-only on the user-plugins API (`display`, `sidebar`, and `has_frontend` on `UserPluginResponse`), so the frontend renders what the backend declares instead of keeping its own copy.
+What each hook carries, which of them are optional, and how the declarations reach the frontend live in the [frontend metadata hooks reference](../reference/plugins.md#frontend-metadata-hooks), generated from the module docstrings.
 
 ### Rendering plugin exceptions as HTTP responses
 

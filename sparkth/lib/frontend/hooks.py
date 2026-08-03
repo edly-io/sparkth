@@ -4,9 +4,14 @@ The backend is the single source of truth for what the frontend shows about a
 plugin. Each concern is its own hook, mirroring ``CONFIG_SCHEMAS`` and
 ``MCP_TOOLS``, rather than one monolithic manifest object:
 
-- :data:`DISPLAY_INFO`: the human-facing identity (settings page, catalog).
-- :data:`SIDEBAR_ENTRIES`: the dashboard sidebar navigation entry.
-- :data:`FRONTEND_APPS`: marks the plugin as shipping a frontend page.
+- :data:`DISPLAY_INFO`: the human-facing identity (display name, description,
+  optional icon) shown in settings and catalogs. Every plugin should register
+  one; without it the plugin appears with only its slug name.
+- :data:`SIDEBAR_ENTRIES`: the dashboard sidebar navigation entry (label,
+  optional icon, sort order). Register it only if the plugin should appear in
+  the sidebar.
+- :data:`FRONTEND_APPS`: marks the plugin as shipping a frontend page at
+  ``/dashboard/<plugin-name>``. Backend-only plugins skip it.
 
 A plugin registers from its ``__init__``, passing human-facing names
 positionally::
@@ -15,8 +20,12 @@ positionally::
     SIDEBAR_ENTRIES.add_item(self, SidebarEntry("Create Course", icon="plus", order=1))
     FRONTEND_APPS.add_item(self, FrontendApp())
 
-Icons cross the wire as icon names (lucide), never as components; the frontend
-resolves names to components.
+Icons cross the wire as `lucide <https://lucide.dev/icons/>`_ icon names, never
+as components; the frontend resolves names to components.
+
+The declarations are exposed read-only on the user-plugins API (``display``,
+``sidebar``, and ``has_frontend`` on ``UserPluginResponse``), so the frontend
+renders what the backend declares instead of keeping its own copy.
 """
 
 from dataclasses import dataclass
