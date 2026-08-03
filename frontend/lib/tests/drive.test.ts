@@ -1,7 +1,5 @@
-import { describe, it, expect, expectTypeOf, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import type { Schema } from "@/lib/api";
-import type { DriveFile, DriveFolder, PaginatedResponse } from "@/lib/drive";
 import {
   browseDrive,
   createFolder,
@@ -306,21 +304,5 @@ describe("getFolderRagStatus", () => {
     mockFetch({ detail: "Not found" }, 404);
 
     await expect(getFolderRagStatus(99, "test-token")).rejects.toThrow("Failed to get RAG status");
-  });
-});
-
-// Compile-time drift gate: PaginatedResponse<T> must stay identical to the
-// generated per-item paginated schemas. The generator emits one monomorphic
-// schema per item type, so the generic is checked against each; a backend
-// change to the envelope (items/total/skip/limit) or to an item schema fails
-// `tsc --noEmit` here after regeneration.
-describe("PaginatedResponse", () => {
-  it("matches the generated paginated schemas", () => {
-    expectTypeOf<PaginatedResponse<DriveFile>>().toEqualTypeOf<
-      Schema<"PaginatedResponse_DriveFileResponse_">
-    >();
-    expectTypeOf<PaginatedResponse<DriveFolder>>().toEqualTypeOf<
-      Schema<"PaginatedResponse_DriveFolderResponse_">
-    >();
   });
 });

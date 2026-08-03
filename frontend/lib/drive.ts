@@ -10,16 +10,11 @@ export type SyncStatus = Schema<"SyncStatusResponse">;
 export type FileRagStatus = Schema<"FileRagStatusResponse">;
 export type FolderRagStatusResponse = Schema<"FolderRagStatusResponse">;
 
-// The pagination envelope, derived from a generated schema rather than
-// hand-written so it cannot drift from the backend. openapi-typescript emits
-// one monomorphic schema per item type (PaginatedResponse_DriveFileResponse_,
-// PaginatedResponse_DriveFolderResponse_), so only the item type is swapped
-// back in here; the drive.test.ts drift gate checks the generic against both.
-export type PaginatedResponse<T> = {
-  [K in keyof Schema<"PaginatedResponse_DriveFileResponse_">]: K extends "items"
-    ? T[]
-    : Schema<"PaginatedResponse_DriveFileResponse_">[K];
-};
+// openapi-typescript emits one monomorphic paginated schema per item type,
+// so each page shape is aliased directly (like every other type above) rather
+// than reconstructed as a hand-written generic that could drift.
+export type PaginatedFolders = Schema<"PaginatedResponse_DriveFolderResponse_">;
+export type PaginatedFiles = Schema<"PaginatedResponse_DriveFileResponse_">;
 
 // TODO: rename the frontend's RagStatus terminology to match the backend's
 // Document API naming (DocumentStatus) in a follow-up, separate from this
@@ -84,9 +79,12 @@ export async function disconnectGoogle(token: string): Promise<void> {
 
 /**
  * Fetch all pages from a paginated endpoint, collecting every item.
+ *
+ * The fetcher parameter is structural (just the envelope fields the loop
+ * reads), so any of the generated PaginatedResponse_* shapes satisfies it.
  */
 export async function fetchAllPages<T>(
-  fetcher: (skip: number, limit: number) => Promise<PaginatedResponse<T>>,
+  fetcher: (skip: number, limit: number) => Promise<{ items: T[]; total: number }>,
   limit = 100,
 ): Promise<T[]> {
   const items: T[] = [];
@@ -102,17 +100,13 @@ export async function fetchAllPages<T>(
 }
 
 // Folder functions
-export async function listFolders(
-  token: string,
-  skip = 0,
-  limit = 20,
-): Promise<PaginatedResponse<DriveFolder>> {
+export async function listFolders(token: string, skip = 0, limit = 20): Promise<PaginatedFolders> {
   try {
     const { data } = await api.GET("/api/v1/google-drive/folders", {
       params: { query: { skip, limit } },
       headers: bearer(token),
     });
-    return data as PaginatedResponse<DriveFolder>;
+    return data as PaginatedFolders;
   } catch (error) {
     toError("Failed to list folders", error);
   }
@@ -187,13 +181,13 @@ export async function listFiles(
   token: string,
   skip = 0,
   limit = 20,
-): Promise<PaginatedResponse<DriveFile>> {
+): Promise<PaginatedFiles> {
   try {
     const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/files", {
       params: { path: { folder_id: folderId }, query: { skip, limit } },
       headers: bearer(token),
     });
-    return data as PaginatedResponse<DriveFile>;
+    return data as PaginatedFiles;
   } catch (error) {
     toError("Failed to list files", error);
   }
