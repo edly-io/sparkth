@@ -10,12 +10,16 @@ export type SyncStatus = Schema<"SyncStatusResponse">;
 export type FileRagStatus = Schema<"FileRagStatusResponse">;
 export type FolderRagStatusResponse = Schema<"FolderRagStatusResponse">;
 
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  skip: number;
-  limit: number;
-}
+// The pagination envelope, derived from a generated schema rather than
+// hand-written so it cannot drift from the backend. openapi-typescript emits
+// one monomorphic schema per item type (PaginatedResponse_DriveFileResponse_,
+// PaginatedResponse_DriveFolderResponse_), so only the item type is swapped
+// back in here; the drive.test.ts drift gate checks the generic against both.
+export type PaginatedResponse<T> = {
+  [K in keyof Schema<"PaginatedResponse_DriveFileResponse_">]: K extends "items"
+    ? T[]
+    : Schema<"PaginatedResponse_DriveFileResponse_">[K];
+};
 
 // TODO: rename the frontend's RagStatus terminology to match the backend's
 // Document API naming (DocumentStatus) in a follow-up, separate from this
