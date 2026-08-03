@@ -100,6 +100,15 @@ user-plugins API response (`display`, `sidebar`, `has_frontend` on
 `UserPluginState`). The frontend renders what the backend declares; there is no
 frontend-side copy to keep in sync.
 
+`UserPluginState` is the generated `UserPluginResponse` schema
+(`Schema<"UserPluginResponse">`), not a hand-written mirror of it, so the shape
+cannot drift from the API. One consequence for settings UIs: `config` values are
+typed `unknown`, because the backend stores config as JSONB and a field declared
+as a string can still arrive as an array or a number. Narrow at the read site
+with the helpers in `@/lib/plugins/config` — `configString(config, key)` for a
+single text field (non-strings fall back to `undefined` rather than coercing),
+and `stringConfigOf(config)` for an editor that renders every field as an input.
+
 Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
 resolver in `@/lib/plugins/icons` maps names to components; a plugin that ships
 a custom (non-lucide) icon registers it under its declared name:

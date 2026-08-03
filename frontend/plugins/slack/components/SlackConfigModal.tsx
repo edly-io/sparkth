@@ -20,7 +20,7 @@ import {
 import { Label } from "@/components/ui/Label";
 import { LLMConfigSelect } from "@/components/LLMConfigSelect";
 import { fetchProviderCatalog, type LLMConfig, type ProviderInfo } from "@/lib/llm";
-import type { UserPluginState } from "@/lib/plugins";
+import { configString, type UserPluginState } from "@/lib/plugins";
 import DocSourcePicker from "./DocSourcePicker";
 
 const DEFAULTS = {
@@ -67,14 +67,15 @@ export default function SlackConfigModal({
   useEffect(() => {
     if (!open) return;
     const cfg = plugin.config ?? {};
-    setBotName(cfg.bot_name ?? DEFAULTS.bot_name);
-    setFallbackMessage(cfg.fallback_message ?? DEFAULTS.fallback_message);
-    setGreetingMessage(cfg.greeting_message ?? DEFAULTS.greeting_message);
+    setBotName(configString(cfg, "bot_name") ?? DEFAULTS.bot_name);
+    setFallbackMessage(configString(cfg, "fallback_message") ?? DEFAULTS.fallback_message);
+    setGreetingMessage(configString(cfg, "greeting_message") ?? DEFAULTS.greeting_message);
 
     // allowed_sources may be a JSONB array or a JSON-encoded string
     try {
       const raw = cfg.allowed_sources;
-      const parsed = Array.isArray(raw) ? raw : raw ? JSON.parse(raw) : [];
+      const encoded = configString(cfg, "allowed_sources");
+      const parsed = Array.isArray(raw) ? raw : encoded ? JSON.parse(encoded) : [];
       setAllowedSources(
         Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string") : [],
       );
@@ -95,7 +96,7 @@ export default function SlackConfigModal({
         ? Number(savedTemp)
         : DEFAULTS.llm_temperature,
     );
-    setModelOverride(cfg.llm_model_override ?? "");
+    setModelOverride(configString(cfg, "llm_model_override") ?? "");
     setErrors({});
     setSubmitError(null);
   }, [open, plugin.config]);

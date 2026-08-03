@@ -164,20 +164,13 @@ export type PluginDisplayInfo = Schema<"DisplayInfo">;
 export type PluginSidebarEntry = Schema<"SidebarEntry">;
 
 /**
- * Plugin state from the API.
+ * Plugin state from the API, sourced from the generated schema so the shape
+ * cannot drift from the backend response.
  *
  * `display`, `sidebar`, and `has_frontend` carry the read-only metadata the
  * backend plugin declared through the frontend hooks.
  */
-export interface UserPluginState {
-  plugin_name: string;
-  enabled: boolean;
-  config: Record<string, string>;
-  is_core: boolean;
-  display?: PluginDisplayInfo | null;
-  sidebar?: PluginSidebarEntry | null;
-  has_frontend?: boolean;
-}
+export type UserPluginState = Schema<"UserPluginResponse">;
 
 // ============================================================================
 // Plugin Event Types
