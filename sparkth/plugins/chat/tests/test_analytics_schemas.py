@@ -15,6 +15,7 @@ from sparkth.plugins.chat.analytics import (
     ChatMessageSent,
     ChatToolInvoked,
     CompletionAnalyticsContext,
+    tool_names,
 )
 
 ALL_SCHEMAS = [
@@ -90,3 +91,34 @@ def test_completion_context_is_frozen() -> None:
     context = CompletionAnalyticsContext(provider="openai", model="gpt-4o", rag_used=True, actor_id="7")
     with pytest.raises(Exception):
         context.model = "changed"  # type: ignore[misc]
+
+
+class TestToolNames:
+    """One normaliser for both completion paths' differently-shaped records."""
+
+    def test_reads_streaming_shape(self) -> None:
+        records = [{"name": "openedx_create_xblock"}, {"name": "canvas_create_quiz"}]
+        assert tool_names(records) == ["openedx_create_xblock", "canvas_create_quiz"]
+
+    def test_reads_non_streaming_shape(self) -> None:
+        records = [
+            {"tool": "openedx_create_xblock", "tool_input": {"a": 1}, "output": "created"},
+            {"tool": "canvas_create_quiz", "tool_input": {}, "output": "ok"},
+        ]
+        assert tool_names(records) == ["openedx_create_xblock", "canvas_create_quiz"]
+
+    def test_returns_only_names_never_inputs_or_outputs(self) -> None:
+        """tool_input and output can hold course content — they must never be read."""
+        records = [{"tool": "openedx_create_xblock", "tool_input": {"secret": "pii"}, "output": "learner data"}]
+        assert tool_names(records) == ["openedx_create_xblock"]
+
+    def test_empty_list_yields_no_names(self) -> None:
+        assert tool_names([]) == []
+
+    def test_records_without_a_usable_name_are_dropped(self) -> None:
+        assert tool_names([{"tool_input": {}}, {"name": ""}, {"name": None}]) == []
+
+    def test_preserves_order_and_duplicates(self) -> None:
+        """Two executions of the same tool are two authoring actions, not one."""
+        records = [{"name": "canvas_create_question"}, {"name": "canvas_create_question"}]
+        assert tool_names(records) == ["canvas_create_question", "canvas_create_question"]

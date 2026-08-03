@@ -12,6 +12,7 @@ payload.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 from sparkth.lib.analytics import AnalyticsEventSchema
 
@@ -88,3 +89,30 @@ class CompletionAnalyticsContext:
     model: str
     rag_used: bool
     actor_id: str
+
+
+# The two completion paths report executions under different keys: the streaming
+# path's tool_end events yield {"name": …}, while the non-streaming provider records
+# {"tool": …, "tool_input": …, "output": …}. Both are read here so the mapping exists
+# in exactly one place.
+_TOOL_NAME_KEYS = ("name", "tool")
+
+
+def tool_names(records: list[dict[str, Any]]) -> list[str]:
+    """Extract tool names from either completion path's execution records.
+
+    Order and duplicates are preserved: two executions of the same tool are two
+    authoring actions. Records with no usable name are dropped rather than raising —
+    a malformed record must not cost the whole completion's analytics.
+
+    Only the name is read. ``tool_input`` and ``output`` can contain course content
+    and learner-identifying data, and must never reach an analytics payload.
+    """
+    names: list[str] = []
+    for record in records:
+        for key in _TOOL_NAME_KEYS:
+            value = record.get(key)
+            if isinstance(value, str) and value:
+                names.append(value)
+                break
+    return names
