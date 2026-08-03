@@ -55,9 +55,6 @@ class PluginLoader:
         """
         for plugin_class in self.iter_plugin_classes():
             try:
-                # Concrete plugin classes declare a no-argument __init__ that
-                # passes their name to super().__init__(); only the base class
-                # takes the name parameter, hence the call-arg ignore.
                 plugin_instance = plugin_class()  # type: ignore[call-arg]
             except Exception as e:
                 # We catch a broad exception here because we don't want failing plugins
