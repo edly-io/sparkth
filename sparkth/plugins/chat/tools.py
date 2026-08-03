@@ -12,12 +12,17 @@ from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 
 logger = get_logger(__name__)
 
+# Category reported for a tool the registry never discovered. A missing category
+# degrades one analytics dimension; it must never break emission.
+UNKNOWN_TOOL_CATEGORY = "unknown"
+
 
 class ToolRegistry:
     """Registry for managing LangChain tools."""
 
     def __init__(self) -> None:
         self._tools: dict[str, BaseTool] = {}
+        self._categories: dict[str, str] = {}
         self._initialized = False
 
     def register_tool(self, tool: BaseTool) -> None:
@@ -56,6 +61,17 @@ class ToolRegistry:
             for tool in self._tools.values()
         ]
 
+    def category_for(self, tool_name: str) -> str:
+        """Return the MCP category a tool was contributed under.
+
+        LangChain tools carry no category — ``_convert_mcp_to_langchain_tool`` drops
+        it — so the mapping is recorded during discovery. Unknown names resolve to
+        :data:`UNKNOWN_TOOL_CATEGORY` rather than raising.
+        """
+        if not self._initialized:
+            self.discover_plugin_tools()
+        return self._categories.get(tool_name, UNKNOWN_TOOL_CATEGORY)
+
     def discover_plugin_tools(self) -> None:
         """Discover and register tools from all loaded plugins.
 
@@ -73,6 +89,7 @@ class ToolRegistry:
             try:
                 langchain_tool = self._convert_mcp_to_langchain_tool(mcp_tool)
                 self.register_tool(langchain_tool)
+                self._categories[langchain_tool.name] = mcp_tool.category or UNKNOWN_TOOL_CATEGORY
             except (KeyError, TypeError, ValueError, ValidationError) as e:
                 logger.error(
                     "Failed to convert MCP tool '%s' to LangChain tool: %s",
@@ -85,9 +102,10 @@ class ToolRegistry:
         logger.info("Discovered %d tools from plugins", len(self._tools))
 
     def reset(self) -> None:
-        """Clear all registered tools and force re-discovery on next access."""
+        """Clear all registered tools and categories, forcing re-discovery on next access."""
         self._initialized = False
         self._tools = {}
+        self._categories = {}
 
     def _get_handler_type_hints(self, handler: Any) -> dict[str, Any]:
         """Extract type hints from the handler function."""
