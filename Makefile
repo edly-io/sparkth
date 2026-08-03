@@ -86,7 +86,7 @@ frontend.build.api: ## Regenerate frontend API types from the backend OpenAPI sc
 
 .PHONY: frontend.build.plugins
 frontend.build.plugins: ## Regenerate the frontend plugin list from the backend FRONTEND_APPS declarations
-	uv run python scripts/dump_frontend_plugins.py > frontend/lib/plugins/generated.ts
+	uv run python scripts/dump_frontend_plugins.py -o frontend/lib/plugins/generated.ts
 
 .PHONY: frontend.install.dev
 frontend.install.dev: ## Install exact frontend dependencies from lockfile

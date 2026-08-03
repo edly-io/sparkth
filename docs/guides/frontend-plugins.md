@@ -195,6 +195,11 @@ make frontend.build.plugins
   formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
   `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
   and break the byte-exact backend gate
+- To inspect the dump without touching the committed file, run the script with
+  no arguments and it prints to stdout:
+  `uv run python scripts/dump_frontend_plugins.py`. The make target passes
+  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
+  dump leaves the committed file intact
 - Tests on both tiers fail when the committed list drifts from the backend
   declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
   frontend registry does not match it (`lib/tests/plugin-registry-drift.test.ts`)
