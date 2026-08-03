@@ -191,7 +191,10 @@ make frontend.build.plugins
 
 **Notes**
 
-- Do not edit `lib/plugins/generated.ts` by hand
+- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
+  formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
+  `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
+  and break the byte-exact backend gate
 - Tests on both tiers fail when the committed list drifts from the backend
   declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
   frontend registry does not match it (`lib/tests/plugin-registry-drift.test.ts`)
