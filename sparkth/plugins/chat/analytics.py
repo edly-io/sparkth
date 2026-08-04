@@ -14,7 +14,8 @@ payload.
 from dataclasses import dataclass
 from typing import Any
 
-from sparkth.lib.analytics import AnalyticsEventSchema
+from sparkth.lib.analytics import AnalyticsEventSchema, emit_event
+from sparkth.plugins.chat.tools import get_tool_registry
 
 
 class ChatConversationStarted(AnalyticsEventSchema):
@@ -116,3 +117,80 @@ def tool_names(records: list[dict[str, Any]]) -> list[str]:
                 names.append(value)
                 break
     return names
+
+
+async def emit_conversation_started(conversation_id: str, provider: str, model: str, actor_id: str) -> None:
+    """Emit ``chat.conversation_started``."""
+    await emit_event(
+        ChatConversationStarted.event_type,
+        ChatConversationStarted.version,
+        {"conversation_id": conversation_id, "provider": provider, "model": model},
+        actor_id=actor_id,
+    )
+
+
+async def emit_message_sent(
+    conversation_id: str,
+    provider: str,
+    model: str,
+    message_length: int,
+    has_attachment: bool,
+    actor_id: str,
+) -> None:
+    """Emit ``chat.message_sent`` for one instructor turn."""
+    await emit_event(
+        ChatMessageSent.event_type,
+        ChatMessageSent.version,
+        {
+            "conversation_id": conversation_id,
+            "provider": provider,
+            "model": model,
+            "message_length": message_length,
+            "has_attachment": has_attachment,
+        },
+        actor_id=actor_id,
+    )
+
+
+async def emit_completion_served(
+    conversation_id: str,
+    context: CompletionAnalyticsContext,
+    tool_call_count: int,
+    streamed: bool,
+) -> None:
+    """Emit ``chat.completion_served``.
+
+    ``streamed`` is passed by the seam rather than read from the context, because it
+    is the one fact determined by *which* seam emits.
+    """
+    await emit_event(
+        ChatCompletionServed.event_type,
+        ChatCompletionServed.version,
+        {
+            "conversation_id": conversation_id,
+            "provider": context.provider,
+            "model": context.model,
+            "streamed": streamed,
+            "rag_used": context.rag_used,
+            "tool_call_count": tool_call_count,
+        },
+        actor_id=context.actor_id,
+    )
+
+
+async def emit_tool_invoked(conversation_id: str, tool_name: str, actor_id: str) -> None:
+    """Emit ``chat.tool_invoked`` for one tool execution.
+
+    The category is resolved from the tool registry here so no call site has to
+    know that LangChain tools carry no category.
+    """
+    await emit_event(
+        ChatToolInvoked.event_type,
+        ChatToolInvoked.version,
+        {
+            "conversation_id": conversation_id,
+            "tool_name": tool_name,
+            "tool_category": get_tool_registry().category_for(tool_name),
+        },
+        actor_id=actor_id,
+    )
