@@ -5,6 +5,8 @@ the app is imported — so these tests read the process-wide hook rather than
 constructing a second ChatPlugin (which would raise DuplicateEventTypeError).
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from pydantic import ValidationError
 
@@ -15,6 +17,10 @@ from sparkth.plugins.chat.analytics import (
     ChatMessageSent,
     ChatToolInvoked,
     CompletionAnalyticsContext,
+    emit_completion_served,
+    emit_conversation_started,
+    emit_message_sent,
+    emit_tool_invoked,
     tool_names,
 )
 
@@ -122,3 +128,80 @@ class TestToolNames:
         """Two executions of the same tool are two authoring actions, not one."""
         records = [{"name": "canvas_create_question"}, {"name": "canvas_create_question"}]
         assert tool_names(records) == ["canvas_create_question", "canvas_create_question"]
+
+
+class TestEmitHelpers:
+    """Each helper builds one payload and hands it to the emission primitive."""
+
+    async def test_emit_conversation_started(self) -> None:
+        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+            await emit_conversation_started(conversation_id="conv-1", provider="openai", model="gpt-4o", actor_id="7")
+
+        emit.assert_awaited_once_with(
+            "chat.conversation_started",
+            1,
+            {"conversation_id": "conv-1", "provider": "openai", "model": "gpt-4o"},
+            actor_id="7",
+        )
+
+    async def test_emit_message_sent(self) -> None:
+        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+            await emit_message_sent(
+                conversation_id="conv-1",
+                provider="openai",
+                model="gpt-4o",
+                message_length=12,
+                has_attachment=True,
+                actor_id="7",
+            )
+
+        emit.assert_awaited_once_with(
+            "chat.message_sent",
+            1,
+            {
+                "conversation_id": "conv-1",
+                "provider": "openai",
+                "model": "gpt-4o",
+                "message_length": 12,
+                "has_attachment": True,
+            },
+            actor_id="7",
+        )
+
+    async def test_emit_completion_served_reads_the_context(self) -> None:
+        context = CompletionAnalyticsContext(provider="anthropic", model="claude-sonnet-5", rag_used=True, actor_id="9")
+        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+            await emit_completion_served(conversation_id="conv-2", context=context, tool_call_count=3, streamed=True)
+
+        emit.assert_awaited_once_with(
+            "chat.completion_served",
+            1,
+            {
+                "conversation_id": "conv-2",
+                "provider": "anthropic",
+                "model": "claude-sonnet-5",
+                "streamed": True,
+                "rag_used": True,
+                "tool_call_count": 3,
+            },
+            actor_id="9",
+        )
+
+    async def test_emit_tool_invoked_resolves_the_category(self) -> None:
+        with (
+            patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit,
+            patch("sparkth.plugins.chat.analytics.get_tool_registry") as get_registry,
+        ):
+            get_registry.return_value.category_for.return_value = "openedx-course"
+            await emit_tool_invoked(conversation_id="conv-3", tool_name="openedx_create_xblock", actor_id="7")
+
+        emit.assert_awaited_once_with(
+            "chat.tool_invoked",
+            1,
+            {
+                "conversation_id": "conv-3",
+                "tool_name": "openedx_create_xblock",
+                "tool_category": "openedx-course",
+            },
+            actor_id="7",
+        )
