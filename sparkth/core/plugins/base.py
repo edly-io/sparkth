@@ -11,12 +11,7 @@ capabilities to the relevant hooks from its ``__init__``:
   (``sparkth.lib.frontend.hooks``)
 """
 
-import re
-
-# A plugin name is a kebab-case slug: it appears in URLs (``/api/v1/<name>``,
-# ``/dashboard/<name>``) and is the key joining the backend plugin, its DB row,
-# and its frontend counterpart.
-PLUGIN_NAME_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+from sparkth.core.plugins.constants import PLUGIN_NAME_PATTERN
 
 
 class SparkthPlugin:

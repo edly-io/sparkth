@@ -217,7 +217,7 @@ class MyAppPlugin(SparkthPlugin):
         super().__init__("my-app")
 ```
 
-The name must be a kebab-case slug (lowercase letters, digits, single hyphens: `PLUGIN_NAME_PATTERN` in `sparkth/core/plugins/base.py`); `super().__init__()` raises `ValueError` otherwise. It appears in URLs (`/api/v1/<name>`, `/dashboard/<name>`), keys the plugin's database row, and is what every hook lookup (`CONFIG_SCHEMAS`, `CONFIG_ADAPTERS`, the frontend metadata hooks) resolves by, so treat it as permanent once released.
+The name must be a kebab-case slug (lowercase letters, digits, single hyphens: `PLUGIN_NAME_PATTERN` in `sparkth/core/plugins/constants.py`); `super().__init__()` raises `ValueError` otherwise. It appears in URLs (`/api/v1/<name>`, `/dashboard/<name>`), keys the plugin's database row, and is what every hook lookup (`CONFIG_SCHEMAS`, `CONFIG_ADAPTERS`, the frontend metadata hooks) resolves by, so treat it as permanent once released.
 
 The loader (`sparkth/core/plugins/loader.py`) constructs every plugin as `plugin_class()` with no arguments and indexes it under the declared name. A plugin that declares a name already taken by another plugin is skipped with an error in the logs.
 
