@@ -28,7 +28,7 @@ from sparkth.plugins.chat.conversation_title import (
     get_first_user_text,
 )
 from sparkth.plugins.chat.intent_router import RAGIntentRouter
-from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from sparkth.plugins.chat.service import ChatService
@@ -307,8 +307,15 @@ async def persist_incoming_messages(
     service: ChatService,
     messages: list[ChatMessage],
     conversation_id: int,
-) -> None:
-    """Persist the request's incoming messages to the conversation."""
+) -> list[Message]:
+    """Persist the request's incoming messages and return the stored rows.
+
+    Returning the rows lets the caller emit analytics from the *stored* content —
+    this is the only place that flattens request content blocks into message text,
+    so a caller deriving a length from the raw request would have to duplicate that
+    flattening.
+    """
+    persisted: list[Message] = []
     for msg in messages:
         if isinstance(msg.content, list):
             text_parts = [
@@ -319,15 +326,18 @@ async def persist_incoming_messages(
             stored_content = " ".join(text_parts) if text_parts else "[Document attachment]"
         else:
             stored_content = msg.content
-        await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role=msg.role,
-            content=stored_content,
-            message_type="attachment" if msg.attachment else "text",
-            attachment_name=msg.attachment.name if msg.attachment else None,
-            attachment_size=msg.attachment.size if msg.attachment else None,
+        persisted.append(
+            await service.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role=msg.role,
+                content=stored_content,
+                message_type="attachment" if msg.attachment else "text",
+                attachment_name=msg.attachment.name if msg.attachment else None,
+                attachment_size=msg.attachment.size if msg.attachment else None,
+            )
         )
+    return persisted
 
 
 async def classify_in_scope(

@@ -18,6 +18,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.plugins.chat.analytics import emit_message_sent
 from sparkth.plugins.chat.classifier import HistoryTurn
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
@@ -138,7 +139,20 @@ async def chat_completion(
             user_id,
             cast(int, conversation.id),
         )
-    await persist_incoming_messages(session, service, request.messages, cast(int, conversation.id))
+    persisted_messages = await persist_incoming_messages(session, service, request.messages, cast(int, conversation.id))
+    for persisted in persisted_messages:
+        # Instructor turns only — assistant replies are covered by completion_served.
+        if persisted.role != "user":
+            continue
+        background_tasks.add_task(
+            emit_message_sent,
+            conversation_id=str(conversation.uuid),
+            provider=provider_name,
+            model=model,
+            message_length=len(persisted.content),
+            has_attachment=persisted.message_type == "attachment",
+            actor_id=str(user_id),
+        )
 
     db_messages = await service.get_conversation_messages(
         session=session,
