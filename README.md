@@ -83,7 +83,8 @@ For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — 
 
 ### End-to-end tests
 
-Playwright end-to-end tests live in `frontend/tests/`. They run against their own
+Playwright end-to-end tests live in `frontend/e2e-tests/` (the vitest unit suite is the
+separate `frontend/tests/` mirror). They run against their own
 ephemeral SQLite database, created fresh and deleted on every run, so they never
 touch your dev Postgres data. The run starts and stops a throwaway backend (on
 port 7727) and the frontend for you.
