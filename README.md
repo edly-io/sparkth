@@ -223,7 +223,8 @@ are managed via the CLI. See the [permissions guide](docs/guides/permissions.md)
 
 Sparkth keeps an append-only audit trail of security-relevant and AI actions: who did what, when,
 from where, and with what effect. The implementation lives in `sparkth/core/audit/` with its public
-API in `sparkth/lib/audit/`; unlike analytics (best-effort), audit writes are fail-closed, so a
+API in `sparkth/lib/audit/`; unlike analytics (emitted from a background task, so a failure
+surfaces as a logged error rather than blocking the request), audit writes are fail-closed, so a
 mutating or AI action whose audit record cannot be written does not proceed. Every AI tool
 execution, on every surface (the MCP server, chat, RAG), is recorded as a `tool.invoked` event
 committed before the handler runs plus a `tool.completed` or `tool.failed` outcome event, with
@@ -277,21 +278,29 @@ fast at startup instead of at first emit:
 
 ### Emitting an event
 
-All events are emitted server-side through `ingest_event`, which resolves the schema by
+Producers emit server-side through `emit_event`, which resolves the schema by
 `(event_type, version)`, validates the payload against it, and lands one immutable row in the
-analytics database:
+analytics database. It opens its own analytics session, so callers need no session plumbing:
 
 ```python
-from sparkth.lib.analytics import ingest_event
+from sparkth.lib.analytics import emit_event
 
-await ingest_event(
-    session,
+await emit_event(
     "mycourseplugin.course_completed",
     1,
     {"learner_id": "u1", "course_id": "c1"},
     actor_id=str(user.id),
 )
 ```
+
+`emit_event` catches nothing — `UnknownEventTypeError`, `ValidationError` and
+`SQLAlchemyError` all reach the caller, so a broken analytics write is never hidden. Emit
+from a FastAPI background task (as the built-in producers do) so the failure surfaces as a
+logged unhandled task error after the response has been sent, rather than affecting the
+operation being measured.
+
+The lower-level `ingest_event` is the same validate-and-insert step for a caller that
+already holds an analytics session.
 
 Resolve a registered schema by identity with `get_event_schema(event_type, version)` (raises
 `UnknownEventTypeError` if none is registered).
