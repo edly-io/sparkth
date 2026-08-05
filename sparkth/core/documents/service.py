@@ -5,6 +5,10 @@ from typing import Optional
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.audit.enums import AuditOutcome
+from sparkth.core.audit.events import RAGDocumentDeletedAuditEvent
+from sparkth.core.audit.recorder import record_event
+from sparkth.core.audit.types import AuditChange, AuditTarget
 from sparkth.core.documents.enums import DocumentStatus
 from sparkth.core.documents.models import Document
 from sparkth.lib.log import get_logger
@@ -82,11 +86,24 @@ async def soft_delete_document(
     session: AsyncSession,
     document_id: int,
 ) -> None:
-    """Soft-delete a Document by id. Does not commit."""
+    """Soft-delete a Document by id. Does not commit.
+
+     Records a ``rag.document_deleted`` audit event in the caller's transaction
+    , so the deletion and its record commit or roll back together.
+     A missing id is a no-op and records nothing.
+    """
     result = await session.exec(select(Document).where(col(Document.id) == document_id))
     doc = result.first()
     if doc is None:
         return
     doc.soft_delete()
     session.add(doc)
+    await record_event(
+        session,
+        RAGDocumentDeletedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=AuditTarget(type="document", id=str(document_id)),
+            change=AuditChange(old={"name": doc.name}),
+        ),
+    )
     await session.flush()

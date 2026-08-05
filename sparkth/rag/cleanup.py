@@ -5,6 +5,9 @@ import asyncio
 from sqlalchemy import delete
 from sqlmodel import col, select
 
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.context import SystemActor
+from sparkth.lib.audit.events import AuditChange, AuditOutcome, AuditTarget, RAGChunksPurgedAuditEvent
 from sparkth.lib.db import session_scope
 from sparkth.lib.documents import Document
 from sparkth.lib.log import configure_logging, get_logger
@@ -66,6 +69,22 @@ async def cleanup_deleted_documents() -> None:
         if orphan_chunk_ids:
             await session.execute(delete(DocumentChunk).where(col(DocumentChunk.id).in_(orphan_chunk_ids)))
 
+        # System-actor evidence that the corpus removal happened,
+        # committed atomically with the purge itself.
+        await record_event(
+            session,
+            RAGChunksPurgedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                actor=SystemActor(label="rag-cleanup"),
+                target=AuditTarget(type="rag_corpus"),
+                change=AuditChange(
+                    old={
+                        "document_ids": sorted(deleted_doc_ids),
+                        "purged_chunk_count": len(orphan_chunk_ids),
+                    }
+                ),
+            ),
+        )
         await session.commit()
         logger.info(
             "Cleanup complete. Deleted %d orphaned chunks.",

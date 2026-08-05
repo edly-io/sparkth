@@ -170,3 +170,42 @@ class ToolFailedAuditEvent(AIActionAuditEvent):
     a handler (protocol-level: unknown tool, input validation)."""
 
     event_type: ClassVar[str] = "tool.failed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RAGDocumentIngestedAuditEvent(MutationAuditEvent):
+    """A document's content entered the RAG corpus, or failed to.
+
+    Recorded by :func:`sparkth.lib.rag.ingest_document` for every attempt:
+    ``target`` is the document, ``change.new`` carries the filename and chunk
+    counts on success, and a failed extraction records outcome ``failure``
+    with the scrubbed error instead.
+    """
+
+    event_type: ClassVar[str] = "rag.document_ingested"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RAGDocumentDeletedAuditEvent(MutationAuditEvent):
+    """A document was removed from the retrieval corpus (soft-deleted).
+
+    Recorded by :func:`sparkth.lib.documents.soft_delete_document` in the
+    caller's transaction; ``change.old`` snapshots the document name.
+    """
+
+    event_type: ClassVar[str] = "rag.document_deleted"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RAGChunksPurgedAuditEvent(MutationAuditEvent):
+    """A cleanup run hard-deleted the chunks of soft-deleted documents.
+
+    The system-actor evidence that content removal actually happened:
+    ``change.old`` lists the processed document ids and the purged chunk
+    count. One event per cleanup run that found work.
+    """
+
+    event_type: ClassVar[str] = "rag.chunks_purged"
