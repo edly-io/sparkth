@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import FolderDetail from "./FolderDetail";
+import FolderDetail from "@/components/drive/FolderDetail";
 import type { DriveFolder } from "@/lib/drive";
 
 // Mock auth context

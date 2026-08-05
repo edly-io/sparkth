@@ -21,7 +21,7 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { fetchLoginActivity, type LoginActivityPoint } from "@/lib/analytics";
-import AnalyticsPage from "./AnalyticsPage";
+import AnalyticsPage from "@/app/dashboard/analytics/AnalyticsPage";
 
 beforeEach(() => {
   vi.clearAllMocks();

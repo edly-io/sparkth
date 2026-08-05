@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 
-import { BarChart } from "./BarChart";
+import { BarChart } from "@/components/ui/BarChart";
 
 describe("BarChart", () => {
   it("renders one bar (rect) per data point", () => {

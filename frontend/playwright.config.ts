@@ -6,14 +6,14 @@ import "dotenv/config";
  *
  * Reads environment variables from a `.env` file at the frontend root (loaded
  * via `dotenv/config` above). The variables consumed by the suite live in
- * `tests/config.ts`.
+ * `e2e-tests/config.ts`.
  *
  * See https://playwright.dev/docs/test-configuration.
  */
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({
-  testDir: "./tests",
+  testDir: "./e2e-tests",
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
