@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getPluginsByNames, PluginDefinition, onPluginEvent } from "./registry";
 import { PluginConfig, UserPluginState, PluginEventType } from "./types";
