@@ -56,10 +56,19 @@ describe("sidebarItemsFrom", () => {
     has_frontend: true,
   });
   const canvas = state({ plugin_name: "canvas" });
+  const backendOnly = state({
+    plugin_name: "backend-only",
+    sidebar: { label: "Backend Only", icon: null, order: 2 },
+    has_frontend: false,
+  });
 
-  it("includes only enabled plugins that declared a sidebar entry, sorted by order", () => {
+  it("includes only enabled frontend plugins that declared a sidebar entry, sorted by order", () => {
     const items = sidebarItemsFrom([slack, canvas, drive, chat]);
     expect(items.map((item) => item.name)).toEqual(["chat", "slack"]);
+  });
+
+  it("excludes plugins without a frontend registration even if they declare a sidebar entry", () => {
+    expect(sidebarItemsFrom([backendOnly, chat]).map((item) => item.name)).toEqual(["chat"]);
   });
 
   it("carries the declared label, icon name, and description", () => {

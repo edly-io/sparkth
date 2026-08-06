@@ -21,23 +21,23 @@ export function displayNameOf(plugin: UserPluginState): string {
   return plugin.display?.display_name ?? plugin.plugin_name;
 }
 
-const DEFAULT_SIDEBAR_ORDER = 100;
+type SidebarPlugin = UserPluginState & { sidebar: NonNullable<UserPluginState["sidebar"]> };
 
 /**
- * Sidebar items for the enabled plugins that declared a sidebar entry,
- * sorted by their declared order.
+ * Sidebar items for the enabled plugins that have a frontend registration and
+ * declared a sidebar entry, sorted by their declared order.
  */
 export function sidebarItemsFrom(userPlugins: UserPluginState[]): SidebarItem[] {
   return userPlugins
-    .filter((plugin) => plugin.enabled && plugin.sidebar)
-    .sort(
-      (a, b) =>
-        (a.sidebar?.order ?? DEFAULT_SIDEBAR_ORDER) - (b.sidebar?.order ?? DEFAULT_SIDEBAR_ORDER),
+    .filter(
+      (plugin): plugin is SidebarPlugin =>
+        plugin.enabled && plugin.has_frontend && plugin.sidebar != null,
     )
+    .sort((a, b) => a.sidebar.order - b.sidebar.order)
     .map((plugin) => ({
       name: plugin.plugin_name,
-      label: plugin.sidebar!.label,
-      icon: plugin.sidebar!.icon,
+      label: plugin.sidebar.label,
+      icon: plugin.sidebar.icon,
       description: plugin.display?.description,
     }));
 }
