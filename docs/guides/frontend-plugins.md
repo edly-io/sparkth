@@ -110,8 +110,13 @@ single text field (non-strings fall back to `undefined` rather than coercing),
 and `stringConfigOf(config)` for an editor that renders every field as an input.
 
 Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
-resolver in `@/lib/plugins/icons` maps names to components; a plugin that ships
-a custom (non-lucide) icon registers it under its declared name:
+resolver in `@/lib/plugins/icons` maps names to components, and only the lucide
+names already in that map resolve (icons are mapped explicitly to keep the
+bundle tree-shakeable). A backend plugin declaring a new lucide name must also
+add it to the map in `frontend/lib/plugins/icons.ts`, or the UI silently falls
+back to an icon-less rendering (the resolver logs a `console.warn` outside
+production to surface the gap). A plugin that ships a custom (non-lucide) icon
+registers it under its declared name:
 
 ```ts
 import { registerPluginIcon } from "@/lib/plugins/icons";

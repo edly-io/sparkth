@@ -24,5 +24,13 @@ export function registerPluginIcon(name: string, component: PluginIcon): void {
 
 /** Resolve an icon name from the API to a component, if one is known. */
 export function resolvePluginIcon(name?: string | null): PluginIcon | undefined {
-  return name ? icons.get(name) : undefined;
+  if (!name) return undefined;
+  const icon = icons.get(name);
+  if (!icon && process.env.NODE_ENV !== "production") {
+    console.warn(
+      `No icon registered for "${name}"; map the lucide name in lib/plugins/icons.ts ` +
+        `or register a custom component with registerPluginIcon().`,
+    );
+  }
+  return icon;
 }
