@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import PluginListItem from "./ListItem";
+import PluginListItem from "@/components/settings/ListItem";
 import type { UserPluginState } from "@/lib/plugins";
 
 const noop = async () => {};
