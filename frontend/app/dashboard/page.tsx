@@ -1,12 +1,14 @@
 "use client";
 
-import { useEnabledPlugins } from "@/lib/plugins/context";
+import { usePluginContext } from "@/lib/plugins/context";
+import { displayNameOf, resolvePluginIcon } from "@/lib/plugins";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 
 export default function DashboardPage() {
-  const { plugins, loading } = useEnabledPlugins();
+  const { userPlugins, loading } = usePluginContext();
+  const plugins = userPlugins.filter((plugin) => plugin.enabled && plugin.has_frontend);
 
   if (loading) {
     return (
@@ -35,11 +37,12 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {plugins.map((plugin) => {
-              const Icon = plugin.icon;
+              const displayName = displayNameOf(plugin);
+              const Icon = resolvePluginIcon(plugin.display?.icon);
               return (
                 <Link
-                  key={plugin.name}
-                  href={`/dashboard/${plugin.name}`}
+                  key={plugin.plugin_name}
+                  href={`/dashboard/${plugin.plugin_name}`}
                   className="block p-4 sm:p-6 bg-card rounded-lg border border-border hover:border-primary-500 hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between mb-3">
@@ -50,23 +53,16 @@ export default function DashboardPage() {
                     ) : (
                       <div className="w-10 h-10 bg-surface-variant rounded-lg flex items-center justify-center">
                         <span className="text-lg font-bold text-muted-foreground">
-                          {plugin.displayName.charAt(0)}
+                          {displayName.charAt(0)}
                         </span>
                       </div>
                     )}
                     <ArrowRight className="w-5 h-5 text-muted" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-1">
-                    {plugin.displayName}
-                  </h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-1">{displayName}</h3>
                   <p className="text-sm text-muted-foreground line-clamp-2">
-                    {plugin.description || "No description available"}
+                    {plugin.display?.description || "No description available"}
                   </p>
-                  {plugin.category && (
-                    <span className="inline-block mt-3 px-2 py-1 text-xs bg-surface-variant text-muted-foreground rounded">
-                      {plugin.category}
-                    </span>
-                  )}
                 </Link>
               );
             })}

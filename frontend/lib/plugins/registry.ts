@@ -22,10 +22,8 @@ class PluginRegistry {
       return;
     }
 
-    if (!plugin.name || !plugin.displayName || !plugin.loadComponent) {
-      throw new Error(
-        `Invalid plugin definition: name, displayName, and loadComponent are required`,
-      );
+    if (!plugin.name || !plugin.loadComponent) {
+      throw new Error(`Invalid plugin definition: name and loadComponent are required`);
     }
 
     if (!/^[a-z][a-z0-9-]*$/.test(plugin.name)) {
@@ -87,33 +85,6 @@ class PluginRegistry {
   }
 
   /**
-   * Get plugins filtered by category
-   * @param category - Plugin category
-   * @returns Array of plugins in the category
-   */
-  getByCategory(category: PluginDefinition["category"]): PluginDefinition[] {
-    return this.getAll().filter((plugin) => plugin.category === category);
-  }
-
-  /**
-   * Get plugins that should appear in sidebar
-   * @returns Array of sidebar plugins sorted by order
-   */
-  getSidebarPlugins(): PluginDefinition[] {
-    return this.getAll()
-      .filter((plugin) => plugin.showInSidebar)
-      .sort((a, b) => (a.sidebarOrder || 99) - (b.sidebarOrder || 99));
-  }
-
-  /**
-   * Get core plugins
-   * @returns Array of core plugin definitions
-   */
-  getCorePlugins(): PluginDefinition[] {
-    return this.getAll().filter((plugin) => plugin.isCore);
-  }
-
-  /**
    * Check if a plugin is registered
    * @param name - Plugin name
    * @returns boolean
@@ -127,23 +98,6 @@ class PluginRegistry {
    */
   get count(): number {
     return this.plugins.size;
-  }
-
-  /**
-   * Search plugins by name, displayName, description, or tags
-   * @param query - Search query
-   * @returns Array of matching plugins
-   */
-  search(query: string): PluginDefinition[] {
-    const lowerQuery = query.toLowerCase();
-    return this.getAll().filter((plugin) => {
-      return (
-        plugin.name.toLowerCase().includes(lowerQuery) ||
-        plugin.displayName.toLowerCase().includes(lowerQuery) ||
-        plugin.description?.toLowerCase().includes(lowerQuery) ||
-        plugin.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
-      );
-    });
   }
 
   // ===========================================================================
@@ -235,24 +189,8 @@ export function getPluginsByNames(names: string[]): PluginDefinition[] {
   return registry.getByNames(names);
 }
 
-export function getPluginsByCategory(category: PluginDefinition["category"]): PluginDefinition[] {
-  return registry.getByCategory(category);
-}
-
-export function getSidebarPlugins(): PluginDefinition[] {
-  return registry.getSidebarPlugins();
-}
-
-export function getCorePlugins(): PluginDefinition[] {
-  return registry.getCorePlugins();
-}
-
 export function hasPlugin(name: string): boolean {
   return registry.has(name);
-}
-
-export function searchPlugins(query: string): PluginDefinition[] {
-  return registry.search(query);
 }
 
 export function onPluginEvent(eventType: PluginEventType, handler: PluginEventHandler): () => void {

@@ -10,13 +10,8 @@ import {
   ReactNode,
 } from "react";
 import { api, ApiRequestError } from "@/lib/api";
-import {
-  PluginDefinition,
-  PluginConfig,
-  PluginContext as IPluginContext,
-  UserPluginState,
-} from "./types";
-import { getPluginsByNames, emitPluginEvent } from "./registry";
+import { PluginConfig, PluginContext as IPluginContext, UserPluginState } from "./types";
+import { emitPluginEvent } from "./registry";
 
 // ============================================================================
 // Plugin Context Types
@@ -24,7 +19,6 @@ import { getPluginsByNames, emitPluginEvent } from "./registry";
 
 interface PluginProviderState {
   userPlugins: UserPluginState[];
-  enabledPlugins: PluginDefinition[];
   loading: boolean;
   error: string | null;
 }
@@ -122,7 +116,6 @@ interface PluginProviderProps {
 export function PluginProvider({ children, token }: PluginProviderProps) {
   const [state, setState] = useState<PluginProviderState>({
     userPlugins: [],
-    enabledPlugins: [],
     loading: true,
     error: null,
   });
@@ -133,7 +126,6 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
         ...prev,
         loading: false,
         userPlugins: [],
-        enabledPlugins: [],
       }));
       return;
     }
@@ -142,12 +134,9 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
     try {
       const userPlugins = await fetchUserPlugins(token);
-      const enabledNames = userPlugins.filter((p) => p.enabled).map((p) => p.plugin_name);
-      const enabledPlugins = getPluginsByNames(enabledNames);
 
       setState({
         userPlugins,
-        enabledPlugins,
         loading: false,
         error: null,
       });
@@ -310,18 +299,6 @@ export function usePluginContext(): PluginContextValue {
     throw new Error("usePluginContext must be used within a PluginProvider");
   }
   return context;
-}
-
-/**
- * Hook to get enabled plugins
- */
-export function useEnabledPlugins(): {
-  plugins: PluginDefinition[];
-  loading: boolean;
-  error: string | null;
-} {
-  const { enabledPlugins, loading, error } = usePluginContext();
-  return { plugins: enabledPlugins, loading, error };
 }
 
 /**

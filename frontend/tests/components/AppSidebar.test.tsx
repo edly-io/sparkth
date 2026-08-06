@@ -3,11 +3,11 @@ import { render, screen } from "@testing-library/react";
 
 import AppSidebar from "@/components/AppSidebar";
 
-// AppSidebar reads the current path and the enabled-plugins context; stub both
-// so the component renders in isolation on a non-chat, non-plugin route.
+// AppSidebar reads the current path and the plugin context; stub both so the
+// component renders in isolation on a non-chat, non-plugin route.
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
 vi.mock("@/lib/plugins/context", () => ({
-  useEnabledPlugins: () => ({ plugins: [], loading: false }),
+  usePluginContext: () => ({ userPlugins: [], loading: false }),
 }));
 
 describe("AppSidebar permission-gated nav", () => {

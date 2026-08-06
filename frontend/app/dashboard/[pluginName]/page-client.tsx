@@ -3,8 +3,8 @@
 import { useParams, redirect } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/Spinner";
-import { usePlugin } from "@/lib/plugins/context";
-import { getPlugin } from "@/lib/plugins";
+import { usePlugin, usePluginContext } from "@/lib/plugins/context";
+import { displayNameOf, getPlugin } from "@/lib/plugins";
 import PluginRenderer from "@/components/PluginRenderer";
 import Link from "next/link";
 
@@ -15,7 +15,11 @@ export default function PluginPageClient() {
   const pluginName = params?.pluginName as string;
 
   const { isEnabled } = usePlugin(pluginName);
+  const { userPlugins, loading: pluginsLoading } = usePluginContext();
   const pluginDef = getPlugin(pluginName);
+
+  const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
+  const displayName = userPlugin ? displayNameOf(userPlugin) : pluginName;
 
   if (!authLoading && !isAuthenticated) {
     redirect(`/login?redirect=/dashboard/${pluginName}`);
@@ -103,6 +107,16 @@ export default function PluginPageClient() {
     );
   }
 
+  // Until the plugin list loads, neither isEnabled nor displayName is
+  // meaningful, so don't render a verdict yet.
+  if (pluginsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-screen bg-background">
+        <Spinner />
+      </div>
+    );
+  }
+
   if (!isEnabled) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-background">
@@ -125,7 +139,7 @@ export default function PluginPageClient() {
           </div>
           <h2 className="text-2xl font-bold text-foreground mb-2">Plugin Not Enabled</h2>
           <p className="text-muted-foreground mb-4">
-            {pluginDef.displayName} is not enabled for your account.
+            {displayName} is not enabled for your account.
           </p>
           <div className="flex justify-center gap-3">
             <Link

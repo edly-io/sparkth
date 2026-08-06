@@ -78,31 +78,52 @@ plugins/
 
 ```ts
 import { PluginDefinition } from "@/lib/plugins";
-import { MessageSquare } from "lucide-react";
 
 export const examplePlugin: PluginDefinition = {
   name: "example-plugin",
-  displayName: "Example Plugin",
-  description: "Example plugin integration",
-  isCore: true,
-
   loadComponent: () => import("./ExamplePlugin"),
-
-  showInSidebar: true,
-  sidebarIcon: MessageSquare,
-  sidebarLabel: "Example",
-  sidebarOrder: 1,
 };
 ```
 
 **Note**
 
-At a minimum, a plugin must define:
+A `PluginDefinition` holds only what the frontend alone can own:
 
 - `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's declared name (see "Plugin Names" in the [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin)
-- `displayName` – user-facing name
-- `description` – short description
 - `loadComponent` – lazy-loaded UI component
+- `loadSettingsComponent` (optional) – custom settings modal
+
+The display name, description, icon, and sidebar entry are **declared by the
+backend plugin** through the frontend metadata hooks (`DISPLAY_INFO`,
+`SIDEBAR_ENTRIES`, `FRONTEND_APPS`, see the backend guide) and arrive on the
+user-plugins API response (`display`, `sidebar`, `has_frontend` on
+`UserPluginState`). The frontend renders what the backend declares; there is no
+frontend-side copy to keep in sync.
+
+`UserPluginState` is the generated `UserPluginResponse` schema
+(`Schema<"UserPluginResponse">`), not a hand-written mirror of it, so the shape
+cannot drift from the API. One consequence for settings UIs: `config` values are
+typed `unknown`, because the backend stores config as JSONB and a field declared
+as a string can still arrive as an array or a number. Narrow at the read site
+with the helpers in `@/lib/plugins/config` — `configString(config, key)` for a
+single text field (non-strings fall back to `undefined` rather than coercing),
+and `stringConfigOf(config)` for an editor that renders every field as an input.
+
+Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
+resolver in `@/lib/plugins/icons` maps names to components, and only the lucide
+names already in that map resolve (icons are mapped explicitly to keep the
+bundle tree-shakeable). A backend plugin declaring a new lucide name must also
+add it to the map in `frontend/lib/plugins/icons.ts`, or the UI silently falls
+back to an icon-less rendering (the resolver logs a `console.warn` outside
+production to surface the gap). A plugin that ships a custom (non-lucide) icon
+registers it under its declared name:
+
+```ts
+import { registerPluginIcon } from "@/lib/plugins/icons";
+import ExampleBrandIcon from "./ExampleBrandIcon";
+
+registerPluginIcon("example-brand", ExampleBrandIcon);
+```
 
 For more details, see the `PluginDefinition` type in
 [`frontend/lib/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/lib/plugins/types.ts).
@@ -144,6 +165,9 @@ registerPlugin(examplePlugin);
 export * from "./registry";
 export * from "./types";
 export * from "./usePlugins";
+export * from "./metadata";
+export * from "./config";
+export * from "./icons";
 ```
 
 > ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.

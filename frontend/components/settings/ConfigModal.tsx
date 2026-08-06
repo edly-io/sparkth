@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Save } from "lucide-react";
-import { UserPluginState } from "@/lib/plugins";
+import { stringConfigOf, UserPluginState } from "@/lib/plugins";
 import { PluginConfigField } from "./ConfigField";
 import { isUrlKey, isValidUrl } from "./utils";
 import { Button } from "@/components/ui/Button";
@@ -30,7 +30,9 @@ export function PluginConfigModal({
   onSave,
   onRefresh,
 }: PluginConfigModalProps) {
-  const [configValues, setConfigValues] = useState<Record<string, string>>(plugin.config ?? {});
+  const [configValues, setConfigValues] = useState<Record<string, string>>(
+    stringConfigOf(plugin.config),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
