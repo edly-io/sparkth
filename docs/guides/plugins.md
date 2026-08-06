@@ -308,6 +308,8 @@ class MyAppPlugin(SparkthPlugin):
 
 What each hook carries, which of them are optional, and how the declarations reach the frontend live in the [frontend metadata hooks reference](../reference/plugins.md#frontend-metadata-hooks), generated from the module docstrings.
 
+After adding or removing a `FRONTEND_APPS` declaration, regenerate the frontend's static route list with `make frontend.build.plugins` (it rewrites `frontend/lib/plugins/generated.ts` from the declarations); tests on both tiers fail while the committed list is stale.
+
 ### Rendering plugin exceptions as HTTP responses
 
 A plugin's domain exceptions stay HTTP-agnostic (plain `Exception` subclasses). To control

@@ -172,38 +172,38 @@ export * from "./icons";
 
 > ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
 
-## 6. Add the Plugin Route
+## 6. Regenerate the Plugin Route List
 
 Each plugin is rendered under:
 
     dashboard/<pluginName>
 
-Add a dynamic route for the plugin.
+The static routes are **generated from the backend declarations**, not
+hand-maintained: `generateStaticParams` in
+`app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
+`lib/plugins/generated.ts`, which lists every backend plugin that registered
+the `FRONTEND_APPS` hook. After declaring (or removing) a frontend app on the
+backend plugin, regenerate the list:
 
-**File**
-
-    app/dashboard/[pluginName]/page.tsx
-
-```ts
-import PluginPageClient from "./page-client";
-
-export function generateStaticParams() {
-  return [
-    { pluginName: "chat" },
-    { pluginName: "example-plugin" }  // register your route here
- ];
-}
-
-export default function PluginPage() {
-  return <PluginPageClient />;
-}
+```bash
+make frontend.build.plugins
 ```
 
 **Notes**
 
-- `pluginName` must match the plugin name
+- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
+  formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
+  `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
+  and break the byte-exact backend gate
+- To inspect the dump without touching the committed file, run the script with
+  no arguments and it prints to stdout:
+  `uv run python scripts/dump_frontend_plugins.py`. The make target passes
+  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
+  dump leaves the committed file intact
+- Tests on both tiers fail when the committed list drifts from the backend
+  declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
+  frontend registry does not match it (`lib/tests/plugin-registry-drift.test.ts`)
 - `PluginPageClient` handles loading the correct plugin dynamically
-- Required for static builds
 
 ## Plugin Loading Flow (Summary)
 
