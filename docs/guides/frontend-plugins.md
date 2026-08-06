@@ -99,7 +99,7 @@ export const examplePlugin: PluginDefinition = {
 
 At a minimum, a plugin must define:
 
-- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's derived name — see "Plugin Name Derivation" in the [backend plugin development guide](plugins.md) — so the UI resolves to the right backend plugin)
+- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's declared name (see "Plugin Names" in the [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin)
 - `displayName` – user-facing name
 - `description` – short description
 - `loadComponent` – lazy-loaded UI component

@@ -14,13 +14,20 @@ a `PluginHook` holds one; `sparkth/lib/hooks.py` also defines a `SingleNamedItem
 a flat, name-keyed set not grouped by plugin — used for the permission/scope vocabulary):
 
 ```
-SparkthPlugin.__init__
+SparkthPlugin.__init__          # super().__init__("my-app") declares the plugin name
   ├── register_router(self, router)                                   # sparkth/lib/routes.py
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # sparkth/lib/mcp/hooks.py
   ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # sparkth/lib/config/hooks.py
   ├── CONFIG_ADAPTERS.add_item(self, MyConfigAdapter())              # sparkth/lib/config/hooks.py
+  ├── DISPLAY_INFO.add_item(self, DisplayInfo("My App", "..."))      # sparkth/lib/frontend/hooks.py
+  ├── SIDEBAR_ENTRIES.add_item(self, SidebarEntry("My App", ...))    # sparkth/lib/frontend/hooks.py
+  ├── FRONTEND_APPS.add_item(self, FrontendApp())                    # sparkth/lib/frontend/hooks.py
   └── register_event_schema(self, MyEvent)                           # sparkth/lib/analytics
 ```
+
+Every plugin declares its own kebab-case name by passing it positionally to
+`super().__init__()`; the loader (`sparkth/core/plugins/loader.py`) constructs each class
+with no arguments and never derives a name from the class name.
 
 `register_router` (`sparkth/lib/routes.py`) mounts the router at `/api/v1/<plugin-name>`,
 deriving both the prefix and OpenAPI tags from the plugin instance automatically.

@@ -1455,6 +1455,18 @@ export interface components {
             parent_id?: string | null;
         };
         /**
+         * DisplayInfo
+         * @description The human-facing identity of a plugin, shown in settings and catalogs.
+         */
+        DisplayInfo: {
+            /** Description */
+            description: string;
+            /** Display Name */
+            display_name: string;
+            /** Icon */
+            icon?: string | null;
+        };
+        /**
          * DocumentStatus
          * @enum {string}
          */
@@ -1892,6 +1904,23 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /**
+         * SidebarEntry
+         * @description A dashboard sidebar navigation entry pointing at the plugin's frontend page.
+         *
+         *     ``order`` sorts entries ascending; entries that keep the default sort last.
+         */
+        SidebarEntry: {
+            /** Icon */
+            icon?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Order
+             * @default 100
+             */
+            order: number;
+        };
         /** SlackAuthorizationUrlResponse */
         SlackAuthorizationUrlResponse: {
             /** Url */
@@ -2021,18 +2050,30 @@ export interface components {
         /**
          * UserPluginResponse
          * @description Response model for user plugin information.
+         *
+         *     ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
+         *     frontend-facing metadata the plugin declared through the
+         *     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
+         *     so they are always populated.
          */
         UserPluginResponse: {
             /** Config */
             config: {
                 [key: string]: unknown;
             };
+            display?: components["schemas"]["DisplayInfo"] | null;
             /** Enabled */
             enabled: boolean;
+            /**
+             * Has Frontend
+             * @default false
+             */
+            has_frontend: boolean;
             /** Is Core */
             is_core: boolean;
             /** Plugin Name */
             plugin_name: string;
+            sidebar?: components["schemas"]["SidebarEntry"] | null;
         };
         /** ValidationError */
         ValidationError: {
