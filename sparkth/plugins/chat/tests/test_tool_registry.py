@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.mcp.hooks import Tool
-from sparkth.plugins.chat.tools import ToolRegistry
+from sparkth.plugins.chat.tools import UNKNOWN_TOOL_CATEGORY, ToolRegistry
 
 
 # Test models (mimic the OpenEdX nested-model pattern)
@@ -273,3 +273,26 @@ class TestConvertMcpToLangchainTool:
         assert payload.auth.access_token == "tok"
         assert payload.org == "TestOrg"
         assert "created" in result
+
+
+class TestCategoryLookup:
+    """Categories live on the MCP Tool and are dropped by LangChain conversion,
+    so the registry records them while it converts."""
+
+    def test_unknown_tool_name_falls_back(self) -> None:
+        registry = ToolRegistry()
+        assert registry.category_for("never_registered_tool") == UNKNOWN_TOOL_CATEGORY
+
+    def test_discovered_tool_reports_its_mcp_category(self) -> None:
+        registry = ToolRegistry()
+        registry.discover_plugin_tools()
+        # Every discovered tool must resolve to some category string, never raise.
+        for name in registry._categories:
+            assert isinstance(registry.category_for(name), str)
+            assert registry.category_for(name) != ""
+
+    def test_reset_clears_categories(self) -> None:
+        registry = ToolRegistry()
+        registry.discover_plugin_tools()
+        registry.reset()
+        assert registry._categories == {}
