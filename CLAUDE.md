@@ -85,6 +85,24 @@ Tests live next to the code they own, so each plugin stays a self-contained, por
   RAG is core, so RAG tests live at `tests/rag/` (not co-located under `sparkth/rag/`); the
   RAG MCP tooling under `sparkth/rag/mcp/` is mirrored by `tests/rag/mcp/`.
 
+**Frontend (Next.js) tests are the exception to "next to the code."** They live in two directories
+named for what they hold, so which one a new test belongs in is never a guess:
+
+- **Unit (vitest)** → [`frontend/tests/`](frontend/tests/), a single central mirror of the source
+  file's path: `components/ui/BarChart.tsx` → `frontend/tests/components/ui/BarChart.test.tsx`,
+  and the `lib` suite sits under `frontend/tests/lib/` (e.g. `lib/analytics/` →
+  `frontend/tests/lib/analytics.test.ts`). The mirror is enforced by `include:
+  ["tests/**/*.test.{ts,tsx}"]` in `frontend/vitest.config.ts` — a unit test placed anywhere
+  else is silently never run.
+- **E2E (Playwright)** → [`frontend/e2e-tests/`](frontend/e2e-tests/), pointed at by `testDir` in
+  `frontend/playwright.config.ts`, outside the vitest `include` above, and run with
+  `make test.e2e`.
+
+Always import the code under test via the `@/` alias, never a relative path — the mirror makes
+relative paths point at the wrong place. The only correct relative imports inside
+`frontend/tests/` are to helpers that live in the mirror beside their callers (e.g.
+`./test-utils`).
+
 How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
@@ -113,13 +131,13 @@ Any schema change — add column, drop column, rename, alter type, add index —
 
 Editing an existing migration breaks environments that have already applied it, causing irreproducible state across dev, staging, and production.
 
-Apply all pending migrations (both lineages) with:
+Apply all pending migrations (both lineages, then the continuous-aggregate backfill) with:
 ```bash
 make migrations
 ```
 
 For everything else — generating a migration, the two independent app/analytics lineages, the
-continuous-aggregate backfill step, and resolving split heads — use the
+continuous-aggregate backfill, and resolving split heads — use the
 [`database-migrations`](.claude/skills/database-migrations/SKILL.md) skill.
 
 ## Exception Handling

@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import "@/lib/plugins";
 import { useAuth } from "@/lib/auth-context";
+import { resolveNavPermissions } from "@/components/NavItem";
 import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/components/AppSidebar";
 import MobileSidebar from "@/components/MobileSidebar";
@@ -30,10 +32,17 @@ function DashboardContent({
   children,
   user,
   logout,
+  navPermissions,
 }: {
   children: React.ReactNode;
-  user: { name?: string; email?: string; avatar?: string; plan?: string; is_admin?: boolean };
+  user: {
+    name?: string;
+    email?: string;
+    avatar?: string;
+    plan?: string;
+  };
   logout: () => void;
+  navPermissions: Record<string, boolean>;
 }) {
   const { isCollapsed, toggleCollapsed } = useSidebar();
 
@@ -44,13 +53,14 @@ function DashboardContent({
         <div className="hidden lg:block">
           <AppSidebar
             user={user}
+            navPermissions={navPermissions}
             onLogout={logout}
             variant="desktop"
             isCollapsed={isCollapsed}
             onToggleCollapse={toggleCollapsed}
           />
         </div>
-        <MobileSidebar user={user} onLogout={logout} />
+        <MobileSidebar user={user} navPermissions={navPermissions} onLogout={logout} />
         <main className="flex-1 overflow-auto bg-background relative">
           <div className="absolute top-3 right-3 z-10 hidden lg:block">
             <ThemeToggle />
@@ -64,6 +74,24 @@ function DashboardContent({
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, isAuthenticated, loading, logout } = useAuth();
+
+  const [navPermissions, setNavPermissions] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setNavPermissions({});
+    if (!token) return;
+    let active = true;
+    resolveNavPermissions(token)
+      .then((perms) => {
+        if (active) setNavPermissions(perms);
+      })
+      .catch((error) => {
+        console.error("Failed to resolve nav permissions:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   if (!loading && !isAuthenticated) {
     redirect("/login");
@@ -83,13 +111,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     name: user?.name || user?.username,
     email: user?.email,
     plan: "Free Plan",
-    is_admin: user?.is_admin,
   };
 
   return (
     <PluginProvider token={token}>
       <SidebarProvider>
-        <DashboardContent user={userInfo} logout={logout}>
+        <DashboardContent user={userInfo} logout={logout} navPermissions={navPermissions}>
           {children}
         </DashboardContent>
       </SidebarProvider>

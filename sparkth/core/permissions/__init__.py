@@ -4,7 +4,9 @@ Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
 dependency layer, and the RBAC engine functions (``can``, ``has_role``,
 ``assign_role``, ``revoke_role``) together with the ``get_permission`` /
-``get_permission_scope`` lookups.
+``get_permission_scope`` lookups. The read-side checks resolve a user's roles as
+their own active assignments plus the assignments of any group they actively
+belong to, both matched against the same scope chain.
 
 These live in one module on purpose: the ``require*`` gate needs ``can`` while the
 engine functions need the ``Permission`` class and the ``PERMISSIONS`` hook, so
@@ -19,12 +21,20 @@ from collections.abc import Awaitable, Callable
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel.sql.expression import SelectOfScalar
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import PermissionNotFound, RoleNotFound
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.models import (
+    GroupMembership,
+    GroupRoleAssignment,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
@@ -137,6 +147,13 @@ ROLE_READ = Permission.create("role.read")
 ROLE_UPDATE = Permission.create("role.update")
 ROLE_DELETE = Permission.create("role.delete")
 
+# The group-management permissions gate the group-management API (sparkth/api/v1/permissions).
+# Membership and group-role grants are CLI-managed and carry no REST gate of their own.
+GROUP_CREATE = Permission.create("group.create")
+GROUP_READ = Permission.create("group.read")
+GROUP_UPDATE = Permission.create("group.update")
+GROUP_DELETE = Permission.create("group.delete")
+
 # Reading the permission vocabulary itself (the assignable-permissions listing), distinct from
 # reading roles.
 PERMISSION_READ = Permission.create("permission.read")
@@ -145,35 +162,82 @@ PERMISSION_READ = Permission.create("permission.read")
 ANALYTICS_READ = Permission.create("analytics.read")
 
 
-def _active_assignment_at_scope(
-    user_id: int | None,
+def _scope_clause(
+    scope_column: Mapped[str],
+    object_id_column: Mapped[str | None],
     permission_scope: PermissionScope,
     scope_object_id: str | None,
-) -> tuple[ColumnElement[bool], ...]:
-    """WHERE clauses selecting a user's active assignments that satisfy a check at one scope,
-    honouring the scope hierarchy.
+) -> ColumnElement[bool]:
+    """WHERE clause matching an assignment table's (scope, object id) columns against the
+    pairs a grant may occupy to satisfy a check at ``permission_scope``.
 
-    The (scope, object_id) pairs a grant may occupy come from ``PermissionScope.scope_chain`` —
-    the scope itself plus any ancestor that cascades (objectless ancestors cascade with a NULL id;
-    object-bearing ancestors need a materialized path and are deferred, see issue #420 Phase 2).
+    The pairs come from ``PermissionScope.scope_chain`` — the scope itself plus any ancestor
+    that cascades (objectless ancestors cascade with a NULL id; object-bearing ancestors need
+    a materialized path and are deferred, see issue #420 Phase 2).
 
-    Shared by the read-side checks (``can`` and ``has_role``). The write operations
-    (``assign_role``, ``revoke_role``) target the exact assignment row and must NOT use this —
-    they never cascade to ancestor scopes.
+    Read-side only (``can`` / ``has_role``). The write operations (``assign_role``,
+    ``revoke_role``) target the exact assignment row and must NOT use this — they never
+    cascade to ancestor scopes.
     """
-    scope_clause = or_(
+    return or_(
         *(
-            and_(
-                col(RoleAssignment.scope) == name,
-                col(RoleAssignment.scope_object_id) == object_id,
-            )
+            and_(scope_column == name, object_id_column == object_id)
             for name, object_id in permission_scope.scope_chain(scope_object_id)
         )
     )
-    return (
+
+
+def _user_role_ids_at_scope(
+    user_id: int | None,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None,
+) -> SelectOfScalar[int]:
+    """Subquery of role ids the user holds via their own active assignments at the scope."""
+    return select(RoleAssignment.role_id).where(
         col(RoleAssignment.user_id) == user_id,
         col(RoleAssignment.is_deleted) == False,
-        scope_clause,
+        _scope_clause(
+            col(RoleAssignment.scope),
+            col(RoleAssignment.scope_object_id),
+            permission_scope,
+            scope_object_id,
+        ),
+    )
+
+
+def _group_role_ids_at_scope(
+    user_id: int | None,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None,
+) -> SelectOfScalar[int]:
+    """Subquery of role ids granted at the scope to any group the user actively belongs to."""
+    active_membership_group_ids = select(GroupMembership.group_id).where(
+        col(GroupMembership.user_id) == user_id,
+        col(GroupMembership.is_deleted) == False,
+    )
+    return select(GroupRoleAssignment.role_id).where(
+        col(GroupRoleAssignment.group_id).in_(active_membership_group_ids),
+        col(GroupRoleAssignment.is_deleted) == False,
+        _scope_clause(
+            col(GroupRoleAssignment.scope),
+            col(GroupRoleAssignment.scope_object_id),
+            permission_scope,
+            scope_object_id,
+        ),
+    )
+
+
+def _granted_role_ids_clause(
+    role_id_column: Mapped[int] | Mapped[int | None],
+    user_id: int | None,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None,
+) -> ColumnElement[bool]:
+    """Whether ``role_id_column`` is a role the user holds at the scope — via their own
+    assignments or via an assignment to a group they actively belong to."""
+    return or_(
+        role_id_column.in_(_user_role_ids_at_scope(user_id, permission_scope, scope_object_id)),
+        role_id_column.in_(_group_role_ids_at_scope(user_id, permission_scope, scope_object_id)),
     )
 
 
@@ -209,10 +273,9 @@ async def can(
     """Return whether user holds permission at the given permission scope."""
     statement = (
         select(RolePermission.permission)
-        .join(RoleAssignment, col(RoleAssignment.role_id) == col(RolePermission.role_id))
         .where(
-            *_active_assignment_at_scope(user.id, permission_scope, scope_object_id),
             RolePermission.permission == permission.name,
+            _granted_role_ids_clause(col(RolePermission.role_id), user.id, permission_scope, scope_object_id),
         )
         .limit(1)
     )
@@ -229,11 +292,10 @@ async def has_role(
 ) -> bool:
     """Return whether user holds an active assignment of role_name at the given permission scope."""
     statement = (
-        select(RoleAssignment.id)
-        .join(Role, col(Role.id) == col(RoleAssignment.role_id))
+        select(Role.id)
         .where(
-            *_active_assignment_at_scope(user.id, permission_scope, scope_object_id),
             Role.name == role_name,
+            _granted_role_ids_clause(col(Role.id), user.id, permission_scope, scope_object_id),
         )
         .limit(1)
     )

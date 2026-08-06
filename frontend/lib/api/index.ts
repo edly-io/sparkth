@@ -1,4 +1,4 @@
-export { api, bearer, type Schema } from "./client";
+export { api, bearer, call, type Schema } from "./client";
 export {
   ApiRequestError,
   formatApiError,

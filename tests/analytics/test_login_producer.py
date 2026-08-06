@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -44,50 +45,66 @@ async def test_successful_login_emits_user_logged_in_event(
     assert rows[0]["payload"] == {"username": "loginproducer"}
 
 
-async def test_login_succeeds_even_if_analytics_emit_fails(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+async def test_analytics_write_failure_propagates_from_the_login_background_task(
+    client: AsyncClient, session: AsyncSession
 ) -> None:
+    """A failed analytics write is not hidden — it reaches the caller.
+
+    _emit_login_event runs as a Starlette BackgroundTask. In production those run
+    after the response is flushed, so this surfaces as a logged unhandled task
+    error and the user still gets their token. Under the httpx ASGI test transport
+    the background task runs inside the request, so the exception is re-raised here
+    — which is exactly what lets us assert it was not swallowed.
+    """
     await _make_verified_user(session, "resilientlogin", "testpassword")
 
-    # Analytics is fire-and-forget: a gateway failure must never break login.
-    with patch("sparkth.api.v1.auth.ingest_event", side_effect=SQLAlchemyError("boom")):
-        response = await client.post(LOGIN_URL, json={"username": "resilientlogin", "password": "testpassword"})
+    with (
+        patch("sparkth.lib.analytics.ingest_event", side_effect=SQLAlchemyError("boom")),
+        pytest.raises(SQLAlchemyError, match="boom"),
+    ):
+        await client.post(LOGIN_URL, json={"username": "resilientlogin", "password": "testpassword"})
 
-    assert response.status_code == 200
-    assert "access_token" in response.json()
 
+async def test_unexpected_analytics_error_propagates_from_the_login_background_task(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """An error type outside the analytics-specific trio propagates just the same.
 
-async def test_unexpected_analytics_error_does_not_break_login(client: AsyncClient, session: AsyncSession) -> None:
-    """RuntimeError is not in the caught exception tuple, so it escapes the try block.
-
-    Currently this causes login to return 500 because the exception propagates
-    through the synchronous inline emission and surfaces to FastAPI's error handler.
-    After moving to BackgroundTasks the exception is isolated to the background task
-    and can never affect the already-sent 200 response.
+    emit_event catches nothing at all — not just UnknownEventTypeError,
+    ValidationError, and SQLAlchemyError — so a RuntimeError from the gateway
+    reaches the caller exactly like any other failure. As in the case above, this
+    only surfaces inside the request because of the httpx ASGI test transport; in
+    production the background task raises after the response has already been sent.
     """
     await _make_verified_user(session, "unexpectederrorlogin", "testpassword")
 
-    with patch("sparkth.api.v1.auth.ingest_event", side_effect=RuntimeError("unexpected internal error")):
-        response = await client.post(LOGIN_URL, json={"username": "unexpectederrorlogin", "password": "testpassword"})
+    with (
+        patch("sparkth.lib.analytics.ingest_event", side_effect=RuntimeError("unexpected internal error")),
+        pytest.raises(RuntimeError),
+    ):
+        await client.post(LOGIN_URL, json={"username": "unexpectederrorlogin", "password": "testpassword"})
 
-    assert response.status_code == 200
-    assert "access_token" in response.json()
 
+async def test_analytics_session_acquisition_failure_propagates_from_the_login_background_task(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A dead analytics database is not hidden either — it reaches the caller too.
 
-async def test_login_succeeds_when_analytics_session_unavailable(client: AsyncClient, session: AsyncSession) -> None:
+    emit_event opens its own analytics session and catches nothing, so a failure to
+    acquire that session (e.g. the analytics database is unprovisioned or
+    unreachable) propagates exactly like a write failure. As above, this only
+    surfaces inside the request because of the httpx ASGI test transport; in
+    production the background task raises after the response has already been sent.
+    """
     await _make_verified_user(session, "analyticsdownlogin", "testpassword")
 
-    # The analytics DB may be unprovisioned or unreachable (e.g. the e2e env never
-    # creates the separate analytics database). Acquiring the session must not break
-    # login: emission acquires the session *inside* the swallowing try, so a connect
-    # failure during acquisition or teardown can never surface as a 500.
     @asynccontextmanager
     async def _failing_scope(*args: Any, **kwargs: Any) -> Any:
         raise SQLAlchemyError("analytics database unreachable")
         yield  # pragma: no cover -- unreachable, makes this a generator
 
-    with patch("sparkth.api.v1.auth.analytics_session_scope", _failing_scope):
-        response = await client.post(LOGIN_URL, json={"username": "analyticsdownlogin", "password": "testpassword"})
-
-    assert response.status_code == 200
-    assert "access_token" in response.json()
+    with (
+        patch("sparkth.lib.analytics.analytics_session_scope", _failing_scope),
+        pytest.raises(SQLAlchemyError, match="analytics database unreachable"),
+    ):
+        await client.post(LOGIN_URL, json={"username": "analyticsdownlogin", "password": "testpassword"})

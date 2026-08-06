@@ -1,9 +1,10 @@
 "use client";
 
-import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
+import { useReducer, useEffect, useState, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { checkPermission } from "@/lib/permissions";
 import {
   getWhitelist,
   addWhitelistEntry,
@@ -78,10 +79,30 @@ const initialState: WhitelistState = {
 };
 
 export default function WhitelistPage() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  if (user && !user.is_admin) {
+  const [access, setAccess] = useState<"checking" | "allowed" | "denied">("checking");
+
+  useEffect(() => {
+    // Reset on every token change so a re-login can't briefly show the previous user's page
+    // while the new user's check is still in flight (fail closed to the checking state).
+    setAccess("checking");
+    if (!token) return;
+    let active = true;
+    checkPermission(token, "email.whitelist.read", { scope: "whitelist" })
+      .then((allowed) => {
+        if (active) setAccess(allowed ? "allowed" : "denied");
+      })
+      .catch(() => {
+        if (active) setAccess("denied"); // fail closed
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  if (access === "denied") {
     redirect("/dashboard");
   }
 
@@ -101,8 +122,8 @@ export default function WhitelistPage() {
   }, [token]);
 
   useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
+    if (access === "allowed") fetchEntries();
+  }, [access, fetchEntries]);
 
   const handleAdd = async (e: SubmitEvent) => {
     e.preventDefault();
@@ -143,6 +164,17 @@ export default function WhitelistPage() {
       dispatch({ type: "SET_DELETING", deleting: false });
     }
   };
+
+  if (access === "checking") {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center">
+          <Spinner className="mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading whitelist...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (state.loading) {
     return (

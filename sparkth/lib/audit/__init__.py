@@ -16,9 +16,10 @@ hook), and :mod:`sparkth.lib.audit.exceptions`. Never import from
 
 The audit trail is the append-only system of record for who did what, when,
 and with what effect. It is deliberately *not* the analytics pipeline:
-analytics (:mod:`sparkth.lib.analytics`) is best-effort and droppable, audit is
-fail-closed, meaning an event that cannot be written fails the mutating or AI
-action it records.
+analytics (:mod:`sparkth.lib.analytics`) is emitted from background tasks, so
+a failure propagates to the logs rather than the request, audit is fail-closed,
+meaning an event that cannot be written fails the mutating or AI action it
+records.
 """
 
 from sparkth.core.audit.execution import audited_tool

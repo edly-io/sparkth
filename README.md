@@ -83,7 +83,8 @@ For sensitive credentials (Google OAuth, Slack), create a `.env.local` file — 
 
 ### End-to-end tests
 
-Playwright end-to-end tests live in `frontend/tests/`. They run against their own
+Playwright end-to-end tests live in `frontend/e2e-tests/` (the vitest unit suite is the
+separate `frontend/tests/` mirror). They run against their own
 ephemeral SQLite database, created fresh and deleted on every run, so they never
 touch your dev Postgres data. The run starts and stops a throwaway backend (on
 port 7727) and the frontend for you.
@@ -160,25 +161,44 @@ Sparkth will generate a prompt that will help Claude generate this course.
 
 ## Production
 
-Build the Docker image:
+A self-contained single-host deployment lives in
+[`docker-compose.prod.yml`](docker-compose.prod.yml): the Sparkth application (with the
+frontend bundled), TimescaleDB/Postgres (hosting both the app and analytics databases),
+and Redis. Every service loads `.env` and then `.env.local` (later entries win);
+`.env.local` is mandatory, and compose fails to start without it.
 
-```bash
-make docker.build
-```
+1. Complete the "MUST change in production" checklist at the top of `.env`, placing the
+   overrides in `.env.local` (git-ignored). Point the connection URLs at the bundled
+   containers, using the same password as `POSTGRES_PASSWORD`:
 
-Convert the development services from docker-compose.yml to a production setup and add the Sparkth application to the list of services:
+   ```bash
+   DATABASE_URL=postgresql://sparkth:<POSTGRES_PASSWORD>@db:5432/sparkth
+   ANALYTICS_DATABASE_URL=postgresql://sparkth:<POSTGRES_PASSWORD>@db:5432/sparkth_analytics
+   REDIS_URL=redis://redis:6379
+   ```
 
-    sparkth:
-        image: ghcr.io/edly-io/sparkth:latest
-        restart: unless-stopped
-        env_file:
-            - .env
-            - .env.local
-        depends_on:
-            db:
-                condition: service_healthy
-            redis:
-                condition: service_healthy
+2. Build the image with `make docker.build`, or let compose pull
+   `ghcr.io/edly-io/sparkth:latest` from GHCR (set `SPARKTH_TAG` to pin a release).
+3. Start the stack:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+4. Apply database migrations, on first start and after every upgrade. One command
+   applies both Alembic lineages (app and analytics) and backfills TimescaleDB
+   continuous aggregates (idempotent):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm sparkth python -m sparkth.cli.main migrate
+   ```
+
+The app is published on port 7727 (`SPARKTH_HTTP_PORT` to change). TLS and email are
+intentionally not part of the stack: run a reverse proxy or load balancer in front of the
+published port (and set `TRUSTED_PROXY_HOPS` to match), and point `SMTP_*` at a real
+provider such as AWS SES. If the proxy runs on the same host, set
+`SPARKTH_HTTP_BIND=127.0.0.1` so clients cannot bypass it. For orchestrated deployments,
+the same image is published to GHCR by CI and runs under Kubernetes.
 
 ## Configuration
 
@@ -190,11 +210,21 @@ flags such as `REGISTRATION_ENABLED`, and the
 [user management guide](docs/guides/user-management.md) for creating users and resetting
 passwords.
 
+## Permissions
+
+Sparkth authorizes actions with a scoped role-based access control (RBAC) model: roles bundle
+permissions and are granted at scopes (platform-wide or per-object), to individual users or to
+**groups** — flat, named sets of users whose members all inherit the group's role grants, so
+bulk access is one grant instead of one assignment per user. Roles and groups are managed
+through the REST API under `/api/v1/permissions`; user-role assignment and group membership
+are managed via the CLI. See the [permissions guide](docs/guides/permissions.md).
+
 ## Audit Trail
 
 Sparkth keeps an append-only audit trail of security-relevant and AI actions: who did what, when,
 from where, and with what effect. The implementation lives in `sparkth/core/audit/` with its public
-API in `sparkth/lib/audit/`; unlike analytics (best-effort), audit writes are fail-closed, so a
+API in `sparkth/lib/audit/`; unlike analytics (emitted from a background task, so a failure
+surfaces as a logged error rather than blocking the request), audit writes are fail-closed, so a
 mutating or AI action whose audit record cannot be written does not proceed. Every AI tool
 execution, on every surface (the MCP server, chat, RAG), is recorded as a `tool.invoked` event
 committed before the handler runs plus a `tool.completed` or `tool.failed` outcome event, with
@@ -248,21 +278,29 @@ fast at startup instead of at first emit:
 
 ### Emitting an event
 
-All events are emitted server-side through `ingest_event`, which resolves the schema by
+Producers emit server-side through `emit_event`, which resolves the schema by
 `(event_type, version)`, validates the payload against it, and lands one immutable row in the
-analytics database:
+analytics database. It opens its own analytics session, so callers need no session plumbing:
 
 ```python
-from sparkth.lib.analytics import ingest_event
+from sparkth.lib.analytics import emit_event
 
-await ingest_event(
-    session,
+await emit_event(
     "mycourseplugin.course_completed",
     1,
     {"learner_id": "u1", "course_id": "c1"},
     actor_id=str(user.id),
 )
 ```
+
+`emit_event` catches nothing — `UnknownEventTypeError`, `ValidationError` and
+`SQLAlchemyError` all reach the caller, so a broken analytics write is never hidden. Emit
+from a FastAPI background task (as the built-in producers do) so the failure surfaces as a
+logged unhandled task error after the response has been sent, rather than affecting the
+operation being measured.
+
+The lower-level `ingest_event` is the same validate-and-insert step for a caller that
+already holds an analytics session.
 
 Resolve a registered schema by identity with `get_event_schema(event_type, version)` (raises
 `UnknownEventTypeError` if none is registered).

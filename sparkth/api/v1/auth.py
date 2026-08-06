@@ -8,8 +8,6 @@ from urllib.parse import quote
 import redis.asyncio as aioredis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
-from pydantic import ValidationError
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,12 +20,11 @@ from sparkth.core.google_auth import (
 )
 from sparkth.core.models.base import utc_now
 from sparkth.core.models.user import User
-from sparkth.lib.analytics import UnknownEventTypeError, ingest_event
+from sparkth.lib.analytics import emit_event
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.context import AnonymousActor, UserActor
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent
-from sparkth.lib.db import analytics_session_scope, get_async_session
-from sparkth.lib.log import get_logger
+from sparkth.lib.db import get_async_session
 from sparkth.schemas import (
     GoogleAuthUrl,
     ResendVerificationRequest,
@@ -46,7 +43,6 @@ from sparkth.services.email_verification import (
 from sparkth.services.whitelist import WhitelistService
 
 settings = get_settings()
-logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -104,28 +100,17 @@ async def register_user(
 async def _emit_login_event(username: str, user_id: str | None) -> None:
     """Emit a user.logged_in analytics event as a background task.
 
-    Runs after the login response has been sent. Must not raise — any exception
-    that escapes a background task propagates through Starlette's middleware in
-    ASGI test transports and would break tests even though production handles it
-    transparently. Known analytics failures are logged at WARNING; anything
-    unexpected is logged at ERROR. Either way the login outcome is unaffected.
+    Runs after the login response has been sent, so a failed analytics write
+    surfaces as an unhandled background-task error in the logs rather than
+    changing the login outcome. Nothing is caught here: emit_event propagates,
+    and hiding an analytics failure is exactly what we do not want.
     """
-    try:
-        async with analytics_session_scope() as analytics_session:
-            await ingest_event(
-                analytics_session,
-                "user.logged_in",
-                1,
-                {"username": username},
-                actor_id=user_id,
-            )
-    except (UnknownEventTypeError, ValidationError, SQLAlchemyError) as exc:
-        logger.warning("Failed to emit user.logged_in analytics event: %s", exc)
-    except Exception as exc:
-        # Broad catch required: any unhandled exception in a background task
-        # propagates through the Starlette ASGI middleware stack. Log at ERROR
-        # so unexpected failures are visible, but never let them surface to callers.
-        logger.error("Unexpected error emitting user.logged_in analytics event: %s", exc, exc_info=True)
+    await emit_event(
+        "user.logged_in",
+        1,
+        {"username": username},
+        actor_id=user_id,
+    )
 
 
 @router.post("/login", response_model=Token)

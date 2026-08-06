@@ -1,4 +1,4 @@
-import { api, bearer, type Schema } from "./client";
+import { api, bearer, call, type Schema } from "./client";
 import { ApiRequestError, rethrowOrWrapConnectionError } from "./errors";
 
 export type LoginRequest = Schema<"UserLogin">;
@@ -8,21 +8,6 @@ export type RegisterResponse = Schema<"User">;
 export type GoogleAuthUrlResponse = Schema<"GoogleAuthUrl">;
 export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
 export type CurrentUser = Schema<"User">;
-
-// Runs an openapi-fetch call and returns its unwrapped data, funnelling every
-// transport failure through rethrowOrWrapConnectionError. `data` is typed as
-// possibly undefined (e.g. an empty 2xx body); these endpoints always send a
-// body on success, and void endpoints pass `T = void`, so the cast is safe.
-// Endpoints that need bespoke error handling (resendVerificationEmail) keep
-// their own try/catch.
-async function call<T>(request: () => Promise<{ data?: T }>): Promise<T> {
-  try {
-    const { data } = await request();
-    return data as T;
-  } catch (error) {
-    rethrowOrWrapConnectionError(error);
-  }
-}
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   return call<LoginResponse>(() => api.POST("/api/v1/auth/login", { body: data }));

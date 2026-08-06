@@ -12,11 +12,11 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
-  Shield,
   Key,
 } from "lucide-react";
 import { ComponentType } from "react";
 import { useEnabledPlugins } from "@/lib/plugins/context";
+import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/components/Spinner";
 import { SparkthLogo } from "./SparkthLogo";
@@ -31,8 +31,8 @@ interface AppSidebarProps {
     email?: string;
     avatar?: string;
     plan?: string;
-    is_admin?: boolean;
   };
+  navPermissions?: Record<string, boolean>;
   basePath?: string;
   onLogout?: () => void;
   variant?: "desktop" | "mobile";
@@ -43,6 +43,7 @@ interface AppSidebarProps {
 
 export default function AppSidebar({
   user,
+  navPermissions,
   basePath = "/dashboard",
   onLogout,
   variant = "desktop",
@@ -230,29 +231,17 @@ export default function AppSidebar({
               </Link>
             </div>
 
-            {user?.is_admin && (
-              <div>
-                <Link
-                  href={`${basePath}/admin/whitelist`}
-                  onClick={handleNavClick}
-                  className={`
-                    flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
-                    ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
-                    ${
-                      isActiveRoute("admin")
-                        ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
-                        : "text-foreground hover:bg-surface-variant"
-                    }
-                  `}
-                  title={isCollapsed ? "Admin" : undefined}
-                >
-                  <Shield className="w-5 h-5 flex-shrink-0" />
-                  {!(isCollapsed && variant === "desktop") && (
-                    <span className="font-medium">Admin</span>
-                  )}
-                </Link>
-              </div>
-            )}
+            {GATED_NAV.filter((item) => navPermissions?.[item.key]).map((item) => (
+              <NavItem
+                key={item.key}
+                href={`${basePath}/${item.route}`}
+                label={item.label}
+                icon={item.icon}
+                isActive={isActiveRoute(item.activeKey ?? item.route)}
+                isCollapsed={isCollapsed && variant === "desktop"}
+                onClick={handleNavClick}
+              />
+            ))}
           </>
         )}
       </div>
