@@ -19,7 +19,6 @@ vi.mock("@/lib/auth-context", () => ({ useAuth: () => auth }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), usePathname: () => "/dashboard" }));
 vi.mock("@/lib/plugins/context", () => ({
   PluginProvider: ({ children }: { children: React.ReactNode }) => children,
-  useEnabledPlugins: () => ({ plugins: [], loading: false }),
 }));
 vi.mock("@/components/MobileSidebar", () => ({ default: () => null }));
 vi.mock("@/components/AppSidebar", () => ({
