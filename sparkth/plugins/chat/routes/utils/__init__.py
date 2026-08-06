@@ -18,6 +18,7 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
+from sparkth.plugins.chat.analytics import emit_conversation_started
 from sparkth.plugins.chat.classifier import HistoryTurn, ScopeClassifier
 from sparkth.plugins.chat.config import ChatSettings
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
@@ -27,7 +28,7 @@ from sparkth.plugins.chat.conversation_title import (
     get_first_user_text,
 )
 from sparkth.plugins.chat.intent_router import RAGIntentRouter
-from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from sparkth.plugins.chat.service import ChatService
@@ -213,7 +214,12 @@ async def get_or_create_conversation(
     config: ChatSettings,
     background_tasks: BackgroundTasks,
 ) -> Conversation:
-    """Resolve an existing conversation by UUID, or create a new one and schedule title generation."""
+    """Resolve an existing conversation by UUID, or create a new one, emit
+    ``chat.conversation_started``, and schedule title generation.
+
+    The analytics emission only happens on the create branch — a returning
+    conversation (resolved by UUID) never re-emits the event.
+    """
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(
             session=session,
@@ -252,6 +258,19 @@ async def get_or_create_conversation(
             service=service,
             provider=title_provider,
         )
+    # Queued last, after generate_conversation_title: Starlette's BackgroundTasks
+    # runs its queue as a plain sequential loop with no per-task isolation, and
+    # emit_conversation_started propagates any failure by design (this milestone's
+    # analytics events are never caught). Queuing it first would mean an analytics
+    # DB failure raised here stops the loop and silently costs the conversation its
+    # title. Queuing it last means a failing emit can only cost later analytics.
+    background_tasks.add_task(
+        emit_conversation_started,
+        conversation_id=str(conversation.uuid),
+        provider=provider_name,
+        model=model,
+        actor_id=str(user_id),
+    )
     return conversation
 
 
@@ -288,8 +307,15 @@ async def persist_incoming_messages(
     service: ChatService,
     messages: list[ChatMessage],
     conversation_id: int,
-) -> None:
-    """Persist the request's incoming messages to the conversation."""
+) -> list[Message]:
+    """Persist the request's incoming messages and return the stored rows.
+
+    Returning the rows lets the caller emit analytics from the *stored* content —
+    this is the only place that flattens request content blocks into message text,
+    so a caller deriving a length from the raw request would have to duplicate that
+    flattening.
+    """
+    persisted: list[Message] = []
     for msg in messages:
         if isinstance(msg.content, list):
             text_parts = [
@@ -300,15 +326,18 @@ async def persist_incoming_messages(
             stored_content = " ".join(text_parts) if text_parts else "[Document attachment]"
         else:
             stored_content = msg.content
-        await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role=msg.role,
-            content=stored_content,
-            message_type="attachment" if msg.attachment else "text",
-            attachment_name=msg.attachment.name if msg.attachment else None,
-            attachment_size=msg.attachment.size if msg.attachment else None,
+        persisted.append(
+            await service.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role=msg.role,
+                content=stored_content,
+                message_type="attachment" if msg.attachment else "text",
+                attachment_name=msg.attachment.name if msg.attachment else None,
+                attachment_size=msg.attachment.size if msg.attachment else None,
+            )
         )
+    return persisted
 
 
 async def classify_in_scope(
