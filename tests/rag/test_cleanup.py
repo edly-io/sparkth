@@ -4,6 +4,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document
+from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.rag.cleanup import cleanup_deleted_documents
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 
@@ -155,3 +156,63 @@ class TestCleanupDeletedDocuments:
         assert await _chunk_ids(session) == {20}  # chunk 21 orphaned and deleted
         assert await _link_keys(session) == {(6, 20)}  # doc 5's links gone
         assert await _document_ids(session) == {5, 6}
+
+
+class TestCleanupAudit:
+    async def test_purge_run_records_system_audit_event(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        """A cleanup run that processes deleted documents leaves a system-actor
+        audit record of what was purged, atomic with the purge itself."""
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _chunk(10),
+            DocumentChunkLink(document_id=1, chunk_id=10),
+        )
+
+        await cleanup_deleted_documents()
+
+        (event,) = await audit_events()
+        assert (event.category, event.action) == ("rag", "chunks_purged")
+        assert event.outcome == "success"
+        assert event.actor_type == "system"
+        assert event.old_values == {"document_ids": [1], "purged_chunk_count": 1}
+
+    async def test_noop_run_records_no_audit_event(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        """No soft-deleted documents means no state change and no audit record."""
+        await _seed(session, _document(1, is_deleted=False))
+
+        await cleanup_deleted_documents()
+
+        assert await audit_events() == []
+
+    async def test_repeat_run_over_purged_documents_records_nothing_new(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        """Soft-deleted documents stay behind after a purge, so they match again on the
+        next run — but with nothing left to remove, that run adds no audit record."""
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _chunk(10),
+            DocumentChunkLink(document_id=1, chunk_id=10),
+        )
+
+        await cleanup_deleted_documents()
+        await cleanup_deleted_documents()
+
+        (event,) = await audit_events()
+        assert event.old_values == {"document_ids": [1], "purged_chunk_count": 1}
+
+    async def test_deleted_documents_with_nothing_linked_record_no_audit_event(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        """Soft-deleted documents that never had chunks purge nothing, so nothing is recorded."""
+        await _seed(session, _document(1, is_deleted=True), _document(2, is_deleted=True))
+
+        await cleanup_deleted_documents()
+
+        assert await audit_events() == []
