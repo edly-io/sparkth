@@ -1,6 +1,6 @@
 ---
 name: database-migrations
-description: Create, apply, and troubleshoot Alembic migrations in Sparkth — the two independent lineages (app and analytics), autogenerate mechanics, the continuous-aggregate backfill step, and resolving split heads. Use whenever adding or altering a database column, table, index, or type, generating a migration, running `make migrations`, or when `alembic heads` reports more than one head.
+description: Create, apply, and troubleshoot Alembic migrations in Sparkth — the two independent lineages (app and analytics), autogenerate mechanics, the continuous-aggregate backfill, and resolving split heads. Use whenever adding or altering a database column, table, index, or type, generating a migration, running `make migrations`, or when `alembic heads` reports more than one head.
 ---
 
 # Database Migrations
@@ -26,6 +26,9 @@ risk tooling confusion and non-hex characters that break Alembic expectations.
 make migrations
 ```
 
+It runs the `sparkth migrate` CLI command (`sparkth/cli/migrate.py`), which applies both lineages
+and then backfills continuous aggregates.
+
 ## Two independent lineages
 
 The project has two Alembic lineages:
@@ -43,21 +46,21 @@ alembic -c alembic_analytics.ini revision --autogenerate -m "..."
 
 The two databases never share metadata.
 
-## Continuous aggregates need a one-off backfill after migrating
+## Continuous aggregates need a backfill after migrating
 
 A TimescaleDB continuous aggregate is created `WITH NO DATA` — creating it with data would backfill
 inside Alembic's transaction. Its refresh policy only covers a trailing window, so once the first
 policy run advances the materialization watermark, buckets older than that window vanish from the
 view and pre-migration history is lost.
 
-After applying an analytics migration that adds a continuous aggregate, run this once on
-PostgreSQL to full-refresh it (`refresh_continuous_aggregate` over the whole range):
+The backfill full-refreshes every registered aggregate (`refresh_continuous_aggregate` over the
+whole range); it is idempotent and a no-op on SQLite. The `migrate` CLI command (and therefore
+`make migrations` and the production migration step in the README) runs it automatically after
+applying migrations. To refresh a single aggregate by name, use:
 
 ```bash
 make analytics-backfill
 ```
-
-It is idempotent and a no-op on SQLite.
 
 ## Preventing split heads
 
