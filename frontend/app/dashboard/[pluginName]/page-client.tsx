@@ -15,7 +15,7 @@ export default function PluginPageClient() {
   const pluginName = params?.pluginName as string;
 
   const { isEnabled } = usePlugin(pluginName);
-  const { userPlugins } = usePluginContext();
+  const { userPlugins, loading: pluginsLoading } = usePluginContext();
   const pluginDef = getPlugin(pluginName);
 
   const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
@@ -103,6 +103,16 @@ export default function PluginPageClient() {
             Go to Dashboard
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  // Until the plugin list loads, neither isEnabled nor displayName is
+  // meaningful, so don't render a verdict yet.
+  if (pluginsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-screen bg-background">
+        <Spinner />
       </div>
     );
   }

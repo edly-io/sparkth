@@ -28,7 +28,7 @@ export default function PluginRenderer({
   pluginDef: overridePluginDef,
 }: PluginRendererProps) {
   const { isEnabled, config, context } = usePlugin(pluginName);
-  const { userPlugins } = usePluginContext();
+  const { userPlugins, loading: pluginsLoading } = usePluginContext();
   const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(overridePluginDef || null);
 
   const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
@@ -84,6 +84,16 @@ export default function PluginRenderer({
     if (!pluginDef) return null;
     return lazy(() => pluginDef.loadComponent());
   }, [pluginDef]);
+
+  // Until the plugin list loads, neither isEnabled nor displayName is
+  // meaningful, so don't render a verdict yet.
+  if (pluginsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Spinner />
+      </div>
+    );
+  }
 
   if (!pluginDef) {
     return (
