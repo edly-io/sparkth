@@ -88,9 +88,9 @@ async def soft_delete_document(
 ) -> None:
     """Soft-delete a Document by id. Does not commit.
 
-     Records a ``rag.document_deleted`` audit event in the caller's transaction
-    , so the deletion and its record commit or roll back together.
-     A missing id is a no-op and records nothing.
+    Records a ``rag.document_deleted`` audit event in the caller's transaction,
+    so the deletion and its record commit or roll back together. A missing id
+    is a no-op and records nothing.
     """
     result = await session.exec(select(Document).where(col(Document.id) == document_id))
     doc = result.first()

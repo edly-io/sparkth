@@ -188,3 +188,31 @@ class TestCleanupAudit:
         await cleanup_deleted_documents()
 
         assert await audit_events() == []
+
+    async def test_repeat_run_over_purged_documents_records_nothing_new(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        """Soft-deleted documents stay behind after a purge, so they match again on the
+        next run — but with nothing left to remove, that run adds no audit record."""
+        await _seed(
+            session,
+            _document(1, is_deleted=True),
+            _chunk(10),
+            DocumentChunkLink(document_id=1, chunk_id=10),
+        )
+
+        await cleanup_deleted_documents()
+        await cleanup_deleted_documents()
+
+        (event,) = await audit_events()
+        assert event.old_values == {"document_ids": [1], "purged_chunk_count": 1}
+
+    async def test_deleted_documents_with_nothing_linked_record_no_audit_event(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        """Soft-deleted documents that never had chunks purge nothing, so nothing is recorded."""
+        await _seed(session, _document(1, is_deleted=True), _document(2, is_deleted=True))
+
+        await cleanup_deleted_documents()
+
+        assert await audit_events() == []

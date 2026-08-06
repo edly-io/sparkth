@@ -57,11 +57,15 @@ async def ingest_document(
     content-hash dedup) -> link chunks to *document_id*. Opens and commits its
     own database session.
 
-    Every attempt is audited as a ``rag.document_ingested`` event:
-    a success is recorded in the same transaction as the chunk write
-    (fail-closed, so unrecordable content cannot enter the corpus) and an
-    ineligible or unextractable file is recorded immediately in its own
-    transaction before the error propagates.
+    Audited as a ``rag.document_ingested`` event. A success is recorded in the
+    same transaction as the chunk write (fail-closed, so unrecordable content
+    cannot enter the corpus). A failure is recorded, in its own transaction
+    before the error propagates, for the two eligibility/extraction errors this
+    function declares below; any other error (a parse failure inside an
+    extractor, a chunker error, a database error from the chunk write)
+    propagates without an audit record. Nothing entered the corpus in those
+    cases, so the trail stays accurate about the corpus itself, but it is not a
+    complete log of attempts.
 
     Args:
         document_id: Document.id recorded in the chunk-link table.

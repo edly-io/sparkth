@@ -25,6 +25,11 @@ async def cleanup_deleted_documents() -> None:
     Cleanup does NOT hard-delete Document rows — that is the responsibility
     of the plugin that owns the document via soft_delete_document().
 
+    A run that removes at least one chunk link or orphaned chunk records a
+    ``rag.chunks_purged`` audit event, committed atomically with the purge.
+    A run that removes nothing records nothing, so repeat runs over the same
+    already-purged documents do not accumulate empty entries.
+
     This is a system-wide background job: it operates across all users
     intentionally, as orphan cleanup is not scoped per user.
     """
@@ -64,27 +69,35 @@ async def cleanup_deleted_documents() -> None:
         else:
             logger.info("No orphaned chunks found.")
 
-        await session.execute(delete(DocumentChunkLink).where(col(DocumentChunkLink.document_id).in_(deleted_doc_ids)))
+        if candidate_chunk_ids:
+            await session.execute(
+                delete(DocumentChunkLink).where(col(DocumentChunkLink.document_id).in_(deleted_doc_ids))
+            )
 
         if orphan_chunk_ids:
             await session.execute(delete(DocumentChunk).where(col(DocumentChunk.id).in_(orphan_chunk_ids)))
 
-        # System-actor evidence that the corpus removal happened,
-        # committed atomically with the purge itself.
-        await record_event(
-            session,
-            RAGChunksPurgedAuditEvent(
-                outcome=AuditOutcome.SUCCESS,
-                actor=SystemActor(label="rag-cleanup"),
-                target=AuditTarget(type="rag_corpus"),
-                change=AuditChange(
-                    old={
-                        "document_ids": sorted(deleted_doc_ids),
-                        "purged_chunk_count": len(orphan_chunk_ids),
-                    }
+        # Soft-deleted Documents are never hard-deleted here, so they keep matching on
+        # every later run. Only a run that actually removed something is evidence of a
+        # purge; recording the others would fill the trail with empty repeat entries.
+        # candidate_chunk_ids is non-empty exactly when there were links to delete.
+        if candidate_chunk_ids:
+            # System-actor evidence that the corpus removal happened,
+            # committed atomically with the purge itself.
+            await record_event(
+                session,
+                RAGChunksPurgedAuditEvent(
+                    outcome=AuditOutcome.SUCCESS,
+                    actor=SystemActor(label="rag-cleanup"),
+                    target=AuditTarget(type="rag_corpus"),
+                    change=AuditChange(
+                        old={
+                            "document_ids": sorted(deleted_doc_ids),
+                            "purged_chunk_count": len(orphan_chunk_ids),
+                        }
+                    ),
                 ),
-            ),
-        )
+            )
         await session.commit()
         logger.info(
             "Cleanup complete. Deleted %d orphaned chunks.",
