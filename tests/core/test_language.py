@@ -1,9 +1,11 @@
-"""Tests for the supported-language allowlist and the platform default."""
+"""Tests for the supported-language allowlist, the platform default and resolution."""
 
 import pytest
 from pydantic import ValidationError
 
 from sparkth.core.config import SUPPORTED_LANGUAGES, Settings, is_supported_language
+from sparkth.core.models.user import User
+from sparkth.lib.language import resolve_language
 
 
 def test_allowlist_holds_english_spanish_and_french() -> None:
@@ -74,3 +76,27 @@ def test_the_default_is_validated_by_the_same_rule_as_any_other_tag() -> None:
             LLM_ENCRYPTION_KEY="test-key",
             DEFAULT_LANGUAGE="en-US",
         )
+
+
+def test_new_user_has_no_language_chosen() -> None:
+    user = User(name="Test", username="nolang", email="nolang@example.com")
+    assert user.language is None
+
+
+def test_user_language_stores_a_bcp47_tag() -> None:
+    user = User(name="Test", username="es", email="es@example.com", language="es")
+    assert user.language == "es"
+
+
+def test_resolve_returns_a_tag_the_user_chose() -> None:
+    assert resolve_language("fr") == "fr"
+
+
+def test_resolve_falls_back_to_the_platform_default_when_unset() -> None:
+    """None is "never chose", so the platform default applies."""
+    assert resolve_language(None) == "en"
+
+
+def test_resolve_ignores_a_stored_tag_that_left_the_allowlist() -> None:
+    """A language removed from the allowlist must stop being handed back."""
+    assert resolve_language("de") == "en"

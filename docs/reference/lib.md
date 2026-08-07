@@ -20,6 +20,10 @@ The plugin authoring surface and the permissions API have their own pages:
 
 ::: sparkth.lib.settings
 
+## Language
+
+::: sparkth.lib.language
+
 ## Encryption
 
 ::: sparkth.lib.encryption
