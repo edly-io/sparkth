@@ -34,6 +34,21 @@ class User(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SupportedLanguage(BaseModel):
+    """One language the platform can generate content in."""
+
+    code: str
+    name: str
+    native_name: str
+
+
+class SupportedLanguages(BaseModel):
+    """The full allowlist plus the default applied to users who never chose."""
+
+    languages: list[SupportedLanguage]
+    default: str
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
