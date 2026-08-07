@@ -53,3 +53,80 @@ Options:
 
 - `identifier`: Username or email of the user (required, positional)
 - `--new-password, -p`: New password (optional, will prompt if not provided)
+
+## Preferred language
+
+Each user has a preferred language recorded on their profile: a
+[BCP 47](https://datatracker.ietf.org/doc/html/rfc5646) tag, readable and settable
+through the API.
+
+AI-generated course content and chat replies do not use this preference; it is
+recorded and exposed for clients to read.
+
+### Supported languages
+
+| Tag | Language |
+|---|---|
+| `en` | English |
+| `es` | Español (Spanish) |
+| `fr` | Français (French) |
+
+The list is deliberately short. AI output quality varies by language, so a language
+is added only once generated course content in it has been reviewed by a speaker.
+Matching against the list is an exact, case-sensitive comparison: `en-US` and `EN`
+are both rejected as unsupported, not normalised to `en`.
+
+Fetch the current list — and the platform default — from the API. This endpoint
+requires authentication:
+
+```bash
+curl http://localhost:7727/api/v1/languages \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "languages": [
+    {"code": "en", "name": "English", "native_name": "English"},
+    {"code": "es", "name": "Spanish", "native_name": "Español"},
+    {"code": "fr", "name": "French", "native_name": "Français"}
+  ],
+  "default": "en"
+}
+```
+
+### Reading and setting a user's language
+
+`GET /api/v1/user/me` returns `language` as stored: `null` means the user has never
+chosen one, which is different from having chosen English. The platform-wide
+fallback value is `DEFAULT_LANGUAGE`, configurable and also readable as `default` in
+the `GET /api/v1/languages` response (see the
+[configuration reference](../reference/configuration.md#default_language)).
+
+Set it with:
+
+```bash
+curl -X PATCH http://localhost:7727/api/v1/user/me \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"language": "es"}'
+```
+
+An unsupported tag is rejected with a `422`.
+
+Clear a previously chosen language — so the platform default applies again —
+by sending an explicit `null` rather than omitting the field:
+
+```bash
+curl -X PATCH http://localhost:7727/api/v1/user/me \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"language": null}'
+```
+
+The new value is stored immediately and returned by subsequent reads.
+
+If a language is later removed from the supported list, a stored tag that is no
+longer in the list stops being a valid choice: the value stays in the column, but
+it no longer passes the allowlist check, so PATCH rejects it with a `422` if the
+user tries to set it again.
