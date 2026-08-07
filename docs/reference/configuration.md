@@ -44,3 +44,15 @@ default `frontend/out`) at `/`.
   the dev default: use the Next.js dev server on `:3000`, which proxies `/api` to the
   backend. It also prevents a leftover local `frontend/out` build from being served
   stale.
+
+## Language
+
+### `DEFAULT_LANGUAGE`
+
+The platform-wide default language: the fallback value for users who have not
+chosen one in their profile. A [BCP 47](https://datatracker.ietf.org/doc/html/rfc5646)
+tag, and it must be one of the supported languages — `en`, `es` or `fr`. Anything
+else fails validation at startup rather than being silently accepted.
+
+Defaults to `en`. A user's own stored preference takes precedence over this value;
+`DEFAULT_LANGUAGE` is the fallback only for users who have not chosen one.
