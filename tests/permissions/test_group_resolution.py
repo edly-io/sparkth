@@ -95,7 +95,7 @@ async def test_soft_deleted_group_assignment_drops_the_grant(session: AsyncSessi
 
 
 async def test_has_role_true_via_group_grant(session: AsyncSession) -> None:
-    # api/v1/user.py derives is_admin from has_role, so admin-via-group must count.
+    # api/v1/user/routes.py derives is_admin from has_role, so admin-via-group must count.
     user = await make_user(session, "alice")
     role = await make_role(session, "admin", [])
     await make_group_grant(session, user, role, GLOBAL.name, None)

@@ -21,19 +21,6 @@ class UserCreate(UserBase):
         return v
 
 
-class User(UserBase):
-    id: int
-    name: str
-    username: str
-    # Derived from the permission system (holding the global admin role), not a stored
-    # column. Defaults to False so endpoints that return the ORM user directly (e.g.
-    # register) report a non-admin; /user/me computes and sets the real value.
-    is_admin: bool = False
-    email_verified: bool
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class Token(BaseModel):
     access_token: str
     token_type: str

@@ -1,20 +1,29 @@
-"""Tests for the /user/me endpoint, focused on the computed is_admin flag.
+"""Tests for the /user/me endpoint: the computed is_admin flag and the
+preferred-language column exposed via GET and PATCH.
 
 is_admin is not a stored column — it is derived from whether the user holds the
-global ``admin`` role, so these tests seed role assignments and assert the
-endpoint reflects them.
+global ``admin`` role, so those tests seed role assignments and assert the
+endpoint reflects them. The language tests cover reading the raw stored
+preference and writing it through PATCH, including the allowlist validation that
+keeps unsupported tags out of the database, the auth gate on the write endpoint,
+and that a PATCH only ever touches the caller's own row.
+
+Two of them guard the write itself rather than its result: that the endpoint
+refuses a principal with no row instead of reporting success for a write it never
+made, and that a successful PATCH advances ``updated_at``.
 """
 
 from typing import cast
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.orm import make_transient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import assign_role
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
@@ -32,19 +41,23 @@ async def _create_user(session: AsyncSession, username: str) -> User:
 
 
 def _override_current_user(client: AsyncClient, user: User) -> None:
+    """Stand in for ``get_current_user``, resolved on the request's own session.
+
+    Production ``get_current_user`` takes ``session: AsyncSession =
+    Depends(get_async_session)`` and looks the row up by JWT subject; FastAPI
+    caches that dependency per request, so the returned user is attached to the
+    very same session the route body uses. This override takes the same
+    dependency for the same reason: a value one request writes (e.g. a PATCHed
+    ``language``) must be visible to a later GET on the same client, and a
+    detached snapshot frozen at override time would not be.
+    """
     transport = cast(ASGITransport, client._transport)
     app_instance = cast(FastAPI, transport.app)
-    snapshot = User(
-        id=user.id,
-        name=user.name,
-        username=user.username,
-        email=user.email,
-        hashed_password=user.hashed_password,
-    )
-    make_transient(snapshot)
+    user_id = user.id
 
-    async def override() -> User:
-        return snapshot
+    async def override(session: AsyncSession = Depends(get_async_session)) -> User:
+        result = await session.exec(select(User).where(User.id == user_id))
+        return result.one()
 
     app_instance.dependency_overrides[get_current_user] = override
 
@@ -87,3 +100,174 @@ async def test_me_admin_role_at_other_scope_does_not_grant_global_admin(
 
     assert response.status_code == 200
     assert response.json()["is_admin"] is False
+
+
+async def test_me_reports_no_language_for_a_user_who_never_chose(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "nolang")
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.get("/api/v1/user/me")
+
+    assert response.status_code == 200
+    assert response.json()["language"] is None
+
+
+async def test_patch_me_requires_authentication(client: AsyncClient) -> None:
+    """PATCH is a write endpoint; it must be gated the same as GET.
+
+    Deliberately installs no ``get_current_user`` override, so the real dependency
+    runs and rejects the unauthenticated request. Nothing has to be popped first:
+    the autouse ``_clear_dependency_overrides`` fixture clears every override after
+    each test, so none can leak in from an earlier one.
+    """
+    response = await client.patch("/api/v1/user/me", json={"language": "es"})
+
+    assert response.status_code == 401
+
+
+async def test_patch_me_stores_the_chosen_language(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "picker")
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.patch("/api/v1/user/me", json={"language": "es"})
+
+    assert response.status_code == 200
+    assert response.json()["language"] == "es"
+
+    # Read it back through the API — the choice must have been persisted, not just echoed.
+    assert (await client.get("/api/v1/user/me")).json()["language"] == "es"
+
+
+async def test_patch_me_refuses_a_principal_with_no_row_instead_of_silently_writing_nothing(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    """A detached principal must never produce a silent, successful no-op write.
+
+    The shared ``current_user`` fixture yields a transient ``User`` that was never
+    added to a session. If the endpoint mutates the injected principal instead of
+    re-fetching the row it means to write, ``commit()`` persists nothing and the
+    caller still gets a 200 describing a change that never happened — invisible in
+    the response and in any test asserting on it. Re-fetching turns that into an
+    honest 404.
+    """
+    response = await client.patch("/api/v1/user/me", json={"language": "es"})
+
+    assert response.status_code == 404
+    assert (await session.exec(select(User))).all() == []
+
+
+async def test_patch_me_advances_updated_at(client: AsyncClient, session: AsyncSession) -> None:
+    """A successful PATCH must bump ``updated_at``.
+
+    ``TimestampedModel.updated_at`` has a ``default_factory`` but no ``onupdate``,
+    so nothing bumps it unless the write path calls ``update_timestamp()``. Both
+    timestamps are read back from the database so they are comparable on SQLite,
+    which drops the UTC offset the in-memory value carries.
+    """
+    user = await _create_user(session, "stamped")
+    await session.commit()
+    await session.refresh(user)
+    before = user.updated_at
+    _override_current_user(client, user)
+
+    response = await client.patch("/api/v1/user/me", json={"language": "es"})
+
+    assert response.status_code == 200
+    await session.refresh(user)
+    assert user.updated_at > before
+
+
+async def test_patch_me_only_updates_the_authenticated_users_row(client: AsyncClient, session: AsyncSession) -> None:
+    """A PATCH must never write to a row other than the caller's own."""
+    caller = await _create_user(session, "caller")
+    bystander = await _create_user(session, "bystander")
+    await session.commit()
+    _override_current_user(client, caller)
+
+    response = await client.patch("/api/v1/user/me", json={"language": "fr"})
+
+    assert response.status_code == 200
+    assert response.json()["language"] == "fr"
+
+    _override_current_user(client, bystander)
+    bystander_response = await client.get("/api/v1/user/me")
+
+    assert bystander_response.json()["language"] is None
+
+
+async def test_patch_me_rejects_an_unsupported_language(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "german")
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.patch("/api/v1/user/me", json={"language": "de"})
+
+    assert response.status_code == 422
+    assert (await client.get("/api/v1/user/me")).json()["language"] is None
+
+
+async def test_patch_me_rejects_a_wellformed_but_unsupported_tag(client: AsyncClient, session: AsyncSession) -> None:
+    """A syntactically valid BCP 47 tag outside the allowlist must still be a 422.
+
+    ``is_supported_language`` is an exact, case-sensitive match against the
+    allowlist keys — it has no subtag or case handling, so a value like
+    "en-US" or "EN" is not recognised as "en". This guards the write path: a bad
+    tag must be rejected here rather than silently normalised and stored.
+    """
+    user = await _create_user(session, "regiontag")
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.patch("/api/v1/user/me", json={"language": "en-US"})
+
+    assert response.status_code == 422
+    assert (await client.get("/api/v1/user/me")).json()["language"] is None
+
+    response = await client.patch("/api/v1/user/me", json={"language": "EN"})
+
+    assert response.status_code == 422
+    assert (await client.get("/api/v1/user/me")).json()["language"] is None
+
+
+async def test_patch_me_replaces_a_previous_choice(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "switcher")
+    await session.commit()
+    _override_current_user(client, user)
+
+    await client.patch("/api/v1/user/me", json={"language": "es"})
+    response = await client.patch("/api/v1/user/me", json={"language": "fr"})
+
+    assert response.status_code == 200
+    assert (await client.get("/api/v1/user/me")).json()["language"] == "fr"
+
+
+async def test_patch_me_clears_the_language_with_null(client: AsyncClient, session: AsyncSession) -> None:
+    """Clearing it hands the user back to the platform default at runtime."""
+    user = await _create_user(session, "clearer")
+    await session.commit()
+    _override_current_user(client, user)
+
+    await client.patch("/api/v1/user/me", json={"language": "fr"})
+    response = await client.patch("/api/v1/user/me", json={"language": None})
+
+    assert response.status_code == 200
+    assert response.json()["language"] is None
+    assert (await client.get("/api/v1/user/me")).json()["language"] is None
+
+
+async def test_patch_me_preserves_the_computed_admin_flag(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "adminpicker")
+    assert user.id is not None
+    session.add(Role(name="admin"))
+    await session.flush()
+    await assign_role(user.id, "admin", GLOBAL, None, session)
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.patch("/api/v1/user/me", json={"language": "fr"})
+
+    assert response.status_code == 200
+    assert response.json()["is_admin"] is True
+    assert response.json()["language"] == "fr"

@@ -87,7 +87,7 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 
 ## 4. Dependency Injection via FastAPI `Depends`
 
-**Files:** `sparkth/api/v1/auth.py`, `sparkth/api/v1/user.py`, `sparkth/core/db.py`
+**Files:** `sparkth/api/v1/auth.py`, `sparkth/api/v1/user/routes.py`, `sparkth/core/db.py`
 
 Auth and DB session are injected uniformly:
 
