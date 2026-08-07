@@ -17,6 +17,12 @@ class User(TimestampedModel, SoftDeleteModel, table=True):
     email: str = Field(max_length=50, unique=True, index=True)
     hashed_password: str | None = Field(default=None)
     google_id: str | None = Field(default=None, unique=True, index=True)
+    # The user's preferred language as a BCP 47 tag (RFC 5646), e.g. "en", "es".
+    # NULL means the user never chose one and falls through to DEFAULT_LANGUAGE —
+    # kept distinct from an explicit "en" so the platform default can change later
+    # without overriding people who actively picked English. 35 is the practical
+    # ceiling for a registered tag; nothing we ship approaches it.
+    language: str | None = Field(default=None, max_length=35)
 
     uuid: UUID = Field(default_factory=uuid7, unique=True, index=True)
 
