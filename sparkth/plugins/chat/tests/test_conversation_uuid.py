@@ -361,3 +361,8 @@ class TestConversationUUIDRoutes:
             },
         )
         assert response.status_code == 422
+
+
+def test_conversation_model_has_no_system_prompt_field() -> None:
+    """The column was write-only and always NULL; it must not come back."""
+    assert "system_prompt" not in Conversation.model_fields
