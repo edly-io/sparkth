@@ -544,6 +544,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Languages
+         * @description Return every supported language and the platform default.
+         */
+        get: operations["list_languages_api_v1_languages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/configs": {
         parameters: {
             query?: never;
@@ -1126,11 +1146,9 @@ export interface paths {
          * Get User
          * @description Fetch the current authenticated user from the JWT token.
          *
-         *     ``is_admin`` is derived here from whether the user holds the global ``admin``
-         *     role; it is not a stored column.
-         *
-         *     Raises:
-         *         HTTPException: If no user is authenticated.
+         *     ``is_admin`` is derived from whether the user holds the global ``admin`` role;
+         *     it is not a stored column. ``language`` is the raw stored preference — ``None``
+         *     when the user never chose one.
          */
         get: operations["get_user_api_v1_user_me_get"];
         put?: never;
@@ -1138,7 +1156,15 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update User Language
+         * @description Set or clear the current user's preferred language.
+         *
+         *     The tag is validated against the supported-language allowlist by
+         *     ``UserLanguageUpdate``, so an unsupported value is a 422 before reaching here.
+         *     An explicit ``null`` clears the preference.
+         */
+        patch: operations["update_user_language_api_v1_user_me_patch"];
         trace?: never;
     };
     "/api/v1/whitelist/": {
@@ -1940,6 +1966,28 @@ export interface components {
             team_name?: string | null;
         };
         /**
+         * SupportedLanguage
+         * @description One language the platform can generate content in.
+         */
+        SupportedLanguage: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Native Name */
+            native_name: string;
+        };
+        /**
+         * SupportedLanguages
+         * @description The full allowlist plus the default applied to users who never chose.
+         */
+        SupportedLanguages: {
+            /** Default */
+            default: string;
+            /** Languages */
+            languages: components["schemas"]["SupportedLanguage"][];
+        };
+        /**
          * SyncFolderRequest
          * @description Request to sync a Google Drive folder.
          */
@@ -2011,6 +2059,8 @@ export interface components {
              * @default false
              */
             is_admin: boolean;
+            /** Language */
+            language?: string | null;
             /** Name */
             name: string;
             /** Username */
@@ -2029,6 +2079,18 @@ export interface components {
             password: string;
             /** Username */
             username: string;
+        };
+        /**
+         * UserLanguageUpdate
+         * @description Body of ``PATCH /user/me``. Validated here so a bad tag is a 422.
+         *
+         *     ``language`` is required, because ``None`` is a meaningful value here rather
+         *     than a missing one: an explicit ``null`` clears the stored preference, while
+         *     omitting the field is a 422 rather than a no-op.
+         */
+        UserLanguageUpdate: {
+            /** Language */
+            language: string | null;
         };
         /** UserLogin */
         UserLogin: {
@@ -3149,6 +3211,26 @@ export interface operations {
             };
         };
     };
+    list_languages_api_v1_languages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportedLanguages"];
+                };
+            };
+        };
+    };
     list_llm_configs_api_v1_llm_configs_get: {
         parameters: {
             query?: {
@@ -4222,6 +4304,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    update_user_language_api_v1_user_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserLanguageUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
