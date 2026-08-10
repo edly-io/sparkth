@@ -85,7 +85,7 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 
 ### Endpoint modules: single file or package
 
-A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/api.py` mounts
+A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/__init__.py` mounts
 each one the same way — `include_router(<module>.router, prefix=...)` — so the shape is
 an internal organisation choice and changing it never moves a URL.
 
@@ -104,7 +104,7 @@ sparkth/api/v1/<name>/
 ```
 
 - `__init__.py` re-exports `router` and carries `__all__ = ["router"]`. This is a
-  deliberate exception to the "avoid re-exports" rule: it keeps `api.py`'s mounting
+  deliberate exception to the "avoid re-exports" rule: it keeps the package `__init__`'s mounting
   uniform across both shapes.
 - It is also where `register_exception_handler(ExcClass, status_code)` calls live, so a
   domain's exception → status mapping sits beside the routes that raise it (see section
@@ -113,7 +113,7 @@ sparkth/api/v1/<name>/
 - `schemas.py` holds only the models that module owns. Models shared across domains —
   `UserBase`, `Token`, `UserLogin` — stay in the root `sparkth/schemas.py`; a package
   imports them from there rather than duplicating them.
-- Route paths come from the prefix in `api.py`, never from the package name, so
+- Route paths come from the prefix in `sparkth/api/v1/__init__.py`, never from the package name, so
   converting a file to a package is a pure refactor: the OpenAPI document, the generated
   frontend client, and every URL stay byte-identical.
 
