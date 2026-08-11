@@ -9,7 +9,14 @@ from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.chat.constants import UNKNOWN_TOOL_CATEGORY
-from sparkth.plugins.chat.tools import ToolRegistry
+from sparkth.plugins.chat.tools import (
+    ToolRegistry,
+    build_args_schema_from_handler,
+    convert_args_to_handler_types,
+    convert_mcp_to_langchain_tool,
+    convert_to_pydantic,
+    discover_plugin_tools,
+)
 
 
 # Test models (mimic the OpenEdX nested-model pattern)
@@ -57,67 +64,61 @@ async def openedx_create_xblock(name: str) -> dict[str, Any]:
     return {}
 
 
-# Fixtures
-@pytest.fixture
-def registry() -> ToolRegistry:
-    return ToolRegistry()
-
-
 # ======================================================================
-# _build_args_schema_from_handler
+# build_args_schema_from_handler
 # ======================================================================
 class TestBuildArgsSchemaFromHandler:
-    def test_single_pydantic_param_returns_model_directly(self, registry: ToolRegistry) -> None:
+    def test_single_pydantic_param_returns_model_directly(self) -> None:
         hints = {"payload": CreateCoursePayload}
-        result = registry._build_args_schema_from_handler("test_tool", _handler_single_model, hints)
+        result = build_args_schema_from_handler("test_tool", _handler_single_model, hints)
         assert result is CreateCoursePayload
 
-    def test_single_pydantic_param_schema_contains_nested_fields(self, registry: ToolRegistry) -> None:
+    def test_single_pydantic_param_schema_contains_nested_fields(self) -> None:
         """The returned model's JSON schema should include nested model fields."""
         hints = {"payload": CreateCoursePayload}
-        schema_cls = registry._build_args_schema_from_handler("test_tool", _handler_single_model, hints)
+        schema_cls = build_args_schema_from_handler("test_tool", _handler_single_model, hints)
         assert schema_cls is not None
         schema = schema_cls.model_json_schema()
         props = schema.get("properties", {})
         assert "auth" in props
         assert "org" in props
 
-    def test_multiple_params_builds_dynamic_model(self, registry: ToolRegistry) -> None:
+    def test_multiple_params_builds_dynamic_model(self) -> None:
         hints = {"name": str, "config": SimplePayload}
-        result = registry._build_args_schema_from_handler("multi", _handler_multi_params, hints)
+        result = build_args_schema_from_handler("multi", _handler_multi_params, hints)
         assert result is not None
         assert result is not SimplePayload
         assert "name" in result.model_fields
         assert "config" in result.model_fields
 
-    def test_empty_hints_returns_none(self, registry: ToolRegistry) -> None:
-        result = registry._build_args_schema_from_handler("test", _handler_no_hints, {})
+    def test_empty_hints_returns_none(self) -> None:
+        result = build_args_schema_from_handler("test", _handler_no_hints, {})
         assert result is None
 
-    def test_plain_types_builds_dynamic_model(self, registry: ToolRegistry) -> None:
+    def test_plain_types_builds_dynamic_model(self) -> None:
         hints = {"name": str, "count": int}
-        result = registry._build_args_schema_from_handler("plain", _handler_plain_types, hints)
+        result = build_args_schema_from_handler("plain", _handler_plain_types, hints)
         assert result is not None
         assert "name" in result.model_fields
         assert "count" in result.model_fields
 
 
 # ======================================================================
-# _convert_args_to_handler_types – flattened kwargs
+# convert_args_to_handler_types – flattened kwargs
 # ======================================================================
 class TestConvertArgsToHandlerTypes:
-    def test_flattened_kwargs_wrapped_into_model(self, registry: ToolRegistry) -> None:
+    def test_flattened_kwargs_wrapped_into_model(self) -> None:
         """LLM sends flat fields; converter wraps them into the Pydantic model."""
         hints = {"payload": SimplePayload}
         flat_args = {"name": "test", "value": 42}
-        result = registry._convert_args_to_handler_types(flat_args, hints)
+        result = convert_args_to_handler_types(flat_args, hints)
 
         assert "payload" in result
         assert isinstance(result["payload"], SimplePayload)
         assert result["payload"].name == "test"
         assert result["payload"].value == 42
 
-    def test_flattened_kwargs_with_nested_model(self, registry: ToolRegistry) -> None:
+    def test_flattened_kwargs_with_nested_model(self) -> None:
         """Nested dicts (e.g. auth) should be coerced into sub-models."""
         hints = {"payload": CreateCoursePayload}
         flat_args = {
@@ -130,80 +131,80 @@ class TestConvertArgsToHandlerTypes:
             "number": "101",
             "run": "2024",
         }
-        result = registry._convert_args_to_handler_types(flat_args, hints)
+        result = convert_args_to_handler_types(flat_args, hints)
 
         assert isinstance(result["payload"], CreateCoursePayload)
         assert isinstance(result["payload"].auth, AuthPayload)
         assert result["payload"].auth.access_token == "tok"
         assert result["payload"].org == "Org"
 
-    def test_already_wrapped_kwargs_still_work(self, registry: ToolRegistry) -> None:
+    def test_already_wrapped_kwargs_still_work(self) -> None:
         """If the LLM sends {'payload': {…}}, it should convert normally."""
         hints = {"payload": SimplePayload}
         wrapped_args = {"payload": {"name": "test", "value": 42}}
-        result = registry._convert_args_to_handler_types(wrapped_args, hints)
+        result = convert_args_to_handler_types(wrapped_args, hints)
 
         assert isinstance(result["payload"], SimplePayload)
         assert result["payload"].name == "test"
 
-    def test_dict_to_pydantic_conversion(self, registry: ToolRegistry) -> None:
+    def test_dict_to_pydantic_conversion(self) -> None:
         hints = {"name": str, "config": SimplePayload}
         args = {"name": "hello", "config": {"name": "x", "value": 1}}
-        result = registry._convert_args_to_handler_types(args, hints)
+        result = convert_args_to_handler_types(args, hints)
 
         assert result["name"] == "hello"
         assert isinstance(result["config"], SimplePayload)
 
-    def test_no_hint_passes_through(self, registry: ToolRegistry) -> None:
+    def test_no_hint_passes_through(self) -> None:
         hints: dict[str, Any] = {}
         args = {"unknown": "val"}
-        result = registry._convert_args_to_handler_types(args, hints)
+        result = convert_args_to_handler_types(args, hints)
         assert result == {"unknown": "val"}
 
-    def test_json_string_to_pydantic(self, registry: ToolRegistry) -> None:
+    def test_json_string_to_pydantic(self) -> None:
         hints = {"payload": SimplePayload}
         json_args = {"payload": '{"name": "test", "value": 99}'}
-        result = registry._convert_args_to_handler_types(json_args, hints)
+        result = convert_args_to_handler_types(json_args, hints)
         assert isinstance(result["payload"], SimplePayload)
         assert result["payload"].value == 99
 
 
 # ======================================================================
-# _convert_to_pydantic
+# convert_to_pydantic
 # ======================================================================
 class TestConvertToPydantic:
-    def test_already_instance(self, registry: ToolRegistry) -> None:
+    def test_already_instance(self) -> None:
         model = SimplePayload(name="a", value=1)
-        result = registry._convert_to_pydantic(model, SimplePayload)
+        result = convert_to_pydantic(model, SimplePayload)
         assert result is model
 
-    def test_from_dict(self, registry: ToolRegistry) -> None:
-        result = registry._convert_to_pydantic({"name": "b", "value": 2}, SimplePayload)
+    def test_from_dict(self) -> None:
+        result = convert_to_pydantic({"name": "b", "value": 2}, SimplePayload)
         assert isinstance(result, SimplePayload)
         assert result.value == 2
 
-    def test_from_json_string(self, registry: ToolRegistry) -> None:
-        result = registry._convert_to_pydantic('{"name": "c", "value": 3}', SimplePayload)
+    def test_from_json_string(self) -> None:
+        result = convert_to_pydantic('{"name": "c", "value": 3}', SimplePayload)
         assert isinstance(result, SimplePayload)
         assert result.name == "c"
 
-    def test_invalid_json_raises(self, registry: ToolRegistry) -> None:
+    def test_invalid_json_raises(self) -> None:
         with pytest.raises(ValueError, match="Failed to parse JSON"):
-            registry._convert_to_pydantic("not json", SimplePayload)
+            convert_to_pydantic("not json", SimplePayload)
 
-    def test_unsupported_type_raises(self, registry: ToolRegistry) -> None:
+    def test_unsupported_type_raises(self) -> None:
         with pytest.raises(ValueError, match="Cannot convert"):
-            registry._convert_to_pydantic(12345, SimplePayload)
+            convert_to_pydantic(12345, SimplePayload)
 
 
 # ======================================================================
-# _convert_mcp_to_langchain_tool – integration-level
+# convert_mcp_to_langchain_tool – integration-level
 # ======================================================================
 class TestConvertMcpToLangchainTool:
-    def test_single_model_param_produces_flat_schema(self, registry: ToolRegistry) -> None:
+    def test_single_model_param_produces_flat_schema(self) -> None:
         """args_schema should expose the model's fields directly, not a 'payload' wrapper."""
         mcp_tool = Tool(_handler_single_model)
-        lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
+        lc_tool = cast(StructuredTool, convert_mcp_to_langchain_tool(mcp_tool))
 
         assert lc_tool.args_schema is not None
         schema = lc_tool.args_schema.model_json_schema()  # type: ignore[union-attr]
@@ -213,18 +214,18 @@ class TestConvertMcpToLangchainTool:
         assert "org" in props
         assert "auth" in props
 
-    def test_converted_tool_is_tagged_as_audited_at_handler(self, registry: ToolRegistry) -> None:
+    def test_converted_tool_is_tagged_as_audited_at_handler(self) -> None:
         """The converted tool delegates to the hook-wrapped ``Tool.handler``,
         which already records the execution; the tag tells the process-global
         LangChain audit callback to skip the run so it is never recorded twice."""
-        lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(Tool(_handler_plain_types)))
+        lc_tool = cast(StructuredTool, convert_mcp_to_langchain_tool(Tool(_handler_plain_types)))
 
         assert lc_tool.tags is not None
         assert AUDIT_AT_HANDLER_TAG in lc_tool.tags
 
-    def test_multi_param_preserves_param_names(self, registry: ToolRegistry) -> None:
+    def test_multi_param_preserves_param_names(self) -> None:
         mcp_tool = Tool(_handler_multi_params)
-        lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
+        lc_tool = cast(StructuredTool, convert_mcp_to_langchain_tool(mcp_tool))
 
         assert lc_tool.args_schema is not None
         schema = lc_tool.args_schema.model_json_schema()  # type: ignore[union-attr]
@@ -233,7 +234,7 @@ class TestConvertMcpToLangchainTool:
         assert "config" in props
 
     @pytest.mark.asyncio
-    async def test_tool_execution_with_flattened_args(self, registry: ToolRegistry) -> None:
+    async def test_tool_execution_with_flattened_args(self) -> None:
         """End-to-end: LLM sends flat kwargs → tool wraps into model → handler receives model."""
         received: list[Any] = []
 
@@ -242,7 +243,7 @@ class TestConvertMcpToLangchainTool:
             return {"ok": True}
 
         mcp_tool = Tool(handler)
-        lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
+        lc_tool = cast(StructuredTool, convert_mcp_to_langchain_tool(mcp_tool))
 
         # Simulate what providers.py does: call coroutine with flat kwargs
         assert lc_tool.coroutine is not None
@@ -255,7 +256,7 @@ class TestConvertMcpToLangchainTool:
         assert "ok" in result
 
     @pytest.mark.asyncio
-    async def test_tool_execution_with_nested_model_args(self, registry: ToolRegistry) -> None:
+    async def test_tool_execution_with_nested_model_args(self) -> None:
         """End-to-end: LLM sends flat kwargs with nested dict → tool constructs full model."""
         received: list[Any] = []
 
@@ -264,7 +265,7 @@ class TestConvertMcpToLangchainTool:
             return {"created": True}
 
         mcp_tool = Tool(handler)
-        lc_tool = cast(StructuredTool, registry._convert_mcp_to_langchain_tool(mcp_tool))
+        lc_tool = cast(StructuredTool, convert_mcp_to_langchain_tool(mcp_tool))
 
         assert lc_tool.coroutine is not None
         result = await lc_tool.coroutine(
@@ -283,30 +284,102 @@ class TestConvertMcpToLangchainTool:
         assert "created" in result
 
 
+# ======================================================================
+# discover_plugin_tools + the registry's lazy gate
+# ======================================================================
+# Discovery is driven from a stubbed MCP_TOOLS hook rather than the real one: what the
+# process happens to have loaded is not these tests' subject, and a hook contributing
+# nothing would make the assertions vacuous.
+def _stub_hook(mcp_tools: Any, *entries: tuple[SparkthPlugin, Tool]) -> None:
+    """Make the patched MCP_TOOLS hook contribute exactly ``entries``."""
+    mcp_tools.iter_items.return_value = list(entries)
+
+
+class TestDiscoverPluginTools:
+    def test_converts_a_contributed_tool_and_records_its_category(self) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock, category="openedx-course")))
+            tools, categories = discover_plugin_tools()
+
+        assert list(tools) == ["openedx_create_xblock"]
+        assert categories == {"openedx_create_xblock": "openedx-course"}
+
+    def test_chat_own_tools_are_skipped(self) -> None:
+        """The registry exposes *other* plugins' tools to the chat agent, never chat's own."""
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools, (SparkthPlugin("chat"), Tool(openedx_create_xblock)))
+            tools, categories = discover_plugin_tools()
+
+        assert tools == {}
+        assert categories == {}
+
+    def test_a_tool_that_fails_conversion_is_skipped_not_fatal(self) -> None:
+        """One malformed contribution must not cost the whole registry."""
+        with (
+            patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools,
+            patch("sparkth.plugins.chat.tools.convert_mcp_to_langchain_tool", side_effect=TypeError("bad tool")),
+        ):
+            _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock)))
+            tools, categories = discover_plugin_tools()
+
+        assert tools == {}
+        assert categories == {}
+
+
+class TestLazyDiscovery:
+    def test_nothing_is_discovered_before_first_access(self) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools)
+            ToolRegistry()
+
+            mcp_tools.iter_items.assert_not_called()
+
+    def test_discovery_runs_once_however_often_the_registry_is_read(self) -> None:
+        """An empty hook must still count as discovered, or every read would re-discover."""
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools)
+            registry = ToolRegistry()
+            registry.tools_dict()
+            registry.tools_dict()
+            registry.category_for("anything")
+
+            mcp_tools.iter_items.assert_called_once()
+
+
+class TestRegistryAccessors:
+    def test_get_all_tools_returns_every_discovered_tool(self) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock)))
+            tools = ToolRegistry().get_all_tools()
+
+        assert [tool.name for tool in tools] == ["openedx_create_xblock"]
+
+    def test_get_tools_by_names_skips_names_that_were_never_registered(self) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock)))
+            tools = ToolRegistry().get_tools_by_names(["openedx_create_xblock", "never_registered"])
+
+        assert [tool.name for tool in tools] == ["openedx_create_xblock"]
+
+
 class TestCategoryLookup:
-    """Categories live on the MCP Tool and are dropped by LangChain conversion,
-    so the registry records them while it converts.
+    """Categories live on the MCP Tool and are dropped by LangChain conversion, so the
+    registry records them during the same discovery pass that converts the tools."""
 
-    Discovery is driven from a stubbed MCP_TOOLS hook rather than the real one: what
-    the process happens to have loaded is not this test's subject, and a hook that
-    contributed nothing would make the assertions vacuous.
-    """
-
-    def test_unknown_tool_name_falls_back(self, registry: ToolRegistry) -> None:
-        assert registry.category_for("never_registered_tool") == UNKNOWN_TOOL_CATEGORY
-
-    def test_discovered_tool_reports_its_mcp_category(self, registry: ToolRegistry) -> None:
+    def test_unknown_tool_name_falls_back(self) -> None:
         with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
-            mcp_tools.iter_items.return_value = [
-                (SparkthPlugin("openedx"), Tool(openedx_create_xblock, category="openedx-course")),
-            ]
-            registry.discover_plugin_tools()
+            _stub_hook(mcp_tools)
 
-        assert registry.category_for("openedx_create_xblock") == "openedx-course"
+            assert ToolRegistry().category_for("never_registered_tool") == UNKNOWN_TOOL_CATEGORY
 
-    def test_tool_contributed_without_a_category_falls_back(self, registry: ToolRegistry) -> None:
+    def test_discovered_tool_reports_its_mcp_category(self) -> None:
         with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
-            mcp_tools.iter_items.return_value = [(SparkthPlugin("openedx"), Tool(openedx_create_xblock))]
-            registry.discover_plugin_tools()
+            _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock, category="openedx-course")))
 
-        assert registry.category_for("openedx_create_xblock") == UNKNOWN_TOOL_CATEGORY
+            assert ToolRegistry().category_for("openedx_create_xblock") == "openedx-course"
+
+    def test_tool_contributed_without_a_category_falls_back(self) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock)))
+
+            assert ToolRegistry().category_for("openedx_create_xblock") == UNKNOWN_TOOL_CATEGORY
