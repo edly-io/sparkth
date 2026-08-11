@@ -5,6 +5,9 @@ the app is imported — so these tests read the process-wide hook rather than
 constructing a second ChatPlugin (which would raise DuplicateEventTypeError).
 """
 
+import logging
+from dataclasses import FrozenInstanceError
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -29,6 +32,37 @@ ALL_SCHEMAS = [
     ChatMessageSent,
     ChatCompletionServed,
     ChatToolInvoked,
+]
+
+# One fully valid payload per schema, so the extra="forbid" test can fail on the
+# unexpected key alone rather than on missing required fields.
+VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
+    (ChatConversationStarted, {"conversation_id": "abc", "provider": "openai", "model": "gpt-4o"}),
+    (
+        ChatMessageSent,
+        {
+            "conversation_id": "abc",
+            "provider": "openai",
+            "model": "gpt-4o",
+            "message_length": 42,
+            "has_attachment": False,
+        },
+    ),
+    (
+        ChatCompletionServed,
+        {
+            "conversation_id": "abc",
+            "provider": "openai",
+            "model": "gpt-4o",
+            "streamed": True,
+            "rag_used": False,
+            "tool_call_count": 2,
+        },
+    ),
+    (
+        ChatToolInvoked,
+        {"conversation_id": "abc", "tool_name": "openedx_create_xblock", "tool_category": "openedx-course"},
+    ),
 ]
 
 
@@ -86,16 +120,51 @@ def test_tool_invoked_payload() -> None:
     assert event.tool_category == "openedx-course"
 
 
-@pytest.mark.parametrize("schema", ALL_SCHEMAS, ids=lambda s: s.event_type)
-def test_schemas_forbid_extra_fields(schema: type[AnalyticsEventSchema]) -> None:
-    """extra="forbid" on the base class stops a producer smuggling content into a payload."""
-    with pytest.raises(ValidationError):
-        schema(unexpected_field="leak")  # type: ignore[call-arg]
+@pytest.mark.parametrize(("schema", "payload"), VALID_PAYLOADS, ids=[schema.event_type for schema, _ in VALID_PAYLOADS])
+def test_schemas_forbid_extra_fields(schema: type[AnalyticsEventSchema], payload: dict[str, Any]) -> None:
+    """extra="forbid" on the base class stops a producer smuggling content into a payload.
+
+    Everything but the extra key is valid, so ``extra_forbidden`` must be the *only*
+    error raised — a missing-field error would make this pass even without the guard.
+    """
+    with pytest.raises(ValidationError) as exc_info:
+        schema.model_validate({**payload, "unexpected_field": "leak"})
+
+    assert [error["type"] for error in exc_info.value.errors()] == ["extra_forbidden"]
+
+
+def test_message_length_rejects_a_negative_count() -> None:
+    """A producer bug must fail validation rather than silently skew aggregates."""
+    with pytest.raises(ValidationError) as exc_info:
+        ChatMessageSent(
+            conversation_id="abc",
+            provider="openai",
+            model="gpt-4o",
+            message_length=-1,
+            has_attachment=False,
+        )
+
+    assert [error["type"] for error in exc_info.value.errors()] == ["greater_than_equal"]
+
+
+def test_tool_call_count_rejects_a_negative_count() -> None:
+    """A producer bug must fail validation rather than silently skew aggregates."""
+    with pytest.raises(ValidationError) as exc_info:
+        ChatCompletionServed(
+            conversation_id="abc",
+            provider="openai",
+            model="gpt-4o",
+            streamed=True,
+            rag_used=False,
+            tool_call_count=-1,
+        )
+
+    assert [error["type"] for error in exc_info.value.errors()] == ["greater_than_equal"]
 
 
 def test_completion_context_is_frozen() -> None:
     context = CompletionAnalyticsContext(provider="openai", model="gpt-4o", rag_used=True, actor_id="7")
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         context.model = "changed"  # type: ignore[misc]
 
 
@@ -123,6 +192,19 @@ class TestToolNames:
 
     def test_records_without_a_usable_name_are_dropped(self) -> None:
         assert tool_names([{"tool_input": {}}, {"name": ""}, {"name": None}]) == []
+
+    def test_a_dropped_record_is_logged_with_keys_only(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A silent drop would zero tool analytics with no trace if a path renamed its key.
+
+        Only the record's keys may be logged — its values can hold course content.
+        """
+        record = {"tool_input": {"secret": "pii"}, "output": "learner data"}
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.analytics"):
+            assert tool_names([record]) == []
+
+        assert "tool_input" in caplog.text
+        assert "pii" not in caplog.text
+        assert "learner data" not in caplog.text
 
     def test_preserves_order_and_duplicates(self) -> None:
         """Two executions of the same tool are two authoring actions, not one."""
@@ -186,6 +268,26 @@ class TestEmitHelpers:
             },
             actor_id="9",
         )
+
+    async def test_a_negative_count_is_rejected_before_anything_is_emitted(self) -> None:
+        """The non-negative guard fires at the producer, so no skewed row can be written.
+
+        Every call site queues these helpers through ``background_tasks.add_task``, so the
+        raise lands in the background task after the response has been sent — the same place
+        a ``ValidationError`` raised inside ``emit_event`` would have surfaced.
+        """
+        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+            with pytest.raises(ValidationError):
+                await emit_message_sent(
+                    conversation_id="conv-1",
+                    provider="openai",
+                    model="gpt-4o",
+                    message_length=-1,
+                    has_attachment=False,
+                    actor_id="7",
+                )
+
+        emit.assert_not_awaited()
 
     async def test_emit_tool_invoked_resolves_the_category(self) -> None:
         with (
