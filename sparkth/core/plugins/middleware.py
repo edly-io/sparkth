@@ -10,14 +10,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.plugins.constants import BEARER_SCHEME
 from sparkth.core.routes import get_route_plugin_name
 from sparkth.lib.auth import decode_token_username, get_user_by_username
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
-
-BEARER_SCHEME = "bearer"
 
 
 def _bearer_token_username(request: Request) -> str | None:
