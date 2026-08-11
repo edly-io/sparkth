@@ -13,9 +13,10 @@ class UnknownEventTypeError(Exception):
 class DuplicateEventTypeError(Exception):
     """Raised when a schema claims an already-registered ``(event_type, version)``.
 
-    Registration is not idempotent: this fires for a colliding *different* class and
-    for re-registering the *same* class. Either is a startup-fatal programming error —
-    a producer's payload could silently validate against the wrong schema.
+    Fires only for a *different* class claiming the identity — a startup-fatal
+    programming error, because a producer's payload could then silently validate
+    against the wrong schema. Re-registering the *same* class is a no-op, so a plugin
+    constructed more than once does not trip this.
     """
 
     def __init__(self, event_type: str, version: int) -> None:

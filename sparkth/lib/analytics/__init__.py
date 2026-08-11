@@ -98,8 +98,12 @@ def register_event_schema(plugin: SparkthPlugin, schema: type[AnalyticsEventSche
     - **Namespace.** ``event_type`` must be prefixed with the contributing plugin's
       name (e.g. plugin ``slack`` → ``"slack.*"``), else ``EventNamespaceError``.
       This stops a plugin squatting a core or another plugin's event name.
-    - **Collision.** Any class claiming an already-registered ``(event_type, version)``
-      raises ``DuplicateEventTypeError``.
+    - **Collision.** A *different* class claiming an already-registered
+      ``(event_type, version)`` raises ``DuplicateEventTypeError``. Re-registering the
+      identical class is a no-op, so constructing a plugin more than once — a module
+      re-import, or a test building its own instance — is not a collision. This follows
+      ``KeyedClassHook``'s rule for class registries; only a different class can squat a
+      name, which is what the guard is for.
     """
     if not schema.event_type.startswith(f"{plugin.name}."):
         logger.error(
@@ -108,16 +112,19 @@ def register_event_schema(plugin: SparkthPlugin, schema: type[AnalyticsEventSche
             schema.event_type,
         )
         raise EventNamespaceError(plugin.name, schema.event_type)
-    try:
-        ANALYTICS_EVENTS.add_item(schema)
-    except ValueError as exc:
+
+    registered = ANALYTICS_EVENTS.get((schema.event_type, schema.version))
+    if registered is schema:
+        return
+    if registered is not None:
         logger.error(
             "Plugin '%s' analytics event '%s' v%s collides with an already-registered schema",
             plugin.name,
             schema.event_type,
             schema.version,
         )
-        raise DuplicateEventTypeError(schema.event_type, schema.version) from exc
+        raise DuplicateEventTypeError(schema.event_type, schema.version)
+    ANALYTICS_EVENTS.add_item(schema)
     logger.info(
         "Registered analytics event '%s' v%s from plugin '%s'",
         schema.event_type,
