@@ -9,12 +9,9 @@ from pydantic import BaseModel, Field, ValidationError, create_model
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.plugins.chat.constants import UNKNOWN_TOOL_CATEGORY
 
 logger = get_logger(__name__)
-
-# Category reported for a tool the registry never discovered. A missing category
-# degrades one analytics dimension; it must never break emission.
-UNKNOWN_TOOL_CATEGORY = "unknown"
 
 
 class ToolRegistry:
@@ -100,12 +97,6 @@ class ToolRegistry:
 
         self._initialized = True
         logger.info("Discovered %d tools from plugins", len(self._tools))
-
-    def reset(self) -> None:
-        """Clear all registered tools and categories, forcing re-discovery on next access."""
-        self._initialized = False
-        self._tools = {}
-        self._categories = {}
 
     def _get_handler_type_hints(self, handler: Any) -> dict[str, Any]:
         """Extract type hints from the handler function."""
@@ -391,9 +382,3 @@ _tool_registry = ToolRegistry()
 def get_tool_registry() -> ToolRegistry:
     """Get the global tool registry."""
     return _tool_registry
-
-
-async def refresh_tools() -> None:
-    """Force refresh of tools from plugins."""
-    _tool_registry.reset()
-    _tool_registry.discover_plugin_tools()

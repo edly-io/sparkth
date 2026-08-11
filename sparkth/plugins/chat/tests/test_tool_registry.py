@@ -1,4 +1,5 @@
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 from langchain_core.tools import StructuredTool
@@ -6,7 +7,9 @@ from pydantic import BaseModel
 
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.mcp.hooks import Tool
-from sparkth.plugins.chat.tools import UNKNOWN_TOOL_CATEGORY, ToolRegistry
+from sparkth.lib.plugins import SparkthPlugin
+from sparkth.plugins.chat.constants import UNKNOWN_TOOL_CATEGORY
+from sparkth.plugins.chat.tools import ToolRegistry
 
 
 # Test models (mimic the OpenEdX nested-model pattern)
@@ -46,6 +49,11 @@ async def _handler_no_hints(x, y) -> dict[str, Any]:  # type: ignore[no-untyped-
 
 
 async def _handler_plain_types(name: str, count: int) -> dict[str, Any]:
+    return {}
+
+
+async def openedx_create_xblock(name: str) -> dict[str, Any]:
+    """A tool whose MCP category the registry must record during discovery."""
     return {}
 
 
@@ -277,22 +285,28 @@ class TestConvertMcpToLangchainTool:
 
 class TestCategoryLookup:
     """Categories live on the MCP Tool and are dropped by LangChain conversion,
-    so the registry records them while it converts."""
+    so the registry records them while it converts.
 
-    def test_unknown_tool_name_falls_back(self) -> None:
-        registry = ToolRegistry()
+    Discovery is driven from a stubbed MCP_TOOLS hook rather than the real one: what
+    the process happens to have loaded is not this test's subject, and a hook that
+    contributed nothing would make the assertions vacuous.
+    """
+
+    def test_unknown_tool_name_falls_back(self, registry: ToolRegistry) -> None:
         assert registry.category_for("never_registered_tool") == UNKNOWN_TOOL_CATEGORY
 
-    def test_discovered_tool_reports_its_mcp_category(self) -> None:
-        registry = ToolRegistry()
-        registry.discover_plugin_tools()
-        # Every discovered tool must resolve to some category string, never raise.
-        for name in registry._categories:
-            assert isinstance(registry.category_for(name), str)
-            assert registry.category_for(name) != ""
+    def test_discovered_tool_reports_its_mcp_category(self, registry: ToolRegistry) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            mcp_tools.iter_items.return_value = [
+                (SparkthPlugin("openedx"), Tool(openedx_create_xblock, category="openedx-course")),
+            ]
+            registry.discover_plugin_tools()
 
-    def test_reset_clears_categories(self) -> None:
-        registry = ToolRegistry()
-        registry.discover_plugin_tools()
-        registry.reset()
-        assert registry._categories == {}
+        assert registry.category_for("openedx_create_xblock") == "openedx-course"
+
+    def test_tool_contributed_without_a_category_falls_back(self, registry: ToolRegistry) -> None:
+        with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
+            mcp_tools.iter_items.return_value = [(SparkthPlugin("openedx"), Tool(openedx_create_xblock))]
+            registry.discover_plugin_tools()
+
+        assert registry.category_for("openedx_create_xblock") == UNKNOWN_TOOL_CATEGORY
