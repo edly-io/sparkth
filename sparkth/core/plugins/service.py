@@ -10,6 +10,8 @@ from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import session_scope
+from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
+from sparkth.lib.frontend.hooks import DisplayInfo, SidebarEntry
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -28,12 +30,34 @@ class PluginDisabledError(Exception):
 
 
 class UserPluginResponse(pydantic.BaseModel):
-    """Response model for user plugin information."""
+    """Response model for user plugin information.
+
+    ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
+    frontend-facing metadata the plugin declared through the
+    ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
+    so they are always populated.
+    """
 
     plugin_name: str
     enabled: bool
     config: dict[str, Any]
     is_core: bool
+    display: DisplayInfo | None = None
+    sidebar: SidebarEntry | None = None
+    has_frontend: bool = False
+
+    @classmethod
+    def for_plugin(cls, plugin_name: str, enabled: bool, config: dict[str, Any], is_core: bool) -> "UserPluginResponse":
+        """Build a response carrying the frontend metadata declared for ``plugin_name``."""
+        return cls(
+            plugin_name=plugin_name,
+            enabled=enabled,
+            config=config,
+            is_core=is_core,
+            display=get_plugin_display_info(plugin_name),
+            sidebar=get_plugin_sidebar_entry(plugin_name),
+            has_frontend=plugin_has_frontend(plugin_name),
+        )
 
 
 def get_plugin_service() -> PluginService:

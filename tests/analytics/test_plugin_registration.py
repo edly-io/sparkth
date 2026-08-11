@@ -75,12 +75,18 @@ def test_register_event_schema_adds_to_hook() -> None:
     assert get_event_schema(EVENT_TYPE, EVENT_VERSION) is _PluginEvent
 
 
-def test_register_event_schema_rejects_re_registration() -> None:
+def test_register_event_schema_re_registering_the_same_class_is_a_no_op() -> None:
+    """Constructing a plugin twice must not be fatal — only a *different* class colliding is.
+
+    A plugin registers from ``__init__``, and constructing one a second time is a supported
+    pattern (every plugin's own ``test_plugin.py`` does it). The collision guard exists to stop
+    a plugin squatting a name another class already claims, which re-adding the identical class
+    cannot do. This mirrors ``KeyedClassHook``'s documented rule that re-adding the same class
+    is a no-op, which the audit event registry already follows.
+    """
     plugin = SparkthPlugin(PLUGIN_NAME)
     register_event_schema(plugin, _PluginEvent)
-    # Re-registering the same schema is startup-fatal
-    with pytest.raises(DuplicateEventTypeError):
-        register_event_schema(plugin, _PluginEvent)
+    register_event_schema(plugin, _PluginEvent)
 
     assert get_event_schema(EVENT_TYPE, EVENT_VERSION) is _PluginEvent
 

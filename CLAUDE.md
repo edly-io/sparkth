@@ -54,14 +54,8 @@ Never add a variable only to `.env.local` without a corresponding reference in `
 
 **Always follow TDD. Write tests before implementation — no exceptions.**
 
-### The Mandatory TDD Cycle
-
-For every new feature, endpoint, service method, utility, or plugin tool:
-
-1. **Write the test first** — create or update the relevant test file, following the [Test Layout](#test-layout) rules below.
-2. **Confirm the test fails** — the test must fail before any implementation exists (red phase)
-3. **Write the minimum implementation** to make the test pass (green phase)
-4. **Refactor** while keeping all tests green
+Applies to every new feature, endpoint, service method, utility, and plugin tool. Place each new
+test by the [Test Layout](#test-layout) rules below.
 
 > Never write implementation code before a corresponding failing test exists.
 
@@ -137,52 +131,14 @@ Any schema change — add column, drop column, rename, alter type, add index —
 
 Editing an existing migration breaks environments that have already applied it, causing irreproducible state across dev, staging, and production.
 
-To create a new migration, use:
-```bash
-alembic revision --autogenerate -m "describe your change"
-```
-
-**Never hand-craft migration filenames or revision IDs.** Always use `alembic revision --autogenerate` — it generates a valid random hex revision ID. Hand-crafted IDs risk tooling confusion and non-hex characters that break Alembic expectations.
-
-To apply all pending migrations:
+Apply all pending migrations (both lineages, then the continuous-aggregate backfill) with:
 ```bash
 make migrations
 ```
 
-The project has **two independent Alembic lineages**: the application database
-(`alembic.ini` → `sparkth/migrations/app/`) and the analytics database
-(`alembic_analytics.ini` → `sparkth/migrations/analytics/`). `make migrations` runs the
-`sparkth migrate` CLI command (`sparkth/cli/migrate.py`), which applies both lineages and
-then backfills continuous aggregates. Generate an analytics migration with
-`alembic -c alembic_analytics.ini revision --autogenerate -m "..."`. The two
-databases never share metadata: app models use `SQLModel.metadata`, analytics
-tables use `sparkth.core.analytics.models.analytics_metadata`.
-
-**Continuous aggregates need a one-off backfill after migrating.** A TimescaleDB
-continuous aggregate is created `WITH NO DATA` (creating it with data would backfill
-inside Alembic's transaction), and its refresh policy only covers a trailing window —
-so once the first policy run advances the materialization watermark, buckets older than
-that window vanish from the view and pre-migration history is lost. The backfill
-full-refreshes every registered aggregate (`refresh_continuous_aggregate` over the whole
-range); it is idempotent and a no-op on SQLite. The `migrate` CLI command (and therefore
-`make migrations` and the production migration step in the README) runs it automatically
-after applying migrations; `make analytics-backfill` remains for refreshing a single
-aggregate by name.
-
-### Preventing Split Heads
-
-Multiple Alembic heads occur when two branches each generate a migration from the same parent revision and merge independently. Before creating a new migration, always check for existing heads:
-
-```bash
-alembic heads
-```
-
-If there are already multiple heads, merge them first:
-```bash
-alembic merge heads -m "merge migration heads"
-```
-
-After merging a PR that adds a migration, any other in-flight branch that also adds a migration must rebase so its `down_revision` points to the new tip — otherwise merging it will create another split head.
+For everything else — generating a migration, the two independent app/analytics lineages, the
+continuous-aggregate backfill, and resolving split heads — use the
+[`database-migrations`](.claude/skills/database-migrations/SKILL.md) skill.
 
 ## Exception Handling
 
@@ -243,8 +199,10 @@ routes.
 
 Commit message and PR-description conventions live in the
 [`sparkth-project-management`](.claude/skills/sparkth-project-management/SKILL.md)
-skill. Conventional Commits are enforced by
+skill — follow it whenever creating or editing a GitHub issue, posting a proposed solution,
+opening a pull request, or committing LLM-generated code. Conventional Commits are enforced by
 [`commitlint`](.github/workflows/commitlint.yml) on every PR. Never commit directly to `main`.
+
 ## Additional Documentation
 
 | Topic | File |
@@ -257,7 +215,4 @@ skill. Conventional Commits are enforced by
 | Configuration reference (variables) | [docs/reference/configuration.md](docs/reference/configuration.md) |
 | User management guide | [docs/guides/user-management.md](docs/guides/user-management.md) |
 | GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
-
-## GitHub Project Management
-
-When creating or editing GitHub issues, posting proposed solutions, opening pull requests, or committing LLM-generated code, follow the conventions in the [`sparkth-project-management`](.claude/skills/sparkth-project-management/SKILL.md) skill.
+| Database migrations (Alembic, split heads, backfill) | [.claude/skills/database-migrations/SKILL.md](.claude/skills/database-migrations/SKILL.md) |

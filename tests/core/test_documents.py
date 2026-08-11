@@ -12,6 +12,7 @@ from sparkth.core.documents.service import (
     update_document_status,
 )
 from sparkth.lib.documents import list_ready_documents
+from sparkth.lib.testing import AuditEventsFetcher
 
 
 class TestDocumentModel:
@@ -161,3 +162,29 @@ class TestSoftDeleteDocument:
 
         assert doc.is_deleted is True
         assert doc.deleted_at is not None
+
+    async def test_records_deletion_audit_event(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
+        """Removing a document from the retrieval corpus is audited in the
+        same transaction as the soft-delete."""
+        doc = await create_document(session, user_id=1, name="report.pdf", mime_type=None)
+        assert doc.id is not None
+        document_id = doc.id
+        await session.commit()
+
+        await soft_delete_document(session, document_id)
+        await session.commit()
+
+        (event,) = await audit_events()
+        assert (event.category, event.action) == ("rag", "document_deleted")
+        assert event.outcome == "success"
+        assert event.target_type == "document"
+        assert event.target_id == str(document_id)
+        assert event.old_values == {"name": "report.pdf"}
+
+    async def test_missing_document_records_no_audit_event(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        await soft_delete_document(session, 999)
+        await session.commit()
+
+        assert await audit_events() == []

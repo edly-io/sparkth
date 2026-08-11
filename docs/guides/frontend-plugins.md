@@ -78,31 +78,52 @@ plugins/
 
 ```ts
 import { PluginDefinition } from "@/lib/plugins";
-import { MessageSquare } from "lucide-react";
 
 export const examplePlugin: PluginDefinition = {
   name: "example-plugin",
-  displayName: "Example Plugin",
-  description: "Example plugin integration",
-  isCore: true,
-
   loadComponent: () => import("./ExamplePlugin"),
-
-  showInSidebar: true,
-  sidebarIcon: MessageSquare,
-  sidebarLabel: "Example",
-  sidebarOrder: 1,
 };
 ```
 
 **Note**
 
-At a minimum, a plugin must define:
+A `PluginDefinition` holds only what the frontend alone can own:
 
-- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's derived name — see "Plugin Name Derivation" in the [backend plugin development guide](plugins.md) — so the UI resolves to the right backend plugin)
-- `displayName` – user-facing name
-- `description` – short description
+- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's declared name (see "Plugin Names" in the [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin)
 - `loadComponent` – lazy-loaded UI component
+- `loadSettingsComponent` (optional) – custom settings modal
+
+The display name, description, icon, and sidebar entry are **declared by the
+backend plugin** through the frontend metadata hooks (`DISPLAY_INFO`,
+`SIDEBAR_ENTRIES`, `FRONTEND_APPS`, see the backend guide) and arrive on the
+user-plugins API response (`display`, `sidebar`, `has_frontend` on
+`UserPluginState`). The frontend renders what the backend declares; there is no
+frontend-side copy to keep in sync.
+
+`UserPluginState` is the generated `UserPluginResponse` schema
+(`Schema<"UserPluginResponse">`), not a hand-written mirror of it, so the shape
+cannot drift from the API. One consequence for settings UIs: `config` values are
+typed `unknown`, because the backend stores config as JSONB and a field declared
+as a string can still arrive as an array or a number. Narrow at the read site
+with the helpers in `@/lib/plugins/config` — `configString(config, key)` for a
+single text field (non-strings fall back to `undefined` rather than coercing),
+and `stringConfigOf(config)` for an editor that renders every field as an input.
+
+Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
+resolver in `@/lib/plugins/icons` maps names to components, and only the lucide
+names already in that map resolve (icons are mapped explicitly to keep the
+bundle tree-shakeable). A backend plugin declaring a new lucide name must also
+add it to the map in `frontend/lib/plugins/icons.ts`, or the UI silently falls
+back to an icon-less rendering (the resolver logs a `console.warn` outside
+production to surface the gap). A plugin that ships a custom (non-lucide) icon
+registers it under its declared name:
+
+```ts
+import { registerPluginIcon } from "@/lib/plugins/icons";
+import ExampleBrandIcon from "./ExampleBrandIcon";
+
+registerPluginIcon("example-brand", ExampleBrandIcon);
+```
 
 For more details, see the `PluginDefinition` type in
 [`frontend/lib/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/lib/plugins/types.ts).
@@ -144,42 +165,45 @@ registerPlugin(examplePlugin);
 export * from "./registry";
 export * from "./types";
 export * from "./usePlugins";
+export * from "./metadata";
+export * from "./config";
+export * from "./icons";
 ```
 
 > ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
 
-## 6. Add the Plugin Route
+## 6. Regenerate the Plugin Route List
 
 Each plugin is rendered under:
 
     dashboard/<pluginName>
 
-Add a dynamic route for the plugin.
+The static routes are **generated from the backend declarations**, not
+hand-maintained: `generateStaticParams` in
+`app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
+`lib/plugins/generated.ts`, which lists every backend plugin that registered
+the `FRONTEND_APPS` hook. After declaring (or removing) a frontend app on the
+backend plugin, regenerate the list:
 
-**File**
-
-    app/dashboard/[pluginName]/page.tsx
-
-```ts
-import PluginPageClient from "./page-client";
-
-export function generateStaticParams() {
-  return [
-    { pluginName: "chat" },
-    { pluginName: "example-plugin" }  // register your route here
- ];
-}
-
-export default function PluginPage() {
-  return <PluginPageClient />;
-}
+```bash
+make frontend.build.plugins
 ```
 
 **Notes**
 
-- `pluginName` must match the plugin name
+- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
+  formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
+  `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
+  and break the byte-exact backend gate
+- To inspect the dump without touching the committed file, run the script with
+  no arguments and it prints to stdout:
+  `uv run python scripts/dump_frontend_plugins.py`. The make target passes
+  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
+  dump leaves the committed file intact
+- Tests on both tiers fail when the committed list drifts from the backend
+  declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
+  frontend registry does not match it (`lib/tests/plugin-registry-drift.test.ts`)
 - `PluginPageClient` handles loading the correct plugin dynamically
-- Required for static builds
 
 ## Plugin Loading Flow (Summary)
 

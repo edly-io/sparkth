@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
+from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.openedx import tools as openedx_tools
@@ -22,9 +23,12 @@ class OpenEdxPlugin(SparkthPlugin):
     description comes from its handler docstring.
     """
 
-    def __init__(self, plugin_name: str) -> None:
-        super().__init__(plugin_name)
+    def __init__(self) -> None:
+        super().__init__("open-edx")
         CONFIG_SCHEMAS.add_item(self, OpenEdxConfig)
+        DISPLAY_INFO.add_item(
+            self, DisplayInfo("Open edX", "Open edX integration with tools for courses, sections, and units")
+        )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             (
                 "openedx-auth",

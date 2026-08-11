@@ -2,7 +2,7 @@
 
 import { useState, useEffect, ComponentType } from "react";
 import { Sliders } from "lucide-react";
-import { getPlugin, UserPluginState } from "@/lib/plugins";
+import { displayNameOf, getPlugin, UserPluginState } from "@/lib/plugins";
 import { PluginConfigModal } from "./ConfigModal";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
@@ -71,7 +71,7 @@ export default function PluginListItem({
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-lg font-semibold text-foreground">{plugin.plugin_name}</h3>
+              <h3 className="text-lg font-semibold text-foreground">{displayNameOf(plugin)}</h3>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   plugin.enabled
@@ -84,7 +84,7 @@ export default function PluginListItem({
             </div>
             <p className="text-sm text-muted mb-2">Sparkth</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {pluginDef?.description}
+              {plugin.display?.description}
             </p>
 
             {toggleError && (

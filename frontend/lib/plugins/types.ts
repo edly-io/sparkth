@@ -1,4 +1,5 @@
 import { ComponentType } from "react";
+import type { Schema } from "@/lib/api";
 
 // ============================================================================
 // Plugin Configuration Types
@@ -84,21 +85,6 @@ export interface PluginComponentProps {
 // Plugin Definition Types
 // ============================================================================
 
-/**
- * Plugin metadata and capabilities
- */
-export interface PluginMetadata {
-  name: string;
-  displayName: string;
-  description?: string;
-  version?: string;
-  author?: string;
-  isCore?: boolean;
-  category?: "integration" | "utility" | "communication" | "analytics" | "other";
-  icon?: ComponentType<{ className?: string }>;
-  tags?: string[];
-}
-
 export interface SecretFieldSchema {
   label: string;
   placeholder?: string;
@@ -110,19 +96,17 @@ export interface SecretFieldSchema {
 export type SecretsSchema = Record<string, SecretFieldSchema>;
 
 /**
- * Plugin sidebar configuration
+ * Complete plugin definition.
+ *
+ * Holds only what the frontend alone can own: the plugin name and the
+ * component loaders. Display name, description, icon, and sidebar config are
+ * declared by the backend plugin and arrive on {@link UserPluginState} via
+ * the user-plugins API (`display`, `sidebar`, `has_frontend`).
  */
-export interface PluginSidebarConfig {
-  showInSidebar?: boolean;
-  sidebarIcon?: ComponentType<{ className?: string }>;
-  sidebarLabel?: string;
-  sidebarOrder?: number;
-}
+export interface PluginDefinition {
+  /** Plugin name, must match the backend plugin's declared name */
+  name: string;
 
-/**
- * Complete plugin definition
- */
-export interface PluginDefinition extends PluginMetadata, PluginSidebarConfig {
   /**
    * Lazy load the main plugin component
    * @returns Promise resolving to the component module
@@ -170,14 +154,23 @@ export interface EnabledPlugin {
 }
 
 /**
- * Plugin state from the API
+ * The display info a backend plugin declared (DISPLAY_INFO hook).
  */
-export interface UserPluginState {
-  plugin_name: string;
-  enabled: boolean;
-  config: Record<string, string>;
-  is_core: boolean;
-}
+export type PluginDisplayInfo = Schema<"DisplayInfo">;
+
+/**
+ * The sidebar entry a backend plugin declared (SIDEBAR_ENTRIES hook).
+ */
+export type PluginSidebarEntry = Schema<"SidebarEntry">;
+
+/**
+ * Plugin state from the API, sourced from the generated schema so the shape
+ * cannot drift from the backend response.
+ *
+ * `display`, `sidebar`, and `has_frontend` carry the read-only metadata the
+ * backend plugin declared through the frontend hooks.
+ */
+export type UserPluginState = Schema<"UserPluginResponse">;
 
 // ============================================================================
 // Plugin Event Types

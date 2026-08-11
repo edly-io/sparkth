@@ -1,3 +1,3 @@
 {
-  "ignorePatterns": ["lib/api/generated.ts"]
+  "ignorePatterns": ["lib/api/generated.ts", "lib/plugins/generated.ts"]
 }
