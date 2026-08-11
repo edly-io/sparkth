@@ -297,6 +297,11 @@ callback, an inbound webhook — keep working. Those endpoints are reachable reg
 anyone's plugin settings, so authenticate them the way you would any other public endpoint
 (a signed state parameter, a request signature) rather than relying on the gate.
 
+That applies to the system-wide switch too: disabling a plugin turns its endpoints off for
+every *identified* caller, but its unauthenticated endpoints stay reachable, because the
+gate has no caller to check them against. Treat "disabled" as a per-caller answer, not as a
+kill switch for the plugin's HTTP surface.
+
 ## Frontend Metadata
 
 The backend is the single source of truth for what the frontend shows about a plugin. Declare it through three per-concern hooks from `sparkth.lib.frontend.hooks`, registered in `__init__` like every other hook. Human-facing names are passed positionally:

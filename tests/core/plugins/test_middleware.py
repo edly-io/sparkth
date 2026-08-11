@@ -11,6 +11,7 @@ from typing import cast
 import pytest
 from fastapi import FastAPI, Request
 from httpx import AsyncClient
+from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
@@ -60,6 +61,11 @@ async def _seed_plugin(session: AsyncSession, name: str, enabled: bool) -> Plugi
     await session.commit()
     await session.refresh(plugin)
     return plugin
+
+
+async def _raise_operational_error(username: str, session: AsyncSession) -> User | None:
+    """Stand in for the user lookup when the database is unreachable."""
+    raise OperationalError("SELECT 1", {}, Exception("connection lost"))
 
 
 async def _seed_user_plugin(session: AsyncSession, user: User, plugin: Plugin, enabled: bool) -> None:
@@ -195,6 +201,40 @@ class TestPluginAccessGate:
         response = await client.get(SLACK_CALLBACK_PATH)
 
         assert response.status_code == 422
+
+    async def test_lets_through_a_token_naming_a_user_that_does_not_exist(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        # Nobody to hold a preference, so there is nothing to enforce. The route's own auth
+        # dependency is what rejects the request.
+        await _seed_plugin(session, "chat", True)
+
+        response = await client.post(
+            CHAT_COMPLETIONS_PATH,
+            json={"messages": []},
+            headers=_auth_headers("no-such-user"),
+        )
+
+        assert response.status_code != 403
+        assert response.json()["detail"] == "User not found"
+
+    async def test_blocks_when_the_access_lookup_fails(
+        self, client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The gate fails closed: a lookup it could not complete is not permission to proceed.
+        user = await _seed_user(session, "db-error-user")
+        plugin = await _seed_plugin(session, "chat", True)
+        await _seed_user_plugin(session, user, plugin, True)
+        monkeypatch.setattr("sparkth.core.plugins.middleware.get_user_by_username", _raise_operational_error)
+
+        response = await client.post(
+            CHAT_COMPLETIONS_PATH,
+            json={"messages": []},
+            headers=_auth_headers(user.username),
+        )
+
+        assert response.status_code == 403
+        assert "chat" in response.json()["detail"]
 
     async def test_lets_through_a_request_carrying_an_invalid_token(
         self, client: AsyncClient, session: AsyncSession

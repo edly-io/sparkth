@@ -103,7 +103,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
     def _get_route_plugin_name(self, request: Request) -> str | None:
         """Name of the plugin owning the route this request targets, or None for a core route.
 
-        Since FastAPI 0.140 include_router() no longer copies the sub-routes into
+        Since FastAPI 0.137 include_router() no longer copies the sub-routes into
         app.routes: it appends a single lazy _IncludedRouter branch, which has no .endpoint
         carrying the plugin name. iter_route_contexts flattens those branches into contexts
         that match on the *prefixed* path — the underlying route's own .path is unprefixed

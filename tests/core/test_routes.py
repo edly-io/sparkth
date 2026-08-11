@@ -35,7 +35,7 @@ def test_register_router_stamps_the_plugin_name_on_its_routes() -> None:
     # The stamp is what PluginAccessMiddleware reads to decide which plugin owns a URL, so a
     # router whose routes carry no plugin name leaves the per-user access gate with nothing
     # to enforce. iter_route_contexts flattens the lazy _IncludedRouter branch include_router
-    # appends (FastAPI 0.140+) back into the underlying routes.
+    # appends (FastAPI 0.137+) back into the underlying routes.
     plugin = SparkthPlugin("stamp-test")
     register_router(plugin, _plugin_router(_ping))
 

@@ -27,10 +27,11 @@ def register_router(plugin: SparkthPlugin, router: APIRouter) -> None:
 
     # Associate each route to the plugin.
     #
-    # Since FastAPI 0.140 include_router() no longer copies the sub-routes into
+    # Since FastAPI 0.137 include_router() no longer copies the sub-routes into
     # prefixed_router.routes: it appends a single lazy _IncludedRouter branch, which has no
-    # .endpoint to stamp. iter_route_contexts flattens those branches back into the
-    # underlying routes, so the attribute lands on the endpoints the app actually serves.
+    # .endpoint to stamp. iter_route_contexts (added in 0.138, hence that dependency floor)
+    # flattens those branches back into the underlying routes, so the attribute lands on the
+    # endpoints the app actually serves.
     for context in iter_route_contexts(prefixed_router.routes):
         endpoint = getattr(context.original_route, "endpoint", None)
         if endpoint is not None:
