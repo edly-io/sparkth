@@ -2,6 +2,7 @@ from typing import Any, Awaitable, Callable, cast
 
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
+from fastapi.routing import iter_route_contexts
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlmodel import Session, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -10,20 +11,56 @@ from starlette.routing import Match
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.routes import get_route_plugin_name
-from sparkth.lib.db import get_async_session
+from sparkth.lib.auth import decode_token_username, get_user_by_username
+from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
 
+BEARER_SCHEME = "bearer"
+
+
+def _bearer_token_username(request: Request) -> str | None:
+    """Username carried by the request's bearer token, or None when it carries no readable one.
+
+    Reads the header directly rather than through the ``HTTPBearer`` security scheme, which
+    is a FastAPI dependency and so only resolves once routing has picked a handler — after
+    this middleware has already run.
+    """
+    header = request.headers.get("authorization")
+    if header is None:
+        return None
+
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != BEARER_SCHEME or not token:
+        return None
+
+    return decode_token_username(token)
+
 
 class PluginAccessMiddleware(BaseHTTPMiddleware):
+    """Reject requests to plugins the caller has turned off, before they reach the route.
+
+    Runs ahead of routing, so it resolves both facts it needs itself: which plugin owns the
+    requested URL (from the name ``register_router`` stamps on plugin endpoints) and who is
+    asking (from the request's bearer token, via the helpers in ``sparkth.lib.auth`` that
+    ``get_current_user`` is built from).
+
+    Anonymous requests fail open. Plugin routers carry unauthenticated endpoints — Slack's
+    OAuth callback is called by Slack itself, with no token — and a per-user preference is
+    meaningless without a user; endpoints that do require a caller are still rejected by
+    their own auth dependency.
+    """
+
     def __init__(self, app: Any, exclude_paths: list[str] | None = None) -> None:
         super().__init__(app)
+        # Entries are matched with startswith, so every one of them must be a real path
+        # prefix: a bare "/" would exclude every path there is and leave the gate
+        # enforcing nothing.
         self.exclude_paths = exclude_paths or [
             "/docs",
             "/redoc",
             "/openapi.json",
-            "/",
             "/api/v1/auth",
         ]
 
@@ -37,15 +74,15 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
 
-        user = getattr(request.state, "user", None)
-        if not user:
+        username = _bearer_token_username(request)
+        if username is None:
             response = await call_next(request)
             return response
 
-        has_access = await self._check_plugin_access(user.id, plugin_name)
+        has_access = await self._user_may_use_plugin(username, plugin_name)
         if not has_access:
             logger.warning(
-                f"User {user.id} attempted to access disabled plugin '{plugin_name}' at path {request.url.path}"
+                f"User '{username}' attempted to access disabled plugin '{plugin_name}' at path {request.url.path}"
             )
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -65,19 +102,36 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
         return False
 
     def _get_route_plugin_name(self, request: Request) -> str | None:
-        for route in request.app.routes:
-            match, _ = route.matches(request.scope)
+        """Name of the plugin owning the route this request targets, or None for a core route.
+
+        Since FastAPI 0.140 include_router() no longer copies the sub-routes into
+        app.routes: it appends a single lazy _IncludedRouter branch, which has no .endpoint
+        carrying the plugin name. iter_route_contexts flattens those branches into contexts
+        that match on the *prefixed* path — the underlying route's own .path is unprefixed
+        and would never match the request — while original_route is the real route whose
+        endpoint holds the stamp.
+        """
+        for context in iter_route_contexts(request.app.routes):
+            match, _ = context.matches(request.scope)
             if match == Match.FULL:
-                return get_route_plugin_name(route)
+                return get_route_plugin_name(context.original_route)
         return None
 
-    async def _check_plugin_access(self, user_id: int, plugin_name: str) -> bool:
+    async def _user_may_use_plugin(self, username: str, plugin_name: str) -> bool:
+        """Whether the user this token names still has the plugin enabled.
+
+        A token naming a user that no longer exists passes: there is no preference to
+        enforce, and the route's own auth dependency rejects the request anyway. A database
+        failure blocks — the gate cannot confirm access, so it must not grant it.
+        """
         try:
-            async for session in get_async_session():
-                return await _check_plugin_access_async(user_id, plugin_name, session, check_system_enabled=True)
-            return False  # Fallback if session generator doesn't yield
+            async with session_scope() as session:
+                user = await get_user_by_username(username, session)
+                if user is None or user.id is None:
+                    return True
+                return await _check_plugin_access_async(user.id, plugin_name, session, check_system_enabled=True)
         except (DatabaseError, OperationalError) as e:
-            logger.error(f"Database error checking plugin access for user {user_id} and plugin '{plugin_name}': {e}")
+            logger.error(f"Database error checking plugin access for user '{username}' and plugin '{plugin_name}': {e}")
             return False
 
 

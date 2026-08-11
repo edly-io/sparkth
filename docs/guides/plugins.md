@@ -283,6 +283,20 @@ Analytics event schemas register through `register_event_schema(self, MyEvent)`:
 the plugin instance's declared name. The router above is reachable at
 `http://localhost:7727/api/v1/my-app/`.
 
+### Who can reach plugin routes?
+
+Every route you register is gated by `PluginAccessMiddleware`. A request from a caller who
+has turned your plugin off in their settings — or a request to a plugin disabled
+system-wide — is answered with `403` before it reaches your handler, so a handler never has
+to check plugin access itself.
+
+The gate identifies the caller from the request's bearer token. A request carrying no
+readable token passes straight through it: a per-user preference is meaningless without a
+user, so endpoints that are called by someone other than a logged-in user — an OAuth
+callback, an inbound webhook — keep working. Those endpoints are reachable regardless of
+anyone's plugin settings, so authenticate them the way you would any other public endpoint
+(a signed state parameter, a request signature) rather than relying on the gate.
+
 ## Frontend Metadata
 
 The backend is the single source of truth for what the frontend shows about a plugin. Declare it through three per-concern hooks from `sparkth.lib.frontend.hooks`, registered in `__init__` like every other hook. Human-facing names are passed positionally:
