@@ -8,6 +8,7 @@ from the bearer token, and the access lookup itself.
 
 from typing import cast
 
+import pytest
 from fastapi import FastAPI, Request
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -69,11 +70,21 @@ async def _seed_user_plugin(session: AsyncSession, user: User, plugin: Plugin, e
 class TestRoutePluginResolution:
     """Which plugin owns the requested URL."""
 
-    def test_resolves_the_plugin_that_owns_a_plugin_route(self) -> None:
+    @pytest.mark.parametrize(
+        "method, path, plugin_name",
+        [
+            ("POST", CHAT_COMPLETIONS_PATH, "chat"),
+            ("GET", "/api/v1/slack/oauth/status", "slack"),
+            ("GET", "/api/v1/google-drive/oauth/status", "google-drive"),
+        ],
+    )
+    def test_resolves_the_plugin_that_owns_a_plugin_route(self, method: str, path: str, plugin_name: str) -> None:
+        # Every plugin that mounts routes, not just one: these routers nest their includes to
+        # different depths, and a plugin the gate cannot name is a plugin it cannot police.
         app = assemble_app()
         middleware = PluginAccessMiddleware(app)
 
-        assert middleware._get_route_plugin_name(_request(app, "POST", CHAT_COMPLETIONS_PATH)) == "chat"
+        assert middleware._get_route_plugin_name(_request(app, method, path)) == plugin_name
 
     def test_returns_none_for_a_core_route(self) -> None:
         app = assemble_app()
