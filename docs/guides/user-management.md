@@ -76,12 +76,12 @@ is added only once generated course content in it has been reviewed by a speaker
 Matching against the list is an exact, case-sensitive comparison: `en-US` and `EN`
 are both rejected as unsupported, not normalised to `en`.
 
-Fetch the current list — and the platform default — from the API. This endpoint
-requires authentication:
+Fetch the current list — and the platform default — from the API. This endpoint needs no
+token, so the sign-in and password-reset pages can render in the right language before
+anyone has one:
 
 ```bash
-curl http://localhost:7727/api/v1/languages \
-  -H "Authorization: Bearer $TOKEN"
+curl http://localhost:7727/api/v1/languages
 ```
 
 ```json
