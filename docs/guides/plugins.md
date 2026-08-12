@@ -331,6 +331,21 @@ register_exception_handler(MyAppError, 409)
 Now any route that raises `MyAppError` returns `409` with `{"detail": str(exc)}` — no
 per-route `try/except`. A mapping on a base exception also catches its subclasses.
 
+## Translations (Optional)
+
+User-facing strings are marked with `_()` / `lazy_gettext()` from `sparkth.lib.i18n`. A
+plugin that ships its own compiled catalogs registers its catalog directory on the
+`LOCALE_DIRS` hook from its `__init__`, like every other hook:
+
+```python
+from sparkth.lib.i18n import LOCALE_DIRS
+
+LOCALE_DIRS.add_item(Path(__file__).parent / "locale")
+```
+
+In-tree plugins need none of this: `make i18n.extract` scans all of `sparkth/` into the
+core catalog. See the [translations guide](translations.md).
+
 ## Register in core/config.py
 ```python
 PLUGINS = [
