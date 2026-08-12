@@ -85,7 +85,7 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 
 ### Endpoint modules: single file or package
 
-A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/api.py` mounts
+A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/__init__.py` mounts
 each one the same way — `include_router(<module>.router, prefix=...)` — so the shape is
 an internal organisation choice and changing it never moves a URL.
 
@@ -103,9 +103,9 @@ sparkth/api/v1/<name>/
     schemas.py    # request/response models owned by this module
 ```
 
-- `__init__.py` re-exports `router` and carries `__all__ = ["router"]`. This is a
-  deliberate exception to the "avoid re-exports" rule: it keeps `api.py`'s mounting
-  uniform across both shapes.
+- The endpoint package's own `__init__.py` re-exports `router` and carries
+  `__all__ = ["router"]`. This is a deliberate exception to the "avoid re-exports" rule:
+  it keeps the mounting in `sparkth/api/v1/__init__.py` uniform across both shapes.
 - It is also where `register_exception_handler(ExcClass, status_code)` calls live, so a
   domain's exception → status mapping sits beside the routes that raise it (see section
   8, and `permissions/__init__.py` / `whitelist/__init__.py`). A package with no domain
@@ -118,9 +118,9 @@ sparkth/api/v1/<name>/
   into a package makes every other domain import that package, and importing any module
   from it executes its `__init__.py` and therefore its `routes.py`, which turns a later
   import in the other direction into a circular one.
-- Route paths come from the prefix in `api.py`, never from the package name, so
-  converting a file to a package is a pure refactor: the OpenAPI document, the generated
-  frontend client, and every URL stay byte-identical.
+- Route paths come from the prefix in `sparkth/api/v1/__init__.py`, never from the package
+  name, so converting a file to a package is a pure refactor: the OpenAPI document, the
+  generated frontend client, and every URL stay byte-identical.
 
 ---
 
