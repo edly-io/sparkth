@@ -103,19 +103,24 @@ sparkth/api/v1/<name>/
     schemas.py    # request/response models owned by this module
 ```
 
-- `__init__.py` re-exports `router` and carries `__all__ = ["router"]`. This is a
-  deliberate exception to the "avoid re-exports" rule: it keeps the package `__init__`'s mounting
-  uniform across both shapes.
+- The endpoint package's own `__init__.py` re-exports `router` and carries
+  `__all__ = ["router"]`. This is a deliberate exception to the "avoid re-exports" rule:
+  it keeps the mounting in `sparkth/api/v1/__init__.py` uniform across both shapes.
 - It is also where `register_exception_handler(ExcClass, status_code)` calls live, so a
   domain's exception → status mapping sits beside the routes that raise it (see section
   8, and `permissions/__init__.py` / `whitelist/__init__.py`). A package with no domain
   exceptions of its own says so in its docstring rather than leaving readers guessing.
 - `schemas.py` holds only the models that module owns. Models shared across domains —
-  `UserBase`, `Token`, `UserLogin` — stay in the root `sparkth/schemas.py`; a package
-  imports them from there rather than duplicating them.
-- Route paths come from the prefix in `sparkth/api/v1/__init__.py`, never from the package name, so
-  converting a file to a package is a pure refactor: the OpenAPI document, the generated
-  frontend client, and every URL stay byte-identical.
+  `UserBase`, `Token`, `UserLogin`, and `User`, which `auth` returns from register and
+  login as well as `user/` from `/user/me` — stay in the root `sparkth/schemas.py`; a
+  package imports them from there rather than duplicating them. Ownership is decided by
+  who imports the model, not by which routes feel closest to it: pulling a shared model
+  into a package makes every other domain import that package, and importing any module
+  from it executes its `__init__.py` and therefore its `routes.py`, which turns a later
+  import in the other direction into a circular one.
+- Route paths come from the prefix in `sparkth/api/v1/__init__.py`, never from the package
+  name, so converting a file to a package is a pure refactor: the OpenAPI document, the
+  generated frontend client, and every URL stay byte-identical.
 
 ---
 

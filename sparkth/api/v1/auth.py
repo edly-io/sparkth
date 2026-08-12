@@ -11,7 +11,6 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.user.schemas import User as UserSchema
 from sparkth.core import security
 from sparkth.core.config import get_settings
 from sparkth.core.google_auth import (
@@ -34,6 +33,7 @@ from sparkth.schemas import (
     UserLogin,
     VerifyEmailRequest,
 )
+from sparkth.schemas import User as UserSchema
 from sparkth.services.email_verification import (
     EmailVerificationService,
     TokenExpiredError,

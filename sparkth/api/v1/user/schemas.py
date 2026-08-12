@@ -1,26 +1,14 @@
-"""Pydantic models for the current-user API."""
+"""Pydantic models owned by the current-user API.
 
-from pydantic import BaseModel, ConfigDict, field_validator
+The ``User`` response model is deliberately *not* here: ``auth`` returns it from register
+and login too, which makes it shared across domains, so it stays in the root
+``sparkth.schemas`` alongside ``UserBase`` and ``Token``. Only the request model below,
+which nothing outside these routes sends, belongs to this package.
+"""
+
+from pydantic import BaseModel, field_validator
 
 from sparkth.lib.language import is_supported_language
-from sparkth.schemas import UserBase
-
-
-class User(UserBase):
-    id: int
-    name: str
-    username: str
-    # Derived from the permission system (holding the global admin role), not a stored
-    # column. Defaults to False so endpoints that return the ORM user directly (e.g.
-    # register) report a non-admin; /user/me computes and sets the real value.
-    is_admin: bool = False
-    email_verified: bool
-    # The raw stored preference: None means the user never chose one and the
-    # platform default applies. Deliberately not resolved here so the frontend can
-    # tell "never chose" from "chose English".
-    language: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class UserLanguageUpdate(BaseModel):
