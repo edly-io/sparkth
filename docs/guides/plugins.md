@@ -302,6 +302,13 @@ every *identified* caller, but its unauthenticated endpoints stay reachable, bec
 gate has no caller to check them against. Treat "disabled" as a per-caller answer, not as a
 kill switch for the plugin's HTTP surface.
 
+The gate covers HTTP routes and nothing else — **a plugin's MCP tools are not gated at
+all**. `/ai/mcp` is a mount rather than a plugin route, so no plugin name resolves for a
+request to it, and the MCP surface carries no caller identity to check a preference
+against. Disabling a plugin, for one user or system-wide, does not stop its tools being
+called over MCP. If a tool must not run for someone, enforce that in the tool itself; do
+not rely on the plugin being switched off.
+
 ## Frontend Metadata
 
 The backend is the single source of truth for what the frontend shows about a plugin. Declare it through three per-concern hooks from `sparkth.lib.frontend.hooks`, registered in `__init__` like every other hook. Human-facing names are passed positionally:
