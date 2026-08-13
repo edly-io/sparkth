@@ -302,12 +302,30 @@ every *identified* caller, but its unauthenticated endpoints stay reachable, bec
 gate has no caller to check them against. Treat "disabled" as a per-caller answer, not as a
 kill switch for the plugin's HTTP surface.
 
-The gate covers HTTP routes and nothing else — **a plugin's MCP tools are not gated at
-all**. `/ai/mcp` is a mount rather than a plugin route, so no plugin name resolves for a
-request to it, and the MCP surface carries no caller identity to check a preference
-against. Disabling a plugin, for one user or system-wide, does not stop its tools being
-called over MCP. If a tool must not run for someone, enforce that in the tool itself; do
-not rely on the plugin being switched off.
+### Who can reach plugin MCP tools?
+
+Your plugin's tools are gated on `/ai/mcp` by `PluginToolAccessMiddleware`
+(`sparkth/mcp/access.py`), the MCP counterpart to the route gate above. Disabling a plugin
+system-wide stops its tools being called and drops them from the advertised tool listing;
+tools registered directly on the server belong to no plugin and are never gated.
+
+The gate resolves the owning plugin from a name `register_plugin_tools` stamps onto each
+tool at registration, and reads `Plugin.enabled` on every call — so disabling a plugin
+takes effect immediately, with no restart, and re-enabling one brings its tools back the
+same way.
+
+Two limits are worth knowing before you rely on it:
+
+- **System-wide only.** `/ai/mcp` carries no authenticated caller, so there is no user
+  whose per-user preference could be checked. A user who turns your plugin off in their
+  settings can still call its tools over MCP; only an administrator disabling the plugin
+  outright stops them.
+- **MCP is not the only tool door.** The chat agent builds its LangChain tools from the
+  same `MCP_TOOLS` hook (`sparkth/plugins/chat/tools.py`), and that path is ungated —
+  a disabled plugin's tools remain callable through chat.
+
+So if a tool must not run for someone in particular, enforce that inside the tool; the
+plugin switch is an administrative control, not a per-user one.
 
 ## Frontend Metadata
 

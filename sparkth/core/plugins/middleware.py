@@ -1,10 +1,10 @@
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, Awaitable, Callable
 
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.routing import iter_route_contexts
 from sqlalchemy.exc import DatabaseError, OperationalError
-from sqlmodel import Session, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
@@ -177,90 +177,3 @@ async def _check_plugin_access_async(
         return True
 
     return bool(user_plugin.enabled)
-
-
-def _check_plugin_access(user_id: int, plugin_name: str, session: Session, check_system_enabled: bool = False) -> bool:
-    """
-    Synchronous version of plugin access check for compatibility.
-
-    Args:
-        user_id: The user ID to check access for
-        plugin_name: The name of the plugin
-        session: The database session
-        check_system_enabled: If True, also checks if the plugin is enabled at system level
-
-    Returns:
-        bool: True if user has access, False otherwise
-    """
-    plugin_statement = select(Plugin).where(
-        Plugin.name == plugin_name,
-        Plugin.deleted_at == None,
-    )
-    plugin = session.exec(plugin_statement).first()
-
-    if plugin is None:
-        logger.debug(f"Plugin '{plugin_name}' not found in database. Allowing access by default.")
-        return True
-
-    if check_system_enabled and not plugin.enabled:
-        logger.debug(f"Plugin '{plugin_name}' is disabled at system level")
-        return False
-
-    statement = select(UserPlugin).where(
-        UserPlugin.user_id == user_id,
-        UserPlugin.plugin_id == plugin.id,
-        UserPlugin.deleted_at == None,
-    )
-    result = session.exec(statement).first()
-
-    if result is None:
-        logger.debug(f"No UserPlugin record for user {user_id} and plugin '{plugin_name}'. Allowing access by default.")
-        return True
-
-    return result.enabled
-
-
-def check_user_plugin_access(user_id: int, plugin_name: str, session: Session) -> bool:
-    try:
-        return _check_plugin_access(user_id, plugin_name, session, check_system_enabled=False)
-    except (DatabaseError, OperationalError) as e:
-        logger.error(f"Database error in check_user_plugin_access for user {user_id} and plugin '{plugin_name}': {e}")
-        return False
-
-
-async def get_user_enabled_plugins(user_id: int, session: Session) -> list[str]:
-    try:
-        statement = (
-            select(UserPlugin, Plugin)
-            .join(cast(Any, UserPlugin.plugin))
-            .where(
-                UserPlugin.user_id == user_id,
-                UserPlugin.enabled == True,
-                UserPlugin.deleted_at == None,
-                Plugin.deleted_at == None,
-            )
-        )
-        results = session.exec(statement).all()
-        return [plugin.name for _, plugin in results]
-    except (DatabaseError, OperationalError) as e:
-        logger.error(f"Database error getting enabled plugins for user {user_id}: {e}")
-        return []
-
-
-async def get_user_disabled_plugins(user_id: int, session: Session) -> list[str]:
-    try:
-        statement = (
-            select(UserPlugin, Plugin)
-            .join(cast(Any, UserPlugin.plugin))
-            .where(
-                UserPlugin.user_id == user_id,
-                UserPlugin.enabled == False,
-                UserPlugin.deleted_at == None,
-                Plugin.deleted_at == None,
-            )
-        )
-        results = session.exec(statement).all()
-        return [plugin.name for _, plugin in results]
-    except (DatabaseError, OperationalError) as e:
-        logger.error(f"Database error getting disabled plugins for user {user_id}: {e}")
-        return []

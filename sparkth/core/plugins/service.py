@@ -17,6 +17,29 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
+async def system_disabled_plugin_names(session: AsyncSession) -> set[str]:
+    """Names of the plugins an administrator has switched off system-wide.
+
+    Answers "which plugins are off?" rather than "which are on?" on purpose. A plugin
+    with no row in the registry — one that has never reached ``get_or_create_all`` —
+    is simply absent from the result and so stays reachable, matching how the HTTP
+    gate treats an unknown plugin. Asking the question the other way round would make
+    every plugin unreachable until its row existed.
+
+    One query serves a whole request, so a caller checking many plugins (listing the
+    tools on the MCP server, say) does not issue a query per plugin.
+
+    Args:
+        session: The async database session to read the registry through.
+
+    Returns:
+        The set of disabled plugin names, empty when every registered plugin is on.
+    """
+    statement = select(Plugin.name).where(Plugin.enabled == False, Plugin.deleted_at == None)
+    result = await session.exec(statement)
+    return set(result.all())
+
+
 class ConfigValidationError(Exception):
     pass
 
