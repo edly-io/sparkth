@@ -4,6 +4,7 @@ from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from sparkth.lib.audit import audited_tool
+from sparkth.lib.language import resolve_language
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.mcp.audit import ToolCallAuditMiddleware
@@ -37,9 +38,15 @@ async def get_course_generation_prompt_tool(
     """
     Generates a prompt for creating a course.
     Figure out the course name and description from the context and information.
-    Seek clarification whenever user responses are unclear or incomplete
+    Seek clarification whenever user responses are unclear or incomplete.
+    Pass `language` when the course must be written in a specific language; omit it to
+    use the platform default.
     """
-    return get_course_generation_prompt(course_params.course_name, course_params.course_description)
+    return get_course_generation_prompt(
+        course_params.course_name,
+        course_params.course_description,
+        resolve_language(course_params.language),
+    )
 
 
 class MCPToolDefinition(BaseModel):
