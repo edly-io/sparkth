@@ -86,8 +86,9 @@ a user.
 Two surfaces do not follow the preference yet:
 
 - **API error messages and other fixed backend strings**, including the out-of-scope
-  refusal, are still English. They are translated through the static-translation
-  catalogs rather than by the model.
+  refusal, are still English. These are fixed strings rather than model output, so
+  localizing them is separate work that belongs to the static-translation layer — not to
+  the language directive the model follows.
 - **Course metadata on a publishing target.** A published course carries whatever
   language its destination LMS defaults to; the content itself is in the right language.
 
