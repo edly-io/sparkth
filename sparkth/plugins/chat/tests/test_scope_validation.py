@@ -73,6 +73,25 @@ class TestScopeValidation:
         # "curriculum" (in-scope) wins
         assert is_query_in_scope("Who is responsible for curriculum design in K-12?") is True
 
+    def test_translation_requests_reach_the_classifier(self) -> None:
+        """ "translate" must not hard-refuse: the keyword layer cannot express the
+        system prompt's "unrelated to course content" qualifier, so it over-refuses.
+        The LLM classifier downstream handles the genuinely out-of-scope case."""
+        assert is_query_in_scope("translate this into Spanish") is True
+        assert is_query_in_scope("Can you translate my content to French") is True
+        assert is_query_in_scope("translate everything to German") is True
+        # Contrast case from the research table: this one already passed before the fix,
+        # because the in-scope "outline" short-circuits the out-of-scope check. Kept to
+        # pin that the in-scope override still wins.
+        assert is_query_in_scope("translate this outline into Spanish") is True
+
+    def test_non_english_query_falls_through_to_the_classifier(self) -> None:
+        """A non-English query matches no English keyword either way, so the filter
+        returns True and the classifier decides. Pins existing behaviour that nothing
+        else asserts — the pre-filter is a fast path, never a non-English refusal."""
+        assert is_query_in_scope("crea un curso sobre privacidad de datos") is True
+        assert is_query_in_scope("créer un cours sur la protection des données") is True
+
 
 class TestStreamOutOfScopeRefusal:
     """Test the stream_out_of_scope_refusal SSE generator."""
