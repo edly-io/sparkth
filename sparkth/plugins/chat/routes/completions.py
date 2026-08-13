@@ -130,6 +130,7 @@ async def chat_completion(
         provider_name=provider_name,
         api_key=api_key,
         model=model,
+        language=language,
         config=config,
         background_tasks=background_tasks,
     )

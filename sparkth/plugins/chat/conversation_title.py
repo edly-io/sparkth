@@ -1,4 +1,5 @@
 from sparkth.lib.db import session_scope
+from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.config import get_chat_settings
@@ -40,15 +41,24 @@ async def generate_conversation_title(
     conversation_id: int,
     user_id: int,
     first_user_message: str,
+    language: str,
     service: ChatService,
     provider: BaseChatProvider,
 ) -> None:
-    """Background task: ask the LLM for a short title and persist it."""
+    """Background task: ask the LLM for a short title and persist it.
+
+    ``language`` is an already-resolved, allowlisted BCP 47 tag; the caller resolves the
+    user's stored preference. Titles are user-visible in the conversation sidebar, so
+    they follow the same language as the replies rather than the language of the first
+    message, which may differ.
+    """
     config = get_chat_settings()
     try:
         prompt = (
-            "Generate a concise 3-6 word title for a conversation that starts with "
-            "the following message. Reply with only the title, no quotes or punctuation:\n\n"
+            f"Generate a concise 3-6 word title in {SUPPORTED_LANGUAGES[language].name} "
+            "for a conversation that starts with the following message. "
+            "Write the title in that language even if the message is in another. "
+            "Reply with only the title, no quotes or punctuation:\n\n"
             f"{first_user_message[: config.title_prompt_max_chars]}"
         )
         response = await provider.send_message(
