@@ -133,6 +133,69 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
     return str(mock_get_provider.call_args.kwargs["system_prompt"])
 
 
+async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) -> dict[str, object]:
+    """Send one completion request with no conversation_id, so a new conversation is
+    created and title generation is scheduled; return the kwargs the scheduled task
+    was called with.
+
+    ``ChatService.create_conversation`` is deliberately left unpatched — it is what
+    creates the conversation and triggers scheduling in the first place.
+    """
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
+        patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
+        patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
+        patch(
+            "sparkth.plugins.chat.routes.completions.resolve_rag_intent",
+            new_callable=AsyncMock,
+            return_value=(False, None),
+        ),
+        patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
+        patch(
+            "sparkth.plugins.chat.service.ChatService.get_conversation_messages",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
+        patch("sparkth.plugins.chat.routes.utils.generate_conversation_title") as mock_generate_title,
+    ):
+        mock_classifier = MagicMock()
+        mock_classifier.classify = AsyncMock(return_value=True)
+        mock_classifier_cls.return_value = mock_classifier
+
+        mock_message = MagicMock()
+        mock_message.id = 1
+        mock_add_message.return_value = mock_message
+
+        mock_provider = MagicMock()
+        mock_provider.system_prompt = ""
+        mock_provider.create_llm.return_value = MagicMock()
+        mock_get_provider.return_value = mock_provider
+
+        mock_processor = MagicMock()
+        mock_processor.stream.return_value = _fake_stream()
+        mock_processor_cls.return_value = mock_processor
+
+        response = await client.post(
+            "/api/v1/chat/completions",
+            json={
+                "llm_config_id": llm_config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+    mock_generate_title.assert_called_once()
+    return dict(mock_generate_title.call_args.kwargs)
+
+
 class TestCompletionLanguageWiring:
     """The `current_user` fixture overrides the auth dependency with an in-memory User,
     so setting `.language` on it is the whole of "the user chose this language" — the
@@ -190,3 +253,25 @@ class TestCompletionLanguageWiring:
         assert SUPPORTED_LANGUAGES["es"].name in first
         assert SUPPORTED_LANGUAGES["fr"].name in second
         assert SUPPORTED_LANGUAGES["es"].name not in second
+
+
+class TestCompletionSchedulesTitleInLanguage:
+    """get_or_create_conversation forwards `language` into the background_tasks.add_task
+    call that schedules generate_conversation_title. add_task is typed as a bare
+    Callable, so mypy cannot check that kwarg against the task's signature — this test
+    is the only proof that the resolved language actually arrives at the scheduling
+    call site, rather than the prompt builder it feeds."""
+
+    async def test_new_conversation_schedules_title_generation_with_resolved_language(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        seed = await _seed(session, current_user.id or 1)
+        current_user.language = "es"
+
+        kwargs = await _scheduled_title_task_kwargs(client, seed.llm_config_id)
+
+        assert "language" in kwargs
+        assert kwargs["language"] == "es"
