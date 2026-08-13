@@ -71,7 +71,7 @@ async def chat_completion(
 ) -> Any:
     user_id: int = cast(int, current_user.id)
     # Re-resolved per request, so a preference changed mid-conversation applies from
-    # the next turn onward. Task 3's title generation reuses this same tag.
+    # the next turn onward.
     language = resolve_language(current_user.language)
     try:
         llm_config, api_key = await llm_service.resolve(
