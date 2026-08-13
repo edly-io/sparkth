@@ -65,6 +65,18 @@ async def _fake_stream() -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'done': True})}\n\n"
 
 
+def _other_supported_language_names(excluding_tag: str) -> set[str]:
+    """Names of every supported language other than ``excluding_tag``.
+
+    Backs a negative control for the fallback test: the template's OUTPUT LANGUAGE
+    section also carries the unconditional literal "...not a literal translation of
+    English phrasing", so asserting only that the expected language's name is present
+    cannot tell the true default apart from some other valid tag landing here by
+    mistake. Asserting that none of these names appear catches that.
+    """
+    return {info.name for tag, info in SUPPORTED_LANGUAGES.items() if tag != excluding_tag}
+
+
 async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> str:
     """Send one completion request; return the system prompt handed to the provider."""
     with (
@@ -150,7 +162,15 @@ class TestCompletionLanguageWiring:
 
         prompt = await _system_prompt_for_one_request(client, seed)
 
-        assert SUPPORTED_LANGUAGES[get_settings().DEFAULT_LANGUAGE].name in prompt
+        default_tag = get_settings().DEFAULT_LANGUAGE
+        assert SUPPORTED_LANGUAGES[default_tag].name in prompt
+
+        # Negative control: see _other_supported_language_names for why the
+        # positive assertion alone cannot tell the true default from a
+        # valid-but-wrong resolution — the template names "English" unconditionally,
+        # so that assertion alone would pass even if the fallback resolved to any
+        # other supported language.
+        assert not any(name in prompt for name in _other_supported_language_names(default_tag))
 
     async def test_changing_the_preference_applies_to_the_next_turn(
         self,
