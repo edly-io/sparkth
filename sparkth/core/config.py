@@ -26,9 +26,10 @@ class LanguageInfo(NamedTuple):
 
 
 # The allowlist of languages the platform accepts: the values a user may pick as a
-# preference, and the set DEFAULT_LANGUAGE is validated against. Nothing consumes a
-# language when generating course content or chat replies — the allowlist bounds
-# what may be stored and exposed, it is not a promise about generated output.
+# preference, and the set DEFAULT_LANGUAGE is validated against. A resolved tag is
+# injected into the chat system prompt, so generated replies and course content follow
+# it — which is why membership is a reviewed decision, not a promise the model is
+# equally strong in every listed language.
 #
 # Keys are BCP 47 tags (RFC 5646) — the hyphenated form HTML `lang`,
 # `Accept-Language` and the JS `Intl` API all consume; never the underscored POSIX

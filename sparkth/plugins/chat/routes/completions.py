@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.language import resolve_language
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
@@ -69,6 +70,9 @@ async def chat_completion(
     config: ChatSettings = Depends(get_chat_settings),
 ) -> Any:
     user_id: int = cast(int, current_user.id)
+    # Re-resolved per request, so a preference changed mid-conversation applies from
+    # the next turn onward. Task 3's title generation reuses this same tag.
+    language = resolve_language(current_user.language)
     try:
         llm_config, api_key = await llm_service.resolve(
             session=session,
@@ -190,7 +194,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=get_learning_design_system_prompt(),
+            system_prompt=get_learning_design_system_prompt(language),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )

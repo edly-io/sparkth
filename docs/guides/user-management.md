@@ -60,8 +60,9 @@ Each user has a preferred language recorded on their profile: a
 [BCP 47](https://datatracker.ietf.org/doc/html/rfc5646) tag, readable and settable
 through the API.
 
-AI-generated course content and chat replies do not use this preference; it is
-recorded and exposed for clients to read.
+Chat replies and generated course content are written in this language. The preference
+is resolved on every request, so changing it applies from the next message onward —
+messages already sent are not rewritten.
 
 ### Supported languages
 
