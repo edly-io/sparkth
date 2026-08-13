@@ -64,6 +64,48 @@ Chat replies and generated course content are written in this language. The pref
 is resolved on every request, so changing it applies from the next message onward —
 messages already sent are not rewritten.
 
+### What the language applies to
+
+The preference reaches every surface that produces text a user reads:
+
+- **Chat replies** — the assistant answers in this language whatever language the user
+  writes in.
+- **Generated course content** — titles, descriptions, lesson text, assessment questions,
+  answer options and feedback.
+- **Conversation titles** — the short titles in the conversation sidebar.
+
+A source document keeps its own language. Uploading an English PDF with a Spanish
+preference produces a Spanish course generated from English source: the source is read as
+written, and only the output follows the preference.
+
+Internal prompts are deliberately excluded — the scope classifier, the retrieval intent
+router and the document search agent all reason in English, the language current models
+are strongest in, while handling input in any language. Nothing they produce is shown to
+a user.
+
+Two surfaces do not follow the preference yet:
+
+- **API error messages and other fixed backend strings**, including the out-of-scope
+  refusal, are still English. They are translated through the static-translation
+  catalogs rather than by the model.
+- **Course metadata on a publishing target.** A published course carries whatever
+  language its destination LMS defaults to; the content itself is in the right language.
+
+### Language and the MCP server
+
+The MCP server authenticates no user, so `get_course_generation_prompt_tool` cannot look
+up a preference. It accepts an optional `language` tag instead, which the calling agent
+supplies. An omitted tag — or one the platform does not support — uses
+`DEFAULT_LANGUAGE`, so a bad value never fails a generation run.
+
+### Output quality varies by language
+
+A language on the supported list means the platform accepts it and generated output in it
+has been reviewed by a speaker. It is not a claim that the model is equally strong in
+every listed language: measured accuracy drops noticeably in less-represented languages.
+This is why the list is short and grows by review rather than by adding whatever the model
+claims to speak.
+
 ### Supported languages
 
 | Tag | Language |
