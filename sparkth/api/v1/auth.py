@@ -307,9 +307,9 @@ async def verify_email(
     try:
         await EmailVerificationService.verify_token(session, raw_token=body.token)
     except TokenExpiredError:
-        raise HTTPException(status_code=400, detail="expired_token")
+        raise HTTPException(status_code=400, detail="expired_token")  # i18n-exempt: machine-read code
     except TokenInvalidError:
-        raise HTTPException(status_code=400, detail="invalid_token")
+        raise HTTPException(status_code=400, detail="invalid_token")  # i18n-exempt: machine-read code
     await session.commit()
 
 
@@ -351,7 +351,7 @@ async def resend_verification_email(
             nx=True,
         )
     if not accepted:
-        raise HTTPException(status_code=429, detail="rate_limited")
+        raise HTTPException(status_code=429, detail="rate_limited")  # i18n-exempt: machine-read code
 
     result = await EmailVerificationService.request_resend(session, email=email_lower)
     if result is None:

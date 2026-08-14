@@ -34,7 +34,10 @@ def get_slack_credentials() -> SlackSettings:
             "Slack credentials not configured. Set SLACK_CLIENT_ID, "
             "SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET, SLACK_REDIRECT_URI"
         )
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Slack credentials not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Slack credentials not configured.",  # i18n-exempt: operator-facing configuration error
+        )
     return s
 
 
