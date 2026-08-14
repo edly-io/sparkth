@@ -54,5 +54,9 @@ chosen one in their profile. A [BCP 47](https://datatracker.ietf.org/doc/html/rf
 tag, and it must be one of the supported languages — `en`, `es` or `fr`. Anything
 else fails validation at startup rather than being silently accepted.
 
-Defaults to `en`. A user's own stored preference takes precedence over this value;
-`DEFAULT_LANGUAGE` is the fallback only for users who have not chosen one.
+Defaults to `en`. Per request, the locale middleware negotiates the
+`Accept-Language` header against the supported languages; `DEFAULT_LANGUAGE`
+applies when the header offers no supported tag, and outside any request
+(background tasks, CLI). It is equally the fallback `resolve_language` returns
+for a user whose stored `language` is unset or no longer supported. See the
+[translations guide](../guides/translations.md).

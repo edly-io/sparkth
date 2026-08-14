@@ -12,6 +12,7 @@ from sparkth.api.v1 import api_router
 from sparkth.core.audit.middleware import AuditContextMiddleware
 from sparkth.core.config import MCP_MOUNT_PATH, get_settings
 from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
+from sparkth.core.i18n.middleware import LocaleMiddleware
 from sparkth.core.plugins.service import get_plugin_service
 from sparkth.core.routes.hooks import PLUGIN_ROUTERS
 from sparkth.lib.log import configure_logging, get_logger
@@ -132,8 +133,11 @@ def assemble_app(lifespan: Lifespan[FastAPI] | None = None) -> FastAPI:
             "/api/v1/auth",
         ],
     )
-    # Added after PluginAccessMiddleware so it wraps it (outermost): the audit
-    # context must exist before any other middleware or handler runs.
+    # Wraps PluginAccessMiddleware so its responses (and everything inside)
+    # render under the request's negotiated locale.
+    application.add_middleware(LocaleMiddleware)
+    # Added last so it wraps everything (outermost): the audit context must
+    # exist before any other middleware or handler runs.
     application.add_middleware(AuditContextMiddleware)
     application.include_router(api_router, prefix="/api/v1")
     _register_plugin_routes(application)

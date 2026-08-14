@@ -52,6 +52,7 @@ nav:
       - Backend plugin development: guides/plugins.md
       - Frontend plugin development: guides/frontend-plugins.md
       - Permissions: guides/permissions.md
+      - Translations: guides/translations.md
   - Reference:
       - Configuration: reference/configuration.md
       - Python API:

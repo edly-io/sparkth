@@ -3038,6 +3038,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "babel" },
     { name = "httpx" },
     { name = "lefthook" },
     { name = "mypy" },
@@ -3094,6 +3095,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "babel", specifier = ">=2.17" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "lefthook", specifier = ">=2.1.4" },
     { name = "mypy", specifier = ">=1.19.0" },

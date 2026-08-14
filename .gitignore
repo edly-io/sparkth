@@ -246,3 +246,7 @@ CLAUDE.local.md
 
 # OpenAPI schema dump (build artifact, regenerate with `make gen.api`)
 /openapi.json
+
+# gettext build artifacts (see make i18n.extract / i18n.compile); .po catalogs are committed
+sparkth/locale/messages.pot
+*.mo
