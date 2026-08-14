@@ -12,6 +12,6 @@ from here directly.
 """
 
 from sparkth.core.i18n.context import get_locale, locale_context
-from sparkth.core.i18n.translate import LazyString, gettext, lazy_gettext
+from sparkth.core.i18n.translate import LazyString, gettext, gettext_noop, lazy_gettext
 
-__all__ = ["LazyString", "get_locale", "gettext", "lazy_gettext", "locale_context"]
+__all__ = ["LazyString", "get_locale", "gettext", "gettext_noop", "lazy_gettext", "locale_context"]

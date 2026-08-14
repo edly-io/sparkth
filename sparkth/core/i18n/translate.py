@@ -10,6 +10,10 @@ Marking rules:
 - A module-level constant: wrap it in :func:`lazy_gettext`, which defers
   translation to render time (module bodies run at import, before any request
   locale exists).
+- A constant stored in a plain-``str`` field (a dataclass a response model
+  embeds, where a :class:`LazyString` cannot go): mark the literal with
+  :func:`gettext_noop` at the definition and translate the stored value with
+  :func:`gettext` where it is rendered.
 
 Catalogs are compiled ``.mo`` files under the directories registered on the
 :data:`~sparkth.core.i18n.hooks.LOCALE_DIRS` hook — core's ``sparkth/locale``
@@ -53,8 +57,27 @@ def gettext(message: str) -> str:
 
     The canonical marker for user-facing strings; import it as ``_`` so
     ``pybabel extract`` picks the call sites up.
+
+    An empty message is returned as-is: a compiled catalog stores its metadata
+    header under the empty msgid, so looking one up would return the PO header
+    instead. Callers reach this with an empty string through stored source
+    messages (a ``gettext_noop``-marked field left blank), not from a literal.
     """
+    if not message:
+        return message
     return _load_catalogs(get_locale(), tuple(LOCALE_DIRS.iter_values())).gettext(message)
+
+
+def gettext_noop(message: str) -> str:
+    """Mark ``message`` for extraction and return it unchanged.
+
+    For English strings stored in plain-``str`` fields (e.g. the frontend
+    metadata dataclasses serialized by Pydantic, where a :class:`LazyString`
+    cannot go). The stored source string is translated later by passing it
+    through :func:`gettext` at the rendering boundary. Extraction picks the
+    literals up via ``pybabel extract -k gettext_noop``.
+    """
+    return message
 
 
 class LazyString:

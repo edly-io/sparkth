@@ -7,7 +7,7 @@ import pytest
 from babel.messages.catalog import Catalog
 from babel.messages.mofile import write_mo
 
-from sparkth.core.i18n import get_locale, gettext, lazy_gettext, locale_context
+from sparkth.core.i18n import get_locale, gettext, gettext_noop, lazy_gettext, locale_context
 from sparkth.core.i18n.hooks import LOCALE_DIRS
 from sparkth.core.i18n.translate import LOCALE_DIR
 from sparkth.lib import i18n as lib_i18n
@@ -57,6 +57,14 @@ def test_gettext_uses_the_default_language_outside_any_request(catalog_dir: Path
     assert gettext(TRANSLATED[0]) == TRANSLATED[0]
 
 
+def test_gettext_returns_the_empty_string_rather_than_the_catalog_header(catalog_dir: Path) -> None:
+    # A compiled catalog stores its metadata header under the empty msgid, so a bare
+    # gettext("") would hand the caller the PO header. An empty source message has no
+    # translation to look up, so it is returned as-is.
+    with locale_context("es"):
+        assert gettext("") == ""
+
+
 def test_get_locale_falls_back_to_the_platform_default() -> None:
     assert get_locale() == "en"
 
@@ -80,8 +88,23 @@ def test_lazy_string_repr_names_the_source_message() -> None:
     assert repr(lazy_gettext("Hello")) == "LazyString('Hello')"
 
 
-def test_the_core_locale_dir_is_registered_at_import() -> None:
-    assert LOCALE_DIRS.get(LOCALE_DIR) == LOCALE_DIR
+def test_gettext_noop_returns_the_message_unchanged(catalog_dir: Path) -> None:
+    # The marker only tags the literal for extraction; the string stays a plain
+    # ``str`` holding the source message, translated later via gettext().
+    with locale_context("es"):
+        assert gettext_noop(TRANSLATED[0]) == TRANSLATED[0]
+
+
+def test_a_noop_marked_message_translates_when_passed_through_gettext(catalog_dir: Path) -> None:
+    stored = gettext_noop(TRANSLATED[0])
+    with locale_context("es"):
+        assert gettext(stored) == TRANSLATED[1]
+
+
+def test_the_core_locale_dir_is_registered_at_import(shipped_locale_dirs: tuple[Path, ...]) -> None:
+    # The suite detaches the shipped catalog dirs for the session; the
+    # import-time registration is visible in the detached snapshot.
+    assert LOCALE_DIR in shipped_locale_dirs
 
 
 def test_catalogs_from_every_registered_dir_are_consulted(tmp_path: Path) -> None:
@@ -105,4 +128,5 @@ def test_the_lib_facade_exposes_the_marking_functions() -> None:
     assert lib_i18n._ is gettext
     assert lib_i18n.gettext is gettext
     assert lib_i18n.lazy_gettext is lazy_gettext
+    assert lib_i18n.gettext_noop is gettext_noop
     assert lib_i18n.LOCALE_DIRS is LOCALE_DIRS

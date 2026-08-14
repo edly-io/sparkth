@@ -38,7 +38,7 @@ Import the marking functions from `sparkth.lib.i18n`, never from
 from sparkth.lib.i18n import _, lazy_gettext
 ```
 
-There are three cases:
+There are four cases:
 
 - **A literal evaluated during a request**: wrap it in `_()` at the point of
   use.
@@ -66,8 +66,22 @@ There are three cases:
   await post_message(str(GREETING_MESSAGE))
   ```
 
+- **A constant stored in a plain-`str` field** (a dataclass a response model
+  embeds, where a `LazyString` cannot go, e.g. the `DisplayInfo` /
+  `SidebarEntry` frontend metadata): mark the literal with `gettext_noop()`,
+  which returns it unchanged, and translate the stored value by passing it
+  through `gettext()` at the rendering boundary (`UserPluginResponse.for_plugin`
+  does this for the frontend metadata):
+
+  ```python
+  DISPLAY_INFO.add_item(self, DisplayInfo(gettext_noop("Create Course"), gettext_noop("Build courses with AI")))
+  ```
+
 Only user-facing text is marked. Log lines, LLM prompt templates, MCP tool
-descriptions, and OpenAPI field descriptions stay English.
+descriptions, and OpenAPI field descriptions stay English, as do machine-read
+error codes (`"expired_token"`), operator-facing configuration errors
+("Slack credentials not configured."), and hand-rolled request-parameter
+validation messages, which follow the untranslated Pydantic `422`s.
 
 ## Catalog workflow
 
@@ -101,10 +115,16 @@ then `make i18n.compile` (required before the app can serve the translations).
 
 ## Testing translated code
 
-Tests run without compiled catalogs; an unmarked locale falls back to the
-source string, so assertions against English text keep working. To assert on
-an actual translation, build a catalog in `tmp_path` with
-`babel.messages.mofile.write_mo`, register it with
-`LOCALE_DIRS.add_item(tmp_path)` (and `LOCALE_DIRS.remove(tmp_path)` on
-teardown), and wrap the call in `locale_context("<lang>")`
-(see `tests/core/i18n/test_translate.py`).
+The suite detaches the shipped catalog directories for the whole session
+(the `shipped_locale_dirs` fixture in `sparkth.lib.testing`), so locally
+compiled `.mo` files never leak into tests: every lookup falls back to the
+English source string, and assertions against English text keep working. To
+assert on an actual translation, inject a catalog with the
+`translation_catalog` fixture and render under the target locale, via
+`locale_context("<lang>")` or an `Accept-Language` header:
+
+```python
+async def test_detail_is_translated(client, translation_catalog):
+    translation_catalog("Incorrect username or password", "Usuario o contraseña incorrectos")
+    response = await client.post(..., headers={"Accept-Language": "es"})
+```
