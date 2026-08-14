@@ -25,6 +25,7 @@ from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.context import AnonymousActor, UserActor
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.schemas import (
     GoogleAuthUrl,
     ResendVerificationRequest,
@@ -54,23 +55,23 @@ async def register_user(
     session: AsyncSession = Depends(get_async_session),
 ) -> User:
     if not settings.REGISTRATION_ENABLED:
-        raise HTTPException(status_code=403, detail="Registration is currently disabled")
+        raise HTTPException(status_code=403, detail=_("Registration is currently disabled"))
 
     normalized_email = user.email.strip().lower()
     if not await WhitelistService.is_email_allowed(session, normalized_email):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This email address is not authorized to register. Contact an administrator.",
+            detail=_("This email address is not authorized to register. Contact an administrator."),
         )
     result = await session.exec(select(User).where(User.username == user.username))
     db_user = result.one_or_none()
     if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=400, detail=_("Username already registered"))
 
     result = await session.exec(select(User).where(User.email == normalized_email))
     db_user_email = result.one_or_none()
     if db_user_email:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail=_("Email already registered"))
 
     hashed_password = security.get_password_hash(user.password)
     db_user = User(
@@ -140,7 +141,7 @@ async def login_for_access_token(
         )
         raise HTTPException(
             status_code=401,
-            detail="Incorrect username or password",
+            detail=_("Incorrect username or password"),
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -155,7 +156,7 @@ async def login_for_access_token(
         )
         raise HTTPException(
             status_code=401,
-            detail="Incorrect username or password",
+            detail=_("Incorrect username or password"),
             headers={"WWW-Authenticate": "Bearer"},
         )
 

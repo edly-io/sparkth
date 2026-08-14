@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 import aiohttp
 
 from sparkth.core.config import get_settings
+from sparkth.lib.i18n import _
 
 # Google OAuth endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -37,7 +38,7 @@ def generate_google_login_url() -> str:
     Returns:
         The authorization URL to redirect the user to.
     """
-    client_id, _, redirect_uri = get_google_credentials()
+    client_id, _client_secret, redirect_uri = get_google_credentials()
 
     params = {
         "client_id": client_id,
@@ -100,6 +101,6 @@ async def get_google_user_info(access_token: str) -> dict[str, Any]:
         headers = {"Authorization": f"Bearer {access_token}"}
         async with session.get(GOOGLE_USERINFO_URL, headers=headers) as response:
             if response.status != 200:
-                raise ValueError("Failed to get user info from Google")
+                raise ValueError(_("Failed to get user info from Google"))
             result: dict[str, Any] = await response.json()
             return result

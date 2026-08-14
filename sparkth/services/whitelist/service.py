@@ -5,6 +5,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.whitelist import WhitelistedEmail
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.services.whitelist.exceptions import (
     InvalidWhitelistValue,
@@ -39,13 +40,13 @@ class WhitelistService:
                 or domain_part.endswith(".")
                 or ".." in domain_part
             ):
-                raise InvalidWhitelistValue(f"Invalid domain format: {value}")
+                raise InvalidWhitelistValue(_("Invalid domain format: {value}").format(value=value))
             entry_type = "domain"
         else:
             try:
                 _EmailValidator(email=normalized)
             except ValidationError as exc:
-                raise InvalidWhitelistValue(f"Invalid email format: {value}") from exc
+                raise InvalidWhitelistValue(_("Invalid email format: {value}").format(value=value)) from exc
             entry_type = "email"
 
         # No pre-check SELECT: the unique index on ``value`` is the single, atomic guard
@@ -68,7 +69,7 @@ class WhitelistService:
             existing = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
             if existing.one_or_none() is not None:
                 logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
-                raise WhitelistEntryAlreadyExists(f"Entry already exists: {normalized}") from exc
+                raise WhitelistEntryAlreadyExists(_("Entry already exists: {value}").format(value=normalized)) from exc
             logger.exception("Unexpected integrity error inserting whitelist value %s", normalized)
             raise
         await session.refresh(entry)
@@ -78,7 +79,7 @@ class WhitelistService:
     async def remove_entry(session: AsyncSession, *, entry_id: int) -> None:
         entry = await session.get(WhitelistedEmail, entry_id)
         if entry is None:
-            raise WhitelistEntryNotFound(f"Whitelist entry not found: {entry_id}")
+            raise WhitelistEntryNotFound(_("Whitelist entry not found: {entry_id}").format(entry_id=entry_id))
 
         await session.delete(entry)
         await session.commit()

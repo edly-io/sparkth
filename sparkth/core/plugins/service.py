@@ -12,6 +12,8 @@ from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import session_scope
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
 from sparkth.lib.frontend.hooks import DisplayInfo, SidebarEntry
+from sparkth.lib.i18n import _
+from sparkth.lib.i18n import gettext as translate
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -48,14 +50,25 @@ class UserPluginResponse(pydantic.BaseModel):
 
     @classmethod
     def for_plugin(cls, plugin_name: str, enabled: bool, config: dict[str, Any], is_core: bool) -> "UserPluginResponse":
-        """Build a response carrying the frontend metadata declared for ``plugin_name``."""
+        """Build a response carrying the frontend metadata declared for ``plugin_name``.
+
+        The declared display and sidebar strings are ``gettext_noop``-marked
+        source messages; this is their rendering boundary, so they are
+        translated into the request locale here.
+        """
+        display = get_plugin_display_info(plugin_name)
+        if display is not None:
+            display = DisplayInfo(translate(display.display_name), translate(display.description), display.icon)
+        sidebar = get_plugin_sidebar_entry(plugin_name)
+        if sidebar is not None:
+            sidebar = SidebarEntry(translate(sidebar.label), sidebar.icon, sidebar.order)
         return cls(
             plugin_name=plugin_name,
             enabled=enabled,
             config=config,
             is_core=is_core,
-            display=get_plugin_display_info(plugin_name),
-            sidebar=get_plugin_sidebar_entry(plugin_name),
+            display=display,
+            sidebar=sidebar,
             has_frontend=plugin_has_frontend(plugin_name),
         )
 
@@ -92,13 +105,13 @@ class PluginService:
         config_class = get_plugin_config_schema(plugin.name)
         if not config_class:
             logger.error(f"Plugin '{plugin.name}' config class is missing or invalid")
-            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
+            raise InternalServerError(_("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name))
 
         if not issubclass(config_class, PluginConfig):
             logger.error(
                 f"'{plugin.name.title()}Config' must inherit from sparkth.core.plugins.config_base.PluginConfig"
             )
-            raise InternalServerError(f"Plugin '{plugin.name}' cannot be configured at this time.")
+            raise InternalServerError(_("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name))
 
         try:
             validated_config = config_class(**user_config)
@@ -301,7 +314,7 @@ class PluginService:
 
         if user_plugin:
             if not user_plugin.enabled:
-                raise PluginDisabledError("Cannot update plugin configuration while the plugin is disabled")
+                raise PluginDisabledError(_("Cannot update plugin configuration while the plugin is disabled"))
             merged_config = {**user_plugin.config, **user_config}
         else:
             merged_config = user_config

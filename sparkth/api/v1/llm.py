@@ -7,6 +7,7 @@ from sparkth.core.models.llm import LLMConfig
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -93,7 +94,9 @@ async def update_llm_config(
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigResponse:
     if not body.name and not body.model:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Empty body. Nothing to update.")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_("Empty body. Nothing to update.")
+        )
 
     try:
         config = await service.update(
@@ -173,5 +176,5 @@ async def delete_llm_config(
         config_id=config_id,
     )
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("LLM config not found"))
     await session.commit()

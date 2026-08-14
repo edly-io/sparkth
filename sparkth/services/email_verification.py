@@ -11,6 +11,7 @@ from sparkth.core.config import get_settings
 from sparkth.core.email import send_email
 from sparkth.core.models.email_verification import EmailVerificationToken
 from sparkth.core.models.user import User
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
 settings = get_settings()
@@ -118,19 +119,18 @@ def _build_verify_url(raw_token: str) -> str:
 def _render_email(name: str, raw_token: str) -> tuple[str, str]:
     url = _build_verify_url(raw_token)
     ttl = settings.EMAIL_VERIFICATION_TOKEN_TTL_HOURS
-    text = (
-        f"Hi {name},\n\n"
-        "Click the link below to confirm your email address:\n\n"
-        f"{url}\n\n"
-        f"This link expires in {ttl} hours.\n\n"
-        "If you didn't sign up for Sparkth, you can ignore this email.\n"
-    )
+    greeting = _("Hi {name},").format(name=name)
+    instruction = _("Click the link below to confirm your email address:")
+    expiry = _("This link expires in {ttl} hours.").format(ttl=ttl)
+    footer = _("If you didn't sign up for Sparkth, you can ignore this email.")
+    link_label = _("Confirm my email")
+    text = f"{greeting}\n\n{instruction}\n\n{url}\n\n{expiry}\n\n{footer}\n"
     html = (
-        f"<p>Hi {html_escape(name)},</p>"
-        "<p>Click the link below to confirm your email address:</p>"
-        f'<p><a href="{html_escape(url, quote=True)}">Confirm my email</a></p>'
-        f"<p>This link expires in {ttl} hours.</p>"
-        "<p>If you didn't sign up for Sparkth, you can ignore this email.</p>"
+        f"<p>{html_escape(greeting)}</p>"
+        f"<p>{html_escape(instruction)}</p>"
+        f'<p><a href="{html_escape(url, quote=True)}">{html_escape(link_label)}</a></p>'
+        f"<p>{html_escape(expiry)}</p>"
+        f"<p>{html_escape(footer)}</p>"
     )
     return text, html
 
@@ -143,7 +143,7 @@ async def send_verification_email(*, to: str, name: str, raw_token: str) -> None
     try:
         await send_email(
             to=to,
-            subject="Confirm your Sparkth account",
+            subject=_("Confirm your Sparkth account"),
             html_body=html_body,
             text_body=text_body,
         )

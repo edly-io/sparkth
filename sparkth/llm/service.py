@@ -7,6 +7,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.llm import LLMConfig
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.llm.exceptions import (
     LLMConfigDuplicateNameError,
@@ -123,7 +124,9 @@ class LLMConfigService:
             allowed = get_models_for_provider(config.provider)
             if model not in allowed:
                 raise LLMConfigValidationError(
-                    f"Model '{model}' not available for provider '{config.provider}'. Allowed: {', '.join(allowed)}"
+                    _("Model '{model}' not available for provider '{provider}'. Allowed: {allowed}").format(
+                        model=model, provider=config.provider, allowed=", ".join(allowed)
+                    )
                 )
             config.model = model
         config.update_timestamp()

@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core import security
 from sparkth.core.models.user import User
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -86,7 +87,7 @@ async def get_current_user(
     if username is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail=_("Could not validate credentials"),
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -94,7 +95,7 @@ async def get_current_user(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail=_("User not found"),
             headers={"WWW-Authenticate": "Bearer"},
         )
 

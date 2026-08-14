@@ -22,6 +22,7 @@ from sparkth.core.plugins.service import (
 )
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +46,9 @@ class UserPluginConfigRequest(BaseModel):
 async def get_plugin_or_404(plugin_service: PluginService, session: AsyncSession, name: str) -> Plugin:
     plugin = await plugin_service.get_by_name(session, name)
     if not plugin:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plugin '{name}' not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=_("Plugin '{name}' not found").format(name=name)
+        )
     return plugin
 
 
@@ -55,7 +58,9 @@ def validate_plugin(plugin: Plugin) -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Plugin '{plugin.name}' is not persisted."
         )
     if not plugin.enabled:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Plugin '{plugin.name}' is not enabled")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=_("Plugin '{name}' is not enabled").format(name=plugin.name)
+        )
 
 
 @router.get("/", response_model=list[UserPluginResponse])
@@ -115,7 +120,7 @@ async def create_user_plugin(
 ) -> UserPluginResponse:
     """Create a user plugin with validated configuration."""
     if not current_user.id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
 
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
     validate_plugin(plugin)
@@ -123,7 +128,8 @@ async def create_user_plugin(
     user_plugin = await plugin_service.get_user_plugin(session, current_user.id, plugin.id)
     if user_plugin and len(user_plugin.config) > 0:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=f"Plugin '{plugin_name}' is already configured"
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_("Plugin '{name}' is already configured").format(name=plugin_name),
         )
 
     try:
@@ -189,7 +195,7 @@ async def update_user_plugin(
     Enable or disable a plugin for the current user.
     """
     if not current_user.id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
 
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
     validate_plugin(plugin)
@@ -219,7 +225,7 @@ async def update_user_plugin_config(
     This allows users to customize plugin-specific settings.
     """
     if not current_user.id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
 
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
     validate_plugin(plugin)
