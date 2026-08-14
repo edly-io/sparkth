@@ -1,0 +1,636 @@
+# Spanish translations for sparkth.
+# Copyright (C) 2026 Edly
+# This file is distributed under the same license as the sparkth project.
+# Hamza Shafique <hamza.shafique1@arbisoft.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: sparkth 0.1.11\n"
+"Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
+"POT-Creation-Date: 2026-08-18 15:36+0500\n"
+"PO-Revision-Date: 2026-08-14 07:25+0500\n"
+"Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
+"Language: es\n"
+"Language-Team: es <https://github.com/edly-io/sparkth/issues>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: sparkth/api/v1/auth.py:58
+msgid "Registration is currently disabled"
+msgstr "El registro está deshabilitado actualmente"
+
+#: sparkth/api/v1/auth.py:64
+msgid ""
+"This email address is not authorized to register. Contact an "
+"administrator."
+msgstr ""
+"Esta dirección de correo no está autorizada para registrarse. Contacta a "
+"un administrador."
+
+#: sparkth/api/v1/auth.py:69
+msgid "Username already registered"
+msgstr "El nombre de usuario ya está registrado"
+
+#: sparkth/api/v1/auth.py:74
+msgid "Email already registered"
+msgstr "El correo electrónico ya está registrado"
+
+#: sparkth/api/v1/auth.py:144 sparkth/api/v1/auth.py:159
+msgid "Incorrect username or password"
+msgstr "Usuario o contraseña incorrectos"
+
+#: sparkth/api/v1/file_parser.py:42 sparkth/api/v1/user_plugins.py:123
+#: sparkth/api/v1/user_plugins.py:198 sparkth/api/v1/user_plugins.py:228
+msgid "User not authenticated."
+msgstr "Usuario no autenticado."
+
+#: sparkth/api/v1/file_parser.py:47
+msgid "Only .txt and .pdf files are supported"
+msgstr "Solo se admiten archivos .txt y .pdf"
+
+#: sparkth/api/v1/file_parser.py:56
+msgid "File size exceeds 30MB limit"
+msgstr "El archivo supera el límite de 30 MB"
+
+#: sparkth/api/v1/file_parser.py:66
+msgid "Unsupported file type"
+msgstr "Tipo de archivo no compatible"
+
+#: sparkth/api/v1/llm.py:98
+msgid "Empty body. Nothing to update."
+msgstr "Cuerpo vacío. Nada que actualizar."
+
+#: sparkth/api/v1/llm.py:179
+msgid "LLM config not found"
+msgstr "Configuración de LLM no encontrada"
+
+#: sparkth/api/v1/user_plugins.py:50
+#, python-brace-format
+msgid "Plugin '{name}' not found"
+msgstr "Plugin '{name}' no encontrado"
+
+#: sparkth/api/v1/user_plugins.py:62
+#, python-brace-format
+msgid "Plugin '{name}' is not enabled"
+msgstr "El plugin '{name}' no está habilitado"
+
+#: sparkth/api/v1/user_plugins.py:132
+#, python-brace-format
+msgid "Plugin '{name}' is already configured"
+msgstr "El plugin '{name}' ya está configurado"
+
+#: sparkth/api/v1/user/routes.py:80 sparkth/lib/auth.py:98
+msgid "User not found"
+msgstr "Usuario no encontrado"
+
+#: sparkth/core/google_auth.py:104
+msgid "Failed to get user info from Google"
+msgstr "No se pudo obtener la información del usuario de Google"
+
+#: sparkth/core/permissions/__init__.py:93
+msgid "Permission denied"
+msgstr "Permiso denegado"
+
+#: sparkth/core/permissions/exceptions.py:8
+#, python-brace-format
+msgid "Role not found: {role_name}"
+msgstr "Rol no encontrado: {role_name}"
+
+#: sparkth/core/permissions/exceptions.py:16
+#, python-brace-format
+msgid "Permission not found: {permission}"
+msgstr "Permiso no encontrado: {permission}"
+
+#: sparkth/core/permissions/exceptions.py:24
+#, python-brace-format
+msgid "Permission scope not found: {name}"
+msgstr "Ámbito de permiso no encontrado: {name}"
+
+#: sparkth/core/permissions/exceptions.py:32
+#, python-brace-format
+msgid "Role already exists: {name}"
+msgstr "El rol ya existe: {name}"
+
+#: sparkth/core/permissions/exceptions.py:40
+#, python-brace-format
+msgid "Role is still assigned and cannot be deleted: {role_id}"
+msgstr "El rol sigue asignado y no se puede eliminar: {role_id}"
+
+#: sparkth/core/permissions/exceptions.py:48
+#, python-brace-format
+msgid "Group not found: {name}"
+msgstr "Grupo no encontrado: {name}"
+
+#: sparkth/core/permissions/exceptions.py:56
+#, python-brace-format
+msgid "Group already exists: {name}"
+msgstr "El grupo ya existe: {name}"
+
+#: sparkth/core/permissions/exceptions.py:65
+#, python-brace-format
+msgid "Group still has active role assignments and cannot be deleted: {group_id}"
+msgstr ""
+"El grupo aún tiene asignaciones de roles activas y no se puede eliminar: "
+"{group_id}"
+
+#: sparkth/core/permissions/exceptions.py:81
+#, python-brace-format
+msgid "Invalid scope/object-id pairing for scope {scope!r}: {scope_object_id!r}"
+msgstr ""
+"Combinación de ámbito e identificador de objeto no válida para el ámbito "
+"{scope!r}: {scope_object_id!r}"
+
+#: sparkth/core/plugins/middleware.py:101
+#, python-brace-format
+msgid ""
+"Access to plugin '{name}' is disabled for your account. Please enable the"
+" plugin in your settings."
+msgstr ""
+"El acceso al plugin '{name}' está deshabilitado para tu cuenta. Habilita "
+"el plugin en tu configuración."
+
+#: sparkth/core/plugins/service.py:108 sparkth/core/plugins/service.py:114
+#, python-brace-format
+msgid "Plugin '{name}' cannot be configured at this time."
+msgstr "El plugin '{name}' no se puede configurar en este momento."
+
+#: sparkth/core/plugins/service.py:317
+msgid "Cannot update plugin configuration while the plugin is disabled"
+msgstr ""
+"No se puede actualizar la configuración del plugin mientras está "
+"deshabilitado"
+
+#: sparkth/lib/auth.py:90
+msgid "Could not validate credentials"
+msgstr "No se pudieron validar las credenciales"
+
+#: sparkth/llm/adapter.py:70
+msgid ""
+"This record is deactivated. Reactivate it in AI Keys or select a "
+"different config."
+msgstr ""
+"Este registro está desactivado. Reactívalo en AI Keys o selecciona otra "
+"configuración."
+
+#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:127
+#, python-brace-format
+msgid ""
+"Model '{model}' not available for provider '{provider}'. Allowed: "
+"{allowed}"
+msgstr ""
+"El modelo '{model}' no está disponible para el proveedor '{provider}'. "
+"Permitidos: {allowed}"
+
+#: sparkth/llm/exceptions.py:9
+#, python-brace-format
+msgid "LLMConfig {config_id} not found for user {user_id}"
+msgstr "LLMConfig {config_id} no encontrada para el usuario {user_id}"
+
+#: sparkth/llm/exceptions.py:27
+msgid ""
+"The selected AI configuration is deactivated. Go to AI Keys to reactivate"
+" it, or choose a different configuration in the chat settings."
+msgstr ""
+"La configuración de IA seleccionada está desactivada. Ve a AI Keys para "
+"reactivarla o elige otra configuración en los ajustes del chat."
+
+#: sparkth/llm/exceptions.py:37
+#, python-brace-format
+msgid "An LLM config with name '{name}' already exists for this user."
+msgstr ""
+"Ya existe una configuración de LLM con el nombre '{name}' para este "
+"usuario."
+
+#: sparkth/plugins/canvas/plugin.py:38
+msgid "Canvas"
+msgstr "Canvas"
+
+#: sparkth/plugins/canvas/plugin.py:39
+msgid "Canvas LMS integration with tools for courses, modules, pages, and quizzes"
+msgstr ""
+"Integración con Canvas LMS con herramientas para cursos, módulos, páginas"
+" y cuestionarios"
+
+#: sparkth/plugins/chat/plugin.py:41 sparkth/plugins/chat/plugin.py:46
+msgid "Create Course"
+msgstr "Crear curso"
+
+#: sparkth/plugins/chat/plugin.py:42
+msgid "Transform your resources into courses with AI"
+msgstr "Transforma tus recursos en cursos con IA"
+
+#: sparkth/plugins/chat/routes/attachments.py:65
+#: sparkth/plugins/chat/routes/attachments.py:99
+msgid "Document not found or not accessible"
+msgstr "Documento no encontrado o no accesible"
+
+#: sparkth/plugins/chat/routes/completions.py:85
+msgid ""
+"No AI Key found for the current user. Please configure an AI key in your "
+"chat plugin settings."
+msgstr ""
+"No se encontró una clave de IA para el usuario actual. Configura una "
+"clave de IA en los ajustes del plugin de chat."
+
+#: sparkth/plugins/chat/routes/completions.py:90
+msgid ""
+"The selected AI key has no model configured. Go to AI Keys to set a model"
+" before chatting."
+msgstr ""
+"La clave de IA seleccionada no tiene un modelo configurado. Ve a AI Keys "
+"para establecer un modelo antes de chatear."
+
+#: sparkth/plugins/chat/routes/completions.py:96
+msgid ""
+"The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
+"choose a different one in chat settings."
+msgstr ""
+"La clave de IA seleccionada está desactivada. Ve a AI Keys para "
+"reactivarla o elige otra en los ajustes del chat."
+
+#: sparkth/plugins/chat/routes/completions.py:235
+#: sparkth/plugins/chat/routes/completions.py:355
+msgid "Chat completion failed"
+msgstr "Error al generar la respuesta del chat"
+
+#: sparkth/plugins/chat/routes/completions.py:323
+msgid "Failed to determine retrieval intent. Please try again."
+msgstr "No se pudo determinar la intención de búsqueda. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/conversations.py:92
+#: sparkth/plugins/chat/routes/conversations.py:151
+#: sparkth/plugins/chat/routes/dependencies.py:28
+msgid "Conversation not found"
+msgstr "Conversación no encontrada"
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:156
+msgid "One or more documents not found or not accessible."
+msgstr "Uno o más documentos no se encontraron o no son accesibles."
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:161
+#, python-brace-format
+msgid ""
+"A document is still being processed (status: {status}). Please wait and "
+"try again."
+msgstr ""
+"Un documento todavía se está procesando (estado: {status}). Espera e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:169
+msgid "Failed to retrieve document context. Please try again."
+msgstr "No se pudo recuperar el contexto del documento. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:234
+#, python-brace-format
+msgid "Conversation {conversation_uuid} not found"
+msgstr "Conversación {conversation_uuid} no encontrada"
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:41
+msgid "Invalid API key. Please check your Anthropic API key in AI Keys."
+msgstr "Clave de API no válida. Comprueba tu clave de API de Anthropic en AI Keys."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:43
+msgid "Your Anthropic API key does not have permission to use this model."
+msgstr "Tu clave de API de Anthropic no tiene permiso para usar este modelo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:45
+msgid "Anthropic rate limit reached. Please wait a moment and try again."
+msgstr ""
+"Se alcanzó el límite de peticiones de Anthropic. Espera un momento e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:47
+msgid "The request was rejected by Anthropic. Please try a different message."
+msgstr "Anthropic rechazó la petición. Prueba con un mensaje diferente."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:49
+#, python-brace-format
+msgid "Anthropic API error ({status_code}). Please try again."
+msgstr "Error de la API de Anthropic ({status_code}). Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:51
+msgid "Could not reach Anthropic. Please check your network connection."
+msgstr "No se pudo conectar con Anthropic. Comprueba tu conexión de red."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:55
+msgid "Invalid API key. Please check your OpenAI API key in AI Keys."
+msgstr "Clave de API no válida. Comprueba tu clave de API de OpenAI en AI Keys."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:57
+msgid "Your OpenAI API key does not have permission to use this model."
+msgstr "Tu clave de API de OpenAI no tiene permiso para usar este modelo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:59
+msgid "OpenAI rate limit reached. Please wait a moment and try again."
+msgstr ""
+"Se alcanzó el límite de peticiones de OpenAI. Espera un momento e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:61
+msgid "The request was rejected by OpenAI. Please try a different message."
+msgstr "OpenAI rechazó la petición. Prueba con un mensaje diferente."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:63
+#, python-brace-format
+msgid "OpenAI API error ({status_code}). Please try again."
+msgstr "Error de la API de OpenAI ({status_code}). Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:65
+msgid "Could not reach OpenAI. Please check your network connection."
+msgstr "No se pudo conectar con OpenAI. Comprueba tu conexión de red."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:69
+msgid "Invalid API key. Please check your Google API key in AI Keys."
+msgstr "Clave de API no válida. Comprueba tu clave de API de Google en AI Keys."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:71
+msgid "Your Google API key does not have permission to use this model."
+msgstr "Tu clave de API de Google no tiene permiso para usar este modelo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:73
+msgid "Google API rate limit reached. Please wait a moment and try again."
+msgstr ""
+"Se alcanzó el límite de peticiones de la API de Google. Espera un momento"
+" e inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:75
+msgid "The request was rejected by Google. Please try a different message."
+msgstr "Google rechazó la petición. Prueba con un mensaje diferente."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:77
+msgid "Could not reach Google. Please check your network connection."
+msgstr "No se pudo conectar con Google. Comprueba tu conexión de red."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:82
+#, python-brace-format
+msgid "Google API error ({status_code}). Please try again."
+msgstr "Error de la API de Google ({status_code}). Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:86
+msgid "The connection was interrupted. Please try again."
+msgstr "La conexión se interrumpió. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:89
+msgid "An error occurred while generating a response. Please try again."
+msgstr "Ocurrió un error al generar la respuesta. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:95
+msgid "The attached document could not be found or is no longer accessible."
+msgstr "El documento adjunto no se encontró o ya no es accesible."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:97
+msgid ""
+"The attached document is still being processed. Please wait a moment and "
+"try again."
+msgstr ""
+"El documento adjunto todavía se está procesando. Espera un momento e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:98
+msgid "Failed to search the attached document. Please try again."
+msgstr "No se pudo buscar en el documento adjunto. Inténtalo de nuevo."
+
+#: sparkth/plugins/googledrive/plugin.py:26
+msgid "Google Drive"
+msgstr "Google Drive"
+
+#: sparkth/plugins/googledrive/plugin.py:26
+msgid "All imported files from your connected plugins"
+msgstr "Todos los archivos importados de tus plugins conectados"
+
+#: sparkth/plugins/googledrive/utils.py:222
+msgid "Google Drive error"
+msgstr "Error de Google Drive"
+
+#: sparkth/plugins/googledrive/utils.py:226
+msgid "Could not reach Google Drive"
+msgstr "No se pudo conectar con Google Drive"
+
+#: sparkth/plugins/googledrive/utils.py:239
+#: sparkth/plugins/googledrive/utils.py:255
+msgid "Processing failed"
+msgstr "El procesamiento falló"
+
+#: sparkth/plugins/googledrive/utils.py:245
+msgid "Database integrity error"
+msgstr "Error de integridad de la base de datos"
+
+#: sparkth/plugins/googledrive/routes/dependencies.py:23
+#: sparkth/plugins/slack/routes/dependencies.py:10
+msgid "User not authenticated"
+msgstr "Usuario no autenticado"
+
+#: sparkth/plugins/googledrive/routes/files.py:57
+#: sparkth/plugins/googledrive/routes/files.py:109
+#: sparkth/plugins/googledrive/routes/files.py:248
+#: sparkth/plugins/googledrive/routes/folders.py:196
+#: sparkth/plugins/googledrive/routes/folders.py:253
+#: sparkth/plugins/googledrive/routes/folders.py:288
+msgid "Folder not found"
+msgstr "Carpeta no encontrada"
+
+#: sparkth/plugins/googledrive/routes/files.py:120
+#, python-brace-format
+msgid "File size exceeds {limit:.0f}MB limit."
+msgstr "El archivo supera el límite de {limit:.0f} MB."
+
+#: sparkth/plugins/googledrive/routes/files.py:180
+#: sparkth/plugins/googledrive/routes/files.py:217
+#: sparkth/plugins/googledrive/routes/files.py:295
+#: sparkth/plugins/googledrive/routes/files.py:344
+#: sparkth/plugins/googledrive/routes/files.py:397
+msgid "File not found"
+msgstr "Archivo no encontrado"
+
+#: sparkth/plugins/googledrive/routes/files.py:354
+msgid "Failed to rename file."
+msgstr "No se pudo renombrar el archivo."
+
+#: sparkth/plugins/googledrive/routes/folders.py:111
+msgid "Folder is already synced"
+msgstr "La carpeta ya está sincronizada"
+
+#: sparkth/plugins/googledrive/routes/oauth.py:59
+#: sparkth/plugins/slack/routes/oauth.py:63
+msgid "OAuth state expired. Please try again."
+msgstr "El estado de OAuth expiró. Inténtalo de nuevo."
+
+#: sparkth/plugins/googledrive/routes/oauth.py:61
+#: sparkth/plugins/slack/routes/oauth.py:67
+msgid "Invalid OAuth state."
+msgstr "Estado de OAuth no válido."
+
+#: sparkth/plugins/googledrive/routes/oauth.py:68
+msgid "Failed to exchange authorization code."
+msgstr "No se pudo intercambiar el código de autorización."
+
+#: sparkth/plugins/googledrive/routes/oauth.py:79
+msgid "No refresh token received. Please disconnect and reconnect Google Drive."
+msgstr ""
+"No se recibió el token de actualización. Desconecta y vuelve a conectar "
+"Google Drive."
+
+#: sparkth/plugins/googledrive/routes/oauth.py:94
+msgid "Failed to save tokens."
+msgstr "No se pudieron guardar los tokens."
+
+#: sparkth/plugins/googledrive/routes/oauth.py:108
+msgid "Google Drive not connected"
+msgstr "Google Drive no está conectado"
+
+#: sparkth/plugins/openedx/plugin.py:33
+msgid "Open edX"
+msgstr "Open edX"
+
+#: sparkth/plugins/openedx/plugin.py:34
+msgid "Open edX integration with tools for courses, sections, and units"
+msgstr ""
+"Integración con Open edX con herramientas para cursos, secciones y "
+"unidades"
+
+#: sparkth/plugins/slack/constants.py:13
+msgid ""
+"I'm not configured with an AI key yet. Please ask your instructor to add "
+"one in the bot settings."
+msgstr ""
+"Todavía no tengo configurada una clave de IA. Pide a tu instructor que "
+"añada una en los ajustes del bot."
+
+#: sparkth/plugins/slack/constants.py:16
+msgid ""
+"I couldn't connect to the AI service right now. Please try again in a "
+"moment."
+msgstr ""
+"No pude conectar con el servicio de IA en este momento. Inténtalo de "
+"nuevo en un momento."
+
+#: sparkth/plugins/slack/constants.py:19
+msgid ""
+"I don't have any documents available to answer that. Please ask your "
+"instructor to add documents to my reference list."
+msgstr ""
+"No tengo documentos disponibles para responder a eso. Pide a tu "
+"instructor que añada documentos a mi lista de referencias."
+
+#: sparkth/plugins/slack/constants.py:22
+msgid ""
+"I'm still indexing the course documents. Please try again in a few "
+"minutes."
+msgstr ""
+"Todavía estoy indexando los documentos del curso. Vuelve a intentarlo en "
+"unos minutos."
+
+#: sparkth/plugins/slack/constants.py:24
+msgid ""
+"I couldn't access one of my reference documents. Please ask your "
+"instructor to check the bot's configured sources."
+msgstr ""
+"No pude acceder a uno de mis documentos de referencia. Pide a tu "
+"instructor que revise las fuentes configuradas del bot."
+
+#: sparkth/plugins/slack/constants.py:26
+msgid "Something went wrong while looking that up. Please try again in a moment."
+msgstr ""
+"Algo salió mal al buscar esa información. Inténtalo de nuevo en un "
+"momento."
+
+#: sparkth/plugins/slack/plugin.py:32 sparkth/plugins/slack/plugin.py:37
+msgid "Slack TA Bot"
+msgstr "Slack TA Bot"
+
+#: sparkth/plugins/slack/plugin.py:33
+msgid "Answer student questions in Slack from your course materials"
+msgstr ""
+"Responde preguntas de estudiantes en Slack a partir de tus materiales del"
+" curso"
+
+#: sparkth/plugins/slack/routes/__init__.py:426
+#: sparkth/plugins/slack/routes/oauth.py:138
+msgid "Slack workspace not connected"
+msgstr "Espacio de trabajo de Slack no conectado"
+
+#: sparkth/plugins/slack/routes/oauth.py:76
+msgid "Failed to exchange Slack authorization code."
+msgstr "No se pudo intercambiar el código de autorización de Slack."
+
+#: sparkth/plugins/slack/routes/oauth.py:81
+msgid "Could not reach Slack. Please try again."
+msgstr "No se pudo conectar con Slack. Inténtalo de nuevo."
+
+#: sparkth/plugins/slack/routes/oauth.py:97
+msgid ""
+"You already have a Slack workspace connected. Disconnect it first before "
+"connecting a new one."
+msgstr ""
+"Ya tienes un espacio de trabajo de Slack conectado. Desconéctalo antes de"
+" conectar uno nuevo."
+
+#: sparkth/plugins/slack/routes/oauth.py:103
+msgid "This Slack workspace is already connected to another account."
+msgstr "Este espacio de trabajo de Slack ya está conectado a otra cuenta."
+
+#: sparkth/plugins/slack/routes/oauth.py:109
+msgid "Unexpected response from Slack. Please try again."
+msgstr "Respuesta inesperada de Slack. Inténtalo de nuevo."
+
+#: sparkth/rag/exceptions.py:31
+msgid ""
+"This PDF appears to be scanned (image-only pages with no extractable "
+"text). OCR-based ingestion is not yet supported — please upload a text-"
+"based PDF."
+msgstr ""
+"Este PDF parece estar escaneado (páginas de solo imagen sin texto "
+"extraíble). La ingesta basada en OCR aún no es compatible; sube un PDF "
+"basado en texto."
+
+#: sparkth/services/email_verification.py:122
+#, python-brace-format
+msgid "Hi {name},"
+msgstr "Hola {name}:"
+
+#: sparkth/services/email_verification.py:123
+msgid "Click the link below to confirm your email address:"
+msgstr ""
+"Haz clic en el enlace de abajo para confirmar tu dirección de correo "
+"electrónico:"
+
+#: sparkth/services/email_verification.py:124
+#, python-brace-format
+msgid "This link expires in {ttl} hours."
+msgstr "Este enlace caduca en {ttl} horas."
+
+#: sparkth/services/email_verification.py:125
+msgid "If you didn't sign up for Sparkth, you can ignore this email."
+msgstr "Si no te registraste en Sparkth, puedes ignorar este correo."
+
+#: sparkth/services/email_verification.py:126
+msgid "Confirm my email"
+msgstr "Confirmar mi correo"
+
+#: sparkth/services/email_verification.py:146
+msgid "Confirm your Sparkth account"
+msgstr "Confirma tu cuenta de Sparkth"
+
+#: sparkth/services/whitelist/service.py:43
+#, python-brace-format
+msgid "Invalid domain format: {value}"
+msgstr "Formato de dominio no válido: {value}"
+
+#: sparkth/services/whitelist/service.py:49
+#, python-brace-format
+msgid "Invalid email format: {value}"
+msgstr "Formato de correo no válido: {value}"
+
+#: sparkth/services/whitelist/service.py:72
+#, python-brace-format
+msgid "Entry already exists: {value}"
+msgstr "La entrada ya existe: {value}"
+
+#: sparkth/services/whitelist/service.py:82
+#, python-brace-format
+msgid "Whitelist entry not found: {entry_id}"
+msgstr "Entrada de la lista blanca no encontrada: {entry_id}"
+
