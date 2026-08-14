@@ -9,6 +9,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
@@ -96,7 +97,7 @@ async def sync_folder(
     session: AsyncSession = Depends(get_async_session),
 ) -> DriveFolderResponse:
     """Sync an existing Google Drive folder."""
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     result = await session.exec(
@@ -107,7 +108,7 @@ async def sync_folder(
         )
     )
     if result.first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Folder is already synced")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_("Folder is already synced"))
 
     async with GoogleDriveClient(access_token) as client:
         folder_metadata = await client.get_folder(request.drive_folder_id)
@@ -146,7 +147,7 @@ async def create_folder(
     session: AsyncSession = Depends(get_async_session),
 ) -> DriveFolderResponse:
     """Create a new folder in Google Drive and sync it."""
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:
@@ -192,7 +193,7 @@ async def get_folder(
     )
     folder = folder_result.first()
     if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
 
     files_result = await session.exec(
         select(DriveFile).where(
@@ -249,7 +250,7 @@ async def delete_folder(
     )
     folder = folder_result.first()
     if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
 
     files_result = await session.exec(
         select(DriveFile).where(
@@ -284,9 +285,9 @@ async def refresh_folder(
     )
     folder = result.first()
     if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
 
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     try:

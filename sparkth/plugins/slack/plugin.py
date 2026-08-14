@@ -10,6 +10,7 @@ from sparkth.lib.frontend.hooks import (
     FrontendApp,
     SidebarEntry,
 )
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.slack.adapter import SlackConfigAdapter
@@ -27,7 +28,11 @@ class Slack(SparkthPlugin):
         register_router(self, router)
         DISPLAY_INFO.add_item(
             self,
-            DisplayInfo("Slack TA Bot", "Answer student questions in Slack from your course materials", icon="slack"),
+            DisplayInfo(
+                gettext_noop("Slack TA Bot"),
+                gettext_noop("Answer student questions in Slack from your course materials"),
+                icon="slack",
+            ),
         )
-        SIDEBAR_ENTRIES.add_item(self, SidebarEntry("Slack TA Bot", icon="slack", order=3))
+        SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Slack TA Bot"), icon="slack", order=3))
         FRONTEND_APPS.add_item(self, FrontendApp())

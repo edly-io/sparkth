@@ -11,6 +11,7 @@ from langchain_core.exceptions import LangChainException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import session_scope
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -37,61 +38,64 @@ def streaming_error_message(exc: Exception) -> str:
     """Map provider API exceptions to concise, user-facing error messages."""
     # Anthropic errors
     if isinstance(exc, anthropic.AuthenticationError):
-        return "Invalid API key. Please check your Anthropic API key in AI Keys."
+        return _("Invalid API key. Please check your Anthropic API key in AI Keys.")
     if isinstance(exc, anthropic.PermissionDeniedError):
-        return "Your Anthropic API key does not have permission to use this model."
+        return _("Your Anthropic API key does not have permission to use this model.")
     if isinstance(exc, anthropic.RateLimitError):
-        return "Anthropic rate limit reached. Please wait a moment and try again."
+        return _("Anthropic rate limit reached. Please wait a moment and try again.")
     if isinstance(exc, anthropic.BadRequestError):
-        return "The request was rejected by Anthropic. Please try a different message."
+        return _("The request was rejected by Anthropic. Please try a different message.")
     if isinstance(exc, anthropic.APIStatusError):
-        return f"Anthropic API error ({exc.status_code}). Please try again."
+        return _("Anthropic API error ({status_code}). Please try again.").format(status_code=exc.status_code)
     if isinstance(exc, anthropic.APIConnectionError):
-        return "Could not reach Anthropic. Please check your network connection."
+        return _("Could not reach Anthropic. Please check your network connection.")
 
     # OpenAI errors
     if isinstance(exc, openai.AuthenticationError):
-        return "Invalid API key. Please check your OpenAI API key in AI Keys."
+        return _("Invalid API key. Please check your OpenAI API key in AI Keys.")
     if isinstance(exc, openai.PermissionDeniedError):
-        return "Your OpenAI API key does not have permission to use this model."
+        return _("Your OpenAI API key does not have permission to use this model.")
     if isinstance(exc, openai.RateLimitError):
-        return "OpenAI rate limit reached. Please wait a moment and try again."
+        return _("OpenAI rate limit reached. Please wait a moment and try again.")
     if isinstance(exc, openai.BadRequestError):
-        return "The request was rejected by OpenAI. Please try a different message."
+        return _("The request was rejected by OpenAI. Please try a different message.")
     if isinstance(exc, openai.APIStatusError):
-        return f"OpenAI API error ({exc.status_code}). Please try again."
+        return _("OpenAI API error ({status_code}). Please try again.").format(status_code=exc.status_code)
     if isinstance(exc, openai.APIConnectionError):
-        return "Could not reach OpenAI. Please check your network connection."
+        return _("Could not reach OpenAI. Please check your network connection.")
 
     # Google errors
     if isinstance(exc, google_exceptions.Unauthenticated):
-        return "Invalid API key. Please check your Google API key in AI Keys."
+        return _("Invalid API key. Please check your Google API key in AI Keys.")
     if isinstance(exc, google_exceptions.PermissionDenied):
-        return "Your Google API key does not have permission to use this model."
+        return _("Your Google API key does not have permission to use this model.")
     if isinstance(exc, google_exceptions.ResourceExhausted):
-        return "Google API rate limit reached. Please wait a moment and try again."
+        return _("Google API rate limit reached. Please wait a moment and try again.")
     if isinstance(exc, google_exceptions.InvalidArgument):
-        return "The request was rejected by Google. Please try a different message."
+        return _("The request was rejected by Google. Please try a different message.")
     if isinstance(exc, google_exceptions.ServiceUnavailable):
-        return "Could not reach Google. Please check your network connection."
+        return _("Could not reach Google. Please check your network connection.")
     if isinstance(exc, google_exceptions.GoogleAPICallError):
-        return f"Google API error ({exc.grpc_status_code or 'unknown'}). Please try again."
+        status_code = exc.grpc_status_code
+        if status_code is None:
+            status_code = "unknown"
+        return _("Google API error ({status_code}). Please try again.").format(status_code=status_code)
 
     # httpx transport errors
     if isinstance(exc, httpx.RemoteProtocolError):
-        return "The connection was interrupted. Please try again."
+        return _("The connection was interrupted. Please try again.")
 
     # Generic fallback
-    return "An error occurred while generating a response. Please try again."
+    return _("An error occurred while generating a response. Please try again.")
 
 
 def rag_retrieval_error_message(exc: Exception) -> str:
     """Map RAG retrieval exceptions to concise, user-facing error messages."""
     if isinstance(exc, DocumentNotFoundError):
-        return "The attached document could not be found or is no longer accessible."
+        return _("The attached document could not be found or is no longer accessible.")
     if isinstance(exc, RAGNotReadyError):
-        return "The attached document is still being processed. Please wait a moment and try again."
-    return "Failed to search the attached document. Please try again."
+        return _("The attached document is still being processed. Please wait a moment and try again.")
+    return _("Failed to search the attached document. Please try again.")
 
 
 class ChatStreamProcessor:

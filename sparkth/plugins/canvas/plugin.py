@@ -8,6 +8,7 @@ from typing import Any
 import sparkth.plugins.canvas.tools as canvas_tools
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.canvas.config import CanvasConfig
@@ -32,7 +33,11 @@ class CanvasPlugin(SparkthPlugin):
         super().__init__("canvas")
         CONFIG_SCHEMAS.add_item(self, CanvasConfig)
         DISPLAY_INFO.add_item(
-            self, DisplayInfo("Canvas", "Canvas LMS integration with tools for courses, modules, pages, and quizzes")
+            self,
+            DisplayInfo(
+                gettext_noop("Canvas"),
+                gettext_noop("Canvas LMS integration with tools for courses, modules, pages, and quizzes"),
+            ),
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             ("canvas-auth", [canvas_tools.canvas_authenticate]),

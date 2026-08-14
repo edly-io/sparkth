@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Message
@@ -88,7 +89,7 @@ async def get_conversation(
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Conversation not found",
+            detail=_("Conversation not found"),
         )
 
     messages = await service.get_conversation_messages(
@@ -147,7 +148,7 @@ async def get_last_conversation_message(
         user_id=cast(int, current_user.id),
     )
     if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Conversation not found"))
 
     msg = await service.get_last_conversation_message(
         session=session,

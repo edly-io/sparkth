@@ -19,6 +19,7 @@ from sparkth.lib.documents import (
     soft_delete_document,
     update_document_status,
 )
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
     ScannedPDFError,
@@ -214,15 +215,15 @@ async def _process_single_file(
         await session.commit()
     except ScannedPDFError:
         logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
-        await update_document_status(session, document_id, DocumentStatus.FAILED, ScannedPDFError.USER_MESSAGE)
+        await update_document_status(session, document_id, DocumentStatus.FAILED, str(ScannedPDFError.USER_MESSAGE))
         await session.commit()
     except GoogleDriveAPIError as e:
         logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await update_document_status(session, document_id, DocumentStatus.FAILED, "Google Drive error")
+        await update_document_status(session, document_id, DocumentStatus.FAILED, _("Google Drive error"))
         await session.commit()
     except (httpx.ConnectError, httpx.TimeoutException) as e:
         logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await update_document_status(session, document_id, DocumentStatus.FAILED, "Could not reach Google Drive")
+        await update_document_status(session, document_id, DocumentStatus.FAILED, _("Could not reach Google Drive"))
         await session.commit()
     except httpx.HTTPStatusError as e:
         logger.error("RAG processing failed for '%s': %s", log_name, e)
@@ -235,13 +236,13 @@ async def _process_single_file(
         await session.commit()
     except (RuntimeError, ValueError, OSError) as e:
         logger.error("RAG processing failed for '%s': %s", log_name, e)
-        await update_document_status(session, document_id, DocumentStatus.FAILED, "Processing failed")
+        await update_document_status(session, document_id, DocumentStatus.FAILED, _("Processing failed"))
         await session.commit()
     except IntegrityError:
         logger.error("RAG processing failed for '%s': database integrity error", log_name)
         await session.rollback()
         await session.refresh(drive_file)
-        await update_document_status(session, document_id, DocumentStatus.FAILED, "Database integrity error")
+        await update_document_status(session, document_id, DocumentStatus.FAILED, _("Database integrity error"))
         await session.commit()
     except Exception as exc:
         # Deliberate lifecycle backstop, not lazy catching: PROCESSING was committed
@@ -251,7 +252,7 @@ async def _process_single_file(
         # partial work, record the failure, and swallow (fully handled here).
         logger.exception("Unexpected error while processing '%s': %s", log_name, exc)
         await session.rollback()
-        await update_document_status(session, document_id, DocumentStatus.FAILED, "Processing failed")
+        await update_document_status(session, document_id, DocumentStatus.FAILED, _("Processing failed"))
         await session.commit()
     finally:
         session.expunge_all()
@@ -332,7 +333,7 @@ async def process_folder_rag(
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for i, task_result in enumerate(results):
         if isinstance(task_result, BaseException):
-            _, file_name = pending_with_names[i]
+            _drive_file, file_name = pending_with_names[i]
             logger.error(
                 "RAG processing failed for '%s': %s",
                 file_name,

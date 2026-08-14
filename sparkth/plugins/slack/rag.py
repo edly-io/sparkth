@@ -119,19 +119,19 @@ async def answer_question(
             user_id,
             config.allowed_sources or "all",
         )
-        return NO_FILES_RESOLVED_MESSAGE, ResponseType.NO_FILES_RESOLVED
+        return str(NO_FILES_RESOLVED_MESSAGE), ResponseType.NO_FILES_RESOLVED
 
     try:
         chunks = await agentic_retrieve_context(question, document_ids, agent_llm)
     except DocumentNotFoundError as exc:
         logger.error("Slack agentic RAG: document not found user=%d documents=%s: %s", user_id, document_ids, exc)
-        return DRIVE_FILE_NOT_FOUND_MESSAGE, ResponseType.DRIVE_FILE_NOT_FOUND
+        return str(DRIVE_FILE_NOT_FOUND_MESSAGE), ResponseType.DRIVE_FILE_NOT_FOUND
     except RAGNotReadyError as exc:
         logger.warning("Slack agentic RAG: document not ready user=%d documents=%s: %s", user_id, document_ids, exc)
-        return RAG_NOT_READY_MESSAGE, ResponseType.RAG_NOT_READY
+        return str(RAG_NOT_READY_MESSAGE), ResponseType.RAG_NOT_READY
     except RAGRetrievalError as exc:
         logger.error("Slack agentic RAG: retrieval error user=%d documents=%s: %s", user_id, document_ids, exc)
-        return RETRIEVAL_ERROR_MESSAGE, ResponseType.RETRIEVAL_ERROR
+        return str(RETRIEVAL_ERROR_MESSAGE), ResponseType.RETRIEVAL_ERROR
 
     logger.info("Slack agentic RAG: %d chunks for user=%d", len(chunks), user_id)
 

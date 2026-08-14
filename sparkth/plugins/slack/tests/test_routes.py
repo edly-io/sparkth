@@ -762,7 +762,7 @@ class TestDispatchEvent:
 
         slack_client.post_message.assert_awaited_once()
         _, kwargs = slack_client.post_message.call_args
-        assert kwargs["text"] == NO_AI_KEY_MESSAGE
+        assert kwargs["text"] == str(NO_AI_KEY_MESSAGE)
         mock_answer.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -795,7 +795,7 @@ class TestDispatchEvent:
 
         slack_client.post_message.assert_awaited_once()
         _, kwargs = slack_client.post_message.call_args
-        assert kwargs["text"] == AI_KEY_UNAVAILABLE_MESSAGE
+        assert kwargs["text"] == str(AI_KEY_UNAVAILABLE_MESSAGE)
         mock_answer.assert_not_awaited()
 
 

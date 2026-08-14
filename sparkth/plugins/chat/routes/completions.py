@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.language import resolve_language
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
@@ -81,18 +82,18 @@ async def chat_completion(
         )
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = "No AI Key found for the current user. Please configure an AI key in your chat plugin settings."
+        detail = _("No AI Key found for the current user. Please configure an AI key in your chat plugin settings.")
         await persist_pre_stream_error(session, service, request, user_id, detail)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
     except LLMConfigModelNotSetError as exc:
         logger.warning("LLMConfig %s has no model set: %s", request.llm_config_id, exc)
-        detail = "The selected AI key has no model configured. Go to AI Keys to set a model before chatting."
+        detail = _("The selected AI key has no model configured. Go to AI Keys to set a model before chatting.")
         await persist_pre_stream_error(session, service, request, user_id, detail)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail) from exc
     except LLMConfigInactiveError as exc:
         logger.warning("LLMConfig %s is inactive for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = (
-            "The selected AI key is deactivated. Go to AI Keys to reactivate it,"
+        detail = _(
+            "The selected AI key is deactivated. Go to AI Keys to reactivate it, "
             "or choose a different one in chat settings."
         )
         await persist_pre_stream_error(session, service, request, user_id, detail)
@@ -231,7 +232,7 @@ async def chat_completion(
             if unresolved_messages is None:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Chat completion failed",
+                    detail=_("Chat completion failed"),
                 )
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]
         else:
@@ -319,7 +320,7 @@ async def chat_completion(
 
     except RAGIntentRouterError as e:
         logger.error("RAG intent router failed for user %s conversation %s: %s", current_user.id, conversation.id, e)
-        detail = "Failed to determine retrieval intent. Please try again."
+        detail = _("Failed to determine retrieval intent. Please try again.")
         if conversation.id is not None:
             await service.add_message(
                 session=session,
@@ -351,5 +352,5 @@ async def chat_completion(
         logger.error("Chat completion failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Chat completion failed",
+            detail=_("Chat completion failed"),
         ) from e

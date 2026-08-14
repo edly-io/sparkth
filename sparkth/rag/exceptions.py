@@ -1,5 +1,7 @@
 """RAG-specific exceptions."""
 
+from sparkth.lib.i18n import lazy_gettext
+
 
 class RAGError(Exception):
     """Base exception for RAG retrieval errors."""
@@ -25,14 +27,14 @@ class RAGRetrievalError(RAGError):
 class ScannedPDFError(RAGError):
     """Raised when a PDF appears to be scanned/image-only."""
 
-    USER_MESSAGE = (
+    USER_MESSAGE = lazy_gettext(
         "This PDF appears to be scanned (image-only pages with no extractable text). "
         "OCR-based ingestion is not yet supported — please upload a text-based PDF."
     )
 
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name
-        super().__init__(self.USER_MESSAGE)
+        super().__init__(str(self.USER_MESSAGE))
 
 
 class RAGIngestionError(RAGError):
