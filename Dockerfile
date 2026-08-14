@@ -35,7 +35,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 # -------------------
-# Stage 3: Runtime image
+# Stage 3: Compile translation catalogs
+# -------------------
+# pybabel lives in the dev dependency group, which must stay out of the runtime
+# image. Compile the committed .po catalogs in a throwaway copy of the builder
+# (dev group installed, still lockfile-pinned); the runtime stage takes only
+# sparkth/locale, now holding the compiled .mo files the app loads.
+FROM builder AS catalog-builder
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+RUN uv run --frozen pybabel compile -d sparkth/locale
+
+# -------------------
+# Stage 4: Runtime image
 # -------------------
 FROM python:3.14-slim-trixie
 
@@ -47,6 +60,7 @@ RUN groupadd --system --gid 999 nonroot \
  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
 COPY --from=builder      --chown=nonroot:nonroot /app            /app
+COPY --from=catalog-builder --chown=nonroot:nonroot /app/sparkth/locale /app/sparkth/locale
 COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 
 ENV PATH="/app/.venv/bin:$PATH"
