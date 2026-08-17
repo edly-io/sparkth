@@ -133,6 +133,26 @@ cli: ## Run CLI tool (make cli -- users --help)
 mypy: ## Run mypy type checking
 	uv run mypy --strict sparkth/ tests/ scripts/
 
+##@ Internationalization
+# Static-translation workflow for the backend (see docs/guides/translations.md).
+# `.po` catalogs are committed; the `.pot` template and compiled `.mo` files are
+# build artifacts (git-ignored).
+.PHONY: i18n.extract
+i18n.extract: ## Extract translatable strings from sparkth/ into sparkth/locale/messages.pot
+	uv run pybabel extract -F babel.cfg -k lazy_gettext --project=sparkth -o sparkth/locale/messages.pot sparkth
+
+.PHONY: i18n.init
+i18n.init: i18n.extract ## Create the catalog for a new language (make i18n.init -- es)
+	uv run pybabel init -i sparkth/locale/messages.pot -d sparkth/locale -l $(ARGS)
+
+.PHONY: i18n.update
+i18n.update: i18n.extract ## Re-extract and merge new/changed strings into every language catalog
+	uv run pybabel update -i sparkth/locale/messages.pot -d sparkth/locale
+
+.PHONY: i18n.compile
+i18n.compile: ## Compile .po catalogs to the .mo files loaded at runtime
+	uv run pybabel compile -d sparkth/locale
+
 ##@ Documentation
 # Docs deps live in the isolated `docs` dependency group, kept out of the default dev install.
 .PHONY: docs

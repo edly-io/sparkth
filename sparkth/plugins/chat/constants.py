@@ -30,3 +30,7 @@ LLM_PROVIDER_API_ERRORS = (
 )
 
 LMS_RULES = (Path(__file__).parent / "assets" / "lms_rules_system_prompt.txt").read_text()
+
+# Category reported for a tool the registry never discovered. A missing category
+# degrades one analytics dimension; it must never break emission.
+UNKNOWN_TOOL_CATEGORY = "unknown"

@@ -336,11 +336,11 @@ async def resolve_tools(
         logger.info("Tools explicitly disabled")
         return None
     if request.tools == "*" or request.tools == "all":
-        tools = await tool_registry.get_all_tools()
+        tools = tool_registry.get_all_tools()
         logger.info("Auto-including all %d available tools (default)", len(tools))
         return tools
     if request.tools and isinstance(request.tools, list):
-        tools = await tool_registry.get_tools_by_names(request.tools)
+        tools = tool_registry.get_tools_by_names(request.tools)
         if not tools:
             logger.warning("No tools found for: %s", request.tools)
         return tools

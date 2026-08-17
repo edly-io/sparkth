@@ -9,6 +9,23 @@ class UserBase(BaseModel):
     email: EmailStr
 
 
+class User(UserBase):
+    id: int
+    name: str
+    username: str
+    # Derived from the permission system (holding the global admin role), not a stored
+    # column. Defaults to False so endpoints that return the ORM user directly (e.g.
+    # register) report a non-admin; /user/me computes and sets the real value.
+    is_admin: bool = False
+    email_verified: bool
+    # The raw stored preference: None means the user never chose one and the
+    # platform default applies. Deliberately not resolved here so the frontend can
+    # tell "never chose" from "chose English".
+    language: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserCreate(UserBase):
     name: str
     username: str
@@ -19,19 +36,6 @@ class UserCreate(UserBase):
     def _check_password(cls, v: str) -> str:
         validate_password_complexity(v)
         return v
-
-
-class User(UserBase):
-    id: int
-    name: str
-    username: str
-    # Derived from the permission system (holding the global admin role), not a stored
-    # column. Defaults to False so endpoints that return the ORM user directly (e.g.
-    # register) report a non-admin; /user/me computes and sets the real value.
-    is_admin: bool = False
-    email_verified: bool
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):

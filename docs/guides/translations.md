@@ -1,0 +1,110 @@
+# Translations (backend i18n)
+
+The backend translates its user-facing strings (API error details, bot
+messages, emails) with gettext. This guide covers how the locale is resolved,
+how to mark a string, and how the catalog workflow runs. The public API lives
+in `sparkth.lib.i18n` (see the [Python API reference](../reference/lib.md)).
+
+## How the locale is resolved
+
+Every request runs under a locale seeded by `LocaleMiddleware`:
+
+1. The `Accept-Language` header is negotiated against the platform allowlist
+   (`SUPPORTED_LANGUAGES`, exposed at `GET /api/v1/languages`). Entries are
+   taken in listing order, with anything after a `;` discarded: browsers list
+   languages by descending preference, so the order alone carries the
+   preference. Matching is exact and case-sensitive, so `en-US` does not
+   match `en`, but a browser sending `en-US,en` still lands on `en` through
+   its next entry.
+2. When nothing offered is supported (or the header is absent), the platform
+   [`DEFAULT_LANGUAGE`](../reference/configuration.md#default_language)
+   applies.
+
+Code that runs outside a request (background tasks, CLI) sees
+`DEFAULT_LANGUAGE`, or installs a specific locale with
+`sparkth.core.i18n.locale_context` (tests do this too).
+
+A signed-in user's stored `User.language` does not take part yet: the
+middleware runs before authentication, so it never sees the user row. Binding
+that preference over the negotiated header belongs in the authentication
+dependency, where the audit actor is bound, and is not wired up.
+
+## Marking strings
+
+Import the marking functions from `sparkth.lib.i18n`, never from
+`sparkth.core.*`:
+
+```python
+from sparkth.lib.i18n import _, lazy_gettext
+```
+
+There are three cases:
+
+- **A literal evaluated during a request**: wrap it in `_()` at the point of
+  use.
+
+  ```python
+  raise HTTPException(status_code=401, detail=_("Incorrect username or password"))
+  ```
+
+- **An f-string**: `pybabel extract` cannot see inside f-strings. Convert to
+  `str.format` on the translated template:
+
+  ```python
+  # before: f"Role not found: {role_name}"
+  _("Role not found: {role_name}").format(role_name=role_name)
+  ```
+
+- **A module-level constant**: module bodies run at import, before any request
+  locale exists. Mark with `lazy_gettext()`, which defers translation until
+  the value is rendered, and call `str()` on it at the boundary (response
+  serialization, message dispatch):
+
+  ```python
+  GREETING_MESSAGE = lazy_gettext("Hello! How can I help you?")
+  ...
+  await post_message(str(GREETING_MESSAGE))
+  ```
+
+Only user-facing text is marked. Log lines, LLM prompt templates, MCP tool
+descriptions, and OpenAPI field descriptions stay English.
+
+## Catalog workflow
+
+Translations are looked up across every directory registered on the
+`LOCALE_DIRS` hook (`sparkth.lib.i18n`). Core registers `sparkth/locale/` (its
+README recaps this table), one directory per language; a plugin that ships its
+own catalogs registers its directory from its `__init__` (see the
+[plugin guide](plugins.md#translations-optional)). `.po` files are committed
+source; the `.pot` template and compiled `.mo` files are git-ignored build
+artifacts.
+
+| Command | What it does |
+|---|---|
+| `make i18n.extract` | Scan `sparkth/` for marked strings into `messages.pot` |
+| `make i18n.init -- <lang>` | Create the catalog for a new language |
+| `make i18n.update` | Re-extract and merge changes into every catalog |
+| `make i18n.compile` | Compile `.po` to the `.mo` files loaded at runtime |
+
+The day-to-day loop after marking or changing strings: `make i18n.update`,
+fill in the new `msgstr` entries in each `sparkth/locale/<lang>/LC_MESSAGES/messages.po`,
+then `make i18n.compile` (required before the app can serve the translations).
+
+## Adding a language
+
+1. Add the BCP 47 tag to `SUPPORTED_LANGUAGES` in `sparkth/core/config.py`
+   (a language is added only once a speaker has reviewed generated content in
+   it; see the comment there).
+2. `make i18n.init -- <lang>`, translate the catalog, `make i18n.compile`.
+3. The `/api/v1/languages` endpoint and `DEFAULT_LANGUAGE` validation pick up
+   the new tag automatically.
+
+## Testing translated code
+
+Tests run without compiled catalogs; an unmarked locale falls back to the
+source string, so assertions against English text keep working. To assert on
+an actual translation, build a catalog in `tmp_path` with
+`babel.messages.mofile.write_mo`, register it with
+`LOCALE_DIRS.add_item(tmp_path)` (and `LOCALE_DIRS.remove(tmp_path)` on
+teardown), and wrap the call in `locale_context("<lang>")`
+(see `tests/core/i18n/test_translate.py`).

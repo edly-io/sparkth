@@ -22,7 +22,6 @@ class ChatService:
         provider: str,
         model: str,
         title: str | None = None,
-        system_prompt: str | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
@@ -30,7 +29,6 @@ class ChatService:
             provider=provider,
             model=model,
             title=title,
-            system_prompt=system_prompt,
         )
 
         session.add(conversation)

@@ -168,18 +168,14 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
                 user = await get_user_by_username(username, session)
                 if user is None or user.id is None:
                     return None, True
-                allowed = await _check_plugin_access_async(user.id, plugin_name, session, check_system_enabled=True)
-                return user, allowed
+                return user, await _user_may_use_plugin(user.id, plugin_name, session)
         except (DatabaseError, OperationalError) as e:
             logger.error(f"Database error checking plugin access for user '{username}' and plugin '{plugin_name}': {e}")
             return None, False
 
 
-async def _check_plugin_access_async(
-    user_id: int, plugin_name: str, session: AsyncSession, check_system_enabled: bool = False
-) -> bool:
-    """
-    Shared async logic for checking plugin access.
+async def _user_may_use_plugin(user_id: int, plugin_name: str, session: AsyncSession) -> bool:
+    """Whether this user may reach this plugin, by both switches that can turn it off.
 
     Reads the system switch and the user's own preference in one query. The join is a
     LEFT OUTER one, and it is keyed on the user as well as the plugin: an inner join would
@@ -194,7 +190,6 @@ async def _check_plugin_access_async(
         user_id: The user ID to check access for
         plugin_name: The name of the plugin
         session: The async database session
-        check_system_enabled: If True, also checks if the plugin is enabled at system level
 
     Returns:
         bool: True if user has access, False otherwise
@@ -219,7 +214,7 @@ async def _check_plugin_access_async(
 
     system_enabled, user_enabled = row
 
-    if check_system_enabled and not system_enabled:
+    if not system_enabled:
         logger.debug(f"Plugin '{plugin_name}' is disabled at system level")
         return False
 
@@ -227,4 +222,4 @@ async def _check_plugin_access_async(
         logger.debug(f"No UserPlugin record for user {user_id} and plugin '{plugin_name}'. Allowing access by default.")
         return True
 
-    return bool(user_enabled)
+    return user_enabled

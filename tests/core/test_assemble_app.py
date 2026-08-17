@@ -1,7 +1,7 @@
 """Tests for the DB-free app factory in sparkth.main (assemble_app)."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
@@ -9,6 +9,7 @@ from fastapi.routing import APIRoute, iter_route_contexts
 from starlette.routing import Mount
 
 from sparkth.core.config import get_settings
+from sparkth.core.i18n.middleware import LocaleMiddleware
 from sparkth.main import app, assemble_app, mount_frontend
 
 PLUGIN_SENTINEL_PATHS = [
@@ -35,6 +36,12 @@ def _route_paths(application: FastAPI) -> set[str]:
 
 def test_assemble_app_includes_core_routes() -> None:
     assert "/api/v1/auth/login" in _route_paths(assemble_app())
+
+
+def test_assemble_app_wires_the_locale_middleware() -> None:
+    """Every request must run under a seeded locale so `_()` calls translate."""
+    middleware_classes = [cast(Any, middleware.cls) for middleware in assemble_app().user_middleware]
+    assert LocaleMiddleware in middleware_classes
 
 
 @pytest.mark.parametrize("path", PLUGIN_SENTINEL_PATHS)
