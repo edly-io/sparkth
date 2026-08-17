@@ -22,7 +22,7 @@ PLUGIN_SENTINEL_PATHS = [
 def _route_paths(application: FastAPI) -> set[str]:
     """Every APIRoute path, prefixes applied.
 
-    Since FastAPI 0.140 include_router() no longer copies the sub-routes into
+    Since FastAPI 0.137 include_router() no longer copies the sub-routes into
     application.routes: it appends a single lazy _IncludedRouter branch instead.
     iter_route_contexts flattens those branches back into per-route contexts
     whose .path carries the include prefix.

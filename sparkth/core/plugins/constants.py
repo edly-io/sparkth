@@ -10,3 +10,7 @@ import re
 # ``/dashboard/<name>``) and is the key joining the backend plugin, its DB row,
 # and its frontend counterpart.
 PLUGIN_NAME_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+
+# The Authorization scheme the plugin access gate reads the caller's token from, compared
+# against the header's scheme lowercased (RFC 7235 makes it case-insensitive).
+BEARER_SCHEME = "bearer"

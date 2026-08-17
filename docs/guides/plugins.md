@@ -283,6 +283,32 @@ Analytics event schemas register through `register_event_schema(self, MyEvent)`:
 the plugin instance's declared name. The router above is reachable at
 `http://localhost:7727/api/v1/my-app/`.
 
+### Who can reach plugin routes?
+
+Every route you register is gated by `PluginAccessMiddleware`. A request from a caller who
+has turned your plugin off in their settings — or a request to a plugin disabled
+system-wide — is answered with `403` before it reaches your handler, so a handler never has
+to check plugin access itself.
+
+The gate identifies the caller from the request's bearer token. A request carrying no
+readable token passes straight through it: a per-user preference is meaningless without a
+user, so endpoints that are called by someone other than a logged-in user — an OAuth
+callback, an inbound webhook — keep working. Those endpoints are reachable regardless of
+anyone's plugin settings, so authenticate them the way you would any other public endpoint
+(a signed state parameter, a request signature) rather than relying on the gate.
+
+That applies to the system-wide switch too: disabling a plugin turns its endpoints off for
+every *identified* caller, but its unauthenticated endpoints stay reachable, because the
+gate has no caller to check them against. Treat "disabled" as a per-caller answer, not as a
+kill switch for the plugin's HTTP surface.
+
+The gate covers HTTP routes and nothing else — **a plugin's MCP tools are not gated at
+all**. `/ai/mcp` is a mount rather than a plugin route, so no plugin name resolves for a
+request to it, and the MCP surface carries no caller identity to check a preference
+against. Disabling a plugin, for one user or system-wide, does not stop its tools being
+called over MCP. If a tool must not run for someone, enforce that in the tool itself; do
+not rely on the plugin being switched off.
+
 ## Frontend Metadata
 
 The backend is the single source of truth for what the frontend shows about a plugin. Declare it through three per-concern hooks from `sparkth.lib.frontend.hooks`, registered in `__init__` like every other hook. Human-facing names are passed positionally:
