@@ -14,7 +14,7 @@ the dependency as tokens or user lookup change.
 """
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -61,10 +61,27 @@ async def get_user_by_username(username: str, session: AsyncSession) -> User | N
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     session: AsyncSession = Depends(get_async_session),
 ) -> User:
-    """Resolve the authenticated user, rejecting the request when the token names no one."""
+    """Resolve the authenticated user, rejecting the request when the token names no one.
+
+    Reuses the user ``PluginAccessMiddleware`` left on ``request.state`` when it has already
+    resolved this request's caller, rather than decoding the same token and re-reading the
+    same row. Only that gate writes the attribute, and only from this request's own token,
+    so the answer is the one this dependency would have computed. Requests it never
+    identified — core routes, which it does not gate — fall through to the full lookup.
+
+    The reused instance is detached: the gate's session has closed by the time the route
+    runs. That is safe because ``User`` maps only columns, which stay readable on a detached
+    instance; a test in ``tests/core/plugins/test_middleware.py`` pins that, since adding a
+    relationship to ``User`` is what would make this unsafe.
+    """
+    cached_user = getattr(request.state, "user", None)
+    if isinstance(cached_user, User):
+        return cached_user
+
     username = decode_token_username(credentials.credentials)
     if username is None:
         raise HTTPException(

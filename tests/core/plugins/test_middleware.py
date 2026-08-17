@@ -6,14 +6,21 @@ the whole chain is exercised — resolving which plugin owns the URL, resolving 
 from the bearer token, and the access lookup itself.
 """
 
-from typing import cast
+import re
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI, Request
+from fastapi.routing import RouteContext, iter_route_contexts
 from httpx import AsyncClient
+from sqlalchemy import event, inspect
 from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.routing import BaseRoute
 
+from sparkth.core.db import get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.middleware import PluginAccessMiddleware
@@ -22,6 +29,44 @@ from sparkth.main import assemble_app
 
 CHAT_COMPLETIONS_PATH = "/api/v1/chat/completions"
 SLACK_CALLBACK_PATH = "/api/v1/slack/oauth/callback"
+
+
+class _CountingFlattener:
+    """Stands in for ``iter_route_contexts``, recording how often the table is flattened."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, routes: Sequence[BaseRoute]) -> Iterator[RouteContext]:
+        self.calls += 1
+        return iter_route_contexts(routes)
+
+
+# The user table, quoted or not, but never the user_plugins table beside it.
+_USER_SELECT = re.compile(r'^select\b.*\bfrom\s+"?user"?(\s|$)')
+
+
+class _UserSelectCounter:
+    """Counts the SELECTs issued against the user table on the shared engine."""
+
+    def __init__(self) -> None:
+        self.count = 0
+
+    def __call__(self, conn: Any, cursor: Any, statement: str, *args: Any) -> None:
+        if _USER_SELECT.match(" ".join(statement.split()).lower()):
+            self.count += 1
+
+
+@contextmanager
+def _counting_user_selects() -> Iterator[_UserSelectCounter]:
+    """Count user-table reads for the duration of the block."""
+    counter = _UserSelectCounter()
+    engine = get_engine().sync_engine
+    event.listen(engine, "before_cursor_execute", counter)
+    try:
+        yield counter
+    finally:
+        event.remove(engine, "before_cursor_execute", counter)
 
 
 def _request(app: FastAPI, method: str, path: str) -> Request:
@@ -103,6 +148,21 @@ class TestRoutePluginResolution:
         middleware = PluginAccessMiddleware(app)
 
         assert middleware._get_route_plugin_name(_request(app, "GET", "/api/v1/nothing-here")) is None
+
+    def test_flattens_the_route_table_once_and_reuses_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The table is fixed once the app is assembled, so flattening it per request is
+        repeated work on a path every request takes. Resolution must stay correct across
+        both requests — a cache that answers the second one wrongly is worse than no cache."""
+        app = assemble_app()
+        middleware = PluginAccessMiddleware(app)
+        flattener = _CountingFlattener()
+        monkeypatch.setattr("sparkth.core.plugins.middleware.iter_route_contexts", flattener)
+
+        first = middleware._get_route_plugin_name(_request(app, "POST", CHAT_COMPLETIONS_PATH))
+        second = middleware._get_route_plugin_name(_request(app, "GET", "/api/v1/slack/oauth/status"))
+
+        assert (first, second) == ("chat", "slack")
+        assert flattener.calls == 1
 
 
 class TestExcludedPaths:
@@ -218,6 +278,60 @@ class TestPluginAccessGate:
         assert response.status_code != 403
         assert response.json()["detail"] == "User not found"
 
+    async def test_blocks_a_plugin_disabled_system_wide_for_a_user_with_no_preference(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """The system switch does not depend on the caller having a preference row, and most
+        callers have none. Resolving the switch and the preference together must keep the
+        plugin's own row even when nothing joins to it — otherwise the administrative
+        control silently stops applying to exactly the users who never opened their
+        settings."""
+        user = await _seed_user(session, "no-preference-system-disabled")
+        await _seed_plugin(session, "chat", False)
+
+        response = await client.post(
+            CHAT_COMPLETIONS_PATH,
+            json={"messages": []},
+            headers=_auth_headers(user.username),
+        )
+
+        assert response.status_code == 403
+        assert "chat" in response.json()["detail"]
+
+    async def test_lets_through_a_plugin_only_another_user_disabled(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """The preference read must be the caller's own. Resolving the plugin and the
+        preference together means keying that lookup on the user as well — miss it, and one
+        user turning a plugin off would turn it off for everybody."""
+        caller = await _seed_user(session, "unaffected-caller")
+        other = await _seed_user(session, "opted-out-user")
+        plugin = await _seed_plugin(session, "chat", True)
+        await _seed_user_plugin(session, other, plugin, False)
+
+        response = await client.post(
+            CHAT_COMPLETIONS_PATH,
+            json={"messages": []},
+            headers=_auth_headers(caller.username),
+        )
+
+        assert response.status_code != 403
+
+    async def test_lets_through_a_plugin_the_registry_has_never_seen(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        """No row is not the same as a disabled row: a plugin absent from the registry
+        stays reachable rather than being treated as switched off."""
+        user = await _seed_user(session, "unregistered-plugin-user")
+
+        response = await client.post(
+            CHAT_COMPLETIONS_PATH,
+            json={"messages": []},
+            headers=_auth_headers(user.username),
+        )
+
+        assert response.status_code != 403
+
     async def test_blocks_when_the_access_lookup_fails(
         self, client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -252,3 +366,40 @@ class TestPluginAccessGate:
         )
 
         assert response.json()["detail"] == "Could not validate credentials"
+
+
+class TestCallerIsResolvedOnce:
+    """The gate and ``get_current_user`` answer the same question about the same request,
+    so the second one reuses the first one's answer instead of repeating the work."""
+
+    async def test_a_gated_route_reads_the_user_once(self, client: AsyncClient, session: AsyncSession) -> None:
+        user = await _seed_user(session, "reuse-user")
+        plugin = await _seed_plugin(session, "chat", True)
+        await _seed_user_plugin(session, user, plugin, True)
+
+        with _counting_user_selects() as counter:
+            await client.post(
+                CHAT_COMPLETIONS_PATH,
+                json={"messages": []},
+                headers=_auth_headers(user.username),
+            )
+
+        assert counter.count == 1
+
+    async def test_an_ungated_route_still_reads_the_user(self, client: AsyncClient, session: AsyncSession) -> None:
+        """A core route never reaches the gate, so nothing has been loaded for the
+        dependency to reuse and it must still resolve the caller itself."""
+        user = await _seed_user(session, "core-route-user")
+
+        with _counting_user_selects() as counter:
+            response = await client.get("/api/v1/user/me", headers=_auth_headers(user.username))
+
+        assert response.status_code == 200
+        assert counter.count == 1
+
+    def test_the_user_model_carries_no_relationships(self) -> None:
+        """What makes handing the loaded user to the route safe: the gate's session has
+        closed by then, so the instance the route receives is detached. Detached is
+        harmless for plain columns and raises on a relationship — adding one to ``User``
+        would make this reuse unsafe, so the guard fails loudly rather than at runtime."""
+        assert list(inspect(User).relationships) == []
