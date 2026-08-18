@@ -137,9 +137,16 @@ mypy: ## Run mypy type checking
 # Static-translation workflow for the backend (see docs/guides/translations.md).
 # `.po` catalogs are committed; the `.pot` template and compiled `.mo` files are
 # build artifacts (git-ignored).
+# Version comes from the installed package so the catalog headers never go stale
+# against pyproject.toml.
+SPARKTH_VERSION := $(shell uv run python -c "import importlib.metadata; print(importlib.metadata.version('sparkth'))")
+
 .PHONY: i18n.extract
 i18n.extract: ## Extract translatable strings from sparkth/ into sparkth/locale/messages.pot
-	uv run pybabel extract -F babel.cfg -k lazy_gettext -k gettext_noop --project=sparkth -o sparkth/locale/messages.pot sparkth
+	uv run pybabel extract -F babel.cfg -k lazy_gettext -k gettext_noop \
+		--project=sparkth --version=$(SPARKTH_VERSION) \
+		--copyright-holder="Edly" --msgid-bugs-address=https://github.com/edly-io/sparkth/issues \
+		-o sparkth/locale/messages.pot sparkth
 
 .PHONY: i18n.init
 i18n.init: i18n.extract ## Create the catalog for a new language (make i18n.init -- es)
