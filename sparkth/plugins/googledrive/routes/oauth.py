@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.googledrive.oauth import (
@@ -37,7 +38,7 @@ def get_authorization_url(
     user_id: int = Depends(require_user_id),
 ) -> GoogleDriveAuthorizationUrlResponse:
     """Generate Google OAuth authorization URL."""
-    client_id, _, redirect_uri = get_drive_credentials()
+    client_id, _client_secret, redirect_uri = get_drive_credentials()
     url = generate_authorization_url(user_id, client_id, redirect_uri, login_hint=current_user.email)
     return GoogleDriveAuthorizationUrlResponse(url=url)
 
@@ -55,16 +56,16 @@ async def oauth_callback(
         state_data = decode_state(state)
         user_id = state_data["user_id"]
     except SignatureExpired:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("OAuth state expired. Please try again."))
     except BadSignature, KeyError, ValueError, TypeError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("Invalid OAuth state."))
 
     client_id, client_secret, redirect_uri = get_drive_credentials()
 
     try:
         token_data = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange authorization code.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("Failed to exchange authorization code."))
 
     refresh_token = token_data.get("refresh_token", "")
     if not refresh_token:
@@ -75,7 +76,7 @@ async def oauth_callback(
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No refresh token received. Please disconnect and reconnect Google Drive.",
+            detail=_("No refresh token received. Please disconnect and reconnect Google Drive."),
         )
 
     try:
@@ -90,7 +91,7 @@ async def oauth_callback(
     except KeyError, ValueError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save tokens.",
+            detail=_("Failed to save tokens."),
         )
 
     return RedirectResponse(url="/dashboard/resources?connected=true")
@@ -104,7 +105,7 @@ async def disconnect_drive(
     """Disconnect Google Drive by revoking and deleting tokens."""
     token_record = await get_token_record(session, user_id)
     if not token_record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google Drive not connected")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Google Drive not connected"))
 
     try:
         access_token = decrypt_token(token_record.access_token_encrypted)
@@ -127,7 +128,7 @@ async def get_connection_status(
         return GoogleDriveConnectionStatusResponse(connected=False)
 
     try:
-        client_id, client_secret, _ = get_drive_credentials()
+        client_id, client_secret, _redirect_uri = get_drive_credentials()
         access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
         user_info = await get_user_info(access_token)
         return GoogleDriveConnectionStatusResponse(

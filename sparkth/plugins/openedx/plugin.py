@@ -3,6 +3,7 @@ from typing import Any
 
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.openedx import tools as openedx_tools
@@ -27,7 +28,11 @@ class OpenEdxPlugin(SparkthPlugin):
         super().__init__("open-edx")
         CONFIG_SCHEMAS.add_item(self, OpenEdxConfig)
         DISPLAY_INFO.add_item(
-            self, DisplayInfo("Open edX", "Open edX integration with tools for courses, sections, and units")
+            self,
+            DisplayInfo(
+                gettext_noop("Open edX"),
+                gettext_noop("Open edX integration with tools for courses, sections, and units"),
+            ),
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             (

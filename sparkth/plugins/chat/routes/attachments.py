@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.dependencies import get_owned_conversation
@@ -61,7 +62,7 @@ async def attach_document_to_conversation(
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found or not accessible",
+            detail=_("Document not found or not accessible"),
         )
     attachment = await service.attach_document(
         session,
@@ -95,7 +96,7 @@ async def detach_document_from_conversation(
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found or not accessible",
+            detail=_("Document not found or not accessible"),
         )
     await service.detach_document(
         session,

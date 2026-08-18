@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.plugins.slack.config import SlackSettings, get_slack_settings
 from sparkth.plugins.slack.enums import ConnectionEventType
@@ -59,11 +60,11 @@ async def oauth_callback(
     except SignatureExpired as exc:
         logger.warning("Slack OAuth state expired for callback request")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth state expired. Please try again."
+            status_code=status.HTTP_400_BAD_REQUEST, detail=_("OAuth state expired. Please try again.")
         ) from exc
     except (BadSignature, KeyError, ValueError, TypeError) as exc:
         logger.warning("Invalid Slack OAuth state received: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.") from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("Invalid OAuth state.")) from exc
 
     creds = get_slack_credentials()
 
@@ -72,12 +73,12 @@ async def oauth_callback(
     except (ValueError, httpx.HTTPStatusError) as exc:
         logger.error("Slack OAuth code exchange failed for user %s: %s", user_id, exc)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange Slack authorization code."
+            status_code=status.HTTP_400_BAD_REQUEST, detail=_("Failed to exchange Slack authorization code.")
         ) from exc
     except httpx.RequestError as exc:
         logger.error("Network error during Slack OAuth for user %s: %s", user_id, exc)
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not reach Slack. Please try again."
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=_("Could not reach Slack. Please try again.")
         ) from exc
 
     try:
@@ -93,19 +94,19 @@ async def oauth_callback(
         logger.warning("User %s already has an active Slack workspace connected", user_id)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You already have a Slack workspace connected. Disconnect it first before connecting a new one.",
+            detail=_("You already have a Slack workspace connected. Disconnect it first before connecting a new one."),
         ) from exc
     except WorkspaceAlreadyConnectedError as exc:
         logger.warning("Slack workspace %s already connected to another account", token_data.get("team", {}).get("id"))
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This Slack workspace is already connected to another account.",
+            detail=_("This Slack workspace is already connected to another account."),
         ) from exc
     except (KeyError, TypeError) as exc:
         logger.error("Unexpected Slack token response structure for user %s: %s", user_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected response from Slack. Please try again.",
+            detail=_("Unexpected response from Slack. Please try again."),
         ) from exc
 
     try:
@@ -134,7 +135,7 @@ async def disconnect_workspace(
     workspace = await service.get(session, user_id)
     if not workspace:
         logger.warning("Disconnect requested but no workspace found for user %d", user_id)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Slack workspace not connected"))
 
     try:
         session.add(

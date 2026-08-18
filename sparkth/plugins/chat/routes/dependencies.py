@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.service import ChatService, get_chat_service
@@ -24,5 +25,5 @@ async def get_owned_conversation(
         user_id=cast(int, current_user.id),
     )
     if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Conversation not found"))
     return conversation

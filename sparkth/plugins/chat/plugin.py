@@ -8,6 +8,7 @@ from sparkth.lib.frontend.hooks import (
     FrontendApp,
     SidebarEntry,
 )
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
@@ -35,9 +36,14 @@ class ChatPlugin(SparkthPlugin):
         CONFIG_SCHEMAS.add_item(self, ChatUserConfig)
         CONFIG_ADAPTERS.add_item(self, ChatConfigAdapter())
         DISPLAY_INFO.add_item(
-            self, DisplayInfo("Create Course", "Transform your resources into courses with AI", icon="plus")
+            self,
+            DisplayInfo(
+                gettext_noop("Create Course"),
+                gettext_noop("Transform your resources into courses with AI"),
+                icon="plus",
+            ),
         )
-        SIDEBAR_ENTRIES.add_item(self, SidebarEntry("Create Course", icon="plus", order=1))
+        SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Create Course"), icon="plus", order=1))
         FRONTEND_APPS.add_item(self, FrontendApp())
 
         for event_schema in (

@@ -13,6 +13,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.config import get_googledrive_settings
@@ -53,7 +54,7 @@ async def list_files(
     )
     folder = folder_result.first()
     if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
 
     base_query = select(DriveFile).where(
         DriveFile.folder_id == folder_id,
@@ -105,9 +106,9 @@ async def upload_file(
     )
     folder = result.first()
     if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
 
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     content = await file.read()
@@ -115,7 +116,8 @@ async def upload_file(
     if len(content) > max_upload_bytes:
         limit_mb = max_upload_bytes / (1024 * 1024)
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File size exceeds %.0fMB limit." % limit_mb
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=_("File size exceeds {limit:.0f}MB limit.").format(limit=limit_mb),
         )
     mime_type = file.content_type or "application/octet-stream"
 
@@ -175,7 +177,7 @@ async def get_file(
     )
     drive_file = result.first()
     if not drive_file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("File not found"))
 
     doc = None
     if drive_file.document_id is not None:
@@ -212,7 +214,7 @@ async def get_file_rag_status(
     )
     drive_file = result.first()
     if not drive_file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("File not found"))
 
     doc = None
     if drive_file.document_id is not None:
@@ -243,7 +245,7 @@ async def get_folder_rag_status(
     )
     folder = folder_result.first()
     if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
 
     files_result = await session.exec(
         select(DriveFile).where(
@@ -290,9 +292,9 @@ async def download_file(
     )
     drive_file = db_result.first()
     if not drive_file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("File not found"))
 
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     media_type = drive_file.mime_type or "application/octet-stream"
@@ -339,9 +341,9 @@ async def rename_file(
     )
     drive_file = db_result.first()
     if not drive_file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("File not found"))
 
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     try:
@@ -349,7 +351,7 @@ async def rename_file(
             await client.rename_file(drive_file.drive_file_id, request.name)
     except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
         logger.error("Failed to rename file %s: %s", file_id, e)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to rename file.")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=_("Failed to rename file."))
 
     drive_file.name = request.name
     drive_file.update_timestamp()
@@ -392,7 +394,7 @@ async def delete_file(
     )
     drive_file = result.first()
     if not drive_file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("File not found"))
 
     await soft_delete_drive_file(session, drive_file)
     await session.commit()
@@ -408,7 +410,7 @@ async def browse_drive(
     session: AsyncSession = Depends(get_async_session),
 ) -> DriveBrowseResponse:
     """Browse Google Drive contents."""
-    client_id, client_secret, _ = get_drive_credentials()
+    client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 
     async with GoogleDriveClient(access_token) as client:

@@ -125,7 +125,7 @@ async def test_answer_question_returns_no_files_response_when_no_files_resolved(
         )
 
     assert response_type == ResponseType.NO_FILES_RESOLVED
-    assert answer == NO_FILES_RESOLVED_MESSAGE
+    assert answer == str(NO_FILES_RESOLVED_MESSAGE)
 
 
 @pytest.mark.asyncio
@@ -144,7 +144,7 @@ async def test_answer_question_returns_file_not_found_on_drive_file_not_found_er
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert answer == DRIVE_FILE_NOT_FOUND_MESSAGE
+    assert answer == str(DRIVE_FILE_NOT_FOUND_MESSAGE)
     assert response_type == ResponseType.DRIVE_FILE_NOT_FOUND
 
 
@@ -164,7 +164,7 @@ async def test_answer_question_returns_not_ready_on_rag_not_ready_error() -> Non
             session=mock_session, user_id=1, question="q", config=config, agent_llm=agent_llm
         )
 
-    assert answer == RAG_NOT_READY_MESSAGE
+    assert answer == str(RAG_NOT_READY_MESSAGE)
     assert response_type == ResponseType.RAG_NOT_READY
 
 
@@ -185,7 +185,7 @@ async def test_answer_question_returns_retrieval_error_on_rag_retrieval_error() 
         )
 
     assert response_type == ResponseType.RETRIEVAL_ERROR
-    assert answer == RETRIEVAL_ERROR_MESSAGE
+    assert answer == str(RETRIEVAL_ERROR_MESSAGE)
 
 
 @pytest.mark.asyncio

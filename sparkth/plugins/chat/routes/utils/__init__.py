@@ -8,6 +8,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -152,18 +153,20 @@ async def _retrieve_rag_chunks(
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="One or more documents not found or not accessible.",
+            detail=_("One or more documents not found or not accessible."),
         ) from exc
     except RAGNotReadyError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"A document is still being processed (status: {exc.status}). Please wait and try again.",
+            detail=_("A document is still being processed (status: {status}). Please wait and try again.").format(
+                status=exc.status
+            ),
         ) from exc
     except RAGRetrievalError as exc:
         logger.error("RAG retrieval error for document_ids=%s: %s", document_ids, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve document context. Please try again.",
+            detail=_("Failed to retrieve document context. Please try again."),
         ) from exc
 
 
@@ -228,7 +231,7 @@ async def get_or_create_conversation(
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Conversation {conversation_uuid} not found",
+                detail=_("Conversation {conversation_uuid} not found").format(conversation_uuid=conversation_uuid),
             )
         return conversation
 

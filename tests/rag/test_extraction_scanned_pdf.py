@@ -158,7 +158,7 @@ class TestExtractPDFRejectsScanned:
                 _extract_pdf(b"%PDF-fake", "/internal/path/secret-report.pdf")
         assert "secret-report.pdf" not in str(exc_info.value)
         assert "/internal/path/" not in str(exc_info.value)
-        assert str(exc_info.value) == ScannedPDFError.USER_MESSAGE
+        assert str(exc_info.value) == str(ScannedPDFError.USER_MESSAGE)
 
     def test_text_pdf_not_rejected(self) -> None:
         """A born-digital PDF with text passes through to the batch loop."""

@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import get_async_session, session_scope
 from sparkth.lib.documents import list_ready_documents
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import BaseChatProvider, get_llm_service, get_provider
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginService
@@ -279,7 +280,7 @@ async def _dispatch_event(
                 "Slack agentic RAG disabled for workspace %s: no AI key configured",
                 workspace_id,
             )
-            answer = NO_AI_KEY_MESSAGE
+            answer = str(NO_AI_KEY_MESSAGE)
             rag_matched = False
             response_type = ResponseType.CONFIG_INCOMPLETE
         else:
@@ -296,7 +297,7 @@ async def _dispatch_event(
                     "Slack agentic RAG disabled for workspace %s: AI key could not be resolved",
                     workspace_id,
                 )
-                answer = AI_KEY_UNAVAILABLE_MESSAGE
+                answer = str(AI_KEY_UNAVAILABLE_MESSAGE)
                 rag_matched = False
                 response_type = ResponseType.CONFIG_INCOMPLETE
             else:
@@ -308,7 +309,7 @@ async def _dispatch_event(
                         workspace_id,
                         exc,
                     )
-                    answer = AI_KEY_UNAVAILABLE_MESSAGE
+                    answer = str(AI_KEY_UNAVAILABLE_MESSAGE)
                     rag_matched = False
                     response_type = ResponseType.CONFIG_INCOMPLETE
                 else:
@@ -324,7 +325,7 @@ async def _dispatch_event(
                         rag_matched = response_type == ResponseType.RAG_MATCH
                     except (SQLAlchemyError, LangChainException, OSError) as exc:
                         logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
-                        answer = RETRIEVAL_ERROR_MESSAGE
+                        answer = str(RETRIEVAL_ERROR_MESSAGE)
                         rag_matched = False
                         response_type = ResponseType.RETRIEVAL_ERROR
                         await session.rollback()
@@ -422,7 +423,7 @@ async def get_response_logs(
     workspace = await service.get(session, user_id)
     if not workspace:
         logger.warning("GET /logs: no Slack workspace found for user %d", user_id)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slack workspace not connected")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Slack workspace not connected"))
 
     # since_id path: message logs only, used for polling
     if since_id is not None:
