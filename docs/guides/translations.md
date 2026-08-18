@@ -212,10 +212,12 @@ no locale URL prefix. The locale is resolved on the client.
    the layout) reads the `NEXT_LOCALE` cookie via
    `readLocaleCookie()` (`frontend/lib/i18n/config.ts`). An absent or
    unsupported value falls back to `en`.
-2. It loads the matching catalog from `frontend/messages/<locale>.json`, sets
-   `document.documentElement.lang`, and renders the app inside
-   `NextIntlClientProvider`. Nothing renders until the catalog is loaded, so
-   users never see raw message keys.
+2. Rendering starts immediately on the bundled English catalog, so the
+   prerendered static-export HTML keeps its content. For a non-default locale
+   the provider loads `frontend/messages/<locale>.json`, sets
+   `document.documentElement.lang`, and re-renders in that language once the
+   catalog chunk arrives (a brief English flash is inherent to client-side
+   locale resolution); if the load fails it logs and stays on English.
 3. The API client echoes the same cookie value as an `Accept-Language` header
    on every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`),
    so backend responses arrive in the language the frontend renders.

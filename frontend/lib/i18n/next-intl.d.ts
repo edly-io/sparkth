@@ -1,6 +1,4 @@
-// Type augmentation wiring next-intl to our catalogs: message keys passed to
-// useTranslations/t() are checked against the English catalog at compile time,
-// and locale parameters are narrowed to the supported tags.
+// Binds next-intl's types to our catalogs, so unknown message keys fail typecheck.
 
 import type en from "@/messages/en.json";
 
