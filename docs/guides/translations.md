@@ -84,7 +84,7 @@ error codes (`"expired_token"`), operator-facing configuration errors
 validation messages, which follow the untranslated Pydantic `422`s.
 
 The `HTTPException` slice of this rule is enforced by the suite:
-[`tests/core/i18n/test_marking_enforcement.py`](../../tests/core/i18n/test_marking_enforcement.py)
+[`tests/core/i18n/test_marking_enforcement.py`](https://github.com/edly-io/sparkth/blob/main/tests/core/i18n/test_marking_enforcement.py)
 fails on any literal or f-string `detail` that is neither `_()`-wrapped nor
 annotated with an `# i18n-exempt: <reason>` comment on one of the call's
 lines. Misuse inside the marking calls themselves (an f-string passed to
@@ -112,7 +112,7 @@ fill in the new `msgstr` entries in each `sparkth/locale/<lang>/LC_MESSAGES/mess
 then `make i18n.compile` (required before the app can serve the translations).
 
 The production image compiles the catalogs at build time: the `catalog-builder`
-stage in the [`Dockerfile`](../../Dockerfile) runs `pybabel compile` with the
+stage in the [`Dockerfile`](https://github.com/edly-io/sparkth/blob/main/Dockerfile) runs `pybabel compile` with the
 lockfile-pinned dev dependencies and hands only `sparkth/locale` (with the
 compiled `.mo` files) to the runtime stage. A deployment that does not use the
 image must run `make i18n.compile` itself before starting the server.
