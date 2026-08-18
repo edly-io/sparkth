@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
 import { api } from "@/lib/api/client";
+import { LOCALE_COOKIE } from "@/lib/i18n/config";
 
 vi.mock("@/lib/auth-tokens", () => ({
   getStoredToken: vi.fn(),
@@ -13,6 +14,7 @@ describe("api client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.mocked(getStoredToken).mockReturnValue(null);
+    document.cookie = `${LOCALE_COOKIE}=; path=/; max-age=0`;
   });
 
   it("injects the bearer token from storage when present", async () => {
@@ -51,6 +53,29 @@ describe("api client", () => {
 
     const request = fetchSpy.mock.calls[0][0] as Request;
     expect(request.headers.get("authorization")).toBeNull();
+  });
+
+  it("sends Accept-Language from the locale cookie", async () => {
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+
+    await api.GET("/api/v1/user/me");
+
+    const request = fetchSpy.mock.calls[0][0] as Request;
+    expect(request.headers.get("accept-language")).toBe("es");
+  });
+
+  it("sends the default locale when no locale cookie is set", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+
+    await api.GET("/api/v1/user/me");
+
+    const request = fetchSpy.mock.calls[0][0] as Request;
+    expect(request.headers.get("accept-language")).toBe("en");
   });
 
   it("throws ApiRequestError carrying status and detail on non-ok responses", async () => {

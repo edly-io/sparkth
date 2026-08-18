@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { LocaleProvider } from "@/app/LocaleProvider";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 
@@ -28,11 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider>
-          <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-            <AuthProvider>{children}</AuthProvider>
-          </TooltipProvider>
-        </ThemeProvider>
+        <LocaleProvider>
+          <ThemeProvider>
+            <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+              <AuthProvider>{children}</AuthProvider>
+            </TooltipProvider>
+          </ThemeProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

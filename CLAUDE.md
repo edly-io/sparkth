@@ -211,7 +211,7 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 | Backend plugin development guide | [docs/guides/plugins.md](docs/guides/plugins.md) |
 | Frontend plugin development guide | [docs/guides/frontend-plugins.md](docs/guides/frontend-plugins.md) |
 | Permissions guide | [docs/guides/permissions.md](docs/guides/permissions.md) |
-| Translations guide (backend i18n, marking, catalogs) | [docs/guides/translations.md](docs/guides/translations.md) |
+| Translations guide (backend gettext, frontend next-intl, marking, catalogs) | [docs/guides/translations.md](docs/guides/translations.md) |
 | Configuration guide (setup) | [docs/guides/configuration.md](docs/guides/configuration.md) |
 | Configuration reference (variables) | [docs/reference/configuration.md](docs/reference/configuration.md) |
 | User management guide | [docs/guides/user-management.md](docs/guides/user-management.md) |
