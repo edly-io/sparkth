@@ -19,8 +19,7 @@ export const authMiddleware: Middleware = {
   },
 };
 
-// Echoes the UI locale to the backend so its LocaleMiddleware translates
-// responses into the same language the frontend renders.
+// Echoes the UI locale so backend responses arrive in the language the UI renders.
 export const localeMiddleware: Middleware = {
   async onRequest({ request }) {
     request.headers.set("Accept-Language", readLocaleCookie());

@@ -4,8 +4,6 @@ import { screen } from "@testing-library/react";
 import HomeClient from "@/app/page-client";
 import { renderWithIntl } from "../intl-test-utils";
 
-// The page under test only renders landing copy; stub the collaborators that
-// would otherwise need a router or theme context.
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ isAuthenticated: false, logout: vi.fn() }),
 }));
