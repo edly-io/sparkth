@@ -55,7 +55,8 @@ async def get_plugin_or_404(plugin_service: PluginService, session: AsyncSession
 def validate_plugin(plugin: Plugin) -> None:
     if not plugin.id:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Plugin '{plugin.name}' is not persisted."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Plugin '{plugin.name}' is not persisted.",  # i18n-exempt: internal invariant
         )
     if not plugin.enabled:
         raise HTTPException(
@@ -76,7 +77,10 @@ async def list_user_plugins(
     and pre-populates the config with keys from the plugin's schema.
     """
     if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authenticated user has no ID.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user has no ID.",  # i18n-exempt: internal invariant
+        )
 
     all_plugins = await plugin_service.get_all(session)
     user_plugin_map = await plugin_service.get_user_plugin_map(session, current_user.id)

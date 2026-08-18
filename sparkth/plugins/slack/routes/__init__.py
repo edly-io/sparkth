@@ -368,7 +368,8 @@ async def slack_events(
         except SlackSignatureError as exc:
             logger.warning("Slack signature verification failed: %s", exc)
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Slack signature verification failed."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Slack signature verification failed.",  # i18n-exempt: webhook response to Slack
             ) from exc
     else:
         logger.warning("SLACK_SIGNING_SECRET is empty — skipping signature verification")
@@ -377,13 +378,19 @@ async def slack_events(
         payload: dict[str, Any] = _json.loads(raw_body)
     except _json.JSONDecodeError as exc:
         logger.warning("Invalid JSON in Slack event payload: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON payload",  # i18n-exempt: webhook response to Slack
+        ) from exc
 
     if payload.get("type") == "url_verification":
         challenge = payload.get("challenge")
         if challenge is None:
             logger.warning("Slack url_verification payload missing 'challenge' field")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing challenge field")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing challenge field",  # i18n-exempt: webhook response to Slack
+            )
         return {"challenge": challenge}
 
     if payload.get("type") == "event_callback":
@@ -417,6 +424,7 @@ async def get_response_logs(
         logger.warning("GET /logs called with both cursor and since_id for user %d", user_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            # i18n-exempt: request-parameter validation
             detail="Invalid pagination parameters: only one pagination strategy may be used at a time.",
         )
 
@@ -462,7 +470,7 @@ async def get_response_logs(
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid cursor format.",
+                detail="Invalid cursor format.",  # i18n-exempt: request-parameter validation
             ) from exc
 
     msg_stmt = (

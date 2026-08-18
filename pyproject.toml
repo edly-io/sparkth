@@ -88,6 +88,7 @@ select = [
     "E",    # pycodestyle
     "F",    # pyflakes
     "I",    # isort
+    "INT",  # flake8-gettext (misuse inside gettext calls, e.g. _(f"..."))
     "PLE",  # pylint errors
 ]
 ignore = [

@@ -43,6 +43,7 @@ def get_drive_credentials() -> tuple[str, str, str]:
     if not client_id or not client_secret:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            # i18n-exempt: operator-facing configuration error
             detail="Google Drive credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
         )
 
