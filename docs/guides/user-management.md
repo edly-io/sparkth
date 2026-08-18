@@ -64,6 +64,44 @@ Chat replies and generated course content are written in this language. The pref
 is resolved on every request, so changing it applies from the next message onward —
 messages already sent are not rewritten.
 
+### What the language applies to
+
+The preference reaches every surface that produces text for a signed-in user:
+
+- **Chat replies** — the assistant answers in this language whatever language the user
+  writes in.
+- **Generated course content** — titles, descriptions, lesson text, assessment questions,
+  answer options and feedback.
+- **Conversation titles** — the short titles in the conversation sidebar.
+
+A source document keeps its own language. Uploading an English PDF with a Spanish
+preference produces a Spanish course generated from English source: the source is read as
+written, and only the output follows the preference.
+
+Internal prompts are deliberately excluded — the scope classifier, the retrieval intent
+router and the document search agent all reason in English, the language current models
+are strongest in, while handling input in any language. Nothing they produce is shown to
+a user.
+
+Some surfaces do not follow the preference:
+
+- **API error messages and other fixed backend strings**, including the out-of-scope
+  refusal, are still English. These are fixed strings rather than model output, so
+  localizing them is separate work that belongs to the static-translation layer — not to
+  the language directive the model follows.
+- **Course metadata on a publishing target.** A published course carries whatever
+  language its destination LMS defaults to; the content itself is in the right language.
+- **Slack assistant answers.** The Slack assistant replies to questions from Slack
+  members, who are not signed-in Sparkth users and have no stored preference, so its
+  answers do not follow this setting.
+
+### Language and the MCP server
+
+The MCP server authenticates no user, so `get_course_generation_prompt_tool` cannot look
+up a preference. It accepts an optional `language` tag instead, which the calling agent
+supplies. An omitted tag — or one the platform does not support — uses
+`DEFAULT_LANGUAGE`, so a bad value never fails a generation run.
+
 ### Supported languages
 
 | Tag | Language |
@@ -74,6 +112,8 @@ messages already sent are not rewritten.
 
 The list is deliberately short. AI output quality varies by language, so a language
 is added only once generated course content in it has been reviewed by a speaker.
+Inclusion is not a claim that the model is equally strong in every listed language:
+measured accuracy drops noticeably in less-represented ones.
 Matching against the list is an exact, case-sensitive comparison: `en-US` and `EN`
 are both rejected as unsupported, not normalised to `en`.
 
