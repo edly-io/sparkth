@@ -26,6 +26,13 @@ How to mark a string:
 
       GREETING_MESSAGE = lazy_gettext("Hello! How can I help you?")
 
+- A constant stored in a plain-``str`` field (a dataclass a response model
+  embeds, where a :class:`LazyString` cannot go): mark the literal with
+  :func:`gettext_noop` at the definition and translate the stored value by
+  passing it through :func:`gettext` where it is rendered::
+
+      DisplayInfo(gettext_noop("Create Course"), gettext_noop("Build courses with AI"))
+
 Extraction and catalogs are driven by the ``i18n.*`` Make targets (see
 ``make help``). Core's catalogs live in ``sparkth/locale``; a plugin ships its
 own by registering its catalog directory on the :data:`LOCALE_DIRS` hook from
@@ -43,7 +50,7 @@ negotiation matches against, and the resolution of a user's stored preference,
 belong to :mod:`sparkth.lib.language`; this module covers translation only.
 """
 
-from sparkth.core.i18n import LazyString, get_locale, gettext, lazy_gettext
+from sparkth.core.i18n import LazyString, get_locale, gettext, gettext_noop, lazy_gettext
 from sparkth.core.i18n.hooks import LOCALE_DIRS
 
 # The conventional alias pybabel's default keywords pick up at call sites.
@@ -55,5 +62,6 @@ __all__ = [
     "_",
     "get_locale",
     "gettext",
+    "gettext_noop",
     "lazy_gettext",
 ]

@@ -23,10 +23,13 @@ os.environ.setdefault("LLM_ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0
 
 from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from contextlib import asynccontextmanager
-from typing import Any, cast
+from pathlib import Path
+from typing import Any, Protocol, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from babel.messages.catalog import Catalog
+from babel.messages.mofile import write_mo
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import SQLModel, col, select
@@ -40,6 +43,7 @@ from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.main import app
 
 
@@ -221,3 +225,57 @@ def _clear_dependency_overrides() -> Generator[None]:
     """
     yield
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def shipped_locale_dirs() -> Generator[tuple[Path, ...]]:
+    """Detach the shipped catalog directories for the whole test session.
+
+    Compiled ``.mo`` files on a developer's machine (``make i18n.compile``)
+    must not leak into assertions written against the English source fallback.
+    A test asserts on an actual translation by injecting its own catalog with
+    ``translation_catalog``. Yields the detached directories so
+    registration-at-import can still be asserted against the snapshot.
+    """
+    shipped = tuple(LOCALE_DIRS.iter_values())
+    for locale_dir in shipped:
+        LOCALE_DIRS.remove(locale_dir)
+    yield shipped
+    for locale_dir in shipped:
+        LOCALE_DIRS.add_item(locale_dir)
+
+
+class AddTranslation(Protocol):
+    """The factory the ``translation_catalog`` fixture returns."""
+
+    def __call__(self, message: str, translation: str, locale: str = "es") -> None: ...
+
+
+@pytest.fixture
+def translation_catalog(tmp_path: Path) -> Generator[AddTranslation]:
+    """Factory registering compiled single-message catalogs on ``LOCALE_DIRS``.
+
+    Call ``translation_catalog(message, translation, locale="es")`` for each
+    translation the test needs, then render under the target locale (via
+    ``sparkth.core.i18n.locale_context`` or an ``Accept-Language`` header) to
+    observe it. Each call compiles its catalog into a fresh directory under
+    ``tmp_path``, so the (locale, registered dirs) catalog cache never serves a
+    stale entry; teardown unregisters every directory.
+    """
+    registered: list[Path] = []
+
+    def add_translation(message: str, translation: str, locale: str = "es") -> None:
+        catalog = Catalog(locale=locale, domain="messages")
+        catalog.add(message, translation)
+        locale_dir = tmp_path / f"catalog{len(registered)}"
+        mo_dir = locale_dir / locale / "LC_MESSAGES"
+        mo_dir.mkdir(parents=True)
+        with open(mo_dir / "messages.mo", "wb") as mo_file:
+            write_mo(mo_file, catalog)
+        LOCALE_DIRS.add_item(locale_dir)
+        registered.append(locale_dir)
+
+    yield add_translation
+
+    for locale_dir in registered:
+        LOCALE_DIRS.remove(locale_dir)

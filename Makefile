@@ -139,7 +139,7 @@ mypy: ## Run mypy type checking
 # build artifacts (git-ignored).
 .PHONY: i18n.extract
 i18n.extract: ## Extract translatable strings from sparkth/ into sparkth/locale/messages.pot
-	uv run pybabel extract -F babel.cfg -k lazy_gettext --project=sparkth -o sparkth/locale/messages.pot sparkth
+	uv run pybabel extract -F babel.cfg -k lazy_gettext -k gettext_noop --project=sparkth -o sparkth/locale/messages.pot sparkth
 
 .PHONY: i18n.init
 i18n.init: i18n.extract ## Create the catalog for a new language (make i18n.init -- es)
