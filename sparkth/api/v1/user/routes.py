@@ -20,6 +20,7 @@ from sparkth.api.v1.user.schemas import UserLanguageUpdate
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
 from sparkth.lib.permissions import has_role
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.schemas import User as UserSchema
@@ -76,7 +77,7 @@ async def update_user_language(
         # that dependency: an authenticated principal without a row is an
         # authentication-boundary condition, not a domain error to route through the
         # exception-handler registry.
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("User not found"))
 
     user.language = update.language
     # updated_at has a default_factory but no onupdate, so the bump is manual.

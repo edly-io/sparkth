@@ -39,6 +39,7 @@ from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.hooks import SingleNamedItemHook
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -89,7 +90,7 @@ class Permission:
                 raise RuntimeError("Permission scope is misconfigured")
             scope_object_id = request.path_params.get(scope_param) if scope_param else None
             if not await can(current_user, self, permission_scope, scope_object_id, session):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
             return current_user
 
         return dependency

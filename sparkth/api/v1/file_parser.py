@@ -6,6 +6,7 @@ from pypdf import PdfReader
 
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.i18n import _
 
 router: APIRouter = APIRouter()
 
@@ -38,12 +39,12 @@ async def parse_pdf(content: bytes) -> str:
 @router.post("/upload")
 async def upload_text(current_user: User = Depends(get_current_user), file: UploadFile = File(...)) -> JSONResponse:
     if not current_user or not current_user.id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
 
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Only .txt and .pdf files are supported",
+            detail=_("Only .txt and .pdf files are supported"),
         )
 
     content = await file.read()
@@ -52,7 +53,7 @@ async def upload_text(current_user: User = Depends(get_current_user), file: Uplo
     if size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
-            detail="File size exceeds 30MB limit",
+            detail=_("File size exceeds 30MB limit"),
         )
 
     if file.content_type == "text/plain":
@@ -62,7 +63,7 @@ async def upload_text(current_user: User = Depends(get_current_user), file: Uplo
         text = await parse_pdf(content)
 
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file type")
+        raise HTTPException(status_code=400, detail=_("Unsupported file type"))
 
     return JSONResponse(
         {

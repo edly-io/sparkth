@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.security import get_password_hash
+from sparkth.lib.testing import AddTranslation
 from sparkth.services.whitelist import WhitelistService
 
 
@@ -154,6 +155,20 @@ async def test_login_non_existent_user(client: AsyncClient) -> None:
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Incorrect username or password"}
+
+
+async def test_login_failure_detail_follows_the_request_locale(
+    client: AsyncClient, translation_catalog: AddTranslation
+) -> None:
+    translation_catalog("Incorrect username or password", "Usuario o contraseña incorrectos")
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"username": _uniq("nonexistent"), "password": "Sup3rSecret!"},
+        headers={"Accept-Language": "es"},
+    )
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Usuario o contraseña incorrectos"}
 
 
 class TestPasswordComplexity:

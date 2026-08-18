@@ -15,6 +15,7 @@ from sparkth.core.plugins.constants import BEARER_SCHEME
 from sparkth.core.routes import get_route_plugin_name
 from sparkth.lib.auth import decode_token_username, get_user_by_username
 from sparkth.lib.db import session_scope
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -96,8 +97,10 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={
-                    "detail": f"Access to plugin '{plugin_name}' is disabled for your account. "
-                    f"Please enable the plugin in your settings."
+                    "detail": _(
+                        "Access to plugin '{name}' is disabled for your account. "
+                        "Please enable the plugin in your settings."
+                    ).format(name=plugin_name)
                 },
             )
 

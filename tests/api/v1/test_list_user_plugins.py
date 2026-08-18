@@ -17,6 +17,7 @@ from sparkth.lib.frontend.hooks import (
     SidebarEntry,
 )
 from sparkth.lib.plugins import SparkthPlugin
+from sparkth.lib.testing import AddTranslation
 
 
 def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_core: bool) -> dict[str, object]:
@@ -70,6 +71,31 @@ async def test_list_user_plugins_carries_declared_frontend_metadata(
     }
     assert entry["sidebar"] == {"label": "With Frontend", "icon": "sparkles", "order": 2}
     assert entry["has_frontend"] is True
+
+
+async def test_list_user_plugins_translates_frontend_metadata(
+    client: AsyncClient, current_user: User, session: AsyncSession, translation_catalog: AddTranslation
+) -> None:
+    session.add(Plugin(name="translated", is_core=True, enabled=True))
+    await session.commit()
+
+    plugin = SparkthPlugin("translated")
+    DISPLAY_INFO.add_item(plugin, DisplayInfo("With Frontend", "A plugin that ships a page", icon="sparkles"))
+    SIDEBAR_ENTRIES.add_item(plugin, SidebarEntry("With Frontend", icon="sparkles", order=2))
+
+    translation_catalog("With Frontend", "Con interfaz")
+    translation_catalog("A plugin that ships a page", "Un plugin que incluye una página")
+
+    response = await client.get("/api/v1/user-plugins/", headers={"Accept-Language": "es"})
+    assert response.status_code == 200
+
+    entry = next(item for item in response.json() if item["plugin_name"] == "translated")
+    assert entry["display"] == {
+        "display_name": "Con interfaz",
+        "description": "Un plugin que incluye una página",
+        "icon": "sparkles",
+    }
+    assert entry["sidebar"] == {"label": "Con interfaz", "icon": "sparkles", "order": 2}
 
 
 async def test_list_user_plugins_empty(client: AsyncClient, session: AsyncSession) -> None:

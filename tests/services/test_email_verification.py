@@ -8,8 +8,10 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.i18n import locale_context
 from sparkth.core.models.email_verification import EmailVerificationToken
 from sparkth.core.models.user import User
+from sparkth.lib.testing import AddTranslation
 from sparkth.services import email_verification as svc
 from sparkth.services.email_verification import (
     EmailVerificationService,
@@ -153,6 +155,24 @@ class TestSendVerificationEmail:
         assert "https://app.test/verify-email/?token=abc123" in kwargs["text_body"]
         assert "https://app.test/verify-email/?token=abc123" in kwargs["html_body"]
         assert "24" in kwargs["text_body"]
+
+    async def test_email_content_follows_the_active_locale(
+        self, monkeypatch: pytest.MonkeyPatch, translation_catalog: AddTranslation
+    ) -> None:
+        monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test")
+        mock = AsyncMock()
+        monkeypatch.setattr(svc, "send_email", mock)
+        translation_catalog("Confirm your Sparkth account", "Confirma tu cuenta de Sparkth")
+        translation_catalog("Click the link below to confirm your email address:", "Haz clic para confirmar tu correo:")
+
+        with locale_context("es"):
+            await svc.send_verification_email(to="alice@example.com", name="Alice", raw_token="abc123")
+
+        assert mock.await_args is not None
+        kwargs = mock.await_args.kwargs
+        assert kwargs["subject"] == "Confirma tu cuenta de Sparkth"
+        assert "Haz clic para confirmar tu correo:" in kwargs["text_body"]
+        assert "Haz clic para confirmar tu correo:" in kwargs["html_body"]
 
     async def test_strips_trailing_slash_in_frontend_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(svc.settings, "FRONTEND_BASE_URL", "https://app.test/")

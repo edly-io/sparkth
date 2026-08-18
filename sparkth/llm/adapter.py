@@ -6,6 +6,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.llm import LLMConfig
+from sparkth.lib.i18n import _
 from sparkth.llm.exceptions import LLMConfigValidationError
 from sparkth.llm.providers import get_models_for_provider
 
@@ -66,14 +67,15 @@ class LLMConfigAdapter:
         if llm is None:
             raise ValueError(f"llm_config_id {config_id} not found or does not belong to this user.")
         if not llm.is_active:
-            raise ValueError("This record is deactivated. Reactivate it in AI Keys or select a different config.")
+            raise ValueError(_("This record is deactivated. Reactivate it in AI Keys or select a different config."))
 
         if model_override is not None:
             allowed = get_models_for_provider(llm.provider)
             if model_override not in allowed:
                 raise LLMConfigValidationError(
-                    f"Model '{model_override}' not available for provider '{llm.provider}'. "
-                    f"Allowed: {', '.join(allowed)}"
+                    _("Model '{model}' not available for provider '{provider}'. Allowed: {allowed}").format(
+                        model=model_override, provider=llm.provider, allowed=", ".join(allowed)
+                    )
                 )
 
         return {**incoming_config, "llm_config_id": config_id}
