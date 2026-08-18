@@ -1,5 +1,6 @@
 import type { Middleware } from "openapi-fetch";
 import { getStoredToken } from "@/lib/auth-tokens";
+import { readLocaleCookie } from "@/lib/i18n/config";
 import {
   ApiRequestError,
   formatApiError,
@@ -14,6 +15,15 @@ export const authMiddleware: Middleware = {
     if (request.headers.has("Authorization")) return request;
     const token = getStoredToken();
     if (token) request.headers.set("Authorization", `Bearer ${token}`);
+    return request;
+  },
+};
+
+// Echoes the UI locale to the backend so its LocaleMiddleware translates
+// responses into the same language the frontend renders.
+export const localeMiddleware: Middleware = {
+  async onRequest({ request }) {
+    request.headers.set("Accept-Language", readLocaleCookie());
     return request;
   },
 };

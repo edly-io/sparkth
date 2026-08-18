@@ -198,7 +198,7 @@ test.backend.analytics: services.up ## Run the TimescaleDB test lane (starts bac
 		uv run pytest -m pg $(ARGS)
 
 .PHONY: test.frontend
-test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format ## Run frontend linting, react-doctor, api drift, typecheck, unit and formatting tests
+test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format test.frontend.i18n ## Run frontend linting, react-doctor, api drift, typecheck, unit, formatting and i18n catalog tests
 
 .PHONY: test.frontend.api
 test.frontend.api: ## Fail when generated.ts is stale vs the current backend OpenAPI schema
@@ -216,6 +216,10 @@ test.frontend.vitest: ## Run frontend unit tests (make test.frontend.vitest [pat
 .PHONY: test.frontend.format
 test.frontend.format: ## Run frontend formatting tests
 	$(MAKE) lint.format.frontend check=1
+
+.PHONY: test.frontend.i18n
+test.frontend.i18n: ## Fail when message catalogs drift from source (missing, invalid, unused or undefined keys)
+	cd frontend && bun run i18n:check
 
 .PHONY: test.e2e
 test.e2e: ## Run Playwright E2E tests against an ephemeral SQLite backend (needs `make services.up`; see README.md)
