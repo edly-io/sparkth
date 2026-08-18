@@ -104,6 +104,12 @@ The day-to-day loop after marking or changing strings: `make i18n.update`,
 fill in the new `msgstr` entries in each `sparkth/locale/<lang>/LC_MESSAGES/messages.po`,
 then `make i18n.compile` (required before the app can serve the translations).
 
+The production image compiles the catalogs at build time: the `catalog-builder`
+stage in the [`Dockerfile`](../../Dockerfile) runs `pybabel compile` with the
+lockfile-pinned dev dependencies and hands only `sparkth/locale` (with the
+compiled `.mo` files) to the runtime stage. A deployment that does not use the
+image must run `make i18n.compile` itself before starting the server.
+
 ## Adding a language
 
 1. Add the BCP 47 tag to `SUPPORTED_LANGUAGES` in `sparkth/core/config.py`
