@@ -22,7 +22,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core import security
 from sparkth.core.models.user import User
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, bind_locale
+from sparkth.lib.language import is_supported_language
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -78,6 +79,11 @@ async def get_current_user(
     runs. That is safe because ``User`` maps only columns, which stay readable on a detached
     instance; a test in ``tests/core/plugins/test_middleware.py`` pins that, since adding a
     relationship to ``User`` is what would make this unsafe.
+
+    A resolved user's stored language replaces the locale the middleware negotiated from
+    ``Accept-Language``, so translated copy follows what the user chose rather than what
+    their browser advertises. An unset or unsupported stored value leaves the negotiated
+    locale in place.
     """
     cached_user = getattr(request.state, "user", None)
     if isinstance(cached_user, User):
@@ -98,5 +104,8 @@ async def get_current_user(
             detail=_("User not found"),
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if user.language and is_supported_language(user.language):
+        bind_locale(user.language)
 
     return user

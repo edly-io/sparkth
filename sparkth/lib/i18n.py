@@ -50,7 +50,7 @@ negotiation matches against, and the resolution of a user's stored preference,
 belong to :mod:`sparkth.lib.language`; this module covers translation only.
 """
 
-from sparkth.core.i18n import LazyString, get_locale, gettext, gettext_noop, lazy_gettext
+from sparkth.core.i18n import LazyString, bind_locale, get_locale, gettext, gettext_noop, lazy_gettext
 from sparkth.core.i18n.hooks import LOCALE_DIRS
 
 # The conventional alias pybabel's default keywords pick up at call sites.
@@ -60,6 +60,7 @@ __all__ = [
     "LOCALE_DIRS",
     "LazyString",
     "_",
+    "bind_locale",
     "get_locale",
     "gettext",
     "gettext_noop",

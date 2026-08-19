@@ -49,14 +49,18 @@ default `frontend/out`) at `/`.
 
 ### `DEFAULT_LANGUAGE`
 
-The platform-wide default language: the fallback value for users who have not
-chosen one in their profile. A [BCP 47](https://datatracker.ietf.org/doc/html/rfc5646)
+The platform-wide default interface language: the fallback value for users who have not
+chosen one in their profile and whose browser offers no supported language. A [BCP 47](https://datatracker.ietf.org/doc/html/rfc5646)
 tag, and it must be one of the supported languages — `en`, `es` or `fr`. Anything
 else fails validation at startup rather than being silently accepted.
 
-Defaults to `en`. Per request, the locale middleware negotiates the
-`Accept-Language` header against the supported languages; `DEFAULT_LANGUAGE`
-applies when the header offers no supported tag, and outside any request
-(background tasks, CLI). It is equally the fallback `resolve_language` returns
-for a user whose stored `language` is unset or no longer supported. See the
-[translations guide](../guides/translations.md).
+Defaults to `en`. The interface locale follows a precedence chain: a signed-in user's
+stored `language` preference, when set and still one of the supported languages, is bound
+by the authentication dependency once the user is resolved, and wins over everything else;
+otherwise the locale middleware's negotiation of the `Accept-Language` header applies;
+`DEFAULT_LANGUAGE` is the last resort, used when neither offers a supported tag and outside
+any request (background tasks, CLI). See the [translations guide](../guides/translations.md).
+
+This governs interface text only. The language of AI-generated replies and course content
+is inferred from the conversation and is not constrained by this setting or by the
+supported-languages list.

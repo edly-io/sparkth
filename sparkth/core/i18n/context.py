@@ -36,3 +36,20 @@ def locale_context(locale: str) -> Iterator[None]:
         yield
     finally:
         _locale.reset(token)
+
+
+def bind_locale(tag: str) -> None:
+    """Install ``tag`` as the active locale for the rest of the request.
+
+    Mirrors :func:`sparkth.core.audit.context.bind_audit_actor`: the locale middleware
+    runs before authentication, so it can only negotiate ``Accept-Language``. Once a
+    signed-in user is resolved, their stored choice is the better answer and replaces the
+    negotiated one — they chose it, and their browser did not.
+
+    Deliberately not a context manager: there is nothing to restore, because the request's
+    context is discarded when its task ends. This relies on the caller running in the same
+    task as the route, which holds for an ``async`` FastAPI dependency but not for a sync
+    one — a sync dependency runs in a threadpool with a copied context and the binding
+    would be lost.
+    """
+    _locale.set(tag)

@@ -11,7 +11,15 @@ Application code and plugins import this via :mod:`sparkth.lib.i18n`, never
 from here directly.
 """
 
-from sparkth.core.i18n.context import get_locale, locale_context
+from sparkth.core.i18n.context import bind_locale, get_locale, locale_context
 from sparkth.core.i18n.translate import LazyString, gettext, gettext_noop, lazy_gettext
 
-__all__ = ["LazyString", "get_locale", "gettext", "gettext_noop", "lazy_gettext", "locale_context"]
+__all__ = [
+    "LazyString",
+    "bind_locale",
+    "get_locale",
+    "gettext",
+    "gettext_noop",
+    "lazy_gettext",
+    "locale_context",
+]
