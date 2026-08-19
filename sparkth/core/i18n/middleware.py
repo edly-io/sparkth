@@ -32,8 +32,8 @@ class LocaleMiddleware:
     and :func:`~sparkth.core.i18n.context.get_locale` serves
     ``DEFAULT_LANGUAGE``. The header is only what is knowable at the edge: this
     middleware runs before authentication, so it cannot see a signed-in user.
-    ``User.language`` is bound later, by the authentication dependency, which is the first
-    point at which the signed-in user is known.
+    ``User.language`` is bound later, by the authentication dependency — the first point
+    in the request at which the locale is bound to that stored preference.
     """
 
     def __init__(self, app: ASGIApp) -> None:
