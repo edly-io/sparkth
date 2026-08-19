@@ -38,17 +38,23 @@ def language_display_name(tag: str | None) -> str:
     translations the platform ships rather than the languages the model may write in.
     ``"de"`` therefore yields ``"German"`` even though no German interface exists.
 
-    Falls back to the platform default's name when ``tag`` is absent or is not a
-    parseable language tag, so a misspelled value degrades to the default instead of
-    failing the caller's whole request. Babel's parser defaults to the POSIX underscore
-    separator, so the BCP 47 hyphen is passed explicitly.
+    Falls back to the platform default's name when ``tag`` is absent, is not a
+    parseable language tag, or parses to a locale with no English display name in
+    CLDR (e.g. ``"skr"``, Saraiki) — so a misspelled or obscure value degrades to the
+    default instead of failing the caller's whole request or surfacing the literal
+    string ``"None"``. Babel's parser defaults to the POSIX underscore separator, so
+    the BCP 47 hyphen is passed explicitly.
     """
     default = get_settings().DEFAULT_LANGUAGE
     for candidate in (tag, default):
         if not candidate:
             continue
         try:
-            return str(Locale.parse(candidate, sep="-").get_display_name("en"))
+            name = Locale.parse(candidate, sep="-").get_display_name("en")
         except (UnknownLocaleError, ValueError) as exc:
             logger.info("Unusable language tag %r, falling back: %s", candidate, exc)
+            continue
+        if name:
+            return name
+        logger.info("Language tag %r has no English display name, falling back", candidate)
     return default

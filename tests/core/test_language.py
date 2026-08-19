@@ -127,7 +127,22 @@ def test_hyphenated_subtags_are_accepted() -> None:
     assert language_display_name("pt-BR") != language_display_name(None)
 
 
-@pytest.mark.parametrize("tag", [None, "", "klingon", "xx", "123", "not a tag"])
+@pytest.mark.parametrize(
+    "tag",
+    [
+        None,
+        "",
+        "klingon",
+        "xx",
+        "123",
+        "not a tag",
+        # "skr" (Saraiki) parses successfully but has no CLDR English display name,
+        # so Locale.get_display_name("en") returns None rather than raising. This
+        # exercises the None-return fallback path, not the exception path "xx" and
+        # "klingon" cover above — do not remove it as a duplicate of those.
+        "skr",
+    ],
+)
 def test_unusable_tags_fall_back_to_the_platform_default(tag: str | None) -> None:
     """Falling back rather than raising: a misspelled tag must not fail a whole
     agent-driven course generation run."""
