@@ -40,8 +40,8 @@ logger = get_logger(__name__)
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content.
 
-    No model is in the loop here, so the refusal renders under the active request
-    locale (``gettext``) rather than the conversation's language.
+    The refusal sentence is written by the backend, not a model, so it renders under
+    the active request locale (``gettext``) rather than the conversation's language.
     """
     yield f"data: {json.dumps({'done': True, 'content': gettext(REFUSAL_MESSAGE)})}\n\n"
 
