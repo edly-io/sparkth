@@ -1,8 +1,9 @@
 """The chat assistant infers its output language from the conversation.
 
-Two things need pinning: the wording of the OUTPUT LANGUAGE directive, which is the only
-place the rule is expressed, and the absence of any injected language on the live route.
-Template rendering in isolation is covered by test_prompt.py.
+Three things need pinning: the wording of the OUTPUT LANGUAGE directive, which is the
+only place the rule is expressed; the absence of any injected language on the live
+route; and the absence of any language kwarg forwarded to the scheduled title-generation
+task. Template rendering in isolation is covered by test_prompt.py.
 
 The mock stack mirrors test_intent_router_integration.py, which drives the same route.
 """
@@ -31,8 +32,10 @@ class _Seeded:
 async def _seed(session: AsyncSession, user_id: int) -> _Seeded:
     """An active LLM config plus an existing conversation.
 
-    Posting into an existing conversation keeps the assertion on the language and off
-    the new-conversation path, which also schedules title generation.
+    Posting into the existing conversation keeps a reply-language assertion off the
+    new-conversation path, which also schedules title generation. Callers that assert on
+    title scheduling instead post with no conversation_id, taking that path on purpose,
+    and only use the LLM config from this seed.
     """
     settings = get_settings()
     encryption = get_encryption_service(settings.LLM_ENCRYPTION_KEY)
@@ -241,3 +244,23 @@ class TestNoStoredPreferenceReachesThePrompt:
         prompt = await _system_prompt_for_one_request(client, seed)
 
         assert not any(name in prompt for name in _other_supported_language_names("en"))
+
+
+class TestTitleSchedulingCarriesNoLanguage:
+    """get_or_create_conversation forwards kwargs into background_tasks.add_task, which
+    is typed as a bare Callable — mypy cannot check them against the task's signature,
+    so a stale `language=` kwarg would only surface at runtime, inside a background task
+    whose exceptions are swallowed and logged. This test is the only guard."""
+
+    async def test_scheduled_title_task_receives_no_language(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        seed = await _seed(session, current_user.id or 1)
+        current_user.language = "es"
+
+        kwargs = await _scheduled_title_task_kwargs(client, seed.llm_config_id)
+
+        assert "language" not in kwargs

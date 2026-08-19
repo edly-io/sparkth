@@ -213,16 +213,10 @@ async def get_or_create_conversation(
     provider_name: str,
     api_key: str,
     model: str,
-    language: str,
     config: ChatSettings,
     background_tasks: BackgroundTasks,
 ) -> Conversation:
-    """Resolve an existing conversation by UUID, or create a new one and schedule title generation.
-
-    ``language`` is an already-resolved, allowlisted BCP 47 tag — the user's stored
-    preference — forwarded to the title generation task so the sidebar title is
-    generated in that language.
-    """
+    """Resolve an existing conversation by UUID, or create a new one and schedule title generation."""
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(
             session=session,
@@ -258,7 +252,6 @@ async def get_or_create_conversation(
             conversation_id=cast(int, conversation.id),
             user_id=user_id,
             first_user_message=first_user_text,
-            language=language,
             service=service,
             provider=title_provider,
         )
