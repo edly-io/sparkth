@@ -125,6 +125,14 @@ The tag is the *course's* language and says nothing about the language the agent
 user speaks — an English speaker may commission a Spanish course, and the agent should
 keep asking its clarifying questions in the language of its own conversation.
 
+### Course metadata on a publishing target
+
+A course published to Open edX is tagged with the language the assistant generated it
+in: the course-creation tool asks the model for a BCP 47 language tag and applies it to
+the course's Open edX language setting once the run exists. Canvas courses are not
+tagged — its course `locale` is read-only over the REST API and can only be set through
+the Canvas UI, so the content is in the right language while the metadata is absent.
+
 ### Supported languages
 
 | Tag | Language |
