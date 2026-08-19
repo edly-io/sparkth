@@ -73,6 +73,11 @@ model handles is available.
 - **Generated course content** — titles, descriptions, lesson text, assessment questions,
   answer options and feedback — follows the same language.
 - **Conversation titles** follow the language of the message the conversation opened with.
+- **API error messages and other fixed backend strings** follow the interface language
+  rather than the conversation, because no model is involved in producing them. The
+  out-of-scope refusal is a special case: the assistant sends it in the language of the
+  conversation, while the copy streamed directly by the backend on the same path follows
+  the interface language.
 
 A user writing in one language may ask for the course itself in another; the assistant
 honours that request for the course content and keeps replying in the language the user

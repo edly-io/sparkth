@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-08-18 15:36+0500\n"
+"POT-Creation-Date: 2026-08-19 20:50+0500\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: fr\n"
@@ -42,8 +42,8 @@ msgstr "Cette adresse e-mail est déjà enregistrée"
 msgid "Incorrect username or password"
 msgstr "Nom d'utilisateur ou mot de passe incorrect"
 
-#: sparkth/api/v1/file_parser.py:42 sparkth/api/v1/user_plugins.py:123
-#: sparkth/api/v1/user_plugins.py:198 sparkth/api/v1/user_plugins.py:228
+#: sparkth/api/v1/file_parser.py:42 sparkth/api/v1/user_plugins.py:127
+#: sparkth/api/v1/user_plugins.py:202 sparkth/api/v1/user_plugins.py:232
 msgid "User not authenticated."
 msgstr "Utilisateur non authentifié."
 
@@ -72,12 +72,12 @@ msgstr "Configuration LLM introuvable"
 msgid "Plugin '{name}' not found"
 msgstr "Plugin '{name}' introuvable"
 
-#: sparkth/api/v1/user_plugins.py:62
+#: sparkth/api/v1/user_plugins.py:63
 #, python-brace-format
 msgid "Plugin '{name}' is not enabled"
 msgstr "Le plugin '{name}' n'est pas activé"
 
-#: sparkth/api/v1/user_plugins.py:132
+#: sparkth/api/v1/user_plugins.py:136
 #, python-brace-format
 msgid "Plugin '{name}' is already configured"
 msgstr "Le plugin '{name}' est déjà configuré"
@@ -152,12 +152,12 @@ msgstr ""
 "L'accès au plugin « {name} » est désactivé pour votre compte. Veuillez "
 "activer le plugin dans vos paramètres."
 
-#: sparkth/core/plugins/service.py:108 sparkth/core/plugins/service.py:114
+#: sparkth/core/plugins/service.py:131 sparkth/core/plugins/service.py:137
 #, python-brace-format
 msgid "Plugin '{name}' cannot be configured at this time."
 msgstr "Le plugin '{name}' ne peut pas être configuré pour le moment."
 
-#: sparkth/core/plugins/service.py:317
+#: sparkth/core/plugins/service.py:340
 msgid "Cannot update plugin configuration while the plugin is disabled"
 msgstr ""
 "Impossible de mettre à jour la configuration du plugin tant qu'il est "
@@ -221,12 +221,21 @@ msgstr "Créer un cours"
 msgid "Transform your resources into courses with AI"
 msgstr "Transformez vos ressources en cours grâce à l'IA"
 
+#: sparkth/plugins/chat/prompt.py:38
+msgid ""
+"I'm a course creation assistant and can only help with designing and "
+"building courses. Is there a course you'd like to create?"
+msgstr ""
+"Je suis un assistant de création de cours et je peux uniquement vous aider "
+"à concevoir et à créer des cours. Y a-t-il un cours que vous aimeriez "
+"créer ?"
+
 #: sparkth/plugins/chat/routes/attachments.py:65
 #: sparkth/plugins/chat/routes/attachments.py:99
 msgid "Document not found or not accessible"
 msgstr "Document introuvable ou inaccessible"
 
-#: sparkth/plugins/chat/routes/completions.py:85
+#: sparkth/plugins/chat/routes/completions.py:81
 msgid ""
 "No AI Key found for the current user. Please configure an AI key in your "
 "chat plugin settings."
@@ -234,7 +243,7 @@ msgstr ""
 "Aucune clé d'IA trouvée pour l'utilisateur actuel. Configurez une clé "
 "d'IA dans les paramètres du plugin de chat."
 
-#: sparkth/plugins/chat/routes/completions.py:90
+#: sparkth/plugins/chat/routes/completions.py:86
 msgid ""
 "The selected AI key has no model configured. Go to AI Keys to set a model"
 " before chatting."
@@ -242,7 +251,7 @@ msgstr ""
 "La clé d'IA sélectionnée n'a pas de modèle configuré. Rendez-vous dans AI"
 " Keys pour définir un modèle avant de discuter."
 
-#: sparkth/plugins/chat/routes/completions.py:96
+#: sparkth/plugins/chat/routes/completions.py:92
 msgid ""
 "The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
 "choose a different one in chat settings."
@@ -250,12 +259,12 @@ msgstr ""
 "La clé d'IA sélectionnée est désactivée. Rendez-vous dans AI Keys pour la"
 " réactiver, ou choisissez-en une autre dans les paramètres du chat."
 
-#: sparkth/plugins/chat/routes/completions.py:235
-#: sparkth/plugins/chat/routes/completions.py:355
+#: sparkth/plugins/chat/routes/completions.py:230
+#: sparkth/plugins/chat/routes/completions.py:350
 msgid "Chat completion failed"
 msgstr "Échec de la génération de la réponse du chat"
 
-#: sparkth/plugins/chat/routes/completions.py:323
+#: sparkth/plugins/chat/routes/completions.py:318
 msgid "Failed to determine retrieval intent. Please try again."
 msgstr "Impossible de déterminer l'intention de recherche. Veuillez réessayer."
 
@@ -282,7 +291,7 @@ msgstr ""
 msgid "Failed to retrieve document context. Please try again."
 msgstr "Impossible de récupérer le contexte du document. Veuillez réessayer."
 
-#: sparkth/plugins/chat/routes/utils/__init__.py:234
+#: sparkth/plugins/chat/routes/utils/__init__.py:229
 #, python-brace-format
 msgid "Conversation {conversation_uuid} not found"
 msgstr "Conversation {conversation_uuid} introuvable"
@@ -455,12 +464,12 @@ msgid "Folder is already synced"
 msgstr "Le dossier est déjà synchronisé"
 
 #: sparkth/plugins/googledrive/routes/oauth.py:59
-#: sparkth/plugins/slack/routes/oauth.py:63
+#: sparkth/plugins/slack/routes/oauth.py:66
 msgid "OAuth state expired. Please try again."
 msgstr "L'état OAuth a expiré. Veuillez réessayer."
 
 #: sparkth/plugins/googledrive/routes/oauth.py:61
-#: sparkth/plugins/slack/routes/oauth.py:67
+#: sparkth/plugins/slack/routes/oauth.py:70
 msgid "Invalid OAuth state."
 msgstr "État OAuth non valide."
 
@@ -546,20 +555,20 @@ msgstr ""
 "Répondez aux questions des étudiants dans Slack à partir de vos supports "
 "de cours"
 
-#: sparkth/plugins/slack/routes/__init__.py:426
-#: sparkth/plugins/slack/routes/oauth.py:138
+#: sparkth/plugins/slack/routes/__init__.py:434
+#: sparkth/plugins/slack/routes/oauth.py:141
 msgid "Slack workspace not connected"
 msgstr "Espace de travail Slack non connecté"
 
-#: sparkth/plugins/slack/routes/oauth.py:76
+#: sparkth/plugins/slack/routes/oauth.py:79
 msgid "Failed to exchange Slack authorization code."
 msgstr "Impossible d'échanger le code d'autorisation Slack."
 
-#: sparkth/plugins/slack/routes/oauth.py:81
+#: sparkth/plugins/slack/routes/oauth.py:84
 msgid "Could not reach Slack. Please try again."
 msgstr "Impossible de joindre Slack. Veuillez réessayer."
 
-#: sparkth/plugins/slack/routes/oauth.py:97
+#: sparkth/plugins/slack/routes/oauth.py:100
 msgid ""
 "You already have a Slack workspace connected. Disconnect it first before "
 "connecting a new one."
@@ -567,11 +576,11 @@ msgstr ""
 "Vous avez déjà un espace de travail Slack connecté. Déconnectez-le avant "
 "d'en connecter un nouveau."
 
-#: sparkth/plugins/slack/routes/oauth.py:103
+#: sparkth/plugins/slack/routes/oauth.py:106
 msgid "This Slack workspace is already connected to another account."
 msgstr "Cet espace de travail Slack est déjà connecté à un autre compte."
 
-#: sparkth/plugins/slack/routes/oauth.py:109
+#: sparkth/plugins/slack/routes/oauth.py:112
 msgid "Unexpected response from Slack. Please try again."
 msgstr "Réponse inattendue de Slack. Veuillez réessayer."
 
