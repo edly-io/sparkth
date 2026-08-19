@@ -29,8 +29,8 @@ def resolve_language(tag: str | None) -> str:
     Returns it when it is still supported, and otherwise ``DEFAULT_LANGUAGE`` —
     which covers both cases where the stored value cannot be honoured: the user
     never chose, and the tag has since left the allowlist. A language withdrawn
-    from the list (say, because its output quality was poor) must stop being
-    handed back for the users who had already picked it.
+    from the list (say, because its shipped interface translation was pulled)
+    must stop being handed back for the users who had already picked it.
     """
     if tag and is_supported_language(tag):
         return tag

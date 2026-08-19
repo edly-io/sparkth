@@ -222,6 +222,7 @@ msgstr "Crear curso"
 msgid "Transform your resources into courses with AI"
 msgstr "Transforma tus recursos en cursos con IA"
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/chat/prompt.py:38
 msgid ""
 "I'm a course creation assistant and can only help with designing and "

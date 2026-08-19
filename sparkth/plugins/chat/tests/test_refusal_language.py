@@ -1,10 +1,11 @@
 """The out-of-scope refusal reaches the user in a language they can read.
 
 Two paths emit it and they are not symmetric. The model is handed the English source and
-told by the system prompt to send it in the language of the conversation. The
+told by the system prompt to send it in the language of the conversation. On the
 deterministic paths — the keyword pre-filter and classifier refusals streamed or persisted
-straight from Python — have no model in the loop and no conversation language, so they
-render under the request locale.
+straight from Python — the backend writes the refusal sentence itself rather than a model
+generating it, so it renders under the request locale (``gettext``) rather than the
+conversation's language.
 
 The shipped catalogs are detached for the test session, so the Spanish assertion injects its
 own single-message catalog rather than reading sparkth/locale/es.
