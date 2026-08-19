@@ -64,14 +64,15 @@ translations for.
 
 ### The language of AI-generated text
 
-Chat replies and generated course content are **not** governed by this setting. The
-assistant writes in the language of the user's most recent message and switches when the
-user switches, so no configuration is needed and any language the model handles is
-available.
+Chat replies, generated course content, and conversation titles are **not** governed by
+this setting. The assistant writes in the language of the user's most recent message and
+switches when the user switches, so no configuration is needed and any language the
+model handles is available.
 
 - **Chat replies** follow the language the user is writing in.
 - **Generated course content** — titles, descriptions, lesson text, assessment questions,
   answer options and feedback — follows the same language.
+- **Conversation titles** follow the language of the message the conversation opened with.
 
 A user writing in one language may ask for the course itself in another; the assistant
 honours that request for the course content and keeps replying in the language the user
