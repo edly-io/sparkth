@@ -104,9 +104,11 @@ The out-of-scope refusal can reach a user through either path, and which one han
 given request decides which language rule applies. When the assistant model itself
 judges a request out of scope, the refusal is chat-generated text like any other reply,
 so it follows the language of the conversation. A faster check can also end the request
-before the assistant model is ever invoked; because no model is in the loop there, that
-refusal follows the interface language instead. Either way the user sees the same
-sentence — only the language it arrives in depends on which path caught the request.
+before the assistant model is ever invoked; a classification step may run there, but it
+only decides whether the request is in scope — the backend writes the refusal sentence
+itself rather than a model, so that refusal follows the interface language instead.
+Either way the user sees the same sentence — only the language it arrives in depends on
+which path caught the request.
 
 ### Language and the MCP server
 
