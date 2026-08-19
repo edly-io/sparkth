@@ -138,7 +138,7 @@ annotated with an `# i18n-exempt: <reason>` comment on one of the call's
 lines. Misuse inside the marking calls themselves (an f-string passed to
 `_()`) is caught by ruff's `INT` rules. A `gettext_noop`-marked constant has
 no runtime effect to check this way — `gettext()` stays content-keyed
-whether or not the wrapper is present — so the same suite instead runs
+whether or not the wrapper is present — so that same file also runs
 `pybabel`'s extractor directly and asserts the constant is still among the
 extracted messages, the only view where the marking is visible at all.
 
