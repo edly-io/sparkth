@@ -1,16 +1,16 @@
 """Public API for language resolution and language naming.
 
-The single entry point for the supported-language allowlist, for resolving a user's
-stored interface-language preference, and for naming an arbitrary language tag for a
-prompt. Application code and plugins import from here, never from
-``sparkth.core.language`` or ``sparkth.core.config``.
+The single entry point for the supported-language allowlist, for checking whether a
+language tag belongs to it, and for naming an arbitrary language tag for a prompt.
+Application code and plugins import from here, never from ``sparkth.core.language`` or
+``sparkth.core.config``.
 
 Example:
     ```python
-    from sparkth.lib.language import language_display_name, resolve_language
+    from sparkth.lib.language import is_supported_language, language_display_name
 
-    locale = resolve_language(current_user.language)   # an interface locale
-    name = language_display_name("pt-BR")              # "Portuguese (Brazil)"
+    is_supported_language(current_user.language)   # membership check, e.g. before binding
+    name = language_display_name("pt-BR")          # "Portuguese (Brazil)", for a prompt
     ```
 """
 

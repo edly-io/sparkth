@@ -7,7 +7,7 @@ in `sparkth.lib.i18n` (see the [Python API reference](../reference/lib.md)).
 
 ## How the locale is resolved
 
-Every request resolves its locale in this order:
+Any response rendered at or after authentication resolves its locale in this order:
 
 1. A signed-in user's stored `User.language` preference, when set and still one of the
    supported languages, is bound by `get_current_user` once the user is resolved — the
@@ -22,6 +22,11 @@ Every request resolves its locale in this order:
 3. When neither of the above offers a supported tag — an anonymous request, an unset or
    no-longer-supported stored preference, or a header offering nothing supported — the
    platform [`DEFAULT_LANGUAGE`](../reference/configuration.md#default_language) applies.
+
+A response produced by a gate that runs ahead of authentication — rejecting a request
+outright before any dependency resolves the caller — has no signed-in user to bind a
+stored preference from yet, so it follows the negotiated header (or `DEFAULT_LANGUAGE`)
+only.
 
 Code that runs outside a request (background tasks, CLI) sees
 `DEFAULT_LANGUAGE`, or installs a specific locale with
