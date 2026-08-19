@@ -219,8 +219,9 @@ async def get_or_create_conversation(
 ) -> Conversation:
     """Resolve an existing conversation by UUID, or create a new one and schedule title generation.
 
-    ``language`` is an already-resolved, allowlisted BCP 47 tag, forwarded to the title
-    generation task so the sidebar title matches the language of the replies.
+    ``language`` is an already-resolved, allowlisted BCP 47 tag — the user's stored
+    preference — forwarded to the title generation task so the sidebar title is
+    generated in that language.
     """
     if conversation_uuid:
         conversation = await service.get_conversation_by_uuid(

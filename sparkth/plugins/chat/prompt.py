@@ -4,8 +4,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from sparkth.lib.language import SUPPORTED_LANGUAGES
-
 _ASSETS_DIR = Path(__file__).parent / "assets"
 _scope_cfg: dict[str, object] | None = None
 
@@ -41,21 +39,20 @@ _OUT_OF_SCOPE_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 
-def get_learning_design_system_prompt(language: str) -> str:
-    """Render the learning-design system prompt for output in ``language``.
+def get_learning_design_system_prompt() -> str:
+    """Render the learning-design system prompt.
 
-    ``language`` is an already-resolved, allowlisted BCP 47 tag — callers resolve a
-    user's stored preference with :func:`sparkth.lib.language.resolve_language` before
-    calling. The tag's English name is what reaches the model: it is the form an LLM
-    follows most reliably, and it keeps the directive readable in logs.
+    No language is injected. The template's OUTPUT LANGUAGE section instructs the model to
+    write in the language of the user's most recent message and to switch when the user
+    does, so the output language is inferred from the conversation rather than resolved
+    from stored state.
 
-    Rendered fresh on every request, so a preference changed mid-conversation takes
-    effect on the very next turn; earlier messages stay as they were.
+    Rendered fresh on every request, which is what lets a language change take effect on
+    the very next turn; earlier messages stay as they were.
     """
     return _SYSTEM_PROMPT_TEMPLATE.format(
         current_datetime=get_current_datetime(),
         refusal_message=REFUSAL_MESSAGE,
-        language_name=SUPPORTED_LANGUAGES[language].name,
     )
 
 
