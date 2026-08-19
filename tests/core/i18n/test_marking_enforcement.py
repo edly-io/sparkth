@@ -32,6 +32,10 @@ CHAT_PLUGIN_DIR = SOURCE_ROOT / "plugins" / "chat"
 # extra `-k` flags the Makefile's i18n.extract target adds on top of them. This is that
 # same effective set, kept in step so a divergence never guards something extraction doesn't.
 EXTRACT_KEYWORDS = DEFAULT_KEYWORDS | {"lazy_gettext": None, "gettext_noop": None}
+# Keywords alone aren't enough: real extraction also skips SKIPPED_DIR_NAMES per babel.cfg's
+# `[ignore: **/tests/**]` / `[ignore: migrations/**]`. _extraction_directory_filter below
+# applies that same skip, so both the markers and the tree scanned stay in step with the
+# Makefile's invocation.
 
 _LITERAL_MESSAGE = (
     f"HTTPException detail is an unmarked string literal: wrap it in _() or add `# {EXEMPT_MARKER}: <reason>`"
@@ -152,6 +156,12 @@ def test_collect_violations_skips_tests_and_migrations(tmp_path: Path) -> None:
     assert "routes.py" in violations[0]
 
 
+def _extraction_directory_filter(dirpath: str) -> bool:
+    """Keep this test's view of the tree identical to ``babel.cfg``'s, so the guard
+    cannot be satisfied by a file real extraction never reads."""
+    return Path(dirpath).name not in SKIPPED_DIR_NAMES
+
+
 def test_the_chat_refusal_is_extractable_by_pybabel() -> None:
     """The refusal must reach the catalogs, and only extraction can prove it does.
 
@@ -168,7 +178,7 @@ def test_the_chat_refusal_is_extractable_by_pybabel() -> None:
     messages = {
         message
         for _filename, _lineno, message, _comments, _context in extract_from_dir(
-            CHAT_PLUGIN_DIR, keywords=EXTRACT_KEYWORDS
+            CHAT_PLUGIN_DIR, keywords=EXTRACT_KEYWORDS, directory_filter=_extraction_directory_filter
         )
         if isinstance(message, str)
     }
