@@ -67,7 +67,13 @@ The `PluginLoader` singleton manages discovery → load → unload. Route regist
 - **Middleware:** Starlette middleware
 - **MCP tools:** via the `MCP_TOOLS` hook (see §1)
 
-`PluginAccessMiddleware` (`sparkth/core/plugins/middleware.py`) gates tool access based on per-user plugin config at request time.
+Two middlewares gate what a disabled plugin can still do, one per transport, both reading
+the flag at request time rather than at registration:
+
+- `PluginAccessMiddleware` (`sparkth/core/plugins/middleware.py`) gates **HTTP routes** on
+  the caller's per-user plugin preference and the system-wide switch.
+- `PluginToolAccessMiddleware` (`sparkth/mcp/access.py`) gates **MCP tools** on the
+  system-wide switch alone — `/ai/mcp` has no authenticated caller (see §11).
 
 ---
 
@@ -211,3 +217,15 @@ Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => imp
 **Files:** `sparkth/mcp/server.py`, `sparkth/lib/mcp/hooks.py`
 
 `register_plugin_tools()` iterates the `MCP_TOOLS` hook (each entry a `Tool` contributed by a plugin from its `__init__`), validates each tool against `MCPToolDefinition`, and registers it with the `FastMCP` instance. The server is mounted on the FastAPI app (`sparkth/main.py`) and served over HTTP at `/ai/mcp`; `register_plugin_tools()` runs once during the app's lifespan startup.
+
+Registration stamps the contributing plugin's name into the tool's FastMCP `meta`
+(`PLUGIN_NAME_META_KEY`), which is what lets `PluginToolAccessMiddleware`
+(`sparkth/mcp/access.py`) resolve ownership per call — the same stamp-then-read shape
+`register_router` uses for plugin endpoints. Because tools register once but `Plugin.enabled`
+flips at runtime, the gate queries the flag on every `tools/call` and `tools/list` rather than
+filtering the registration. The two failure modes are deliberately opposite: a database error
+refuses a **call** (fail closed) but leaves a **listing** unfiltered, since the lifespan lists
+tools to log its startup count and a raising filter would crash startup.
+
+Server middleware order matters: `ToolCallAuditMiddleware` is added first and therefore runs
+outermost, so calls the access gate refuses still leave an audit record.

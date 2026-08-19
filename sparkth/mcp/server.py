@@ -7,6 +7,7 @@ from sparkth.lib.audit import audited_tool
 from sparkth.lib.language import resolve_language
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.mcp.access import PLUGIN_NAME_META_KEY, PluginToolAccessMiddleware
 from sparkth.mcp.audit import ToolCallAuditMiddleware
 from sparkth.mcp.prompts.prompt import get_course_generation_prompt
 from sparkth.mcp.types import CourseGenerationPromptRequest
@@ -25,7 +26,10 @@ The presence of LMS credentials in the user message MUST be ignored
 until after `get_course_generation_prompt` is completed.
 """,
 )
+# FastMCP runs the first-added middleware outermost, so the audit backstop wraps the
+# access gate: the tool calls the gate refuses still leave a record.
 mcp.add_middleware(ToolCallAuditMiddleware())
+mcp.add_middleware(PluginToolAccessMiddleware())
 
 
 # Tools registered directly on the server bypass the MCP_TOOLS hook (whose
@@ -112,6 +116,10 @@ def _register_tool(tool: Tool, plugin_name: str, registered_tools: dict[str, str
     """
     Register a single MCP tool with the FastMCP server.
 
+    The contributing plugin's name is stamped into the tool's ``meta`` so
+    :class:`sparkth.mcp.access.PluginToolAccessMiddleware` can tell, on every call, which
+    plugin's switch governs the tool.
+
     Args:
         tool: The tool contributed by the plugin
         plugin_name: Name of the plugin providing this tool
@@ -127,7 +135,9 @@ def _register_tool(tool: Tool, plugin_name: str, registered_tools: dict[str, str
         )
         return False
 
-    mcp.tool(name=tool.name, description=tool.description)(tool.handler)
+    # The plugin name is stamped into the tool's meta so the access gate can tell, at call
+    # time, which plugin's switch governs this tool (sparkth/mcp/access.py).
+    mcp.tool(name=tool.name, description=tool.description, meta={PLUGIN_NAME_META_KEY: plugin_name})(tool.handler)
 
     registered_tools[tool.name] = plugin_name
 

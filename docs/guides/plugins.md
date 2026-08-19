@@ -275,7 +275,7 @@ async def process_data(input: str) -> str:
 
 Scope kinds register the same way, through `PermissionScope.create("course", parent=...)` (or `ObjectlessPermissionScope.create(...)` for a singleton scope) — the scope classes come from `sparkth.lib.permissions.scopes`. See the [permissions guide](permissions.md) for how scope hierarchy and assignments work.
 
-Analytics event schemas register through `register_event_schema(self, MyEvent)`: define an `AnalyticsEventSchema` subclass (from `sparkth.lib.analytics`) declaring its own `event_type` and `version`, then register it from `__init__`. The `event_type` **must** be namespaced under the plugin's name (`"myappplugin.data_processed"`), or registration raises `EventNamespaceError` at import; a *different* class claiming the same `(event_type, version)` raises `DuplicateEventTypeError`, while re-registering the identical class is a no-op, so constructing your plugin more than once (as its own tests do) is safe. Emit a registered event server-side with `emit_event` (also from `sparkth.lib.analytics`) — it opens its own analytics session so you need no session plumbing. It catches nothing: a failed analytics write propagates to the caller rather than being silently hidden. Emit from a background task so that failure surfaces in the logs without affecting the request being measured. Reach for the lower-level `ingest_event` when the caller already holds an analytics session.
+Analytics event schemas register through `register_event_schema(self, MyEvent)`: define an `AnalyticsEventSchema` subclass (from `sparkth.lib.analytics`) declaring its own `event_type` and `version`, then register it from `__init__`. The `event_type` **must** be namespaced under the plugin's name (`"myappplugin.data_processed"`), or registration raises `EventNamespaceError` at import; a second class claiming the same `(event_type, version)` raises `DuplicateEventTypeError`. Emit a registered event server-side with `emit_event` (also from `sparkth.lib.analytics`) — it opens its own analytics session so you need no session plumbing. It catches nothing: a failed analytics write propagates to the caller rather than being silently hidden. Emit from a background task so that failure surfaces in the logs without affecting the request being measured. Reach for the lower-level `ingest_event` when the caller already holds an analytics session.
 
 ### Where do plugin routes get mounted?
 
@@ -302,12 +302,30 @@ every *identified* caller, but its unauthenticated endpoints stay reachable, bec
 gate has no caller to check them against. Treat "disabled" as a per-caller answer, not as a
 kill switch for the plugin's HTTP surface.
 
-The gate covers HTTP routes and nothing else — **a plugin's MCP tools are not gated at
-all**. `/ai/mcp` is a mount rather than a plugin route, so no plugin name resolves for a
-request to it, and the MCP surface carries no caller identity to check a preference
-against. Disabling a plugin, for one user or system-wide, does not stop its tools being
-called over MCP. If a tool must not run for someone, enforce that in the tool itself; do
-not rely on the plugin being switched off.
+### Who can reach plugin MCP tools?
+
+Your plugin's tools are gated on `/ai/mcp` by `PluginToolAccessMiddleware`
+(`sparkth/mcp/access.py`), the MCP counterpart to the route gate above. Disabling a plugin
+system-wide stops its tools being called and drops them from the advertised tool listing;
+tools registered directly on the server belong to no plugin and are never gated.
+
+The gate resolves the owning plugin from a name `register_plugin_tools` stamps onto each
+tool at registration, and reads `Plugin.enabled` on every call — so disabling a plugin
+takes effect immediately, with no restart, and re-enabling one brings its tools back the
+same way.
+
+Two limits are worth knowing before you rely on it:
+
+- **System-wide only.** `/ai/mcp` carries no authenticated caller, so there is no user
+  whose per-user preference could be checked. A user who turns your plugin off in their
+  settings can still call its tools over MCP; only an administrator disabling the plugin
+  outright stops them.
+- **MCP is not the only tool door.** The chat agent builds its LangChain tools from the
+  same `MCP_TOOLS` hook (`sparkth/plugins/chat/tools.py`), and that path is ungated —
+  a disabled plugin's tools remain callable through chat.
+
+So if a tool must not run for someone in particular, enforce that inside the tool; the
+plugin switch is an administrative control, not a per-user one.
 
 ## Frontend Metadata
 
@@ -356,21 +374,6 @@ register_exception_handler(MyAppError, 409)
 
 Now any route that raises `MyAppError` returns `409` with `{"detail": str(exc)}` — no
 per-route `try/except`. A mapping on a base exception also catches its subclasses.
-
-## Translations (Optional)
-
-User-facing strings are marked with `_()` / `lazy_gettext()` from `sparkth.lib.i18n`. A
-plugin that ships its own compiled catalogs registers its catalog directory on the
-`LOCALE_DIRS` hook from its `__init__`, like every other hook:
-
-```python
-from sparkth.lib.i18n import LOCALE_DIRS
-
-LOCALE_DIRS.add_item(Path(__file__).parent / "locale")
-```
-
-In-tree plugins need none of this: `make i18n.extract` scans all of `sparkth/` into the
-core catalog. See the [translations guide](translations.md).
 
 ## Register in core/config.py
 ```python
