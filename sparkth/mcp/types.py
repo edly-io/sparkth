@@ -7,9 +7,10 @@ class CourseGenerationPromptRequest(BaseModel):
     language: str | None = Field(
         default=None,
         description=(
-            "BCP 47 language tag for the generated course, e.g. 'en', 'es', 'fr'. "
+            "BCP 47 language tag for the generated course, e.g. 'en', 'es', 'de', 'pt-BR'. "
             "The whole course — titles, descriptions, lesson text, assessment questions, "
-            "answer options and feedback — is written in it. Omit it, or pass a tag the "
-            "platform does not support, and the platform default language is used."
+            "answer options and feedback — is written in it. Any language is accepted. "
+            "Omit it, or pass a value that is not a valid language tag, and the platform "
+            "default language is used."
         ),
     )
