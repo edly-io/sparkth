@@ -58,6 +58,14 @@ class TestCourseGenerationPromptLanguage:
         prompt = get_course_generation_prompt("Data Privacy", "An intro course", "es")
         assert "in the user's language" not in prompt
 
+    def test_course_name_and_description_still_render(self) -> None:
+        """Nothing here exercises language handling — this guards that the template's
+        other placeholders keep rendering, since none of the tests above assert on the
+        course text itself."""
+        prompt = get_course_generation_prompt("Data Privacy", "An intro course", "en")
+        assert "Data Privacy" in prompt
+        assert "An intro course" in prompt
+
 
 class TestCourseGenerationPromptRequest:
     def test_language_is_optional(self) -> None:
