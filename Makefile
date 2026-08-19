@@ -137,28 +137,41 @@ mypy: ## Run mypy type checking
 # Static-translation workflow for the backend (see docs/guides/translations.md).
 # `.po` catalogs are committed; the `.pot` template and compiled `.mo` files are
 # build artifacts (git-ignored).
+# Core strings live in sparkth/locale; a plugin owns the catalogs under its own
+# locale/ directory (core extraction ignores plugins/, see babel.cfg). Every
+# target below loops over the core catalog and each sparkth/plugins/*/locale
+# that exists, so a plugin opts in by creating that directory.
 # Version comes from the installed package so the catalog headers never go stale
 # against pyproject.toml.
 SPARKTH_VERSION := $(shell uv run python -c "import importlib.metadata; print(importlib.metadata.version('sparkth'))")
+I18N_CATALOG_DIRS := sparkth/locale $(wildcard sparkth/plugins/*/locale)
+PYBABEL_EXTRACT_FLAGS = -F babel.cfg -k lazy_gettext -k gettext_noop \
+	--project=sparkth --version=$(SPARKTH_VERSION) \
+	--copyright-holder="Edly" --msgid-bugs-address=https://github.com/edly-io/sparkth/issues
 
 .PHONY: i18n.extract
-i18n.extract: ## Extract translatable strings from sparkth/ into sparkth/locale/messages.pot
-	uv run pybabel extract -F babel.cfg -k lazy_gettext -k gettext_noop \
-		--project=sparkth --version=$(SPARKTH_VERSION) \
-		--copyright-holder="Edly" --msgid-bugs-address=https://github.com/edly-io/sparkth/issues \
-		-o sparkth/locale/messages.pot sparkth
+i18n.extract: ## Extract translatable strings into core and per-plugin messages.pot templates
+	for dir in $(I18N_CATALOG_DIRS); do \
+		uv run pybabel extract $(PYBABEL_EXTRACT_FLAGS) -o $$dir/messages.pot $${dir%/locale} || exit 1; \
+	done
 
 .PHONY: i18n.init
-i18n.init: i18n.extract ## Create the catalog for a new language (make i18n.init -- es)
-	uv run pybabel init -i sparkth/locale/messages.pot -d sparkth/locale -l $(ARGS)
+i18n.init: i18n.extract ## Create the core and per-plugin catalogs for a new language (make i18n.init -- es)
+	for dir in $(I18N_CATALOG_DIRS); do \
+		uv run pybabel init -i $$dir/messages.pot -d $$dir -l $(ARGS) || exit 1; \
+	done
 
 .PHONY: i18n.update
 i18n.update: i18n.extract ## Re-extract and merge new/changed strings into every language catalog
-	uv run pybabel update -i sparkth/locale/messages.pot -d sparkth/locale
+	for dir in $(I18N_CATALOG_DIRS); do \
+		uv run pybabel update -i $$dir/messages.pot -d $$dir || exit 1; \
+	done
 
 .PHONY: i18n.compile
 i18n.compile: ## Compile .po catalogs to the .mo files loaded at runtime
-	uv run pybabel compile -d sparkth/locale
+	for dir in $(I18N_CATALOG_DIRS); do \
+		uv run pybabel compile -d $$dir || exit 1; \
+	done
 
 ##@ Documentation
 # Docs deps live in the isolated `docs` dependency group, kept out of the default dev install.
