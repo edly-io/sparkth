@@ -10,6 +10,7 @@ from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
@@ -98,16 +99,21 @@ class TestStreamOutOfScopeRefusal:
 
     @pytest.mark.asyncio
     async def test_emits_single_done_event_with_refusal_content(self) -> None:
-        """stream_out_of_scope_refusal yields exactly one SSE done event."""
-        events = []
-        async for chunk in stream_out_of_scope_refusal():
-            events.append(chunk)
+        """stream_out_of_scope_refusal yields exactly one SSE done event.
 
-        assert len(events) == 1
-        assert events[0].startswith("data: ")
-        payload = json.loads(events[0].removeprefix("data: ").strip())
-        assert payload["done"] is True
-        assert payload["content"] == REFUSAL_MESSAGE
+        Subject here is the event shape, not the language it renders in — the
+        locale is pinned explicitly rather than relying on the ambient default.
+        """
+        with locale_context("en"):
+            events = []
+            async for chunk in stream_out_of_scope_refusal():
+                events.append(chunk)
+
+            assert len(events) == 1
+            assert events[0].startswith("data: ")
+            payload = json.loads(events[0].removeprefix("data: ").strip())
+            assert payload["done"] is True
+            assert payload["content"] == REFUSAL_MESSAGE
 
 
 class TestChatCompletionResponseSchema:
@@ -180,7 +186,10 @@ class TestOutOfScopeConversationCreation:
         mock_msg = MagicMock()
         mock_msg.id = 1
 
+        # Subject here is DB record behaviour, not language — the locale is pinned
+        # explicitly rather than relying on the ambient default.
         with (
+            locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=False),
             patch(
@@ -228,7 +237,11 @@ class TestOutOfScopeConversationCreation:
         conv_uuid = str(conv.uuid)
         await session.commit()
 
+        # Subject here is that a message got persisted, not the language it was
+        # persisted in — the locale is pinned explicitly rather than relying on the
+        # ambient default.
         with (
+            locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=False),
             patch(

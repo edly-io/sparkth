@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from sparkth.lib.i18n import gettext_noop
+
 _ASSETS_DIR = Path(__file__).parent / "assets"
 _scope_cfg: dict[str, object] | None = None
 
@@ -27,7 +29,15 @@ def get_current_datetime() -> datetime:
 # Load once at import time — small local files, no I/O on each request
 _SYSTEM_PROMPT_TEMPLATE: str = _load_system_prompt_template()
 _cfg = _load_scope_config()
-REFUSAL_MESSAGE: str = cast(str, _cfg["refusal_message"])
+# User-facing copy lives here rather than in scope_keywords.json because pybabel extracts
+# from Python source only; the keyword lists stay in the asset, as they are data, not copy.
+# gettext_noop keeps this a plain str so it can be substituted into the prompt template,
+# json.dumps'd onto the SSE stream, and assigned to a pydantic field — none of which a
+# LazyString allows. It is rendered with gettext() at each of those boundaries.
+REFUSAL_MESSAGE: str = gettext_noop(
+    "I'm a course creation assistant and can only help with designing and building "
+    "courses. Is there a course you'd like to create?"
+)
 _IN_SCOPE_KEYWORDS: frozenset[str] = frozenset(cast(list[str], _cfg["in_scope"]))
 _OUT_OF_SCOPE_KEYWORDS: frozenset[str] = frozenset(cast(list[str], _cfg["out_of_scope"]))
 
