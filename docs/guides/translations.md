@@ -11,8 +11,8 @@ Any response rendered at or after authentication resolves its locale in this ord
 
 1. A signed-in user's stored `User.language` preference, when set and still one of the
    supported languages, is bound by `get_current_user` once the user is resolved — the
-   first point in the request at which a signed-in user is known — and replaces whatever
-   the middleware negotiated from the header.
+   first point in the request at which the locale is bound to that preference — and
+   replaces whatever the middleware negotiated from the header.
 2. The `Accept-Language` header, negotiated by `LocaleMiddleware` against the platform
    allowlist (`SUPPORTED_LANGUAGES`, exposed at `GET /api/v1/languages`). Entries are
    taken in listing order, with anything after a `;` discarded: browsers list languages by
@@ -24,8 +24,8 @@ Any response rendered at or after authentication resolves its locale in this ord
    platform [`DEFAULT_LANGUAGE`](../reference/configuration.md#default_language) applies.
 
 A response produced by a gate that runs ahead of authentication — rejecting a request
-outright before any dependency resolves the caller — has no signed-in user to bind a
-stored preference from yet, so it follows the negotiated header (or `DEFAULT_LANGUAGE`)
+outright before the authentication dependency runs — is rendered before that dependency
+binds a stored preference, so it follows the negotiated header (or `DEFAULT_LANGUAGE`)
 only.
 
 Code that runs outside a request (background tasks, CLI) sees

@@ -9,8 +9,9 @@ Example:
     ```python
     from sparkth.lib.language import is_supported_language, language_display_name
 
-    is_supported_language(current_user.language)   # membership check, e.g. before binding
-    name = language_display_name("pt-BR")          # "Portuguese (Brazil)", for a prompt
+    if current_user.language and is_supported_language(current_user.language):
+        ...   # membership check, e.g. before binding
+    name = language_display_name("pt-BR")   # "Portuguese (Brazil)", for a prompt
     ```
 """
 
