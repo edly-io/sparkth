@@ -19,11 +19,19 @@ import ast
 from collections.abc import Sequence
 from pathlib import Path
 
+from babel.messages.extract import DEFAULT_KEYWORDS, extract_from_dir
+
 import sparkth
+from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 
 EXEMPT_MARKER = "i18n-exempt"
 SKIPPED_DIR_NAMES = {"tests", "migrations", "__pycache__"}
 SOURCE_ROOT = Path(sparkth.__file__).resolve().parent
+CHAT_PLUGIN_DIR = SOURCE_ROOT / "plugins" / "chat"
+# Babel's DEFAULT_KEYWORDS already cover gettext/_; lazy_gettext and gettext_noop are the
+# extra `-k` flags the Makefile's i18n.extract target adds on top of them. This is that
+# same effective set, kept in step so a divergence never guards something extraction doesn't.
+EXTRACT_KEYWORDS = DEFAULT_KEYWORDS | {"lazy_gettext": None, "gettext_noop": None}
 
 _LITERAL_MESSAGE = (
     f"HTTPException detail is an unmarked string literal: wrap it in _() or add `# {EXEMPT_MARKER}: <reason>`"
@@ -142,3 +150,26 @@ def test_collect_violations_skips_tests_and_migrations(tmp_path: Path) -> None:
 
     assert len(violations) == 1
     assert "routes.py" in violations[0]
+
+
+def test_the_chat_refusal_is_extractable_by_pybabel() -> None:
+    """The refusal must reach the catalogs, and only extraction can prove it does.
+
+    ``gettext_noop`` returns its argument unchanged, so deleting the wrapper changes
+    nothing observable at runtime: ``gettext`` is content-keyed and keeps translating
+    from the catalog entry that already exists. What breaks is extraction — the msgid
+    stops being found, the next catalog update marks it obsolete, and the shipped
+    translations rot with no test failing. This asserts the extractor's view, which is
+    the only view that can see the marking.
+
+    ``REFUSAL_MESSAGE`` is imported rather than duplicated as a literal here so the
+    assertion tracks whatever sentence is actually shipped.
+    """
+    messages = {
+        message
+        for _filename, _lineno, message, _comments, _context in extract_from_dir(
+            CHAT_PLUGIN_DIR, keywords=EXTRACT_KEYWORDS
+        )
+        if isinstance(message, str)
+    }
+    assert REFUSAL_MESSAGE in messages
