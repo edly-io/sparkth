@@ -7,7 +7,7 @@ the calling agent supplies it, and anything unusable falls back to the platform 
 import pytest
 from fastmcp import Client
 
-from sparkth.lib.language import SUPPORTED_LANGUAGES
+from sparkth.lib.language import SUPPORTED_LANGUAGES, language_display_name
 from sparkth.lib.settings import get_settings
 from sparkth.mcp.prompts.prompt import get_course_generation_prompt
 from sparkth.mcp.server import mcp
@@ -27,28 +27,36 @@ def _other_supported_language_names(excluding_tag: str) -> set[str]:
 
 
 class TestCourseGenerationPromptLanguage:
-    @pytest.mark.parametrize("tag", sorted(SUPPORTED_LANGUAGES))
-    def test_names_the_language_for_every_supported_tag(self, tag: str) -> None:
+    @pytest.mark.parametrize(
+        ("tag", "expected"),
+        [("en", "English"), ("es", "Spanish"), ("de", "German"), ("pt-BR", "Portuguese (Brazil)")],
+    )
+    def test_names_the_requested_language(self, tag: str, expected: str) -> None:
+        """ "de" and "pt-BR" are outside the interface allowlist and must still work —
+        before, they raised KeyError."""
         prompt = get_course_generation_prompt("Data Privacy", "An intro course", tag)
-        assert SUPPORTED_LANGUAGES[tag].name in prompt
+        assert expected in prompt
 
-    @pytest.mark.parametrize("tag", sorted(SUPPORTED_LANGUAGES))
-    def test_no_unrendered_placeholder_remains(self, tag: str) -> None:
-        prompt = get_course_generation_prompt("Data Privacy", "An intro course", tag)
-        assert "{language_name}" not in prompt
+    def test_no_unrendered_placeholder_remains(self) -> None:
+        assert "{language_name}" not in get_course_generation_prompt("Data Privacy", "An intro", "de")
+
+    def test_omitted_language_falls_back_to_the_platform_default(self) -> None:
+        prompt = get_course_generation_prompt("Data Privacy", "An intro course", None)
+        default_name = language_display_name(get_settings().DEFAULT_LANGUAGE)
+        assert default_name in prompt
+
+    def test_unusable_tag_falls_back_rather_than_raising(self) -> None:
+        """A nonsense tag must not fail an agent-driven generation run."""
+        prompt = get_course_generation_prompt("Data Privacy", "An intro course", "klingon")
+        assert language_display_name(get_settings().DEFAULT_LANGUAGE) in prompt
 
     def test_ambiguous_language_instruction_is_gone(self) -> None:
         """ "in the user's language" is undefined on a path that has no user at all.
 
-        Asserts on the exact deleted phrase, so rewording the new directive cannot
-        cause a false failure."""
+        Asserts on the exact deleted phrase, so rewording the directive cannot cause a
+        false failure."""
         prompt = get_course_generation_prompt("Data Privacy", "An intro course", "es")
         assert "in the user's language" not in prompt
-
-    def test_course_name_and_description_still_render(self) -> None:
-        prompt = get_course_generation_prompt("Data Privacy", "An intro course", "en")
-        assert "Data Privacy" in prompt
-        assert "An intro course" in prompt
 
 
 class TestCourseGenerationPromptRequest:
