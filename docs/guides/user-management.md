@@ -73,11 +73,6 @@ model handles is available.
 - **Generated course content** — titles, descriptions, lesson text, assessment questions,
   answer options and feedback — follows the same language.
 - **Conversation titles** follow the language of the message the conversation opened with.
-- **API error messages and other fixed backend strings** follow the interface language
-  rather than the conversation, because no model is involved in producing them. The
-  out-of-scope refusal is a special case: the assistant sends it in the language of the
-  conversation, while the copy streamed directly by the backend on the same path follows
-  the interface language.
 
 A user writing in one language may ask for the course itself in another; the assistant
 honours that request for the course content and keeps replying in the language the user
@@ -99,6 +94,19 @@ a user.
 
 The **Slack assistant** is a separate case: it answers questions from Slack members, who
 are not signed-in Sparkth users, and its prompts carry no language directive at all.
+
+### The language of fixed backend text
+
+API error messages and other fixed backend strings follow the interface language rather
+than the conversation, because no model is involved in producing them.
+
+The out-of-scope refusal can reach a user through either path, and which one handles a
+given request decides which language rule applies. When the assistant model itself
+judges a request out of scope, the refusal is chat-generated text like any other reply,
+so it follows the language of the conversation. A faster check can also end the request
+before the assistant model is ever invoked; because no model is in the loop there, that
+refusal follows the interface language instead. Either way the user sees the same
+sentence — only the language it arrives in depends on which path caught the request.
 
 ### Language and the MCP server
 
