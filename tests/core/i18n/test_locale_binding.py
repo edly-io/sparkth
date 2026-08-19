@@ -8,11 +8,14 @@ browser did not.
 from collections.abc import Iterator
 
 import pytest
+from fastapi import Request
+from fastapi.security import HTTPAuthorizationCredentials
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n.context import _locale, get_locale, locale_context
 from sparkth.core.security import create_access_token
+from sparkth.lib.auth import get_current_user
 from sparkth.lib.i18n import bind_locale
 from sparkth.lib.models import User
 from sparkth.lib.settings import get_settings
@@ -129,3 +132,53 @@ class TestStoredPreferenceWinsOverTheHeader:
 
         assert response.status_code == 422
         assert response.json()["detail"] == FRENCH_EMPTY_BODY
+
+
+def _cached_request(user: User) -> Request:
+    """A bare ASGI request scope carrying ``user`` the way ``PluginAccessMiddleware``
+    leaves it on ``request.state`` for every authenticated plugin route, before
+    ``get_current_user`` ever runs."""
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "root_path": "",
+            "headers": [],
+            "query_string": b"",
+            "app": None,
+        }
+    )
+    request.state.user = user
+    return request
+
+
+class TestCachedUserBranchBindsToo:
+    """``get_current_user`` has two exits that hand back a ``User``: the cached one, taken
+    when ``PluginAccessMiddleware`` already resolved the caller (every authenticated plugin
+    route — chat, canvas, googledrive, open-edx, slack), and the full-lookup one exercised
+    by ``TestStoredPreferenceWinsOverTheHeader`` above. Binding only on the lookup path
+    would leave the stored preference unapplied on every plugin route, so this covers the
+    cached path directly — no token or database row needed, since that branch reads
+    neither.
+    """
+
+    async def test_binds_the_stored_language_on_the_cached_path(
+        self,
+        session: AsyncSession,
+    ) -> None:
+        user = User(
+            id=1,
+            name="Cached User",
+            username="cacheduser",
+            email="cacheduser@example.com",
+            hashed_password="not-a-real-hash",
+            language="es",
+        )
+        request = _cached_request(user)
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="unused")
+
+        result = await get_current_user(request, credentials, session)
+
+        assert result is user
+        assert get_locale() == "es"
