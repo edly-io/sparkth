@@ -18,12 +18,13 @@ exists or it does not. Everything else in this guide is about this language.
 
 **Generated language** — what the model writes: chat replies, course titles, lesson text,
 assessment questions, answer options, feedback, and conversation titles. It is not
-resolved at all. In chat, the prompts instruct the model to write in the language of the
-user's most recent message and to switch when the user switches; a conversation title
-instead follows the language of the message the conversation opened with, and the MCP
-course-generation tool takes an explicit tag from its caller rather than reading one off a
-message. Either way, there is no tag to store, no setting to configure, and no allowlist to
-check. Any language the model handles works.
+resolved from a stored preference or a negotiated header, the way interface language is.
+In chat, the prompts instruct the model to write in the language of the user's most recent
+message and to switch when the user switches; a conversation title instead follows the
+language of the message the conversation opened with, and the MCP course-generation tool
+takes an explicit tag from its caller rather than reading one off a message. Either way,
+there is no tag to store, no setting to configure, and no allowlist to check. Any language
+the model handles works.
 
 The practical consequences worth knowing:
 
