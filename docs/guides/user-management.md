@@ -69,6 +69,9 @@ this setting. The assistant writes in the language of the user's most recent mes
 switches when the user switches, so no configuration is needed and any language the
 model handles is available.
 
+The [translations guide](translations.md) explains how the two languages are resolved and
+why they are independent.
+
 - **Chat replies** follow the language the user is writing in.
 - **Generated course content** — titles, descriptions, lesson text, assessment questions,
   answer options and feedback — follows the same language.
