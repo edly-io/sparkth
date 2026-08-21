@@ -205,6 +205,79 @@ make frontend.build.plugins
   frontend registry does not match it (`lib/tests/plugin-registry-drift.test.ts`)
 - `PluginPageClient` handles loading the correct plugin dynamically
 
+## Translations (Optional)
+
+A plugin owns its message catalogs, mirroring the backend rule: the core
+`messages/*.json` files carry no plugin namespace, and a plugin with
+user-facing strings ships its own catalogs under its directory, scoped to a
+single top-level namespace equal to the plugin name.
+
+**1. Create the catalogs**
+
+    plugins/example-plugin/messages/en.json
+    plugins/example-plugin/messages/es.json
+    plugins/example-plugin/messages/fr.json
+
+```json
+{
+  "example-plugin": {
+    "greeting": "Hello from the example plugin"
+  }
+}
+```
+
+Every locale in `lib/i18n/config.ts` needs a file, all carrying the same keys.
+
+**2. Declare the loader on the plugin definition**
+
+```ts
+import type { Locale } from "@/lib/i18n/config";
+
+const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, unknown> }>> = {
+  en: () => import("./messages/en.json"),
+  es: () => import("./messages/es.json"),
+  fr: () => import("./messages/fr.json"),
+};
+
+export const examplePlugin: PluginDefinition = {
+  name: "example-plugin",
+  loadComponent: () => import("./ExamplePlugin"),
+  loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
+};
+```
+
+`loadMessages` in `lib/i18n/messages.ts` merges every registered plugin's
+catalog into the core one at load time; a catalog that fails to load falls
+back to the plugin's English one.
+
+**3. Bind the types**
+
+Intersect the plugin's English catalog into the `PluginMessages` type in
+`lib/i18n/messages.ts` (type-only, so the plugin stays a self-contained
+runtime unit):
+
+```ts
+import type examplePluginMessages from "@/plugins/example-plugin/messages/en.json";
+
+type PluginMessages = typeof chatMessages & typeof examplePluginMessages;
+```
+
+**4. Use the namespace in components**
+
+```tsx
+const t = useTranslations("example-plugin");
+
+<p>{t("greeting")}</p>
+```
+
+Plugin components use only their own namespace, never a core one. The catalog
+drift guard (`make test.frontend.i18n`) picks the new `messages/` directory up
+automatically and checks it against the plugin's own sources, and
+`frontend/tests/lib/i18n/messages.test.ts` enforces the namespace containment.
+In component tests, pass the plugin catalog to the intl helper:
+`renderWithIntl(<ExamplePlugin />, exampleEn)`. See the
+[translations guide](translations.md#plugin-catalogs) for the full picture.
+
 ## Plugin Loading Flow (Summary)
 
 ```
