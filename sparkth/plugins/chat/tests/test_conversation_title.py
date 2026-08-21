@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.plugins.chat.conversation_title import (
     extract_title_from_messages,
     generate_conversation_title,
@@ -249,5 +250,10 @@ class TestGenerateConversationTitle:
         await self._generate(provider, conversation_id=11)
 
         prompt = provider.send_message.call_args.kwargs["messages"][0]["content"]
-        for name in ("English", "Spanish", "French"):
-            assert name not in prompt
+        # Derived from the allowlist, not spelled out: a language added to
+        # SUPPORTED_LANGUAGES has to be covered here too, and a hardcoded list would go on
+        # passing while silently checking one language fewer than exists. Unlike the
+        # sibling guard in test_language_inference.py, English needs no exception — the
+        # title prompt never names it, so it is one more name this can hold to.
+        for info in SUPPORTED_LANGUAGES.values():
+            assert info.name not in prompt
