@@ -25,20 +25,18 @@ class LanguageInfo(NamedTuple):
     native_name: str
 
 
-# The allowlist of languages the platform accepts: the values a user may pick as a
-# preference, and the set DEFAULT_LANGUAGE is validated against. A resolved tag is
-# injected into the chat system prompt, so generated replies and course content follow
-# it — which is why membership is a reviewed decision, not a promise the model is
-# equally strong in every listed language.
+# The languages the platform ships an interface in: the set a user may store as their
+# preference, and the set DEFAULT_LANGUAGE is validated against. It does not constrain
+# AI-generated output — the model writes in the language of the conversation, whatever
+# that is — so membership here is about shipped translations, not model quality.
 #
 # Keys are BCP 47 tags (RFC 5646) — the hyphenated form HTML `lang`,
 # `Accept-Language` and the JS `Intl` API all consume; never the underscored POSIX
 # form.
 #
-# The list is deliberately short. LLM output quality varies by language, so a
-# language is added only once a speaker has reviewed generated course content in
-# it. It sits beside Settings because the startup validation below is its first
-# consumer.
+# The list is deliberately short. A language is added only once a full interface
+# translation for it exists and has been reviewed. It sits beside Settings because the
+# startup validation below is its first consumer.
 SUPPORTED_LANGUAGES: dict[str, LanguageInfo] = {
     "en": LanguageInfo("English", "English"),
     "es": LanguageInfo("Spanish", "Español"),

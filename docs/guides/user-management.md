@@ -58,42 +58,41 @@ Options:
 
 Each user has a preferred language recorded on their profile: a
 [BCP 47](https://datatracker.ietf.org/doc/html/rfc5646) tag, readable and settable
-through the API.
+through the API. It selects the language of Sparkth's own interface text — labels,
+buttons, and fixed backend messages — from the languages the platform ships
+translations for.
 
-Chat replies and generated course content are written in this language. The preference
-is resolved on every request, so changing it applies from the next message onward —
-messages already sent are not rewritten.
+### The language of AI-generated text
 
-### What the language applies to
+Chat replies and generated course content are **not** governed by this setting. The
+assistant writes in the language of the user's most recent message and switches when the
+user switches, so no configuration is needed and any language the model handles is
+available.
 
-The preference reaches every surface that produces text for a signed-in user:
-
-- **Chat replies** — the assistant answers in this language whatever language the user
-  writes in.
+- **Chat replies** follow the language the user is writing in.
 - **Generated course content** — titles, descriptions, lesson text, assessment questions,
-  answer options and feedback.
-- **Conversation titles** — the short titles in the conversation sidebar.
+  answer options and feedback — follows the same language.
 
-A source document keeps its own language. Uploading an English PDF with a Spanish
-preference produces a Spanish course generated from English source: the source is read as
-written, and only the output follows the preference.
+A user writing in one language may ask for the course itself in another; the assistant
+honours that request for the course content and keeps replying in the language the user
+is writing in.
+
+A source document keeps its own language. Uploading an English PDF while writing in
+Spanish produces a Spanish course generated from English source: the source is read as
+written, and only the output follows the conversation.
+
+Quality varies by language. Sparkth places no restriction on which languages it will
+generate in, which means output in a language nobody on the team has reviewed is
+possible; large language models are measurably stronger in widely spoken languages than
+in low-resource ones.
 
 Internal prompts are deliberately excluded — the scope classifier, the retrieval intent
 router and the document search agent all reason in English, the language current models
 are strongest in, while handling input in any language. Nothing they produce is shown to
 a user.
 
-Some surfaces do not follow the preference:
-
-- **API error messages and other fixed backend strings**, including the out-of-scope
-  refusal, are still English. These are fixed strings rather than model output, so
-  localizing them is separate work that belongs to the static-translation layer — not to
-  the language directive the model follows.
-- **Course metadata on a publishing target.** A published course carries whatever
-  language its destination LMS defaults to; the content itself is in the right language.
-- **Slack assistant answers.** The Slack assistant replies to questions from Slack
-  members, who are not signed-in Sparkth users and have no stored preference, so its
-  answers do not follow this setting.
+The **Slack assistant** is a separate case: it answers questions from Slack members, who
+are not signed-in Sparkth users, and its prompts carry no language directive at all.
 
 ### Language and the MCP server
 

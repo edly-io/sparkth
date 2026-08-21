@@ -120,8 +120,8 @@ image must run `make i18n.compile` itself before starting the server.
 ## Adding a language
 
 1. Add the BCP 47 tag to `SUPPORTED_LANGUAGES` in `sparkth/core/config.py`
-   (a language is added only once a speaker has reviewed generated content in
-   it; see the comment there).
+   (a language is added only once a full interface translation for it exists
+   and has been reviewed; see the comment there).
 2. `make i18n.init -- <lang>`, translate the catalog, `make i18n.compile`.
 3. The `/api/v1/languages` endpoint and `DEFAULT_LANGUAGE` validation pick up
    the new tag automatically.

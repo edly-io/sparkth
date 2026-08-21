@@ -1,8 +1,8 @@
-"""The resolved preferred language reaches the provider's system prompt.
+"""The chat assistant infers its output language from the conversation.
 
-Template rendering is covered by test_prompt.py; this file pins the wiring — that
-chat_completion resolves the signed-in user's stored preference, and that it re-resolves
-per request, so a preference changed mid-conversation applies from the next turn.
+Two things need pinning: the wording of the OUTPUT LANGUAGE directive, which is the only
+place the rule is expressed, and the absence of any injected language on the live route.
+Template rendering in isolation is covered by test_prompt.py.
 
 The mock stack mirrors test_intent_router_integration.py, which drives the same route.
 """
@@ -19,6 +19,7 @@ from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.prompt import get_learning_design_system_prompt
 
 
 class _Seeded:
@@ -196,12 +197,39 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
     return dict(mock_generate_title.call_args.kwargs)
 
 
-class TestCompletionLanguageWiring:
+class TestOutputLanguageDirective:
+    """The directive is the whole mechanism — there is no resolved tag behind it."""
+
+    def test_instructs_following_the_latest_user_message(self) -> None:
+        assert "same language as the user's most recent message" in get_learning_design_system_prompt()
+
+    def test_instructs_switching_when_the_user_switches(self) -> None:
+        assert "change with them from that message onward" in get_learning_design_system_prompt()
+
+    def test_honours_an_explicit_request_for_another_course_language(self) -> None:
+        """A user writing in one language may ask for the course in another. This
+        sentence is the only expression of that rule — no data field carries it."""
+        assert "honour that request for the course content" in get_learning_design_system_prompt()
+
+    def test_pins_no_specific_language(self) -> None:
+        """No language name may be injected, and no placeholder may survive.
+
+        "English" is excluded from the check deliberately: the directive keeps the
+        clause "not a literal translation of English phrasing", so that one name
+        appears unconditionally. The remaining names are the discriminating ones — if
+        any of them is present, something is still resolving and injecting a tag.
+        """
+        prompt = get_learning_design_system_prompt()
+        assert "{language_name}" not in prompt
+        injectable = {info.name for info in SUPPORTED_LANGUAGES.values() if info.name != "English"}
+        assert not any(name in prompt for name in injectable)
+
+
+class TestNoStoredPreferenceReachesThePrompt:
     """The `current_user` fixture overrides the auth dependency with an in-memory User,
-    so setting `.language` on it is the whole of "the user chose this language" — the
-    row is never read back from the database."""
+    so setting `.language` on it is the whole of "the user chose this language"."""
 
-    async def test_stored_preference_reaches_the_system_prompt(
+    async def test_stored_language_does_not_reach_the_system_prompt(
         self,
         client: AsyncClient,
         current_user: User,
@@ -212,66 +240,4 @@ class TestCompletionLanguageWiring:
 
         prompt = await _system_prompt_for_one_request(client, seed)
 
-        assert SUPPORTED_LANGUAGES["es"].name in prompt
-
-    async def test_unset_preference_falls_back_to_the_platform_default(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        seed = await _seed(session, current_user.id or 1)
-        current_user.language = None
-
-        prompt = await _system_prompt_for_one_request(client, seed)
-
-        default_tag = get_settings().DEFAULT_LANGUAGE
-        assert SUPPORTED_LANGUAGES[default_tag].name in prompt
-
-        # Negative control: see _other_supported_language_names for why the
-        # positive assertion alone cannot tell the true default from a
-        # valid-but-wrong resolution — the template names "English" unconditionally,
-        # so that assertion alone would pass even if the fallback resolved to any
-        # other supported language.
-        assert not any(name in prompt for name in _other_supported_language_names(default_tag))
-
-    async def test_changing_the_preference_applies_to_the_next_turn(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        """The prompt is rebuilt per request, so no conversation-level pinning exists
-        and none should be added: the next turn simply switches language."""
-        seed = await _seed(session, current_user.id or 1)
-
-        current_user.language = "es"
-        first = await _system_prompt_for_one_request(client, seed)
-        current_user.language = "fr"
-        second = await _system_prompt_for_one_request(client, seed)
-
-        assert SUPPORTED_LANGUAGES["es"].name in first
-        assert SUPPORTED_LANGUAGES["fr"].name in second
-        assert SUPPORTED_LANGUAGES["es"].name not in second
-
-
-class TestCompletionSchedulesTitleInLanguage:
-    """get_or_create_conversation forwards `language` into the background_tasks.add_task
-    call that schedules generate_conversation_title. add_task is typed as a bare
-    Callable, so mypy cannot check that kwarg against the task's signature — this test
-    is the only proof that the resolved language actually arrives at the scheduling
-    call site, rather than the prompt builder it feeds."""
-
-    async def test_new_conversation_schedules_title_generation_with_resolved_language(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        seed = await _seed(session, current_user.id or 1)
-        current_user.language = "es"
-
-        kwargs = await _scheduled_title_task_kwargs(client, seed.llm_config_id)
-
-        assert "language" in kwargs
-        assert kwargs["language"] == "es"
+        assert not any(name in prompt for name in _other_supported_language_names("en"))

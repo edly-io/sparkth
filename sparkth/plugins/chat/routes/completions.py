@@ -71,8 +71,8 @@ async def chat_completion(
     config: ChatSettings = Depends(get_chat_settings),
 ) -> Any:
     user_id: int = cast(int, current_user.id)
-    # Re-resolved per request, so a preference changed mid-conversation applies from
-    # the next turn onward.
+    # Resolved only to forward to title generation; the reply and content language is
+    # inferred by the model from the conversation.
     language = resolve_language(current_user.language)
     try:
         llm_config, api_key = await llm_service.resolve(
@@ -196,7 +196,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=get_learning_design_system_prompt(language),
+            system_prompt=get_learning_design_system_prompt(),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )
