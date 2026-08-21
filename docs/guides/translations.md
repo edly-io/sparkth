@@ -99,35 +99,44 @@ lines. Misuse inside the marking calls themselves (an f-string passed to
 
 Translations are looked up across every directory registered on the
 `LOCALE_DIRS` hook (`sparkth.lib.i18n`). Core registers `sparkth/locale/` (its
-README recaps this table), one directory per language; a plugin that ships its
-own catalogs registers its directory from its `__init__` (see the
-[plugin guide](plugins.md#translations-optional)). `.po` files are committed
-source; the `.pot` template and compiled `.mo` files are git-ignored build
-artifacts.
+README recaps this table), one directory per language. Each catalog carries
+only its own package's strings: core extraction ignores `sparkth/plugins/`
+(see `babel.cfg`), and a plugin owns the catalogs under its own `locale/`
+directory, registered on `LOCALE_DIRS` from its `__init__` (see the
+[plugin guide](plugins.md#translations-optional)), so its translations travel with it
+when it moves to its own repository.
+`tests/core/i18n/test_catalog_containment.py` enforces the boundary. `.po`
+files are committed source; the `.pot` template and compiled `.mo` files are
+git-ignored build artifacts.
 
 | Command | What it does |
 |---|---|
-| `make i18n.extract` | Scan `sparkth/` for marked strings into `messages.pot` |
-| `make i18n.init -- <lang>` | Create the catalog for a new language |
+| `make i18n.extract` | Scan for marked strings into the core and per-plugin `messages.pot` |
+| `make i18n.init -- <lang>` | Create the core and per-plugin catalogs for a new language |
 | `make i18n.update` | Re-extract and merge changes into every catalog |
 | `make i18n.compile` | Compile `.po` to the `.mo` files loaded at runtime |
 
-The day-to-day loop after marking or changing strings: `make i18n.update`,
-fill in the new `msgstr` entries in each `sparkth/locale/<lang>/LC_MESSAGES/messages.po`,
-then `make i18n.compile` (required before the app can serve the translations).
+Every target covers the core catalog and each `sparkth/plugins/*/locale/`
+directory that exists, so the day-to-day loop after marking or changing
+strings is unchanged wherever the string lives: `make i18n.update`, fill in
+the new `msgstr` entries in the affected
+`<catalog dir>/<lang>/LC_MESSAGES/messages.po`, then `make i18n.compile`
+(required before the app can serve the translations).
 
 The production image compiles the catalogs at build time: the `catalog-builder`
-stage in the [`Dockerfile`](https://github.com/edly-io/sparkth/blob/main/Dockerfile) runs `pybabel compile` with the
-lockfile-pinned dev dependencies and hands only `sparkth/locale` (with the
-compiled `.mo` files) to the runtime stage. A deployment that does not use the
-image must run `make i18n.compile` itself before starting the server.
+stage in the [`Dockerfile`](https://github.com/edly-io/sparkth/blob/main/Dockerfile) runs `pybabel compile` over the
+core and per-plugin catalogs with the lockfile-pinned dev dependencies and
+hands `sparkth/` (with the compiled `.mo` files) to the runtime stage. A
+deployment that does not use the image must run `make i18n.compile` itself
+before starting the server.
 
 ### Adding a language
 
 1. Add the BCP 47 tag to `SUPPORTED_LANGUAGES` in `sparkth/core/config.py`
    (a language is added only once a speaker has reviewed generated content in
    it; see the comment there).
-2. `make i18n.init -- <lang>`, translate the catalog, `make i18n.compile`.
+2. `make i18n.init -- <lang>`, translate the core and per-plugin catalogs it
+   creates, `make i18n.compile`.
 3. The `/api/v1/languages` endpoint and `DEFAULT_LANGUAGE` validation pick up
    the new tag automatically.
 

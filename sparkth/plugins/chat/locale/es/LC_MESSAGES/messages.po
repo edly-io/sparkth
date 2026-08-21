@@ -1,0 +1,199 @@
+# Spanish translations for sparkth.
+# Copyright (C) 2026 Edly
+# This file is distributed under the same license as the sparkth project.
+# Hamza Shafique <hamza.shafique1@arbisoft.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: sparkth 0.1.11\n"
+"Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
+"POT-Creation-Date: 2026-08-19 16:54+0500\n"
+"PO-Revision-Date: 2026-08-14 07:25+0500\n"
+"Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
+"Language: es\n"
+"Language-Team: es <https://github.com/edly-io/sparkth/issues>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: sparkth/plugins/chat/plugin.py:41 sparkth/plugins/chat/plugin.py:46
+msgid "Create Course"
+msgstr "Crear curso"
+
+#: sparkth/plugins/chat/plugin.py:42
+msgid "Transform your resources into courses with AI"
+msgstr "Transforma tus recursos en cursos con IA"
+
+#: sparkth/plugins/chat/routes/attachments.py:65
+#: sparkth/plugins/chat/routes/attachments.py:99
+msgid "Document not found or not accessible"
+msgstr "Documento no encontrado o no accesible"
+
+#: sparkth/plugins/chat/routes/completions.py:85
+msgid ""
+"No AI Key found for the current user. Please configure an AI key in your "
+"chat plugin settings."
+msgstr ""
+"No se encontró una clave de IA para el usuario actual. Configura una "
+"clave de IA en los ajustes del plugin de chat."
+
+#: sparkth/plugins/chat/routes/completions.py:90
+msgid ""
+"The selected AI key has no model configured. Go to AI Keys to set a model"
+" before chatting."
+msgstr ""
+"La clave de IA seleccionada no tiene un modelo configurado. Ve a AI Keys "
+"para establecer un modelo antes de chatear."
+
+#: sparkth/plugins/chat/routes/completions.py:96
+msgid ""
+"The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
+"choose a different one in chat settings."
+msgstr ""
+"La clave de IA seleccionada está desactivada. Ve a AI Keys para "
+"reactivarla o elige otra en los ajustes del chat."
+
+#: sparkth/plugins/chat/routes/completions.py:235
+#: sparkth/plugins/chat/routes/completions.py:355
+msgid "Chat completion failed"
+msgstr "Error al generar la respuesta del chat"
+
+#: sparkth/plugins/chat/routes/completions.py:323
+msgid "Failed to determine retrieval intent. Please try again."
+msgstr "No se pudo determinar la intención de búsqueda. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/conversations.py:92
+#: sparkth/plugins/chat/routes/conversations.py:151
+#: sparkth/plugins/chat/routes/dependencies.py:28
+msgid "Conversation not found"
+msgstr "Conversación no encontrada"
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:156
+msgid "One or more documents not found or not accessible."
+msgstr "Uno o más documentos no se encontraron o no son accesibles."
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:161
+#, python-brace-format
+msgid ""
+"A document is still being processed (status: {status}). Please wait and "
+"try again."
+msgstr ""
+"Un documento todavía se está procesando (estado: {status}). Espera e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:169
+msgid "Failed to retrieve document context. Please try again."
+msgstr "No se pudo recuperar el contexto del documento. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/__init__.py:234
+#, python-brace-format
+msgid "Conversation {conversation_uuid} not found"
+msgstr "Conversación {conversation_uuid} no encontrada"
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:41
+msgid "Invalid API key. Please check your Anthropic API key in AI Keys."
+msgstr "Clave de API no válida. Comprueba tu clave de API de Anthropic en AI Keys."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:43
+msgid "Your Anthropic API key does not have permission to use this model."
+msgstr "Tu clave de API de Anthropic no tiene permiso para usar este modelo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:45
+msgid "Anthropic rate limit reached. Please wait a moment and try again."
+msgstr ""
+"Se alcanzó el límite de peticiones de Anthropic. Espera un momento e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:47
+msgid "The request was rejected by Anthropic. Please try a different message."
+msgstr "Anthropic rechazó la petición. Prueba con un mensaje diferente."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:49
+#, python-brace-format
+msgid "Anthropic API error ({status_code}). Please try again."
+msgstr "Error de la API de Anthropic ({status_code}). Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:51
+msgid "Could not reach Anthropic. Please check your network connection."
+msgstr "No se pudo conectar con Anthropic. Comprueba tu conexión de red."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:55
+msgid "Invalid API key. Please check your OpenAI API key in AI Keys."
+msgstr "Clave de API no válida. Comprueba tu clave de API de OpenAI en AI Keys."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:57
+msgid "Your OpenAI API key does not have permission to use this model."
+msgstr "Tu clave de API de OpenAI no tiene permiso para usar este modelo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:59
+msgid "OpenAI rate limit reached. Please wait a moment and try again."
+msgstr ""
+"Se alcanzó el límite de peticiones de OpenAI. Espera un momento e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:61
+msgid "The request was rejected by OpenAI. Please try a different message."
+msgstr "OpenAI rechazó la petición. Prueba con un mensaje diferente."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:63
+#, python-brace-format
+msgid "OpenAI API error ({status_code}). Please try again."
+msgstr "Error de la API de OpenAI ({status_code}). Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:65
+msgid "Could not reach OpenAI. Please check your network connection."
+msgstr "No se pudo conectar con OpenAI. Comprueba tu conexión de red."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:69
+msgid "Invalid API key. Please check your Google API key in AI Keys."
+msgstr "Clave de API no válida. Comprueba tu clave de API de Google en AI Keys."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:71
+msgid "Your Google API key does not have permission to use this model."
+msgstr "Tu clave de API de Google no tiene permiso para usar este modelo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:73
+msgid "Google API rate limit reached. Please wait a moment and try again."
+msgstr ""
+"Se alcanzó el límite de peticiones de la API de Google. Espera un momento"
+" e inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:75
+msgid "The request was rejected by Google. Please try a different message."
+msgstr "Google rechazó la petición. Prueba con un mensaje diferente."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:77
+msgid "Could not reach Google. Please check your network connection."
+msgstr "No se pudo conectar con Google. Comprueba tu conexión de red."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:82
+#, python-brace-format
+msgid "Google API error ({status_code}). Please try again."
+msgstr "Error de la API de Google ({status_code}). Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:86
+msgid "The connection was interrupted. Please try again."
+msgstr "La conexión se interrumpió. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:89
+msgid "An error occurred while generating a response. Please try again."
+msgstr "Ocurrió un error al generar la respuesta. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:95
+msgid "The attached document could not be found or is no longer accessible."
+msgstr "El documento adjunto no se encontró o ya no es accesible."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:97
+msgid ""
+"The attached document is still being processed. Please wait a moment and "
+"try again."
+msgstr ""
+"El documento adjunto todavía se está procesando. Espera un momento e "
+"inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/utils/stream_processor.py:98
+msgid "Failed to search the attached document. Please try again."
+msgstr "No se pudo buscar en el documento adjunto. Inténtalo de nuevo."
+

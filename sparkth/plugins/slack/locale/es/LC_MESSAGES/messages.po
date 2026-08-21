@@ -1,0 +1,117 @@
+# Spanish translations for sparkth.
+# Copyright (C) 2026 Edly
+# This file is distributed under the same license as the sparkth project.
+# Hamza Shafique <hamza.shafique1@arbisoft.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: sparkth 0.1.11\n"
+"Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
+"POT-Creation-Date: 2026-08-19 16:54+0500\n"
+"PO-Revision-Date: 2026-08-14 07:25+0500\n"
+"Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
+"Language: es\n"
+"Language-Team: es <https://github.com/edly-io/sparkth/issues>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: sparkth/plugins/slack/constants.py:13
+msgid ""
+"I'm not configured with an AI key yet. Please ask your instructor to add "
+"one in the bot settings."
+msgstr ""
+"Todavía no tengo configurada una clave de IA. Pide a tu instructor que "
+"añada una en los ajustes del bot."
+
+#: sparkth/plugins/slack/constants.py:16
+msgid ""
+"I couldn't connect to the AI service right now. Please try again in a "
+"moment."
+msgstr ""
+"No pude conectar con el servicio de IA en este momento. Inténtalo de "
+"nuevo en un momento."
+
+#: sparkth/plugins/slack/constants.py:19
+msgid ""
+"I don't have any documents available to answer that. Please ask your "
+"instructor to add documents to my reference list."
+msgstr ""
+"No tengo documentos disponibles para responder a eso. Pide a tu "
+"instructor que añada documentos a mi lista de referencias."
+
+#: sparkth/plugins/slack/constants.py:22
+msgid ""
+"I'm still indexing the course documents. Please try again in a few "
+"minutes."
+msgstr ""
+"Todavía estoy indexando los documentos del curso. Vuelve a intentarlo en "
+"unos minutos."
+
+#: sparkth/plugins/slack/constants.py:24
+msgid ""
+"I couldn't access one of my reference documents. Please ask your "
+"instructor to check the bot's configured sources."
+msgstr ""
+"No pude acceder a uno de mis documentos de referencia. Pide a tu "
+"instructor que revise las fuentes configuradas del bot."
+
+#: sparkth/plugins/slack/constants.py:26
+msgid "Something went wrong while looking that up. Please try again in a moment."
+msgstr ""
+"Algo salió mal al buscar esa información. Inténtalo de nuevo en un "
+"momento."
+
+#: sparkth/plugins/slack/plugin.py:32 sparkth/plugins/slack/plugin.py:37
+msgid "Slack TA Bot"
+msgstr "Slack TA Bot"
+
+#: sparkth/plugins/slack/plugin.py:33
+msgid "Answer student questions in Slack from your course materials"
+msgstr ""
+"Responde preguntas de estudiantes en Slack a partir de tus materiales del"
+" curso"
+
+#: sparkth/plugins/slack/routes/__init__.py:434
+#: sparkth/plugins/slack/routes/oauth.py:141
+msgid "Slack workspace not connected"
+msgstr "Espacio de trabajo de Slack no conectado"
+
+#: sparkth/plugins/slack/routes/dependencies.py:10
+msgid "User not authenticated"
+msgstr "Usuario no autenticado"
+
+#: sparkth/plugins/slack/routes/oauth.py:66
+msgid "OAuth state expired. Please try again."
+msgstr "El estado de OAuth expiró. Inténtalo de nuevo."
+
+#: sparkth/plugins/slack/routes/oauth.py:70
+msgid "Invalid OAuth state."
+msgstr "Estado de OAuth no válido."
+
+#: sparkth/plugins/slack/routes/oauth.py:79
+msgid "Failed to exchange Slack authorization code."
+msgstr "No se pudo intercambiar el código de autorización de Slack."
+
+#: sparkth/plugins/slack/routes/oauth.py:84
+msgid "Could not reach Slack. Please try again."
+msgstr "No se pudo conectar con Slack. Inténtalo de nuevo."
+
+#: sparkth/plugins/slack/routes/oauth.py:100
+msgid ""
+"You already have a Slack workspace connected. Disconnect it first before "
+"connecting a new one."
+msgstr ""
+"Ya tienes un espacio de trabajo de Slack conectado. Desconéctalo antes de"
+" conectar uno nuevo."
+
+#: sparkth/plugins/slack/routes/oauth.py:106
+msgid "This Slack workspace is already connected to another account."
+msgstr "Este espacio de trabajo de Slack ya está conectado a otra cuenta."
+
+#: sparkth/plugins/slack/routes/oauth.py:112
+msgid "Unexpected response from Slack. Please try again."
+msgstr "Respuesta inesperada de Slack. Inténtalo de nuevo."
+

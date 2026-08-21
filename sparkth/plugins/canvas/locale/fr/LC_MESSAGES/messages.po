@@ -1,0 +1,30 @@
+# French translations for sparkth.
+# Copyright (C) 2026 Edly
+# This file is distributed under the same license as the sparkth project.
+# Hamza Shafique <hamza.shafique1@arbisoft.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: sparkth 0.1.11\n"
+"Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
+"POT-Creation-Date: 2026-08-19 16:54+0500\n"
+"PO-Revision-Date: 2026-08-14 07:25+0500\n"
+"Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
+"Language: fr\n"
+"Language-Team: fr <https://github.com/edly-io/sparkth/issues>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: sparkth/plugins/canvas/plugin.py:38
+msgid "Canvas"
+msgstr "Canvas"
+
+#: sparkth/plugins/canvas/plugin.py:39
+msgid "Canvas LMS integration with tools for courses, modules, pages, and quizzes"
+msgstr ""
+"Intégration Canvas LMS avec des outils pour les cours, modules, pages et "
+"questionnaires"
+
