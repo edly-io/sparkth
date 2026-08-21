@@ -1,5 +1,4 @@
 {
-  "refusal_message": "I'm a course creation assistant and can only help with designing and building courses. Is there a course you'd like to create?",
   "in_scope": [
     "course",
     "lesson",
