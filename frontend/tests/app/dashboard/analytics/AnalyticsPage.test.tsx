@@ -29,6 +29,20 @@ beforeEach(() => {
 });
 
 describe("AnalyticsPage states", () => {
+  // The page windows to the trailing 30 days from the real clock, so the fixture days below
+  // drift out of that window as time passes and the derived totals change under the test.
+  // Pinning the clock is what makes those days mean something fixed. Same shape as the
+  // window-consistency block below: shouldAdvanceTime keeps findByText's polling on the real
+  // clock while Date stays pinned.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-07-24T12:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows a loading indicator, then the chart and stats", async () => {
     // Two points with distinct counts so the "Total logins" (5) and "Busiest
     // day" (3) stat tiles render different text — a single point would make
