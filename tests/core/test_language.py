@@ -5,7 +5,8 @@ from pydantic import ValidationError
 
 from sparkth.core.config import SUPPORTED_LANGUAGES, Settings, is_supported_language
 from sparkth.core.models.user import User
-from sparkth.lib.language import resolve_language
+from sparkth.lib.language import language_display_name, resolve_language
+from sparkth.lib.settings import get_settings
 
 
 def test_allowlist_holds_english_spanish_and_french() -> None:
@@ -100,3 +101,50 @@ def test_resolve_falls_back_to_the_platform_default_when_unset() -> None:
 def test_resolve_ignores_a_stored_tag_that_left_the_allowlist() -> None:
     """A language removed from the allowlist must stop being handed back."""
     assert resolve_language("de") == "en"
+
+
+@pytest.mark.parametrize(
+    ("tag", "expected"),
+    [
+        ("en", "English"),
+        ("es", "Spanish"),
+        ("de", "German"),
+        ("ur", "Urdu"),
+        ("ja", "Japanese"),
+        ("pt-BR", "Portuguese (Brazil)"),
+        ("zh-Hant", "Chinese (Traditional)"),
+    ],
+)
+def test_names_supported_and_unsupported_tags_alike(tag: str, expected: str) -> None:
+    """ "de" and "ur" are outside SUPPORTED_LANGUAGES on purpose: the allowlist
+    governs shipped interface translations, not what the model may write in."""
+    assert language_display_name(tag) == expected
+
+
+def test_hyphenated_subtags_are_accepted() -> None:
+    """BCP 47 is hyphenated; Babel's parser defaults to the POSIX underscore, so
+    the separator has to be passed explicitly or every regional tag falls back."""
+    assert language_display_name("pt-BR") != language_display_name(None)
+
+
+@pytest.mark.parametrize(
+    "tag",
+    [
+        None,
+        "",
+        "klingon",
+        "xx",
+        "123",
+        "not a tag",
+        # "skr" (Saraiki) parses successfully but has no CLDR English display name,
+        # so Locale.get_display_name("en") returns None rather than raising. This
+        # exercises the None-return fallback path, not the exception path "xx" and
+        # "klingon" cover above — do not remove it as a duplicate of those.
+        "skr",
+    ],
+)
+def test_unusable_tags_fall_back_to_the_platform_default(tag: str | None) -> None:
+    """Falling back rather than raising: a misspelled tag must not fail a whole
+    agent-driven course generation run."""
+    default = get_settings().DEFAULT_LANGUAGE
+    assert language_display_name(tag) == language_display_name(default)
