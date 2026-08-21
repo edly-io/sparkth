@@ -2,6 +2,8 @@ import urllib
 from typing import Any
 from urllib.parse import quote
 
+import aiohttp
+
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
@@ -253,19 +255,28 @@ async def set_course_language(auth: AccessTokenPayload, course_id: str, language
 async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, Any]) -> None:
     """Best-effort language tagging for a course that has just been created.
 
-    Swallows request failures deliberately: the course exists, and `course_language` is
-    discovery and filtering metadata on the destination rather than behaviour, so a failed
-    tag must not turn a successful creation into an error for the caller. The warning is
-    the record.
+    Only called with a truthy ``payload.language`` (the caller gates on it).
+
+    Swallows request failures deliberately, including transport failures (connection,
+    timeout, malformed payload) and not just non-2xx responses: the course exists, and
+    `course_language` is discovery and filtering metadata on the destination rather than
+    behaviour, so a failed tag — whatever its cause — must not turn a successful creation
+    into an error for the caller. The warning is the record.
     """
     course_id = created.get("id")
-    if not course_id or not payload.language:
+    if not course_id:
         logger.warning("Cannot set course language: created course has no id in %r", created)
         return
+    assert payload.language
     try:
         await set_course_language(payload.auth, str(course_id), payload.language)
-    except (LMSRequestError, AuthenticationError, ValueError) as err:
-        logger.warning("Course %s created but language %r not set: %s", course_id, payload.language, err)
+    except (LMSRequestError, AuthenticationError, ValueError, aiohttp.ClientError, TimeoutError) as err:
+        logger.warning(
+            "Course %s created but language %r not set (request or transport failure): %s",
+            course_id,
+            payload.language,
+            err,
+        )
 
 
 async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]:
