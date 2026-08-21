@@ -1,5 +1,6 @@
 import { ComponentType } from "react";
 import type { Schema } from "@/lib/api";
+import type { Locale } from "@/lib/i18n/config";
 
 // ============================================================================
 // Plugin Configuration Types
@@ -122,6 +123,17 @@ export interface PluginDefinition {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   loadSettingsComponent?: () => Promise<{ default: ComponentType<any> }>;
+
+  /**
+   * Optional: Lazy load the plugin's message catalog for a locale.
+   *
+   * A plugin owns its catalogs: the files live under the plugin's own
+   * `messages/` directory and the returned object must be scoped to a single
+   * top-level namespace equal to the plugin name. `loadMessages` in
+   * `lib/i18n/messages.ts` merges every registered plugin's catalog into the
+   * core one at load time.
+   */
+  loadMessages?: (locale: Locale) => Promise<Record<string, unknown>>;
 
   /** Plugin routes */
   routes?: PluginRoute[];
