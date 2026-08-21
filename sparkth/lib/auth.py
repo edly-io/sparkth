@@ -22,7 +22,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core import security
 from sparkth.core.models.user import User
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, bind_locale
+from sparkth.lib.language import is_supported_language
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -61,6 +62,23 @@ async def get_user_by_username(username: str, session: AsyncSession) -> User | N
     return result.one_or_none()
 
 
+def _bind_interface_locale(user: User) -> None:
+    """Install ``user``'s stored language as the request's interface locale.
+
+    Called from both of ``get_current_user``'s exits. The cached path matters as much as
+    the full lookup: ``PluginAccessMiddleware`` populates ``request.state.user`` on every
+    authenticated plugin route, so binding only on the lookup path would leave the stored
+    preference unapplied on all of them.
+
+    The membership check is what keeps a language withdrawn from the allowlist from being
+    honoured. ``resolve_language`` is deliberately not used — its fallback would overwrite
+    a negotiated ``Accept-Language`` with ``DEFAULT_LANGUAGE``, which is worse than
+    leaving the header in charge.
+    """
+    if user.language and is_supported_language(user.language):
+        bind_locale(user.language)
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
@@ -78,9 +96,15 @@ async def get_current_user(
     runs. That is safe because ``User`` maps only columns, which stay readable on a detached
     instance; a test in ``tests/core/plugins/test_middleware.py`` pins that, since adding a
     relationship to ``User`` is what would make this unsafe.
+
+    A resolved user's stored language replaces the locale the middleware negotiated from
+    ``Accept-Language``, so translated copy follows what the user chose rather than what
+    their browser advertises, on both exits below — the cached one and the full lookup.
+    An unset or unsupported stored value leaves the negotiated locale in place.
     """
     cached_user = getattr(request.state, "user", None)
     if isinstance(cached_user, User):
+        _bind_interface_locale(cached_user)
         return cached_user
 
     username = decode_token_username(credentials.credentials)
@@ -98,5 +122,7 @@ async def get_current_user(
             detail=_("User not found"),
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    _bind_interface_locale(user)
 
     return user
