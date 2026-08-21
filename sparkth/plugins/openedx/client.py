@@ -114,6 +114,10 @@ class OpenEdxClient(BaseHttpClient):
         """Send a POST request with a JSON body to ``base_url/endpoint`` and return the response as a JSON object."""
         return await self._request_dict(Method.POST, endpoint, base_url=base_url, payload=payload)
 
+    async def put(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send a PUT request with a JSON body to ``base_url/endpoint`` and return the response as a JSON object."""
+        return await self._request_dict(Method.PUT, endpoint, base_url=base_url, payload=payload)
+
     async def patch(self, base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Send a PATCH request with a JSON body to ``base_url/endpoint`` and return the response as a JSON object."""
         return await self._request_dict(Method.PATCH, endpoint, base_url=base_url, payload=payload)

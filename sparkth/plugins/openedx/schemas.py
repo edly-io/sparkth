@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sparkth.plugins.openedx.enums import Component
 
@@ -52,6 +52,15 @@ class CreateCourseArgs(BaseModel):
     run: str
     title: str
     pacing_type: str
+    language: str | None = Field(
+        default=None,
+        description=(
+            "BCP 47 tag naming the language the course content is written in, e.g. 'en', "
+            "'es', 'pt-BR'. Set it to the language you generated the course in. Applied to "
+            "the course's Open edX language setting after the run is created; omit it to "
+            "leave the destination's default in place."
+        ),
+    )
 
 
 class ListCourseRunsArgs(BaseModel):

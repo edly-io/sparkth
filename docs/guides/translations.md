@@ -31,8 +31,10 @@ The practical consequences worth knowing:
 - A user whose interface is English can hold an entire conversation in Japanese and get a
   Japanese course. Neither setting affects the other.
 - Nothing on the server records which language a course was generated in. A surface that
-  needs the tag as data has to be handed it — the MCP course-generation tool takes it as a
-  parameter from its caller.
+  needs the tag as data has to be handed it: the MCP course-generation tool takes it as a
+  parameter from its caller, and the Open edX publishing path asks the model for the same
+  tag again when it creates a course run, since the model is the only thing that knows
+  which language it wrote the course in.
 - Internal prompts stay English on purpose: the scope classifier, the retrieval intent
   router and the document search agent reason in English while handling input in any
   language. Nothing they produce is shown to a user.
