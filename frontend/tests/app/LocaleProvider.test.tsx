@@ -3,7 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { useLocale } from "next-intl";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
-import { LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
+import { getActiveLocale, setActiveLocale } from "@/lib/i18n/active-locale";
+import { defaultLocale, LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
 
 // Lets the failure test make the catalog import reject while every other test
 // exercises the real loader.
@@ -26,6 +27,7 @@ describe("LocaleProvider", () => {
     failLoad.value = false;
     document.cookie = `${LOCALE_COOKIE}=; path=/; max-age=0`;
     document.documentElement.lang = "en";
+    setActiveLocale(defaultLocale);
   });
 
   afterEach(() => {
@@ -59,6 +61,7 @@ describe("LocaleProvider", () => {
     );
     await waitFor(() => expect(screen.getByTestId("locale")).toHaveTextContent("es"));
     expect(document.documentElement.lang).toBe("es");
+    expect(getActiveLocale()).toBe("es");
   });
 
   it("falls back to the default locale for an unsupported cookie value", async () => {
@@ -86,5 +89,8 @@ describe("LocaleProvider", () => {
     await waitFor(() => expect(consoleError).toHaveBeenCalled());
     expect(screen.getByTestId("locale")).toHaveTextContent("en");
     expect(document.documentElement.lang).toBe("en");
+    // The cookie still names "es", but what the UI renders is English; API calls
+    // read the active locale, so backend responses stay in the rendered language.
+    expect(getActiveLocale()).toBe("en");
   });
 });
