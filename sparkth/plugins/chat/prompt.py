@@ -47,8 +47,10 @@ def get_learning_design_system_prompt() -> str:
     does, so the output language is inferred from the conversation rather than resolved
     from stored state.
 
-    Rendered fresh on every request, which is what lets a language change take effect on
-    the very next turn; earlier messages stay as they were.
+    A language change takes effect on the very next turn because the model reads the user's
+    latest message, not because of anything this render does: ``current_datetime`` is the
+    only substitution that varies per request, and the refusal sentence is a constant.
+    Earlier turns are left as they were.
     """
     return _SYSTEM_PROMPT_TEMPLATE.format(
         current_datetime=get_current_datetime(),
