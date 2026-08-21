@@ -9,7 +9,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
-from sparkth.lib.language import resolve_language
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
@@ -71,9 +70,6 @@ async def chat_completion(
     config: ChatSettings = Depends(get_chat_settings),
 ) -> Any:
     user_id: int = cast(int, current_user.id)
-    # Resolved only to forward to title generation; the reply and content language is
-    # inferred by the model from the conversation.
-    language = resolve_language(current_user.language)
     try:
         llm_config, api_key = await llm_service.resolve(
             session=session,
@@ -131,7 +127,6 @@ async def chat_completion(
         provider_name=provider_name,
         api_key=api_key,
         model=model,
-        language=language,
         config=config,
         background_tasks=background_tasks,
     )
