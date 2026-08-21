@@ -218,9 +218,14 @@ no locale URL prefix. The locale is resolved on the client.
    `document.documentElement.lang`, and re-renders in that language once the
    catalog chunk arrives (a brief English flash is inherent to client-side
    locale resolution); if the load fails it logs and stays on English.
-3. The API client echoes the same cookie value as an `Accept-Language` header
-   on every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`),
-   so backend responses arrive in the language the frontend renders.
+3. The provider records the locale it actually renders in
+   `frontend/lib/i18n/active-locale.ts`. The cookie stores the *preference*;
+   the active locale tracks what is on screen, and the two diverge exactly
+   when a catalog load fails and the UI stays on English.
+4. The API client echoes the active locale as an `Accept-Language` header on
+   every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`), so
+   backend responses arrive in the language the frontend renders, cookie or
+   not. A caller-supplied `Accept-Language` header wins over the default.
 
 The catalog allowlist lives in `locales` in `frontend/lib/i18n/config.ts` and
 names the bundled `messages/*.json` files. The user-facing language picker
