@@ -1,5 +1,6 @@
 import type { Middleware } from "openapi-fetch";
 import { getStoredToken } from "@/lib/auth-tokens";
+import { getActiveLocale } from "@/lib/i18n/active-locale";
 import {
   ApiRequestError,
   formatApiError,
@@ -14,6 +15,17 @@ export const authMiddleware: Middleware = {
     if (request.headers.has("Authorization")) return request;
     const token = getStoredToken();
     if (token) request.headers.set("Authorization", `Bearer ${token}`);
+    return request;
+  },
+};
+
+// Echoes the locale the UI actually renders (not the cookie: the two diverge when a
+// catalog fails to load) so backend responses arrive in the language on screen.
+export const localeMiddleware: Middleware = {
+  async onRequest({ request }) {
+    // A caller-supplied Accept-Language header wins, mirroring authMiddleware.
+    if (request.headers.has("Accept-Language")) return request;
+    request.headers.set("Accept-Language", getActiveLocale());
     return request;
   },
 };
