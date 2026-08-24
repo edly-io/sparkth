@@ -6,6 +6,7 @@ the calling agent supplies it, and anything unusable falls back to the platform 
 
 import pytest
 from fastmcp import Client
+from pydantic import ValidationError
 
 from sparkth.lib.language import SUPPORTED_LANGUAGES, language_display_name
 from sparkth.lib.settings import get_settings
@@ -24,6 +25,27 @@ def _other_supported_language_names(excluding_tag: str) -> set[str]:
     landing here by mistake. Asserting that none of these names appear catches that.
     """
     return {info.name for tag, info in SUPPORTED_LANGUAGES.items() if tag != excluding_tag}
+
+
+class TestLanguageFieldBounds:
+    """The field is read straight off an unauthenticated MCP request, so its size is the
+    caller's choice unless the model bounds it."""
+
+    def test_accepts_a_tag_at_the_ceiling(self) -> None:
+        tag = "x" * 35
+        assert CourseGenerationPromptRequest(course_name="C", course_description="D", language=tag).language == tag
+
+    def test_rejects_a_tag_past_the_ceiling(self) -> None:
+        """35 is the practical ceiling for a registered BCP 47 tag, the same bound
+        ``User.language`` carries. Anything longer is not a tag that could ever resolve, so
+        it is refused at the boundary rather than carried into the resolver and the log."""
+        with pytest.raises(ValidationError):
+            CourseGenerationPromptRequest(course_name="C", course_description="D", language="x" * 36)
+
+    def test_still_accepts_an_unusable_but_short_tag(self) -> None:
+        """The bound must not turn the documented fallback into a rejection: a short
+        nonsense tag is still accepted here and resolved to the default downstream."""
+        assert CourseGenerationPromptRequest(course_name="C", course_description="D", language="klingon")
 
 
 class TestCourseGenerationPromptLanguage:

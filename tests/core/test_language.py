@@ -1,5 +1,7 @@
 """Tests for the supported-language allowlist, the platform default and resolution."""
 
+import logging
+
 import pytest
 from pydantic import ValidationError
 
@@ -148,3 +150,28 @@ def test_unusable_tags_fall_back_to_the_platform_default(tag: str | None) -> Non
     agent-driven course generation run."""
     default = get_settings().DEFAULT_LANGUAGE
     assert language_display_name(tag) == language_display_name(default)
+
+
+@pytest.mark.parametrize("tag", ["klingon", "skr"])
+def test_a_swallowed_fallback_is_logged_at_warning(tag: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Both fallback paths here swallow rather than raise, and the exception table in
+    CLAUDE.md puts a swallowed-with-fallback error at warning or above. At info it reads as
+    routine, which is exactly what a caller probing the field would want it to look like.
+    "klingon" takes the raised-exception path, "skr" the no-display-name one."""
+    with caplog.at_level(logging.DEBUG, logger="sparkth.core.language"):
+        language_display_name(tag)
+
+    assert [record.levelname for record in caplog.records] == ["WARNING"]
+
+
+def test_an_unusable_tag_is_not_logged_in_full(caplog: pytest.LogCaptureFixture) -> None:
+    """The tag reaches here from an unauthenticated MCP field and lands in the log twice
+    over — once written directly, once inside Babel's message, which quotes the input back.
+    Unbounded, that lets a caller pick how many bytes one call costs in log storage."""
+    overlong = "q" * 5000
+
+    with caplog.at_level(logging.DEBUG, logger="sparkth.core.language"):
+        language_display_name(overlong)
+
+    assert overlong not in caplog.text
+    assert len(caplog.text) < 300

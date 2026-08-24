@@ -14,6 +14,13 @@ from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
 
+# How much of a rejected tag is worth writing down. 35 is the practical ceiling for a
+# registered BCP 47 tag — the bound ``User.language`` and the MCP request field carry — so
+# anything past it cannot be a tag someone meant. Bounded here as well as at those edges
+# because this is public API (``sparkth.lib.language``): a future caller need not have a
+# field validator in front of it, and one of today's callers is unauthenticated.
+_MAX_LOGGED_TAG_LENGTH = 35
+
 
 def resolve_language(tag: str | None) -> str:
     """The language a stored preference of ``tag`` resolves to.
@@ -52,9 +59,19 @@ def language_display_name(tag: str | None) -> str:
         try:
             name = Locale.parse(candidate, sep="-").get_display_name("en")
         except (UnknownLocaleError, ValueError) as exc:
-            logger.info("Unusable language tag %r, falling back: %s", candidate, exc)
+            # The exception's own message quotes the input straight back, so logging it
+            # would write the tag a second time. Its class is the only part that says
+            # anything the tag does not: unparseable versus parseable-but-unknown.
+            logger.warning(
+                "Unusable language tag %r (%s), falling back",
+                candidate[:_MAX_LOGGED_TAG_LENGTH],
+                type(exc).__name__,
+            )
             continue
         if name:
             return name
-        logger.info("Language tag %r has no English display name, falling back", candidate)
+        logger.warning(
+            "Language tag %r has no English display name, falling back",
+            candidate[:_MAX_LOGGED_TAG_LENGTH],
+        )
     return default
