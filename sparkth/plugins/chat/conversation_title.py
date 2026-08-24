@@ -49,8 +49,8 @@ async def generate_conversation_title(
 
     ``language`` is an already-resolved, allowlisted BCP 47 tag; the caller resolves the
     user's stored preference. Titles are user-visible in the conversation sidebar, so
-    they follow the same language as the replies rather than the language of the first
-    message, which may differ.
+    they follow that stored preference rather than the language of the first message,
+    which may differ.
     """
     config = get_chat_settings()
     try:
