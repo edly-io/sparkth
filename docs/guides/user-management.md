@@ -95,6 +95,21 @@ a user.
 The **Slack assistant** is a separate case: it answers questions from Slack members, who
 are not signed-in Sparkth users, and its prompts carry no language directive at all.
 
+### The language of fixed backend text
+
+API error messages and other fixed backend strings follow the interface language rather
+than the conversation, because no model is involved in producing them.
+
+The out-of-scope refusal can reach a user through either path, and which one handles a
+given request decides which language rule applies. When the assistant model itself
+judges a request out of scope, the refusal is chat-generated text like any other reply,
+so it follows the language of the conversation. A faster check can also end the request
+before the assistant model is ever invoked; a classification step may run there, but it
+only decides whether the request is in scope — the backend writes the refusal sentence
+itself rather than a model, so that refusal follows the interface language instead.
+Either way the user sees the same sentence — only the language it arrives in depends on
+which path caught the request.
+
 ### Language and the MCP server
 
 The MCP server authenticates no user, so `get_course_generation_prompt_tool` has no

@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
@@ -110,7 +110,7 @@ async def chat_completion(
                     media_type="text/event-stream",
                 )
             return ChatCompletionResponse(
-                message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
+                message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
                 conversation_id=None,
                 model=model,
                 provider=provider_name,
@@ -172,7 +172,7 @@ async def chat_completion(
                 session=session,
                 conversation_id=cast(int, conversation.id),
                 role="assistant",
-                content=REFUSAL_MESSAGE,
+                content=gettext(REFUSAL_MESSAGE),
                 message_type="text",
             )
             if request.stream:
@@ -181,7 +181,7 @@ async def chat_completion(
                     media_type="text/event-stream",
                 )
             return ChatCompletionResponse(
-                message=ChatMessage(role="assistant", content=REFUSAL_MESSAGE),
+                message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
                 conversation_id=conversation.uuid,
                 model=llm_config.model,
                 provider=llm_config.provider,

@@ -8,7 +8,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -38,8 +38,12 @@ logger = get_logger(__name__)
 
 
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
-    """Yield a single SSE done-event carrying the refusal message as content."""
-    yield f"data: {json.dumps({'done': True, 'content': REFUSAL_MESSAGE})}\n\n"
+    """Yield a single SSE done-event carrying the refusal message as content.
+
+    No model is in the loop here, so the refusal renders under the active request
+    locale (``gettext``) rather than the conversation's language.
+    """
+    yield f"data: {json.dumps({'done': True, 'content': gettext(REFUSAL_MESSAGE)})}\n\n"
 
 
 def extract_query_text(messages: list[ChatMessage]) -> str:
