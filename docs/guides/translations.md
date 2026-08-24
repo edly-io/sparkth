@@ -23,10 +23,11 @@ Any response rendered at or after authentication resolves its locale in this ord
    no-longer-supported stored preference, or a header offering nothing supported — the
    platform [`DEFAULT_LANGUAGE`](../reference/configuration.md#default_language) applies.
 
-A response produced by a gate that runs ahead of authentication — rejecting a request
-outright before the authentication dependency runs — is rendered before that dependency
-binds a stored preference, so it follows the negotiated header (or `DEFAULT_LANGUAGE`)
-only.
+A gate that rejects a request outright, before routing, renders its response without the
+authentication dependency ever running — so nothing binds the stored preference on its
+behalf. Where such a gate has resolved the user itself, it binds the preference before
+rendering (`PluginAccessMiddleware` does). A gate that has no user to bind — one rejecting
+a request it never authenticated — follows the negotiated header, or `DEFAULT_LANGUAGE`.
 
 Code that runs outside a request (background tasks, CLI) sees
 `DEFAULT_LANGUAGE`, or installs a specific locale with

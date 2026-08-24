@@ -13,7 +13,7 @@ from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.constants import BEARER_SCHEME
 from sparkth.core.routes import get_route_plugin_name
-from sparkth.lib.auth import decode_token_username, get_user_by_username
+from sparkth.lib.auth import bind_interface_locale, decode_token_username, get_user_by_username
 from sparkth.lib.db import session_scope
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
@@ -89,6 +89,11 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             # Hand the route the user already loaded here: get_current_user reuses it rather
             # than decoding the same token and re-reading the same row a second time.
             request.state.user = user
+            # Bind here as well, rather than leaving it to get_current_user. The 403 below is
+            # rendered without ever reaching a route, so the dependency that would bind the
+            # stored preference never runs — and this gate has the user in hand by now, so
+            # falling back to the negotiated header would ignore a preference it already read.
+            bind_interface_locale(user)
 
         if not has_access:
             logger.warning(

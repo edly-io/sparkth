@@ -6,6 +6,7 @@ browser did not.
 """
 
 from collections.abc import Iterator
+from typing import cast
 
 import pytest
 from fastapi import Request
@@ -14,6 +15,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n.context import _locale, get_locale, locale_context
+from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.security import create_access_token
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.i18n import bind_locale
@@ -26,6 +28,12 @@ from sparkth.lib.testing import AddTranslation
 EMPTY_BODY_MESSAGE = "Empty body. Nothing to update."
 SPANISH_EMPTY_BODY = "Cuerpo vacío. Nada que actualizar."
 FRENCH_EMPTY_BODY = "Corps vide. Rien à mettre à jour."
+
+# The plugin gate's own 403 body, marked in sparkth/core/plugins/middleware.py.
+GATE_DENIAL_MESSAGE = (
+    "Access to plugin '{name}' is disabled for your account. Please enable the plugin in your settings."
+)
+SPANISH_GATE_DENIAL = "El plugin '{name}' esta desactivado para tu cuenta."
 
 
 @pytest.fixture(autouse=True)
@@ -182,3 +190,34 @@ class TestCachedUserBranchBindsToo:
 
         assert result is user
         assert get_locale() == "es"
+
+
+class TestGateRejectionFollowsTheStoredPreference:
+    """The plugin gate rejects before routing, so ``get_current_user`` never runs and cannot
+    bind anything — yet the gate has decoded the token and loaded the user by the time it
+    renders. Its 403 is the one translated response the stored preference has to reach on
+    its own."""
+
+    async def test_the_disabled_plugin_403_uses_the_stored_language(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        translation_catalog: AddTranslation,
+    ) -> None:
+        translation_catalog(GATE_DENIAL_MESSAGE, SPANISH_GATE_DENIAL, locale="es")
+        user = await _seed_user(session, "gate-locale-user", "es")
+        plugin = Plugin(name="chat", enabled=True)
+        session.add(plugin)
+        await session.commit()
+        await session.refresh(plugin)
+        session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+        await session.commit()
+
+        response = await client.post(
+            "/api/v1/chat/completions",
+            json={"messages": []},
+            headers={**_auth_headers("gate-locale-user"), "Accept-Language": "fr"},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == SPANISH_GATE_DENIAL.format(name="chat")

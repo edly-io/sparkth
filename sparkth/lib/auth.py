@@ -62,13 +62,15 @@ async def get_user_by_username(username: str, session: AsyncSession) -> User | N
     return result.one_or_none()
 
 
-def _bind_interface_locale(user: User) -> None:
+def bind_interface_locale(user: User) -> None:
     """Install ``user``'s stored language as the request's interface locale.
 
-    Called from both of ``get_current_user``'s exits. The cached path matters as much as
-    the full lookup: ``PluginAccessMiddleware`` populates ``request.state.user`` on every
-    authenticated plugin route, so binding only on the lookup path would leave the stored
-    preference unapplied on all of them.
+    Called from both of ``get_current_user``'s exits, and from ``PluginAccessMiddleware``.
+    The cached path matters as much as the full lookup: the gate populates
+    ``request.state.user`` on every authenticated plugin route, so binding only on the lookup
+    path would leave the stored preference unapplied on all of them. The gate calls this
+    itself as well, because the 403 it renders never reaches a route for the dependency to
+    run — by then it has decoded the token and loaded the user, so the preference is known.
 
     The membership check is what keeps a language withdrawn from the allowlist from being
     honoured. ``resolve_language`` is deliberately not used — its fallback would overwrite
@@ -104,7 +106,7 @@ async def get_current_user(
     """
     cached_user = getattr(request.state, "user", None)
     if isinstance(cached_user, User):
-        _bind_interface_locale(cached_user)
+        bind_interface_locale(cached_user)
         return cached_user
 
     username = decode_token_username(credentials.credentials)
@@ -123,6 +125,6 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    _bind_interface_locale(user)
+    bind_interface_locale(user)
 
     return user
