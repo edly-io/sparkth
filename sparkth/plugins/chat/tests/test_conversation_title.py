@@ -150,13 +150,11 @@ class TestGenerateConversationTitle:
         conversation_id: int,
         user_id: int = 42,
         first_user_message: str = "some message",
-        language: str = "en",
     ) -> None:
         await generate_conversation_title(
             conversation_id=conversation_id,
             user_id=user_id,
             first_user_message=first_user_message,
-            language=language,
             service=ChatService(),
             provider=provider,
         )
@@ -236,21 +234,26 @@ class TestGenerateConversationTitle:
         sent_messages = provider.send_message.call_args.kwargs["messages"]
         assert any("some message" in m["content"] for m in sent_messages)
 
-    async def test_title_prompt_names_the_language(self, session: AsyncSession) -> None:
-        """Titles show in the sidebar, so an English title on a Spanish conversation
-        is a visible leak."""
+    async def test_prompt_asks_for_the_language_of_the_message(self, session: AsyncSession) -> None:
+        """The title must match the conversation it labels. The model is given the
+        message, so it can read the language off it — nothing needs to resolve a tag."""
         await self._seed_conversation(session, 10)
         provider = self._provider("Curso de Privacidad")
-        await self._generate(provider, conversation_id=10, language="es")
+        await self._generate(provider, conversation_id=10, first_user_message="crea un curso")
 
-        prompt = provider.send_message.await_args.kwargs["messages"][0]["content"]
-        assert SUPPORTED_LANGUAGES["es"].name in prompt
+        prompt = provider.send_message.call_args.kwargs["messages"][0]["content"]
+        assert "same language as the message" in prompt
 
-    async def test_title_prompt_language_varies_with_the_tag(self, session: AsyncSession) -> None:
+    async def test_prompt_names_no_specific_language(self, session: AsyncSession) -> None:
         await self._seed_conversation(session, 11)
-        provider = self._provider("Cours de Confidentialité")
-        await self._generate(provider, conversation_id=11, language="fr")
+        provider = self._provider("Some Title")
+        await self._generate(provider, conversation_id=11)
 
-        prompt = provider.send_message.await_args.kwargs["messages"][0]["content"]
-        assert SUPPORTED_LANGUAGES["fr"].name in prompt
-        assert SUPPORTED_LANGUAGES["es"].name not in prompt
+        prompt = provider.send_message.call_args.kwargs["messages"][0]["content"]
+        # Derived from the allowlist, not spelled out: a language added to
+        # SUPPORTED_LANGUAGES has to be covered here too, and a hardcoded list would go on
+        # passing while silently checking one language fewer than exists. Unlike the
+        # sibling guard in test_language_inference.py, English needs no exception — the
+        # title prompt never names it, so it is one more name this can hold to.
+        for info in SUPPORTED_LANGUAGES.values():
+            assert info.name not in prompt
