@@ -1,11 +1,14 @@
 """Tests for the supported-language allowlist, the platform default and resolution."""
 
+import logging
+
 import pytest
 from pydantic import ValidationError
 
 from sparkth.core.config import SUPPORTED_LANGUAGES, Settings, is_supported_language
 from sparkth.core.models.user import User
-from sparkth.lib.language import resolve_language
+from sparkth.lib.language import language_display_name, resolve_language
+from sparkth.lib.settings import get_settings
 
 
 def test_allowlist_holds_english_spanish_and_french() -> None:
@@ -100,3 +103,75 @@ def test_resolve_falls_back_to_the_platform_default_when_unset() -> None:
 def test_resolve_ignores_a_stored_tag_that_left_the_allowlist() -> None:
     """A language removed from the allowlist must stop being handed back."""
     assert resolve_language("de") == "en"
+
+
+@pytest.mark.parametrize(
+    ("tag", "expected"),
+    [
+        ("en", "English"),
+        ("es", "Spanish"),
+        ("de", "German"),
+        ("ur", "Urdu"),
+        ("ja", "Japanese"),
+        ("pt-BR", "Portuguese (Brazil)"),
+        ("zh-Hant", "Chinese (Traditional)"),
+    ],
+)
+def test_names_supported_and_unsupported_tags_alike(tag: str, expected: str) -> None:
+    """ "de" and "ur" are outside SUPPORTED_LANGUAGES on purpose: the allowlist
+    governs shipped interface translations, not what the model may write in."""
+    assert language_display_name(tag) == expected
+
+
+def test_hyphenated_subtags_are_accepted() -> None:
+    """BCP 47 is hyphenated; Babel's parser defaults to the POSIX underscore, so
+    the separator has to be passed explicitly or every regional tag falls back."""
+    assert language_display_name("pt-BR") != language_display_name(None)
+
+
+@pytest.mark.parametrize(
+    "tag",
+    [
+        None,
+        "",
+        "klingon",
+        "xx",
+        "123",
+        "not a tag",
+        # "skr" (Saraiki) parses successfully but has no CLDR English display name,
+        # so Locale.get_display_name("en") returns None rather than raising. This
+        # exercises the None-return fallback path, not the exception path "xx" and
+        # "klingon" cover above — do not remove it as a duplicate of those.
+        "skr",
+    ],
+)
+def test_unusable_tags_fall_back_to_the_platform_default(tag: str | None) -> None:
+    """Falling back rather than raising: a misspelled tag must not fail a whole
+    agent-driven course generation run."""
+    default = get_settings().DEFAULT_LANGUAGE
+    assert language_display_name(tag) == language_display_name(default)
+
+
+@pytest.mark.parametrize("tag", ["klingon", "skr"])
+def test_a_swallowed_fallback_is_logged_at_warning(tag: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Both fallback paths here swallow rather than raise, and the exception table in
+    CLAUDE.md puts a swallowed-with-fallback error at warning or above. At info it reads as
+    routine, which is exactly what a caller probing the field would want it to look like.
+    "klingon" takes the raised-exception path, "skr" the no-display-name one."""
+    with caplog.at_level(logging.DEBUG, logger="sparkth.core.language"):
+        language_display_name(tag)
+
+    assert [record.levelname for record in caplog.records] == ["WARNING"]
+
+
+def test_an_unusable_tag_is_not_logged_in_full(caplog: pytest.LogCaptureFixture) -> None:
+    """The tag reaches here from an unauthenticated MCP field and lands in the log twice
+    over — once written directly, once inside Babel's message, which quotes the input back.
+    Unbounded, that lets a caller pick how many bytes one call costs in log storage."""
+    overlong = "q" * 5000
+
+    with caplog.at_level(logging.DEBUG, logger="sparkth.core.language"):
+        language_display_name(overlong)
+
+    assert overlong not in caplog.text
+    assert len(caplog.text) < 300

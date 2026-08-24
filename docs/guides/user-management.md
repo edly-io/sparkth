@@ -97,10 +97,15 @@ are not signed-in Sparkth users, and its prompts carry no language directive at 
 
 ### Language and the MCP server
 
-The MCP server authenticates no user, so `get_course_generation_prompt_tool` cannot look
-up a preference. It accepts an optional `language` tag instead, which the calling agent
-supplies. An omitted tag — or one the platform does not support — uses
-`DEFAULT_LANGUAGE`, so a bad value never fails a generation run.
+The MCP server authenticates no user, so `get_course_generation_prompt_tool` has no
+conversation to read a language from. It accepts an optional `language` tag instead,
+which the calling agent supplies. Any BCP 47 tag is accepted, not only the languages the
+interface ships in; an omitted tag, or a value that is not a valid language tag, uses
+`DEFAULT_LANGUAGE`. A bad value never fails a generation run.
+
+The tag is the *course's* language and says nothing about the language the agent's own
+user speaks — an English speaker may commission a Spanish course, and the agent should
+keep asking its clarifying questions in the language of its own conversation.
 
 ### Supported languages
 
