@@ -36,32 +36,62 @@ def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
 
 
 class TestSetCourseLanguage:
-    async def test_reads_the_details_then_writes_them_back_with_the_language(
-        self, mock_openedx_client: tuple[MagicMock, AsyncMock]
-    ) -> None:
+    """The helper takes an open client, so these drive it directly rather than through the
+    creation tool's fixture."""
+
+    async def test_reads_the_details_then_writes_them_back_with_the_language(self) -> None:
         """The endpoint is a PUT, so a partial body would wipe the other fields."""
-        _, client = mock_openedx_client
+        client = AsyncMock(spec=OpenEdxClient)
         client.get.return_value = {"language": None, "short_description": "keep me"}
         client.put.return_value = {}
 
-        await set_course_language(_AUTH, "course-v1:X+Y+Z", "es")
+        await set_course_language("course-v1:X+Y+Z", "es", client, STUDIO_URL)
 
         body = client.put.call_args[0][2]
         assert body["language"] == "es"
         assert body["short_description"] == "keep me"
 
-    async def test_lowercases_the_tag(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
-        """Open edX language codes are lowercase — pt-BR is pt-br there."""
-        _, client = mock_openedx_client
+    async def test_writes_to_studio_not_the_lms(self) -> None:
+        """Course details live in Studio; the client is built against the LMS base URL."""
+        client = AsyncMock(spec=OpenEdxClient)
         client.get.return_value = {"language": None}
         client.put.return_value = {}
 
-        await set_course_language(_AUTH, "course-v1:X+Y+Z", "pt-BR")
+        await set_course_language("course-v1:X+Y+Z", "es", client, STUDIO_URL)
+
+        assert client.get.call_args[0][0] == STUDIO_URL
+        assert client.put.call_args[0][0] == STUDIO_URL
+
+    async def test_lowercases_the_tag(self) -> None:
+        """Open edX language codes are lowercase — pt-BR is pt-br there."""
+        client = AsyncMock(spec=OpenEdxClient)
+        client.get.return_value = {"language": None}
+        client.put.return_value = {}
+
+        await set_course_language("course-v1:X+Y+Z", "pt-BR", client, STUDIO_URL)
 
         assert client.put.call_args[0][2]["language"] == "pt-br"
 
 
 class TestCreateCourseRunWithLanguage:
+    async def test_the_language_write_reuses_the_creation_session(
+        self, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        """The tagging runs inside the course-creation session, against the same host and
+        token, so opening a second client would only add a connection pool."""
+        mock_cls, client = mock_openedx_client
+        client.post.return_value = {"id": "course-v1:X+Y+Z"}
+        client.get.return_value = {"language": None}
+        client.put.return_value = {}
+        args = CreateCourseArgs(
+            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
+        )
+
+        await openedx_create_course_run(args)
+
+        assert mock_cls.call_count == 1
+        assert client.put.call_args[0][2]["language"] == "es"
+
     async def test_language_is_not_sent_to_the_course_runs_endpoint(
         self, mock_openedx_client: tuple[MagicMock, AsyncMock]
     ) -> None:
@@ -92,7 +122,7 @@ class TestCreateCourseRunWithLanguage:
 
         mock_set.assert_awaited_once()
         assert mock_set.await_args is not None
-        assert mock_set.await_args[0][2] == "es"
+        assert mock_set.await_args[0][1] == "es"
 
     async def test_omitted_language_skips_the_details_write(
         self, mock_openedx_client: tuple[MagicMock, AsyncMock]

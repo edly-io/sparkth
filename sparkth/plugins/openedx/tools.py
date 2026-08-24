@@ -231,7 +231,7 @@ async def openedx_get_user_info(payload: LMSAccess) -> dict[str, Any]:
             return {"error": {"message": str(err)}}
 
 
-async def set_course_language(auth: AccessTokenPayload, course_id: str, language: str) -> None:
+async def set_course_language(course_id: str, language: str, client: OpenEdxClient, studio_url: str) -> None:
     """Set ``language`` as an existing course's Open edX language.
 
     The course-run creation endpoint has no language field, so this is a second call. The
@@ -239,18 +239,22 @@ async def set_course_language(auth: AccessTokenPayload, course_id: str, language
     read first and written back with only ``language`` replaced — sending a partial body
     would clear every other detail field.
 
+    Runs on the caller's open ``client`` instead of opening its own, because it is called
+    from inside the course-creation session against the same host and token — a second
+    client would only mean a second connection pool. The verb methods take a base URL per
+    call, so a client built against the LMS serves ``studio_url`` too.
+
     ``language`` is a BCP 47 tag; Open edX language codes are lowercase, so ``pt-BR`` is
     sent as ``pt-br``. Raises on a failed request: the caller decides whether a missing
     metadata tag is worth failing over.
     """
     endpoint = f"api/contentstore/v1/course_details/{course_id}"
-    async with OpenEdxClient(auth.lms_url, auth.access_token) as client:
-        details = await client.get(auth.studio_url, endpoint)
-        details["language"] = language.lower()
-        await client.put(auth.studio_url, endpoint, details)
+    details = await client.get(studio_url, endpoint)
+    details["language"] = language.lower()
+    await client.put(studio_url, endpoint, details)
 
 
-async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, Any]) -> None:
+async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, Any], client: OpenEdxClient) -> None:
     """Best-effort language tagging for a course that has just been created.
 
     Swallows request failures deliberately: the course exists, and `course_language` is
@@ -263,7 +267,7 @@ async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, A
         logger.warning("Cannot set course language: created course has no id in %r", created)
         return
     try:
-        await set_course_language(payload.auth, str(course_id), payload.language)
+        await set_course_language(str(course_id), payload.language, client, payload.auth.studio_url)
     except (LMSRequestError, AuthenticationError, ValueError) as err:
         logger.warning("Course %s created but language %r not set: %s", course_id, payload.language, err)
 
@@ -318,7 +322,7 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
         try:
             res = await client.post(payload.auth.studio_url, endpoint, course_data)
             if payload.language:
-                await _apply_course_language(payload, res)
+                await _apply_course_language(payload, res, client)
             return {"response": res}
         except (LMSRequestError, AuthenticationError) as err:
             return _lms_error(err, method="POST", endpoint=endpoint, prefix="Course runs creation failed")
