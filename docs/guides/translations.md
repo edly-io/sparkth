@@ -23,8 +23,9 @@ In chat, the prompts instruct the model to write in the language of the user's m
 message and to switch when the user switches; a conversation title instead follows the
 language of the message the conversation opened with, and the MCP course-generation tool
 takes an explicit tag from its caller rather than reading one off a message. Either way,
-there is no tag to store, no setting to configure, and no allowlist to check. Any language
-the model handles works.
+there is no tag to store and no allowlist to check — any language the model handles works.
+The one setting that can decide a generated language is `DEFAULT_LANGUAGE`: the MCP tool
+falls back to it when its caller omits the tag or sends an unusable one.
 
 The practical consequences worth knowing:
 
