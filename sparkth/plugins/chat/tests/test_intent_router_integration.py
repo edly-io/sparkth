@@ -169,7 +169,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
             patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -450,7 +449,6 @@ async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
         patch("sparkth.plugins.chat.routes.utils.ScopeClassifier"),
         patch("sparkth.plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
@@ -511,7 +509,6 @@ class TestDocumentIdsOwnershipCheck:
         document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
             patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -562,7 +559,6 @@ class TestDocumentIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
             patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -612,7 +608,6 @@ class TestDocumentIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
             patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -675,7 +670,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
             patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
@@ -737,7 +731,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
             patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(

@@ -85,7 +85,6 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
     """Send one completion request; return the system prompt handed to the provider."""
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-        patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
         patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
         patch(
             "sparkth.plugins.chat.routes.completions.resolve_rag_intent",
@@ -147,7 +146,6 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
     """
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-        patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=True),
         patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
         patch(
             "sparkth.plugins.chat.routes.completions.resolve_rag_intent",

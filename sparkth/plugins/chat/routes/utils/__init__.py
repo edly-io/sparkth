@@ -29,7 +29,7 @@ from sparkth.plugins.chat.conversation_title import (
 )
 from sparkth.plugins.chat.intent_router import RAGIntentRouter
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
+from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from sparkth.plugins.chat.service import ChatService
 from sparkth.plugins.chat.tools import ToolRegistry
@@ -326,16 +326,14 @@ async def classify_in_scope(
     attached_document_names: list[str] | None,
     conversation_uuid: UUID | None,
 ) -> bool:
-    """Tiered scope check: fast keyword pre-filter, then LLM classifier. Empty query is always in scope.
+    """Ask the LLM classifier whether the query is in scope. Empty query is always in scope.
 
-    ``conversation_uuid`` is passed to both tiers for their refusal logs only — neither tier
-    sends it to a model. It is ``None`` for the first message of a new chat, which is checked
+    ``conversation_uuid`` is passed on for the classifier's refusal log only — it never
+    reaches a model. It is ``None`` for the first message of a new chat, which is checked
     before the conversation row is created.
     """
     if not query_text:
         return True
-    if not is_query_in_scope(query_text, conversation_uuid):
-        return False
     classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
     return await classifier.classify(
         query_text,
