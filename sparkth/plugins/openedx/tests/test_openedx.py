@@ -128,6 +128,28 @@ class TestOpenEdxClient:
         assert client.access_token == "refreshed_token"
         assert client.refresh_token == "new_refresh"
 
+    async def test_put_sends_json_payload(self) -> None:
+        lms_url = "https://openedx.example.com"
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value='{"language": "es"}')
+
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__.return_value = mock_response
+        mock_cm.__aexit__.return_value = None
+
+        mock_session = MagicMock()
+        mock_session.request.return_value = mock_cm
+
+        with patch("sparkth.lib.http.ClientSession", return_value=mock_session):
+            client = OpenEdxClient(lms_url, ACCESS_TOKEN)
+            result = await client.put(lms_url, "api/contentstore/v1/course_details/x", {"language": "es"})
+
+        assert result == {"language": "es"}
+        mock_session.request.assert_called_once()
+        assert mock_session.request.call_args[0][0] == Method.PUT
+
 
 @pytest.mark.asyncio
 class TestOpenEdxPluginAuthenticate:

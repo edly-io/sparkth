@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
+from sparkth.lib.log import get_logger
 from sparkth.plugins.openedx.client import OpenEdxClient
 from sparkth.plugins.openedx.enums import Component
 from sparkth.plugins.openedx.schemas import (
@@ -20,6 +21,8 @@ from sparkth.plugins.openedx.schemas import (
     UpdateXBlockPayload,
     XBlockPayload,
 )
+
+logger = get_logger(__name__)
 
 
 def _lms_error(
@@ -228,6 +231,47 @@ async def openedx_get_user_info(payload: LMSAccess) -> dict[str, Any]:
             return {"error": {"message": str(err)}}
 
 
+async def set_course_language(course_id: str, language: str, client: OpenEdxClient, studio_url: str) -> None:
+    """Set ``language`` as an existing course's Open edX language.
+
+    The course-run creation endpoint has no language field, so this is a second call. The
+    course-details endpoint is a ``PUT`` rather than a ``PATCH``, so the current details are
+    read first and written back with only ``language`` replaced — sending a partial body
+    would clear every other detail field.
+
+    Runs on the caller's open ``client`` instead of opening its own, because it is called
+    from inside the course-creation session against the same host and token — a second
+    client would only mean a second connection pool. The verb methods take a base URL per
+    call, so a client built against the LMS serves ``studio_url`` too.
+
+    ``language`` is a BCP 47 tag; Open edX language codes are lowercase, so ``pt-BR`` is
+    sent as ``pt-br``. Raises on a failed request: the caller decides whether a missing
+    metadata tag is worth failing over.
+    """
+    endpoint = f"api/contentstore/v1/course_details/{course_id}"
+    details = await client.get(studio_url, endpoint)
+    details["language"] = language.lower()
+    await client.put(studio_url, endpoint, details)
+
+
+async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, Any], client: OpenEdxClient) -> None:
+    """Best-effort language tagging for a course that has just been created.
+
+    Swallows request failures deliberately: the course exists, and `course_language` is
+    discovery and filtering metadata on the destination rather than behaviour, so a failed
+    tag must not turn a successful creation into an error for the caller. The warning is
+    the record.
+    """
+    course_id = created.get("id")
+    if not course_id or not payload.language:
+        logger.warning("Cannot set course language: created course has no id in %r", created)
+        return
+    try:
+        await set_course_language(str(course_id), payload.language, client, payload.auth.studio_url)
+    except (LMSRequestError, AuthenticationError, ValueError) as err:
+        logger.warning("Course %s created but language %r not set: %s", course_id, payload.language, err)
+
+
 async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]:
     """
     Create a new course run in an Open edX Studio instance.
@@ -241,6 +285,10 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
                 - run (str): Course run identifier.
                 - title (str): Course title.
                 - pacing_type (str): Course pacing type (e.g., "self_paced" or "instructor_paced").
+                - language (str | None): BCP 47 tag naming the language the course content is
+                  written in, e.g. "en", "es", "pt-BR". Set it to the language the course was
+                  generated in. Applied to the course's Open edX language setting after the run
+                  is created; if omitted, the destination's default is left in place.
 
     Returns:
         dict[str, Any]:
@@ -273,6 +321,8 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
     async with OpenEdxClient(payload.auth.lms_url, payload.auth.access_token) as client:
         try:
             res = await client.post(payload.auth.studio_url, endpoint, course_data)
+            if payload.language:
+                await _apply_course_language(payload, res, client)
             return {"response": res}
         except (LMSRequestError, AuthenticationError) as err:
             return _lms_error(err, method="POST", endpoint=endpoint, prefix="Course runs creation failed")
