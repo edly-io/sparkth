@@ -31,11 +31,9 @@ class LocaleMiddleware:
     the header is absent or offers no supported tag the contextvar stays unset
     and :func:`~sparkth.core.i18n.context.get_locale` serves
     ``DEFAULT_LANGUAGE``. The header is only what is knowable at the edge: this
-    middleware runs before authentication, so a signed-in user's stored
-    ``User.language`` (resolved by
-    :func:`sparkth.lib.language.resolve_language`) does not reach it and is not
-    yet bound — that binding belongs in the authentication dependency, the same
-    way the audit actor is bound there.
+    middleware runs before authentication, so it cannot see a signed-in user.
+    ``User.language`` is bound later, by the authentication dependency — the first point
+    in the request at which the locale is bound to that stored preference.
     """
 
     def __init__(self, app: ASGIApp) -> None:

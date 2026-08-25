@@ -7,27 +7,31 @@ in `sparkth.lib.i18n` (see the [Python API reference](../reference/lib.md)).
 
 ## How the locale is resolved
 
-Every request runs under a locale seeded by `LocaleMiddleware`:
+Any response rendered at or after authentication resolves its locale in this order:
 
-1. The `Accept-Language` header is negotiated against the platform allowlist
-   (`SUPPORTED_LANGUAGES`, exposed at `GET /api/v1/languages`). Entries are
-   taken in listing order, with anything after a `;` discarded: browsers list
-   languages by descending preference, so the order alone carries the
-   preference. Matching is exact and case-sensitive, so `en-US` does not
-   match `en`, but a browser sending `en-US,en` still lands on `en` through
-   its next entry.
-2. When nothing offered is supported (or the header is absent), the platform
-   [`DEFAULT_LANGUAGE`](../reference/configuration.md#default_language)
-   applies.
+1. A signed-in user's stored `User.language` preference, when set and still one of the
+   supported languages, is bound by `get_current_user` once the user is resolved — the
+   first point in the request at which the locale is bound to that preference — and
+   replaces whatever the middleware negotiated from the header.
+2. The `Accept-Language` header, negotiated by `LocaleMiddleware` against the platform
+   allowlist (`SUPPORTED_LANGUAGES`, exposed at `GET /api/v1/languages`). Entries are
+   taken in listing order, with anything after a `;` discarded: browsers list languages by
+   descending preference, so the order alone carries the preference. Matching is exact and
+   case-sensitive, so `en-US` does not match `en`, but a browser sending `en-US,en` still
+   lands on `en` through its next entry.
+3. When neither of the above offers a supported tag — an anonymous request, an unset or
+   no-longer-supported stored preference, or a header offering nothing supported — the
+   platform [`DEFAULT_LANGUAGE`](../reference/configuration.md#default_language) applies.
+
+A gate that rejects a request outright, before routing, renders its response without the
+authentication dependency ever running — so nothing binds the stored preference on its
+behalf. Where such a gate has resolved the user itself, it binds the preference before
+rendering (`PluginAccessMiddleware` does). A gate that has no user to bind — one rejecting
+a request it never authenticated — follows the negotiated header, or `DEFAULT_LANGUAGE`.
 
 Code that runs outside a request (background tasks, CLI) sees
 `DEFAULT_LANGUAGE`, or installs a specific locale with
 `sparkth.core.i18n.locale_context` (tests do this too).
-
-A signed-in user's stored `User.language` does not take part yet: the
-middleware runs before authentication, so it never sees the user row. Binding
-that preference over the negotiated header belongs in the authentication
-dependency, where the audit actor is bound, and is not wired up.
 
 ## Marking strings
 
