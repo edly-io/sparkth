@@ -5,6 +5,48 @@ messages, emails) with gettext. This guide covers how the locale is resolved,
 how to mark a string, and how the catalog workflow runs. The public API lives
 in `sparkth.lib.i18n` (see the [Python API reference](../reference/lib.md)).
 
+## Two languages, resolved separately
+
+Sparkth resolves two different languages and they are deliberately unrelated. Conflating
+them is the single most common mistake when working on this code.
+
+**Interface language** — Sparkth's own text: labels, buttons, API error messages, and any
+fixed string the backend authors. It is resolved server-side, from the signed-in user's
+stored preference, then the `Accept-Language` header, then `DEFAULT_LANGUAGE`. It is
+limited to the languages the platform ships catalogs for, because a translation either
+exists or it does not. Everything else in this guide is about this language.
+
+**Generated language** — what the model writes: chat replies, course titles, lesson text,
+assessment questions, answer options, feedback, and conversation titles. It is not
+resolved from a stored preference or a negotiated header, the way interface language is.
+In chat, the prompts instruct the model to write in the language of the user's most recent
+message and to switch when the user switches; a conversation title instead follows the
+language of the message the conversation opened with, and the MCP course-generation tool
+takes an explicit tag from its caller rather than reading one off a message. Either way,
+there is no tag to store and no allowlist to check — any language the model handles works.
+The one setting that can decide a generated language is `DEFAULT_LANGUAGE`: the MCP tool
+falls back to it when its caller omits the tag or sends an unusable one.
+
+The practical consequences worth knowing:
+
+- A user whose interface is English can hold an entire conversation in Japanese and get a
+  Japanese course. Neither setting affects the other.
+- Nothing on the server records which language a course was generated in. A surface that
+  needs the tag as data has to be handed it — the MCP course-generation tool takes it as a
+  parameter from its caller.
+- Internal prompts stay English on purpose: the scope classifier, the retrieval intent
+  router and the document search agent reason in English while handling input in any
+  language. Nothing they produce is shown to a user.
+- Output quality varies by language and Sparkth does not restrict which languages it will
+  generate in, so output in a language nobody has reviewed is possible.
+
+The out-of-scope chat refusal is the one string that touches both. When the assistant
+model itself judges a request out of scope, it is handed the English source and told to
+send it in the conversation's language. A faster check can also catch the request first;
+a classification step may run there, but it only decides whether the request is in scope
+— the backend writes the refusal sentence itself rather than a model, so that refusal
+follows the interface language instead.
+
 ## How the locale is resolved
 
 Any response rendered at or after authentication resolves its locale in this order:
