@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { ChatInput } from "@/plugins/chat/components/input/ChatInput";
 import chatEn from "@/plugins/chat/messages/en.json";
-import { renderWithIntl } from "../../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ token: "test-token" }),

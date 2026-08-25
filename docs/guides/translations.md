@@ -225,14 +225,15 @@ no locale URL prefix. The locale is resolved on the client.
    prerendered static-export HTML keeps its content. The provider then loads
    the full catalog for the cookie locale: `frontend/messages/<locale>.json`
    merged with the catalog of every registered plugin that ships one (see
-   [plugin catalogs](#plugin-catalogs) below). For a non-default locale it
-   also sets `document.documentElement.lang` and re-renders in that language
-   once the chunks arrive (a brief English flash is inherent to client-side
-   locale resolution); if the load fails it logs and stays on English.
+   [plugin catalogs](#plugin-catalogs) below). Once the chunks arrive it
+   sets `document.documentElement.lang` and re-renders with the merged
+   catalog (for a non-default locale, the brief English flash before that is
+   inherent to client-side locale resolution). A chunk that fails to load
+   logs and falls back to its English counterpart.
 3. The provider records the locale it actually renders in
    `frontend/lib/i18n/active-locale.ts`. The cookie stores the *preference*;
-   the active locale tracks what is on screen, and the two diverge exactly
-   when a catalog load fails and the UI stays on English.
+   the active locale tracks what is on screen, and the two diverge when the
+   catalog load fails outright and the UI stays on English.
 4. The API client echoes the active locale as an `Accept-Language` header on
    every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`), so
    backend responses arrive in the language the frontend renders, cookie or

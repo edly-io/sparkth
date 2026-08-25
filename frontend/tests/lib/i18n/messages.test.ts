@@ -6,6 +6,7 @@ import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/lib/plugins";
 import coreEn from "@/messages/en.json";
 import coreEs from "@/messages/es.json";
 import coreFr from "@/messages/fr.json";
+import chatEs from "@/plugins/chat/messages/es.json";
 
 const CORE_CATALOGS = { en: coreEn, es: coreEs, fr: coreFr } as const;
 
@@ -42,6 +43,29 @@ describe("plugin catalog containment", () => {
         expect(Object.keys(catalog), `${plugin.name}/${locale}`).toEqual([plugin.name]);
       }
     }
+  });
+});
+
+describe("core catalog failure", () => {
+  afterEach(() => {
+    vi.doUnmock("@/messages/es.json");
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("falls back to the English core catalog and keeps plugin catalogs when the core chunk fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.resetModules();
+    vi.doMock("@/messages/es.json", () => {
+      throw new Error("core chunk load failed");
+    });
+    const { loadMessages: loadWithBrokenCore } = await import("@/lib/i18n/messages");
+
+    const messages = await loadWithBrokenCore("es");
+
+    expect(messages).toHaveProperty("home", coreEn.home);
+    expect(messages).toHaveProperty("chat", chatEs.chat);
+    expect(consoleError).toHaveBeenCalled();
   });
 });
 
