@@ -12,7 +12,7 @@ for chat, under that same key.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar, cast
+from typing import Generic, TypeVar
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.exceptions import LangChainException
@@ -91,7 +91,8 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
             input_schema: What a payload must satisfy before the model is called.
             output_schema: The shape the answer comes back in. Handed to
                 ``with_structured_output``, so it defines the answer format on its own —
-                the prompt carries no format instruction.
+                the prompt carries no format instruction — and enforced again on the answer
+                itself, so a caller always receives an instance of it.
             provider_name: The provider the user chose for chat (``openai``, ``anthropic``
                 or ``google``).
             api_key: The user's key for that provider.
@@ -102,6 +103,7 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         self.model = small_model_for(provider_name)
         self._system_prompt = system_prompt
         self._input_schema = input_schema
+        self._output_schema = output_schema
         self._chain = build_small_llm(provider_name, api_key).with_structured_output(output_schema)
 
     @abstractmethod
@@ -132,6 +134,12 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         ]
 
         try:
-            return cast(OutputT, await self._chain.ainvoke(messages))
+            answer = await self._chain.ainvoke(messages)
+            # Structured output normally parses the answer into the schema already. A provider
+            # path that hands back the raw mapping is validated here rather than trusted, so a
+            # subclass reading a field off the result cannot be the first to notice.
+            if isinstance(answer, self._output_schema):
+                return answer
+            return self._output_schema.model_validate(answer)
         except (LangChainException, ValidationError) as exc:
             raise ClassifierError(f"{type(self).__name__} failed on model {self.model}: {exc}") from exc

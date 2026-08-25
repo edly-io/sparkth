@@ -177,6 +177,46 @@ class TestInputValidation:
         assert not issubclass(ClassifierInputError, ClassifierError)
 
 
+class TestTheOutputSchemaIsEnforcedOnTheAnswer:
+    """The declared schema is what a caller gets back, whatever the provider returned.
+
+    Structured output normally hands back a parsed model, and these assertions do not depend
+    on that: a provider path that returns the raw mapping instead must still be validated
+    here, because a subclass reads fields off the result and an unvalidated mapping would fail
+    at the attribute rather than at the boundary.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_raw_mapping_is_validated_into_the_output_model(self) -> None:
+        chain = MagicMock()
+        chain.ainvoke = AsyncMock(return_value={"warm": True})
+        classifier = _classifier_with(chain)
+
+        verdict = await classifier.classify({"colour": "amber"})
+
+        assert isinstance(verdict, _ColourVerdict)
+        assert verdict.warm is True
+
+    @pytest.mark.asyncio
+    async def test_a_mapping_that_does_not_fit_the_schema_becomes_a_classifier_error(self) -> None:
+        """An answer that cannot be made into the output model is a failed classification, not
+        something to hand onward."""
+        chain = MagicMock()
+        chain.ainvoke = AsyncMock(return_value={"lukewarm": True})
+        classifier = _classifier_with(chain)
+
+        with pytest.raises(ClassifierError):
+            await classifier.classify({"colour": "amber"})
+
+    @pytest.mark.asyncio
+    async def test_an_already_parsed_model_is_returned_as_it_is(self) -> None:
+        """The common path: the parser did the work, so there is nothing to redo."""
+        verdict = _ColourVerdict(warm=False)
+        classifier = _classifier_with(_chain_returning(verdict))
+
+        assert await classifier.classify({"colour": "cyan"}) is verdict
+
+
 class TestFailureTranslation:
     """Whatever the provider or the parser raises, a subclass sees one exception type."""
 
