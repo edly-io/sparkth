@@ -90,7 +90,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -107,7 +107,7 @@ class TestIntentRouterIntegration:
         ):
             # Scope classifier says in-scope
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             # Router says retrieve=True
@@ -169,7 +169,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -189,7 +189,7 @@ class TestIntentRouterIntegration:
             patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
         ):
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -254,7 +254,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -269,7 +269,7 @@ class TestIntentRouterIntegration:
             ) as mock_add_msg,
         ):
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -329,7 +329,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -341,7 +341,7 @@ class TestIntentRouterIntegration:
             ) as mock_add_msg,
         ):
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             mock_router_cls.return_value = MagicMock()
@@ -389,7 +389,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -405,7 +405,7 @@ class TestIntentRouterIntegration:
             ) as mock_get_msgs,
         ):
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -449,7 +449,7 @@ async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("sparkth.plugins.chat.routes.utils.ScopeClassifier"),
+        patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier"),
         patch("sparkth.plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
@@ -466,7 +466,7 @@ def _configure_base_mocks(
     mock_get_provider: MagicMock,
 ) -> None:
     mock_scope = MagicMock()
-    mock_scope.classify = AsyncMock(return_value=True)
+    mock_scope.in_scope = AsyncMock(return_value=True)
     mock_cls_cls.return_value = mock_scope
     mock_list.return_value = []
     mock_get_msgs.return_value = []
@@ -509,7 +509,7 @@ class TestDocumentIdsOwnershipCheck:
         document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -559,7 +559,7 @@ class TestDocumentIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -608,7 +608,7 @@ class TestDocumentIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -670,7 +670,7 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -686,7 +686,7 @@ class TestProviderApiErrorPersistence:
             ) as mock_get_msgs,
         ):
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -731,7 +731,7 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -747,7 +747,7 @@ class TestProviderApiErrorPersistence:
             ) as mock_get_msgs,
         ):
             mock_scope = AsyncMock()
-            mock_scope.classify = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()

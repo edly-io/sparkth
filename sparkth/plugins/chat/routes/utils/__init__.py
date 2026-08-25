@@ -19,7 +19,7 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.classifier import HistoryTurn, ScopeClassifier
+from sparkth.plugins.chat.classifiers.message_scope import MessageScopeClassifier
 from sparkth.plugins.chat.config import ChatSettings
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
 from sparkth.plugins.chat.conversation_title import (
@@ -30,7 +30,7 @@ from sparkth.plugins.chat.conversation_title import (
 from sparkth.plugins.chat.intent_router import RAGIntentRouter
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
-from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
+from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage, HistoryTurn
 from sparkth.plugins.chat.service import ChatService
 from sparkth.plugins.chat.tools import ToolRegistry
 
@@ -326,21 +326,15 @@ async def classify_in_scope(
     attached_document_names: list[str] | None,
     conversation_uuid: UUID | None,
 ) -> bool:
-    """Ask the LLM classifier whether the query is in scope. Empty query is always in scope.
+    """Ask the message-scope classifier whether this turn is in scope.
 
-    ``conversation_uuid`` is passed on for the classifier's refusal log only — it never
-    reaches a model. It is ``None`` for the first message of a new chat, which is checked
-    before the conversation row is created.
+    Every part of that judgement — including that a turn saying nothing with nothing attached
+    is out of scope, and that a failed call falls open to in-scope — belongs to
+    ``MessageScopeClassifier.in_scope``, so this stays a one-line hand-off. ``conversation_uuid``
+    is carried for its refusal log only and never reaches a model.
     """
-    if not query_text:
-        return True
-    classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
-    return await classifier.classify(
-        query_text,
-        history=history,
-        attached_document_names=attached_document_names,
-        conversation_uuid=conversation_uuid,
-    )
+    classifier = MessageScopeClassifier(provider_name, api_key)
+    return await classifier.in_scope(query_text, history, attached_document_names, conversation_uuid)
 
 
 async def resolve_tools(

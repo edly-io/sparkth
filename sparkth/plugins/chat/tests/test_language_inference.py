@@ -85,7 +85,7 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
     """Send one completion request; return the system prompt handed to the provider."""
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-        patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
+        patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_classifier_cls,
         patch(
             "sparkth.plugins.chat.routes.completions.resolve_rag_intent",
             new_callable=AsyncMock,
@@ -105,7 +105,7 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
         patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
     ):
         mock_classifier = MagicMock()
-        mock_classifier.classify = AsyncMock(return_value=True)
+        mock_classifier.in_scope = AsyncMock(return_value=True)
         mock_classifier_cls.return_value = mock_classifier
 
         mock_message = MagicMock()
@@ -146,7 +146,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
     """
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-        patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as mock_classifier_cls,
+        patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_classifier_cls,
         patch(
             "sparkth.plugins.chat.routes.completions.resolve_rag_intent",
             new_callable=AsyncMock,
@@ -167,7 +167,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         patch("sparkth.plugins.chat.routes.utils.generate_conversation_title") as mock_generate_title,
     ):
         mock_classifier = MagicMock()
-        mock_classifier.classify = AsyncMock(return_value=True)
+        mock_classifier.in_scope = AsyncMock(return_value=True)
         mock_classifier_cls.return_value = mock_classifier
 
         mock_message = MagicMock()

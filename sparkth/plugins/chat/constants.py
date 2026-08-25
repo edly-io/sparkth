@@ -6,6 +6,9 @@ import openai
 from google.api_core import exceptions as google_exceptions
 
 RAG_CONTEXT_PROMPT = (Path(__file__).parent / "assets" / "rag_context_replacement_prompt.txt").read_text()
+MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = (
+    Path(__file__).parent / "assets" / "message_scope_classifier_system_prompt.txt"
+).read_text()
 
 LLM_PROVIDER_API_ERRORS = (
     anthropic.AuthenticationError,

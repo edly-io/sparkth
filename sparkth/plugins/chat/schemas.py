@@ -1,7 +1,7 @@
 import base64
 import binascii
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -137,6 +137,36 @@ class RAGRoutingDecision(BaseModel):
 
     should_retrieve: bool
     reason: str
+
+
+class HistoryTurn(TypedDict):
+    """One prior conversation turn, as a classifier receives it.
+
+    ``role`` is the role as stored, not a narrowed union: a conversation also holds ``tool``
+    and ``system`` turns, and a classifier that replays history decides for itself which
+    roles it can represent.
+    """
+
+    role: str
+    content: str
+
+
+class MessageScopeInput(BaseModel):
+    """What the message-scope classifier is asked to judge.
+
+    Everything here is shown to the model. The conversation UUID is deliberately absent — it
+    identifies the thread for logging and is nobody's business to classify.
+    """
+
+    query: str
+    history: list[HistoryTurn] = Field(default_factory=list)
+    attached_document_names: list[str] = Field(default_factory=list)
+
+
+class MessageScopeVerdict(BaseModel):
+    """Whether a chat turn falls within the assistant's learning-design scope."""
+
+    in_scope: bool
 
 
 class ConversationAttachmentCreate(BaseModel):
