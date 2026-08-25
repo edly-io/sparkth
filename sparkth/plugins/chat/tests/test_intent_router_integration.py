@@ -90,7 +90,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -169,7 +169,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -254,7 +254,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -329,7 +329,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -389,7 +389,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -449,7 +449,7 @@ async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier"),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier"),
         patch("sparkth.plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
@@ -509,7 +509,7 @@ class TestDocumentIdsOwnershipCheck:
         document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -559,7 +559,7 @@ class TestDocumentIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -608,7 +608,7 @@ class TestDocumentIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -670,7 +670,7 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
@@ -731,7 +731,7 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as mock_cls_cls,
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",

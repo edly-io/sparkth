@@ -19,6 +19,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.plugins.chat.classifiers.message_scope import MessageScopeClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.chat.exceptions import RAGIntentRouterError
@@ -26,7 +27,6 @@ from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import (
     attach_request_documents,
-    classify_in_scope,
     extract_query_text,
     get_or_create_conversation,
     persist_incoming_messages,
@@ -104,11 +104,14 @@ async def chat_completion(
     conversation_uuid = request.conversation_id
     query_text = extract_query_text(request.messages)
 
+    # Exactly one of the two scope checks below runs, so one classifier serves both.
+    scope_classifier = MessageScopeClassifier(provider_name, api_key)
+
     # Runs before any DB writes so an out-of-scope first message leaves no trace.
     _skip_main_scope_check = False
     if not conversation_uuid:
         # No conversation exists yet on this path, so the scope logs carry no uuid.
-        if not await classify_in_scope(query_text, provider_name, api_key, [], None, None):
+        if not await scope_classifier.in_scope(query_text):
             if request.stream:
                 return StreamingResponse(
                     stream_out_of_scope_refusal(),
@@ -166,10 +169,8 @@ async def chat_completion(
                 for m in db_messages
                 if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
             ]
-            _in_scope = await classify_in_scope(
+            _in_scope = await scope_classifier.in_scope(
                 query_text,
-                llm_config.provider,
-                api_key,
                 prior_history,
                 attached_document_names or None,
                 conversation.uuid,

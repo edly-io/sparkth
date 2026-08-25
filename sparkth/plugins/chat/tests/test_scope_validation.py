@@ -1,4 +1,10 @@
-"""Tests for the chat scope gate: classify_in_scope and the refusal it produces."""
+"""Tests for the refusal the chat scope gate produces, at the route boundary.
+
+The judgement itself belongs to MessageScopeClassifier and is asserted in
+test_message_scope.py. What is left here is what the route does with a refusal: the SSE
+event it streams, the response shape it allows, and the DB records it must and must not
+write.
+"""
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -16,52 +22,8 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
-from sparkth.plugins.chat.routes.utils import classify_in_scope, stream_out_of_scope_refusal
-from sparkth.plugins.chat.schemas import ChatCompletionResponse, ChatMessage, HistoryTurn
-
-
-class TestClassifyInScopeHandsTheTurnOver:
-    """``classify_in_scope`` judges nothing itself.
-
-    It is the seam between the route and the classifier: no wording is inspected, no turn is
-    refused, no fallback is applied here. The rules — an empty turn with no attachments is out
-    of scope, a failed call falls open — belong to the classifier and are asserted against it
-    in test_message_scope.py. What matters at this seam is that the whole turn reaches the
-    classifier and its answer comes back untouched.
-    """
-
-    @pytest.mark.asyncio
-    async def test_the_whole_turn_reaches_the_classifier(self) -> None:
-        history: list[HistoryTurn] = [{"role": "assistant", "content": "Who is the audience?"}]
-        conversation_uuid = uuid4()
-
-        with patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as MockClassifier:
-            MockClassifier.return_value.in_scope = AsyncMock(return_value=True)
-            await classify_in_scope("nurses", "anthropic", "test-key", history, ["syllabus.pdf"], conversation_uuid)
-
-        MockClassifier.assert_called_once_with("anthropic", "test-key")
-        assert MockClassifier.return_value.in_scope.await_args.args == (
-            "nurses",
-            history,
-            ["syllabus.pdf"],
-            conversation_uuid,
-        )
-
-    @pytest.mark.asyncio
-    async def test_a_refusal_comes_back_unchanged(self) -> None:
-        with patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as MockClassifier:
-            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
-            assert await classify_in_scope("What is the capital of France?", "anthropic", "k", [], None, None) is False
-
-    @pytest.mark.asyncio
-    async def test_a_query_carrying_no_course_words_is_still_asked_about(self) -> None:
-        """Nothing stands between a phrasing and the classifier — a message is never refused
-        on its wording before the model has been asked."""
-        with patch("sparkth.plugins.chat.routes.utils.MessageScopeClassifier") as MockClassifier:
-            MockClassifier.return_value.in_scope = AsyncMock(return_value=True)
-            assert await classify_in_scope("Help me write Python code", "anthropic", "k", [], None, None) is True
-
-        MockClassifier.return_value.in_scope.assert_awaited_once()
+from sparkth.plugins.chat.routes.utils import stream_out_of_scope_refusal
+from sparkth.plugins.chat.schemas import ChatCompletionResponse, ChatMessage
 
 
 class TestStreamOutOfScopeRefusal:
@@ -162,7 +124,7 @@ class TestOutOfScopeConversationCreation:
             locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
-                "sparkth.plugins.chat.routes.utils.MessageScopeClassifier",
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
                 return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(
@@ -217,7 +179,7 @@ class TestOutOfScopeConversationCreation:
             locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
-                "sparkth.plugins.chat.routes.utils.MessageScopeClassifier",
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
                 return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(

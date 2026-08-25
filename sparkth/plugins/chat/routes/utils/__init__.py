@@ -19,7 +19,6 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.classifiers.message_scope import MessageScopeClassifier
 from sparkth.plugins.chat.config import ChatSettings
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
 from sparkth.plugins.chat.conversation_title import (
@@ -30,7 +29,7 @@ from sparkth.plugins.chat.conversation_title import (
 from sparkth.plugins.chat.intent_router import RAGIntentRouter
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
-from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage, HistoryTurn
+from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from sparkth.plugins.chat.service import ChatService
 from sparkth.plugins.chat.tools import ToolRegistry
 
@@ -316,25 +315,6 @@ async def persist_incoming_messages(
             attachment_name=msg.attachment.name if msg.attachment else None,
             attachment_size=msg.attachment.size if msg.attachment else None,
         )
-
-
-async def classify_in_scope(
-    query_text: str,
-    provider_name: str,
-    api_key: str,
-    history: list[HistoryTurn],
-    attached_document_names: list[str] | None,
-    conversation_uuid: UUID | None,
-) -> bool:
-    """Ask the message-scope classifier whether this turn is in scope.
-
-    Every part of that judgement — including that a turn saying nothing with nothing attached
-    is out of scope, and that a failed call falls open to in-scope — belongs to
-    ``MessageScopeClassifier.in_scope``, so this stays a one-line hand-off. ``conversation_uuid``
-    is carried for its refusal log only and never reaches a model.
-    """
-    classifier = MessageScopeClassifier(provider_name, api_key)
-    return await classifier.in_scope(query_text, history, attached_document_names, conversation_uuid)
 
 
 async def resolve_tools(

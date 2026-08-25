@@ -210,7 +210,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
         with (
             locale_context("es"),
             patch(
-                "sparkth.plugins.chat.routes.utils.MessageScopeClassifier",
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
                 return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
         ):
@@ -260,7 +260,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             locale_context("es"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
-                "sparkth.plugins.chat.routes.utils.MessageScopeClassifier",
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
                 return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(
