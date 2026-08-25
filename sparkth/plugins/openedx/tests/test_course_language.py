@@ -7,6 +7,7 @@ in. Open edX takes it on the course-details endpoint, not on course-run creation
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
 from sparkth.lib.enums import Method
@@ -153,6 +154,34 @@ class TestCreateCourseRunWithLanguage:
             "sparkth.plugins.openedx.tools.set_course_language",
             new_callable=AsyncMock,
             side_effect=language_write_failure,
+        ):
+            result = await openedx_create_course_run(args)
+
+        assert "response" in result
+        assert "error" not in result
+
+    async def test_a_language_write_transport_failure_still_returns_the_created_course(
+        self, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
+        """A connection/timeout failure below the LMSRequestError layer must not escape either.
+
+        ``BaseHttpClient._request`` only converts non-2xx responses and JSON decode errors
+        into ``LMSRequestError`` — aiohttp transport failures (connection refused, timeout,
+        ...) pass through untouched. If those escaped, the model would see a failed tool
+        call for a course that already exists in Studio and likely retry, creating a
+        duplicate.
+        """
+        _, client = mock_openedx_client
+        client.post.return_value = {"id": "course-v1:X+Y+Z"}
+        args = CreateCourseArgs(
+            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
+        )
+        transport_failure = aiohttp.ClientConnectionError("Connection refused")
+
+        with patch(
+            "sparkth.plugins.openedx.tools.set_course_language",
+            new_callable=AsyncMock,
+            side_effect=transport_failure,
         ):
             result = await openedx_create_course_run(args)
 

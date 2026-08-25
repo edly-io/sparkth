@@ -1,22 +1,29 @@
 """The out-of-scope refusal reaches the user in a language they can read.
 
 Two paths emit it and they are not symmetric. The model is handed the English source and
-told by the system prompt to send it in the language of the conversation. The
+told by the system prompt to send it in the language of the conversation. On the
 deterministic paths — the keyword pre-filter and classifier refusals streamed or persisted
-straight from Python — have no model in the loop and no conversation language, so they
-render under the request locale.
+straight from Python — the backend writes the refusal sentence itself rather than a model
+generating it, so it renders under the request locale (``gettext``) rather than the
+conversation's language.
 
 The shipped catalogs are detached for the test session, so the Spanish assertion injects its
-own single-message catalog rather than reading sparkth/locale/es.
+own single-message catalog rather than reading sparkth/locale/es. One class steps outside the
+runtime entirely and runs pybabel over this plugin, because the marking that puts the refusal
+in those catalogs is invisible to every runtime assertion.
 """
 
 import json
+import re
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from babel.messages.extract import DEFAULT_KEYWORDS, extract_from_dir
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import sparkth
 from sparkth.core.i18n import locale_context
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.i18n import gettext
@@ -31,6 +38,38 @@ SPANISH = (
     "Soy un asistente de creación de cursos y solo puedo ayudarte a diseñar y crear "
     "cursos. ¿Hay algún curso que te gustaría crear?"
 )
+
+_KEYWORD_FLAG = re.compile(r"-k\s+(\w+)")
+_REPO_ROOT = Path(sparkth.__file__).resolve().parent.parent
+_CHAT_PLUGIN_DIR = Path(sparkth.__file__).resolve().parent / "plugins" / "chat"
+# babel.cfg ignores `**/tests/**`, so real extraction never reads this suite.
+_EXTRACTION_SKIPPED_DIRS = {"tests", "__pycache__"}
+
+
+def _makefile_extract_keywords(makefile: Path) -> dict[str, None]:
+    """The ``-k`` keywords ``make i18n.extract`` passes to pybabel, read off its recipe.
+
+    Derived rather than restated here: a keyword dropped from that target must fail the
+    extraction test below, because real extraction would stop finding the marked string
+    while a hardcoded copy kept the guard green. Reads only the target's own recipe lines,
+    so a ``-k`` in a neighbouring target is not picked up.
+    """
+    recipe: list[str] = []
+    in_target = False
+    for line in makefile.read_text(encoding="utf-8").splitlines():
+        if line.startswith("i18n.extract:"):
+            in_target = True
+        elif in_target:
+            if not line.startswith("\t"):
+                break
+            recipe.append(line)
+    return {name: None for name in _KEYWORD_FLAG.findall("\n".join(recipe))}
+
+
+def _extraction_directory_filter(dirpath: str) -> bool:
+    """Keep this test's view of the tree identical to ``babel.cfg``'s, so the guard cannot
+    be satisfied by a file real extraction never reads."""
+    return Path(dirpath).name not in _EXTRACTION_SKIPPED_DIRS
 
 
 async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
@@ -74,6 +113,48 @@ class TestRefusalIsMarked:
         previous test is observing a real lookup rather than a coincidence."""
         with locale_context("es"):
             assert gettext(REFUSAL_MESSAGE) == REFUSAL_MESSAGE
+
+
+class TestRefusalIsExtractable:
+    """Only pybabel's own view can prove the marking works.
+
+    ``gettext_noop`` returns its argument unchanged, so deleting the wrapper changes
+    nothing observable at runtime: ``gettext`` is content-keyed and keeps translating from
+    the catalog entry that already exists. What breaks is extraction — the msgid stops
+    being found, the next catalog update marks it obsolete, and the shipped translations
+    rot with no test failing.
+    """
+
+    def test_the_keywords_come_from_the_makefile_recipe(self, tmp_path: Path) -> None:
+        """What makes the guard below bite: drop a -k flag from the target and the
+        extraction it performs loses that keyword too."""
+        makefile = tmp_path / "Makefile"
+        makefile.write_text(
+            "i18n.extract: ## Extract translatable strings\n"
+            "\tuv run pybabel extract -F babel.cfg -k lazy_gettext -k gettext_noop \\\n"
+            "\t\t-o sparkth/locale/messages.pot sparkth\n"
+            "\n"
+            "i18n.compile:\n"
+            "\tuv run pybabel compile -k not_this_one\n"
+        )
+
+        assert _makefile_extract_keywords(makefile) == {"lazy_gettext": None, "gettext_noop": None}
+
+    def test_the_refusal_is_found_by_pybabel(self) -> None:
+        """``REFUSAL_MESSAGE`` is imported rather than duplicated as a literal so the
+        assertion tracks whatever sentence is actually shipped. Babel's DEFAULT_KEYWORDS
+        (gettext, _, …) apply on top of the recipe's, as they do on the command line."""
+        keywords = DEFAULT_KEYWORDS | _makefile_extract_keywords(_REPO_ROOT / "Makefile")
+
+        messages = {
+            message
+            for _filename, _lineno, message, _comments, _context in extract_from_dir(
+                _CHAT_PLUGIN_DIR, keywords=keywords, directory_filter=_extraction_directory_filter
+            )
+            if isinstance(message, str)
+        }
+
+        assert REFUSAL_MESSAGE in messages
 
 
 class TestRefusalInTheSystemPrompt:

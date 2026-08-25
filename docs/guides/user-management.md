@@ -141,8 +141,8 @@ the Canvas UI, so the content is in the right language while the metadata is abs
 | `es` | Español (Spanish) |
 | `fr` | Français (French) |
 
-The list is deliberately short. AI output quality varies by language, so a language
-is added only once generated course content in it has been reviewed by a speaker.
+The list is deliberately short. A language is added only once a full interface
+translation for it exists and has been reviewed.
 Inclusion is not a claim that the model is equally strong in every listed language:
 measured accuracy drops noticeably in less-represented ones.
 Matching against the list is an exact, case-sensitive comparison: `en-US` and `EN`
