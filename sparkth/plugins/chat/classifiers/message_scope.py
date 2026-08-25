@@ -10,15 +10,14 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
-from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT
+from sparkth.plugins.chat.constants import (
+    MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY,
+    MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
+)
 from sparkth.plugins.chat.exceptions import ClassifierError
 from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict
 
 logger = get_logger(__name__)
-
-# How many prior turns reach the model. Scope rarely turns on more than this, and a refusal
-# log reports the total available so a truncated judgement stays visible.
-_MAX_HISTORY_TURNS = 6
 
 
 class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdict]):
@@ -44,7 +43,7 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         documents" can only be judged if the classifier knows documents are in play.
         """
         messages: list[BaseMessage] = []
-        for turn in payload.history[-_MAX_HISTORY_TURNS:]:
+        for turn in payload.history[-MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY:]:
             match turn["role"]:
                 case "user":
                     messages.append(HumanMessage(content=turn["content"]))
@@ -104,7 +103,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         if not verdict.in_scope:
             # A refusal ends the turn before the chat model sees it, so this is the only
             # record of the judgement. The history count shows how much context was available
-            # versus the last _MAX_HISTORY_TURNS the model actually got. Counts and lengths
+            # versus the last MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY turns the model
+            # actually got. Counts and lengths
             # only — the message itself may hold course content.
             logger.warning(
                 "Scope classifier refused a message: conversation_uuid=%s model=%s "

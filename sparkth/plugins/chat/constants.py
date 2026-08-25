@@ -9,6 +9,9 @@ RAG_CONTEXT_PROMPT = (Path(__file__).parent / "assets" / "rag_context_replacemen
 MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = (
     Path(__file__).parent / "assets" / "message_scope_classifier_system_prompt.txt"
 ).read_text()
+# How many prior turns reach the scope classifier. Scope rarely turns on more than this,
+# and a refusal log reports the total available so a truncated judgement stays visible.
+MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
 
 LLM_PROVIDER_API_ERRORS = (
     anthropic.AuthenticationError,
