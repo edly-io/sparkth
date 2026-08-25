@@ -164,9 +164,23 @@ class MessageScopeInput(BaseModel):
 
 
 class MessageScopeVerdict(BaseModel):
-    """Whether a chat turn falls within the assistant's learning-design scope."""
+    """Whether a chat turn falls within the assistant's learning-design scope, and why not.
+
+    ``refusal_reason`` is written by the model and ends up in the refusal log, which is why it
+    is specified as a category rather than free narration: the refused message can hold course
+    content, and the log has never carried any of it.
+    """
 
     in_scope: bool
+    refusal_reason: str = Field(
+        default="",
+        description=(
+            "When in_scope is false, a short phrase naming the category of request that put the "
+            "message out of scope, such as 'general knowledge question', 'code help' or "
+            "'personal advice'. Name the category only: never quote or restate the user's "
+            "message. Leave empty when in_scope is true."
+        ),
+    )
 
 
 class ConversationAttachmentCreate(BaseModel):

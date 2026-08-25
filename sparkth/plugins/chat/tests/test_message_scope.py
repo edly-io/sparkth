@@ -30,9 +30,9 @@ def _classifier_with(chain: MagicMock) -> MessageScopeClassifier:
         return MessageScopeClassifier("anthropic", "test-key")
 
 
-def _chain_deciding(in_scope: bool) -> MagicMock:
+def _chain_deciding(in_scope: bool, refusal_reason: str = "") -> MagicMock:
     chain = MagicMock()
-    chain.ainvoke = AsyncMock(return_value=MessageScopeVerdict(in_scope=in_scope))
+    chain.ainvoke = AsyncMock(return_value=MessageScopeVerdict(in_scope=in_scope, refusal_reason=refusal_reason))
     return chain
 
 
@@ -242,9 +242,42 @@ class TestRefusalLogging:
         assert "query_len=28" in caplog.text
 
     @pytest.mark.asyncio
+    async def test_the_reason_the_model_gave_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Which rule a refusal fell under is the one thing counts cannot convey — without it a
+        reviewer sees that a turn was refused but not what the model took it for."""
+        chain = _chain_deciding(False, "general knowledge question")
+
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            await _classifier_with(chain).in_scope("What is the capital of France?")
+
+        assert "general knowledge question" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_with_no_reason_still_logs(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The field is optional, so a model that omits it must not cost the refusal its log."""
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            await _classifier_with(_chain_deciding(False)).in_scope("no")
+
+        assert "Scope classifier refused a message" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_an_in_scope_turn_logs_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
         """A warning per passing message would drown the refusals it exists to surface."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
             await _classifier_with(_chain_deciding(True)).in_scope("Create a course on data privacy")
 
         assert caplog.text == ""
+
+
+class TestTheShippedPrompt:
+    """The schema and the prompt have to agree, and nothing at runtime notices if they drift."""
+
+    def test_the_prompt_asks_for_a_refusal_reason(self) -> None:
+        """A field the prompt never mentions comes back empty, and the refusal log loses the
+        only part of itself that says what happened."""
+        assert "refusal_reason" in MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT
+
+    def test_the_prompt_forbids_quoting_the_refused_message(self) -> None:
+        """The reason is logged, and the refused message can hold course content — so the model
+        is asked to name a category, never to restate what the user wrote."""
+        assert "never quote" in MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.lower()
