@@ -103,7 +103,8 @@ async def chat_completion(
     # Runs before any DB writes so an out-of-scope first message leaves no trace.
     _skip_main_scope_check = False
     if not conversation_uuid:
-        if not await classify_in_scope(query_text, provider_name, api_key, [], None):
+        # No conversation exists yet on this path, so the scope logs carry no uuid.
+        if not await classify_in_scope(query_text, provider_name, api_key, [], None, None):
             if request.stream:
                 return StreamingResponse(
                     stream_out_of_scope_refusal(),
@@ -162,7 +163,12 @@ async def chat_completion(
                 if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
             ]
             _in_scope = await classify_in_scope(
-                query_text, llm_config.provider, api_key, prior_history, attached_document_names or None
+                query_text,
+                llm_config.provider,
+                api_key,
+                prior_history,
+                attached_document_names or None,
+                conversation.uuid,
             )
         else:
             _in_scope = True

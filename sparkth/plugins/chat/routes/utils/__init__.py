@@ -324,14 +324,25 @@ async def classify_in_scope(
     api_key: str,
     history: list[HistoryTurn],
     attached_document_names: list[str] | None,
+    conversation_uuid: UUID | None,
 ) -> bool:
-    """Tiered scope check: fast keyword pre-filter, then LLM classifier. Empty query is always in scope."""
+    """Tiered scope check: fast keyword pre-filter, then LLM classifier. Empty query is always in scope.
+
+    ``conversation_uuid`` is passed to both tiers for their refusal logs only — neither tier
+    sends it to a model. It is ``None`` for the first message of a new chat, which is checked
+    before the conversation row is created.
+    """
     if not query_text:
         return True
-    if not is_query_in_scope(query_text):
+    if not is_query_in_scope(query_text, conversation_uuid):
         return False
     classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
-    return await classifier.classify(query_text, history=history, attached_document_names=attached_document_names)
+    return await classifier.classify(
+        query_text,
+        history=history,
+        attached_document_names=attached_document_names,
+        conversation_uuid=conversation_uuid,
+    )
 
 
 async def resolve_tools(

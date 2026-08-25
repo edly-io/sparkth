@@ -1,6 +1,7 @@
 """Tests for query scope validation (is_query_in_scope in prompt.py)."""
 
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -16,7 +17,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, is_query_in_scope
-from sparkth.plugins.chat.routes.utils import stream_out_of_scope_refusal
+from sparkth.plugins.chat.routes.utils import classify_in_scope, stream_out_of_scope_refusal
 from sparkth.plugins.chat.schemas import ChatCompletionResponse, ChatMessage
 
 
@@ -92,6 +93,80 @@ class TestScopeValidation:
         else asserts — the pre-filter is a fast path, never a non-English refusal."""
         assert is_query_in_scope("crea un curso sobre privacidad de datos") is True
         assert is_query_in_scope("créer un cours sur la protection des données") is True
+
+
+class TestScopeRefusalLogging:
+    """The keyword filter refuses without calling any model, so the log is the only trace.
+
+    Nothing else records this decision: the LLM classifier is short-circuited and the
+    chat model is never invoked, so a refusal here is invisible unless it is logged.
+    """
+
+    def test_keyword_refusal_logs_the_matched_keywords(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.prompt"):
+            assert is_query_in_scope("Show me the Python snippet for Acme Corp") is False
+
+        assert "python" in caplog.text.lower()
+
+    def test_keyword_refusal_does_not_log_the_message_text(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Only the matched keywords may be logged — the message itself can hold course content."""
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.prompt"):
+            assert is_query_in_scope("Show me the Python snippet for Acme Corp") is False
+
+        assert "Acme Corp" not in caplog.text
+        assert "snippet" not in caplog.text
+
+    def test_keyword_refusal_logs_the_conversation_uuid(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Without it a reviewer can only correlate refusals by timestamp, not to a thread."""
+        conversation_uuid = uuid4()
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.prompt"):
+            assert is_query_in_scope("Show me the Python snippet", conversation_uuid) is False
+
+        assert str(conversation_uuid) in caplog.text
+
+    def test_keyword_refusal_before_a_conversation_exists_logs_none(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The first message of a new chat is checked before any conversation row exists."""
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.prompt"):
+            assert is_query_in_scope("Show me the Python snippet") is False
+
+        assert "conversation_uuid=None" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_classify_in_scope_forwards_the_uuid_to_the_keyword_filter(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The keyword filter short-circuits before any model, so no provider is reached here."""
+        conversation_uuid = uuid4()
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.prompt"):
+            in_scope = await classify_in_scope(
+                "Show me the Python snippet", "anthropic", "test-key", [], None, conversation_uuid
+            )
+
+        assert in_scope is False
+        assert str(conversation_uuid) in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_classify_in_scope_forwards_the_uuid_to_the_classifier(self) -> None:
+        """A query the keyword filter passes must carry the uuid on to the LLM classifier."""
+        conversation_uuid = uuid4()
+
+        with patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as MockClassifier:
+            MockClassifier.return_value.classify = AsyncMock(return_value=True)
+            await classify_in_scope(
+                "Create a course on data privacy", "anthropic", "test-key", [], None, conversation_uuid
+            )
+
+        _, kwargs = MockClassifier.return_value.classify.call_args
+        assert kwargs["conversation_uuid"] == conversation_uuid
+
+    def test_in_scope_query_logs_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A warning per passing message would drown the refusals it exists to surface."""
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.prompt"):
+            assert is_query_in_scope("Create a course on data privacy") is True
+
+        assert caplog.text == ""
 
 
 class TestStreamOutOfScopeRefusal:
