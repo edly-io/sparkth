@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
 import { api } from "@/lib/api/client";
+import { setActiveLocale } from "@/lib/i18n/active-locale";
+import { defaultLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
 
 vi.mock("@/lib/auth-tokens", () => ({
   getStoredToken: vi.fn(),
@@ -13,6 +15,8 @@ describe("api client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.mocked(getStoredToken).mockReturnValue(null);
+    document.cookie = `${LOCALE_COOKIE}=; path=/; max-age=0`;
+    setActiveLocale(defaultLocale);
   });
 
   it("injects the bearer token from storage when present", async () => {
@@ -51,6 +55,55 @@ describe("api client", () => {
 
     const request = fetchSpy.mock.calls[0][0] as Request;
     expect(request.headers.get("authorization")).toBeNull();
+  });
+
+  it("sends Accept-Language matching the locale the UI renders", async () => {
+    setActiveLocale("es");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+
+    await api.GET("/api/v1/user/me");
+
+    const request = fetchSpy.mock.calls[0][0] as Request;
+    expect(request.headers.get("accept-language")).toBe("es");
+  });
+
+  it("sends the default locale before any locale swap happens", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+
+    await api.GET("/api/v1/user/me");
+
+    const request = fetchSpy.mock.calls[0][0] as Request;
+    expect(request.headers.get("accept-language")).toBe("en");
+  });
+
+  it("follows the rendered locale, not the cookie, when a catalog failed to load", async () => {
+    // The cookie holds the preference; the UI stayed on English because the "es"
+    // catalog chunk never arrived. The backend must answer in what the user sees.
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+
+    await api.GET("/api/v1/user/me");
+
+    const request = fetchSpy.mock.calls[0][0] as Request;
+    expect(request.headers.get("accept-language")).toBe("en");
+  });
+
+  it("lets an explicit Accept-Language header win over the rendered locale", async () => {
+    setActiveLocale("es");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+
+    await api.GET("/api/v1/user/me", { headers: { "Accept-Language": "fr" } });
+
+    const request = fetchSpy.mock.calls[0][0] as Request;
+    expect(request.headers.get("accept-language")).toBe("fr");
   });
 
   it("throws ApiRequestError carrying status and detail on non-ok responses", async () => {
