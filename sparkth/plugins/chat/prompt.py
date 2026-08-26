@@ -3,8 +3,8 @@ from datetime import datetime
 from sparkth.plugins.chat.constants import COURSE_DESIGN_SYSTEM_PROMPT, REFUSAL_MESSAGE
 
 
-def get_learning_design_system_prompt() -> str:
-    """Render the learning-design system prompt.
+def get_course_design_system_prompt() -> str:
+    """Render the course-design system prompt.
 
     No language is injected. The template's OUTPUT LANGUAGE section instructs the model to
     write in the language of the user's most recent message and to switch when the user

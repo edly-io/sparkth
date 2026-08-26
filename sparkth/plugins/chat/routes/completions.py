@@ -26,7 +26,7 @@ from sparkth.plugins.chat.conversation_title import extract_title_from_messages,
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
-from sparkth.plugins.chat.prompt import get_learning_design_system_prompt
+from sparkth.plugins.chat.prompt import get_course_design_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.chat.routes.utils.stream_processor import (
@@ -206,7 +206,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=get_learning_design_system_prompt(),
+            system_prompt=get_course_design_system_prompt(),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )

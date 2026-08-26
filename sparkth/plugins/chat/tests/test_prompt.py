@@ -1,12 +1,12 @@
 from datetime import datetime
 
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
-from sparkth.plugins.chat.prompt import get_learning_design_system_prompt
+from sparkth.plugins.chat.prompt import get_course_design_system_prompt
 
 
 class TestLearningDesignSystemPrompt:
     def setup_method(self) -> None:
-        self.prompt = get_learning_design_system_prompt()
+        self.prompt = get_course_design_system_prompt()
 
     def test_scope_and_guardrails_section_present(self) -> None:
         assert "SCOPE & GUARDRAILS" in self.prompt
@@ -40,15 +40,15 @@ class TestSystemPromptLanguage:
         Asserts on the exact sentence rather than banning the phrase family: the
         directive legitimately talks about the language the user writes in, and a
         broader assertion would fail on a harmless rewording."""
-        assert "Write in the user's language" not in get_learning_design_system_prompt()
+        assert "Write in the user's language" not in get_course_design_system_prompt()
 
     def test_directive_covers_content_not_just_replies(self) -> None:
-        prompt = get_learning_design_system_prompt()
+        prompt = get_course_design_system_prompt()
         for part in ("assessment questions", "answer options", "feedback"):
             assert part in prompt
 
     def test_refusal_sentence_is_not_carved_out_of_the_directive(self) -> None:
         """The refusal follows the conversation like everything else the model writes,
         so no exception may re-appear telling the model to reproduce it verbatim."""
-        prompt = get_learning_design_system_prompt()
+        prompt = get_course_design_system_prompt()
         assert "reproduce it exactly as given" not in prompt
