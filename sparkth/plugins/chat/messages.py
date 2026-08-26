@@ -11,7 +11,11 @@ from sparkth.plugins.chat.schemas import ChatMessage
 
 
 def extract_query_text(messages: list[ChatMessage]) -> str:
-    """Extract the user's plain text from the last user message for RAG retrieval."""
+    """Return the text of the most recent user message, or "" if it carries none.
+
+    Falls back to earlier user turns: a turn can be an upload with no words, and the question
+    it belongs to is then the one before it.
+    """
     for msg in reversed(messages):
         if msg.role != "user":
             continue
