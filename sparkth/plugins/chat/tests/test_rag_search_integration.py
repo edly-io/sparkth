@@ -182,7 +182,7 @@ class TestIntentRouterIntegration:
             ) as mock_get_msgs,
             # Patch the whole stream so we control the SSE output directly.
             # This test's goal is to verify the classifier is asked, declines, and the route
-            # passes rag_declined to ChatStreamProcessor.
+            # passes rag_search_declined to ChatStreamProcessor.
             patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
         ):
             mock_scope = AsyncMock()
@@ -229,7 +229,7 @@ class TestIntentRouterIntegration:
         assert len(skipping) == 1
         assert "reason" not in skipping[0]
         mock_router.requires_search.assert_awaited_once()
-        # rag_declined is the 10th positional arg to ChatStreamProcessor
+        # rag_search_declined is the 10th positional arg to ChatStreamProcessor
         assert mock_processor_cls.call_args.args[9] is True
 
     @pytest.mark.asyncio
