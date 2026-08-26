@@ -220,6 +220,7 @@ __marimo__/
 
 # Claude Code
 .claude/*
+!.claude/agents/
 !.claude/docs/
 !.claude/skills/
 

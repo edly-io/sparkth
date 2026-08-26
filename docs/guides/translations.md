@@ -175,6 +175,12 @@ the new `msgstr` entries in the affected
 `<catalog dir>/<lang>/LC_MESSAGES/messages.po`, then `make i18n.compile`
 (required before the app can serve the translations).
 
+The [`i18n-translator`](https://github.com/edly-io/sparkth/blob/main/.claude/agents/i18n-translator.md)
+Claude Code agent automates this loop: it runs the extraction, fills the
+missing `msgstr` entries with LLM-authored translations (pending
+native-speaker review), and validates the result. It covers the frontend
+catalogs too (see [Catalog drift guard](#catalog-drift-guard)).
+
 The production image compiles the catalogs at build time: the `catalog-builder`
 stage in the [`Dockerfile`](https://github.com/edly-io/sparkth/blob/main/Dockerfile) runs `pybabel compile` over the
 core and per-plugin catalogs with the lockfile-pinned dev dependencies and
@@ -286,7 +292,9 @@ catalog against that plugin's own sources. Each run fails on keys missing
 from any locale file, keys whose ICU placeholders diverge from the source,
 catalog entries no component uses, and keys used in code but defined in no
 catalog. A plugin opts in simply by having a `messages/` directory; the
-script picks it up automatically.
+script picks it up automatically. The
+[`i18n-translator`](https://github.com/edly-io/sparkth/blob/main/.claude/agents/i18n-translator.md)
+Claude Code agent fills in the missing or invalid keys the check reports.
 
 ### Testing translated components
 
