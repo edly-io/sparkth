@@ -6,17 +6,18 @@ import { useEffect, useState } from "react";
 import en from "@/messages/en.json";
 import { setActiveLocale } from "@/lib/i18n/active-locale";
 import { defaultLocale, readLocaleCookie, type Locale } from "@/lib/i18n/config";
-import { loadMessages, type Messages } from "@/lib/i18n/messages";
+import { loadMessages, type LoadedMessages } from "@/lib/i18n/messages";
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<{ locale: Locale; messages: Messages }>({
+  const [state, setState] = useState<{ locale: Locale; messages: LoadedMessages }>({
     locale: defaultLocale,
     messages: en,
   });
 
   useEffect(() => {
+    // Runs for the default locale too: the synchronous seed above carries only
+    // the core catalog, and plugin catalogs arrive through this load.
     const locale = readLocaleCookie();
-    if (locale === defaultLocale) return;
     let cancelled = false;
     loadMessages(locale)
       .then((messages) => {

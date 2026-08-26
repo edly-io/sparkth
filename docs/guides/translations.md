@@ -221,16 +221,19 @@ no locale URL prefix. The locale is resolved on the client.
    the layout) reads the `NEXT_LOCALE` cookie via
    `readLocaleCookie()` (`frontend/lib/i18n/config.ts`). An absent or
    unsupported value falls back to `en`.
-2. Rendering starts immediately on the bundled English catalog, so the
-   prerendered static-export HTML keeps its content. For a non-default locale
-   the provider loads `frontend/messages/<locale>.json`, sets
-   `document.documentElement.lang`, and re-renders in that language once the
-   catalog chunk arrives (a brief English flash is inherent to client-side
-   locale resolution); if the load fails it logs and stays on English.
+2. Rendering starts immediately on the bundled core English catalog, so the
+   prerendered static-export HTML keeps its content. The provider then loads
+   the full catalog for the cookie locale: `frontend/messages/<locale>.json`
+   merged with the catalog of every registered plugin that ships one (see
+   [plugin catalogs](#plugin-catalogs) below). Once the chunks arrive it
+   sets `document.documentElement.lang` and re-renders with the merged
+   catalog (for a non-default locale, the brief English flash before that is
+   inherent to client-side locale resolution). A chunk that fails to load
+   logs and falls back to its English counterpart.
 3. The provider records the locale it actually renders in
    `frontend/lib/i18n/active-locale.ts`. The cookie stores the *preference*;
-   the active locale tracks what is on screen, and the two diverge exactly
-   when a catalog load fails and the UI stays on English.
+   the active locale tracks what is on screen, and the two diverge when the
+   catalog load fails outright and the UI stays on English.
 4. The API client echoes the active locale as an `Accept-Language` header on
    every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`), so
    backend responses arrive in the language the frontend renders, cookie or
@@ -256,15 +259,34 @@ Messages use ICU syntax for interpolation and plurals
 (`"lastDays": "last {days} days"`). Keys are written by hand into
 `frontend/messages/en.json` first; `es.json` and `fr.json` must carry the same
 keys. Unknown keys are a TypeScript error: the catalogs are bound to
-next-intl's types in `frontend/lib/i18n/next-intl.d.ts`.
+next-intl's types via the `Messages` type in `frontend/lib/i18n/messages.ts`
+(referenced from `frontend/lib/i18n/next-intl.d.ts`).
+
+### Plugin catalogs
+
+A frontend plugin owns its catalogs, mirroring the backend containment rule:
+the core `frontend/messages/` files carry no plugin namespace, and a plugin
+that has user-facing strings ships `messages/<locale>.json` files in its own
+directory, scoped to a single top-level namespace equal to the plugin name.
+The plugin declares a `loadMessages` loader on its `PluginDefinition`, and
+`loadMessages` in `frontend/lib/i18n/messages.ts` merges every registered
+plugin's catalog into the core one at load time (a plugin catalog that fails
+to load falls back to that plugin's English catalog). See the
+[frontend plugin guide](frontend-plugins.md#translations-optional) for the
+step-by-step wiring; the containment is guarded by
+`frontend/tests/lib/i18n/messages.test.ts`.
 
 ### Catalog drift guard
 
 `make test.frontend.i18n` (part of `make test.frontend`, so it runs in CI)
-runs [i18n-check](https://github.com/lingualdev/i18n-check) over
-`frontend/messages/`: it fails on keys missing from any locale file, keys
-whose ICU placeholders diverge from the source, catalog entries no component
-uses, and keys used in code but defined in no catalog.
+runs [i18n-check](https://github.com/lingualdev/i18n-check) once per catalog
+(`frontend/scripts/i18n-check.mjs`): the core `frontend/messages/` catalog is
+checked against the core sources, and each `frontend/plugins/*/messages/`
+catalog against that plugin's own sources. Each run fails on keys missing
+from any locale file, keys whose ICU placeholders diverge from the source,
+catalog entries no component uses, and keys used in code but defined in no
+catalog. A plugin opts in simply by having a `messages/` directory; the
+script picks it up automatically.
 
 ### Testing translated components
 
@@ -277,6 +299,15 @@ import { renderWithIntl } from "../intl-test-utils";
 
 renderWithIntl(<HomeClient />);
 expect(screen.getByRole("link", { name: "Get Started" })).toBeInTheDocument();
+```
+
+A plugin component test passes the plugin's English catalog as the second
+argument, since the helper's default carries only the core catalog:
+
+```tsx
+import chatEn from "@/plugins/chat/messages/en.json";
+
+renderWithIntl(<ChatInput ... />, chatEn);
 ```
 
 ### Adding a language

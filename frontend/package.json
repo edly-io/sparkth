@@ -17,7 +17,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",
-    "i18n:check": "i18n-check --locales messages --source en --format next-intl --only invalidKeys,missingKeys,unused,undefined --unused app components lib hooks plugins"
+    "i18n:check": "bun scripts/i18n-check.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
