@@ -103,15 +103,17 @@ async def chat_completion(
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
     query_text = extract_query_text(request.messages)
-
-    # Exactly one of the two scope checks below runs, so one classifier serves both.
     scope_classifier = MessageScopeClassifier(provider_name, api_key)
 
-    # Runs before any DB writes so an out-of-scope first message leaves no trace. Nothing is
-    # persisted yet, so the request itself is where this turn's attachments come from, and the
-    # scope logs carry no uuid.
+    # A new conversation is judged here, above get_or_create_conversation, so that an
+    # out-of-scope first message leaves no trace: refusing after the row is written would leave
+    # the user an orphan conversation holding nothing but the refusal.
     _skip_main_scope_check = False
     if not conversation_uuid:
+        # Nothing is persisted yet, so unlike the check below — which reads the conversation's
+        # attachments back out of the DB — this turn's attachments can only come off the
+        # request. The trailing None is the conversation uuid, which does not exist yet: a
+        # refusal here is logged with conversation_uuid=None by design.
         request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
         if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
             if request.stream:
@@ -125,6 +127,8 @@ async def chat_completion(
                 model=model,
                 provider=provider_name,
             )
+        # Judged in scope, so the check below is skipped: it would ask the same question about
+        # the same message and pay for a second classifier call to hear the same answer.
         _skip_main_scope_check = True
 
     conversation = await get_or_create_conversation(
