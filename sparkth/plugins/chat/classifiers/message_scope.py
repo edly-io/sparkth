@@ -69,10 +69,11 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
     ) -> bool:
         """Return whether this turn is in scope, as the single boolean callers act on.
 
-        A turn that says nothing and attaches nothing is out of scope, decided without a
-        model call: there is no request to judge. An empty ``query`` *with* attachments is a
-        real request — sending a document with no words is how a user asks the assistant to
-        read it — so it goes to the model, which is told the attachment names.
+        Judging scope is all this does. A turn is expected to carry something the user sent —
+        text, attachments, or both — and the request boundary rejects one that carries neither,
+        so nothing here compensates for a turn that is missing. ``query`` may legitimately be
+        empty when documents are attached: sending a document with no words is how a user asks
+        the assistant to read it, and the attachment names are what the model judges instead.
 
         ``conversation_uuid`` never reaches the model. It is logged on a refusal so the
         decision can be traced to the thread a user reports, and is ``None`` on the first
@@ -82,13 +83,6 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         own system prompt to refuse if it must. A refusal ends the turn, so it is never
         inferred from an error.
         """
-        if not query.strip() and not attached_document_names:
-            logger.warning(
-                "Refused a turn that said nothing and attached nothing, without a model call (conversation_uuid=%s)",
-                conversation_uuid,
-            )
-            return False
-
         payload: dict[str, object] = {
             "query": query,
             "history": history or [],

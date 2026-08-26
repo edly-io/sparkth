@@ -89,6 +89,20 @@ class ChatCompletionRequest(BaseModel):
         ),
     )
 
+    @field_validator("messages")
+    @classmethod
+    def validate_a_user_turn_is_present(cls, v: list[ChatMessage]) -> list[ChatMessage]:
+        """A completion answers something a user sent, so one user turn is the minimum.
+
+        Downstream the last user message is what gets answered, judged for scope and retrieved
+        against. Without one there is nothing to answer, and every reader of it would need
+        behaviour for a turn that does not exist. An attachment-only turn qualifies: what is
+        absent there is the text, not the request.
+        """
+        if not any(message.role == "user" for message in v):
+            raise ValueError("messages must include at least one user message")
+        return v
+
 
 class ChatCompletionResponse(BaseModel):
     message: ChatMessage

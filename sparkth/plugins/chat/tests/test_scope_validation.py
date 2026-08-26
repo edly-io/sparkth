@@ -48,6 +48,55 @@ class TestStreamOutOfScopeRefusal:
             assert payload["content"] == REFUSAL_MESSAGE
 
 
+class TestThePreflightCheckSeesTheWholeTurn:
+    """The first message of a new chat is judged before any DB write.
+
+    Nothing has been persisted at that point, so the request itself is the only place the
+    turn's attachments can come from. Leaving them out would hand the classifier an empty
+    query with no sign of what the user actually sent.
+    """
+
+    @pytest.mark.asyncio
+    async def test_attachment_names_from_the_request_reach_the_classifier(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+
+        with (
+            locale_context("en"),
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as MockClassifier,
+        ):
+            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": llm_config_id,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "document",
+                                    "source": {"type": "base64", "media_type": "application/pdf", "data": ""},
+                                }
+                            ],
+                            "attachment": {"name": "syllabus.pdf", "size": 1024},
+                        }
+                    ],
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
+        assert query == ""
+        assert attachments == ["syllabus.pdf"]
+
+
 class TestChatCompletionResponseSchema:
     """ChatCompletionResponse must accept a null conversation_id."""
 

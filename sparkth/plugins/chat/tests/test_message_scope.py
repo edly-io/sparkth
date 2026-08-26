@@ -140,46 +140,22 @@ class TestTheBooleanCallersAct_On:
         assert await _classifier_with(_chain_deciding(False)).in_scope("What is the capital of France?") is False
 
 
-class TestTheEmptyTurnRule:
-    """A turn with nothing said and nothing attached is refused without a model call."""
+class TestATurnWithNoWords:
+    """An empty query is not missing input when documents are attached.
+
+    Sending a document and typing nothing is how a user asks the assistant to read it — the UI
+    permits that send — so the turn goes to the model with the attachment names standing in for
+    what was not typed. A turn carrying neither text nor attachments is refused at the request
+    boundary and never arrives here.
+    """
 
     @pytest.mark.asyncio
-    async def test_nothing_said_and_nothing_attached_is_out_of_scope(self) -> None:
-        chain = _chain_deciding(True)
-
-        assert await _classifier_with(chain).in_scope("") is False
-
-        chain.ainvoke.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_whitespace_counts_as_nothing_said(self) -> None:
-        chain = _chain_deciding(True)
-
-        assert await _classifier_with(chain).in_scope("   \n ") is False
-
-        chain.ainvoke.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_an_attachment_with_no_words_is_a_real_request(self) -> None:
-        """Sending a document and typing nothing is how a user asks the assistant to read it —
-        the UI permits that send, so it must reach the model rather than be refused."""
+    async def test_an_attachment_with_no_words_is_judged_on_its_attachments(self) -> None:
         chain = _chain_deciding(True)
 
         assert await _classifier_with(chain).in_scope("", None, ["syllabus.pdf"]) is True
 
         assert '"syllabus.pdf"' in _sent_messages(chain)[-1].content
-
-    @pytest.mark.asyncio
-    async def test_the_empty_turn_refusal_is_logged_with_its_conversation(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """No model runs, so nothing else records this refusal reaching the user."""
-        conversation_uuid = uuid4()
-
-        with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            assert await _classifier_with(_chain_deciding(True)).in_scope("", None, None, conversation_uuid) is False
-
-        assert str(conversation_uuid) in caplog.text
 
 
 class TestFailingOpen:

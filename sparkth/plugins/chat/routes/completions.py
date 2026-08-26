@@ -107,11 +107,13 @@ async def chat_completion(
     # Exactly one of the two scope checks below runs, so one classifier serves both.
     scope_classifier = MessageScopeClassifier(provider_name, api_key)
 
-    # Runs before any DB writes so an out-of-scope first message leaves no trace.
+    # Runs before any DB writes so an out-of-scope first message leaves no trace. Nothing is
+    # persisted yet, so the request itself is where this turn's attachments come from, and the
+    # scope logs carry no uuid.
     _skip_main_scope_check = False
     if not conversation_uuid:
-        # No conversation exists yet on this path, so the scope logs carry no uuid.
-        if not await scope_classifier.in_scope(query_text):
+        request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
+        if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
             if request.stream:
                 return StreamingResponse(
                     stream_out_of_scope_refusal(),
