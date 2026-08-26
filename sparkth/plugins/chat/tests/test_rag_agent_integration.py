@@ -11,10 +11,10 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-from sparkth.plugins.chat.routes.utils import resolve_document_blocks
+from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.chat.schemas import ChatMessage
 
-RETRIEVE_CONTEXT_PATH = "sparkth.plugins.chat.routes.utils.agentic_retrieve_context"
+RETRIEVE_CONTEXT_PATH = "sparkth.plugins.chat.routes.utils.rag_search.agentic_retrieve_context"
 
 
 def _make_chunk(
