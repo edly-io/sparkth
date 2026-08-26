@@ -61,8 +61,7 @@ def build_small_llm(provider_name: str, api_key: str) -> BaseChatModel:
             return ChatAnthropic(api_key=api_key, model=model, temperature=0)  # type: ignore[call-arg]
         case "google":
             return ChatGoogleGenerativeAI(google_api_key=api_key, model=model, temperature=0)
-    # Reached only if SMALL_MODELS gains a provider without a client above — a gap here,
-    # not bad input, so it must not be reported as an unsupported provider.
+    # Only if SMALL_MODELS gains a provider with no client above — a gap here, not bad input.
     raise ValueError(f"No client wired for provider {provider_name!r}")
 
 
@@ -135,9 +134,8 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
 
         try:
             answer = await self._chain.ainvoke(messages)
-            # Structured output normally parses the answer into the schema already. A provider
-            # path that hands back the raw mapping is validated here rather than trusted, so a
-            # subclass reading a field off the result cannot be the first to notice.
+            # Structured output usually parses the answer already; a raw mapping is validated,
+            # not trusted.
             if isinstance(answer, self._output_schema):
                 return answer
             return self._output_schema.model_validate(answer)
