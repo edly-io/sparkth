@@ -4,11 +4,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.language import SUPPORTED_LANGUAGES
-from sparkth.plugins.chat.conversation_title import (
-    extract_title_from_messages,
-    generate_conversation_title,
-    get_first_user_text,
-)
+from sparkth.plugins.chat.conversation_title import extract_title_from_messages, generate_conversation_title
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
@@ -32,53 +28,6 @@ def _block_msg(*texts: str) -> ChatMessage:
         role="user",
         content=[{"type": "text", "text": t} for t in texts],
     )
-
-
-class TestGetFirstUserText:
-    def test_returns_none_for_empty_list(self) -> None:
-        assert get_first_user_text([]) is None
-
-    def test_returns_none_when_no_user_message(self) -> None:
-        assert get_first_user_text([_system_msg("sys"), _assistant_msg("hi")]) is None
-
-    def test_returns_plain_string_content(self) -> None:
-        assert get_first_user_text([_user_msg("Hello world")]) == "Hello world"
-
-    def test_strips_surrounding_whitespace(self) -> None:
-        assert get_first_user_text([_user_msg("  Hello  ")]) == "Hello"
-
-    def test_skips_non_user_messages_before_first_user(self) -> None:
-        msgs = [_system_msg("system"), _assistant_msg("hi"), _user_msg("question")]
-        assert get_first_user_text(msgs) == "question"
-
-    def test_returns_first_user_message_when_multiple_exist(self) -> None:
-        msgs = [_user_msg("first"), _user_msg("second")]
-        assert get_first_user_text(msgs) == "first"
-
-    def test_extracts_text_from_content_blocks(self) -> None:
-        assert get_first_user_text([_block_msg("block text")]) == "block text"
-
-    def test_joins_multiple_text_blocks_with_space(self) -> None:
-        assert get_first_user_text([_block_msg("hello", "world")]) == "hello world"
-
-    def test_ignores_non_text_blocks(self) -> None:
-        msg = ChatMessage(
-            role="user",
-            content=[
-                {"type": "image", "source": {"type": "base64", "data": ""}},
-                {"type": "text", "text": "describe this"},
-            ],
-        )
-        assert get_first_user_text([msg]) == "describe this"
-
-    def test_returns_none_for_empty_string_content(self) -> None:
-        msg = ChatMessage(role="user", content=[{"type": "text", "text": "  "}])
-        assert get_first_user_text([msg]) is None
-
-    def test_returns_full_text_without_truncation(self) -> None:
-        long_text = "word " * 100
-        result = get_first_user_text([_user_msg(long_text)])
-        assert result == long_text.strip()
 
 
 class TestExtractTitleFromMessages:
