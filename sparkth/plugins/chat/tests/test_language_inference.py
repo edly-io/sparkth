@@ -154,7 +154,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
             return_value=[],
         ),
         patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
-        patch("sparkth.plugins.chat.routes.utils.generate_conversation_title") as mock_generate_title,
+        patch("sparkth.plugins.chat.conversation_title.generate_conversation_title") as mock_generate_title,
     ):
         mock_classifier = MagicMock()
         mock_classifier.in_scope = AsyncMock(return_value=True)

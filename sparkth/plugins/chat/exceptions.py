@@ -1,6 +1,10 @@
 """Chat plugin exceptions."""
 
 
+class ConversationNotFound(Exception):
+    """Raised when a conversation UUID does not resolve to one the caller owns."""
+
+
 class RAGSearchError(Exception):
     """Raised when the search classifier cannot decide whether to retrieve."""
 

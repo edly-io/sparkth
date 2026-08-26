@@ -1,15 +1,9 @@
 import json
-from typing import Any, AsyncGenerator, cast
-from uuid import UUID
+from typing import Any, AsyncGenerator
 
-from fastapi import BackgroundTasks, HTTPException, status
-from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi import HTTPException, status
 
-from sparkth.lib.documents import Document
 from sparkth.lib.i18n import _, gettext
-from sparkth.lib.llm import get_provider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
     DocumentNotFoundError,
@@ -19,17 +13,9 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.config import ChatSettings
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
-from sparkth.plugins.chat.conversation_title import (
-    extract_title_from_messages,
-    generate_conversation_title,
-    get_first_user_text,
-)
-from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
-from sparkth.plugins.chat.service import ChatService
 from sparkth.plugins.chat.tools import ToolRegistry
 
 logger = get_logger(__name__)
@@ -170,150 +156,6 @@ async def _retrieve_rag_chunks(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=_("Failed to retrieve document context. Please try again."),
         ) from exc
-
-
-async def persist_pre_stream_error(
-    session: AsyncSession,
-    service: ChatService,
-    request: ChatCompletionRequest,
-    user_id: int,
-    message: str,
-) -> None:
-    """Persist an error message to an existing conversation before raising an HTTP error.
-
-    Only called when request.conversation_id is set — new conversations are never
-    created here because the failure happened before any conversation was established.
-    """
-    if not request.conversation_id:
-        return
-    try:
-        conversation = await service.get_conversation_by_uuid(
-            session=session,
-            uuid=request.conversation_id,
-            user_id=user_id,
-        )
-        if conversation and conversation.id is not None:
-            await service.add_message(
-                session=session,
-                conversation_id=conversation.id,
-                role="assistant",
-                content=message,
-                is_error=True,
-            )
-    except SQLAlchemyError:
-        logger.exception("Failed to persist pre-stream error message for conversation %s", request.conversation_id)
-
-
-async def get_or_create_conversation(
-    *,
-    session: AsyncSession,
-    service: ChatService,
-    conversation_uuid: UUID | None,
-    user_id: int,
-    messages: list[ChatMessage],
-    llm_config_id: int,
-    provider_name: str,
-    api_key: str,
-    model: str,
-    config: ChatSettings,
-    background_tasks: BackgroundTasks,
-) -> Conversation:
-    """Resolve an existing conversation by UUID, or create a new one and schedule title generation."""
-    if conversation_uuid:
-        conversation = await service.get_conversation_by_uuid(
-            session=session,
-            uuid=conversation_uuid,
-            user_id=user_id,
-        )
-        if not conversation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=_("Conversation {conversation_uuid} not found").format(conversation_uuid=conversation_uuid),
-            )
-        return conversation
-
-    conversation = await service.create_conversation(
-        session=session,
-        user_id=user_id,
-        llm_config_id=llm_config_id,
-        provider=provider_name,
-        model=model,
-        title=extract_title_from_messages(messages, max_length=config.title_max_length),
-    )
-    first_user_text = get_first_user_text(messages)
-    if first_user_text:
-        title_provider = get_provider(
-            provider_name=provider_name,
-            api_key=api_key,
-            model=model,
-            temperature=config.title_llm_temperature,
-            max_tool_executions=0,
-        )
-        background_tasks.add_task(
-            generate_conversation_title,
-            conversation_id=cast(int, conversation.id),
-            user_id=user_id,
-            first_user_message=first_user_text,
-            service=service,
-            provider=title_provider,
-        )
-    return conversation
-
-
-async def attach_request_documents(
-    session: AsyncSession,
-    service: ChatService,
-    document_ids: list[int],
-    user_id: int,
-    conversation_id: int,
-) -> None:
-    """Attach owned documents to the conversation, silently skipping any unowned IDs."""
-    owned_result = await session.exec(
-        select(Document.id).where(
-            col(Document.id).in_(document_ids),
-            Document.user_id == user_id,
-            Document.is_deleted == False,  # noqa: E712
-        )
-    )
-    owned_ids = {document_id for document_id in owned_result.all() if document_id is not None}
-    skipped = set(document_ids) - owned_ids
-    if skipped:
-        logger.warning(
-            "Skipped %d unowned/deleted document IDs for user %s: %s",
-            len(skipped),
-            user_id,
-            skipped,
-        )
-    for document_id in owned_ids:
-        await service.attach_document(session, conversation_id, document_id)
-
-
-async def persist_incoming_messages(
-    session: AsyncSession,
-    service: ChatService,
-    messages: list[ChatMessage],
-    conversation_id: int,
-) -> None:
-    """Persist the request's incoming messages to the conversation."""
-    for msg in messages:
-        if isinstance(msg.content, list):
-            text_parts = [
-                block.get("text", "")
-                for block in msg.content
-                if isinstance(block, dict) and block.get("type") == "text"
-            ]
-            stored_content = " ".join(text_parts) if text_parts else "[Document attachment]"
-        else:
-            stored_content = msg.content
-        await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role=msg.role,
-            content=stored_content,
-            message_type="attachment" if msg.attachment else "text",
-            attachment_name=msg.attachment.name if msg.attachment else None,
-            attachment_size=msg.attachment.size if msg.attachment else None,
-        )
 
 
 async def resolve_tools(
