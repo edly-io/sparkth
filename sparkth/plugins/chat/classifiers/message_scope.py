@@ -95,13 +95,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
             return True
 
         if not verdict.in_scope:
-            # A refusal ends the turn before the chat model sees it, so this is the only
-            # record of the judgement. The reason is the model's own, kept to a category by the
-            # prompt and the field description because this log has never carried message text.
-            # The history count shows how much context was available
-            # versus the last MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY turns the model
-            # actually got. Counts and lengths
-            # only — the message itself may hold course content.
+            # The only record of a refusal: the chat model is never reached. Counts and lengths
+            # only, since the message may hold course content.
             logger.warning(
                 "Scope classifier refused a message: conversation_uuid=%s model=%s reason=%r "
                 "history_turns=%d attachments=%d query_len=%d",

@@ -105,15 +105,11 @@ async def chat_completion(
     query_text = extract_query_text(request.messages)
     scope_classifier = MessageScopeClassifier(provider_name, api_key)
 
-    # A new conversation is judged here, above get_or_create_conversation, so that an
-    # out-of-scope first message leaves no trace: refusing after the row is written would leave
-    # the user an orphan conversation holding nothing but the refusal.
+    # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
     _skip_main_scope_check = False
     if not conversation_uuid:
-        # Nothing is persisted yet, so unlike the check below — which reads the conversation's
-        # attachments back out of the DB — this turn's attachments can only come off the
-        # request. The trailing None is the conversation uuid, which does not exist yet: a
-        # refusal here is logged with conversation_uuid=None by design.
+        # Nothing is persisted yet: attachment names come off the request, and there is no uuid
+        # to log the refusal against.
         request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
         if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
             if request.stream:
@@ -127,8 +123,7 @@ async def chat_completion(
                 model=model,
                 provider=provider_name,
             )
-        # Judged in scope, so the check below is skipped: it would ask the same question about
-        # the same message and pay for a second classifier call to hear the same answer.
+        # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
     conversation = await get_or_create_conversation(
