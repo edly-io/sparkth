@@ -1,4 +1,7 @@
-from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
+from datetime import datetime
+
+from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
+from sparkth.plugins.chat.prompt import get_learning_design_system_prompt
 
 
 class TestLearningDesignSystemPrompt:
@@ -17,6 +20,12 @@ class TestLearningDesignSystemPrompt:
 
     def test_refusal_sentence_present_verbatim(self) -> None:
         assert REFUSAL_MESSAGE in self.prompt
+
+    def test_todays_date_is_substituted(self) -> None:
+        """The template opens with the date. An unrendered placeholder tells the model nothing
+        and breaks nothing else, so this is the only thing that would catch it."""
+        assert "{current_datetime}" not in self.prompt
+        assert str(datetime.now().year) in self.prompt
 
 
 class TestSystemPromptLanguage:

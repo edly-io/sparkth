@@ -21,12 +21,12 @@ from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
-from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
+from sparkth.plugins.chat.prompt import get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.chat.routes.utils.stream_processor import (
