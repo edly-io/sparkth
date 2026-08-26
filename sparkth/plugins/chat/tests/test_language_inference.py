@@ -5,7 +5,7 @@ only place the rule is expressed; the absence of any injected language on the li
 route; and the absence of any language kwarg forwarded to the scheduled title-generation
 task. Template rendering in isolation is covered by test_prompt.py.
 
-The mock stack mirrors test_intent_router_integration.py, which drives the same route.
+The mock stack mirrors test_rag_search_integration.py, which drives the same route.
 """
 
 import json
@@ -86,11 +86,6 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
-        patch(
-            "sparkth.plugins.chat.routes.completions.resolve_rag_intent",
-            new_callable=AsyncMock,
-            return_value=(False, None),
-        ),
         patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
         patch(
             "sparkth.plugins.chat.service.ChatService.get_conversation_messages",
@@ -147,11 +142,6 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
-        patch(
-            "sparkth.plugins.chat.routes.completions.resolve_rag_intent",
-            new_callable=AsyncMock,
-            return_value=(False, None),
-        ),
         patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock) as mock_add_message,
         patch(
             "sparkth.plugins.chat.service.ChatService.get_conversation_messages",

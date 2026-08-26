@@ -116,7 +116,7 @@ class ChatStreamProcessor:
         user_id: int | None = None,
         llm: Any | None = None,
         should_run_rag: bool = False,
-        rag_routing_reason: str | None = None,
+        rag_declined: bool = False,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -126,7 +126,7 @@ class ChatStreamProcessor:
         self.user_id = user_id
         self.llm = llm
         self.should_run_rag = should_run_rag
-        self.rag_routing_reason = rag_routing_reason
+        self.rag_declined = rag_declined
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -250,8 +250,8 @@ class ChatStreamProcessor:
         [] means RAG was skipped but the LLM phase should still run.
         """
         if not self.should_run_rag or not self.unresolved_messages or self.user_id is None:
-            if self.rag_routing_reason is not None:
-                await self._emit({"status": "skipping_rag", "reason": self.rag_routing_reason, "done": False})
+            if self.rag_declined:
+                await self._emit({"status": "skipping_rag", "done": False})
             return []
 
         document_ids = collect_document_ids(self.unresolved_messages)

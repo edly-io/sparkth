@@ -1,8 +1,8 @@
 """Chat plugin exceptions."""
 
 
-class RAGIntentRouterError(Exception):
-    """Raised when the router's LLM call fails."""
+class RAGSearchError(Exception):
+    """Raised when the search classifier cannot decide whether to retrieve."""
 
 
 class ClassifierError(Exception):

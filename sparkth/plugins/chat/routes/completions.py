@@ -20,9 +20,10 @@ from sparkth.lib.llm import (
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier
+from sparkth.plugins.chat.classifiers.rag_search import RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
-from sparkth.plugins.chat.exceptions import RAGIntentRouterError
+from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import (
@@ -32,7 +33,6 @@ from sparkth.plugins.chat.routes.utils import (
     persist_incoming_messages,
     persist_pre_stream_error,
     resolve_document_blocks,
-    resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
 )
@@ -212,9 +212,13 @@ async def chat_completion(
             max_tool_executions=config.max_tool_executions,
         )
 
-        # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
-        # attached_documents already fetched above for the scope check
-        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, provider)
+        # Only asked when there is something to search and something to search for.
+        should_run_rag = False
+        if attached_documents and query_text:
+            search_classifier = RAGSearchClassifier(provider_name, api_key)
+            should_run_rag = await search_classifier.requires_search(query_text, attached_documents, conversation.uuid)
+        # A skip is worth telling the client about only when the classifier weighed it.
+        rag_declined = bool(attached_documents) and bool(query_text) and not should_run_rag
 
         # Use DB messages for history, but replace the current batch with original
         # request content to preserve content blocks (e.g. base64 document attachments).
@@ -290,7 +294,7 @@ async def chat_completion(
                 rag_user_id,
                 rag_llm,
                 should_run_rag,
-                rag_routing_reason,
+                rag_declined,
             )
             return StreamingResponse(
                 processor.stream(),
@@ -329,7 +333,7 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except RAGIntentRouterError as e:
+    except RAGSearchError as e:
         logger.error("RAG intent router failed for user %s conversation %s: %s", current_user.id, conversation.id, e)
         detail = _("Failed to determine retrieval intent. Please try again.")
         if conversation.id is not None:
