@@ -25,14 +25,17 @@ from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
+from sparkth.plugins.chat.messages import extract_query_text
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import (
-    extract_query_text,
     resolve_document_blocks,
     resolve_tools,
-    stream_out_of_scope_refusal,
 )
-from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor, streaming_error_message
+from sparkth.plugins.chat.routes.utils.stream_processor import (
+    ChatStreamProcessor,
+    stream_out_of_scope_refusal,
+    streaming_error_message,
+)
 from sparkth.plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,

@@ -13,7 +13,8 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-from sparkth.plugins.chat.routes.utils import extract_query_text, resolve_document_blocks
+from sparkth.plugins.chat.messages import extract_query_text
+from sparkth.plugins.chat.routes.utils import resolve_document_blocks
 from sparkth.plugins.chat.schemas import ChatMessage
 
 RETRIEVE_CONTEXT_PATH = "sparkth.plugins.chat.routes.utils.agentic_retrieve_context"

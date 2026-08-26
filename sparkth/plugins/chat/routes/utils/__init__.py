@@ -1,9 +1,9 @@
 import json
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import HTTPException, status
 
-from sparkth.lib.i18n import _, gettext
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
     DocumentNotFoundError,
@@ -14,52 +14,11 @@ from sparkth.lib.rag import (
     format_document_chunks_as_llm_context,
 )
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
-from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
+from sparkth.plugins.chat.messages import extract_query_text
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 from sparkth.plugins.chat.tools import ToolRegistry
 
 logger = get_logger(__name__)
-
-
-async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
-    """Yield a single SSE done-event carrying the refusal message as content.
-
-    The refusal sentence is written by the backend, not a model, so it renders under
-    the active request locale (``gettext``) rather than the conversation's language.
-    """
-    yield f"data: {json.dumps({'done': True, 'content': gettext(REFUSAL_MESSAGE)})}\n\n"
-
-
-def extract_query_text(messages: list[ChatMessage]) -> str:
-    """Extract the user's plain text from the last user message for RAG retrieval."""
-    for msg in reversed(messages):
-        if msg.role != "user":
-            continue
-        if isinstance(msg.content, str):
-            return msg.content.strip()
-        text_parts = [
-            block.get("text", "") for block in msg.content if isinstance(block, dict) and block.get("type") == "text"
-        ]
-        joined = " ".join(text_parts).strip()
-        if joined:
-            return joined
-    return ""
-
-
-def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
-    document_ids: list[int] = []
-    for msg in messages:
-        if not isinstance(msg.content, list):
-            continue
-        for block in msg.content:
-            if not isinstance(block, dict) or block.get("type") != "drive_file":
-                continue
-            raw_id = block.get("file_id")
-            if raw_id is None:
-                logger.warning("Skipping document attachment block missing file_id in stream: %s", block)
-                continue
-            document_ids.append(int(raw_id))
-    return document_ids
 
 
 async def resolve_document_blocks(

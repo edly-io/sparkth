@@ -11,7 +11,7 @@ from langchain_core.exceptions import LangChainException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import session_scope
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -23,15 +23,22 @@ from sparkth.lib.rag import (
     format_document_chunks_as_llm_context,
 )
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
+from sparkth.plugins.chat.messages import collect_document_ids, extract_query_text
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.routes.utils import (
-    collect_document_ids,
-    extract_query_text,
-)
+from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
 
 logger = get_logger(__name__)
+
+
+async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
+    """Yield a single SSE done-event carrying the refusal message as content.
+
+    The refusal sentence is written by the backend, not a model, so it renders under
+    the active request locale (``gettext``) rather than the conversation's language.
+    """
+    yield f"data: {json.dumps({'done': True, 'content': gettext(REFUSAL_MESSAGE)})}\n\n"
 
 
 def streaming_error_message(exc: Exception) -> str:
