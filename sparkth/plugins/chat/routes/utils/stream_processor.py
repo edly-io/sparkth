@@ -23,7 +23,7 @@ from sparkth.lib.rag import (
     format_document_chunks_as_llm_context,
 )
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
-from sparkth.plugins.chat.messages import extract_query_text
+from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 from sparkth.plugins.chat.routes.utils.rag_search import collect_document_ids
@@ -265,7 +265,7 @@ class ChatStreamProcessor:
         document_ids = collect_document_ids(self.unresolved_messages)
         await self._emit({"status": "scanning_attachments", "file_count": len(document_ids), "done": False})
 
-        query_text = extract_query_text(self.unresolved_messages)
+        query_text = get_last_user_text(self.unresolved_messages)
         chunks = await self._retrieve_rag_chunks(query_text, document_ids, bg_session)
         if chunks is None:
             return None

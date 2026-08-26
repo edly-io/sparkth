@@ -25,7 +25,7 @@ from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
-from sparkth.plugins.chat.messages import extract_query_text
+from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
@@ -99,7 +99,7 @@ async def chat_completion(
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
-    query_text = extract_query_text(request.messages)
+    query_text = get_last_user_text(request.messages)
     scope_classifier = MessageScopeClassifier(provider_name, api_key)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists

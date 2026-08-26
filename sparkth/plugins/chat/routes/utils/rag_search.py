@@ -21,7 +21,7 @@ from sparkth.lib.rag import (
     format_document_chunks_as_llm_context,
 )
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
-from sparkth.plugins.chat.messages import extract_query_text
+from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.schemas import ChatMessage
 
 logger = get_logger(__name__)
@@ -58,7 +58,7 @@ async def resolve_document_blocks(
         HTTPException(422): document not found or RAG not ready.
         HTTPException(500): agent retrieval or section-chunk fetch failure.
     """
-    query_text = extract_query_text(messages)
+    query_text = get_last_user_text(messages)
     resolved: list[ChatMessage] = []
 
     for msg in messages:

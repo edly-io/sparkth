@@ -10,11 +10,12 @@ those.
 from sparkth.plugins.chat.schemas import ChatMessage
 
 
-def extract_query_text(messages: list[ChatMessage]) -> str:
-    """Return the text of the most recent user message, or "" if it carries none.
+def get_last_user_text(messages: list[ChatMessage]) -> str:
+    """Return the text of the most recent user message, or "" if none of them carry any.
 
-    Falls back to earlier user turns: a turn can be an upload with no words, and the question
-    it belongs to is then the one before it.
+    Falls back to earlier user turns: a turn can be an upload with no words, and the question it
+    belongs to is then the one before it. The counterpart is ``get_first_user_text``, which reads
+    from the other end to title a conversation.
     """
     for msg in reversed(messages):
         if msg.role != "user":
