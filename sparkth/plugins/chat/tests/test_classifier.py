@@ -146,7 +146,7 @@ class TestScopeClassifierClassify:
         with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.classifier"):
             assert await classifier.classify("no", history=history) is False
 
-        assert "9" in caplog.text
+        assert "history_turns=9" in caplog.text
 
     @pytest.mark.asyncio
     async def test_out_of_scope_log_includes_the_conversation_uuid(self, caplog: pytest.LogCaptureFixture) -> None:
