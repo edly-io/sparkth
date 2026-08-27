@@ -1,7 +1,7 @@
 # -------------------
 # Stage 1: Build frontend
 # -------------------
-FROM oven/bun:1 AS frontend-builder
+FROM oven/bun:1.4.0 AS frontend-builder
 
 WORKDIR /frontend
 
