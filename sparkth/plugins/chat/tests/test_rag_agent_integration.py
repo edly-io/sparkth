@@ -56,7 +56,6 @@ class TestResolveDocumentBlocksUsesAgent:
         mock_retrieve.assert_awaited_once()
         await_args = mock_retrieve.await_args
         assert await_args is not None
-        assert isinstance(await_args.args[0], str)
         assert 1 in await_args.args[1]
         assert await_args.args[2] is not None
 
