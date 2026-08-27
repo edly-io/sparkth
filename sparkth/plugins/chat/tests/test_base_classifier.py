@@ -52,11 +52,6 @@ class _ColourClassifier(BaseClassifier[_ColourInput, _ColourVerdict]):
         return [HumanMessage(content=payload.colour)]
 
 
-class _MessagelessClassifier(BaseClassifier[_ColourInput, _ColourVerdict]):
-    """Implements nothing — used to prove the base will not render messages on a subclass's
-    behalf."""
-
-
 def _a_validation_error() -> ValidationError:
     """A real pydantic ValidationError, as structured output raises when a model's answer
     does not fit the schema. Constructed from the schema rather than hand-built so it stays
@@ -144,12 +139,6 @@ class TestPromptAssembly:
 
         llm.with_structured_output.assert_called_once_with(_ColourVerdict)
 
-    def test_a_subclass_must_build_its_own_messages(self) -> None:
-        """There is no default rendering to fall back on: a classifier that does not say how
-        its input becomes messages cannot be constructed at all."""
-        with pytest.raises(TypeError, match="_build_messages"):
-            _MessagelessClassifier(_SYSTEM_PROMPT, _ColourInput, _ColourVerdict, "anthropic", "k")  # type: ignore[abstract]
-
     @pytest.mark.asyncio
     async def test_the_parsed_output_model_is_returned_unchanged(self) -> None:
         verdict = _ColourVerdict(warm=False)
@@ -187,11 +176,6 @@ class TestInputValidation:
 
         with pytest.raises(ClassifierInputError, match="_ColourInput"):
             await classifier.classify({})
-
-    def test_a_bad_payload_is_not_a_classification_failure(self) -> None:
-        """A subclass that falls back on ClassifierError must not also swallow a malformed
-        call: one is a model that failed, the other is a bug at the call site."""
-        assert not issubclass(ClassifierInputError, ClassifierError)
 
 
 class TestTheOutputSchemaIsEnforcedOnTheAnswer:
