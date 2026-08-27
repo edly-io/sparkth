@@ -25,6 +25,14 @@ _PROVIDER_CLIENTS = {
     "google": "sparkth.plugins.chat.classifiers.base.ChatGoogleGenerativeAI",
 }
 
+# The field each client takes the model and the key under. They disagree — OpenAI's model field is
+# model_name while Anthropic's is model — and the aliases that hide this are not in the signatures.
+_PROVIDER_FIELDS = {
+    "openai": ("model_name", "openai_api_key"),
+    "anthropic": ("model", "anthropic_api_key"),
+    "google": ("model", "google_api_key"),
+}
+
 
 class _ColourInput(BaseModel):
     colour: str
@@ -77,19 +85,28 @@ class TestModelSelection:
 
     @pytest.mark.parametrize("provider_name", ["openai", "anthropic", "google"])
     def test_each_provider_gets_its_smallest_model_at_temperature_zero(self, provider_name: str) -> None:
+        model_field, _ = _PROVIDER_FIELDS[provider_name]
+
         with patch(_PROVIDER_CLIENTS[provider_name]) as MockClient:
             _ColourClassifier(provider_name, "user-key")
 
         kwargs = MockClient.call_args.kwargs
-        assert kwargs["model"] == SMALL_MODELS[provider_name]
+        assert kwargs[model_field] == SMALL_MODELS[provider_name]
         assert kwargs["temperature"] == 0
 
-    def test_the_users_own_key_is_what_reaches_the_client(self) -> None:
-        """The classifier has no key of its own — it rides on the one configured for chat."""
-        with patch(_PROVIDER_CLIENTS["google"]) as MockClient:
-            _ColourClassifier("google", "user-key")
+    @pytest.mark.parametrize("provider_name", ["openai", "anthropic", "google"])
+    def test_the_users_own_key_is_what_reaches_the_client(self, provider_name: str) -> None:
+        """The classifier has no key of its own — it rides on the one configured for chat.
 
-        assert MockClient.call_args.kwargs["google_api_key"] == "user-key"
+        Asserted per provider because each takes the key under a different field name, and a
+        client that receives none falls back to reading one from the environment.
+        """
+        _, key_field = _PROVIDER_FIELDS[provider_name]
+
+        with patch(_PROVIDER_CLIENTS[provider_name]) as MockClient:
+            _ColourClassifier(provider_name, "user-key")
+
+        assert MockClient.call_args.kwargs[key_field].get_secret_value() == "user-key"
 
     def test_an_unsupported_provider_raises(self) -> None:
         with pytest.raises(ValueError, match="Unsupported provider"):

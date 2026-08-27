@@ -20,7 +20,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError
 
 from sparkth.plugins.chat.exceptions import ClassifierError, ClassifierInputError
 
@@ -50,17 +50,23 @@ def small_model_for(provider_name: str) -> str:
 def build_small_llm(provider_name: str, api_key: str) -> BaseChatModel:
     """Build the smallest classification model for ``provider_name``, at temperature 0.
 
+    Each client is constructed through its own field names — ``openai_api_key`` and ``model_name``
+    for OpenAI, ``anthropic_api_key`` and ``model`` for Anthropic — rather than the ``api_key`` and
+    ``model`` aliases their docs show. The aliases work at runtime but are absent from the
+    ``__init__`` signatures pydantic generates, so reaching for them costs a type-ignore per call.
+
     Raises:
         ValueError: the provider is unsupported, or has no client wired here.
     """
     model = small_model_for(provider_name)
+    key = SecretStr(api_key)
     match provider_name:
         case "openai":
-            return ChatOpenAI(api_key=api_key, model=model, temperature=0)  # type: ignore[call-arg]
+            return ChatOpenAI(openai_api_key=key, model_name=model, temperature=0)
         case "anthropic":
-            return ChatAnthropic(api_key=api_key, model=model, temperature=0)  # type: ignore[call-arg]
+            return ChatAnthropic(anthropic_api_key=key, model=model, temperature=0)
         case "google":
-            return ChatGoogleGenerativeAI(google_api_key=api_key, model=model, temperature=0)
+            return ChatGoogleGenerativeAI(google_api_key=key, model=model, temperature=0)
     # Only if SMALL_MODELS gains a provider with no client above — a gap here, not bad input.
     raise ValueError(f"No client wired for provider {provider_name!r}")
 
