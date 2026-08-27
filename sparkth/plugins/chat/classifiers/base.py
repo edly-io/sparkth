@@ -47,8 +47,8 @@ def small_model_for(provider_name: str) -> str:
     return model
 
 
-def build_small_llm(provider_name: str, api_key: str) -> BaseChatModel:
-    """Build the smallest classification model for ``provider_name``, at temperature 0.
+def build_classifier_llm(provider_name: str, model: str, api_key: str) -> BaseChatModel:
+    """Build ``provider_name``'s client for ``model``, at the temperature classification wants.
 
     Each client is constructed through its own field names — ``openai_api_key`` and ``model_name``
     for OpenAI, ``anthropic_api_key`` and ``model`` for Anthropic — rather than the ``api_key`` and
@@ -56,9 +56,8 @@ def build_small_llm(provider_name: str, api_key: str) -> BaseChatModel:
     ``__init__`` signatures pydantic generates, so reaching for them costs a type-ignore per call.
 
     Raises:
-        ValueError: the provider is unsupported, or has no client wired here.
+        ValueError: no client is wired here for that provider.
     """
-    model = small_model_for(provider_name)
     key = SecretStr(api_key)
     match provider_name:
         case "openai":
@@ -109,7 +108,7 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         self._system_prompt = system_prompt
         self._input_schema = input_schema
         self._output_schema = output_schema
-        self._chain = build_small_llm(provider_name, api_key).with_structured_output(output_schema)
+        self._chain = build_classifier_llm(provider_name, self.model, api_key).with_structured_output(output_schema)
 
     @abstractmethod
     def _build_messages(self, payload: InputT) -> list[BaseMessage]:
