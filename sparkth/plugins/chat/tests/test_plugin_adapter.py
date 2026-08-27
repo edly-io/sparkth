@@ -3,7 +3,7 @@
 The adapter is what validates that a chat config's llm_config_id belongs to the user asking,
 so losing its registration would quietly let one user point their chat config at another user's
 LLM key. What the adapter itself does is covered centrally in tests/llm/test_plugin_adapter.py;
-what is asserted here is that chat has one and that the config pipeline runs it.
+what is asserted here is that the config pipeline reaches it for this plugin.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -11,8 +11,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from sparkth.core.plugins.service import PluginService
-from sparkth.lib.config import get_plugin_adapter
-from sparkth.lib.llm import LLMConfigAdapter
 
 
 def _session_finding_nothing() -> AsyncMock:
@@ -22,10 +20,6 @@ def _session_finding_nothing() -> AsyncMock:
     result.first.return_value = None
     session.exec.return_value = result
     return session
-
-
-def test_chat_registers_an_llm_config_adapter() -> None:
-    assert isinstance(get_plugin_adapter("chat"), LLMConfigAdapter)
 
 
 @pytest.mark.asyncio
