@@ -26,7 +26,6 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
     def __init__(self, provider_name: str, api_key: str) -> None:
         super().__init__(
             MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
-            MessageScopeInput,
             MessageScopeVerdict,
             provider_name,
             api_key,
@@ -83,11 +82,11 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         own system prompt to refuse if it must. A refusal ends the turn, so it is never
         inferred from an error.
         """
-        payload: dict[str, object] = {
-            "query": query,
-            "history": history or [],
-            "attached_document_names": attached_document_names or [],
-        }
+        payload = MessageScopeInput(
+            query=query,
+            history=history or [],
+            attached_document_names=attached_document_names or [],
+        )
         try:
             verdict = await self.classify(payload)
         except ClassifierError as exc:
