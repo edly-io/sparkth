@@ -55,7 +55,6 @@ class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
     def __init__(self, provider_name: str, api_key: str) -> None:
         super().__init__(
             RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT,
-            RAGSearchInput,
             RAGSearchVerdict,
             provider_name,
             api_key,
@@ -93,7 +92,7 @@ class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
         """
         headings = await gather_document_headings(documents)
         try:
-            verdict = await self.classify({"query": query, "documents": [h.model_dump() for h in headings]})
+            verdict = await self.classify(RAGSearchInput(query=query, documents=headings))
         except ClassifierError as exc:
             raise RAGSearchError(str(exc)) from exc
 
