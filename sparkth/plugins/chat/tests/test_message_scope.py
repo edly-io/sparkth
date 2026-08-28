@@ -15,7 +15,7 @@ import pytest
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from sparkth.plugins.chat.classifiers.message_scope import MessageScopeClassifier
+from sparkth.plugins.chat.classifiers import MessageScopeClassifier
 from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT
 from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeVerdict
 
