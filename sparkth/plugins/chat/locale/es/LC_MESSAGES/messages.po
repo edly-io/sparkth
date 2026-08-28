@@ -35,8 +35,7 @@ msgstr ""
 "Soy un asistente de creación de cursos y solo puedo ayudarte a diseñar y "
 "crear cursos. ¿Hay algún curso que te gustaría crear?"
 
-#: sparkth/plugins/chat/routes/attachments.py:65
-#: sparkth/plugins/chat/routes/attachments.py:99
+#: sparkth/plugins/chat/service.py:326
 msgid "Document not found or not accessible"
 msgstr "Documento no encontrado o no accesible"
 
@@ -73,9 +72,7 @@ msgstr "Error al generar la respuesta del chat"
 msgid "Failed to determine retrieval intent. Please try again."
 msgstr "No se pudo determinar la intención de búsqueda. Inténtalo de nuevo."
 
-#: sparkth/plugins/chat/routes/conversations.py:92
-#: sparkth/plugins/chat/routes/conversations.py:151
-#: sparkth/plugins/chat/routes/dependencies.py:28
+#: sparkth/plugins/chat/service.py:71 sparkth/plugins/chat/service.py:96
 msgid "Conversation not found"
 msgstr "Conversación no encontrada"
 

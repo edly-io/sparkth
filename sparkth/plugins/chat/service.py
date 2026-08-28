@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
-from sparkth.plugins.chat.exceptions import ConversationNotFound
+from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFound
 from sparkth.plugins.chat.messages import text_of
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
 from sparkth.plugins.chat.schemas import ChatMessage
@@ -93,6 +93,23 @@ class ChatService:
         )
         result = await session.exec(statement)
         return result.first()
+
+    async def require_owned_conversation(
+        self,
+        session: AsyncSession,
+        conversation_uuid: UUID,
+        user_id: int,
+    ) -> Conversation:
+        """Return the caller's conversation.
+
+        Raises:
+            ConversationNotFound: no such conversation, or it belongs to someone else.
+        """
+        conversation = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
+        if conversation is None:
+            logger.warning("Conversation %s not found for user %s", conversation_uuid, user_id)
+            raise ConversationNotFound(_("Conversation not found"))
+        return conversation
 
     async def list_conversations(
         self, session: AsyncSession, user_id: int, limit: int = 50, offset: int = 0
@@ -301,20 +318,28 @@ class ChatService:
                 conversation_id,
             )
 
-    async def get_user_owned_document(
+    async def require_owned_document(
         self,
         session: AsyncSession,
         document_id: int,
         user_id: int,
-    ) -> Document | None:
-        """Return the document if it belongs to user, else None."""
+    ) -> Document:
+        """Return the caller's document.
+
+        Raises:
+            DocumentNotFound: no such document, it is deleted, or it belongs to someone else.
+        """
         stmt = select(Document).where(
             Document.id == document_id,
             Document.user_id == user_id,
             Document.is_deleted == False,  # noqa: E712
         )
         result = await session.exec(stmt)
-        return result.first()
+        document = result.first()
+        if document is None:
+            logger.warning("Document %s not found for user %s", document_id, user_id)
+            raise DocumentNotFound(_("Document not found or not accessible"))
+        return document
 
     async def attach_owned_documents(
         self,
