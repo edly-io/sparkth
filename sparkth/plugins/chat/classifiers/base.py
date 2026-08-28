@@ -8,20 +8,18 @@ the rest, so a classifier module can be read for its judgement instead of its pl
 
 The model is never the user's chat model: classification is a few tokens and wants low
 latency, so it runs on the smallest model of whichever provider the user already configured
-for chat, under that same key.
+for chat, under that same key. Which model that is, is the only provider-specific thing here —
+the client is built by the lib facade, which every other caller in the codebase goes through.
 """
 
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.exceptions import LangChainException
-from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, SecretStr, ValidationError
+from pydantic import BaseModel, ValidationError
 
+from sparkth.lib.llm import get_provider
 from sparkth.plugins.chat.exceptions import ClassifierError, ClassifierInputError
 
 InputT = TypeVar("InputT", bound=BaseModel)
@@ -45,29 +43,6 @@ def small_model_for(provider_name: str) -> str:
     if model is None:
         raise ValueError(f"Unsupported provider for classifier: {provider_name!r}")
     return model
-
-
-def build_classifier_llm(provider_name: str, model: str, api_key: str) -> BaseChatModel:
-    """Build ``provider_name``'s client for ``model``, at the temperature classification wants.
-
-    Each client is constructed through its own field names — ``openai_api_key`` and ``model_name``
-    for OpenAI, ``anthropic_api_key`` and ``model`` for Anthropic — rather than the ``api_key`` and
-    ``model`` aliases their docs show. The aliases work at runtime but are absent from the
-    ``__init__`` signatures pydantic generates, so reaching for them costs a type-ignore per call.
-
-    Raises:
-        ValueError: no client is wired here for that provider.
-    """
-    key = SecretStr(api_key)
-    match provider_name:
-        case "openai":
-            return ChatOpenAI(openai_api_key=key, model_name=model, temperature=0)
-        case "anthropic":
-            return ChatAnthropic(anthropic_api_key=key, model=model, temperature=0)
-        case "google":
-            return ChatGoogleGenerativeAI(google_api_key=key, model=model, temperature=0)
-    # Only if SMALL_MODELS gains a provider with no client above — a gap here, not bad input.
-    raise ValueError(f"No client wired for provider {provider_name!r}")
 
 
 class BaseClassifier(ABC, Generic[InputT, OutputT]):
@@ -108,7 +83,10 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         self._system_prompt = system_prompt
         self._input_schema = input_schema
         self._output_schema = output_schema
-        self._chain = build_classifier_llm(provider_name, self.model, api_key).with_structured_output(output_schema)
+        # The lib facade owns provider-to-client construction for the whole codebase; a
+        # classifier only chooses which model and at what temperature.
+        llm = get_provider(provider_name, api_key, self.model, temperature=0).create_llm()
+        self._chain = llm.with_structured_output(output_schema)
 
     @abstractmethod
     def _build_messages(self, payload: InputT) -> list[BaseMessage]:

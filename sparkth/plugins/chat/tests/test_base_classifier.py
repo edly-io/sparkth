@@ -14,24 +14,13 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, ValidationError
 
+from sparkth.lib.llm import get_provider_catalog
 from sparkth.plugins.chat.classifiers.base import SMALL_MODELS, BaseClassifier, small_model_for
 from sparkth.plugins.chat.exceptions import ClassifierError, ClassifierInputError
 
 _SYSTEM_PROMPT = "Decide whether the colour is warm."
 
-_PROVIDER_CLIENTS = {
-    "openai": "sparkth.plugins.chat.classifiers.base.ChatOpenAI",
-    "anthropic": "sparkth.plugins.chat.classifiers.base.ChatAnthropic",
-    "google": "sparkth.plugins.chat.classifiers.base.ChatGoogleGenerativeAI",
-}
-
-# The field each client takes the model and the key under. They disagree — OpenAI's model field is
-# model_name while Anthropic's is model — and the aliases that hide this are not in the signatures.
-_PROVIDER_FIELDS = {
-    "openai": ("model_name", "openai_api_key"),
-    "anthropic": ("model", "anthropic_api_key"),
-    "google": ("model", "google_api_key"),
-}
+_GET_PROVIDER = "sparkth.plugins.chat.classifiers.base.get_provider"
 
 
 class _ColourInput(BaseModel):
@@ -62,10 +51,12 @@ def _a_validation_error() -> ValidationError:
 
 
 def _classifier_with(chain: MagicMock, provider_name: str = "anthropic") -> _ColourClassifier:
-    """A classifier whose provider client is replaced by an LLM yielding ``chain``."""
+    """A classifier whose facade-built LLM is replaced by one yielding ``chain``."""
     llm = MagicMock()
     llm.with_structured_output.return_value = chain
-    with patch(_PROVIDER_CLIENTS[provider_name], return_value=llm):
+    provider = MagicMock()
+    provider.create_llm.return_value = llm
+    with patch(_GET_PROVIDER, return_value=provider):
         return _ColourClassifier(provider_name)
 
 
@@ -76,36 +67,36 @@ def _chain_returning(verdict: _ColourVerdict) -> MagicMock:
 
 
 class TestModelSelection:
-    """Whichever provider the user chose for chat, the classifier runs on its smallest model."""
+    """Whichever provider the user chose for chat, the classifier runs on its smallest model.
+
+    The client itself is built by the lib facade, which owns provider-to-client construction for
+    the whole codebase — so what is asserted here is what the facade is asked for, not how any one
+    provider's client takes its arguments.
+    """
 
     @pytest.mark.parametrize("provider_name", ["openai", "anthropic", "google"])
-    def test_each_provider_gets_its_smallest_model_at_temperature_zero(self, provider_name: str) -> None:
-        model_field, _ = _PROVIDER_FIELDS[provider_name]
-
-        with patch(_PROVIDER_CLIENTS[provider_name]) as MockClient:
+    def test_each_provider_is_asked_for_its_smallest_model(self, provider_name: str) -> None:
+        with patch(_GET_PROVIDER) as mock_get_provider:
             _ColourClassifier(provider_name, "user-key")
 
-        kwargs = MockClient.call_args.kwargs
-        assert kwargs[model_field] == SMALL_MODELS[provider_name]
-        assert kwargs["temperature"] == 0
+        assert mock_get_provider.call_args.args == (provider_name, "user-key", SMALL_MODELS[provider_name])
 
-    @pytest.mark.parametrize("provider_name", ["openai", "anthropic", "google"])
-    def test_the_users_own_key_is_what_reaches_the_client(self, provider_name: str) -> None:
-        """The classifier has no key of its own — it rides on the one configured for chat.
+    def test_the_model_is_asked_for_at_temperature_zero(self) -> None:
+        """A classification is a verdict, not prose: the same turn should not get two answers."""
+        with patch(_GET_PROVIDER) as mock_get_provider:
+            _ColourClassifier("anthropic", "user-key")
 
-        Asserted per provider because each takes the key under a different field name, and a
-        client that receives none falls back to reading one from the environment.
-        """
-        _, key_field = _PROVIDER_FIELDS[provider_name]
-
-        with patch(_PROVIDER_CLIENTS[provider_name]) as MockClient:
-            _ColourClassifier(provider_name, "user-key")
-
-        assert MockClient.call_args.kwargs[key_field].get_secret_value() == "user-key"
+        assert mock_get_provider.call_args.kwargs["temperature"] == 0
 
     def test_an_unsupported_provider_raises(self) -> None:
         with pytest.raises(ValueError, match="Unsupported provider"):
             _ColourClassifier("cohere")
+
+    def test_every_provider_the_facade_supports_has_a_small_model(self) -> None:
+        """SMALL_MODELS is plugin-local, while the facade's registry is what a stored LLMConfig is
+        validated against. A provider added there with no entry here raises for every chat request
+        from a user who selected it, before their conversation is even resolved."""
+        assert {entry["id"] for entry in get_provider_catalog()} == set(SMALL_MODELS)
 
     def test_small_model_for_reports_the_same_model_the_instance_uses(self) -> None:
         """The resolved name is readable on the instance, so a subclass can log which model
@@ -134,7 +125,9 @@ class TestPromptAssembly:
         """No format instruction is written into the prompt: the schema handed to
         with_structured_output is the whole contract."""
         llm = MagicMock()
-        with patch(_PROVIDER_CLIENTS["anthropic"], return_value=llm):
+        provider = MagicMock()
+        provider.create_llm.return_value = llm
+        with patch(_GET_PROVIDER, return_value=provider):
             _ColourClassifier()
 
         llm.with_structured_output.assert_called_once_with(_ColourVerdict)
