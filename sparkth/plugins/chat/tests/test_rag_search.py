@@ -26,10 +26,12 @@ _STRUCTURE = "sparkth.plugins.chat.classifiers.rag_search.get_rag_ingested_docum
 
 
 def _classifier_with(chain: MagicMock) -> RAGSearchClassifier:
-    """A classifier whose provider client is replaced by an LLM yielding ``chain``."""
+    """A classifier whose facade-built LLM is replaced by one yielding ``chain``."""
     llm = MagicMock()
     llm.with_structured_output.return_value = chain
-    with patch("sparkth.plugins.chat.classifiers.base.ChatAnthropic", return_value=llm):
+    provider = MagicMock()
+    provider.create_llm.return_value = llm
+    with patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=provider):
         return RAGSearchClassifier("anthropic", "test-key")
 
 
