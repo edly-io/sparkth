@@ -97,6 +97,68 @@ class TestThePreflightCheckSeesTheWholeTurn:
         assert attachments == ["syllabus.pdf"]
 
 
+class TestAnExistingConversationSeesTheWholeTurnToo:
+    """A locally uploaded file never becomes a Document row.
+
+    The conversation's attachments come from the database, which only knows documents that were
+    ingested — a file uploaded with the message is base64 content and has no row. So the request is
+    the only place its name exists, on this path as much as on the pre-flight one, and without it
+    the classifier is handed an empty message to judge.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_locally_uploaded_file_reaches_the_classifier_by_name(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation = Conversation(
+            user_id=current_user.id or 1,
+            provider="openai",
+            model="gpt-4o",
+            llm_config_id=llm_config_id,
+        )
+        session.add(conversation)
+        await session.flush()
+        conversation_uuid = str(conversation.uuid)
+        await session.commit()
+
+        with (
+            locale_context("en"),
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as MockClassifier,
+            patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
+        ):
+            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": llm_config_id,
+                    "conversation_id": conversation_uuid,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "document",
+                                    "source": {"type": "base64", "media_type": "application/pdf", "data": ""},
+                                }
+                            ],
+                            "attachment": {"name": "syllabus.pdf", "size": 1024},
+                        }
+                    ],
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
+        assert query == ""
+        assert attachments == ["syllabus.pdf"]
+
+
 class TestChatCompletionResponseSchema:
     """ChatCompletionResponse must accept a null conversation_id."""
 

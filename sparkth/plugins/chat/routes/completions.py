@@ -105,12 +105,14 @@ async def chat_completion(
     query_text = extract_query_text(request.messages)
     scope_classifier = MessageScopeClassifier(provider_name, api_key)
 
+    # A file uploaded with the message is base64 content, not a Document row, so its name exists
+    # only here — both scope checks below need it.
+    request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
+
     # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
     _skip_main_scope_check = False
     if not conversation_uuid:
-        # Nothing is persisted yet: attachment names come off the request, and there is no uuid
-        # to log the refusal against.
-        request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
+        # Nothing is persisted yet, and there is no uuid to log a refusal against.
         if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
             if request.stream:
                 return StreamingResponse(
@@ -170,10 +172,12 @@ async def chat_completion(
                 for m in db_messages
                 if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
             ]
+            # Ingested documents plus anything uploaded with this message, which has no row.
+            turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
             _in_scope = await scope_classifier.in_scope(
                 query_text,
                 prior_history,
-                attached_document_names or None,
+                turn_attachment_names or None,
                 conversation.uuid,
             )
         else:
