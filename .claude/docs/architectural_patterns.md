@@ -194,11 +194,14 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 
 ## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `sparkth/plugins/chat/service.py`, `sparkth/plugins/chat/intent_router.py`, `sparkth/plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
+**Files:** `sparkth/plugins/chat/service.py`, `sparkth/plugins/chat/classifiers/`, `sparkth/plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
 
 - `ChatService` owns conversation logic and history management
 - LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `sparkth/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
-- `RAGIntentRouter` (`intent_router.py`) decides how to route a user turn
+- Two classifiers in `classifiers/` decide, before the chat model is reached, whether a turn is
+  in scope (`MessageScopeClassifier`) and whether answering it needs the attached documents
+  (`RAGSearchClassifier`). Both are one structured-output call on the cheapest model of the
+  user's provider, sharing `BaseClassifier` for everything but the judgement
 - Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`sparkth/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
 - Redis (`sparkth/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 

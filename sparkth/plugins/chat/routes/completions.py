@@ -19,8 +19,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.classifiers import MessageScopeClassifier
-from sparkth.plugins.chat.classifiers.rag_search import RAGSearchClassifier
+from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.chat.exceptions import RAGSearchError

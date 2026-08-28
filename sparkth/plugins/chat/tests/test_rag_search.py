@@ -16,7 +16,7 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import BaseMessage
 
 from sparkth.lib.documents import Document, DocumentStatus
-from sparkth.plugins.chat.classifiers.rag_search import RAGSearchClassifier
+from sparkth.plugins.chat.classifiers import RAGSearchClassifier
 from sparkth.plugins.chat.constants import RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.schemas import RAGSearchVerdict
