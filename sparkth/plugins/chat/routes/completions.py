@@ -1,4 +1,5 @@
 from typing import Any, cast
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -8,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _, gettext
+from sparkth.lib.i18n import _, gettext, gettext_noop
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
@@ -28,7 +29,7 @@ from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import get_course_design_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
-from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
+from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
     stream_out_of_scope_refusal,
@@ -46,6 +47,57 @@ from sparkth.plugins.chat.tools import get_tool_registry
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+# Why a request cannot use the config it named. Each is one status and one thing the user can do
+# about it, so the mapping is the whole decision. gettext_noop marks the copy for extraction; it is
+# rendered at raise time under the request's locale.
+_UNUSABLE_CONFIG: dict[type[Exception], tuple[int, str]] = {
+    LLMConfigNotFoundError: (
+        status.HTTP_404_NOT_FOUND,
+        gettext_noop("No AI Key found for the current user. Please configure an AI key in your chat plugin settings."),
+    ),
+    LLMConfigModelNotSetError: (
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        gettext_noop("The selected AI key has no model configured. Go to AI Keys to set a model before chatting."),
+    ),
+    LLMConfigInactiveError: (
+        status.HTTP_409_CONFLICT,
+        gettext_noop(
+            "The selected AI key is deactivated. Go to AI Keys to reactivate it, "
+            "or choose a different one in chat settings."
+        ),
+    ),
+}
+
+
+def _unusable_config_failure(exc: Exception) -> tuple[int, str]:
+    """The status and message for a config failure, matched by class rather than by identity so a
+    subclass is not a KeyError inside an except block."""
+    for failure_type, failure in _UNUSABLE_CONFIG.items():
+        if isinstance(exc, failure_type):
+            return failure
+    raise exc
+
+
+def _refusal_response(
+    stream: bool,
+    conversation_uuid: UUID | None,
+    model: str,
+    provider_name: str,
+) -> StreamingResponse | ChatCompletionResponse:
+    """The out-of-scope refusal, in whichever shape the client asked for.
+
+    ``conversation_uuid`` is None when the turn was refused before any conversation was written,
+    which is the answer the client gets rather than a missing field.
+    """
+    if stream:
+        return StreamingResponse(stream_out_of_scope_refusal(), media_type="text/event-stream")
+    return ChatCompletionResponse(
+        message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
+        conversation_id=conversation_uuid,
+        model=model,
+        provider=provider_name,
+    )
 
 
 # The handler returns ChatCompletionResponse (stream=false) or an SSE
@@ -77,24 +129,14 @@ async def chat_completion(
             user_id=user_id,
             config_id=request.llm_config_id,
         )
-    except LLMConfigNotFoundError as exc:
-        logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = _("No AI Key found for the current user. Please configure an AI key in your chat plugin settings.")
-        await service.record_error_message(session, request.conversation_id, user_id, detail)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
-    except LLMConfigModelNotSetError as exc:
-        logger.warning("LLMConfig %s has no model set: %s", request.llm_config_id, exc)
-        detail = _("The selected AI key has no model configured. Go to AI Keys to set a model before chatting.")
-        await service.record_error_message(session, request.conversation_id, user_id, detail)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail) from exc
-    except LLMConfigInactiveError as exc:
-        logger.warning("LLMConfig %s is inactive for user %s: %s", request.llm_config_id, current_user.id, exc)
-        detail = _(
-            "The selected AI key is deactivated. Go to AI Keys to reactivate it, "
-            "or choose a different one in chat settings."
+    except tuple(_UNUSABLE_CONFIG) as exc:
+        status_code, message = _unusable_config_failure(exc)
+        detail = gettext(message)
+        logger.warning(
+            "LLMConfig %s unusable for user %s: %s: %s", request.llm_config_id, user_id, type(exc).__name__, exc
         )
         await service.record_error_message(session, request.conversation_id, user_id, detail)
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
+        raise HTTPException(status_code=status_code, detail=detail) from exc
 
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
@@ -111,17 +153,7 @@ async def chat_completion(
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
         if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
-            if request.stream:
-                return StreamingResponse(
-                    stream_out_of_scope_refusal(),
-                    media_type="text/event-stream",
-                )
-            return ChatCompletionResponse(
-                message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
-                conversation_id=None,
-                model=model,
-                provider=provider_name,
-            )
+            return _refusal_response(request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
@@ -134,11 +166,12 @@ async def chat_completion(
         model=model,
         title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
     )
+    conversation_id = cast(int, conversation.id)
     if conversation_was_created:
         schedule_title_generation(
             background_tasks,
             service,
-            conversation_id=cast(int, conversation.id),
+            conversation_id=conversation_id,
             user_id=user_id,
             messages=request.messages,
             provider_name=provider_name,
@@ -148,20 +181,16 @@ async def chat_completion(
         )
 
     if request.document_ids:
-        await service.attach_owned_documents(session, cast(int, conversation.id), request.document_ids, user_id)
-    await service.add_incoming_messages(session, cast(int, conversation.id), request.messages)
+        await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
+    await service.add_incoming_messages(session, conversation_id, request.messages)
 
-    db_messages = await service.get_conversation_messages(
-        session=session,
-        conversation_id=cast(int, conversation.id),
-    )
+    db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
 
     try:
         # Both classifiers need these: scope, to know documents are in play, and search, to
         # judge the message against them.
         attached_documents = await service.list_conversation_attachments(
-            session=session,
-            conversation_id=cast(int, conversation.id),
+            session=session, conversation_id=conversation_id
         )
         attached_document_names = [document.name for document in attached_documents]
 
@@ -185,22 +214,12 @@ async def chat_completion(
         if not _in_scope:
             await service.add_message(
                 session=session,
-                conversation_id=cast(int, conversation.id),
+                conversation_id=conversation_id,
                 role="assistant",
                 content=gettext(REFUSAL_MESSAGE),
                 message_type="text",
             )
-            if request.stream:
-                return StreamingResponse(
-                    stream_out_of_scope_refusal(),
-                    media_type="text/event-stream",
-                )
-            return ChatCompletionResponse(
-                message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
-                conversation_id=conversation.uuid,
-                model=llm_config.model,
-                provider=llm_config.provider,
-            )
+            return _refusal_response(request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,
@@ -221,46 +240,9 @@ async def chat_completion(
         # A skip is worth telling the client about only when the classifier weighed it.
         rag_search_declined = bool(attached_documents) and bool(query_text) and not rag_search_required
 
-        # Use DB messages for history, but replace the current batch with original
-        # request content to preserve content blocks (e.g. base64 document attachments).
-        num_current = len(request.messages)
-        history: list[dict[str, Any]] = (
-            [{"role": m.role, "content": m.content} for m in db_messages[:-num_current]]
-            if len(db_messages) > num_current
-            else []
+        messages, unresolved_messages = await assemble_provider_messages(
+            request, db_messages, attached_documents, query_text, rag_search_required, provider
         )
-
-        unresolved_messages: list[ChatMessage] | None = None
-        if rag_search_required and attached_documents:
-            # One synthetic turn: document blocks for retrieval to resolve, plus the query text
-            # so it survives that resolution.
-            document_blocks: list[dict[str, Any]] = [
-                {"type": "drive_file", "file_id": document.id} for document in attached_documents
-            ]
-            text_block: list[dict[str, Any]] = [{"type": "text", "text": query_text}] if query_text else []
-            unresolved_messages = [ChatMessage(role="user", content=document_blocks + text_block)]
-
-        if request.stream and rag_search_required:
-            # Sent unresolved: the stream replaces the document blocks with retrieved context,
-            # keeping the query text beside it.
-            if unresolved_messages is None:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=_("Chat completion failed"),
-                )
-            current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]
-        else:
-            if rag_search_required and unresolved_messages:
-                # Resolved up front, since there is no stream to do it in.
-                resolved_messages = await resolve_document_blocks(
-                    messages=unresolved_messages,
-                    llm=provider.create_llm(),
-                )
-            else:
-                resolved_messages = request.messages
-            current = [{"role": msg.role, "content": msg.content} for msg in resolved_messages]
-
-        messages = history + current
 
         tools = await resolve_tools(request, get_tool_registry())
         if tools and request.include_system_tools_message:
@@ -309,7 +291,7 @@ async def chat_completion(
 
             await service.add_message(
                 session=session,
-                conversation_id=cast(int, conversation.id),
+                conversation_id=conversation_id,
                 role="assistant",
                 content=response["content"],
                 tokens_used=tokens_used,
@@ -330,36 +312,23 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except RAGSearchError as e:
-        logger.error("RAG intent router failed for user %s conversation %s: %s", current_user.id, conversation.id, e)
-        detail = _("Failed to determine retrieval intent. Please try again.")
-        if conversation.id is not None:
-            await service.add_message(
-                session=session,
-                conversation_id=conversation.id,
-                role="assistant",
-                content=detail,
-                is_error=True,
-            )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=detail,
-        ) from e
-    except LLM_PROVIDER_API_ERRORS as e:
-        logger.error("Provider API error: %s", e)
-        detail = streaming_error_message(e)
-        if conversation.id is not None:
-            await service.add_message(
-                session=session,
-                conversation_id=conversation.id,
-                role="assistant",
-                content=detail,
-                is_error=True,
-            )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=detail,
-        ) from e
+    except (RAGSearchError, *LLM_PROVIDER_API_ERRORS) as exc:
+        # Both are an upstream service failing the turn: the user is told, and the conversation
+        # keeps the message so a reload still shows what happened.
+        detail = (
+            _("Failed to determine retrieval intent. Please try again.")
+            if isinstance(exc, RAGSearchError)
+            else streaming_error_message(exc)
+        )
+        logger.error("Conversation %s failed on %s: %s", conversation_id, type(exc).__name__, exc)
+        await service.add_message(
+            session=session,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=detail,
+            is_error=True,
+        )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail) from exc
     except (ValueError, RuntimeError, ValidationError, LangChainException) as e:
         logger.error("Chat completion failed: %s", e)
         raise HTTPException(
