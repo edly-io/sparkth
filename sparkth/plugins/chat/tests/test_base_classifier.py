@@ -1,9 +1,11 @@
 """Tests for the shared classifier base.
 
-The base owns four things and decides nothing else: which model a provider gets, that a
-payload satisfies the declared input schema before any model is called, that the system
-prompt leads the messages a subclass built, and that a failed call reaches the subclass as
-one exception type. Each is asserted here against a throwaway subclass, so the two real
+The base owns three things and decides nothing else: which model a provider gets, that the system
+prompt leads the messages a subclass built, and that a failed call reaches the subclass as one
+exception type. What a payload must look like is now the signature's job — ``classify`` takes the
+input schema itself, so a wrong shape is a type error rather than a test case.
+
+Each is asserted here against a throwaway subclass, so the two real
 classifiers can be read for what makes them different rather than for this plumbing.
 """
 
@@ -16,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 
 from sparkth.lib.llm import get_provider_catalog
 from sparkth.plugins.chat.classifiers.base import SMALL_MODELS, BaseClassifier, small_model_for
-from sparkth.plugins.chat.exceptions import ClassifierError, ClassifierInputError
+from sparkth.plugins.chat.exceptions import ClassifierError
 
 _SYSTEM_PROMPT = "Decide whether the colour is warm."
 
@@ -35,7 +37,7 @@ class _ColourClassifier(BaseClassifier[_ColourInput, _ColourVerdict]):
     """The smallest possible subclass: one human turn carrying the validated colour."""
 
     def __init__(self, provider_name: str = "anthropic", api_key: str = "test-key") -> None:
-        super().__init__(_SYSTEM_PROMPT, _ColourInput, _ColourVerdict, provider_name, api_key)
+        super().__init__(_SYSTEM_PROMPT, _ColourVerdict, provider_name, api_key)
 
     def _build_messages(self, payload: _ColourInput) -> list[BaseMessage]:
         return [HumanMessage(content=payload.colour)]
@@ -114,7 +116,7 @@ class TestPromptAssembly:
         chain = _chain_returning(_ColourVerdict(warm=True))
         classifier = _classifier_with(chain)
 
-        await classifier.classify({"colour": "crimson"})
+        await classifier.classify(_ColourInput(colour="crimson"))
 
         messages = chain.ainvoke.await_args.args[0]
         assert isinstance(messages[0], SystemMessage)
@@ -137,38 +139,7 @@ class TestPromptAssembly:
         verdict = _ColourVerdict(warm=False)
         classifier = _classifier_with(_chain_returning(verdict))
 
-        assert await classifier.classify({"colour": "cyan"}) is verdict
-
-
-class TestInputValidation:
-    """A payload is checked against the declared schema before a model is ever called."""
-
-    @pytest.mark.asyncio
-    async def test_a_missing_field_raises_without_calling_the_model(self) -> None:
-        """The point of validating first: a malformed call costs nothing."""
-        chain = _chain_returning(_ColourVerdict(warm=True))
-        classifier = _classifier_with(chain)
-
-        with pytest.raises(ClassifierInputError):
-            await classifier.classify({})
-
-        chain.ainvoke.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_a_field_of_the_wrong_type_raises(self) -> None:
-        classifier = _classifier_with(_chain_returning(_ColourVerdict(warm=True)))
-
-        with pytest.raises(ClassifierInputError):
-            await classifier.classify({"colour": ["not", "a", "string"]})
-
-    @pytest.mark.asyncio
-    async def test_the_error_names_the_schema_that_rejected_the_payload(self) -> None:
-        """A caller reading the log needs to know which schema it failed, not just that
-        something did — the base serves several classifiers."""
-        classifier = _classifier_with(_chain_returning(_ColourVerdict(warm=True)))
-
-        with pytest.raises(ClassifierInputError, match="_ColourInput"):
-            await classifier.classify({})
+        assert await classifier.classify(_ColourInput(colour="cyan")) is verdict
 
 
 class TestTheOutputSchemaIsEnforcedOnTheAnswer:
@@ -186,7 +157,7 @@ class TestTheOutputSchemaIsEnforcedOnTheAnswer:
         chain.ainvoke = AsyncMock(return_value={"warm": True})
         classifier = _classifier_with(chain)
 
-        verdict = await classifier.classify({"colour": "amber"})
+        verdict = await classifier.classify(_ColourInput(colour="amber"))
 
         assert isinstance(verdict, _ColourVerdict)
         assert verdict.warm is True
@@ -200,7 +171,7 @@ class TestTheOutputSchemaIsEnforcedOnTheAnswer:
         classifier = _classifier_with(chain)
 
         with pytest.raises(ClassifierError):
-            await classifier.classify({"colour": "amber"})
+            await classifier.classify(_ColourInput(colour="amber"))
 
     @pytest.mark.asyncio
     async def test_an_already_parsed_model_is_returned_as_it_is(self) -> None:
@@ -208,7 +179,7 @@ class TestTheOutputSchemaIsEnforcedOnTheAnswer:
         verdict = _ColourVerdict(warm=False)
         classifier = _classifier_with(_chain_returning(verdict))
 
-        assert await classifier.classify({"colour": "cyan"}) is verdict
+        assert await classifier.classify(_ColourInput(colour="cyan")) is verdict
 
 
 class TestFailureTranslation:
@@ -221,7 +192,7 @@ class TestFailureTranslation:
         classifier = _classifier_with(chain)
 
         with pytest.raises(ClassifierError):
-            await classifier.classify({"colour": "amber"})
+            await classifier.classify(_ColourInput(colour="amber"))
 
     @pytest.mark.asyncio
     async def test_an_answer_that_does_not_fit_the_schema_becomes_a_classifier_error(self) -> None:
@@ -230,7 +201,7 @@ class TestFailureTranslation:
         classifier = _classifier_with(chain)
 
         with pytest.raises(ClassifierError):
-            await classifier.classify({"colour": "amber"})
+            await classifier.classify(_ColourInput(colour="amber"))
 
     @pytest.mark.asyncio
     async def test_the_original_failure_is_kept_as_the_cause(self) -> None:
@@ -242,6 +213,6 @@ class TestFailureTranslation:
         classifier = _classifier_with(chain)
 
         with pytest.raises(ClassifierError) as excinfo:
-            await classifier.classify({"colour": "amber"})
+            await classifier.classify(_ColourInput(colour="amber"))
 
         assert excinfo.value.__cause__ is cause

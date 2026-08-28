@@ -1,10 +1,10 @@
 """Shared machinery for the chat plugin's classifiers.
 
 A classifier here is one structured-output model call, not an agent: no tools, no reasoning
-loop, no retries. What makes each one distinct is three declarations — the system prompt, the
-input schema a payload must satisfy, and the output schema the answer comes back in — plus how
-it turns a validated input into messages. Subclasses provide exactly those; this module owns
-the rest, so a classifier module can be read for its judgement instead of its plumbing.
+loop, no retries. What makes each one distinct is its system prompt, the two schemas it is
+generic over — what it is asked to judge and the shape of the answer — and how it turns an input
+into messages. Subclasses provide exactly those; this module owns the rest, so a classifier
+module can be read for its judgement instead of its plumbing.
 
 The model is never the user's chat model: classification is a few tokens and wants low
 latency, so it runs on the smallest model of whichever provider the user already configured
@@ -20,7 +20,7 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from pydantic import BaseModel, ValidationError
 
 from sparkth.lib.llm import get_provider
-from sparkth.plugins.chat.exceptions import ClassifierError, ClassifierInputError
+from sparkth.plugins.chat.exceptions import ClassifierError
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
@@ -58,7 +58,6 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
     def __init__(
         self,
         system_prompt: str,
-        input_schema: type[InputT],
         output_schema: type[OutputT],
         provider_name: str,
         api_key: str,
@@ -67,7 +66,6 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
 
         Args:
             system_prompt: Sent as the leading message of every call.
-            input_schema: What a payload must satisfy before the model is called.
             output_schema: The shape the answer comes back in. Handed to
                 ``with_structured_output``, so it defines the answer format on its own —
                 the prompt carries no format instruction — and enforced again on the answer
@@ -81,7 +79,6 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         """
         self.model = small_model_for(provider_name)
         self._system_prompt = system_prompt
-        self._input_schema = input_schema
         self._output_schema = output_schema
         # The lib facade owns provider-to-client construction for the whole codebase; a
         # classifier only chooses which model and at what temperature.
@@ -96,23 +93,20 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         summarises attachments — so the base supplies no default.
         """
 
-    async def classify(self, payload: dict[str, object]) -> OutputT:
+    async def classify(self, payload: InputT) -> OutputT:
         """Classify ``payload`` and return the answer as this classifier's output schema.
 
+        Taking the input schema itself rather than a mapping is what makes a call site checkable:
+        a caller building the wrong shape is a type error, not a runtime one, and pydantic has
+        already validated the values by the time the instance exists.
+
         Raises:
-            ClassifierInputError: ``payload`` does not satisfy the input schema. Raised
-                before any model call, so a malformed call costs nothing.
             ClassifierError: the model call failed, or its answer did not fit the output
                 schema. The original failure is kept as the cause.
         """
-        try:
-            validated = self._input_schema.model_validate(payload)
-        except ValidationError as exc:
-            raise ClassifierInputError(f"Payload does not satisfy {self._input_schema.__name__}: {exc}") from exc
-
         messages: list[BaseMessage] = [
             SystemMessage(content=self._system_prompt),
-            *self._build_messages(validated),
+            *self._build_messages(payload),
         ]
 
         try:
