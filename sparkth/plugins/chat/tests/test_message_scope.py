@@ -22,6 +22,9 @@ from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeVerdict
 _LOGGER = "sparkth.plugins.chat.classifiers.message_scope"
 
 
+_USER_ID = 42
+
+
 def _classifier_with(chain: MagicMock) -> MessageScopeClassifier:
     """A classifier whose facade-built LLM is replaced by one yielding ``chain``."""
     llm = MagicMock()
@@ -29,7 +32,7 @@ def _classifier_with(chain: MagicMock) -> MessageScopeClassifier:
     provider = MagicMock()
     provider.create_llm.return_value = llm
     with patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=provider):
-        return MessageScopeClassifier("anthropic", "test-key")
+        return MessageScopeClassifier("anthropic", "test-key", _USER_ID)
 
 
 def _chain_deciding(in_scope: bool, refusal_reason: str = "") -> MagicMock:
@@ -180,6 +183,20 @@ class TestFailingOpen:
 
         assert "in_scope=True" in caplog.text
 
+    @pytest.mark.asyncio
+    async def test_the_fallback_names_the_user_and_thread(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A turn that was let through unjudged is worth finding later, and it is the same
+        question a user report asks: whose, and which thread."""
+        conversation_uuid = uuid4()
+        chain = MagicMock()
+        chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
+
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            await _classifier_with(chain).in_scope("some query", None, None, conversation_uuid)
+
+        assert f"user_id={_USER_ID}" in caplog.text
+        assert str(conversation_uuid) in caplog.text
+
 
 class TestRefusalLogging:
     """What a refusal must leave behind for whoever reads a user's report."""
@@ -200,6 +217,15 @@ class TestRefusalLogging:
             await _classifier_with(_chain_deciding(False)).in_scope("no", history)
 
         assert "history_turns=9" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_the_user_is_named(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The first message of a chat is refused before a conversation exists, so the user is the
+        only thing that can tie that refusal to the person who reported it."""
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            await _classifier_with(_chain_deciding(False)).in_scope("What is the capital of France?")
+
+        assert f"user_id={_USER_ID}" in caplog.text
 
     @pytest.mark.asyncio
     async def test_the_conversation_uuid_ties_the_refusal_to_a_thread(self, caplog: pytest.LogCaptureFixture) -> None:

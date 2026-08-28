@@ -25,6 +25,9 @@ _LOGGER = "sparkth.plugins.chat.classifiers.rag_search"
 _STRUCTURE = "sparkth.plugins.chat.classifiers.rag_search.get_rag_ingested_document_structure"
 
 
+_USER_ID = 42
+
+
 def _classifier_with(chain: MagicMock) -> RAGSearchClassifier:
     """A classifier whose facade-built LLM is replaced by one yielding ``chain``."""
     llm = MagicMock()
@@ -32,7 +35,7 @@ def _classifier_with(chain: MagicMock) -> RAGSearchClassifier:
     provider = MagicMock()
     provider.create_llm.return_value = llm
     with patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=provider):
-        return RAGSearchClassifier("anthropic", "test-key")
+        return RAGSearchClassifier("anthropic", "test-key", _USER_ID)
 
 
 def _chain_deciding(requires_search: bool, refusal_reason: str = "") -> MagicMock:
@@ -178,6 +181,16 @@ class TestDecliningIsLogged:
             await _classifier_with(chain).requires_search("thanks!", [_document()])
 
         assert "casual conversation" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_the_user_is_named(self, caplog: pytest.LogCaptureFixture) -> None:
+        with (
+            caplog.at_level(logging.INFO, logger=_LOGGER),
+            patch(_STRUCTURE, new_callable=AsyncMock, return_value=[]),
+        ):
+            await _classifier_with(_chain_deciding(False)).requires_search("thanks!", [_document()])
+
+        assert f"user_id={_USER_ID}" in caplog.text
 
     @pytest.mark.asyncio
     async def test_the_conversation_uuid_ties_the_skip_to_a_thread(self, caplog: pytest.LogCaptureFixture) -> None:

@@ -23,13 +23,17 @@ logger = get_logger(__name__)
 class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdict]):
     """Decides whether a chat turn falls within the assistant's learning-design scope."""
 
-    def __init__(self, provider_name: str, api_key: str) -> None:
+    def __init__(self, provider_name: str, api_key: str, user_id: int) -> None:
+        """``user_id`` never reaches the model. It is logged on every decision this classifier
+        records, because the first message of a chat is judged before a conversation exists and the
+        user is then the only thing a refusal can be traced by."""
         super().__init__(
             MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
             MessageScopeVerdict,
             provider_name,
             api_key,
         )
+        self._user_id = user_id
 
     def _build_messages(self, payload: MessageScopeInput) -> list[BaseMessage]:
         """Replay the recent conversation as real turns, then the current message.
@@ -90,15 +94,21 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         try:
             verdict = await self.classify(payload)
         except ClassifierError as exc:
-            logger.warning("Message scope classifier failed, defaulting to in_scope=True: %s", exc)
+            logger.warning(
+                "Message scope classifier failed, defaulting to in_scope=True: user_id=%s conversation_uuid=%s: %s",
+                self._user_id,
+                conversation_uuid,
+                exc,
+            )
             return True
 
         if not verdict.in_scope:
             # The only record of a refusal: the chat model is never reached. Counts and lengths
             # only, since the message may hold course content.
             logger.warning(
-                "Scope classifier refused a message: conversation_uuid=%s model=%s reason=%r "
-                "history_turns=%d attachments=%d query_len=%d",
+                "Scope classifier refused a message: user_id=%s conversation_uuid=%s model=%s "
+                "reason=%r history_turns=%d attachments=%d query_len=%d",
+                self._user_id,
                 conversation_uuid,
                 self.model,
                 verdict.refusal_reason,
