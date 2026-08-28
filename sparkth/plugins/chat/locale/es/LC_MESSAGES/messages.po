@@ -39,7 +39,7 @@ msgstr ""
 msgid "Document not found or not accessible"
 msgstr "Documento no encontrado o no accesible"
 
-#: sparkth/plugins/chat/routes/completions.py:81
+#: sparkth/plugins/chat/routes/completions.py:57
 msgid ""
 "No AI Key found for the current user. Please configure an AI key in your "
 "chat plugin settings."
@@ -47,7 +47,7 @@ msgstr ""
 "No se encontró una clave de IA para el usuario actual. Configura una "
 "clave de IA en los ajustes del plugin de chat."
 
-#: sparkth/plugins/chat/routes/completions.py:86
+#: sparkth/plugins/chat/routes/completions.py:61
 msgid ""
 "The selected AI key has no model configured. Go to AI Keys to set a model"
 " before chatting."
@@ -55,7 +55,7 @@ msgstr ""
 "La clave de IA seleccionada no tiene un modelo configurado. Ve a AI Keys "
 "para establecer un modelo antes de chatear."
 
-#: sparkth/plugins/chat/routes/completions.py:92
+#: sparkth/plugins/chat/routes/completions.py:66
 msgid ""
 "The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
 "choose a different one in chat settings."
