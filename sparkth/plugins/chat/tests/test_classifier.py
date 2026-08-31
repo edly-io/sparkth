@@ -1,7 +1,9 @@
 """Unit tests for the chat scope classifier."""
 
+import logging
 from typing import Literal, cast
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from langchain_core.exceptions import LangChainException
@@ -118,6 +120,66 @@ class TestScopeClassifierClassify:
         classifier, mock_chain = _build_classifier()
         mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=False))
         assert await classifier.classify("What is the capital of France?") is False
+
+    @pytest.mark.asyncio
+    async def test_out_of_scope_is_logged_with_the_deciding_model(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A refusal is a model judgement on truncated history — the log is where that is auditable."""
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=False))
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.classifier"):
+            assert await classifier.classify("What is the capital of France?") is False
+
+        assert "claude-haiku-4-5" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_out_of_scope_log_reports_how_much_history_was_available(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Only the last _MAX_HISTORY_TURNS reach the model, so the total is what shows truncation."""
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=False))
+        history: list[HistoryTurn] = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i}"} for i in range(9)
+        ]
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.classifier"):
+            assert await classifier.classify("no", history=history) is False
+
+        assert "history_turns=9" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_out_of_scope_log_includes_the_conversation_uuid(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Ties the refusal to the thread a user reports, which they identify by the chat URL."""
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=False))
+        conversation_uuid = uuid4()
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.classifier"):
+            assert await classifier.classify("no", conversation_uuid=conversation_uuid) is False
+
+        assert str(conversation_uuid) in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_out_of_scope_log_omits_the_message_text(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The refused message can hold course content; only its length may be logged."""
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=False))
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.classifier"):
+            assert await classifier.classify("Acme Corp onboarding secrets") is False
+
+        assert "Acme Corp" not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_in_scope_logs_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
+        classifier, mock_chain = _build_classifier()
+        mock_chain.ainvoke = AsyncMock(return_value=_ScopeResult(in_scope=True))
+
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.classifier"):
+            assert await classifier.classify("Create a course on data privacy") is True
+
+        assert caplog.text == ""
 
     @pytest.mark.asyncio
     async def test_langchain_error_fails_open(self) -> None:

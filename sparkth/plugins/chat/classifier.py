@@ -1,6 +1,7 @@
 """LLM-based scope classifier for the learning design assistant."""
 
 from typing import Any, Literal, TypedDict
+from uuid import UUID
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.exceptions import LangChainException
@@ -74,6 +75,7 @@ class ScopeClassifier:
         classifier_model = _CLASSIFIER_MODELS.get(provider_name)
         if classifier_model is None:
             raise ValueError(f"Unsupported provider for classifier: {provider_name!r}")
+        self._model = classifier_model
 
         llm: Any
         match provider_name:
@@ -91,15 +93,22 @@ class ScopeClassifier:
         query: str,
         history: list[HistoryTurn] | None = None,
         attached_document_names: list[str] | None = None,
+        conversation_uuid: UUID | None = None,
     ) -> bool:
         """Return True if the query is within learning design scope.
 
         Accepts optional conversation history and the names of any documents
         currently attached to the conversation so the classifier can factor in
-        document-related queries correctly.
+        document-related queries correctly. ``conversation_uuid`` is not sent to the
+        model — it is logged on a refusal so the decision can be traced to a thread,
+        and is ``None`` on the first message of a new chat, which is checked before any
+        conversation row exists.
 
         Fails open on any error — the main LLM's system prompt handles
         out-of-scope requests as a fallback.
+
+        An out-of-scope verdict is logged at warning level: it ends the turn before the
+        chat model is reached, so nothing downstream records that the refusal happened.
         """
         if not query.strip():
             return True
@@ -127,6 +136,20 @@ class ScopeClassifier:
 
         try:
             result: _ScopeResult = await self._chain.ainvoke(messages)
+            if not result.in_scope:
+                # A refusal ends the turn before the chat model sees it, so this is the
+                # only record of the judgement. The history count shows how much context
+                # was available versus the last _MAX_HISTORY_TURNS the model actually got.
+                # Counts and length only — the message itself may hold course content.
+                logger.warning(
+                    "Scope classifier refused a message: conversation_uuid=%s model=%s "
+                    "history_turns=%d attachments=%d query_len=%d",
+                    conversation_uuid,
+                    self._model,
+                    len(history or []),
+                    len(attached_document_names or []),
+                    len(query),
+                )
             return result.in_scope
         except (LangChainException, ValidationError) as exc:
             logger.warning("Scope classifier failed, defaulting to in_scope=True: %s", exc)
