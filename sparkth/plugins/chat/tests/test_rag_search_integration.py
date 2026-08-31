@@ -1,4 +1,4 @@
-"""Integration tests for RAG Intent Router wired into the chat completion flow."""
+"""Integration tests for the RAG search classifier wired into the chat completion flow."""
 
 import json
 from typing import Any, cast
@@ -14,9 +14,8 @@ from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.plugins.chat.exceptions import RAGIntentRouterError
+from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.schemas import RAGRoutingDecision
 
 
 def _parse_sse_events(content: bytes) -> list[dict[str, Any]]:
@@ -84,14 +83,13 @@ class TestIntentRouterIntegration:
         """On-topic query with persisted attachments should invoke RAG (non-streaming)."""
         seed = await _seed(session, current_user.id or 1)
 
-        mock_decision = RAGRoutingDecision(should_retrieve=True, reason="document query")
         mock_msg = MagicMock()
         mock_msg.id = 1
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -112,7 +110,7 @@ class TestIntentRouterIntegration:
 
             # Router says retrieve=True
             mock_router = MagicMock()
-            mock_router.decide = AsyncMock(return_value=mock_decision)
+            mock_router.requires_search = AsyncMock(return_value=True)
             mock_router_cls.return_value = mock_router
 
             # One READY attachment exists
@@ -149,7 +147,7 @@ class TestIntentRouterIntegration:
 
         assert response.status_code == 200
         # Router was called — confirming it's wired in
-        mock_router.decide.assert_called_once()
+        mock_router.requires_search.assert_awaited_once()
         # RAG resolution was called — confirming retrieve=True triggered it
         mock_resolve.assert_called_once()
 
@@ -163,14 +161,13 @@ class TestIntentRouterIntegration:
         """Off-topic query with attachments should emit skipping_rag SSE event (streaming)."""
         seed = await _seed(session, current_user.id or 1)
 
-        mock_decision = RAGRoutingDecision(should_retrieve=False, reason="chit-chat unrelated to documents")
         mock_msg = MagicMock()
         mock_msg.id = 1
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -184,8 +181,8 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
             # Patch the whole stream so we control the SSE output directly.
-            # This test's goal is to verify the router is called with retrieve=False
-            # and the route passes rag_routing_reason to ChatStreamProcessor correctly.
+            # This test's goal is to verify the classifier is asked, declines, and the route
+            # passes rag_search_declined to ChatStreamProcessor.
             patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
         ):
             mock_scope = AsyncMock()
@@ -193,7 +190,7 @@ class TestIntentRouterIntegration:
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
-            mock_router.decide = AsyncMock(return_value=mock_decision)
+            mock_router.requires_search = AsyncMock(return_value=False)
             mock_router_cls.return_value = mock_router
 
             mock_list_attachments.return_value = [_mock_document()]
@@ -205,11 +202,10 @@ class TestIntentRouterIntegration:
             mock_get_provider.return_value = mock_provider
             mock_add_msg.return_value = mock_msg
 
-            expected_reason = mock_decision.reason
             mock_instance = MagicMock()
 
             async def _fake_stream_gen() -> Any:
-                yield f"data: {json.dumps({'status': 'skipping_rag', 'reason': expected_reason, 'done': False})}\n\n"
+                yield f"data: {json.dumps({'status': 'skipping_rag', 'done': False})}\n\n"
                 yield f"data: {json.dumps({'token': 'Hi!', 'done': False})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
 
@@ -231,12 +227,10 @@ class TestIntentRouterIntegration:
         events = _parse_sse_events(response.content)
         skipping = [e for e in events if e.get("status") == "skipping_rag"]
         assert len(skipping) == 1
-        assert skipping[0]["reason"] == "chit-chat unrelated to documents"
-        # Router was called and decided not to retrieve
-        mock_router.decide.assert_called_once()
-        assert mock_decision.should_retrieve is False
-        # rag_routing_reason is the 10th positional arg to ChatStreamProcessor
-        assert mock_processor_cls.call_args.args[9] == "chit-chat unrelated to documents"
+        assert "reason" not in skipping[0]
+        mock_router.requires_search.assert_awaited_once()
+        # rag_search_declined is the 10th positional arg to ChatStreamProcessor
+        assert mock_processor_cls.call_args.args[9] is True
 
     @pytest.mark.asyncio
     async def test_on_topic_streaming_emits_scanning_attachments_event(
@@ -248,14 +242,13 @@ class TestIntentRouterIntegration:
         """On-topic streaming query with attachments should emit scanning_attachments event."""
         seed = await _seed(session, current_user.id or 1)
 
-        mock_decision = RAGRoutingDecision(should_retrieve=True, reason="document query")
         mock_msg = MagicMock()
         mock_msg.id = 1
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -273,7 +266,7 @@ class TestIntentRouterIntegration:
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
-            mock_router.decide = AsyncMock(return_value=mock_decision)
+            mock_router.requires_search = AsyncMock(return_value=True)
             mock_router_cls.return_value = mock_router
 
             mock_list_attachments.return_value = [_mock_document()]
@@ -312,7 +305,7 @@ class TestIntentRouterIntegration:
         assert len(scanning) == 1
         assert scanning[0]["file_count"] == 1
         # Router was called with retrieve=True
-        mock_router.decide.assert_called_once()
+        mock_router.requires_search.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_no_attachments_skips_router_silently(
@@ -330,7 +323,7 @@ class TestIntentRouterIntegration:
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -384,13 +377,13 @@ class TestIntentRouterIntegration:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        """Router raising RAGIntentRouterError must surface as HTTP 502 (fail-closed)."""
+        """Router raising RAGSearchError must surface as HTTP 502 (fail-closed)."""
         seed = await _seed(session, current_user.id or 1)
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -409,7 +402,7 @@ class TestIntentRouterIntegration:
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
-            mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("LLM call failed"))
+            mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("LLM call failed"))
             mock_router_cls.return_value = mock_router
 
             mock_list_attachments.return_value = [_mock_document()]
@@ -671,7 +664,7 @@ class TestProviderApiErrorPersistence:
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -690,7 +683,7 @@ class TestProviderApiErrorPersistence:
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
-            mock_router.decide = AsyncMock(side_effect=overloaded_exc)
+            mock_router.requires_search = AsyncMock(side_effect=overloaded_exc)
             mock_router_cls.return_value = mock_router
 
             mock_list_attachments.return_value = [_mock_document()]
@@ -718,13 +711,13 @@ class TestProviderApiErrorPersistence:
         assert len(error_calls) == 1
 
     @pytest.mark.asyncio
-    async def test_rag_intent_router_error_persists_error_to_db(
+    async def test_a_failed_search_decision_persists_an_error_to_db(
         self,
         client: AsyncClient,
         current_user: Any,
         session: AsyncSession,
     ) -> None:
-        """A RAGIntentRouterError must write an is_error=True message to DB."""
+        """A RAGSearchError must write an is_error=True message to DB."""
         seed = await _seed(session, current_user.id or 1)
         mock_msg = MagicMock()
         mock_msg.id = 99
@@ -732,7 +725,7 @@ class TestProviderApiErrorPersistence:
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
-            patch("sparkth.plugins.chat.routes.utils.RAGIntentRouter") as mock_router_cls,
+            patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -751,7 +744,7 @@ class TestProviderApiErrorPersistence:
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
-            mock_router.decide = AsyncMock(side_effect=RAGIntentRouterError("router failed"))
+            mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("router failed"))
             mock_router_cls.return_value = mock_router
 
             mock_list_attachments.return_value = [_mock_document()]

@@ -257,14 +257,14 @@ class TestRunRagPhase:
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_rag_disabled(self) -> None:
         processor = _make_processor()
-        processor.should_run_rag = False
+        processor.rag_search_required = False
         result = await processor._run_rag_phase(MagicMock())
         assert result == []
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_no_unresolved_messages(self) -> None:
         processor = _make_processor()
-        processor.should_run_rag = True
+        processor.rag_search_required = True
         processor.unresolved_messages = None
         result = await processor._run_rag_phase(MagicMock())
         assert result == []
@@ -272,7 +272,7 @@ class TestRunRagPhase:
     @pytest.mark.asyncio
     async def test_returns_none_when_retrieval_fails(self) -> None:
         processor = _make_processor()
-        processor.should_run_rag = True
+        processor.rag_search_required = True
         processor.user_id = 1
         processor.llm = MagicMock()
         processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
@@ -287,7 +287,7 @@ class TestRunRagPhase:
     @pytest.mark.asyncio
     async def test_returns_sections_on_success(self) -> None:
         processor = _make_processor(messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}])
-        processor.should_run_rag = True
+        processor.rag_search_required = True
         processor.user_id = 1
         processor.llm = MagicMock()
         processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]

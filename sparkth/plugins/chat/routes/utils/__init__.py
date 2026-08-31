@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document
 from sparkth.lib.i18n import _, gettext
-from sparkth.lib.llm import BaseChatProvider, get_provider
+from sparkth.lib.llm import get_provider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
     DocumentNotFoundError,
@@ -26,7 +26,6 @@ from sparkth.plugins.chat.conversation_title import (
     generate_conversation_title,
     get_first_user_text,
 )
-from sparkth.plugins.chat.intent_router import RAGIntentRouter
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
@@ -335,26 +334,6 @@ async def resolve_tools(
             logger.warning("No tools found for: %s", request.tools)
         return tools
     return None
-
-
-async def resolve_rag_intent(
-    attached_documents: list[Document],
-    query_text: str,
-    provider: BaseChatProvider,
-) -> tuple[bool, str | None]:
-    """Decide whether to run RAG retrieval for the current request.
-
-    Returns (should_run_rag, routing_reason). Always False when there are no
-    attached documents or no query text.
-    """
-    if not attached_documents or not query_text:
-        return False, None
-    rag_router = RAGIntentRouter(llm=provider.create_llm())
-    decision = await rag_router.decide(
-        query=query_text,
-        attached_documents=attached_documents,
-    )
-    return decision.should_retrieve, decision.reason
 
 
 def parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:

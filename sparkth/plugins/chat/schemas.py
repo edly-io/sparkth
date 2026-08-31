@@ -146,13 +146,6 @@ class ConversationDetailResponse(ConversationResponse):
     messages: list[MessageResponse]
 
 
-class RAGRoutingDecision(BaseModel):
-    """Decision from RAG intent router on whether to run retrieval for this turn."""
-
-    should_retrieve: bool
-    reason: str
-
-
 class HistoryTurn(TypedDict):
     """One prior conversation turn, as a classifier receives it.
 
@@ -177,24 +170,49 @@ class MessageScopeInput(BaseModel):
     attached_document_names: list[str] = Field(default_factory=list)
 
 
-class MessageScopeVerdict(BaseModel):
-    """Whether a chat turn falls within the assistant's learning-design scope, and why not.
+class ClassifierVerdict(BaseModel):
+    """What every classifier verdict carries besides its decision.
 
-    ``refusal_reason`` is written by the model and ends up in the refusal log, which is why it
-    is specified as a category rather than free narration: the refused message can hold course
-    content, and the log has never carried any of it.
+    A negative decision is the one a user or a reviewer asks about later, and the decision
+    itself does not say why. The reason is written by the model and read from a log, which is
+    why it is specified as a category rather than free narration: the message being judged can
+    hold course content, and these logs have never carried any of it.
     """
 
-    in_scope: bool
     refusal_reason: str = Field(
         default="",
         description=(
-            "When in_scope is false, a short phrase naming the category of request that put the "
-            "message out of scope, such as 'general knowledge question', 'code help' or "
-            "'personal advice'. Name the category only: never quote or restate the user's "
-            "message. Leave empty when in_scope is true."
+            "When the decision is negative, a short phrase naming the category it fell under. "
+            "Name the category only: never quote or restate the user's message. Leave empty "
+            "when the decision is positive."
         ),
     )
+
+
+class MessageScopeVerdict(ClassifierVerdict):
+    """Whether a chat turn falls within the assistant's learning-design scope."""
+
+    in_scope: bool
+
+
+class DocumentHeadings(BaseModel):
+    """One attached document as the search classifier sees it: a name and its section paths."""
+
+    name: str
+    sections: list[str] = Field(default_factory=list)
+
+
+class RAGSearchInput(BaseModel):
+    """What the search classifier is asked to judge: a message against what the documents hold."""
+
+    query: str
+    documents: list[DocumentHeadings] = Field(default_factory=list)
+
+
+class RAGSearchVerdict(ClassifierVerdict):
+    """Whether answering this message needs content retrieved from the attached documents."""
+
+    requires_search: bool
 
 
 class ConversationAttachmentCreate(BaseModel):

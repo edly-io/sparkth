@@ -19,10 +19,10 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.classifiers import MessageScopeClassifier
+from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
-from sparkth.plugins.chat.exceptions import RAGIntentRouterError
+from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import (
@@ -32,7 +32,6 @@ from sparkth.plugins.chat.routes.utils import (
     persist_incoming_messages,
     persist_pre_stream_error,
     resolve_document_blocks,
-    resolve_rag_intent,
     resolve_tools,
     stream_out_of_scope_refusal,
 )
@@ -158,8 +157,8 @@ async def chat_completion(
     )
 
     try:
-        # Fetch conversation attachments early — needed by both the scope classifier
-        # (to know documents are in play) and the RAG intent router.
+        # Both classifiers need these: scope, to know documents are in play, and search, to
+        # judge the message against them.
         attached_documents = await service.list_conversation_attachments(
             session=session,
             conversation_id=cast(int, conversation.id),
@@ -212,9 +211,15 @@ async def chat_completion(
             max_tool_executions=config.max_tool_executions,
         )
 
-        # --- RAG Intent Routing: decide whether to retrieve context from attachments ---
-        # attached_documents already fetched above for the scope check
-        should_run_rag, rag_routing_reason = await resolve_rag_intent(attached_documents, query_text, provider)
+        # Only asked when there is something to search and something to search for.
+        rag_search_required = False
+        if attached_documents and query_text:
+            search_classifier = RAGSearchClassifier(provider_name, api_key)
+            rag_search_required = await search_classifier.requires_search(
+                query_text, attached_documents, conversation.uuid
+            )
+        # A skip is worth telling the client about only when the classifier weighed it.
+        rag_search_declined = bool(attached_documents) and bool(query_text) and not rag_search_required
 
         # Use DB messages for history, but replace the current batch with original
         # request content to preserve content blocks (e.g. base64 document attachments).
@@ -226,20 +231,18 @@ async def chat_completion(
         )
 
         unresolved_messages: list[ChatMessage] | None = None
-        if should_run_rag and attached_documents:
-            # Synthetic message: document blocks (for RAG resolution) + user's query text
-            # so that extract_query_text finds the question and the user's question is
-            # preserved in current after resolution.
+        if rag_search_required and attached_documents:
+            # One synthetic turn: document blocks for retrieval to resolve, plus the query text
+            # so it survives that resolution.
             document_blocks: list[dict[str, Any]] = [
                 {"type": "drive_file", "file_id": document.id} for document in attached_documents
             ]
             text_block: list[dict[str, Any]] = [{"type": "text", "text": query_text}] if query_text else []
             unresolved_messages = [ChatMessage(role="user", content=document_blocks + text_block)]
 
-        if request.stream and should_run_rag:
-            # Pass synthetic messages as current so the in-stream assembly pass finds the
-            # legacy document blocks to replace. The query text block travels with them so the
-            # LLM sees both the RAG context and the user's question after replacement.
+        if request.stream and rag_search_required:
+            # Sent unresolved: the stream replaces the document blocks with retrieved context,
+            # keeping the query text beside it.
             if unresolved_messages is None:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -247,9 +250,8 @@ async def chat_completion(
                 )
             current: list[dict[str, Any]] = [{"role": msg.role, "content": msg.content} for msg in unresolved_messages]
         else:
-            if should_run_rag and unresolved_messages:
-                # resolve_document_blocks replaces legacy document blocks with RAG context;
-                # the query text block is preserved alongside it.
+            if rag_search_required and unresolved_messages:
+                # Resolved up front, since there is no stream to do it in.
                 resolved_messages = await resolve_document_blocks(
                     messages=unresolved_messages,
                     llm=provider.create_llm(),
@@ -275,11 +277,10 @@ async def chat_completion(
             provider.system_prompt += f"\n\n{lms_credentials_message}"
 
         if request.stream:
-            # The RAG inputs are only meaningful when the router decided to retrieve;
-            # gate them together so an unused create_llm() call is never made.
-            rag_unresolved = unresolved_messages if should_run_rag else None
-            rag_user_id = user_id if should_run_rag else None
-            rag_llm = provider.create_llm() if should_run_rag else None
+            # Gated together so no LLM is built for a turn that will not retrieve.
+            rag_unresolved = unresolved_messages if rag_search_required else None
+            rag_user_id = user_id if rag_search_required else None
+            rag_llm = provider.create_llm() if rag_search_required else None
             processor = ChatStreamProcessor(
                 provider,
                 messages,
@@ -289,8 +290,8 @@ async def chat_completion(
                 rag_unresolved,
                 rag_user_id,
                 rag_llm,
-                should_run_rag,
-                rag_routing_reason,
+                rag_search_required,
+                rag_search_declined,
             )
             return StreamingResponse(
                 processor.stream(),
@@ -329,7 +330,7 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except RAGIntentRouterError as e:
+    except RAGSearchError as e:
         logger.error("RAG intent router failed for user %s conversation %s: %s", current_user.id, conversation.id, e)
         detail = _("Failed to determine retrieval intent. Please try again.")
         if conversation.id is not None:

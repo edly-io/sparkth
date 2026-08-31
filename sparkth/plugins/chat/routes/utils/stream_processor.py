@@ -115,8 +115,8 @@ class ChatStreamProcessor:
         unresolved_messages: list[ChatMessage] | None = None,
         user_id: int | None = None,
         llm: Any | None = None,
-        should_run_rag: bool = False,
-        rag_routing_reason: str | None = None,
+        rag_search_required: bool = False,
+        rag_search_declined: bool = False,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -125,8 +125,8 @@ class ChatStreamProcessor:
         self.unresolved_messages = unresolved_messages
         self.user_id = user_id
         self.llm = llm
-        self.should_run_rag = should_run_rag
-        self.rag_routing_reason = rag_routing_reason
+        self.rag_search_required = rag_search_required
+        self.rag_search_declined = rag_search_declined
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -249,9 +249,9 @@ class ChatStreamProcessor:
         """Return value convention: None means the response is already complete (error or no-results handled);
         [] means RAG was skipped but the LLM phase should still run.
         """
-        if not self.should_run_rag or not self.unresolved_messages or self.user_id is None:
-            if self.rag_routing_reason is not None:
-                await self._emit({"status": "skipping_rag", "reason": self.rag_routing_reason, "done": False})
+        if not self.rag_search_required or not self.unresolved_messages or self.user_id is None:
+            if self.rag_search_declined:
+                await self._emit({"status": "skipping_rag", "done": False})
             return []
 
         document_ids = collect_document_ids(self.unresolved_messages)

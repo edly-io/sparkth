@@ -11,6 +11,9 @@ MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = (
 ).read_text()
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
+RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = (
+    Path(__file__).parent / "assets" / "rag_search_classifier_system_prompt.txt"
+).read_text()
 
 LLM_PROVIDER_API_ERRORS = (
     anthropic.AuthenticationError,
