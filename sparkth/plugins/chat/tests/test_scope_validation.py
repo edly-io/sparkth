@@ -1,4 +1,10 @@
-"""Tests for the chat scope gate: classify_in_scope and the refusal it produces."""
+"""Tests for the refusal the chat scope gate produces, at the route boundary.
+
+The judgement itself belongs to MessageScopeClassifier and is asserted in
+test_message_scope.py. What is left here is what the route does with a refusal: the SSE
+event it streams, the response shape it allows, and the DB records it must and must not
+write.
+"""
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -16,57 +22,8 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
-from sparkth.plugins.chat.routes.utils import classify_in_scope, stream_out_of_scope_refusal
+from sparkth.plugins.chat.routes.utils import stream_out_of_scope_refusal
 from sparkth.plugins.chat.schemas import ChatCompletionResponse, ChatMessage
-
-
-class TestEveryNonEmptyQueryReachesTheClassifier:
-    """One gate decides scope: the LLM classifier.
-
-    A query is never judged on its wording. Even one carrying no course vocabulary at
-    all is handed to the classifier, and the classifier's verdict is what comes back —
-    so a phrasing the model would accept is not refused before it is asked.
-    """
-
-    @pytest.mark.asyncio
-    async def test_query_without_course_words_is_handed_to_the_classifier(self) -> None:
-        with patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as MockClassifier:
-            MockClassifier.return_value.classify = AsyncMock(return_value=True)
-            in_scope = await classify_in_scope("Help me write Python code", "anthropic", "test-key", [], None, None)
-
-        MockClassifier.return_value.classify.assert_awaited_once()
-        assert MockClassifier.return_value.classify.await_args.args[0] == "Help me write Python code"
-        assert in_scope is True
-
-    @pytest.mark.asyncio
-    async def test_classifier_refusal_is_returned_unchanged(self) -> None:
-        with patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as MockClassifier:
-            MockClassifier.return_value.classify = AsyncMock(return_value=False)
-            assert await classify_in_scope("What is the capital of France?", "anthropic", "k", [], None, None) is False
-
-    @pytest.mark.asyncio
-    async def test_empty_query_skips_the_classifier(self) -> None:
-        """The one query that costs no model call: empty text is in scope, and the system
-        prompt handles whatever the user sends next."""
-        with patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as MockClassifier:
-            assert await classify_in_scope("", "anthropic", "test-key", [], None, None) is True
-
-        MockClassifier.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_conversation_uuid_is_forwarded_to_the_classifier(self) -> None:
-        """The uuid never reaches a model: the classifier logs it on a refusal so the
-        decision can be traced to a thread."""
-        conversation_uuid = uuid4()
-
-        with patch("sparkth.plugins.chat.routes.utils.ScopeClassifier") as MockClassifier:
-            MockClassifier.return_value.classify = AsyncMock(return_value=True)
-            await classify_in_scope(
-                "Create a course on data privacy", "anthropic", "test-key", [], None, conversation_uuid
-            )
-
-        _, kwargs = MockClassifier.return_value.classify.call_args
-        assert kwargs["conversation_uuid"] == conversation_uuid
 
 
 class TestStreamOutOfScopeRefusal:
@@ -89,6 +46,117 @@ class TestStreamOutOfScopeRefusal:
             payload = json.loads(events[0].removeprefix("data: ").strip())
             assert payload["done"] is True
             assert payload["content"] == REFUSAL_MESSAGE
+
+
+class TestThePreflightCheckSeesTheWholeTurn:
+    """The first message of a new chat is judged before any DB write.
+
+    Nothing has been persisted at that point, so the request itself is the only place the
+    turn's attachments can come from. Leaving them out would hand the classifier an empty
+    query with no sign of what the user actually sent.
+    """
+
+    @pytest.mark.asyncio
+    async def test_attachment_names_from_the_request_reach_the_classifier(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+
+        with (
+            locale_context("en"),
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as MockClassifier,
+        ):
+            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": llm_config_id,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "document",
+                                    "source": {"type": "base64", "media_type": "application/pdf", "data": ""},
+                                }
+                            ],
+                            "attachment": {"name": "syllabus.pdf", "size": 1024},
+                        }
+                    ],
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
+        assert query == ""
+        assert attachments == ["syllabus.pdf"]
+
+
+class TestAnExistingConversationSeesTheWholeTurnToo:
+    """A locally uploaded file never becomes a Document row.
+
+    The conversation's attachments come from the database, which only knows documents that were
+    ingested — a file uploaded with the message is base64 content and has no row. So the request is
+    the only place its name exists, on this path as much as on the pre-flight one, and without it
+    the classifier is handed an empty message to judge.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_locally_uploaded_file_reaches_the_classifier_by_name(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+    ) -> None:
+        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation = Conversation(
+            user_id=current_user.id or 1,
+            provider="openai",
+            model="gpt-4o",
+            llm_config_id=llm_config_id,
+        )
+        session.add(conversation)
+        await session.flush()
+        conversation_uuid = str(conversation.uuid)
+        await session.commit()
+
+        with (
+            locale_context("en"),
+            patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as MockClassifier,
+            patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
+        ):
+            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
+            response = await client.post(
+                "/api/v1/chat/completions",
+                json={
+                    "llm_config_id": llm_config_id,
+                    "conversation_id": conversation_uuid,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "document",
+                                    "source": {"type": "base64", "media_type": "application/pdf", "data": ""},
+                                }
+                            ],
+                            "attachment": {"name": "syllabus.pdf", "size": 1024},
+                        }
+                    ],
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
+        assert query == ""
+        assert attachments == ["syllabus.pdf"]
 
 
 class TestChatCompletionResponseSchema:
@@ -167,8 +235,8 @@ class TestOutOfScopeConversationCreation:
             locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
-                "sparkth.plugins.chat.routes.utils.ScopeClassifier",
-                return_value=MagicMock(classify=AsyncMock(return_value=False)),
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.add_message",
@@ -222,8 +290,8 @@ class TestOutOfScopeConversationCreation:
             locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
-                "sparkth.plugins.chat.routes.utils.ScopeClassifier",
-                return_value=MagicMock(classify=AsyncMock(return_value=False)),
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.get_conversation_messages",

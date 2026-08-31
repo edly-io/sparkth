@@ -1,4 +1,4 @@
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -19,7 +19,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.classifier import HistoryTurn
+from sparkth.plugins.chat.classifiers import MessageScopeClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.chat.exceptions import RAGIntentRouterError
@@ -27,7 +27,6 @@ from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import (
     attach_request_documents,
-    classify_in_scope,
     extract_query_text,
     get_or_create_conversation,
     persist_incoming_messages,
@@ -38,7 +37,12 @@ from sparkth.plugins.chat.routes.utils import (
     stream_out_of_scope_refusal,
 )
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor, streaming_error_message
-from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
+from sparkth.plugins.chat.schemas import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+    HistoryTurn,
+)
 from sparkth.plugins.chat.service import ChatService, get_chat_service
 from sparkth.plugins.chat.tools import get_tool_registry
 
@@ -99,12 +103,17 @@ async def chat_completion(
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
     query_text = extract_query_text(request.messages)
+    scope_classifier = MessageScopeClassifier(provider_name, api_key)
 
-    # Runs before any DB writes so an out-of-scope first message leaves no trace.
+    # A file uploaded with the message is base64 content, not a Document row, so its name exists
+    # only here — both scope checks below need it.
+    request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
+
+    # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
     _skip_main_scope_check = False
     if not conversation_uuid:
-        # No conversation exists yet on this path, so the scope logs carry no uuid.
-        if not await classify_in_scope(query_text, provider_name, api_key, [], None, None):
+        # Nothing is persisted yet, and there is no uuid to log a refusal against.
+        if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
             if request.stream:
                 return StreamingResponse(
                     stream_out_of_scope_refusal(),
@@ -116,6 +125,7 @@ async def chat_completion(
                 model=model,
                 provider=provider_name,
             )
+        # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
     conversation = await get_or_create_conversation(
@@ -158,16 +168,16 @@ async def chat_completion(
 
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
-                {"role": cast(Literal["user", "assistant"], m.role), "content": m.content}
+                {"role": m.role, "content": m.content}
                 for m in db_messages
                 if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
             ]
-            _in_scope = await classify_in_scope(
+            # Ingested documents plus anything uploaded with this message, which has no row.
+            turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
+            _in_scope = await scope_classifier.in_scope(
                 query_text,
-                llm_config.provider,
-                api_key,
                 prior_history,
-                attached_document_names or None,
+                turn_attachment_names or None,
                 conversation.uuid,
             )
         else:

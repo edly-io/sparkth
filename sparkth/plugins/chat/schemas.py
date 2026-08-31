@@ -1,7 +1,7 @@
 import base64
 import binascii
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -89,6 +89,20 @@ class ChatCompletionRequest(BaseModel):
         ),
     )
 
+    @field_validator("messages")
+    @classmethod
+    def validate_a_user_turn_is_present(cls, v: list[ChatMessage]) -> list[ChatMessage]:
+        """A completion answers something a user sent, so one user turn is the minimum.
+
+        Downstream the last user message is what gets answered, judged for scope and retrieved
+        against. Without one there is nothing to answer, and every reader of it would need
+        behaviour for a turn that does not exist. An attachment-only turn qualifies: what is
+        absent there is the text, not the request.
+        """
+        if not any(message.role == "user" for message in v):
+            raise ValueError("messages must include at least one user message")
+        return v
+
 
 class ChatCompletionResponse(BaseModel):
     message: ChatMessage
@@ -137,6 +151,50 @@ class RAGRoutingDecision(BaseModel):
 
     should_retrieve: bool
     reason: str
+
+
+class HistoryTurn(TypedDict):
+    """One prior conversation turn, as a classifier receives it.
+
+    ``role`` is the role as stored, not a narrowed union: a conversation also holds ``tool``
+    and ``system`` turns, and a classifier that replays history decides for itself which
+    roles it can represent.
+    """
+
+    role: str
+    content: str
+
+
+class MessageScopeInput(BaseModel):
+    """What the message-scope classifier is asked to judge.
+
+    Everything here is shown to the model. The conversation UUID is deliberately absent — it
+    identifies the thread for logging and is nobody's business to classify.
+    """
+
+    query: str
+    history: list[HistoryTurn] = Field(default_factory=list)
+    attached_document_names: list[str] = Field(default_factory=list)
+
+
+class MessageScopeVerdict(BaseModel):
+    """Whether a chat turn falls within the assistant's learning-design scope, and why not.
+
+    ``refusal_reason`` is written by the model and ends up in the refusal log, which is why it
+    is specified as a category rather than free narration: the refused message can hold course
+    content, and the log has never carried any of it.
+    """
+
+    in_scope: bool
+    refusal_reason: str = Field(
+        default="",
+        description=(
+            "When in_scope is false, a short phrase naming the category of request that put the "
+            "message out of scope, such as 'general knowledge question', 'code help' or "
+            "'personal advice'. Name the category only: never quote or restate the user's "
+            "message. Leave empty when in_scope is true."
+        ),
+    )
 
 
 class ConversationAttachmentCreate(BaseModel):

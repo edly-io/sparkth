@@ -19,7 +19,6 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.classifier import HistoryTurn, ScopeClassifier
 from sparkth.plugins.chat.config import ChatSettings
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
 from sparkth.plugins.chat.conversation_title import (
@@ -316,31 +315,6 @@ async def persist_incoming_messages(
             attachment_name=msg.attachment.name if msg.attachment else None,
             attachment_size=msg.attachment.size if msg.attachment else None,
         )
-
-
-async def classify_in_scope(
-    query_text: str,
-    provider_name: str,
-    api_key: str,
-    history: list[HistoryTurn],
-    attached_document_names: list[str] | None,
-    conversation_uuid: UUID | None,
-) -> bool:
-    """Ask the LLM classifier whether the query is in scope. Empty query is always in scope.
-
-    ``conversation_uuid`` is passed on for the classifier's refusal log only — it never
-    reaches a model. It is ``None`` for the first message of a new chat, which is checked
-    before the conversation row is created.
-    """
-    if not query_text:
-        return True
-    classifier = ScopeClassifier(provider_name=provider_name, api_key=api_key)
-    return await classifier.classify(
-        query_text,
-        history=history,
-        attached_document_names=attached_document_names,
-        conversation_uuid=conversation_uuid,
-    )
 
 
 async def resolve_tools(
