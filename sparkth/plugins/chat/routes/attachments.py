@@ -1,11 +1,10 @@
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.dependencies import get_owned_conversation
@@ -54,16 +53,7 @@ async def attach_document_to_conversation(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> ConversationAttachmentResponse:
-    document = await service.get_user_owned_document(
-        session,
-        document_id=body.document_id,
-        user_id=cast(int, current_user.id),
-    )
-    if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=_("Document not found or not accessible"),
-        )
+    document = await service.require_owned_document(session, body.document_id, cast(int, current_user.id))
     attachment = await service.attach_document(
         session,
         conversation_id=cast(int, conversation.id),
@@ -88,16 +78,7 @@ async def detach_document_from_conversation(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> None:
-    document = await service.get_user_owned_document(
-        session,
-        document_id=document_id,
-        user_id=cast(int, current_user.id),
-    )
-    if not document:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=_("Document not found or not accessible"),
-        )
+    await service.require_owned_document(session, document_id, cast(int, current_user.id))
     await service.detach_document(
         session,
         conversation_id=cast(int, conversation.id),

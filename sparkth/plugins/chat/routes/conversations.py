@@ -1,13 +1,12 @@
 from typing import cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Message
@@ -80,17 +79,7 @@ async def get_conversation(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> ConversationDetailResponse:
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=cast(int, current_user.id),
-    )
-
-    if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=_("Conversation not found"),
-        )
+    conversation = await service.require_owned_conversation(session, conversation_id, cast(int, current_user.id))
 
     messages = await service.get_conversation_messages(
         session=session,
@@ -142,13 +131,7 @@ async def get_last_conversation_message(
     session: AsyncSession = Depends(get_async_session),
     service: ChatService = Depends(get_chat_service),
 ) -> MessageResponse | None:
-    conversation = await service.get_conversation_by_uuid(
-        session=session,
-        uuid=conversation_id,
-        user_id=cast(int, current_user.id),
-    )
-    if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Conversation not found"))
+    conversation = await service.require_owned_conversation(session, conversation_id, cast(int, current_user.id))
 
     msg = await service.get_last_conversation_message(
         session=session,
