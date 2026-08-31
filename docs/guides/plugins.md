@@ -108,39 +108,32 @@ behaviour.
 
 ### Adding an adapter for your plugin
 
-**1. Create the adapter class**
-
-For the default behaviour (LLM config ownership check + model override validation) a thin subclass is all you need:
-
-```python
-# sparkth/plugins/myappplugin/adapter.py
-from sparkth.llm.adapter import LLMConfigAdapter
-
-
-class MyAppPluginConfigAdapter(LLMConfigAdapter):
-    pass
-```
-
-**2. Register it in `CONFIG_ADAPTERS`**
-
-In your plugin's `__init__`, add the adapter alongside the config schema:
+For the default behaviour — LLM config ownership check plus model override validation —
+register `LLMConfigAdapter` itself in your plugin's `__init__`, alongside the config schema.
+There is no adapter class to write:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.plugins.myappplugin.adapter import MyAppPluginConfigAdapter
-from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from sparkth.lib.llm import LLMConfigAdapter
 from sparkth.lib.plugins import SparkthPlugin
+
+from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
-        CONFIG_ADAPTERS.add_item(self, MyAppPluginConfigAdapter())
+        CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
 ```
 
 That's it. `preprocess_config` and `postprocess_config` are now wired in automatically for every POST and PUT to your plugin's config endpoint.
+
+Subclass only when you need to change that behaviour — see
+[Overriding adapter methods](#overriding-adapter-methods) below. A subclass that only says
+`pass` adds a file and an import without changing anything, and the base class is what the
+config pipeline calls either way.
 
 ### Overriding adapter methods
 
@@ -151,7 +144,7 @@ Override a method when the default behaviour isn't enough. Always call `super()`
 ```python
 from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sparkth.llm.adapter import LLMConfigAdapter
+from sparkth.lib.llm import LLMConfigAdapter
 
 
 class MyAppPluginConfigAdapter(LLMConfigAdapter):

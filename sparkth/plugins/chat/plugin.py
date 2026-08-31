@@ -9,10 +9,10 @@ from sparkth.lib.frontend.hooks import (
     SidebarEntry,
 )
 from sparkth.lib.i18n import gettext_noop
+from sparkth.lib.llm import LLMConfigAdapter
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
-from sparkth.plugins.chat.adapter import ChatConfigAdapter
 from sparkth.plugins.chat.analytics import (
     ChatCompletionServed,
     ChatConversationStarted,
@@ -34,7 +34,7 @@ class ChatPlugin(SparkthPlugin):
         super().__init__("chat")
         register_router(self, chat_router)
         CONFIG_SCHEMAS.add_item(self, ChatUserConfig)
-        CONFIG_ADAPTERS.add_item(self, ChatConfigAdapter())
+        CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
         DISPLAY_INFO.add_item(
             self,
             DisplayInfo(
