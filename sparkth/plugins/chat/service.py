@@ -35,6 +35,7 @@ class ChatService:
     async def create_conversation(
         self,
         session: AsyncSession,
+        *,
         user_id: int,
         llm_config_id: int | None,
         provider: str,
@@ -59,17 +60,23 @@ class ChatService:
     async def get_or_create_conversation(
         self,
         session: AsyncSession,
+        *,
         conversation_uuid: UUID | None,
         user_id: int,
         llm_config_id: int | None,
         provider: str,
         model: str,
         title: str | None = None,
-    ) -> Conversation:
+    ) -> tuple[Conversation, bool]:
         """Resolve the conversation a request names, or start one when it names none.
 
         ``title`` is used only when starting one. Ownership is part of resolving: a uuid that
         belongs to another user is as absent as one that does not exist.
+
+        Returns:
+            The conversation, and whether this call started it. Callers that do first-turn work —
+            scheduling title generation, say — read the flag rather than re-deriving the rule from
+            the uuid, which would put the same decision in two places.
 
         Raises:
             ConversationNotFound: the uuid does not resolve to a conversation this user owns.
@@ -77,13 +84,21 @@ class ChatService:
                 client meant to continue.
         """
         if conversation_uuid is None:
-            return await self.create_conversation(session, user_id, llm_config_id, provider, model, title)
+            conversation = await self.create_conversation(
+                session,
+                user_id=user_id,
+                llm_config_id=llm_config_id,
+                provider=provider,
+                model=model,
+                title=title,
+            )
+            return conversation, True
 
-        conversation = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
-        if conversation is None:
+        existing = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
+        if existing is None:
             logger.warning("Conversation %s not found for user %s", conversation_uuid, user_id)
             raise ConversationNotFound(_("Conversation not found"))
-        return conversation
+        return existing, False
 
     async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
         statement = select(Conversation).where(

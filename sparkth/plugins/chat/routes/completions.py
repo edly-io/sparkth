@@ -124,26 +124,26 @@ async def chat_completion(
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
-    conversation = await service.get_or_create_conversation(
+    conversation, conversation_was_created = await service.get_or_create_conversation(
         session,
-        conversation_uuid,
-        user_id,
-        request.llm_config_id,
-        provider_name,
-        model,
-        extract_title_from_messages(request.messages, max_length=config.title_max_length),
+        conversation_uuid=conversation_uuid,
+        user_id=user_id,
+        llm_config_id=request.llm_config_id,
+        provider=provider_name,
+        model=model,
+        title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
     )
-    if conversation_uuid is None:
+    if conversation_was_created:
         schedule_title_generation(
             background_tasks,
             service,
-            cast(int, conversation.id),
-            user_id,
-            request.messages,
-            provider_name,
-            api_key,
-            model,
-            config,
+            conversation_id=cast(int, conversation.id),
+            user_id=user_id,
+            messages=request.messages,
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            config=config,
         )
 
     if request.document_ids:

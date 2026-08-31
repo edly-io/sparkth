@@ -63,23 +63,36 @@ class TestResolvingTheConversation:
     ) -> None:
         existing = await _seed_conversation(session, current_user.id or 1)
 
-        resolved = await ChatService().get_or_create_conversation(
-            session, existing.uuid, current_user.id or 1, None, "openai", "gpt-4o"
+        resolved, created = await ChatService().get_or_create_conversation(
+            session,
+            conversation_uuid=existing.uuid,
+            user_id=current_user.id or 1,
+            llm_config_id=None,
+            provider="openai",
+            model="gpt-4o",
         )
 
         assert resolved.id == existing.id
+        assert created is False
 
     @pytest.mark.asyncio
     async def test_no_uuid_starts_a_new_conversation_with_the_given_title(
         self, session: AsyncSession, current_user: User
     ) -> None:
-        created = await ChatService().get_or_create_conversation(
-            session, None, current_user.id or 1, 4, "anthropic", "claude-sonnet-4-5", "Data privacy"
+        conversation, created = await ChatService().get_or_create_conversation(
+            session,
+            conversation_uuid=None,
+            user_id=current_user.id or 1,
+            llm_config_id=4,
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            title="Data privacy",
         )
 
-        assert created.id is not None
-        assert created.title == "Data privacy"
-        assert created.llm_config_id == 4
+        assert conversation.id is not None
+        assert conversation.title == "Data privacy"
+        assert conversation.llm_config_id == 4
+        assert created is True
 
     @pytest.mark.asyncio
     async def test_an_unknown_uuid_raises_rather_than_starting_one(
@@ -88,7 +101,12 @@ class TestResolvingTheConversation:
         """Silently starting a fresh conversation would strand the one the client meant."""
         with pytest.raises(ConversationNotFound):
             await ChatService().get_or_create_conversation(
-                session, uuid4(), current_user.id or 1, None, "openai", "gpt-4o"
+                session,
+                conversation_uuid=uuid4(),
+                user_id=current_user.id or 1,
+                llm_config_id=None,
+                provider="openai",
+                model="gpt-4o",
             )
 
     @pytest.mark.asyncio
@@ -98,7 +116,12 @@ class TestResolvingTheConversation:
 
         with pytest.raises(ConversationNotFound):
             await ChatService().get_or_create_conversation(
-                session, someone_else.uuid, current_user.id or 1, None, "openai", "gpt-4o"
+                session,
+                conversation_uuid=someone_else.uuid,
+                user_id=current_user.id or 1,
+                llm_config_id=None,
+                provider="openai",
+                model="gpt-4o",
             )
 
 

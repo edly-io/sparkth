@@ -235,7 +235,7 @@ class TestNoStoredPreferenceReachesThePrompt:
 
 
 class TestTitleSchedulingCarriesNoLanguage:
-    """get_or_create_conversation forwards kwargs into background_tasks.add_task, which
+    """schedule_title_generation forwards kwargs into background_tasks.add_task, which
     is typed as a bare Callable — mypy cannot check them against the task's signature,
     so a stale `language=` kwarg would only surface at runtime, inside a background task
     whose exceptions are swallowed and logged. This test is the only guard."""

@@ -80,6 +80,7 @@ async def generate_conversation_title(
 def schedule_title_generation(
     background_tasks: BackgroundTasks,
     service: ChatService,
+    *,
     conversation_id: int,
     user_id: int,
     messages: list[ChatMessage],
