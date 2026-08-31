@@ -2,10 +2,9 @@
 
 Two paths emit it and they are not symmetric. The model is handed the English source and
 told by the system prompt to send it in the language of the conversation. On the
-deterministic paths — the keyword pre-filter and classifier refusals streamed or persisted
-straight from Python — the backend writes the refusal sentence itself rather than a model
-generating it, so it renders under the request locale (``gettext``) rather than the
-conversation's language.
+deterministic path — a classifier refusal streamed or persisted straight from Python — the
+backend writes the refusal sentence itself rather than a model generating it, so it renders
+under the request locale (``gettext``) rather than the conversation's language.
 
 The shipped catalogs are detached for the test session, so the Spanish assertion injects its
 own single-message catalog rather than reading sparkth/locale/es. One class steps outside the
@@ -210,7 +209,10 @@ class TestRefusalAtTheNonStreamingRenderSites:
 
         with (
             locale_context("es"),
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=False),
+            patch(
+                "sparkth.plugins.chat.routes.utils.ScopeClassifier",
+                return_value=MagicMock(classify=AsyncMock(return_value=False)),
+            ),
         ):
             response = await client.post(
                 "/api/v1/chat/completions",
@@ -257,7 +259,10 @@ class TestRefusalAtTheNonStreamingRenderSites:
         with (
             locale_context("es"),
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
-            patch("sparkth.plugins.chat.routes.utils.is_query_in_scope", return_value=False),
+            patch(
+                "sparkth.plugins.chat.routes.utils.ScopeClassifier",
+                return_value=MagicMock(classify=AsyncMock(return_value=False)),
+            ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.get_conversation_messages",
                 new_callable=AsyncMock,
