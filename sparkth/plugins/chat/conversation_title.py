@@ -4,28 +4,11 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
+from sparkth.plugins.chat.messages import get_first_user_text
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
 
 logger = get_logger(__name__)
-
-
-def get_first_user_text(messages: list[ChatMessage]) -> str | None:
-    """Return the raw text of the first user message (no truncation)."""
-    for msg in messages:
-        if msg.role != "user":
-            continue
-        if isinstance(msg.content, str):
-            text = msg.content.strip()
-        else:
-            text = " ".join(
-                block.get("text", "")
-                for block in msg.content
-                if isinstance(block, dict) and block.get("type") == "text"
-            ).strip()
-        if text:
-            return text
-    return None
 
 
 def extract_title_from_messages(messages: list[ChatMessage], max_length: int) -> str | None:
