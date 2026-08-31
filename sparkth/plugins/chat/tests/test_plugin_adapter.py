@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from sparkth.core.plugins.service import PluginService
+from sparkth.lib.plugins import PluginService
 
 
 def _session_finding_nothing() -> AsyncMock:
