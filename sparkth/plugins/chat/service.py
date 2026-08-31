@@ -2,21 +2,40 @@ import json
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
+from sparkth.plugins.chat.exceptions import ConversationNotFound
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
+from sparkth.plugins.chat.schemas import ChatMessage
 
 logger = get_logger(__name__)
+
+
+def _stored_content(message: ChatMessage) -> str:
+    """Flatten a message's content into the single string a transcript row holds.
+
+    A turn can arrive as content blocks — text alongside an uploaded document — and only the
+    text is worth storing. A turn carrying no text at all still needs a body, or it would read
+    as an empty message in the sidebar.
+    """
+    if not isinstance(message.content, list):
+        return message.content
+    text_parts = [
+        block.get("text", "") for block in message.content if isinstance(block, dict) and block.get("type") == "text"
+    ]
+    return " ".join(text_parts) if text_parts else "[Document attachment]"
 
 
 class ChatService:
     async def create_conversation(
         self,
         session: AsyncSession,
+        *,
         user_id: int,
         llm_config_id: int | None,
         provider: str,
@@ -37,6 +56,49 @@ class ChatService:
 
         logger.info("Created conversation %s for user %s", conversation.id, user_id)
         return conversation
+
+    async def get_or_create_conversation(
+        self,
+        session: AsyncSession,
+        *,
+        conversation_uuid: UUID | None,
+        user_id: int,
+        llm_config_id: int | None,
+        provider: str,
+        model: str,
+        title: str | None = None,
+    ) -> tuple[Conversation, bool]:
+        """Resolve the conversation a request names, or start one when it names none.
+
+        ``title`` is used only when starting one. Ownership is part of resolving: a uuid that
+        belongs to another user is as absent as one that does not exist.
+
+        Returns:
+            The conversation, and whether this call started it. Callers that do first-turn work —
+            scheduling title generation, say — read the flag rather than re-deriving the rule from
+            the uuid, which would put the same decision in two places.
+
+        Raises:
+            ConversationNotFound: the uuid does not resolve to a conversation this user owns.
+                Never resolved by starting a fresh one, which would strand the conversation the
+                client meant to continue.
+        """
+        if conversation_uuid is None:
+            conversation = await self.create_conversation(
+                session,
+                user_id=user_id,
+                llm_config_id=llm_config_id,
+                provider=provider,
+                model=model,
+                title=title,
+            )
+            return conversation, True
+
+        existing = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
+        if existing is None:
+            logger.warning("Conversation %s not found for user %s", conversation_uuid, user_id)
+            raise ConversationNotFound(_("Conversation not found"))
+        return existing, False
 
     async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
         statement = select(Conversation).where(
@@ -267,6 +329,79 @@ class ChatService:
         )
         result = await session.exec(stmt)
         return result.first()
+
+    async def attach_owned_documents(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        document_ids: list[int],
+        user_id: int,
+    ) -> None:
+        """Attach the documents the user owns, skipping and logging the ids they do not.
+
+        A request names ids, so it can name one belonging to someone else. Skipping keeps the
+        rest of a legitimate request working; a bulk lookup keeps it to one query.
+        """
+        owned_result = await session.exec(
+            select(Document.id).where(
+                col(Document.id).in_(document_ids),
+                Document.user_id == user_id,
+                Document.is_deleted == False,  # noqa: E712
+            )
+        )
+        owned_ids = {document_id for document_id in owned_result.all() if document_id is not None}
+        skipped = set(document_ids) - owned_ids
+        if skipped:
+            logger.warning("Skipped %d unowned/deleted document IDs for user %s: %s", len(skipped), user_id, skipped)
+        for document_id in owned_ids:
+            await self.attach_document(session, conversation_id, document_id)
+
+    async def add_incoming_messages(
+        self,
+        session: AsyncSession,
+        conversation_id: int,
+        messages: list[ChatMessage],
+    ) -> None:
+        """Store the turns a request carries, so reopening the conversation shows them."""
+        for message in messages:
+            await self.add_message(
+                session=session,
+                conversation_id=conversation_id,
+                role=message.role,
+                content=_stored_content(message),
+                message_type="attachment" if message.attachment else "text",
+                attachment_name=message.attachment.name if message.attachment else None,
+                attachment_size=message.attachment.size if message.attachment else None,
+            )
+
+    async def record_error_message(
+        self,
+        session: AsyncSession,
+        conversation_uuid: UUID | None,
+        user_id: int,
+        message: str,
+    ) -> None:
+        """Store an assistant error against an existing conversation, so a reload still shows it.
+
+        Does nothing without a conversation: the failure can predate one, and creating a
+        conversation to hold an error would leave the user a thread containing only that error.
+        A database failure here is swallowed — an error is already on its way to the user, and
+        raising would replace it with a less useful one.
+        """
+        if conversation_uuid is None:
+            return
+        try:
+            conversation = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
+            if conversation and conversation.id is not None:
+                await self.add_message(
+                    session=session,
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=message,
+                    is_error=True,
+                )
+        except SQLAlchemyError:
+            logger.exception("Failed to record error message for conversation %s", conversation_uuid)
 
     async def list_conversation_attachments(
         self,

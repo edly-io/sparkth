@@ -22,15 +22,12 @@ from sparkth.lib.models import User
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS
+from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
 from sparkth.plugins.chat.routes.utils import (
-    attach_request_documents,
     extract_query_text,
-    get_or_create_conversation,
-    persist_incoming_messages,
-    persist_pre_stream_error,
     resolve_document_blocks,
     resolve_tools,
     stream_out_of_scope_refusal,
@@ -82,12 +79,12 @@ async def chat_completion(
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for user %s: %s", request.llm_config_id, current_user.id, exc)
         detail = _("No AI Key found for the current user. Please configure an AI key in your chat plugin settings.")
-        await persist_pre_stream_error(session, service, request, user_id, detail)
+        await service.record_error_message(session, request.conversation_id, user_id, detail)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail) from exc
     except LLMConfigModelNotSetError as exc:
         logger.warning("LLMConfig %s has no model set: %s", request.llm_config_id, exc)
         detail = _("The selected AI key has no model configured. Go to AI Keys to set a model before chatting.")
-        await persist_pre_stream_error(session, service, request, user_id, detail)
+        await service.record_error_message(session, request.conversation_id, user_id, detail)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail) from exc
     except LLMConfigInactiveError as exc:
         logger.warning("LLMConfig %s is inactive for user %s: %s", request.llm_config_id, current_user.id, exc)
@@ -95,7 +92,7 @@ async def chat_completion(
             "The selected AI key is deactivated. Go to AI Keys to reactivate it, "
             "or choose a different one in chat settings."
         )
-        await persist_pre_stream_error(session, service, request, user_id, detail)
+        await service.record_error_message(session, request.conversation_id, user_id, detail)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
 
     provider_name = llm_config.provider
@@ -127,29 +124,31 @@ async def chat_completion(
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
-    conversation = await get_or_create_conversation(
-        session=session,
-        service=service,
+    conversation, conversation_was_created = await service.get_or_create_conversation(
+        session,
         conversation_uuid=conversation_uuid,
         user_id=user_id,
-        messages=request.messages,
         llm_config_id=request.llm_config_id,
-        provider_name=provider_name,
-        api_key=api_key,
+        provider=provider_name,
         model=model,
-        config=config,
-        background_tasks=background_tasks,
+        title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
     )
+    if conversation_was_created:
+        schedule_title_generation(
+            background_tasks,
+            service,
+            conversation_id=cast(int, conversation.id),
+            user_id=user_id,
+            messages=request.messages,
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            config=config,
+        )
 
     if request.document_ids:
-        await attach_request_documents(
-            session,
-            service,
-            request.document_ids,
-            user_id,
-            cast(int, conversation.id),
-        )
-    await persist_incoming_messages(session, service, request.messages, cast(int, conversation.id))
+        await service.attach_owned_documents(session, cast(int, conversation.id), request.document_ids, user_id)
+    await service.add_incoming_messages(session, cast(int, conversation.id), request.messages)
 
     db_messages = await service.get_conversation_messages(
         session=session,

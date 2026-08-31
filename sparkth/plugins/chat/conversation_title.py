@@ -1,7 +1,9 @@
+from fastapi import BackgroundTasks
+
 from sparkth.lib.db import session_scope
-from sparkth.lib.llm import BaseChatProvider
+from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.log import get_logger
-from sparkth.plugins.chat.config import get_chat_settings
+from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
 
@@ -73,3 +75,39 @@ async def generate_conversation_title(
             logger.info("Generated title for conversation %d: %r", conversation_id, title)
     except (KeyError, ValueError, RuntimeError, OSError) as e:
         logger.warning("Title generation failed for conversation %d: %s", conversation_id, e)
+
+
+def schedule_title_generation(
+    background_tasks: BackgroundTasks,
+    service: ChatService,
+    *,
+    conversation_id: int,
+    user_id: int,
+    messages: list[ChatMessage],
+    provider_name: str,
+    api_key: str,
+    model: str,
+    config: ChatSettings,
+) -> None:
+    """Queue LLM title generation for a conversation that has just been created.
+
+    Skipped when the request carries no user text: there would be nothing to title from, and the
+    provisional title already covers that case.
+    """
+    first_user_text = get_first_user_text(messages)
+    if not first_user_text:
+        return
+    background_tasks.add_task(
+        generate_conversation_title,
+        conversation_id=conversation_id,
+        user_id=user_id,
+        first_user_message=first_user_text,
+        service=service,
+        provider=get_provider(
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            temperature=config.title_llm_temperature,
+            max_tool_executions=0,
+        ),
+    )

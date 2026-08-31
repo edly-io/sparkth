@@ -1,5 +1,8 @@
+from fastapi import status
+
 from sparkth.lib.analytics import register_event_schema
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
     DISPLAY_INFO,
     FRONTEND_APPS,
@@ -20,6 +23,7 @@ from sparkth.plugins.chat.analytics import (
     ChatToolInvoked,
 )
 from sparkth.plugins.chat.config import ChatUserConfig
+from sparkth.plugins.chat.exceptions import ConversationNotFound
 from sparkth.plugins.chat.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
     Conversation,
     Message,
@@ -27,6 +31,10 @@ from sparkth.plugins.chat.models import (  # noqa: F401 — registers tables in 
 from sparkth.plugins.chat.routes import chat_router
 
 logger = get_logger(__name__)
+
+# Registered here rather than in ChatPlugin.__init__: a second registration of the same
+# type raises, and the plugin class is instantiated more than once across a test session.
+register_exception_handler(ConversationNotFound, status.HTTP_404_NOT_FOUND)
 
 
 class ChatPlugin(SparkthPlugin):
