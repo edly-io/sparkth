@@ -142,7 +142,7 @@ async def chat_completion(
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
     query_text = get_last_user_text(request.messages)
-    scope_classifier = MessageScopeClassifier(provider_name, api_key)
+    scope_classifier = MessageScopeClassifier(provider_name, api_key, user_id)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -233,7 +233,7 @@ async def chat_completion(
         # Only asked when there is something to search and something to search for.
         rag_search_required = False
         if attached_documents and query_text:
-            search_classifier = RAGSearchClassifier(provider_name, api_key)
+            search_classifier = RAGSearchClassifier(provider_name, api_key, user_id)
             rag_search_required = await search_classifier.requires_search(
                 query_text, attached_documents, conversation.uuid
             )
