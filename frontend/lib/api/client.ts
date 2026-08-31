@@ -1,7 +1,7 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./generated";
 import { rethrowOrWrapConnectionError } from "./errors";
-import { authMiddleware, errorMiddleware } from "./middleware";
+import { authMiddleware, errorMiddleware, localeMiddleware } from "./middleware";
 
 // Use the current origin in browsers (same-origin); fall back to localhost for
 // SSR and test environments where relative URLs are not resolvable. See #403.
@@ -12,7 +12,7 @@ const baseUrl = typeof window !== "undefined" ? window.location.origin : "http:/
 const fetchDelegate: typeof fetch = (...args) => globalThis.fetch(...args);
 
 export const api = createClient<paths>({ baseUrl, fetch: fetchDelegate });
-api.use(authMiddleware, errorMiddleware);
+api.use(authMiddleware, localeMiddleware, errorMiddleware);
 
 export type Schema<K extends keyof components["schemas"]> = components["schemas"][K];
 

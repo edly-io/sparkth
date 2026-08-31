@@ -1,6 +1,7 @@
 "use client";
 
 import { Dispatch, SetStateAction } from "react";
+import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
@@ -23,6 +24,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ attachments, setAttachments, onSend, conversationId }: ChatInputProps) {
+  const t = useTranslations("chat");
   const { token } = useAuth();
 
   const {
@@ -69,7 +71,7 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
                 handleSend();
               }
             }}
-            placeholder="Describe the course you want to create..."
+            placeholder={t("inputPlaceholder")}
             rows={1}
             className="w-full bg-transparent resize-none focus:outline-none"
           />
