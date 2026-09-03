@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -35,3 +35,41 @@ async def user_plugins(current_user: User, session: AsyncSession) -> User:
     await session.flush()
 
     return current_user
+
+
+# A plugin config schema in the shape Pydantic's ``model_json_schema()`` emits, so the
+# responses exercise the same key extraction as a real plugin (see
+# ``PluginService.initial_config``).
+SCHEMA_PLUGIN_CONFIG_SCHEMA: dict[str, Any] = {
+    "title": "SchemaPluginConfig",
+    "type": "object",
+    "properties": {
+        "api_url": {"title": "Api Url", "type": "string"},
+        "api_key": {"title": "Api Key", "type": "string"},
+    },
+    "required": ["api_url", "api_key"],
+}
+
+
+@pytest.fixture
+async def schema_plugin(session: AsyncSession) -> Plugin:
+    """A plugin declaring a two-field config schema."""
+    plugin = Plugin(name="schema_plugin", is_core=True, enabled=True, config_schema=SCHEMA_PLUGIN_CONFIG_SCHEMA)
+    session.add(plugin)
+    await session.flush()
+    return plugin
+
+
+async def add_user_plugin(
+    session: AsyncSession, user: User, plugin: Plugin, config: dict[str, Any], enabled: bool = True
+) -> UserPlugin:
+    """Attach ``plugin`` to ``user`` with the given stored config."""
+    user_plugin = UserPlugin(
+        user_id=cast(int, user.id),
+        plugin_id=cast(int, plugin.id),
+        enabled=enabled,
+        config=config,
+    )
+    session.add(user_plugin)
+    await session.flush()
+    return user_plugin

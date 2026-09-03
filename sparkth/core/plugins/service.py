@@ -115,6 +115,17 @@ class PluginService:
         return {key: None for key in schema["properties"].keys()}
 
     @staticmethod
+    def config_with_schema_keys(schema: dict[str, Any], config: dict[str, Any] | None) -> dict[str, Any]:
+        """
+        Stored config, with every schema key it lacks present as None.
+
+        The settings UI renders one field per key it receives, so a plugin whose config
+        was never saved -- an empty dict, as created by enabling it -- must still report
+        its declared fields.
+        """
+        return {**PluginService.initial_config(schema), **(config or {})}
+
+    @staticmethod
     def validate_user_config(plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:
         """
         Validate and normalize user configuration against plugin's Pydantic config model.
