@@ -24,7 +24,7 @@ services:
       SERVE_FRONTEND: "true"
     ports:
       # With a reverse proxy on the same host, set SPARKTH_HTTP_BIND=127.0.0.1.
-      - "${SPARKTH_HTTP_BIND:-0.0.0.0}:${SPARKTH_HTTP_PORT:-7727}:8000"
+      - "${SPARKTH_HTTP_BIND:-0.0.0.0}:${SPARKTH_HTTP_PORT:-7727}:7727"
     # Give in-flight requests (e.g. streamed LLM responses) time to finish.
     stop_grace_period: 30s
     depends_on:
