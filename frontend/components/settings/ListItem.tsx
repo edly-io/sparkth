@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, ComponentType } from "react";
+import { useState } from "react";
 import { Sliders } from "lucide-react";
-import { displayNameOf, getPlugin, UserPluginState } from "@/lib/plugins";
+import { displayNameOf, UserPluginState } from "@/lib/plugins";
 import { PluginConfigModal } from "./ConfigModal";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
@@ -12,15 +12,7 @@ interface PluginListItemProps {
   isLast: boolean;
   onEnable: () => Promise<void>;
   onDisable: () => Promise<void>;
-  onConfigChange: (config: Record<string, string>) => Promise<void>;
-  onRefresh: () => void;
-}
-
-interface SettingsComponentProps {
-  plugin: UserPluginState;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (config: Record<string, string>) => Promise<void>;
+  onConfigChange: (config: Record<string, unknown>) => Promise<void>;
   onRefresh: () => void;
 }
 
@@ -35,21 +27,6 @@ export default function PluginListItem({
   const [isToggling, setIsToggling] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
-  const pluginDef = getPlugin(plugin.plugin_name);
-
-  const [CustomSettings, setCustomSettings] =
-    useState<ComponentType<SettingsComponentProps> | null>(null);
-
-  useEffect(() => {
-    if (pluginDef?.loadSettingsComponent) {
-      pluginDef
-        .loadSettingsComponent()
-        .then((mod) =>
-          setCustomSettings(() => mod.default as unknown as ComponentType<SettingsComponentProps>),
-        )
-        .catch(() => setCustomSettings(null));
-    }
-  }, [pluginDef]);
 
   const handleToggle = async () => {
     try {
@@ -109,23 +86,13 @@ export default function PluginListItem({
         </div>
       </div>
 
-      {CustomSettings ? (
-        <CustomSettings
-          plugin={plugin}
-          open={showConfigModal}
-          onOpenChange={setShowConfigModal}
-          onSave={onConfigChange}
-          onRefresh={onRefresh}
-        />
-      ) : (
-        <PluginConfigModal
-          plugin={plugin}
-          open={showConfigModal}
-          onOpenChange={setShowConfigModal}
-          onSave={onConfigChange}
-          onRefresh={onRefresh}
-        />
-      )}
+      <PluginConfigModal
+        plugin={plugin}
+        open={showConfigModal}
+        onOpenChange={setShowConfigModal}
+        onSave={onConfigChange}
+        onRefresh={onRefresh}
+      />
     </>
   );
 }

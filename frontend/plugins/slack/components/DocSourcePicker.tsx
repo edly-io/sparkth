@@ -12,12 +12,15 @@ interface DocSourcePickerProps {
   value: string[];
   onChange: (next: string[]) => void;
   disabled?: boolean;
+  /** Heading for the group; defaults to the field's own name in the Slack config. */
+  label?: string;
 }
 
 export default function DocSourcePicker({
   value,
   onChange,
   disabled = false,
+  label = "Allowed sources",
 }: DocSourcePickerProps) {
   const { token } = useAuth();
   const [sources, setSources] = useState<string[]>([]);
@@ -64,7 +67,7 @@ export default function DocSourcePicker({
   if (loading) {
     return (
       <div className="w-full">
-        <div className="block text-sm font-medium text-foreground mb-1.5">Allowed sources</div>
+        <div className="block text-sm font-medium text-foreground mb-1.5">{label}</div>
         <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
           <Spinner size="sm" />
           Loading sources…
@@ -76,7 +79,7 @@ export default function DocSourcePicker({
   if (error) {
     return (
       <div className="w-full">
-        <div className="block text-sm font-medium text-foreground mb-1.5">Allowed sources</div>
+        <div className="block text-sm font-medium text-foreground mb-1.5">{label}</div>
         <Alert severity="error" className="mb-2">
           <div className="flex items-center justify-between gap-3">
             <span>{error}</span>
@@ -93,7 +96,7 @@ export default function DocSourcePicker({
   if (sources.length === 0) {
     return (
       <div className="w-full">
-        <div className="block text-sm font-medium text-foreground mb-1.5">Allowed sources</div>
+        <div className="block text-sm font-medium text-foreground mb-1.5">{label}</div>
         <Alert severity="info">
           No RAG sources yet. Import documents from Resources to restrict what this bot can answer
           from.
@@ -106,7 +109,7 @@ export default function DocSourcePicker({
     <div className="w-full" role="group" aria-labelledby="doc-source-picker-label">
       <div className="flex items-center justify-between mb-1.5">
         <div id="doc-source-picker-label" className="block text-sm font-medium text-foreground">
-          Allowed sources
+          {label}
         </div>
         <div className="flex items-center gap-3 text-xs">
           <button

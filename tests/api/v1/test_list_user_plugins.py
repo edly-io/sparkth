@@ -19,7 +19,7 @@ from sparkth.lib.frontend.hooks import (
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.testing import AddTranslation
 
-from .conftest import add_user_plugin
+from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
 
 
 def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_core: bool) -> dict[str, object]:
@@ -29,6 +29,7 @@ def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_co
         "enabled": enabled,
         "config": config,
         "is_core": is_core,
+        "config_schema": {},
         "display": None,
         "sidebar": None,
         "has_frontend": False,
@@ -151,3 +152,28 @@ async def test_list_user_plugins_fills_schema_keys_missing_from_config(
 
     entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
     assert entry["config"] == {"api_url": "https://lms.example.com", "api_key": None}
+
+
+async def test_list_user_plugins_carries_the_declared_config_schema(
+    client: AsyncClient, current_user: User, schema_plugin: Plugin
+) -> None:
+    """The settings form is rendered from the schema, so the API must ship it.
+
+    Without it the frontend knows key names only -- no types, labels, defaults or
+    widgets -- and can render nothing but untyped text inputs.
+    """
+    response = await client.get("/api/v1/user-plugins/")
+    assert response.status_code == 200
+
+    entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
+    assert entry["config_schema"] == SCHEMA_PLUGIN_CONFIG_SCHEMA
+
+
+async def test_list_user_plugins_reports_an_empty_schema_for_a_plugin_without_one(
+    client: AsyncClient, user_plugins: User
+) -> None:
+    response = await client.get("/api/v1/user-plugins/")
+    assert response.status_code == 200
+
+    entry = next(item for item in response.json() if item["plugin_name"] == "plugin_a")
+    assert entry["config_schema"] == {}

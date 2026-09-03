@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Save } from "lucide-react";
-import { stringConfigOf, UserPluginState } from "@/lib/plugins";
-import { PluginConfigField } from "./ConfigField";
-import { isUrlKey, isValidUrl } from "./utils";
+
+import { displayNameOf, type UserPluginState } from "@/lib/plugins";
+import {
+  configFieldsOf,
+  initialValuesOf,
+  payloadOf,
+  validateField,
+  validateFields,
+} from "@/lib/plugins/schema";
+import { getConfigWidget } from "./widgets";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import {
@@ -19,10 +26,16 @@ interface PluginConfigModalProps {
   plugin: UserPluginState;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (config: Record<string, string>) => Promise<void>;
+  onSave: (config: Record<string, unknown>) => Promise<void>;
   onRefresh: () => void;
 }
 
+/**
+ * The settings form for any plugin, built from the config schema it declared.
+ *
+ * Every field, its control, its validation and the types it saves come from the
+ * backend's `config_schema`, so a plugin needs no frontend code to be configurable.
+ */
 export function PluginConfigModal({
   plugin,
   open,
@@ -30,35 +43,45 @@ export function PluginConfigModal({
   onSave,
   onRefresh,
 }: PluginConfigModalProps) {
-  const [configValues, setConfigValues] = useState<Record<string, string>>(
-    stringConfigOf(plugin.config),
+  const fields = useMemo(() => configFieldsOf(plugin.config_schema), [plugin.config_schema]);
+
+  const [values, setValues] = useState<Record<string, unknown>>(() =>
+    initialValuesOf(fields, plugin.config),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const hasErrors = useMemo(() => {
-    const emptyField = Object.values(configValues).some((v) => !v);
-    const validationError = Object.values(errors).some(Boolean);
-    return emptyField || validationError;
-  }, [configValues, errors]);
+  // Reopening shows what is stored, not what was typed and abandoned last time.
+  useEffect(() => {
+    if (!open) return;
+    setValues(initialValuesOf(fields, plugin.config));
+    setErrors({});
+    setSubmitError(null);
+  }, [open, fields, plugin.config]);
 
-  const handleConfigChange = useCallback((key: string, value: string) => {
-    setConfigValues((prev) => ({ ...prev, [key]: value }));
+  const handleChange = useCallback(
+    (name: string, value: unknown) => {
+      setValues((previous) => ({ ...previous, [name]: value }));
 
-    if (!isUrlKey(key)) return;
-
-    setErrors((prev) => ({
-      ...prev,
-      [key]: isValidUrl(value) ? "" : "Input should be a valid URL",
-    }));
-  }, []);
+      const field = fields.find((candidate) => candidate.name === name);
+      if (!field) return;
+      setErrors((previous) => ({ ...previous, [name]: validateField(field, value) ?? "" }));
+    },
+    [fields],
+  );
 
   const handleSave = async () => {
+    const nextErrors = validateFields(fields, values);
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
     try {
       setIsSaving(true);
       setSubmitError(null);
-      await onSave(configValues);
+      await onSave(payloadOf(fields, values));
       onRefresh();
       onOpenChange(false);
     } catch (err) {
@@ -73,7 +96,7 @@ export function PluginConfigModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Configure {plugin.plugin_name}</DialogTitle>
+          <DialogTitle>Configure {displayNameOf(plugin)}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4">
@@ -83,18 +106,23 @@ export function PluginConfigModal({
             </div>
           )}
 
-          {Object.keys(configValues).length > 0 ? (
-            <div className="space-y-4">
-              {Object.entries(configValues).map(([key, value]) => (
-                <PluginConfigField
-                  key={key}
-                  name={key}
-                  value={value}
-                  error={errors[key]}
-                  onChange={handleConfigChange}
-                  setError={(field, msg) => setErrors((prev) => ({ ...prev, [field]: msg }))}
-                />
-              ))}
+          {fields.length > 0 ? (
+            <div className="space-y-5">
+              {fields.map((field) => {
+                const Widget = getConfigWidget(field.widget);
+                return (
+                  <Widget
+                    key={field.name}
+                    field={field}
+                    value={values[field.name]}
+                    values={values}
+                    fields={fields}
+                    error={errors[field.name] || undefined}
+                    disabled={isSaving}
+                    onChange={handleChange}
+                  />
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground italic text-center py-8">
@@ -107,12 +135,7 @@ export function PluginConfigModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || hasErrors}
-            loading={isSaving}
-            spinnerLabel="Saving"
-          >
+          <Button onClick={handleSave} disabled={isSaving} loading={isSaving} spinnerLabel="Saving">
             <Save className="w-4 h-4 mr-2" />
             Save Changes
           </Button>

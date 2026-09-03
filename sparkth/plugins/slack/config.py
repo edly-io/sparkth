@@ -5,7 +5,7 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from sparkth.lib.plugins import PluginConfig
+from sparkth.lib.plugins import ConfigWidget, PluginConfig, widget
 from sparkth.lib.settings import ENV_FILES
 
 
@@ -58,18 +58,22 @@ class SlackConfig(PluginConfig):
     fallback_message: str = Field(
         default="I couldn't find an answer in the course material. Please contact your instructor.",
         description="Message sent when no RAG match is found",
+        json_schema_extra=widget(ConfigWidget.TEXTAREA),
     )
     greeting_message: str = Field(
         default="Hello! I'm your TA Bot. How can I help you?",
         description="Message sent in response to casual greetings",
+        json_schema_extra=widget(ConfigWidget.TEXTAREA),
     )
     allowed_sources: list[str] = Field(
         default_factory=list,
         description="Document sources this bot can search. Empty list means all sources.",
+        json_schema_extra=widget(ConfigWidget.DOC_SOURCES),
     )
     llm_config_id: int | None = Field(
         default=None,
         description="ID of an LLMConfig row for answer synthesis. None disables synthesis.",
+        json_schema_extra=widget(ConfigWidget.LLM_CONFIG),
     )
     llm_temperature: float = Field(
         default=0.3,
@@ -80,6 +84,7 @@ class SlackConfig(PluginConfig):
     llm_model_override: str | None = Field(
         default=None,
         description="Override the model from the selected LLMConfig. None uses the config's model.",
+        json_schema_extra=widget(ConfigWidget.LLM_MODEL),
     )
 
 
