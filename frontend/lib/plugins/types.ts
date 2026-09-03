@@ -7,40 +7,11 @@ import type { Locale } from "@/lib/i18n/config";
 // ============================================================================
 
 /**
- * Configuration field types supported by the plugin system
- */
-export type ConfigFieldType =
-  | "text"
-  | "url"
-  | "password"
-  | "number"
-  | "boolean"
-  | "select"
-  | "textarea";
-
-/**
- * Schema definition for a single configuration field
- */
-export interface ConfigFieldSchema {
-  type: ConfigFieldType;
-  label: string;
-  description?: string;
-  required?: boolean;
-  defaultValue?: string | number | boolean;
-  placeholder?: string;
-  options?: Array<{ value: string; label: string }>;
-  validate?: (value: unknown) => string | undefined;
-}
-
-/**
- * Schema for plugin configuration
- */
-export interface ConfigSchema {
-  [key: string]: ConfigFieldSchema;
-}
-
-/**
- * Runtime configuration values
+ * A plugin's stored configuration values.
+ *
+ * The fields themselves are declared by the backend config class and reach the
+ * frontend as the JSON schema on {@link UserPluginState}; `lib/plugins/schema.ts`
+ * turns that into the settings form.
  */
 export interface PluginConfig {
   [key: string]: unknown;
@@ -86,16 +57,6 @@ export interface PluginComponentProps {
 // Plugin Definition Types
 // ============================================================================
 
-export interface SecretFieldSchema {
-  label: string;
-  placeholder?: string;
-  description?: string;
-  required?: boolean;
-  type?: "password" | "text";
-}
-
-export type SecretsSchema = Record<string, SecretFieldSchema>;
-
 /**
  * Complete plugin definition.
  *
@@ -117,14 +78,6 @@ export interface PluginDefinition {
   }>;
 
   /**
-   * Optional: Load a settings/config component for the plugin.
-   * Settings components use their own prop contract (not PluginComponentProps),
-   * so the return type is intentionally widened to ComponentType<any>.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  loadSettingsComponent?: () => Promise<{ default: ComponentType<any> }>;
-
-  /**
    * Optional: Lazy load the plugin's message catalog for a locale.
    *
    * A plugin owns its catalogs: the files live under the plugin's own
@@ -137,9 +90,6 @@ export interface PluginDefinition {
 
   /** Plugin routes */
   routes?: PluginRoute[];
-
-  /** Configuration schema for the plugin */
-  configSchema?: ConfigSchema;
 
   /**
    * Optional initialization function called when plugin is loaded

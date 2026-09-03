@@ -7,6 +7,7 @@ function state(overrides: Partial<UserPluginState> & { plugin_name: string }): U
   return {
     enabled: true,
     config: {},
+    config_schema: {},
     is_core: true,
     display: null,
     sidebar: null,

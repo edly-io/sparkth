@@ -10,11 +10,15 @@ import { fetchLLMConfigs, type LLMConfig } from "@/lib/llm";
 
 interface LLMConfigSelectProps {
   value: number | undefined;
-  onChange: (configId: number) => void;
+  /** Called with `undefined` when the selection is cleared, which `allowNone` permits. */
+  onChange: (configId: number | undefined) => void;
   onConfigSelect?: (config: LLMConfig | undefined) => void;
   disabled?: boolean;
   required?: boolean;
+  /** Offer a "None" option, for a config reference the backend accepts as null. */
+  allowNone?: boolean;
   label?: string;
+  helperText?: string;
   error?: string;
   id?: string;
 }
@@ -25,7 +29,9 @@ export function LLMConfigSelect({
   onConfigSelect,
   disabled,
   required,
+  allowNone,
   label,
+  helperText,
   error,
   id,
 }: LLMConfigSelectProps) {
@@ -76,10 +82,13 @@ export function LLMConfigSelect({
     if (!loading) onConfigSelectRef.current?.(selectedConfig);
   }, [selectedConfigId, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const options = configs.map((c) => ({
-    value: String(c.id),
-    label: c.is_active ? `${c.name} (${c.provider})` : `${c.name} (${c.provider}) — Deactivated`,
-  }));
+  const options = [
+    ...(allowNone ? [{ value: "", label: "None" }] : []),
+    ...configs.map((c) => ({
+      value: String(c.id),
+      label: c.is_active ? `${c.name} (${c.provider})` : `${c.name} (${c.provider}) — Deactivated`,
+    })),
+  ];
 
   if (!loading && !fetchError && configs.length === 0) {
     return (
@@ -109,7 +118,12 @@ export function LLMConfigSelect({
         value={value !== undefined ? String(value) : ""}
         options={options}
         onChange={(e) => {
-          if (e.target.value === "") return;
+          if (e.target.value === "") {
+            if (!allowNone) return;
+            onChange(undefined);
+            onConfigSelect?.(undefined);
+            return;
+          }
           const parsed = Number(e.target.value);
           if (!Number.isNaN(parsed)) {
             onChange(parsed);
@@ -118,6 +132,7 @@ export function LLMConfigSelect({
         }}
         disabled={disabled || loading}
         placeholder={loading ? "Loading configs…" : "Select a config"}
+        helperText={helperText}
         error={error || fetchError || undefined}
         required={required}
       />
