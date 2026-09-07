@@ -50,6 +50,27 @@ def _sign(payload: str, secret: str) -> str:
     return _b64encode(hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest())
 
 
+def _unverified_claims_hint(payload: str) -> str:
+    """A best-effort ``" (unverified activity=..., placement=...)"`` suffix for a log message.
+
+    Called only after the signature check has already failed, so ``payload`` is not proven
+    genuine — a forged token can put anything here. Never used to authenticate anything, only to
+    give an operator a diagnostic hint (e.g. spotting a shared-secret mismatch, where the token
+    is genuine and only the signature side disagrees). Returns "" if the payload cannot even be
+    decoded, or decodes to something with no activity or placement to show.
+    """
+    try:
+        claims = json.loads(_b64decode(payload))
+    except ValueError, UnicodeDecodeError:
+        return ""
+    if not isinstance(claims, dict):
+        return ""
+    activity, placement = claims.get("act"), claims.get("plc")
+    if activity is None and placement is None:
+        return ""
+    return " (unverified activity=%s, placement=%s)" % (activity, placement)
+
+
 def mint_launch_token(
     activity: str,
     placement: str,
@@ -82,6 +103,11 @@ def read_launch_token(token: str) -> LaunchClaims:
     this suite can observe timing, so that property is carried by this implementation and this
     docstring alone — not by a test.
 
+    A bad signature is logged at ``warning`` level with a best-effort, explicitly unverified
+    activity/placement hint (see ``_unverified_claims_hint``) — the most likely production cause
+    is a shared-secret mismatch between Sparkth and the XBlock, which otherwise leaves an
+    operator with nothing but learner-reported 401s.
+
     Raises:
         PxcInvalidLaunchToken: if no secret is configured, or the token is malformed, wrongly
             signed, or expired.
@@ -97,6 +123,7 @@ def read_launch_token(token: str) -> LaunchClaims:
     # Compare as bytes: str.encode() cannot fail, but hmac.compare_digest raises TypeError on a
     # str containing non-ASCII characters, and the signature is attacker-controlled.
     if not hmac.compare_digest(signature.encode(), _sign(payload, PXC_LAUNCH_SECRET).encode()):
+        logger.warning("Bad launch token signature%s", _unverified_claims_hint(payload))
         raise PxcInvalidLaunchToken("Bad launch token signature")
 
     try:

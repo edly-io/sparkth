@@ -1,3 +1,4 @@
+import logging
 import time
 
 import pytest
@@ -28,6 +29,41 @@ def test_a_token_signed_with_another_secret_is_refused(monkeypatch: pytest.Monke
 
     with pytest.raises(PxcInvalidLaunchToken, match="signature"):
         read_launch_token(mint_launch_token(*CLAIMS, "a-different-secret", 300))
+
+
+def test_a_signature_mismatch_is_logged_with_the_claimed_activity_and_placement(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A secret mismatch between Sparkth and the XBlock — the most likely production failure per
+    # xblock/README.md — produces a genuine token signed with the wrong secret. Before this,
+    # read_launch_token logged only the unconfigured-secret case, so an operator saw learners
+    # failing with 401s and had no server-side trace of why.
+    monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
+    token = mint_launch_token(*CLAIMS, "a-different-secret", 300)
+
+    with caplog.at_level(logging.WARNING, logger="sparkth.plugins.pxc.tokens"):
+        with pytest.raises(PxcInvalidLaunchToken, match="signature"):
+            read_launch_token(token)
+
+    assert "mcq" in caplog.text
+    assert "placement-1" in caplog.text
+    # Never the secret or any part of the token itself.
+    assert SECRET not in caplog.text
+    assert token not in caplog.text
+
+
+def test_a_signature_mismatch_with_an_undecodable_payload_is_still_logged(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # The claims hint is best-effort: a payload that cannot even be decoded (as opposed to one
+    # that decodes but was never genuine) must not blow up the warning it is attached to.
+    monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
+
+    with caplog.at_level(logging.WARNING, logger="sparkth.plugins.pxc.tokens"):
+        with pytest.raises(PxcInvalidLaunchToken, match="signature"):
+            read_launch_token("not-valid-base64-json.wrong-signature")
+
+    assert "signature" in caplog.text
 
 
 def test_a_tampered_payload_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
