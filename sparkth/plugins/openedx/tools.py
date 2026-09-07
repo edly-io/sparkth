@@ -4,7 +4,8 @@ from urllib.parse import quote
 
 import aiohttp
 
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBuildError
+from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger

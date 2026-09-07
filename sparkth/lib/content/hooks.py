@@ -36,15 +36,6 @@ class ContentBlock:
     settings: dict[str, str] = field(default_factory=dict)
 
 
-class ContentBuildError(Exception):
-    """Raised by a :class:`ContentContributor`'s ``build`` when it cannot produce its block.
-
-    A publishing tool resolves the failure through its own error contract (for example,
-    Open edX's ``openedx_add_plugin_content`` returns an ``{"error": {...}}`` dict) instead of
-    letting the exception propagate as a raw, unhandled failure.
-    """
-
-
 @dataclass(frozen=True)
 class ContentContributor:
     """A named producer of one :class:`ContentBlock`.
@@ -53,7 +44,8 @@ class ContentContributor:
     a callable field rather than a method to override, mirroring ``Tool(handler)`` on the
     ``MCP_TOOLS`` hook. ``description`` is human-facing: it is what a publishing tool lists
     back to an agent choosing a contributor. ``build`` reports its own failure to produce a
-    block by raising :class:`ContentBuildError`; it must not raise anything else.
+    block by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`; it must not
+    raise anything else.
     """
 
     name: str

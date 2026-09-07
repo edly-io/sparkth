@@ -3,12 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from sparkth.lib.content.hooks import (
-    LMS_CONTENT_CONTRIBUTORS,
-    ContentBlock,
-    ContentBuildError,
-    ContentContributor,
-)
+from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBlock, ContentContributor
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import LMSRequestError
 from sparkth.plugins.openedx.schemas import AccessTokenPayload, AddPluginContentArgs
