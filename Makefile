@@ -101,11 +101,6 @@ frontend.up.dev: ## Run frontend dev server (hot reload)
 backend.build: ## Build Python package (sdist + wheel)
 	uv build
 
-.PHONY: pxc.activity.build
-pxc.activity.build: ## Build the bundled PXC sample activity's WASM sandbox
-	npm install
-	$(MAKE) -C sparkth/plugins/pxc/activity build
-
 .PHONY: backend.install
 backend.install: uv ## Install exact backend dependencies from lockfile
 	uv sync --frozen
@@ -137,6 +132,11 @@ cli: ## Run CLI tool (make cli -- users --help)
 .PHONY: mypy
 mypy: ## Run mypy type checking
 	uv run mypy --strict sparkth/ tests/ scripts/
+
+.PHONY: pxc.activity.build
+pxc.activity.build: ## Build the bundled PXC sample activity's WASM sandbox
+	npm install
+	$(MAKE) -C sparkth/plugins/pxc/activity build
 
 ##@ Internationalization
 # Static-translation workflow for the backend (see docs/guides/translations.md).
