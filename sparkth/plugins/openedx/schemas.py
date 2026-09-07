@@ -111,3 +111,15 @@ class BlockContentArgs(BaseModel):
     auth: AccessTokenPayload
     course_id: str
     locator: str
+
+
+class AddPluginContentArgs(BaseModel):
+    auth: AccessTokenPayload
+    course_id: str
+    unit_locator: str
+    contributor: str = Field(
+        description=(
+            "Name of the plugin content contributor to publish, as returned by "
+            "`openedx_list_content_contributors` — e.g. 'pxc'."
+        )
+    )

@@ -60,6 +60,13 @@ class OpenEdxPlugin(SparkthPlugin):
             ),
             ("openedx-course-tree", [openedx_tools.openedx_get_course_tree_raw]),
             ("openedx-content-store", [openedx_tools.openedx_get_block_contentstore]),
+            (
+                "openedx-content",
+                [
+                    openedx_tools.openedx_add_plugin_content,
+                    openedx_tools.openedx_list_content_contributors,
+                ],
+            ),
         ]
         for category, handlers in tools_per_category:
             MCP_TOOLS.add_items(self, [Tool(handler, category=category) for handler in handlers])
