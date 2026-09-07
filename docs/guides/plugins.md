@@ -526,6 +526,11 @@ each construction re-registers the same contributor. The helper treats an equal 
 as a no-op and raises `DuplicateContentContributorError` only when a *different* contributor
 claims a registered name, which is the collision worth failing on.
 
+If `build` cannot produce its block, it reports that by raising
+`sparkth.lib.content.exceptions.ContentBuildError` — not by returning a placeholder block or
+letting some other exception escape. A publishing tool catches it and reports the failure
+through its own error contract instead of letting it propagate unguarded.
+
 ## Complete Example
 
 ```python

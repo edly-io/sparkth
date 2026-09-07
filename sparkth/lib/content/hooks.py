@@ -33,15 +33,6 @@ class ContentBlock:
     attributes: Any = None
 
 
-class ContentBuildError(Exception):
-    """Raised by a :class:`ContentContributor`'s ``build`` when it cannot produce its block.
-
-    A publishing tool resolves the failure through its own error contract (for example,
-    Open edX's ``openedx_add_plugin_content`` returns an ``{"error": {...}}`` dict) instead of
-    letting the exception propagate as a raw, unhandled failure.
-    """
-
-
 @dataclass(frozen=True)
 class ContentContributor:
     """A named producer of one :class:`ContentBlock` per LMS it targets.
@@ -51,7 +42,7 @@ class ContentContributor:
 
     ``builders`` is keyed by the publishing plugin's own name, so its keys are the LMSes this
     contributor targets. Each is awaited with the destination course id and reports a failure
-    to build by raising :class:`ContentBuildError`.
+    to build by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
     """
 
     name: str
