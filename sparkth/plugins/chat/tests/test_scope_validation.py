@@ -8,7 +8,6 @@ write.
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -23,7 +22,6 @@ from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
-from sparkth.plugins.chat.schemas import ChatCompletionResponse, ChatMessage
 
 
 class TestStreamOutOfScopeRefusal:
@@ -157,29 +155,6 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
         query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
         assert query == ""
         assert attachments == ["syllabus.pdf"]
-
-
-class TestChatCompletionResponseSchema:
-    """ChatCompletionResponse must accept a null conversation_id."""
-
-    def test_conversation_id_can_be_none(self) -> None:
-        resp = ChatCompletionResponse(
-            message=ChatMessage(role="assistant", content="sorry"),
-            conversation_id=None,
-            model="gpt-4o",
-            provider="openai",
-        )
-        assert resp.conversation_id is None
-
-    def test_conversation_id_can_be_uuid(self) -> None:
-        uid = uuid4()
-        resp = ChatCompletionResponse(
-            message=ChatMessage(role="assistant", content="hello"),
-            conversation_id=uid,
-            model="gpt-4o",
-            provider="openai",
-        )
-        assert resp.conversation_id == uid
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────

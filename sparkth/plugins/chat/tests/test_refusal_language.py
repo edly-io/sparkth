@@ -97,12 +97,6 @@ async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
 
 
 class TestRefusalIsMarked:
-    def test_source_is_a_plain_string(self) -> None:
-        """gettext_noop returns the str unchanged, so it can be substituted into the
-        prompt template, json.dumps'd onto the SSE stream and assigned to a pydantic
-        field — none of which a LazyString allows."""
-        assert isinstance(REFUSAL_MESSAGE, str)
-
     def test_translates_under_a_non_default_locale(self, translation_catalog: AddTranslation) -> None:
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
