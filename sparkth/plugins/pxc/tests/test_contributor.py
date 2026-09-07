@@ -66,7 +66,16 @@ async def test_an_unwritable_data_dir_raises_content_build_error(
         await build_pxc_block("course-v1:X+Y+Z")
 
 
-async def test_the_openedx_tool_publishes_this_contributor(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_an_unbundled_default_activity_raises_content_build_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_DEFAULT_ACTIVITY", "not-bundled")
+
+    with pytest.raises(ContentBuildError, match="not-bundled"):
+        await build_pxc_block("course-v1:X+Y+Z")
+
+
+async def test_the_openedx_tool_publishes_this_contributor() -> None:
     from unittest.mock import AsyncMock, patch
 
     import sparkth.plugins.pxc.plugin  # noqa: F401
