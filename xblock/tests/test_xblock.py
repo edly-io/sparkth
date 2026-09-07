@@ -20,7 +20,7 @@ def test_the_iframe_points_at_sparkths_embed_route_with_a_token() -> None:
 def test_the_iframe_is_sandboxed() -> None:
     html = build_embed_iframe("https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "s", 300)
 
-    assert 'sandbox="allow-scripts allow-forms"' in html
+    assert 'sandbox="allow-scripts allow-forms allow-same-origin"' in html
 
 
 def test_a_trailing_slash_on_the_base_url_does_not_double_up() -> None:

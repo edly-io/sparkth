@@ -11,11 +11,8 @@ instead of failing a test.
 import hashlib
 import hmac
 import json
-import logging
 from base64 import urlsafe_b64encode
 from time import time
-
-logger = logging.getLogger(__name__)
 
 
 def _b64encode(data: bytes) -> str:
