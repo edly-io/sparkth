@@ -148,3 +148,17 @@ async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClien
     response = await client.post(action_url, json=[0])
 
     assert response.status_code == 200
+
+
+async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(client: AsyncClient, token: str) -> None:
+    # request.json() raises json.JSONDecodeError (a ValueError) on a body that is not valid
+    # JSON, and this is a public route any browser can reach with nothing but a valid token.
+    # Unmarked: the bad body is rejected before build_runtime ever touches the sandbox.
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit",
+        params={"token": token},
+        content=b"not-json",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422

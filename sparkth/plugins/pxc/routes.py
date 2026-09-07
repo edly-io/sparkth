@@ -11,6 +11,7 @@ loop for every other request in the process.
 """
 
 import asyncio
+from json import JSONDecodeError
 from pathlib import Path
 
 import pxc.lib
@@ -19,7 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pxc.lib.runtime import AssetAccessError
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.exceptions import PxcAssetNotFound
+from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcAssetNotFound
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
 from sparkth.plugins.pxc.schemas import ActionResult, ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import read_launch_token
@@ -119,9 +120,16 @@ async def submit_action(action_name: str, request: Request, token: str = Query()
 
     A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
     empty event list, not an error — see ``run_action``'s docstring for why.
+
+    Raises:
+        PxcActionRejected: if the body is not valid JSON.
     """
     claims = read_launch_token(token)
-    action_value = await request.json()
+    try:
+        action_value = await request.json()
+    except JSONDecodeError as err:
+        logger.warning("Malformed action body for %s of activity %s: %s", action_name, claims.activity, err)
+        raise PxcActionRejected("Request body is not valid JSON") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
     return ActionResult(events=[dict(event) for event in events])
