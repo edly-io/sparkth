@@ -28,6 +28,11 @@ def test_the_state_file_is_named_after_the_activity_type(tmp_path: Path, monkeyp
     assert state_file("mcq") == tmp_path / "mcq.sqlite3"
 
 
+def test_state_file_rejects_a_traversal_shaped_name() -> None:
+    with pytest.raises(PxcActivityNotFound, match="pwned"):
+        state_file("../../../tmp/pwned")
+
+
 def test_two_activities_sharing_a_name_are_rejected(tmp_path: Path) -> None:
     for directory in ("first", "second"):
         (tmp_path / directory).mkdir()

@@ -18,6 +18,8 @@ def index_activities(root: Path) -> dict[str, Path]:
 
     Raises:
         PxcDuplicateActivityName: if two directories declare the same name.
+        KeyError: if a manifest has no ``"name"`` key.
+        json.JSONDecodeError: if a manifest is not valid JSON.
     """
     index: dict[str, Path] = {}
     for manifest_path in sorted(root.glob("*/manifest.json")):
@@ -52,5 +54,11 @@ def activity_dir(activity_name: str) -> Path:
 
 
 def state_file(activity_name: str) -> Path:
-    """The SQLite file holding every learner's state for one activity type."""
+    """The SQLite file holding every learner's state for one activity type.
+
+    Raises:
+        PxcActivityNotFound: if no bundled activity goes by this name — also rejects a
+            path-escaping name, since it can never match an indexed activity.
+    """
+    activity_dir(activity_name)
     return PXC_DATA_DIR / f"{activity_name}.sqlite3"
