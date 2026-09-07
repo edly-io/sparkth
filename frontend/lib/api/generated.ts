@@ -881,6 +881,9 @@ export interface paths {
          *
          *     A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
          *     empty event list, not an error — see ``run_action``'s docstring for why.
+         *
+         *     Raises:
+         *         PxcActionRejected: if the body is not valid JSON.
          */
         post: operations["submit_action_api_v1_pxc_actions__action_name__post"];
         delete?: never;
