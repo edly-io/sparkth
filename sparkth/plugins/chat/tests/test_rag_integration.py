@@ -13,10 +13,10 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-from sparkth.plugins.chat.routes.utils import extract_query_text, resolve_document_blocks
+from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.chat.schemas import ChatMessage
 
-RETRIEVE_CONTEXT_PATH = "sparkth.plugins.chat.routes.utils.agentic_retrieve_context"
+RETRIEVE_CONTEXT_PATH = "sparkth.plugins.chat.routes.utils.rag_search.agentic_retrieve_context"
 
 
 def _user_msg(content: str | list[Any]) -> ChatMessage:
@@ -82,32 +82,6 @@ class TestSchemaValidation:
             content=[{"type": "document", "source": {"type": "base64", "data": data}}],
         )
         assert msg.content[0]["type"] == "document"  # type: ignore[index]
-
-
-class TestExtractQueryText:
-    def test_plain_string_message(self) -> None:
-        messages = [_user_msg("Create a course on photosynthesis")]
-        assert extract_query_text(messages) == "Create a course on photosynthesis"
-
-    def test_list_content_extracts_text_blocks(self) -> None:
-        messages = [_user_msg([_legacy_document_block(1), _text_block("Create a course on plants")])]
-        assert extract_query_text(messages) == "Create a course on plants"
-
-    def test_uses_last_user_message(self) -> None:
-        messages = [
-            _user_msg("First message"),
-            _assistant_msg("Response"),
-            _user_msg("Second message"),
-        ]
-        assert extract_query_text(messages) == "Second message"
-
-    def test_no_user_message_returns_empty(self) -> None:
-        messages = [_assistant_msg("Hello")]
-        assert extract_query_text(messages) == ""
-
-    def test_list_with_no_text_blocks_returns_empty(self) -> None:
-        messages = [_user_msg([_legacy_document_block(1)])]
-        assert extract_query_text(messages) == ""
 
 
 class TestResolveDocumentBlocks:

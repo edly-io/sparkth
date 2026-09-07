@@ -10,25 +10,11 @@ from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.exceptions import ConversationNotFound
+from sparkth.plugins.chat.messages import text_of
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
 from sparkth.plugins.chat.schemas import ChatMessage
 
 logger = get_logger(__name__)
-
-
-def _stored_content(message: ChatMessage) -> str:
-    """Flatten a message's content into the single string a transcript row holds.
-
-    A turn can arrive as content blocks — text alongside an uploaded document — and only the
-    text is worth storing. A turn carrying no text at all still needs a body, or it would read
-    as an empty message in the sidebar.
-    """
-    if not isinstance(message.content, list):
-        return message.content
-    text_parts = [
-        block.get("text", "") for block in message.content if isinstance(block, dict) and block.get("type") == "text"
-    ]
-    return " ".join(text_parts) if text_parts else "[Document attachment]"
 
 
 class ChatService:
@@ -368,7 +354,8 @@ class ChatService:
                 session=session,
                 conversation_id=conversation_id,
                 role=message.role,
-                content=_stored_content(message),
+                # A turn of attachments alone still needs a body, or the transcript shows a blank.
+                content=text_of(message) or "[Document attachment]",
                 message_type="attachment" if message.attachment else "text",
                 attachment_name=message.attachment.name if message.attachment else None,
                 attachment_size=message.attachment.size if message.attachment else None,

@@ -22,7 +22,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
-from sparkth.plugins.chat.routes.utils import stream_out_of_scope_refusal
+from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
 from sparkth.plugins.chat.schemas import ChatCompletionResponse, ChatMessage
 
 

@@ -31,7 +31,7 @@ from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AddTranslation
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE, get_learning_design_system_prompt
-from sparkth.plugins.chat.routes.utils import stream_out_of_scope_refusal
+from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
 
 SPANISH = (
     "Soy un asistente de creación de cursos y solo puedo ayudarte a diseñar y crear "
