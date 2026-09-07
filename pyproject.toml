@@ -113,6 +113,11 @@ module = [
     "fastmcp.*",
 ]
 
+# pxc-lib ships no py.typed marker, so mypy would otherwise refuse to import it.
+[[tool.mypy.overrides]]
+module = ["pxc.*"]
+ignore_missing_imports = true
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
