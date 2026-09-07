@@ -56,7 +56,13 @@ def read_state(runtime: ActivityRuntime) -> dict[str, FieldType]:
         # pxc-lib ships no py.typed marker, so mypy sees get_state() as returning Any.
         state: dict[str, FieldType] = runtime.get_state()
     except SandboxRuntimeError as err:
-        logger.error("PXC sandbox failed reading state for %s: %s", runtime.name, err)
+        logger.error(
+            "PXC sandbox failed reading state for %s (course=%s, placement=%s): %s",
+            runtime.name,
+            runtime.course_id,
+            runtime.activity_id,
+            err,
+        )
         raise PxcSandboxFailure(f"Activity {runtime.name} failed to produce its state") from err
     return state
 
@@ -69,14 +75,30 @@ def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldTy
 
     Raises:
         PxcActionRejected: if the manifest does not accept this action or value.
-        PxcSandboxFailure: if the sandbox itself failed.
+        PxcSandboxFailure: if the sandbox itself failed — currently unreachable, see below.
+
+    The ``SandboxRuntimeError`` clause is dormant, not dead. ``ActivityRuntime.on_action``
+    catches that exception internally and only logs it, carrying the upstream comment "It's OK
+    to ignore on-action errors, but we should report errors to the frontend". So a sandbox that
+    crashes mid-action currently yields no events and no error rather than a 502. ``get_state``
+    does re-raise, so ``read_state``'s equivalent clause is live. Keep this one: it costs
+    nothing and becomes correct the moment upstream acts on that comment.
     """
     try:
         runtime.on_action(action_name, action_value)
     except ActionValidationError as err:
         raise PxcActionRejected(str(err)) from err
     except SandboxRuntimeError as err:
-        logger.error("PXC sandbox failed running %s on %s: %s", action_name, runtime.name, err)
+        # Unreachable today: on_action catches this internally and only logs it, so the raise
+        # below never runs until pxc-lib starts letting it propagate. Kept for when it does.
+        logger.error(
+            "PXC sandbox failed running %s on %s (course=%s, placement=%s): %s",
+            action_name,
+            runtime.name,
+            runtime.course_id,
+            runtime.activity_id,
+            err,
+        )
         raise PxcSandboxFailure(f"Activity {runtime.name} failed to run {action_name}") from err
     # pxc-lib ships no py.typed marker, so mypy sees clear_pending_events() as returning Any.
     events: list[PendingEvent] = runtime.clear_pending_events()
