@@ -108,5 +108,5 @@ def read_launch_token(token: str) -> LaunchClaims:
         if int(claims["exp"]) < int(time()):
             raise PxcInvalidLaunchToken("Expired launch token")
         return LaunchClaims(str(claims["act"]), str(claims["plc"]), str(claims["cid"]), str(claims["uid"]))
-    except (KeyError, TypeError, ValueError) as err:
+    except (KeyError, TypeError, ValueError, OverflowError) as err:
         raise PxcInvalidLaunchToken("Malformed launch token") from err
