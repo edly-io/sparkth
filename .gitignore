@@ -251,3 +251,8 @@ CLAUDE.local.md
 # gettext build artifacts (see make i18n.extract / i18n.compile); .po catalogs are committed
 sparkth/locale/messages.pot
 *.mo
+
+# PXC sample activity build products (D2: built at build time, never committed)
+sparkth/plugins/pxc/activity/sandbox.bundle.js
+sparkth/plugins/pxc/activity/sandbox.wasm
+sparkth/plugins/pxc/activity/sandbox.wasm.bin
