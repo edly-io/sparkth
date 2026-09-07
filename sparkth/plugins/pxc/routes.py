@@ -108,6 +108,10 @@ async def activity_asset(file_path: str, token: str = Query()) -> FileResponse:
 async def submit_action(action_name: str, request: Request, token: str = Query()) -> ActionResult:
     """Run one action through the activity's sandbox and return the events it produced.
 
+    The request body is read as a raw JSON value, not a typed model, by design: an action's
+    value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
+    generically, so the body is deliberately untyped rather than accidentally so.
+
     A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
     empty event list, not an error — see ``run_action``'s docstring for why.
     """

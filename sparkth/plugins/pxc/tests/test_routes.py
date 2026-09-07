@@ -38,6 +38,15 @@ async def test_an_action_with_a_bad_token_is_unauthorized(client: AsyncClient) -
     assert response.status_code == 401
 
 
+async def test_the_embed_shell_with_a_bad_token_is_unauthorized(client: AsyncClient) -> None:
+    # Guards embed_activity's unbound read_launch_token(token) call: without this test, deleting
+    # that line entirely would leave every other test green, and a reader could mistake the
+    # discarded result for a pointless call and remove it.
+    response = await client.get("/api/v1/pxc/embed", params={"token": "not-a-token"})
+
+    assert response.status_code == 401
+
+
 async def test_the_embed_shell_renders_the_activity_element(client: AsyncClient, token: str) -> None:
     response = await client.get("/api/v1/pxc/embed", params={"token": token})
 
@@ -91,7 +100,9 @@ async def test_the_activitys_ui_script_is_served(client: AsyncClient, token: str
     assert response.status_code == 200
 
 
-@pytest.mark.wasm
+# Unmarked deliberately: ActivityRuntime.on_action validates the action name against the
+# manifest and raises ActionValidationError before it ever checks whether a sandbox exists, so
+# this never reaches the wasm.
 async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token: str) -> None:
     response = await client.post("/api/v1/pxc/actions/no.such.action", params={"token": token}, json=[])
 
