@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import aiohttp
 
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBuildError
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
@@ -730,8 +730,9 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     Publish a plugin-contributed content block into an Open edX unit.
 
     Resolves `contributor` in the content contributor hook, awaits the block it builds for
-    this course, creates that block in the given unit, and patches the block's settings onto
-    it. The contributor owns the block's data; the course holds only the reference.
+    this course, and creates that block in the given unit. If the block declares any
+    settings, they are then patched onto the created block. The contributor owns the block's
+    data; the course holds only the reference.
 
     The block's category must be listed in the course's Advanced Module List, and the XBlock
     providing it must be installed in the Open edX instance. Publishing to an instance without
@@ -746,13 +747,18 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
 
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
-            `{"error": {...}}` when the contributor is unknown or Studio rejects the request.
+            `{"error": {...}}` when the contributor is unknown, the contributor fails to build
+            its block, or Studio rejects the request.
     """
     contributor = LMS_CONTENT_CONTRIBUTORS.get(payload.contributor)
     if contributor is None:
         return {"error": {"message": f"Unknown content contributor: {payload.contributor}"}}
 
-    block = await contributor.build(payload.course_id)
+    try:
+        block = await contributor.build(payload.course_id)
+    except ContentBuildError as err:
+        logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
+        return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}
 
     try:
         locator = await openedx_create_basic_component(
