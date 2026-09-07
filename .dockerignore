@@ -37,5 +37,6 @@ node_modules/
 # PXC sample activity build products (D2: built at build time, never committed)
 sparkth/plugins/pxc/activity/sandbox.bundle.js
 sparkth/plugins/pxc/activity/sandbox.wasm
+sparkth/plugins/pxc/activity/sandbox.wasm.bin
 # Repo tooling
 .claude
