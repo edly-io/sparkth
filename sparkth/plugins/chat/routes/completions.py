@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.i18n import _, gettext, gettext_noop
+from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
@@ -47,36 +47,6 @@ from sparkth.plugins.chat.tools import get_tool_registry
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-# Why a request cannot use the config it named. Each is one status and one thing the user can do
-# about it, so the mapping is the whole decision. gettext_noop marks the copy for extraction; it is
-# rendered at raise time under the request's locale.
-_UNUSABLE_CONFIG: dict[type[Exception], tuple[int, str]] = {
-    LLMConfigNotFoundError: (
-        status.HTTP_404_NOT_FOUND,
-        gettext_noop("No AI Key found for the current user. Please configure an AI key in your chat plugin settings."),
-    ),
-    LLMConfigModelNotSetError: (
-        status.HTTP_422_UNPROCESSABLE_CONTENT,
-        gettext_noop("The selected AI key has no model configured. Go to AI Keys to set a model before chatting."),
-    ),
-    LLMConfigInactiveError: (
-        status.HTTP_409_CONFLICT,
-        gettext_noop(
-            "The selected AI key is deactivated. Go to AI Keys to reactivate it, "
-            "or choose a different one in chat settings."
-        ),
-    ),
-}
-
-
-def _unusable_config_failure(exc: Exception) -> tuple[int, str]:
-    """The status and message for a config failure, matched by class rather than by identity so a
-    subclass is not a KeyError inside an except block."""
-    for failure_type, failure in _UNUSABLE_CONFIG.items():
-        if isinstance(exc, failure_type):
-            return failure
-    raise exc
 
 
 def _refusal_response(
@@ -129,9 +99,21 @@ async def chat_completion(
             user_id=user_id,
             config_id=request.llm_config_id,
         )
-    except tuple(_UNUSABLE_CONFIG) as exc:
-        status_code, message = _unusable_config_failure(exc)
-        detail = gettext(message)
+    except (LLMConfigNotFoundError, LLMConfigModelNotSetError, LLMConfigInactiveError) as exc:
+        # One status and one thing the user can do about it, per reason. Only the tail below is
+        # shared, which is all that was ever written three times.
+        if isinstance(exc, LLMConfigNotFoundError):
+            status_code = status.HTTP_404_NOT_FOUND
+            detail = _("No AI Key found for the current user. Please configure an AI key in your chat plugin settings.")
+        elif isinstance(exc, LLMConfigModelNotSetError):
+            status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+            detail = _("The selected AI key has no model configured. Go to AI Keys to set a model before chatting.")
+        else:
+            status_code = status.HTTP_409_CONFLICT
+            detail = _(
+                "The selected AI key is deactivated. Go to AI Keys to reactivate it, "
+                "or choose a different one in chat settings."
+            )
         logger.warning(
             "LLMConfig %s unusable for user %s: %s: %s", request.llm_config_id, user_id, type(exc).__name__, exc
         )

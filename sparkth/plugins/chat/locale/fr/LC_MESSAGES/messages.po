@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-09-07 15:28+0500\n"
+"POT-Creation-Date: 2026-09-07 16:08+0500\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: fr\n"
@@ -44,7 +44,7 @@ msgstr "Conversation introuvable"
 msgid "Document not found or not accessible"
 msgstr "Document introuvable ou inaccessible"
 
-#: sparkth/plugins/chat/routes/completions.py:57
+#: sparkth/plugins/chat/routes/completions.py:107
 msgid ""
 "No AI Key found for the current user. Please configure an AI key in your "
 "chat plugin settings."
@@ -52,7 +52,7 @@ msgstr ""
 "Aucune clé d'IA trouvée pour l'utilisateur actuel. Configurez une clé "
 "d'IA dans les paramètres du plugin de chat."
 
-#: sparkth/plugins/chat/routes/completions.py:61
+#: sparkth/plugins/chat/routes/completions.py:110
 msgid ""
 "The selected AI key has no model configured. Go to AI Keys to set a model"
 " before chatting."
@@ -60,7 +60,7 @@ msgstr ""
 "La clé d'IA sélectionnée n'a pas de modèle configuré. Rendez-vous dans AI"
 " Keys pour définir un modèle avant de discuter."
 
-#: sparkth/plugins/chat/routes/completions.py:66
+#: sparkth/plugins/chat/routes/completions.py:114
 msgid ""
 "The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
 "choose a different one in chat settings."
@@ -68,11 +68,11 @@ msgstr ""
 "La clé d'IA sélectionnée est désactivée. Rendez-vous dans AI Keys pour la"
 " réactiver, ou choisissez-en une autre dans les paramètres du chat."
 
-#: sparkth/plugins/chat/routes/completions.py:319
+#: sparkth/plugins/chat/routes/completions.py:301
 msgid "Failed to determine retrieval intent. Please try again."
 msgstr "Impossible de déterminer l'intention de recherche. Veuillez réessayer."
 
-#: sparkth/plugins/chat/routes/completions.py:336
+#: sparkth/plugins/chat/routes/completions.py:318
 msgid "Chat completion failed"
 msgstr "Échec de la génération de la réponse du chat"
 
