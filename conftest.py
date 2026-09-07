@@ -11,3 +11,9 @@ one line in its own conftest.
 """
 
 pytest_plugins = ["sparkth.lib.testing"]
+
+# `xblock/` is a separate Django distribution with its own pyproject.toml and its own test
+# suite (run via `uv run --directory xblock pytest`); it depends on XBlock/Django/web-fragments,
+# none of which this application's venv installs. Pytest's plain recursion from the repo root
+# would otherwise walk into `xblock/tests/` and abort the whole run with a collection error.
+collect_ignore = ["xblock"]
