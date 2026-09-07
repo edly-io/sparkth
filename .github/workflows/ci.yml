@@ -68,6 +68,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Build the PXC sample activity
         run: make pxc.activity.build

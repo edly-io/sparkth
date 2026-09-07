@@ -5,6 +5,8 @@ the plugin once but its own tests construct it again, and ``register_exception_h
 on a duplicate key.
 """
 
+from fastapi import status
+
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.i18n import gettext_noop
@@ -21,12 +23,12 @@ from sparkth.plugins.pxc.exceptions import (
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
 # deployment, not a bad request.
-register_exception_handler(PxcActivityNotFound, 404)
-register_exception_handler(PxcAssetNotFound, 404)
-register_exception_handler(PxcInvalidLaunchToken, 401)
-register_exception_handler(PxcActionRejected, 422)
-register_exception_handler(PxcSandboxFailure, 502)
-register_exception_handler(PxcDuplicateActivityName, 500)
+register_exception_handler(PxcActivityNotFound, status.HTTP_404_NOT_FOUND)
+register_exception_handler(PxcAssetNotFound, status.HTTP_404_NOT_FOUND)
+register_exception_handler(PxcInvalidLaunchToken, status.HTTP_401_UNAUTHORIZED)
+register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONTENT)
+register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY)
+register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class PxcPlugin(SparkthPlugin):
