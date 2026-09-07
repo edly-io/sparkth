@@ -80,10 +80,7 @@ class ChatService:
             )
             return conversation, True
 
-        existing = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
-        if existing is None:
-            logger.warning("Conversation %s not found for user %s", conversation_uuid, user_id)
-            raise ConversationNotFound(_("Conversation not found"))
+        existing = await self.require_owned_conversation(session, conversation_uuid, user_id)
         return existing, False
 
     async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
