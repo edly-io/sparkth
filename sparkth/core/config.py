@@ -133,6 +133,7 @@ PLUGINS = [
     "sparkth.plugins.googledrive.plugin:GoogleDrivePlugin",
     "sparkth.plugins.slack.plugin:Slack",
     "sparkth.plugins.moodle.plugin:MoodlePlugin",
+    "sparkth.plugins.pxc.plugin:PxcPlugin",
 ]
 
 
