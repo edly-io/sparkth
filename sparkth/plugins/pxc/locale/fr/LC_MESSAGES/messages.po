@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-09-07 20:49+0500\n"
+"POT-Creation-Date: 2026-09-07 21:18+0500\n"
 "PO-Revision-Date: 2026-09-07 20:12+0500\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -18,11 +18,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/plugins/pxc/plugin.py:40
+#: sparkth/plugins/pxc/plugin.py:42
 msgid "PXC Activities"
 msgstr ""
 
-#: sparkth/plugins/pxc/plugin.py:41
+#: sparkth/plugins/pxc/plugin.py:43
 msgid "Portable, sandboxed learning activities hosted by Sparkth"
 msgstr ""
 
