@@ -3,7 +3,13 @@ import time
 import pytest
 
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken
-from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, read_launch_token
+from sparkth.plugins.pxc.tokens import (
+    LaunchClaims,
+    _b64encode,
+    _sign,
+    mint_launch_token,
+    read_launch_token,
+)
 
 SECRET = "shared-secret"
 CLAIMS = ("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7")
@@ -71,3 +77,12 @@ def test_the_signature_is_checked_before_the_payload_is_decoded(monkeypatch: pyt
 
     with pytest.raises(PxcInvalidLaunchToken, match="signature"):
         read_launch_token("not-valid-base64-json.wrong-signature")
+
+
+def test_an_exp_that_overflows_to_infinity_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
+    payload = _b64encode(b'{"act":"mcq","plc":"placement-1","cid":"course-v1:X+Y+Z","uid":"learner-7","exp":1e400}')
+    token = f"{payload}.{_sign(payload, SECRET)}"
+
+    with pytest.raises(PxcInvalidLaunchToken, match="Malformed"):
+        read_launch_token(token)
