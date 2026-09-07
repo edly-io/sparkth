@@ -52,13 +52,16 @@ async def gather_document_headings(documents: list[Document]) -> list[DocumentHe
 class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
     """Decides whether a chat turn needs content retrieved from the conversation's documents."""
 
-    def __init__(self, provider_name: str, api_key: str) -> None:
+    def __init__(self, provider_name: str, api_key: str, user_id: int) -> None:
+        """``user_id`` never reaches the model; it is logged on a declined search, which the client
+        is told about but not given a reason for."""
         super().__init__(
             RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT,
             RAGSearchVerdict,
             provider_name,
             api_key,
         )
+        self._user_id = user_id
 
     def _build_messages(self, payload: RAGSearchInput) -> list[BaseMessage]:
         """Put the message to the model alongside what each document actually contains.
@@ -99,7 +102,8 @@ class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
         if not verdict.requires_search:
             # The only record of a skip: the client is told retrieval was skipped, not why.
             logger.info(
-                "Search classifier skipped retrieval: conversation_uuid=%s model=%s reason=%r documents=%d",
+                "Search classifier skipped retrieval: user_id=%s conversation_uuid=%s model=%s reason=%r documents=%d",
+                self._user_id,
                 conversation_uuid,
                 self.model,
                 verdict.refusal_reason,
