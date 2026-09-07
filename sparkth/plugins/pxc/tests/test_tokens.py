@@ -55,3 +55,19 @@ def test_verification_without_a_configured_secret_is_refused(monkeypatch: pytest
 
     with pytest.raises(PxcInvalidLaunchToken, match="not configured"):
         read_launch_token(mint_launch_token(*CLAIMS, SECRET, 300))
+
+
+def test_a_non_ascii_signature_is_refused_not_raised_as_a_type_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
+
+    with pytest.raises(PxcInvalidLaunchToken, match="signature"):
+        read_launch_token("abc.é")
+
+
+def test_the_signature_is_checked_before_the_payload_is_decoded(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
+
+    with pytest.raises(PxcInvalidLaunchToken, match="signature"):
+        read_launch_token("not-valid-base64-json.wrong-signature")
