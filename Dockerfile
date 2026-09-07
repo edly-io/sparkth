@@ -1,19 +1,4 @@
 # -------------------
-# Stage 1: Build frontend
-# -------------------
-FROM oven/bun:1.4.0 AS frontend-builder
-
-WORKDIR /frontend
-
-COPY frontend/package.json frontend/bun.lock ./
-# TODO we should install non-dev dependencies with `--production` but right now this is
-# failing with missing typescript dependency.
-RUN bun install --frozen-lockfile
-
-COPY frontend/ ./
-RUN bun run build
-
-# -------------------
 # Stage 0: Build the bundled PXC activity's WASM sandbox
 # -------------------
 # componentize-js compiles the sample activity's sandbox to WebAssembly. The binary is a build
@@ -31,6 +16,21 @@ RUN npm ci
 
 COPY sparkth/plugins/pxc/activity/ ./sparkth/plugins/pxc/activity/
 RUN make -C sparkth/plugins/pxc/activity build
+
+# -------------------
+# Stage 1: Build frontend
+# -------------------
+FROM oven/bun:1.4.0 AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/bun.lock ./
+# TODO we should install non-dev dependencies with `--production` but right now this is
+# failing with missing typescript dependency.
+RUN bun install --frozen-lockfile
+
+COPY frontend/ ./
+RUN bun run build
 
 # -------------------
 # Stage 2: Build Python dependencies
