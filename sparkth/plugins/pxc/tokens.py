@@ -78,6 +78,10 @@ def mint_launch_token(
 def read_launch_token(token: str) -> LaunchClaims:
     """Verify ``token`` against the configured secret and return its claims.
 
+    The signature comparison runs through ``hmac.compare_digest`` for timing-safety. No test in
+    this suite can observe timing, so that property is carried by this implementation and this
+    docstring alone — not by a test.
+
     Raises:
         PxcInvalidLaunchToken: if no secret is configured, or the token is malformed, wrongly
             signed, or expired.
@@ -90,7 +94,9 @@ def read_launch_token(token: str) -> LaunchClaims:
     if not payload or not signature:
         raise PxcInvalidLaunchToken("Malformed launch token")
 
-    if not hmac.compare_digest(signature, _sign(payload, PXC_LAUNCH_SECRET)):
+    # Compare as bytes: str.encode() cannot fail, but hmac.compare_digest raises TypeError on a
+    # str containing non-ASCII characters, and the signature is attacker-controlled.
+    if not hmac.compare_digest(signature.encode(), _sign(payload, PXC_LAUNCH_SECRET).encode()):
         raise PxcInvalidLaunchToken("Bad launch token signature")
 
     try:
