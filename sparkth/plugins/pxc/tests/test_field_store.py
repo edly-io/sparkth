@@ -90,6 +90,10 @@ def test_an_appended_entry_reads_back_by_id(store: SqliteFieldStore) -> None:
     assert store.log_get(*SCOPE, "events", entry_id) == {"n": 1}
 
 
+def test_log_get_returns_none_for_a_missing_entry(store: SqliteFieldStore) -> None:
+    assert store.log_get(*SCOPE, "events", 999) is None
+
+
 def test_log_get_after_returns_ascending_entries_past_the_cursor(store: SqliteFieldStore) -> None:
     first = store.log_append(*SCOPE, "events", {"n": 1})
     store.log_append(*SCOPE, "events", {"n": 2})
@@ -114,6 +118,18 @@ def test_log_get_before_returns_descending_entries(store: SqliteFieldStore) -> N
     last = store.log_append(*SCOPE, "events", {"n": 3})
 
     assert [entry["value"] for entry in store.log_get_before(*SCOPE, "events", last, 10)] == [
+        {"n": 2},
+        {"n": 1},
+    ]
+
+
+def test_log_get_before_with_no_cursor_starts_from_the_newest(store: SqliteFieldStore) -> None:
+    store.log_append(*SCOPE, "events", {"n": 1})
+    store.log_append(*SCOPE, "events", {"n": 2})
+    store.log_append(*SCOPE, "events", {"n": 3})
+
+    assert [entry["value"] for entry in store.log_get_before(*SCOPE, "events", None, 10)] == [
+        {"n": 3},
         {"n": 2},
         {"n": 1},
     ]
