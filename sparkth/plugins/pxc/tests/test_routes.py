@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,13 @@ from httpx import AsyncClient
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
 SECRET = "shared-secret"
+
+
+def _extract_attr(html: str, attr: str) -> str:
+    """The value of one double-quoted HTML attribute, for tests that drive a route's own markup."""
+    match = re.search(f'{attr}="([^"]*)"', html)
+    assert match, f"{attr} not found in: {html}"
+    return match.group(1)
 
 
 @pytest.fixture(autouse=True)
@@ -53,6 +61,16 @@ async def test_the_embed_shell_renders_the_activity_element(client: AsyncClient,
     assert response.status_code == 200
     assert "pxc-activity" in response.text
     assert token in response.text
+
+
+async def test_the_embed_shell_carries_the_token_as_its_own_attribute(client: AsyncClient, token: str) -> None:
+    # pxc.js's _initFromAttrs() reads data-pxc-token into this._pxcToken, which the client then
+    # appends itself when it builds action and asset URLs — see the action-URL test below. The
+    # existing "renders the activity element" test only proves the token appears somewhere (it
+    # is already inside data-config-url's query string), not that this attribute exists.
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
+
+    assert f'data-pxc-token="{token}"' in response.text
 
 
 async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncClient) -> None:
@@ -107,3 +125,26 @@ async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token:
     response = await client.post("/api/v1/pxc/actions/no.such.action", params={"token": token}, json=[])
 
     assert response.status_code == 422
+
+
+@pytest.mark.wasm
+async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClient, token: str) -> None:
+    # Every other test in this file injects the token via params={"token": ...} by hand, so none
+    # of them ever consumed the embed shell's own markup. That is how routes.py shipped
+    # data-action-url and action_base_url without the token they need: submit_action declares
+    # token as a required query parameter, but nothing built the URL the way the browser does.
+    #
+    # This test drives the shell's own output instead: it extracts data-action-url and
+    # data-pxc-token exactly as sparkth-pxc.js's sendAction() does — appending
+    # "/{action}?token={token}" to the base — and POSTs to that composed URL. The JS
+    # composition itself has no test harness here (it is a backend-served static asset, outside
+    # frontend/tests/'s vitest include), so this pins the server half of the contract: the shell
+    # must emit a base URL and a token the client can combine into one submit_action accepts.
+    embed_response = await client.get("/api/v1/pxc/embed", params={"token": token})
+    action_base_url = _extract_attr(embed_response.text, "data-action-url")
+    shell_token = _extract_attr(embed_response.text, "data-pxc-token")
+
+    action_url = f"{action_base_url}/answer.submit?token={shell_token}"
+    response = await client.post(action_url, json=[0])
+
+    assert response.status_code == 200

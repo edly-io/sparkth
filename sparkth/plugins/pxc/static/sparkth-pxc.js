@@ -7,6 +7,12 @@
 // Reads two data-* attributes beyond the ones _initFromAttrs() handles:
 //   data-config-url   GET endpoint returning this activity's configuration
 //   data-action-url   POST endpoint for actions, one path segment short of the action name
+//
+// data-pxc-token is one _initFromAttrs() already reads, into this._pxcToken. Every route this
+// class calls requires it as a query parameter, so both sendAction() and the getAssetUrl()
+// override append it themselves rather than having it baked into a base URL — a base URL that
+// already ended in "?token=..." would land the token mid-path once a segment or another query
+// string is appended after it.
 
 import { PXC } from "./pxc.js";
 
@@ -43,9 +49,10 @@ export class SparkthPXC extends PXC {
       console.warn("sendAction called in view mode — ignored:", name);
       return;
     }
+    const url = `${this._actionUrl}/${encodeURIComponent(name)}?token=${encodeURIComponent(this._pxcToken)}`;
     let response;
     try {
-      response = await fetch(`${this._actionUrl}/${encodeURIComponent(name)}`, {
+      response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(value),
@@ -62,6 +69,13 @@ export class SparkthPXC extends PXC {
     for (const event of data.events || []) {
       this.onEvent(event.name, JSON.parse(event.value));
     }
+  }
+
+  // Overrides PXC's own getAssetUrl(), which builds `${this._assetBaseUrl}/${path}` with no
+  // token. This transport's asset route requires one, and unlike sendAction()'s URL nothing is
+  // appended after this one, so the token can go on as a trailing query string.
+  getAssetUrl(path) {
+    return `${super.getAssetUrl(path)}?token=${encodeURIComponent(this._pxcToken)}`;
   }
 }
 

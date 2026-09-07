@@ -47,7 +47,7 @@ async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse
         '<html><head><meta charset="utf-8"><style>body{margin:0}</style></head>'
         "<body>"
         f'<pxc-activity data-config-url="{base}/config?token={token}"'
-        f' data-action-url="{base}/actions"></pxc-activity>'
+        f' data-action-url="{base}/actions" data-pxc-token="{token}"></pxc-activity>'
         f'<script type="module" src="{base}/client/sparkth-pxc.js"></script>'
         "</body></html>"
     )
@@ -60,6 +60,11 @@ async def activity_config(request: Request, token: str = Query()) -> ActivityCon
     runtime = await asyncio.to_thread(build_runtime, claims)
     state = await asyncio.to_thread(read_state, runtime)
     base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
+    # Neither base URL below carries the token: the embed shell already gave the client one, via
+    # the data-pxc-token attribute pxc.js's _initFromAttrs() reads into this._pxcToken. The
+    # client appends it itself — SparkthPXC's overridden getAssetUrl() for asset_base_url, and
+    # sendAction() for the action route. action_base_url itself is unread by the client, which
+    # builds its POST URL from the embed shell's data-action-url attribute instead.
     return ActivityConfig(
         activity=claims.activity,
         context=LaunchContext(activity_id=claims.placement, course_id=claims.course_id, user_id=claims.user_id),
