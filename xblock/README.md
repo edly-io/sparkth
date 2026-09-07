@@ -35,3 +35,28 @@ The block reads three settings from the Open edX instance's Django settings:
 
 Scores and all other activity state live in Sparkth's own storage. This block does not report a
 grade to Open edX's gradebook — that integration does not exist yet.
+
+## Security
+
+The embed iframe is sandboxed with `allow-scripts allow-forms allow-same-origin`.
+`allow-same-origin` is required: without it the frame gets an opaque origin, so its `fetch()`
+call to Sparkth's own config route becomes cross-origin and is blocked. The same attribute also
+means the activity's third-party `ui.js` runs with Sparkth's origin, not an isolated one:
+`pxc.js`'s `_loadScript` loads it with `await import(url)` into the surrounding document — a
+closed shadow root isolates markup, not script — so `ui.js` executes in the same JavaScript realm
+as the rest of the embed shell.
+
+That origin holds more than the shell's own markup. `frontend/lib/auth-tokens.ts` writes the
+signed-in user's bearer token to `localStorage` on this same Sparkth origin, so an untrusted
+activity's `ui.js` running inside the shell can read it.
+
+This is bounded today, not closed: browsers partition storage for third-party iframes, and only
+Sparkth's own bundled sample activity ships, so nothing untrusted actually loads through this
+path yet. It stops being bounded the moment a third party can supply an activity's `ui.js`.
+
+The way to close it: `pxc.js`'s `_initIframe` path already exists for this — a nested iframe
+sandboxed with `allow-scripts allow-forms` and no `allow-same-origin`, talking to its parent by
+`postMessage` instead of a same-origin `fetch()`. `SparkthPXC.connectedCallback` deliberately does
+not take that path today. Moving onto it, or serving the embed route from a separate origin so
+there is no Sparkth-authenticated `localStorage` to read in the first place, are the two
+directions forward.
