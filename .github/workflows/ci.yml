@@ -64,6 +64,14 @@ jobs:
       - name: Install the project
         run: make backend.install.dev.requirements
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build the PXC sample activity
+        run: make pxc.activity.build
+
       # Single high-level target so a CI failure reproduces locally with
       # exactly `make test.backend` (lint + mypy + pytest + format check).
       # The default suite runs on SQLite; TimescaleDB-only tests (the `pg` marker)

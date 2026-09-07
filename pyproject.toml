@@ -118,6 +118,7 @@ module = [
 asyncio_mode = "auto"
 markers = [
     "pg: requires a real PostgreSQL/TimescaleDB analytics database; runs only when ANALYTICS_TEST_PG_URL is set (see tests/analytics/pg/). The default SQLite suite skips these.",
+    "wasm: requires the bundled PXC activity's sandbox.wasm, which is built rather than committed; runs only after `make pxc.activity.build`. A clean checkout skips these.",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",
