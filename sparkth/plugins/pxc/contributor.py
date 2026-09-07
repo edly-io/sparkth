@@ -18,6 +18,7 @@ from sparkth.lib.content.hooks import ContentBlock
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import state_file
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY, PXC_DEFAULT_ACTIVITY
+from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.field_store import SqliteFieldStore
 
 logger = get_logger(__name__)
@@ -32,7 +33,8 @@ async def build_pxc_block(course_id: str) -> ContentBlock:
     """Mint a placement in ``course_id``, seed its configuration, and describe its block.
 
     Raises:
-        ContentBuildError: if the activity type's state file cannot be written.
+        ContentBuildError: if ``PXC_DEFAULT_ACTIVITY`` names no bundled activity, or if the
+            activity type's state file cannot be written.
     """
     placement = str(uuid7())
 
@@ -44,6 +46,11 @@ async def build_pxc_block(course_id: str) -> ContentBlock:
         store.set(*scope, "question", _SAMPLE_QUESTION)
         store.set(*scope, "answers", _SAMPLE_ANSWERS)
         store.set(*scope, "correct_answers", _SAMPLE_CORRECT_ANSWERS)
+    except PxcActivityNotFound as err:
+        # A misconfigured PXC_DEFAULT_ACTIVITY, not a storage failure: kept in its own clause so
+        # the message names the setting instead of pointing an operator at a disk problem.
+        logger.error("PXC_DEFAULT_ACTIVITY names an unknown activity %r: %s", PXC_DEFAULT_ACTIVITY, err)
+        raise ContentBuildError(f"PXC_DEFAULT_ACTIVITY names an unknown activity: {PXC_DEFAULT_ACTIVITY!r}") from err
     except (sqlite3.Error, OSError) as err:
         logger.error("Seeding PXC placement %s for course %s failed: %s", placement, course_id, err)
         raise ContentBuildError(f"Could not seed the {PXC_DEFAULT_ACTIVITY} activity's state") from err
