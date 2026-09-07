@@ -95,7 +95,7 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_list_attachments,
             patch(
-                "sparkth.plugins.chat.routes.completions.resolve_document_blocks",
+                "sparkth.plugins.chat.routes.utils.message_assembly.resolve_document_blocks",
                 new_callable=AsyncMock,
             ) as mock_resolve,
             patch(

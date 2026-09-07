@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-09-07 15:07+0500\n"
+"POT-Creation-Date: 2026-09-07 16:08+0500\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: es\n"
@@ -43,7 +43,7 @@ msgstr "Conversación no encontrada"
 msgid "Document not found or not accessible"
 msgstr "Documento no encontrado o no accesible"
 
-#: sparkth/plugins/chat/routes/completions.py:82
+#: sparkth/plugins/chat/routes/completions.py:107
 msgid ""
 "No AI Key found for the current user. Please configure an AI key in your "
 "chat plugin settings."
@@ -51,7 +51,7 @@ msgstr ""
 "No se encontró una clave de IA para el usuario actual. Configura una "
 "clave de IA en los ajustes del plugin de chat."
 
-#: sparkth/plugins/chat/routes/completions.py:87
+#: sparkth/plugins/chat/routes/completions.py:110
 msgid ""
 "The selected AI key has no model configured. Go to AI Keys to set a model"
 " before chatting."
@@ -59,7 +59,7 @@ msgstr ""
 "La clave de IA seleccionada no tiene un modelo configurado. Ve a AI Keys "
 "para establecer un modelo antes de chatear."
 
-#: sparkth/plugins/chat/routes/completions.py:93
+#: sparkth/plugins/chat/routes/completions.py:114
 msgid ""
 "The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
 "choose a different one in chat settings."
@@ -67,14 +67,13 @@ msgstr ""
 "La clave de IA seleccionada está desactivada. Ve a AI Keys para "
 "reactivarla o elige otra en los ajustes del chat."
 
-#: sparkth/plugins/chat/routes/completions.py:249
-#: sparkth/plugins/chat/routes/completions.py:367
-msgid "Chat completion failed"
-msgstr "Error al generar la respuesta del chat"
-
-#: sparkth/plugins/chat/routes/completions.py:335
+#: sparkth/plugins/chat/routes/completions.py:301
 msgid "Failed to determine retrieval intent. Please try again."
 msgstr "No se pudo determinar la intención de búsqueda. Inténtalo de nuevo."
+
+#: sparkth/plugins/chat/routes/completions.py:318
+msgid "Chat completion failed"
+msgstr "Error al generar la respuesta del chat"
 
 #: sparkth/plugins/chat/routes/utils/rag_search.py:125
 msgid "One or more documents not found or not accessible."
