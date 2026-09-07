@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sparkth-pxc-xblock"
+version = "0.1.0"
+description = "An Open edX XBlock that renders a Sparkth-hosted PXC activity."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "XBlock>=1.5",
+    "Django>=4.2",
+    "web-fragments>=2.1",
+]
+
+[project.entry-points."xblock.v1"]
+pxc = "sparkth_pxc.xblock:SparkthPxcXBlock"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sparkth_pxc"]
+
+# Anchors pytest's rootdir/confcutdir at this directory instead of letting it climb to the
+# outer Sparkth repo's pyproject.toml — this package is a separate distribution with its own
+# test suite and must run without Sparkth (or its conftest's `sparkth.lib.testing` plugin)
+# installed.
+[tool.pytest.ini_options]
+
+# Present for the same reason as the `[tool.pytest.ini_options]` anchor above: without it, a
+# bare `mypy` run from this directory climbs to the outer repo's `[tool.mypy]` section and fails
+# importing its `pydantic.mypy` plugin, which this package does not depend on.
+[tool.mypy]
+strict = true
+
+# None of these ship a py.typed marker or stubs, so mypy would otherwise refuse to import them.
+[[tool.mypy.overrides]]
+module = ["django.*", "web_fragments.*", "xblock.*"]
+ignore_missing_imports = true
