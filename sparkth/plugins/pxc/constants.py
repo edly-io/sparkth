@@ -16,3 +16,11 @@ PXC_LAUNCH_SECRET = os.getenv("PXC_LAUNCH_SECRET", "")
 
 # How long a launch token stays valid. Short: it is minted per page render.
 PXC_LAUNCH_TOKEN_TTL_SECONDS = int(os.getenv("PXC_LAUNCH_TOKEN_TTL_SECONDS", "300"))
+
+# The XBlock category the Open edX course holds. Must appear in the course's Advanced Module
+# List, and the XBlock providing it must be installed in the instance (L6).
+PXC_BLOCK_CATEGORY = "pxc"
+
+# The activity type published by the "pxc" contributor. One bundled sample is served for every
+# request by design (L5); an authoring module chooses per placement later.
+PXC_DEFAULT_ACTIVITY = os.getenv("PXC_DEFAULT_ACTIVITY", "mcq")
