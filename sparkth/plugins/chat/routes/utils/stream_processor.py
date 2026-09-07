@@ -22,10 +22,9 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.prompt import REFUSAL_MESSAGE
 from sparkth.plugins.chat.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService

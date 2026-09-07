@@ -20,7 +20,7 @@ from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.prompt import get_learning_design_system_prompt
+from sparkth.plugins.chat.prompt import get_course_design_system_prompt
 
 
 class _Seeded:
@@ -192,15 +192,15 @@ class TestOutputLanguageDirective:
     """The directive is the whole mechanism — there is no resolved tag behind it."""
 
     def test_instructs_following_the_latest_user_message(self) -> None:
-        assert "same language as the user's most recent message" in get_learning_design_system_prompt()
+        assert "same language as the user's most recent message" in get_course_design_system_prompt()
 
     def test_instructs_switching_when_the_user_switches(self) -> None:
-        assert "change with them from that message onward" in get_learning_design_system_prompt()
+        assert "change with them from that message onward" in get_course_design_system_prompt()
 
     def test_honours_an_explicit_request_for_another_course_language(self) -> None:
         """A user writing in one language may ask for the course in another. This
         sentence is the only expression of that rule — no data field carries it."""
-        assert "honour that request for the course content" in get_learning_design_system_prompt()
+        assert "honour that request for the course content" in get_course_design_system_prompt()
 
     def test_pins_no_specific_language(self) -> None:
         """No language name may be injected, and no placeholder may survive.
@@ -210,7 +210,7 @@ class TestOutputLanguageDirective:
         appears unconditionally. The remaining names are the discriminating ones — if
         any of them is present, something is still resolving and injecting a tag.
         """
-        prompt = get_learning_design_system_prompt()
+        prompt = get_course_design_system_prompt()
         assert "{language_name}" not in prompt
         injectable = {info.name for info in SUPPORTED_LANGUAGES.values() if info.name != "English"}
         assert not any(name in prompt for name in injectable)
