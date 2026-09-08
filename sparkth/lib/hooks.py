@@ -5,9 +5,9 @@ from sparkth.lib.plugins import SparkthPlugin
 
 
 class HasName(Protocol):
-    # Structural bound for SingleNamedItemHook's type var, so the generic hook can read
-    # ``item.name`` under mypy --strict. Any object with a ``name: str`` satisfies it.
-    name: str
+    # Structural bound for SingleNamedItemHook; a read-only property so frozen-dataclass items satisfy it too.
+    @property
+    def name(self) -> str: ...
 
 
 N = TypeVar("N", bound=HasName)

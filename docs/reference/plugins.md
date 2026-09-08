@@ -24,3 +24,7 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 ::: sparkth.lib.frontend
 
 ::: sparkth.lib.frontend.hooks
+
+## Content contributor hooks
+
+::: sparkth.lib.content.hooks
