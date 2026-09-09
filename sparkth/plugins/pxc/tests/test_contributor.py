@@ -13,15 +13,10 @@ import pytest
 from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
 from sparkth.plugins.pxc.activities import state_file
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block
 from sparkth.plugins.pxc.field_store import SqliteFieldStore
-
-
-@pytest.fixture(autouse=True)
-def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", tmp_path)
-    return tmp_path
 
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
@@ -60,7 +55,8 @@ async def test_an_unwritable_data_dir_raises_content_build_error(
     # A file where a directory is expected makes `mkdir(parents=True)` raise `NotADirectoryError`.
     blocked = tmp_path / "not-a-dir"
     blocked.write_text("")
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", blocked / "nested")
+    monkeypatch.setenv("PXC_DATA_DIR", str(blocked / "nested"))
+    get_pxc_settings.cache_clear()
 
     with pytest.raises(ContentBuildError):
         await build_pxc_block("course-v1:X+Y+Z")
@@ -69,7 +65,8 @@ async def test_an_unwritable_data_dir_raises_content_build_error(
 async def test_an_unbundled_default_activity_raises_content_build_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_DEFAULT_ACTIVITY", "not-bundled")
+    monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "not-bundled")
+    get_pxc_settings.cache_clear()
 
     with pytest.raises(ContentBuildError, match="not-bundled"):
         await build_pxc_block("course-v1:X+Y+Z")

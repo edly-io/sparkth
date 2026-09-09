@@ -18,7 +18,7 @@ from pxc.lib.sandbox import SandboxRuntimeError
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import activity_dir, state_file
-from sparkth.plugins.pxc.constants import PXC_DATA_DIR
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.field_store import SqliteFieldStore
 from sparkth.plugins.pxc.tokens import LaunchClaims
@@ -38,7 +38,7 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     return ActivityRuntime(
         activity_dir(claims.activity),
         SqliteFieldStore(state_file(claims.activity)),
-        LocalFileStorage(PXC_DATA_DIR / "storage" / claims.activity),
+        LocalFileStorage(get_pxc_settings().data_dir / "storage" / claims.activity),
         claims.placement,
         claims.course_id,
         claims.user_id,

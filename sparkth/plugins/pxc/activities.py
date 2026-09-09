@@ -9,7 +9,8 @@ scheme starts with.
 import json
 from pathlib import Path
 
-from sparkth.plugins.pxc.constants import PXC_ACTIVITY_ROOT, PXC_DATA_DIR
+from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_ACTIVITY_ROOT
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcDuplicateActivityName
 
 
@@ -61,4 +62,4 @@ def state_file(activity_name: str) -> Path:
             path-escaping name, since it can never match an indexed activity.
     """
     activity_dir(activity_name)
-    return PXC_DATA_DIR / f"{activity_name}.sqlite3"
+    return get_pxc_settings().data_dir / f"{activity_name}.sqlite3"
