@@ -24,7 +24,7 @@ from time import time
 import jwt
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.constants import PXC_LAUNCH_SECRET, PXC_LAUNCH_TOKEN_TTL_SECONDS
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken
 
 logger = get_logger(__name__)
@@ -70,14 +70,19 @@ def mint_launch_token(
     course_id: str,
     user_id: str,
     secret: str,
-    ttl: int = PXC_LAUNCH_TOKEN_TTL_SECONDS,
+    ttl: int | None = None,
 ) -> str:
     """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
 
     Sparkth itself only verifies tokens — the XBlock is what mints them in production. This
     lives here so the verification path has something to verify under test, and so both halves
     of the format are defined in one place.
+
+    ``ttl`` defaults to the configured lifetime, resolved per call rather than as an argument
+    default so it is not frozen at import time.
     """
+    if ttl is None:
+        ttl = get_pxc_settings().launch_token_ttl_seconds
     claims = {
         "act": activity,
         "plc": placement,
@@ -107,14 +112,15 @@ def read_launch_token(token: str) -> LaunchClaims:
         PxcInvalidLaunchToken: if no secret is configured, or the token is malformed, wrongly
             signed, or expired.
     """
-    if not PXC_LAUNCH_SECRET:
+    secret = get_pxc_settings().launch_secret
+    if not secret:
         logger.error("PXC_LAUNCH_SECRET is not configured; refusing every launch token")
         raise PxcInvalidLaunchToken("Launch tokens are not configured")
 
     try:
         claims = jwt.decode(
             token,
-            PXC_LAUNCH_SECRET,
+            secret,
             algorithms=[LAUNCH_TOKEN_ALGORITHM],
             options={"require": ["exp"]},
         )
