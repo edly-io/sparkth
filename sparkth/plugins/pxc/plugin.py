@@ -11,6 +11,7 @@ from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.plugins import SparkthPlugin
+from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
     PxcActivityNotFound,
@@ -19,6 +20,7 @@ from sparkth.plugins.pxc.exceptions import (
     PxcInvalidLaunchToken,
     PxcSandboxFailure,
 )
+from sparkth.plugins.pxc.routes import router
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
@@ -36,6 +38,7 @@ class PxcPlugin(SparkthPlugin):
 
     def __init__(self) -> None:
         super().__init__("pxc")
+        register_router(self, router)
         DISPLAY_INFO.add_item(
             self,
             DisplayInfo(

@@ -862,6 +862,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pxc/actions/{action_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Action
+         * @description Run one action through the activity's sandbox and return the events it produced.
+         *
+         *     The request body is read as a raw JSON value, not a typed model, by design: an action's
+         *     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
+         *     generically, so the body is deliberately untyped rather than accidentally so.
+         *
+         *     A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
+         *     empty event list, not an error — see ``run_action``'s docstring for why.
+         *
+         *     Raises:
+         *         PxcActionRejected: if the body is not valid JSON.
+         */
+        post: operations["submit_action_api_v1_pxc_actions__action_name__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pxc/assets/{file_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Activity Asset
+         * @description Serve the activity's UI script or one of its declared assets.
+         *
+         *     Raises:
+         *         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
+         */
+        get: operations["activity_asset_api_v1_pxc_assets__file_path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pxc/client/{file_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Script
+         * @description Serve one of the client scripts the activity page loads.
+         *
+         *     Raises:
+         *         PxcAssetNotFound: if ``file_name`` is not one of them.
+         */
+        get: operations["client_script_api_v1_pxc_client__file_name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pxc/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Activity Config
+         * @description This activity's state, context and asset URLs for the launching learner.
+         */
+        get: operations["activity_config_api_v1_pxc_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pxc/embed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Embed Activity
+         * @description The document an LMS iframes to show one activity to one learner.
+         */
+        get: operations["embed_activity_api_v1_pxc_embed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/slack/events": {
         parameters: {
             query?: never;
@@ -1206,6 +1322,37 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActionResult
+         * @description The events one action produced, returned in the same response that submitted it.
+         */
+        ActionResult: {
+            /** Events */
+            events: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * ActivityConfig
+         * @description Everything the embed shell needs to render one activity for one learner.
+         */
+        ActivityConfig: {
+            /** Action Base Url */
+            action_base_url: string;
+            /** Activity */
+            activity: string;
+            /** Asset Base Url */
+            asset_base_url: string;
+            context: components["schemas"]["LaunchContext"];
+            /** Permission */
+            permission: string;
+            /** State */
+            state: {
+                [key: string]: unknown;
+            };
+            /** Ui Url */
+            ui_url: string;
+        };
         /**
          * AttachedDocumentResponse
          * @description Document info returned by the list-attachments endpoint.
@@ -1745,6 +1892,18 @@ export interface components {
             model?: string | null;
             /** Name */
             name?: string | null;
+        };
+        /**
+         * LaunchContext
+         * @description The identifiers the activity's client code needs, mirroring PXC's context shape.
+         */
+        LaunchContext: {
+            /** Activity Id */
+            activity_id: string;
+            /** Course Id */
+            course_id: string;
+            /** User Id */
+            user_id: string;
         };
         /**
          * LoginActivityPoint
@@ -3887,6 +4046,165 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_action_api_v1_pxc_actions__action_name__post: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                action_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activity_asset_api_v1_pxc_assets__file_path__get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                file_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_script_api_v1_pxc_client__file_name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activity_config_api_v1_pxc_config_get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    embed_activity_api_v1_pxc_embed_get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
             };
             /** @description Validation Error */
             422: {
