@@ -1,0 +1,139 @@
+"""The launch token: how a learner's identity reaches Sparkth from Open edX.
+
+The XBlock mints a short-lived token carrying the Open edX user id, course id and placement,
+signed with a secret shared between the two servers; this plugin verifies the signature and
+takes the learner's identity from the token, so it never generates or looks up a user itself.
+The secret stays server-side at both ends and only the token travels through the browser, which
+is what makes the identity trustworthy rather than client-asserted.
+
+Permission is not a claim. It is fixed to ``play`` where the runtime is built, so a caller
+cannot ask for ``edit``.
+
+``pxc.lib.signing`` is not used: it reads ``PXC_SIGNING_SECRET`` from the environment and then
+unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the configured value
+(L8). Reported upstream.
+"""
+
+import hashlib
+import hmac
+import json
+from base64 import urlsafe_b64decode, urlsafe_b64encode
+from dataclasses import dataclass
+from time import time
+
+from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.constants import PXC_LAUNCH_SECRET, PXC_LAUNCH_TOKEN_TTL_SECONDS
+from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken
+
+logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class LaunchClaims:
+    """Who is asking, and for which placement of which activity."""
+
+    activity: str
+    placement: str
+    course_id: str
+    user_id: str
+
+
+def _b64encode(data: bytes) -> str:
+    return urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _b64decode(value: str) -> bytes:
+    return urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _sign(payload: str, secret: str) -> str:
+    return _b64encode(hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest())
+
+
+def _unverified_claims_hint(payload: str) -> str:
+    """A best-effort ``" (unverified activity=..., placement=...)"`` suffix for a log message.
+
+    Called only after the signature check has already failed, so ``payload`` is not proven
+    genuine — a forged token can put anything here. Never used to authenticate anything, only to
+    give an operator a diagnostic hint (e.g. spotting a shared-secret mismatch, where the token
+    is genuine and only the signature side disagrees). Returns "" if the payload cannot even be
+    decoded, or decodes to something with no activity or placement to show.
+    """
+    try:
+        claims = json.loads(_b64decode(payload))
+    except ValueError, UnicodeDecodeError:
+        return ""
+    if not isinstance(claims, dict):
+        return ""
+    activity, placement = claims.get("act"), claims.get("plc")
+    if activity is None and placement is None:
+        return ""
+    return " (unverified activity=%s, placement=%s)" % (activity, placement)
+
+
+def mint_launch_token(
+    activity: str,
+    placement: str,
+    course_id: str,
+    user_id: str,
+    secret: str,
+    ttl: int = PXC_LAUNCH_TOKEN_TTL_SECONDS,
+) -> str:
+    """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
+
+    Sparkth itself only verifies tokens — the XBlock is what mints them in production. This
+    lives here so the verification path has something to verify under test, and so both halves
+    of the format are defined in one place.
+    """
+    claims = {
+        "act": activity,
+        "plc": placement,
+        "cid": course_id,
+        "uid": user_id,
+        "exp": int(time()) + ttl,
+    }
+    payload = _b64encode(json.dumps(claims, separators=(",", ":"), sort_keys=True).encode())
+    return f"{payload}.{_sign(payload, secret)}"
+
+
+def read_launch_token(token: str) -> LaunchClaims:
+    """Verify ``token`` against the configured secret and return its claims.
+
+    The signature comparison runs through ``hmac.compare_digest`` for timing-safety. No test in
+    this suite can observe timing, so that property is carried by this implementation and this
+    docstring alone — not by a test.
+
+    A bad signature is logged at ``warning`` level with a best-effort, explicitly unverified
+    activity/placement hint (see ``_unverified_claims_hint``) — the most likely production cause
+    is a shared-secret mismatch between Sparkth and the XBlock, which otherwise leaves an
+    operator with nothing but learner-reported 401s.
+
+    Raises:
+        PxcInvalidLaunchToken: if no secret is configured, or the token is malformed, wrongly
+            signed, or expired.
+    """
+    if not PXC_LAUNCH_SECRET:
+        logger.error("PXC_LAUNCH_SECRET is not configured; refusing every launch token")
+        raise PxcInvalidLaunchToken("Launch tokens are not configured")
+
+    payload, _, signature = token.partition(".")
+    if not payload or not signature:
+        raise PxcInvalidLaunchToken("Malformed launch token")
+
+    # Compare as bytes: str.encode() cannot fail, but hmac.compare_digest raises TypeError on a
+    # str containing non-ASCII characters, and the signature is attacker-controlled.
+    if not hmac.compare_digest(signature.encode(), _sign(payload, PXC_LAUNCH_SECRET).encode()):
+        logger.warning("Bad launch token signature%s", _unverified_claims_hint(payload))
+        raise PxcInvalidLaunchToken("Bad launch token signature")
+
+    try:
+        claims = json.loads(_b64decode(payload))
+    except (ValueError, UnicodeDecodeError) as err:
+        raise PxcInvalidLaunchToken("Malformed launch token") from err
+
+    try:
+        if int(claims["exp"]) < int(time()):
+            raise PxcInvalidLaunchToken("Expired launch token")
+        return LaunchClaims(str(claims["act"]), str(claims["plc"]), str(claims["cid"]), str(claims["uid"]))
+    except (KeyError, TypeError, ValueError, OverflowError) as err:
+        raise PxcInvalidLaunchToken("Malformed launch token") from err
