@@ -62,8 +62,7 @@ export class SparkthPXC extends PXC {
       return;
     }
     if (!response.ok) {
-      console.error("Action rejected:", name, response.status);
-      return;
+      throw new Error(`Action rejected: ${name} (${response.status})`);
     }
     const data = await response.json();
     for (const event of data.events || []) {

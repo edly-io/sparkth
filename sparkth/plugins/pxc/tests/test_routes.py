@@ -15,7 +15,7 @@ def _extract_attr(html: str, attr: str) -> str:
 
 @pytest.fixture
 def token(configured_secret: str) -> str:
-    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", configured_secret, 300)
+    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
 
 async def test_config_without_a_token_is_rejected(client: AsyncClient) -> None:
@@ -70,6 +70,24 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
+async def test_a_rejected_action_throws_rather_than_returning(client: AsyncClient) -> None:
+    """Guards ``sparkth-pxc.js``'s ``sendAction()`` against reverting to a silent ``return``.
+
+    No JS test runner covers this backend-served static asset (extending one here would need a
+    DOM shim, a module-resolution shim for ``./pxc.js``, or bending frontend/tests/'s vitest
+    include to reach a backend plugin's asset — all disproportionate to a one-line guard), so
+    this is a source-level guard rather than an executed test: it does not run the script, only
+    pins that its rejection branch still reads ``throw``. Before this fix, ``sendAction()``
+    returned normally on a rejected action, so the caller's ``await`` resolved as if the save or
+    submit had succeeded — ``ui.js``'s config-save handler reports "Configuration saved!" from
+    its try block, not its catch, because the catch never fired.
+    """
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    assert response.status_code == 200
+    assert re.search(r"if\s*\(!response\.ok\)\s*\{\s*throw\s", response.text)
+
+
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
     # A name, not a traversal: httpx and Starlette both normalise "../" out of a URL path
     # before the route ever sees it, so a traversal test would pass without proving anything.
@@ -98,6 +116,16 @@ async def test_config_returns_the_state_and_the_learners_context(client: AsyncCl
     }
     assert body["permission"] == "play"
     assert body["ui_url"].endswith("/api/v1/pxc/assets/ui.js?token=" + token)
+
+
+@pytest.mark.wasm
+async def test_config_reports_the_permission_the_token_asked_for(client: AsyncClient, configured_secret: str) -> None:
+    edit_token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
+
+    response = await client.get("/api/v1/pxc/config", params={"token": edit_token})
+
+    assert response.status_code == 200
+    assert response.json()["permission"] == "edit"
 
 
 async def test_the_activitys_ui_script_is_served(client: AsyncClient, token: str) -> None:

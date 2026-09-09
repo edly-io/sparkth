@@ -41,7 +41,9 @@ def test_a_secret_from_configuration_is_what_verifies_a_token(monkeypatch: pytes
     monkeypatch.setenv("PXC_LAUNCH_SECRET", "configured-not-exported")
     get_pxc_settings.cache_clear()
 
-    token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "configured-not-exported", 300)
+    token = mint_launch_token(
+        "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", "configured-not-exported", 300
+    )
 
     assert read_launch_token(token).activity == "mcq"
 
@@ -56,4 +58,4 @@ def test_the_token_ttl_default_comes_from_configuration(monkeypatch: pytest.Monk
     get_pxc_settings.cache_clear()
 
     with pytest.raises(PxcInvalidLaunchToken, match="[Ee]xpired"):
-        read_launch_token(mint_launch_token("mcq", "p", "c", "u", "a-secret"))
+        read_launch_token(mint_launch_token("mcq", "p", "c", "u", "play", "a-secret"))

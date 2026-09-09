@@ -218,6 +218,16 @@ test.backend.analytics: services.up ## Run the TimescaleDB test lane (starts bac
 	ANALYTICS_TEST_PG_URL="$${ANALYTICS_TEST_PG_URL:-postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics_test}" \
 		uv run pytest -m pg $(ARGS)
 
+# xblock/ is a separate Django distribution (see conftest.py's collect_ignore) with its own
+# pyproject.toml, so it is not covered by `make test.backend` — everything it needs (pytest,
+# mypy, ruff) is run explicitly here instead, on the same footing as the main package.
+.PHONY: test.xblock
+test.xblock: ## Run the Open edX XBlock package's tests, mypy and ruff (separate distribution)
+	uv run --with pytest --with django --with XBlock --with web-fragments --directory xblock pytest -q
+	uv run --with mypy --with django --with XBlock --with web-fragments --directory xblock mypy sparkth_pxc
+	uv run ruff check xblock/
+	uv run ruff format --check xblock/
+
 .PHONY: test.frontend
 test.frontend: lint.frontend lint.frontend.react-doctor test.frontend.api test.frontend.typecheck test.frontend.vitest test.frontend.format test.frontend.i18n ## Run frontend linting, react-doctor, api drift, typecheck, unit, formatting and i18n catalog tests
 
