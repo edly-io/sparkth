@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from pxc.lib.permission import Permission
 
 from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
@@ -62,7 +63,7 @@ async def test_a_minted_placement_launches_with_the_activitys_own_configuration(
     # rather than a blank. The activity declares it as its fields' defaults, and the runtime
     # serves those for any placement nobody has configured yet.
     block = await build_pxc_block("course-v1:X+Y+Z")
-    claims = LaunchClaims("mcq", block.attributes["placement"], "course-v1:X+Y+Z", "learner-7")
+    claims = LaunchClaims("mcq", block.attributes["placement"], "course-v1:X+Y+Z", "learner-7", Permission.play)
 
     state = read_state(build_runtime(claims))
 
