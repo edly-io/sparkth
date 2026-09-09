@@ -71,6 +71,13 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
+# TODO: cover `sparkth-pxc.js`'s `sendAction()` with a vitest. A rejected action must throw
+# rather than return, or `ui.js`'s config-save handler reports "Configuration saved!" from its
+# try block over an edit the server discarded. Reaching a backend-served static asset needs a
+# DOM shim, a module-resolution shim for `./pxc.js`, and a vitest include that frontend/tests/
+# does not currently extend to this plugin.
+
+
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
     # A name, not a traversal: httpx and Starlette both normalise "../" out of a URL path
     # before the route ever sees it, so a traversal test would pass without proving anything.
