@@ -1,12 +1,9 @@
 import re
-from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
 
 from sparkth.plugins.pxc.tokens import mint_launch_token
-
-SECRET = "shared-secret"
 
 
 def _extract_attr(html: str, attr: str) -> str:
@@ -16,16 +13,9 @@ def _extract_attr(html: str, attr: str) -> str:
     return match.group(1)
 
 
-@pytest.fixture(autouse=True)
-def launch_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", tmp_path)
-    monkeypatch.setattr("sparkth.plugins.pxc.runtime.PXC_DATA_DIR", tmp_path)
-
-
 @pytest.fixture
-def token() -> str:
-    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300)
+def token(configured_secret: str) -> str:
+    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", configured_secret, 300)
 
 
 async def test_config_without_a_token_is_rejected(client: AsyncClient) -> None:
