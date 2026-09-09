@@ -504,6 +504,23 @@ If `build` cannot produce its block, it reports that by raising
 letting some other exception escape. A publishing tool catches it and reports the failure
 through its own error contract instead of letting it propagate unguarded.
 
+### The Open edX side
+
+The `openedx` plugin is the publisher: its `openedx_list_content_contributors` MCP tool lists
+the contributors registered on `LMS_CONTENT_CONTRIBUTORS`, and `openedx_add_plugin_content`
+resolves one by name and creates the `ContentBlock` it builds in the target course.
+
+A contributed block's `category` must resolve to an XBlock that is both installed in the Open
+edX instance and listed in the course's **Advanced Module List** — otherwise Studio has no class
+to render the block with. The `pxc` contributor is an example: it seeds a placement in the
+`pxc` plugin's own state and asks Studio to create a block of category `"pxc"`, which the
+separate `xblock/` package (see its own `xblock/README.md`) provides.
+
+The XBlock is also the piece that carries the learner's identity from Open edX to the
+contributing plugin at render time — a content contributor only sets up what a block will be
+when the course is authored, not who is looking at it. What the `pxc` XBlock does with that
+identity is documented in its own README, not here.
+
 ## Complete Example
 
 ```python

@@ -256,3 +256,7 @@ sparkth/locale/messages.pot
 sparkth/plugins/pxc/activity/sandbox.bundle.js
 sparkth/plugins/pxc/activity/sandbox.wasm
 sparkth/plugins/pxc/activity/sandbox.wasm.bin
+
+# xblock is a separate distribution with its own lockfile; the root uv.lock above is the one
+# tracked. `uv run --with ... --directory xblock pytest` regenerates this one on every run.
+xblock/uv.lock
