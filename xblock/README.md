@@ -17,9 +17,30 @@ mode of the existing `pxc-xblock`, or stays a standalone package, is not yet dec
 
 ## Installing
 
-Install this distribution into the Open edX instance (e.g. `pip install ./xblock`), then add
-`pxc` to the course's **Advanced Module List** in Studio's Advanced Settings. Both steps are
-required per course — installing the package alone does not enable the block anywhere.
+Install this distribution into the Open edX instance (e.g. `pip install ./xblock`). That is
+what registers the `pxc` entry point, and it is the only step Sparkth's publishing tool needs
+— verify it resolved with:
+
+```bash
+./manage.py lms shell -c "from xblock.core import XBlock; print(XBlock.load_class('pxc'))"
+```
+
+Adding `pxc` to the course's **Advanced Module List** in Studio's Advanced Settings is
+optional, and only affects course authors: it is what puts the block in Studio's *Advanced*
+component picker. It does not gate blocks created through the Studio API, and it does not
+gate rendering in the LMS.
+
+**A published block is required, though.** `openedx_add_plugin_content` creates the block in
+Studio's draft branch. The LMS reads the published branch, so until the unit is published the
+LMS raises `ItemNotFoundError` for the block and the learner sees nothing at all. Publish the
+unit in Studio, or:
+
+```bash
+./manage.py cms shell -c "
+from opaque_keys.edx.keys import UsageKey
+from xmodule.modulestore.django import modulestore
+modulestore().publish(UsageKey.from_string('<unit locator>'), <user id>)"
+```
 
 ## Django settings
 
@@ -30,6 +51,25 @@ The block reads three settings from the Open edX instance's Django settings:
 | `SPARKTH_PXC_BASE_URL` | The base URL of the Sparkth instance to embed activities from. |
 | `SPARKTH_PXC_LAUNCH_SECRET` | The HMAC secret used to sign launch tokens. **Must be set to the exact same value as Sparkth's `PXC_LAUNCH_SECRET`** — the two sides sign and verify with the same shared secret, and a mismatch fails every learner's launch. |
 | `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS` | How many seconds a minted launch token stays valid. Kept short, since a token is minted fresh on every page render. |
+
+`SPARKTH_PXC_BASE_URL` is fetched by the **learner's browser**, not by Open edX itself — it
+goes into the iframe's `src`. It therefore has to be a URL that reaches Sparkth from the
+browser. Pointing it at a container-internal host such as `host.docker.internal` yields a
+blank iframe and no server-side error at either end.
+
+### Getting the secret to Sparkth
+
+Sparkth reads `PXC_LAUNCH_SECRET` from its **process environment**, and refuses every launch
+with `401 Launch tokens are not configured` when it is empty. Putting the value in `.env` or
+`.env.local` alone is not enough for a natively-run server: those files are loaded by
+pydantic-settings into the `Settings` object, which never exports to `os.environ`, while
+`sparkth/plugins/pxc/constants.py` reads the secret with `os.getenv`. Export it:
+
+```bash
+export PXC_LAUNCH_SECRET=<the same value as SPARKTH_PXC_LAUNCH_SECRET>
+```
+
+A containerised deployment that injects real environment variables is unaffected.
 
 ## Scores and grading
 
