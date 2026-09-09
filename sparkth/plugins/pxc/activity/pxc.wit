@@ -1,0 +1,31 @@
+package pxc:sandbox;
+
+interface types {
+    enum permission {
+        view,
+        play,
+        edit,
+    }
+
+    record context {
+        activity-id: option<string>,
+        course-id: option<string>,
+        user-id: option<string>,
+    }
+}
+
+interface state {
+    use types.{context, permission};
+
+    send-event: func(name: string, value: string, context: option<context>, permission: permission) -> string;
+
+    get-field: func(name: string, context: option<context>) -> string;
+    set-field: func(name: string, value: string, context: option<context>) -> bool;
+}
+
+world activity {
+    use types.{context, permission};
+    import state;
+    export on-action: func(name: string, value: string, context: context, permission: permission) -> string;
+    export get-state: func(context: context, permission: permission) -> string;
+}

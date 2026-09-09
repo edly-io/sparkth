@@ -1,0 +1,11 @@
+{
+  "name": "sparkth",
+  "private": true,
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "dependencies": {
+    "@bytecodealliance/componentize-js": "^0.19.3",
+    "@bytecodealliance/jco": "^1.17.3"
+  }
+}

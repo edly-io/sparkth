@@ -5,6 +5,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["sparkth"]
 
+[tool.hatch.metadata]
+# hatchling rejects direct references (the git-pinned pxc-lib) unless allowed here.
+allow-direct-references = true
+
 [project]
 name = "sparkth"
 version = "0.1.11"
@@ -47,6 +51,7 @@ dependencies = [
     "beautifulsoup4>=4.0",
     "python-docx>=1.2.0",
     "psutil>=6.0.0",
+    "pxc-lib @ git+https://github.com/edly-io/pxc@01114d3a95ec3e5f29013c4c2202f6c8386ced78#subdirectory=src/pxc/lib",
 ]
 
 [dependency-groups]
@@ -113,6 +118,7 @@ module = [
 asyncio_mode = "auto"
 markers = [
     "pg: requires a real PostgreSQL/TimescaleDB analytics database; runs only when ANALYTICS_TEST_PG_URL is set (see tests/analytics/pg/). The default SQLite suite skips these.",
+    "wasm: requires the bundled PXC activity's sandbox.wasm, which is built rather than committed; runs only after `make pxc.activity.build`. A clean checkout skips these.",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",
