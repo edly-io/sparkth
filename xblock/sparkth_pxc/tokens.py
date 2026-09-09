@@ -28,15 +28,21 @@ def mint_launch_token(
     placement: str,
     course_id: str,
     user_id: str,
+    permission: str,
     secret: str,
     ttl: int,
 ) -> str:
-    """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds."""
+    """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
+
+    ``permission`` is one of PXC's modes — ``"play"`` for a learner, ``"edit"`` for a course
+    author. It is a claim inside the signed payload, so the viewer cannot change it.
+    """
     claims = {
         "act": activity,
         "plc": placement,
         "cid": course_id,
         "uid": user_id,
+        "prm": permission,
         "exp": int(time()) + ttl,
     }
     payload = _b64encode(json.dumps(claims, separators=(",", ":"), sort_keys=True).encode())

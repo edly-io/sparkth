@@ -42,6 +42,26 @@ from xmodule.modulestore.django import modulestore
 modulestore().publish(UsageKey.from_string('<unit locator>'), <user id>)"
 ```
 
+## Editing an activity in Studio
+
+Click **Edit** on the component. Studio renders the activity in PXC's `edit` mode, where the
+author can change the question, the answers and which answers are correct.
+
+**Studio's Save and Cancel buttons do not apply to the activity's content.** The activity
+persists a change through Sparkth the moment the author clicks the activity's *own* Save
+button, which happens before Studio's buttons are reachable — so Cancel reverts nothing.
+
+This is a consequence of where the content lives, not an oversight. Studio's buttons operate
+on XBlock fields, and no XBlock field holds activity content: the course stores only a
+reference, and the activity's data stays in Sparkth. Making Cancel behave would mean copying
+activity content into XBlock fields, putting the same state in two places and reintroducing
+exactly the drift this design avoids. The editing view therefore carries a notice saying so,
+because an author has no other way to find out.
+
+Editing is authorized entirely by Open edX: Studio renders the editing view only to users who
+may author the course, and the launch token it mints carries `edit` inside its signed payload.
+Sparkth verifies the signature and takes the permission from the claim.
+
 ## Django settings
 
 The block reads three settings from the Open edX instance's Django settings:
