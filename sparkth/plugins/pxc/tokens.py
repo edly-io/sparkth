@@ -10,8 +10,11 @@ The claim names are the plugin's own — ``act``, ``plc``, ``cid``, ``uid`` — 
 registered JWT claims describe a placement or an activity type. Only ``exp`` is standard, and
 it is PyJWT that enforces it.
 
-Permission is not a claim. It is fixed to ``play`` where the runtime is built, so a caller
-cannot ask for ``edit``.
+Permission travels as the ``prm`` claim, inside the signed payload, so a caller still cannot
+ask for ``edit`` — altering the claim invalidates the signature. Which permission a launch
+gets is decided by the XBlock, the only party that knows whether the viewer may author the
+course: ``student_view`` mints ``play`` and ``studio_view`` mints ``edit``. The consequence
+is that the shared secret grants ``edit`` as well as ``play``.
 
 ``pxc.lib.signing`` is not used: it reads ``PXC_SIGNING_SECRET`` from the environment and then
 unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the configured value
@@ -22,6 +25,7 @@ from dataclasses import dataclass
 from time import time
 
 import jwt
+from pxc.lib.permission import Permission
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.config import get_pxc_settings
@@ -37,12 +41,13 @@ LAUNCH_TOKEN_ALGORITHM = "HS256"
 
 @dataclass(frozen=True)
 class LaunchClaims:
-    """Who is asking, and for which placement of which activity."""
+    """Who is asking, for which placement of which activity, and at what permission."""
 
     activity: str
     placement: str
     course_id: str
     user_id: str
+    permission: Permission
 
 
 def _unverified_claims_hint(token: str) -> str:
@@ -64,11 +69,28 @@ def _unverified_claims_hint(token: str) -> str:
     return " (unverified activity=%s, placement=%s)" % (activity, placement)
 
 
+def _read_permission(value: object) -> Permission:
+    """The permission a verified token asks for, degrading to ``play`` when it names none.
+
+    Absent means an XBlock older than the claim; unrecognised means version skew or a bug,
+    since the claim sits inside the signed payload. Both take the least privilege rather than
+    failing an otherwise legitimate launch.
+    """
+    if value is None:
+        return Permission.play
+    try:
+        return Permission(str(value))
+    except ValueError:
+        logger.warning("Launch token asked for unknown permission %r; using play", value)
+        return Permission.play
+
+
 def mint_launch_token(
     activity: str,
     placement: str,
     course_id: str,
     user_id: str,
+    permission: str,
     secret: str,
     ttl: int | None = None,
 ) -> str:
@@ -88,6 +110,7 @@ def mint_launch_token(
         "plc": placement,
         "cid": course_id,
         "uid": user_id,
+        "prm": permission,
         "exp": int(time()) + ttl,
     }
     return jwt.encode(claims, secret, algorithm=LAUNCH_TOKEN_ALGORITHM)
@@ -133,6 +156,12 @@ def read_launch_token(token: str) -> LaunchClaims:
         raise PxcInvalidLaunchToken("Malformed launch token") from err
 
     try:
-        return LaunchClaims(str(claims["act"]), str(claims["plc"]), str(claims["cid"]), str(claims["uid"]))
+        return LaunchClaims(
+            str(claims["act"]),
+            str(claims["plc"]),
+            str(claims["cid"]),
+            str(claims["uid"]),
+            _read_permission(claims.get("prm")),
+        )
     except KeyError as err:
         raise PxcInvalidLaunchToken("Malformed launch token") from err

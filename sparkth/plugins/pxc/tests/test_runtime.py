@@ -7,7 +7,7 @@ from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFoun
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
-CLAIMS = LaunchClaims("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7")
+CLAIMS = LaunchClaims("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
 
 
 def test_the_runtime_is_built_for_the_claimed_placement_and_learner() -> None:
@@ -25,7 +25,7 @@ def test_permission_is_fixed_to_play_and_never_taken_from_the_request() -> None:
 
 def test_an_unknown_activity_is_rejected() -> None:
     with pytest.raises(PxcActivityNotFound):
-        build_runtime(LaunchClaims("absent", "placement-1", "course-v1:X+Y+Z", "learner-7"))
+        build_runtime(LaunchClaims("absent", "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
 
 
 def test_the_state_file_is_the_activity_types_own(tmp_path: Path) -> None:
