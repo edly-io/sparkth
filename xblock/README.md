@@ -44,6 +44,11 @@ modulestore().publish(UsageKey.from_string('<unit locator>'), <user id>)"
 
 ## Editing an activity in Studio
 
+**Deploy Sparkth before this XBlock.** Sparkth treats an absent `prm` claim as `play`, so an
+older XBlock talking to a newer Sparkth stays safe; the reverse — a newer XBlock talking to an
+older Sparkth — renders the editing notice above a *learner* view with no Save button, telling
+the author to click a button that is not there.
+
 Click **Edit** on the component. Studio renders the activity in PXC's `edit` mode, where the
 author can change the question, the answers and which answers are correct.
 
@@ -58,9 +63,18 @@ activity content into XBlock fields, putting the same state in two places and re
 exactly the drift this design avoids. The editing view therefore carries a notice saying so,
 because an author has no other way to find out.
 
-Editing is authorized entirely by Open edX: Studio renders the editing view only to users who
-may author the course, and the launch token it mints carries `edit` inside its signed payload.
-Sparkth verifies the signature and takes the permission from the claim.
+By default, Studio renders the editing view only to users who may author the course, and the
+launch token it mints carries `edit` inside its signed payload; Sparkth verifies the signature
+and takes the permission from the claim. That default holds only while Open edX's
+`FEATURES['ENABLE_XBLOCK_VIEW_ENDPOINT']` stays off: with it on, the LMS's `xblock_view`
+endpoint renders any `view_name` — including `studio_view` — for any authenticated user with
+access to the block, so an enrolled learner can request one directly and receive an `edit`
+token.
+
+The launch token's lifetime also bounds how long an editing session can run: it defaults to
+300 seconds (`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`), and Sparkth refuses a save submitted
+after it lapses. The activity reports that refusal to the author as an error, rather than
+reporting success.
 
 ## Django settings
 
