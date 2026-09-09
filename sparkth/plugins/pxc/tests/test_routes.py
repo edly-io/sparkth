@@ -15,7 +15,7 @@ def _extract_attr(html: str, attr: str) -> str:
 
 @pytest.fixture
 def token(configured_secret: str) -> str:
-    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", configured_secret, 300)
+    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
 
 async def test_config_without_a_token_is_rejected(client: AsyncClient) -> None:
