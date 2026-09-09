@@ -100,6 +100,16 @@ async def test_config_returns_the_state_and_the_learners_context(client: AsyncCl
     assert body["ui_url"].endswith("/api/v1/pxc/assets/ui.js?token=" + token)
 
 
+@pytest.mark.wasm
+async def test_config_reports_the_permission_the_token_asked_for(client: AsyncClient, configured_secret: str) -> None:
+    edit_token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
+
+    response = await client.get("/api/v1/pxc/config", params={"token": edit_token})
+
+    assert response.status_code == 200
+    assert response.json()["permission"] == "edit"
+
+
 async def test_the_activitys_ui_script_is_served(client: AsyncClient, token: str) -> None:
     # Unmarked deliberately: serving ui.js builds a runtime and reads manifest.ui, neither of
     # which touches the sandbox. Only get_state() and on_action() need the wasm.
