@@ -9,8 +9,12 @@ is what makes the identity trustworthy rather than client-asserted.
 Permission travels as the ``prm`` claim, inside the signed payload, so a caller still cannot
 ask for ``edit`` — altering the claim invalidates the signature. Which permission a launch
 gets is decided by the XBlock, the only party that knows whether the viewer may author the
-course: ``student_view`` mints ``play`` and ``studio_view`` mints ``edit``. The consequence
-is that the shared secret grants ``edit`` as well as ``play``.
+course: ``student_view`` mints ``play`` and ``studio_view`` mints ``edit``. That delegation
+holds only while Open edX's ``FEATURES['ENABLE_XBLOCK_VIEW_ENDPOINT']`` stays off, which is the
+default — with it on, the LMS's ``xblock_view`` endpoint renders any ``view_name``, including
+``studio_view``, for any authenticated user with access to the block, so an enrolled learner
+can request one directly and receive an ``edit`` token. The consequence is that the shared
+secret grants ``edit`` as well as ``play``.
 
 ``pxc.lib.signing`` is not used: it reads ``PXC_SIGNING_SECRET`` from the environment and then
 unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the configured value
@@ -77,19 +81,26 @@ def _unverified_claims_hint(payload: str) -> str:
     return " (unverified activity=%s, placement=%s)" % (activity, placement)
 
 
-def _read_permission(value: object) -> Permission:
+def _read_permission(value: object, activity: str, placement: str) -> Permission:
     """The permission a verified token asks for, degrading to ``play`` when it names none.
 
     Absent means an XBlock older than the claim; unrecognised means version skew or a bug,
     since the claim sits inside the signed payload. Both take the least privilege rather than
-    failing an otherwise legitimate launch.
+    failing an otherwise legitimate launch. ``activity``/``placement`` are logged alongside an
+    unrecognised value so the warning can be correlated to a specific launch, the way
+    ``_unverified_claims_hint`` already does for a bad signature.
     """
     if value is None:
         return Permission.play
     try:
         return Permission(str(value))
     except ValueError:
-        logger.warning("Launch token asked for unknown permission %r; using play", value)
+        logger.warning(
+            "Launch token asked for unknown permission %r (activity=%s, placement=%s); using play",
+            value,
+            activity,
+            placement,
+        )
         return Permission.play
 
 
@@ -164,12 +175,13 @@ def read_launch_token(token: str) -> LaunchClaims:
     try:
         if int(claims["exp"]) < int(time()):
             raise PxcInvalidLaunchToken("Expired launch token")
+        activity, placement = str(claims["act"]), str(claims["plc"])
         return LaunchClaims(
-            str(claims["act"]),
-            str(claims["plc"]),
+            activity,
+            placement,
             str(claims["cid"]),
             str(claims["uid"]),
-            _read_permission(claims.get("prm")),
+            _read_permission(claims.get("prm"), activity, placement),
         )
     except (KeyError, TypeError, ValueError, OverflowError) as err:
         raise PxcInvalidLaunchToken("Malformed launch token") from err

@@ -80,6 +80,12 @@ jobs:
       - name: Run backend tests
         run: make test.backend
 
+      # xblock/ is a separate distribution `make test.backend` does not cover (see its own
+      # pyproject.toml and conftest.py's collect_ignore). A separate step so a failure here is
+      # attributable to the XBlock package rather than buried inside another target's output.
+      - name: Run XBlock package tests
+        run: make test.xblock
+
   # Always run the TimescaleDB lane.
   analytics-timescale:
     name: Analytics TimescaleDB Lane

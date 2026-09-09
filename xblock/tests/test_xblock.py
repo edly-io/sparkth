@@ -10,7 +10,7 @@ from base64 import urlsafe_b64decode
 from typing import Any
 
 import pytest
-from sparkth_pxc.xblock import SparkthPxcXBlock, build_editor_html, build_embed_iframe
+from sparkth_pxc.xblock import _EDITOR_NOTICE, SparkthPxcXBlock, build_editor_html, build_embed_iframe
 from xblock.fields import ScopeIds
 from xblock.test.toy_runtime import ToyRuntime
 
@@ -71,10 +71,19 @@ def test_the_editor_markup_explains_that_studios_buttons_do_not_apply() -> None:
 
     assert "stored in Sparkth" in html
     assert "Cancel" in html
+    # A substring check alone would still pass with the iframe placed first, leaving the
+    # notice below a min-height:24em frame where the author never sees it.
+    assert html.startswith(_EDITOR_NOTICE)
 
 
 def test_the_learner_view_asks_for_play(block: SparkthPxcXBlock) -> None:
     assert claims_in(str(block.student_view().content))["prm"] == "play"
+
+
+def test_a_rendered_views_token_carries_the_viewers_id(block: SparkthPxcXBlock) -> None:
+    # The fixture's ScopeIds names this viewer "learner-7"; nothing else here checks that id,
+    # as opposed to any other constant, actually reaches the token.
+    assert claims_in(str(block.student_view().content))["uid"] == "learner-7"
 
 
 def test_the_editing_view_asks_for_edit(block: SparkthPxcXBlock) -> None:

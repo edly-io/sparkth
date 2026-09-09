@@ -192,3 +192,9 @@ def test_an_unrecognised_permission_claim_degrades_to_play_and_is_logged(
 
     assert claims.permission is Permission.play
     assert "superuser" in caplog.text
+    # Correlate the warning to a launch the way a bad-signature warning already does.
+    assert "mcq" in caplog.text
+    assert "placement-1" in caplog.text
+    # Never the secret or any part of the token itself.
+    assert configured_secret not in caplog.text
+    assert token not in caplog.text
