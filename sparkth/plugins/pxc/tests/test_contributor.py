@@ -13,17 +13,12 @@ import pytest
 
 from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block
 from sparkth.plugins.pxc.plugin import PxcPlugin
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.tokens import LaunchClaims
-
-
-@pytest.fixture(autouse=True)
-def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", tmp_path)
-    return tmp_path
 
 
 @pytest.fixture
@@ -50,14 +45,15 @@ async def test_every_placement_gets_its_own_id() -> None:
     assert first.attributes["placement"] != second.attributes["placement"]
 
 
-async def test_building_a_block_writes_nothing(data_dir: Path) -> None:
+async def test_building_a_block_writes_nothing(tmp_path: Path) -> None:
     # The decoupling this contributor rests on: it names an activity and mints an id for it, and
     # knows nothing else about it. Writing a configuration would mean knowing which fields that
     # activity declares, which is true of exactly one of them. The absent state file is the
     # evidence, since nothing about the returned block would differ either way.
     await build_pxc_block("course-v1:X+Y+Z")
 
-    assert list(data_dir.iterdir()) == []
+    # `pxc_settings` points PXC_DATA_DIR at this same tmp_path.
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.wasm
@@ -95,7 +91,8 @@ async def test_constructing_the_plugin_again_keeps_one_registration(unregistered
 async def test_an_unbundled_default_activity_raises_content_build_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_DEFAULT_ACTIVITY", "not-bundled")
+    monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "not-bundled")
+    get_pxc_settings.cache_clear()
 
     with pytest.raises(ContentBuildError, match="not-bundled"):
         await build_pxc_block("course-v1:X+Y+Z")
