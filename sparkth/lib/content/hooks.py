@@ -43,7 +43,9 @@ class ContentContributor:
     ``build`` is awaited with the destination course id and returns the block to create. It is
     a callable field rather than a method to override, mirroring ``Tool(handler)`` on the
     ``MCP_TOOLS`` hook. ``description`` is human-facing: it is what a publishing tool lists
-    back to an agent choosing a contributor.
+    back to an agent choosing a contributor. ``build`` reports its own failure to produce a
+    block by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`; it must not
+    raise anything else.
     """
 
     name: str

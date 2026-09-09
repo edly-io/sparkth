@@ -499,6 +499,11 @@ Unlike the other hooks above, register this one at **module level** in `plugin.p
 `__init__` and `SparkthPlugin.__init__` run more than once in a pytest session, which would
 raise a duplicate-name error on the second registration.
 
+If `build` cannot produce its block, it reports that by raising
+`sparkth.lib.content.exceptions.ContentBuildError` — not by returning a placeholder block or
+letting some other exception escape. A publishing tool catches it and reports the failure
+through its own error contract instead of letting it propagate unguarded.
+
 ## Complete Example
 
 ```python

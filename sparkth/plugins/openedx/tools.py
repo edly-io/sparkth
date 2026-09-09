@@ -4,6 +4,8 @@ from urllib.parse import quote
 
 import aiohttp
 
+from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
@@ -11,6 +13,7 @@ from sparkth.plugins.openedx.client import OpenEdxClient
 from sparkth.plugins.openedx.enums import Component
 from sparkth.plugins.openedx.schemas import (
     AccessTokenPayload,
+    AddPluginContentArgs,
     Auth,
     BlockContentArgs,
     CourseTreeRequest,
@@ -703,3 +706,78 @@ async def openedx_get_block_contentstore(payload: BlockContentArgs) -> dict[str,
             return _lms_error(err, method="GET", endpoint=endpoint)
         except ValueError as err:
             return {"error": {"message": str(err)}}
+
+
+async def openedx_list_content_contributors() -> dict[str, Any]:
+    """
+    List the plugin content contributors available to publish into an Open edX course.
+
+    A contributor is a named producer of one course content block, contributed by another
+    plugin. Pass a name from this list as the `contributor` argument of
+    `openedx_add_plugin_content`.
+
+    Returns:
+        dict[str, Any]: `{"response": {"contributors": [{"name": <str>, "description": <str>}]}}`
+    """
+    contributors = [
+        {"name": contributor.name, "description": contributor.description}
+        for contributor in LMS_CONTENT_CONTRIBUTORS.iter_values()
+    ]
+    return {"response": {"contributors": contributors}}
+
+
+async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str, Any]:
+    """
+    Publish a plugin-contributed content block into an Open edX unit.
+
+    Resolves `contributor` in the content contributor hook, awaits the block it builds for
+    this course, and creates that block in the given unit. If the block declares any
+    settings, they are then patched onto the created block. The contributor owns the block's
+    data; the course holds only the reference.
+
+    The block's category must be listed in the course's Advanced Module List, and the XBlock
+    providing it must be installed in the Open edX instance. Publishing to an instance without
+    it fails.
+
+    Parameters:
+        payload (AddPluginContentArgs): Consists of:
+            auth (AccessTokenPayload): Authentication credentials (access_token, lms_url, studio_url).
+            course_id (str): The course identifier.
+            unit_locator (str): The unit the block is created in.
+            contributor (str): The contributor's name, from `openedx_list_content_contributors`.
+
+    Returns:
+        dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
+            `{"error": {...}}` when the contributor is unknown, the contributor fails to build
+            its block, or Studio rejects the request.
+    """
+    contributor = LMS_CONTENT_CONTRIBUTORS.get(payload.contributor)
+    if contributor is None:
+        return {"error": {"message": f"Unknown content contributor: {payload.contributor}"}}
+
+    try:
+        block = await contributor.build(payload.course_id)
+    except ContentBuildError as err:
+        logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
+        return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}
+
+    try:
+        locator = await openedx_create_basic_component(
+            payload.auth, payload.course_id, payload.unit_locator, block.category, block.display_name
+        )
+    except LMSRequestError as err:
+        return _lms_error(err, method=err.method, endpoint=err.url)
+    except ValueError as err:
+        return {"error": {"message": str(err)}}
+
+    if not block.settings:
+        return {"response": {"locator": locator, "category": block.category}}
+
+    try:
+        await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.settings)
+    except LMSRequestError as err:
+        return _lms_error(err, method=err.method, endpoint=err.url)
+    except ValueError as err:
+        return {"error": {"message": str(err)}}
+
+    return {"response": {"locator": locator, "category": block.category}}
