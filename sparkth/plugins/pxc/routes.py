@@ -150,11 +150,10 @@ async def submit_action(
 async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
     """The socket an activity's client keeps open, to send actions and to receive events.
 
-    The events an action produces are meant to reach every subscriber that action addresses,
-    not only the client that sent it, which is what lets one learner's move update another's
-    view — but ``run_action_frames`` is currently a stub that reads and discards each frame, so
-    no action is dispatched and nothing is published yet. This route only authenticates the
-    launch and manages the subscription's lifecycle.
+    The events an action produces reach every subscriber that action addresses, not only the
+    client that sent it, which is what lets one learner's move update another's view. This
+    route only authenticates the launch and manages the subscription's lifecycle;
+    ``run_action_frames`` owns every frame from there.
 
     Refusals are close codes rather than HTTP statuses: this plugin's registered exception
     handlers render only for HTTP requests, so a domain exception raised from here would render
