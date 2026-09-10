@@ -15,21 +15,30 @@ from json import JSONDecodeError
 from pathlib import Path
 
 import pxc.lib
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, WebSocket, status
 from fastapi.responses import FileResponse, HTMLResponse
+from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
-from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcAssetNotFound
+from sparkth.plugins.pxc.event_bus import EVENT_BUS, subscribe_socket
+from sparkth.plugins.pxc.exceptions import (
+    PxcActionRejected,
+    PxcActivityNotFound,
+    PxcAssetNotFound,
+    PxcInvalidLaunchToken,
+)
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
 from sparkth.plugins.pxc.schemas import ActionResult, ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import LaunchClaims, read_launch_token
+from sparkth.plugins.pxc.websocket import run_action_frames
 
 logger = get_logger(__name__)
 
 # The launch token is the only credential these routes have, so verifying it is declared as a
-# dependency rather than repeated as the first line of each handler. `client_script` is the one
-# exception and declares none: it serves the same two scripts to everyone and reads no state.
+# dependency rather than repeated as the first line of each handler. Two routes do not declare
+# it: `client_script`, which serves the same two scripts to everyone and reads no state, and
+# `activity_socket`, which has to turn a refusal into a close code and so verifies inline.
 router = APIRouter()
 
 # The two client scripts the activity page loads: PXC's own component, served from the installed
@@ -135,3 +144,38 @@ async def submit_action(
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
     return ActionResult(events=[dict(event) for event in events])
+
+
+@router.websocket("/ws")
+async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
+    """The socket an activity's client keeps open, to send actions and to receive events.
+
+    The events an action produces are meant to reach every subscriber that action addresses,
+    not only the client that sent it, which is what lets one learner's move update another's
+    view — but ``run_action_frames`` is currently a stub that reads and discards each frame, so
+    no action is dispatched and nothing is published yet. This route only authenticates the
+    launch and manages the subscription's lifecycle.
+
+    Refusals are close codes rather than HTTP statuses: this plugin's registered exception
+    handlers render only for HTTP requests, so a domain exception raised from here would render
+    nothing and the socket would simply fail.
+    """
+    try:
+        claims = read_launch_token(token)
+        runtime = await asyncio.to_thread(build_runtime, claims)
+    except (PxcInvalidLaunchToken, PxcActivityNotFound) as err:
+        logger.warning("Refused a PXC activity socket: %s", err)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await websocket.accept()
+    subscriber = subscribe_socket(claims.activity, websocket, claims)
+    try:
+        await run_action_frames(websocket, runtime, token)
+    except WebSocketDisconnect:
+        # The ordinary way a socket ends: the learner navigated away or closed the tab.
+        pass
+    finally:
+        # Before any close: publish() walks this list and a closed socket still in it is what
+        # L16's first defect trips over.
+        EVENT_BUS.unsubscribe(claims.activity, subscriber)
