@@ -10,7 +10,9 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from sparkth.main import assemble_app
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
@@ -65,3 +67,19 @@ def _empty_bus() -> Iterator[None]:
     EVENT_BUS._subscribers.clear()
     yield
     EVENT_BUS._subscribers.clear()
+
+
+@pytest.fixture
+def ws_client() -> Iterator[TestClient]:
+    """A client that can open WebSockets, which the suite's httpx ``client`` fixture cannot.
+
+    Built on its own ``assemble_app()`` rather than ``sparkth.main.app``: the module-level app
+    carries the real lifespan, which reaches the database, while ``assemble_app()`` is
+    documented as fully routed and DB-free.
+
+    Entered as a context manager on purpose. That gives the whole client one portal, so every
+    socket opened from it runs on the same event loop — which is what makes a two-subscriber
+    test deterministic instead of a cross-thread race.
+    """
+    with TestClient(assemble_app()) as client:
+        yield client
