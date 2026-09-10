@@ -27,9 +27,12 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
 
     Refusals are close codes rather than HTTP statuses: the plugin's registered exception
     handlers render only for HTTP requests, so a domain exception raised from here would render
-    nothing. A frame that is not JSON or carries no action closes the socket with
+    nothing. A frame the loop cannot read as JSON text — a text frame that is not valid JSON, a
+    binary frame, or JSON that is not an object with an ``action`` — closes the socket with
     ``WS_1003_UNSUPPORTED_DATA``, and a token that no longer verifies with
-    ``WS_1008_POLICY_VIOLATION``.
+    ``WS_1008_POLICY_VIOLATION``. The client is the learner's, so every one of those is
+    reachable by hand and none may escape as an unhandled exception: that would give the learner
+    uvicorn's ``1011`` and an ASGI traceback instead of the refusal the transport intends.
 
     Raises:
         WebSocketDisconnect: when the client goes away, which is this loop's normal exit.
@@ -37,9 +40,13 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
     while True:
         try:
             frame = await websocket.receive_json()
-        except JSONDecodeError as err:
+        except (JSONDecodeError, KeyError) as err:
+            # Two causes, one refusal: a text frame whose body is not JSON raises
+            # JSONDecodeError, and a binary frame raises KeyError("text") because
+            # receive_json(mode="text") reads a key its ASGI message does not carry. Logged
+            # with %r so the exception type says which arrived.
             logger.warning(
-                "Refusing a PXC socket frame that is not JSON on %s (placement=%s): %s",
+                "Refusing a PXC socket frame the loop cannot read as JSON text on %s (placement=%s): %r",
                 runtime.name,
                 runtime.activity_id,
                 err,

@@ -137,6 +137,25 @@ def test_a_frame_that_is_not_json_closes_the_socket(ws_client: TestClient, confi
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
 
 
+def test_a_binary_frame_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+    """A binary frame reaches the loop as ``KeyError``, not as ``JSONDecodeError``.
+
+    ``receive_json(mode="text")`` reads ``message["text"]``, and a binary frame's ASGI message
+    carries ``"bytes"`` and no ``"text"``. Catching only ``JSONDecodeError`` let that escape the
+    endpoint, so any hand-written client could turn its own frame into uvicorn's ``1011`` plus an
+    "Exception in ASGI application" traceback, where this transport intends a clean ``1003``.
+    Distinct from its not-JSON sibling: that one sends *text* and cannot reach this cause.
+    """
+    token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+
+    with pytest.raises(WebSocketDisconnect) as refusal:
+        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+            socket.send_bytes(b"\x01\x02\x03")
+            socket.receive_json()
+
+    assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
+
+
 def test_a_frame_with_no_action_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
     token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
