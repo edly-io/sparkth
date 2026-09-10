@@ -27,12 +27,21 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
 
     Refusals are close codes rather than HTTP statuses: the plugin's registered exception
     handlers render only for HTTP requests, so a domain exception raised from here would render
-    nothing. A frame the loop cannot read as JSON text — a text frame that is not valid JSON, a
-    binary frame, or JSON that is not an object with an ``action`` — closes the socket with
-    ``WS_1003_UNSUPPORTED_DATA``, and a token that no longer verifies with
-    ``WS_1008_POLICY_VIOLATION``. The client is the learner's, so every one of those is
-    reachable by hand and none may escape as an unhandled exception: that would give the learner
-    uvicorn's ``1011`` and an ASGI traceback instead of the refusal the transport intends.
+    nothing. A token that no longer verifies closes with ``WS_1008_POLICY_VIOLATION``.
+
+    Two separate failures both close with ``WS_1003_UNSUPPORTED_DATA``, and they are not the
+    same thing. A frame the loop cannot *read* raises out of ``receive_json``: a text frame that
+    is not valid JSON, a binary frame (there is no ``"text"`` to read), or one nested deeply
+    enough to exhaust the parser's recursion. A frame that parsed but is not an object with an
+    ``action`` is the other case — the loop read it fine and found the wrong shape.
+
+    The client is the learner's, so every frame shape is reachable by hand, and an exception that
+    escapes costs the learner uvicorn's ``1011`` and an ASGI traceback instead of the refusal
+    intended. The three read failures named above are the causes known to date, deliberately not
+    a claim of completeness: ``receive_json`` parses attacker-controlled bytes, so another cause
+    may exist. ``except Exception`` is not the remedy — ``CLAUDE.md`` forbids it, and it would
+    also swallow the ``WebSocketDisconnect`` that is this loop's normal exit. Name a new cause
+    when one turns up.
 
     Raises:
         WebSocketDisconnect: when the client goes away, which is this loop's normal exit.
@@ -40,11 +49,13 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
     while True:
         try:
             frame = await websocket.receive_json()
-        except (JSONDecodeError, KeyError) as err:
-            # Two causes, one refusal: a text frame whose body is not JSON raises
-            # JSONDecodeError, and a binary frame raises KeyError("text") because
-            # receive_json(mode="text") reads a key its ASGI message does not carry. Logged
-            # with %r so the exception type says which arrived.
+        except (JSONDecodeError, KeyError, RecursionError) as err:
+            # Three causes, one refusal: a text frame whose body is not JSON raises
+            # JSONDecodeError, a binary frame raises KeyError("text") because
+            # receive_json(mode="text") reads a key its ASGI message does not carry, and a
+            # deeply nested frame exhausts the parser's recursion. The stack has unwound by the
+            # time close() runs, so there is headroom to send it. Logged with %r so the
+            # exception type says which arrived.
             logger.warning(
                 "Refusing a PXC socket frame the loop cannot read as JSON text on %s (placement=%s): %r",
                 runtime.name,

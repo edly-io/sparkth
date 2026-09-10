@@ -123,6 +123,10 @@ def test_a_frame_cannot_escalate_its_own_permission(ws_client: TestClient, confi
 
     config_response = ws_client.get("/api/v1/pxc/config", params={"token": token})
 
+    # Status before indexing. read_state re-raises a sandbox failure as PxcSandboxFailure, which
+    # plugin.py registers to 502, so the body would be {"detail": ...} and ["state"] would raise
+    # an opaque KeyError('state') instead of naming the real cause.
+    assert config_response.status_code == status.HTTP_200_OK
     assert config_response.json()["state"].get("question") != "Owned?"
 
 
@@ -151,6 +155,32 @@ def test_a_binary_frame_closes_the_socket(ws_client: TestClient, configured_secr
     with pytest.raises(WebSocketDisconnect) as refusal:
         with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
             socket.send_bytes(b"\x01\x02\x03")
+            socket.receive_json()
+
+    assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
+
+
+def test_a_deeply_nested_frame_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+    """A frame nested past the parser's recursion limit raises ``RecursionError``, not a decode error.
+
+    Why 200_000: measured end to end. Below ~100_000 the parser reports a decode error before
+    running out of recursion; from ~150_000 up it raises ``RecursionError``, which escaped the
+    endpoint before this was handled. 200_000 sits comfortably past that boundary while staying
+    inside uvicorn's 1 MiB frame cap (195 KiB). Production's threshold is *lower* than the test
+    environment's, because uvicorn's loop runs on the main thread while ``TestClient`` runs the
+    app on a portal thread with different recursion headroom — so a depth chosen here covers
+    production too.
+
+    The assertion cannot go stale on a machine with more headroom: ``"["`` repeated is invalid
+    JSON at any depth, so it closes with 1003 either way — by ``RecursionError`` if recursion
+    runs out first, by the decode error if it does not. A bigger stack costs this test its power,
+    never its correctness.
+    """
+    token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+
+    with pytest.raises(WebSocketDisconnect) as refusal:
+        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+            socket.send_text("[" * 200_000)
             socket.receive_json()
 
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
