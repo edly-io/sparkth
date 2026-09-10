@@ -13,6 +13,7 @@ import pytest
 
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.event_bus import EVENT_BUS
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
 
@@ -50,3 +51,17 @@ def configured_secret(monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setenv("PXC_LAUNCH_SECRET", LAUNCH_SECRET)
     get_pxc_settings.cache_clear()
     return LAUNCH_SECRET
+
+
+@pytest.fixture(autouse=True)
+def _empty_bus() -> Iterator[None]:
+    """Reset the process-wide event bus around every test.
+
+    ``EVENT_BUS`` is a module-level singleton, so a subscriber a test leaves behind would still
+    be there for the next one — receiving its events and failing assertions in a file that
+    never mentioned the bus. Reaching into ``_subscribers`` is the only way to clear it; the
+    library exposes no reset.
+    """
+    EVENT_BUS._subscribers.clear()
+    yield
+    EVENT_BUS._subscribers.clear()
