@@ -71,8 +71,10 @@ def read_state(runtime: ActivityRuntime) -> dict[str, FieldType]:
 def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldType) -> list[PendingEvent]:
     """Run one action through the sandbox and return the events it produced.
 
-    The events come back from the same call, which is why this slice needs no polling route and
-    no WebSocket.
+    The events come back from the same call, synchronously, but this function does no fan-out
+    of its own: every caller — the socket's frame loop and the HTTP fallback route alike — hands
+    the returned list to ``publish_events`` (``event_bus.py``) so it reaches every subscriber,
+    not only the one that submitted the action.
 
     Raises:
         PxcActionRejected: if the manifest does not accept this action or value.

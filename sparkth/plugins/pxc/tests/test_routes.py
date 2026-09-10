@@ -179,7 +179,7 @@ async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClien
     action_url = f"{action_base_url}/answer.submit?token={shell_token}"
     response = await client.post(action_url, json=[0])
 
-    assert response.status_code == 200
+    assert response.status_code == 204
 
 
 async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(client: AsyncClient, token: str) -> None:
@@ -194,3 +194,25 @@ async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(clien
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.wasm
+async def test_config_carries_the_socket_url_for_this_launch(client: AsyncClient, token: str) -> None:
+    # The client sets this on pxc.js's this._wsUrl. Without it, _getWebsocketUrl() falls back
+    # to the upstream default of /api/activity/{activity_id}/ws, which Sparkth does not serve.
+    response = await client.get("/api/v1/pxc/config", params={"token": token})
+
+    ws_url = response.json()["ws_url"]
+
+    assert ws_url.startswith("ws://")
+    assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
+
+
+@pytest.mark.wasm
+async def test_an_action_returns_no_content(client: AsyncClient, token: str) -> None:
+    # The events go to the socket now, so there is no body to return. pxc.js's _postAction
+    # reads only response.ok.
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+    assert response.status_code == 204
+    assert response.content == b""
