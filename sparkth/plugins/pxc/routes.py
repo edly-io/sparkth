@@ -21,7 +21,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
-from sparkth.plugins.pxc.event_bus import EVENT_BUS, subscribe_socket
+from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
     PxcActivityNotFound,
@@ -29,7 +29,7 @@ from sparkth.plugins.pxc.exceptions import (
     PxcInvalidLaunchToken,
 )
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
-from sparkth.plugins.pxc.schemas import ActionResult, ActivityConfig, LaunchContext
+from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import LaunchClaims, read_launch_token
 from sparkth.plugins.pxc.websocket import run_action_frames
 
@@ -69,6 +69,18 @@ async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse
     )
 
 
+def _socket_url(request: Request, token: str) -> str:
+    """The activity socket's URL for this launch, as a browser must address it.
+
+    ``request.url_for`` yields an ``http``/``https`` URL, and a browser's ``WebSocket``
+    constructor needs the ``ws``/``wss`` scheme. ``https`` must become ``wss`` rather than
+    ``ws``, or the handshake is refused on any TLS deployment.
+    """
+    url = request.url_for("activity_socket")
+    scheme = "wss" if url.scheme == "https" else "ws"
+    return f"{url.replace(scheme=scheme)}?token={token}"
+
+
 @router.get("/config")
 async def activity_config(
     request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
@@ -80,8 +92,9 @@ async def activity_config(
     runtime = await asyncio.to_thread(build_runtime, claims)
     state = await asyncio.to_thread(read_state, runtime)
     base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
-    # Neither base URL below carries the token: the embed shell already gave the client one.
-    # The client appends it itself in SparkthPXC's methods.
+    # Neither base URL below carries the token: the embed shell already gave the client one,
+    # and the client appends it itself in SparkthPXC's methods. ui_url and ws_url do carry one,
+    # because pxc.js uses each directly with nothing appending a token afterward.
     return ActivityConfig(
         activity=claims.activity,
         context=LaunchContext(activity_id=claims.placement, course_id=claims.course_id, user_id=claims.user_id),
@@ -90,6 +103,7 @@ async def activity_config(
         ui_url=f"{base}/assets/{runtime.ui_path}?token={token}",
         asset_base_url=f"{base}/assets",
         action_base_url=f"{base}/actions",
+        ws_url=_socket_url(request, token),
     )
 
 
@@ -120,18 +134,19 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
     return FileResponse(asset_path(claims.activity, file_path))
 
 
-@router.post("/actions/{action_name}")
-async def submit_action(
-    action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)
-) -> ActionResult:
-    """Run one action through the activity's sandbox and return the events it produced.
+@router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)
+async def submit_action(action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)) -> None:
+    """Run one action through the activity's sandbox, for a payload too large for the socket.
+
+    ``pxc.js`` sends actions over the socket and falls back to this route above 512 KiB, since
+    uvicorn closes an inbound frame over 1 MiB before the server can read it. The events the
+    action produces are published to the bus, exactly as the socket path publishes them —
+    returning them here would send them nowhere, because the client reads only the response's
+    status.
 
     The request body is read as a raw JSON value, not a typed model, by design: an action's
     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
     generically, so the body is deliberately untyped rather than accidentally so.
-
-    A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
-    empty event list, not an error — see ``run_action``'s docstring for why.
 
     Raises:
         PxcActionRejected: if the body is not valid JSON.
@@ -143,7 +158,7 @@ async def submit_action(
         raise PxcActionRejected("Request body is not valid JSON") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
-    return ActionResult(events=[dict(event) for event in events])
+    await publish_events(claims.activity, claims.placement, events)
 
 
 @router.websocket("/ws")

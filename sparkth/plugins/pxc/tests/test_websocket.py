@@ -234,3 +234,23 @@ def test_an_action_the_manifest_rejects_leaves_the_socket_open(ws_client: TestCl
         socket.send_json({"action": "answer.submit", "value": [0], "permission": "play"})
 
         assert socket.receive_json()["name"] == "answer.result"
+
+
+@pytest.mark.wasm
+def test_the_http_action_route_publishes_to_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+    """``_flushQueue`` routes any payload over 512 KiB through HTTP instead of the socket.
+
+    If that route only ran the action and returned, a large action's events would reach nobody
+    and no client-side test would ever catch it — the fallback triggers only above a payload
+    size a test would not otherwise construct.
+
+    Single-process by construction: the POST and the socket share one process, which is the
+    only reason a module-level bus can connect them (L11).
+    """
+    token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+        response = ws_client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+        assert response.status_code == 204
+        assert socket.receive_json()["name"] == "answer.result"
