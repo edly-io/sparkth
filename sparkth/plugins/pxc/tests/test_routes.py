@@ -79,12 +79,21 @@ async def test_the_client_connects_a_socket_from_the_configured_url(client: Asyn
 
     pxc.js's _getWebsocketUrl() falls back to /api/activity/{activity_id}/ws, which Sparkth
     does not serve, so a client that never sets _wsUrl connects to nothing and silently
-    receives no events.
+    receives no events. The connect call must also precede the activity script load: _pushAction
+    reads this._ws.readyState, which throws if the activity's own script calls sendAction before
+    a socket object exists. Each pinned line is matched anchored at line-start (not just as a
+    substring) so a commented-out line cannot satisfy it.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
-    assert "this._wsUrl = config.ws_url" in response.text
-    assert "this._connectWebSocket()" in response.text
+    ws_url_assignment = re.search(r"^\s*this\._wsUrl = config\.ws_url;\s*$", response.text, re.MULTILINE)
+    connect_call = re.search(r"^\s*this\._connectWebSocket\(\);\s*$", response.text, re.MULTILINE)
+    load_script_call = re.search(r"^\s*await this\._loadScript\(", response.text, re.MULTILINE)
+
+    assert ws_url_assignment, "this._wsUrl must be assigned from config.ws_url"
+    assert connect_call, "the socket must actually be connected"
+    assert load_script_call, "the activity script must still be loaded"
+    assert connect_call.start() < load_script_call.start(), "the socket must connect before the script loads"
 
 
 async def test_the_client_overrides_the_large_payload_post_route(client: AsyncClient) -> None:
@@ -93,12 +102,22 @@ async def test_the_client_overrides_the_large_payload_post_route(client: AsyncCl
     pxc.js's own _postAction hardcodes /api/activity/{id}/actions/{name} with cookie
     credentials. Left inherited, every payload over 512 KiB 404s, _flushQueue breaks out of
     its loop on the false return, and the action sits in IndexedDB forever — retried on every
-    reconnect and never delivered.
+    reconnect and never delivered. Both of _postAction's own failure paths — a rejected response
+    and a network-level throw from fetch itself — must resolve to `false`, never throw:
+    _flushQueue reads the boolean to decide whether to keep draining the queue, and a throw
+    would abort it there, stranding every queued record behind the failing one.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
-    assert "async _postAction(" in response.text
-    assert "this._actionUrl" in response.text
+    post_action_def = re.search(r"^\s*async _postAction\(", response.text, re.MULTILINE)
+    action_url_ref = re.search(r"^\s*const url = .*this\._actionUrl", response.text, re.MULTILINE)
+    ok_branch_returns_false = re.search(r"if\s*\(!response\.ok\)\s*\{[^}]*return false", response.text)
+    catch_branch_returns_false = re.search(r"catch\s*\(error\)\s*\{[^}]*return false", response.text)
+
+    assert post_action_def, "_postAction must still be defined"
+    assert action_url_ref, "the POST url must be built from this._actionUrl"
+    assert ok_branch_returns_false, "a rejected response must return false, not throw"
+    assert catch_branch_returns_false, "a network-level fetch failure must return false, not throw"
 
 
 async def test_the_client_does_not_import_the_private_database_helper(client: AsyncClient) -> None:
