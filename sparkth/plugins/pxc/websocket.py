@@ -5,7 +5,6 @@ token is verified and the subscription exists; from there this module owns every
 """
 
 import asyncio
-from json import JSONDecodeError
 from typing import Any
 
 from fastapi import status
@@ -15,7 +14,7 @@ from starlette.websockets import WebSocket
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.event_bus import publish_events
-from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcInvalidLaunchToken
+from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcInvalidLaunchToken, PxcSandboxFailure
 from sparkth.plugins.pxc.runtime import run_action
 from sparkth.plugins.pxc.tokens import read_launch_token
 
@@ -27,51 +26,27 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
 
     Refusals are close codes rather than HTTP statuses: the plugin's registered exception
     handlers render only for HTTP requests, so a domain exception raised from here would render
-    nothing. A token that no longer verifies closes with ``WS_1008_POLICY_VIOLATION``.
+    nothing. A token that no longer verifies closes with ``WS_1008_POLICY_VIOLATION``, and
+    ``_read_action_frame`` closes an unusable frame with ``WS_1003_UNSUPPORTED_DATA`` itself.
 
-    Two separate failures both close with ``WS_1003_UNSUPPORTED_DATA``, and they are not the
-    same thing. A frame the loop cannot *read* raises out of ``receive_json``: a text frame that
-    is not valid JSON, a binary frame (there is no ``"text"`` to read), or one nested deeply
-    enough to exhaust the parser's recursion. A frame that parsed but is not an object with an
-    ``action`` is the other case — the loop read it fine and found the wrong shape.
+    Neither a rejected action nor a sandbox failure closes the socket, because neither is the
+    connection's fault and both would otherwise cost the learner a working session. The HTTP
+    route answers a sandbox failure with a 502 and the next request proceeds, so keeping the
+    socket open is also what makes the two transports agree.
 
-    The client is the learner's, so every frame shape is reachable by hand, and an exception that
-    escapes costs the learner uvicorn's ``1011`` and an ASGI traceback instead of the refusal
-    intended. The three read failures named above are the causes known to date, deliberately not
-    a claim of completeness: ``receive_json`` parses attacker-controlled bytes, so another cause
-    may exist. ``except Exception`` is not the remedy — ``CLAUDE.md`` forbids it, and it would
-    also swallow the ``WebSocketDisconnect`` that is this loop's normal exit. Name a new cause
-    when one turns up.
+    The ``PxcSandboxFailure`` clause is dormant today, mirroring the ``SandboxRuntimeError``
+    clause in ``run_action`` that would feed it: ``ActivityRuntime.on_action`` swallows that
+    exception internally, so nothing reaches here. It is kept so the property above holds by
+    construction rather than by accident of upstream behaviour — the day ``on_action`` lets the
+    exception propagate, an uncaught one would turn a sandbox crash into uvicorn's ``1011`` and
+    drop the learner's session, contradicting what this transport documents.
 
     Raises:
         WebSocketDisconnect: when the client goes away, which is this loop's normal exit.
     """
     while True:
-        try:
-            frame = await websocket.receive_json()
-        except (JSONDecodeError, KeyError, RecursionError) as err:
-            # Three causes, one refusal: a text frame whose body is not JSON raises
-            # JSONDecodeError, a binary frame raises KeyError("text") because
-            # receive_json(mode="text") reads a key its ASGI message does not carry, and a
-            # deeply nested frame exhausts the parser's recursion. The stack has unwound by the
-            # time close() runs, so there is headroom to send it. Logged with %r so the
-            # exception type says which arrived.
-            logger.warning(
-                "Refusing a PXC socket frame the loop cannot read as JSON text on %s (placement=%s): %r",
-                runtime.name,
-                runtime.activity_id,
-                err,
-            )
-            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
-            return
-
-        if not isinstance(frame, dict) or "action" not in frame:
-            logger.warning(
-                "Refusing a PXC socket frame with no action on %s (placement=%s)",
-                runtime.name,
-                runtime.activity_id,
-            )
-            await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+        frame = await _read_action_frame(websocket, runtime)
+        if frame is None:
             return
 
         try:
@@ -86,9 +61,7 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         except PxcActionRejected as err:
-            # The socket stays open: a client sending an action this activity does not declare
-            # is a client bug, and killing the socket would take the learner's working session
-            # with it.
+            # A client bug, not a connection fault: the socket stays open.
             logger.warning(
                 "Rejected a PXC socket action %s on %s (placement=%s): %s",
                 frame["action"],
@@ -96,6 +69,71 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
                 runtime.activity_id,
                 err,
             )
+        except PxcSandboxFailure as err:
+            # The activity's fault, not the connection's: the socket stays open.
+            logger.error(
+                "PXC sandbox failed running socket action %s on %s (placement=%s): %s",
+                frame["action"],
+                runtime.name,
+                runtime.activity_id,
+                err,
+            )
+
+
+async def _read_action_frame(websocket: WebSocket, runtime: ActivityRuntime) -> dict[str, Any] | None:
+    """The next runnable action frame, or ``None`` once the socket has been closed as unusable.
+
+    ``None`` means *this socket is now closed and the caller must stop*, never *skip this frame
+    and read the next one* — a caller that read on would spin against a closed socket forever.
+
+    Two separate failures both close with ``WS_1003_UNSUPPORTED_DATA``, and they are not the
+    same thing. A frame the loop cannot *read* raises out of ``receive_json``. A frame that
+    parsed but is not an object carrying an ``action`` is the other case — the loop read it fine
+    and found the wrong shape.
+
+    The known read failures are caught as ``ValueError``, ``KeyError`` and ``RecursionError``.
+    Two arrive as ``ValueError``: a text frame whose body is not JSON (as its ``JSONDecodeError``
+    subclass), and an integer literal longer than ``sys.get_int_max_str_digits()`` allows (as a
+    bare one — well-formed JSON the parser declines to materialise, which a clause naming only
+    decode errors misses). A binary frame raises ``KeyError("text")`` because
+    ``receive_json(mode="text")`` reads a key its ASGI message does not carry, and a deeply
+    nested frame exhausts the parser's recursion.
+
+    That list is deliberately not a claim of completeness: ``receive_json`` parses
+    attacker-controlled bytes, and the client is the learner's, so every frame shape is
+    reachable by hand and an exception that escapes costs the learner uvicorn's ``1011`` and an
+    ASGI traceback instead of the refusal intended. ``except Exception`` is not the remedy —
+    ``CLAUDE.md`` forbids it, and it would also swallow the ``WebSocketDisconnect`` that is the
+    frame loop's normal exit. Name a new cause when one turns up.
+
+    Raises:
+        WebSocketDisconnect: when the client goes away. ``receive_json`` raises it before
+            reading the frame, so it passes through to the frame loop's caller.
+    """
+    try:
+        frame = await websocket.receive_json()
+    except (ValueError, KeyError, RecursionError) as err:
+        # The stack has unwound by the time close() runs, so there is headroom to send it.
+        # Logged with %r so the exception type says which cause arrived.
+        logger.warning(
+            "Refusing a PXC socket frame the loop cannot read as JSON text on %s (placement=%s): %r",
+            runtime.name,
+            runtime.activity_id,
+            err,
+        )
+        await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+        return None
+
+    if not isinstance(frame, dict) or "action" not in frame:
+        logger.warning(
+            "Refusing a PXC socket frame with no action on %s (placement=%s)",
+            runtime.name,
+            runtime.activity_id,
+        )
+        await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+        return None
+
+    return frame
 
 
 async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str, Any]) -> None:
@@ -118,6 +156,8 @@ async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str,
     Raises:
         PxcInvalidLaunchToken: if the token no longer verifies.
         PxcActionRejected: if the manifest does not accept this action or value.
+        PxcSandboxFailure: if the sandbox itself failed, which ``run_action`` documents as
+            currently unreachable.
     """
     claims = read_launch_token(token)
     action_name = str(frame["action"])

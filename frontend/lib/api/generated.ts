@@ -885,8 +885,14 @@ export interface paths {
          *     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
          *     generically, so the body is deliberately untyped rather than accidentally so.
          *
+         *     The parse failure is caught as ``ValueError``, the same width the socket's frame loop uses
+         *     and for the same reason: an integer literal longer than ``sys.get_int_max_str_digits()``
+         *     allows is well-formed JSON that ``json.loads`` refuses to materialise, and it raises a bare
+         *     ``ValueError`` rather than the ``JSONDecodeError`` subclass. This route is reachable by
+         *     anyone holding a valid token, so that body must be a 422 and not a 500.
+         *
          *     Raises:
-         *         PxcActionRejected: if the body is not valid JSON.
+         *         PxcActionRejected: if the body is not JSON the parser will read.
          */
         post: operations["submit_action_api_v1_pxc_actions__action_name__post"];
         delete?: never;

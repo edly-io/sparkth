@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -79,10 +80,12 @@ async def test_the_client_connects_a_socket_from_the_configured_url(client: Asyn
 
     pxc.js's _getWebsocketUrl() falls back to /api/activity/{activity_id}/ws, which Sparkth
     does not serve, so a client that never sets _wsUrl connects to nothing and silently
-    receives no events. The connect call must also precede the activity script load: _pushAction
-    reads this._ws.readyState, which throws if the activity's own script calls sendAction before
-    a socket object exists. Each pinned line is matched anchored at line-start (not just as a
-    substring) so a commented-out line cannot satisfy it.
+    receives no events. It reads this._wsUrl at connect time, so the assignment has to precede
+    the connect call: assigning it afterwards leaves the same silent fallback in place while
+    both lines are still present. The connect call must in turn precede the activity script
+    load: _pushAction reads this._ws.readyState, which throws if the activity's own script
+    calls sendAction before a socket object exists. Each pinned line is matched anchored at
+    line-start (not just as a substring) so a commented-out line cannot satisfy it.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
@@ -93,6 +96,7 @@ async def test_the_client_connects_a_socket_from_the_configured_url(client: Asyn
     assert ws_url_assignment, "this._wsUrl must be assigned from config.ws_url"
     assert connect_call, "the socket must actually be connected"
     assert load_script_call, "the activity script must still be loaded"
+    assert ws_url_assignment.start() < connect_call.start(), "_wsUrl must be set before the socket connects"
     assert connect_call.start() < load_script_call.start(), "the socket must connect before the script loads"
 
 
@@ -106,15 +110,21 @@ async def test_the_client_overrides_the_large_payload_post_route(client: AsyncCl
     and a network-level throw from fetch itself — must resolve to `false`, never throw:
     _flushQueue reads the boolean to decide whether to keep draining the queue, and a throw
     would abort it there, stranding every queued record behind the failing one.
+
+    The failure-path searches run against the text from _postAction's definition onward, not
+    the whole file: connectedCallback has an `if (!response.ok)` branch of its own, earlier in
+    the file, so an unscoped search can be satisfied by a method this test says nothing about.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
     post_action_def = re.search(r"^\s*async _postAction\(", response.text, re.MULTILINE)
-    action_url_ref = re.search(r"^\s*const url = .*this\._actionUrl", response.text, re.MULTILINE)
-    ok_branch_returns_false = re.search(r"if\s*\(!response\.ok\)\s*\{[^}]*return false", response.text)
-    catch_branch_returns_false = re.search(r"catch\s*\(error\)\s*\{[^}]*return false", response.text)
-
     assert post_action_def, "_postAction must still be defined"
+
+    post_action_onward = response.text[post_action_def.start() :]
+    action_url_ref = re.search(r"^\s*const url = .*this\._actionUrl", post_action_onward, re.MULTILINE)
+    ok_branch_returns_false = re.search(r"if\s*\(!response\.ok\)\s*\{[^}]*return false", post_action_onward)
+    catch_branch_returns_false = re.search(r"catch\s*\(error\)\s*\{[^}]*return false", post_action_onward)
+
     assert action_url_ref, "the POST url must be built from this._actionUrl"
     assert ok_branch_returns_false, "a rejected response must return false, not throw"
     assert catch_branch_returns_false, "a network-level fetch failure must return false, not throw"
@@ -201,9 +211,9 @@ async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token:
 @pytest.mark.wasm
 async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClient, token: str) -> None:
     # Every other test in this file injects the token via params={"token": ...} by hand, so none
-    # of them ever consumed the embed shell's own markup. That is how routes.py shipped
-    # data-action-url and action_base_url without the token they need: submit_action declares
-    # token as a required query parameter, but nothing built the URL the way the browser does.
+    # of them consumes the embed shell's own markup. That leaves data-action-url and
+    # action_base_url unchecked for the token they need: submit_action declares token as a
+    # required query parameter, and nothing else here builds the URL the way the browser does.
     #
     # This test drives the shell's own output instead: it extracts data-action-url and
     # data-pxc-token exactly as sparkth-pxc.js's _postAction() does — appending
@@ -222,13 +232,43 @@ async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClien
 
 
 async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(client: AsyncClient, token: str) -> None:
-    # request.json() raises json.JSONDecodeError (a ValueError) on a body that is not valid
-    # JSON, and this is a public route any browser can reach with nothing but a valid token.
+    # request.json() raises JSONDecodeError on a body that is not valid JSON at all, and this is
+    # a public route any browser can reach with nothing but a valid token. The over-long-integer
+    # sibling below covers the other ValueError the same call can raise.
     # Unmarked: the bad body is rejected before build_runtime ever touches the sandbox.
     response = await client.post(
         "/api/v1/pxc/actions/answer.submit",
         params={"token": token},
         content=b"not-json",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_an_action_body_with_an_over_long_integer_is_unprocessable(client: AsyncClient, token: str) -> None:
+    """An integer literal past CPython's int-from-string limit raises a bare ``ValueError``.
+
+    ``json.loads`` refuses to build an ``int`` from more digits than
+    ``sys.get_int_max_str_digits()`` permits, and that refusal is a plain ``ValueError`` rather
+    than a ``JSONDecodeError``: the body is well-formed JSON the parser declines to
+    materialise. This route is reachable by anyone holding a valid token, so the refusal has to
+    be a clean 422 and not a 500 — the same cause closes the socket with 1003 on the other
+    transport.
+
+    The digit count is derived from the live limit instead of hardcoded, because the limit is
+    an interpreter setting (``PYTHONINTMAXSTRDIGITS``, ``-X int_max_str_digits``,
+    ``sys.set_int_max_str_digits``). A hardcoded count would silently stop exercising this
+    cause on any interpreter configured with a different one.
+
+    Unmarked: the body is rejected before build_runtime ever touches the sandbox.
+    """
+    over_long_integer = "1" * (sys.get_int_max_str_digits() + 1)
+
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit",
+        params={"token": token},
+        content=over_long_integer.encode(),
         headers={"Content-Type": "application/json"},
     )
 
@@ -277,7 +317,7 @@ def test_socket_url_upgrades_a_tls_request_to_wss() -> None:
 
 @pytest.mark.wasm
 async def test_an_action_returns_no_content(client: AsyncClient, token: str) -> None:
-    # The events go to the socket now, so there is no body to return. pxc.js's _postAction
+    # The events go to the socket, so there is no body to return. pxc.js's _postAction
     # reads only response.ok.
     response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
 
