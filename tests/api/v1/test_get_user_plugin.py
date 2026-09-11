@@ -7,7 +7,7 @@ from sparkth.core.models.user import User
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.plugins import SparkthPlugin
 
-from .conftest import add_user_plugin
+from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
 
 
 async def test_get_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
@@ -73,3 +73,11 @@ async def test_get_user_plugin_reports_schema_keys_without_a_user_plugin_row(
     response = await client.get("/api/v1/user-plugins/schema_plugin")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["config"] == {"api_url": None, "api_key": None}
+
+
+async def test_get_user_plugin_carries_the_declared_config_schema(
+    client: AsyncClient, current_user: User, schema_plugin: Plugin
+) -> None:
+    response = await client.get("/api/v1/user-plugins/schema_plugin")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["config_schema"] == SCHEMA_PLUGIN_CONFIG_SCHEMA

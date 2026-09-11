@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.base import SparkthPlugin
 from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.core.plugins.widgets import ConfigWidget, widget
 
 if TYPE_CHECKING:
     from sparkth.core.plugins.middleware import PluginAccessMiddleware
@@ -25,7 +26,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "get_plugin_loader",
+    "ConfigWidget",
     "PluginConfig",
+    "widget",
     "SparkthPlugin",
     "PluginAccessMiddleware",
     "PluginService",
