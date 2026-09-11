@@ -72,13 +72,14 @@ async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse
 def _socket_url(request: Request, token: str) -> str:
     """The activity socket's URL for this launch, as a browser must address it.
 
-    ``request.url_for`` yields an ``http``/``https`` URL, and a browser's ``WebSocket``
-    constructor needs the ``ws``/``wss`` scheme. ``https`` must become ``wss`` rather than
-    ``ws``, or the handshake is refused on any TLS deployment.
+    ``activity_socket`` is a WebSocket route, so ``request.url_for`` already resolves it to the
+    ``ws``/``wss`` scheme a browser's ``WebSocket`` constructor needs, translating from whatever
+    scheme this very request arrived on (``starlette.datastructures.URLPath.make_absolute_url``
+    maps ``http``/``https`` to ``ws``/``wss`` by ``base_url.is_secure``) — there is no ``http``/
+    ``https`` URL to convert here, and no scheme comparison to get backwards. ``https`` becomes
+    ``wss`` rather than ``ws``, or the handshake would be refused on any TLS deployment.
     """
-    url = request.url_for("activity_socket")
-    scheme = "wss" if url.scheme == "https" else "ws"
-    return f"{url.replace(scheme=scheme)}?token={token}"
+    return f"{request.url_for('activity_socket')}?token={token}"
 
 
 @router.get("/config")
