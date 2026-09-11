@@ -5,6 +5,8 @@ own event loop through a portal, so calling it from an async test would block. B
 these tests need are synchronous, and the PXC routes touch no application database.
 """
 
+import sys
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -81,7 +83,7 @@ def test_an_action_sent_over_the_socket_comes_back_as_an_event(ws_client: TestCl
 def test_two_learners_on_one_placement_both_receive_one_learners_event(
     ws_client: TestClient, configured_secret: str
 ) -> None:
-    """The feature. Before this transport, an action's events reached only the acting client.
+    """The feature: an action's events reach every learner on the placement, not just the actor.
 
     Both sockets come from the same TestClient context, so they share one portal and one event
     loop — and one process, which is what L11 requires and what this asserts by construction.
@@ -145,10 +147,11 @@ def test_a_binary_frame_closes_the_socket(ws_client: TestClient, configured_secr
     """A binary frame reaches the loop as ``KeyError``, not as ``JSONDecodeError``.
 
     ``receive_json(mode="text")`` reads ``message["text"]``, and a binary frame's ASGI message
-    carries ``"bytes"`` and no ``"text"``. Catching only ``JSONDecodeError`` let that escape the
-    endpoint, so any hand-written client could turn its own frame into uvicorn's ``1011`` plus an
-    "Exception in ASGI application" traceback, where this transport intends a clean ``1003``.
-    Distinct from its not-JSON sibling: that one sends *text* and cannot reach this cause.
+    carries ``"bytes"`` and no ``"text"``. A clause naming only ``JSONDecodeError`` does not
+    cover it, and an escaping exception turns any hand-written client's frame into uvicorn's
+    ``1011`` plus an "Exception in ASGI application" traceback, where this transport intends a
+    clean ``1003``. Distinct from its not-JSON sibling: that one sends *text* and cannot reach
+    this cause.
     """
     token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
@@ -164,9 +167,9 @@ def test_a_deeply_nested_frame_closes_the_socket(ws_client: TestClient, configur
     """A frame nested past the parser's recursion limit raises ``RecursionError``, not a decode error.
 
     Why 200_000: measured end to end. Below ~100_000 the parser reports a decode error before
-    running out of recursion; from ~150_000 up it raises ``RecursionError``, which escaped the
-    endpoint before this was handled. 200_000 sits comfortably past that boundary while staying
-    inside uvicorn's 1 MiB frame cap (195 KiB). Production's threshold is *lower* than the test
+    running out of recursion; from ~150_000 up it raises ``RecursionError``, which a clause
+    naming only decode errors does not cover. 200_000 sits comfortably past that boundary while
+    staying inside uvicorn's 1 MiB frame cap (195 KiB). Production's threshold is *lower* than the test
     environment's, because uvicorn's loop runs on the main thread while ``TestClient`` runs the
     app on a portal thread with different recursion headroom — so a depth chosen here covers
     production too.
@@ -181,6 +184,33 @@ def test_a_deeply_nested_frame_closes_the_socket(ws_client: TestClient, configur
     with pytest.raises(WebSocketDisconnect) as refusal:
         with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
             socket.send_text("[" * 200_000)
+            socket.receive_json()
+
+    assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
+
+
+def test_a_frame_with_an_over_long_integer_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+    """An integer literal past CPython's int-from-string limit raises a bare ``ValueError``.
+
+    ``json.loads`` refuses to build an ``int`` from more digits than
+    ``sys.get_int_max_str_digits()`` permits, and that refusal is a plain ``ValueError`` rather
+    than a ``JSONDecodeError``: the frame is well-formed JSON the parser declines to
+    materialise, so a clause naming only decode errors does not cover it.
+
+    The digit count is derived from the live limit instead of hardcoded, because the limit is
+    an interpreter setting (``PYTHONINTMAXSTRDIGITS``, ``-X int_max_str_digits``,
+    ``sys.set_int_max_str_digits``). A hardcoded count would silently stop exercising this
+    cause on any interpreter configured with a different one.
+
+    One digit past the limit is a frame of a few KiB — far inside uvicorn's 1 MiB cap and the
+    client's 512 KiB fallback threshold — so any hand-written client can send it.
+    """
+    token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+    over_long_integer = "1" * (sys.get_int_max_str_digits() + 1)
+
+    with pytest.raises(WebSocketDisconnect) as refusal:
+        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+            socket.send_text('{"action": "answer.submit", "value": ' + over_long_integer + "}")
             socket.receive_json()
 
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA

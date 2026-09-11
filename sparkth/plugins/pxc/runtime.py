@@ -1,7 +1,9 @@
 """Assemble a PXC :class:`~pxc.lib.runtime.ActivityRuntime` for one launch.
 
-The runtime is built per request from the launch token's claims: which activity type, which
-placement, which learner. ``pxc-lib``'s runtime is used unmodified — the plugin only supplies
+The runtime is built for one launch from the launch token's claims: which activity type, which
+placement, which learner. How long it then lives depends on the transport — the HTTP routes
+build one per request, while a socket builds one at its handshake and reuses it for every frame
+of the connection. ``pxc-lib``'s runtime is used unmodified — the plugin only supplies
 the two backends it depends on, a :class:`~sparkth.plugins.pxc.field_store.sqlite.SqliteFieldStore`
 over the activity type's state file and a local file storage directory.
 

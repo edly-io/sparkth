@@ -84,9 +84,12 @@ socket session exactly as it applies to the HTTP routes.
 A refused save is not reported to the author as an error, though. `sendAction` resolves as soon
 as the action reaches the browser's IndexedDB queue, before any network round-trip, so the
 activity's own "Configuration saved!" message can appear for an edit the server went on to
-discard. The author is not left with no signal at all, though: a lapsed token closes the
-already-open socket with code 1008, which fires `pxc.js`'s `pxc:connection` offline banner — so
-what they see is a disconnect indicator contradicting the success message, not silence.
+discard. Nothing contradicts it: the author is told the save succeeded and receives no signal
+that it did not. A lapsed token does close the already-open socket with code 1008, and `pxc.js`
+dispatches a `pxc:connection` event on that close, but nothing in this deployment renders that
+event — neither `pxc.js` itself, nor `sparkth-pxc.js`, nor the bundled activity UI registers a
+listener, and the socket lives inside the sandboxed embed iframe, so a Studio-side listener
+could not receive it either. Losing an edit this way is silent.
 
 ## Django settings
 

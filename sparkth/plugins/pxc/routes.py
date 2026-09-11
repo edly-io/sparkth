@@ -17,7 +17,6 @@ loop for every other request in the process.
 """
 
 import asyncio
-from json import JSONDecodeError
 from pathlib import Path
 
 import pxc.lib
@@ -155,12 +154,18 @@ async def submit_action(action_name: str, request: Request, claims: LaunchClaims
     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
     generically, so the body is deliberately untyped rather than accidentally so.
 
+    The parse failure is caught as ``ValueError``, the same width the socket's frame loop uses
+    and for the same reason: an integer literal longer than ``sys.get_int_max_str_digits()``
+    allows is well-formed JSON that ``json.loads`` refuses to materialise, and it raises a bare
+    ``ValueError`` rather than the ``JSONDecodeError`` subclass. This route is reachable by
+    anyone holding a valid token, so that body must be a 422 and not a 500.
+
     Raises:
-        PxcActionRejected: if the body is not valid JSON.
+        PxcActionRejected: if the body is not JSON the parser will read.
     """
     try:
         action_value = await request.json()
-    except JSONDecodeError as err:
+    except ValueError as err:
         logger.warning("Malformed action body for %s of activity %s: %s", action_name, claims.activity, err)
         raise PxcActionRejected("Request body is not valid JSON") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
@@ -197,6 +202,8 @@ async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
         # The ordinary way a socket ends: the learner navigated away or closed the tab.
         pass
     finally:
-        # Before any close: publish() walks this list and a closed socket still in it is what
-        # L16's first defect trips over.
+        # Always, but not before every close: the frame loop's refusal paths close the socket
+        # and then return into this clause, so a publish landing in that window still walks a
+        # closed socket — L16's first defect. _SubscriberSocket absorbs the RuntimeError that
+        # causes, which is what keeps the window harmless.
         EVENT_BUS.unsubscribe(claims.activity, subscriber)

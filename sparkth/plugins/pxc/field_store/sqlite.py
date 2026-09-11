@@ -77,7 +77,9 @@ class SqliteFieldStore(FieldStore):
         Opened per operation rather than kept. The store is built per request and handed to a
         runtime the routes drive through two separate ``asyncio.to_thread`` calls, which the
         default executor does not pin to one thread — so a connection cached here would raise
-        ``sqlite3.ProgrammingError`` as soon as two learners act at once. Connecting to a
+        ``sqlite3.ProgrammingError`` as soon as two learners act at once. A socket makes that
+        certain rather than occasional: its runtime lives for the whole connection, and each
+        frame's ``asyncio.to_thread`` call can land on a different worker. Connecting to a
         local file costs far less than the sandbox call it serves.
 
         Only ``busy_timeout`` is set here, because it is per-connection; WAL is set once in
