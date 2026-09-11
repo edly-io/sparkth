@@ -1,9 +1,15 @@
-"""The learner-facing HTTP surface, mounted at ``/api/v1/pxc``.
+"""The learner-facing surface, mounted at ``/api/v1/pxc``.
 
 These requests carry no Sparkth session. They arrive from a learner's browser inside another
 LMS's course page, and the launch token in the query string is what authenticates them — which
 is why they pass the plugin access gate untouched: it fails open for anonymous callers by
-design.
+design. The WebSocket route authenticates the same way, and bypasses that gate for a second
+reason too: the gate is HTTP middleware, so non-HTTP ASGI scopes never reach it (L15).
+
+Actions arrive over the socket, and the events they produce are published to every subscriber
+the event addresses rather than returned to the caller — so an action by one learner can update
+another learner's view. The POST action route exists for payloads above the client's 512 KiB
+socket ceiling and publishes the same way.
 
 Every call into the PXC runtime is dispatched to a worker thread. The sandbox executes
 WebAssembly synchronously on the calling thread, so running it inline would block the event
@@ -42,8 +48,8 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 # The two client scripts the activity page loads: PXC's own component, served from the installed
-# pxc-lib distribution, and Sparkth's HTTP transport subclass of it. An explicit map rather than
-# a directory: it is the whole allowlist, so no path can escape it.
+# pxc-lib distribution, and Sparkth's subclass of it. An explicit map rather than a directory: it
+# is the whole allowlist, so no path can escape it.
 _CLIENT_FILES = {
     "pxc.js": Path(pxc.lib.__file__).parent / "static" / "js" / "pxc.js",
     "sparkth-pxc.js": Path(__file__).parent / "static" / "sparkth-pxc.js",
