@@ -873,14 +873,17 @@ export interface paths {
         put?: never;
         /**
          * Submit Action
-         * @description Run one action through the activity's sandbox and return the events it produced.
+         * @description Run one action through the activity's sandbox, for a payload too large for the socket.
+         *
+         *     ``pxc.js`` sends actions over the socket and falls back to this route above 512 KiB, since
+         *     uvicorn closes an inbound frame over 1 MiB before the server can read it. The events the
+         *     action produces are published to the bus, exactly as the socket path publishes them —
+         *     returning them here would send them nowhere, because the client reads only the response's
+         *     status.
          *
          *     The request body is read as a raw JSON value, not a typed model, by design: an action's
          *     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
          *     generically, so the body is deliberately untyped rather than accidentally so.
-         *
-         *     A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
-         *     empty event list, not an error — see ``run_action``'s docstring for why.
          *
          *     Raises:
          *         PxcActionRejected: if the body is not valid JSON.
@@ -1332,16 +1335,6 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * ActionResult
-         * @description The events one action produced, returned in the same response that submitted it.
-         */
-        ActionResult: {
-            /** Events */
-            events: {
-                [key: string]: unknown;
-            }[];
-        };
-        /**
          * ActivityConfig
          * @description Everything the embed shell needs to render one activity for one learner.
          */
@@ -1361,6 +1354,8 @@ export interface components {
             };
             /** Ui Url */
             ui_url: string;
+            /** Ws Url */
+            ws_url: string;
         };
         /**
          * AttachedDocumentResponse
@@ -4093,13 +4088,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ActionResult"];
-                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

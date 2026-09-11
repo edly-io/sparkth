@@ -2,8 +2,11 @@ import re
 from pathlib import Path
 
 import pytest
+from fastapi import Request
 from httpx import AsyncClient
 
+from sparkth.main import assemble_app
+from sparkth.plugins.pxc.routes import _socket_url
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
 
@@ -195,6 +198,34 @@ async def test_config_carries_the_socket_url_for_this_launch(client: AsyncClient
 
     assert ws_url.startswith("ws://")
     assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
+
+
+def test_socket_url_upgrades_a_tls_request_to_wss() -> None:
+    """The one branch no ``client``-fixture test reaches.
+
+    ``sparkth.lib.testing``'s ``client`` fixture pins every request at
+    ``base_url="http://test"``, so ``_socket_url``'s ``https`` branch is otherwise exercised by
+    nothing — a mapping with its two branches swapped would still pass every other test in this
+    suite. Built directly on a ``Request`` rather than by widening the shared fixture, which
+    every other test also relies on staying plain HTTP.
+    """
+    request = Request(
+        {
+            "type": "http",
+            "scheme": "https",
+            "method": "GET",
+            "path": "/api/v1/pxc/config",
+            "query_string": b"",
+            "headers": [(b"host", b"example.com")],
+            "server": ("example.com", 443),
+            "router": assemble_app().router,
+        }
+    )
+
+    ws_url = _socket_url(request, "tok-123")
+
+    assert ws_url.startswith("wss://")
+    assert ws_url.endswith("/api/v1/pxc/ws?token=tok-123")
 
 
 @pytest.mark.wasm
