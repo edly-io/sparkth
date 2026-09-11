@@ -74,22 +74,39 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
-async def test_a_rejected_action_throws_rather_than_returning(client: AsyncClient) -> None:
-    """Guards ``sparkth-pxc.js``'s ``sendAction()`` against reverting to a silent ``return``.
+async def test_the_client_connects_a_socket_from_the_configured_url(client: AsyncClient) -> None:
+    """Source-level guard: the client must take its socket URL from the config, not the default.
 
-    No JS test runner covers this backend-served static asset (extending one here would need a
-    DOM shim, a module-resolution shim for ``./pxc.js``, or bending frontend/tests/'s vitest
-    include to reach a backend plugin's asset — all disproportionate to a one-line guard), so
-    this is a source-level guard rather than an executed test: it does not run the script, only
-    pins that its rejection branch still reads ``throw``. Before this fix, ``sendAction()``
-    returned normally on a rejected action, so the caller's ``await`` resolved as if the save or
-    submit had succeeded — ``ui.js``'s config-save handler reports "Configuration saved!" from
-    its try block, not its catch, because the catch never fired.
+    pxc.js's _getWebsocketUrl() falls back to /api/activity/{activity_id}/ws, which Sparkth
+    does not serve, so a client that never sets _wsUrl connects to nothing and silently
+    receives no events.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
-    assert response.status_code == 200
-    assert re.search(r"if\s*\(!response\.ok\)\s*\{\s*throw\s", response.text)
+    assert "this._wsUrl = config.ws_url" in response.text
+    assert "this._connectWebSocket()" in response.text
+
+
+async def test_the_client_overrides_the_large_payload_post_route(client: AsyncClient) -> None:
+    """Source-level guard: the inherited _postAction points at a route Sparkth does not serve.
+
+    pxc.js's own _postAction hardcodes /api/activity/{id}/actions/{name} with cookie
+    credentials. Left inherited, every payload over 512 KiB 404s, _flushQueue breaks out of
+    its loop on the false return, and the action sits in IndexedDB forever — retried on every
+    reconnect and never delivered.
+    """
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    assert "async _postAction(" in response.text
+    assert "this._actionUrl" in response.text
+
+
+async def test_the_client_does_not_import_the_private_database_helper(client: AsyncClient) -> None:
+    # pxc.js exports only PXC; _openDB is module-private, so importing it does not resolve and
+    # the module fails to load. _pushAction and _flushQueue each open the database themselves.
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    assert "_openDB" not in response.text
 
 
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
@@ -170,7 +187,7 @@ async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClien
     # token as a required query parameter, but nothing built the URL the way the browser does.
     #
     # This test drives the shell's own output instead: it extracts data-action-url and
-    # data-pxc-token exactly as sparkth-pxc.js's sendAction() does — appending
+    # data-pxc-token exactly as sparkth-pxc.js's _postAction() does — appending
     # "/{action}?token={token}" to the base — and POSTs to that composed URL. The JS
     # composition itself has no test harness here (it is a backend-served static asset, outside
     # frontend/tests/'s vitest include), so this pins the server half of the contract: the shell
