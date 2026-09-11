@@ -282,6 +282,35 @@ async def test_an_action_body_with_an_over_long_integer_is_unprocessable(client:
     assert response.status_code == 422
 
 
+async def test_a_deeply_nested_action_body_is_unprocessable(client: AsyncClient, token: str) -> None:
+    """A body nested past the parser's recursion limit raises ``RecursionError``, not a decode error.
+
+    ``RecursionError`` inherits from ``RuntimeError``, not ``ValueError``, so the clause that
+    covers every decode failure does not reach this one. This route is reachable by anyone
+    holding a valid token, so the refusal has to be a clean 422 and not a 500 — the socket's
+    nested-frame test pins the same cause to a 1003 close.
+
+    Why 200_000: measured end to end. Up to ~50_000 the parser reports a decode error before
+    running out of recursion; from ~60_000 up it raises ``RecursionError``. 200_000 sits
+    comfortably past that boundary at 195 KiB of body.
+
+    The assertion cannot go stale on a machine with more headroom: ``"["`` repeated is invalid
+    JSON at any depth, so it is a 422 either way — by ``RecursionError`` if recursion runs out
+    first, by the decode error if it does not. A bigger stack costs this test its power, never
+    its correctness.
+
+    Unmarked: the bad body is rejected before build_runtime ever touches the sandbox.
+    """
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit",
+        params={"token": token},
+        content=b"[" * 200_000,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
 @pytest.mark.wasm
 async def test_config_carries_the_socket_url_for_this_launch(client: AsyncClient, token: str) -> None:
     # The client sets this on pxc.js's this._wsUrl. Without it, _getWebsocketUrl() falls back

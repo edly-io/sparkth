@@ -154,20 +154,36 @@ async def submit_action(action_name: str, request: Request, claims: LaunchClaims
     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
     generically, so the body is deliberately untyped rather than accidentally so.
 
-    The parse failure is caught as ``ValueError``, the same width the socket's frame loop uses
-    and for the same reason: an integer literal longer than ``sys.get_int_max_str_digits()``
-    allows is well-formed JSON that ``json.loads`` refuses to materialise, and it raises a bare
-    ``ValueError`` rather than the ``JSONDecodeError`` subclass. This route is reachable by
-    anyone holding a valid token, so that body must be a 422 and not a 500.
+    Parse failures are caught as ``(ValueError, RecursionError)``. This route is reachable by
+    anyone holding a valid token, so every body it can be handed must be a 422 rather than a
+    500. ``ValueError`` covers two causes at once: a body that is not JSON at all raises its
+    ``JSONDecodeError`` subclass, and an integer literal longer than
+    ``sys.get_int_max_str_digits()`` allows raises a bare one — well-formed JSON that
+    ``json.loads`` refuses to materialise. ``RecursionError`` is named separately because it
+    inherits from ``RuntimeError``, not from ``ValueError``, so a deeply nested body escapes a
+    clause that names only decode failures.
+
+    That is one exception short of the socket's ``(ValueError, KeyError, RecursionError)``, and
+    the asymmetry is correct rather than an oversight to tidy up: the socket's ``KeyError``
+    comes from ``receive_json(mode="text")`` reading ``message["text"]`` on a binary frame,
+    which is a WebSocket frame type with no HTTP analogue. A request body is always bytes with
+    a content type, so no equivalent cause exists here and naming ``KeyError`` would catch
+    nothing.
 
     Raises:
         PxcActionRejected: if the body is not JSON the parser will read.
     """
     try:
         action_value = await request.json()
-    except ValueError as err:
-        logger.warning("Malformed action body for %s of activity %s: %s", action_name, claims.activity, err)
-        raise PxcActionRejected("Request body is not valid JSON") from err
+    except (ValueError, RecursionError) as err:
+        # Logged with %r so the exception type says which cause arrived.
+        logger.warning(
+            "Refusing a PXC action body the parser cannot read for %s of activity %s: %r",
+            action_name,
+            claims.activity,
+            err,
+        )
+        raise PxcActionRejected("Request body is not JSON this server can read") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
     await publish_events(claims.activity, claims.placement, events)
