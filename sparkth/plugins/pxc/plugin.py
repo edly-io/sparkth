@@ -1,14 +1,14 @@
 """The PXC plugin: hosts a PXC learning activity and owns its data.
 
-Exception mappings and the content contributor are registered at module level, not in
-``__init__``: the loader constructs the plugin once but its own tests construct it again, and
-both ``register_exception_handler`` and ``LMS_CONTENT_CONTRIBUTORS.add_item`` raise on a
-duplicate key.
+Exception mappings are registered at module level, not in ``__init__``: the loader constructs
+the plugin once but its own tests construct it again, and ``register_exception_handler`` builds
+a fresh handler closure on every call, so a second registration is a genuine duplicate rather
+than a repeat of the same one.
 """
 
 from fastapi import status
 
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentContributor
+from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.i18n import gettext_noop
@@ -35,14 +35,6 @@ register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONT
 register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY)
 register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-LMS_CONTENT_CONTRIBUTORS.add_item(
-    ContentContributor(
-        "pxc",
-        "A portable, sandboxed PXC learning activity hosted by Sparkth",
-        build_pxc_block,
-    )
-)
-
 
 class PxcPlugin(SparkthPlugin):
     """Hosts PXC activities and serves them to learners inside another LMS's course."""
@@ -56,4 +48,11 @@ class PxcPlugin(SparkthPlugin):
                 gettext_noop("PXC Activities"),
                 gettext_noop("Portable, sandboxed learning activities hosted by Sparkth"),
             ),
+        )
+        register_content_contributor(
+            ContentContributor(
+                "pxc",
+                "A portable, sandboxed PXC learning activity hosted by Sparkth",
+                build_pxc_block,
+            )
         )
