@@ -157,9 +157,14 @@ two seconds, indefinitely, with the offline banner stuck on. The learner has to 
 unit to mint a fresh token.
 
 The trigger is any network interruption more than `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`
-(default 300 seconds) after the page rendered. The operator's lever today is raising that TTL;
-re-fetching the configuration on a refused handshake and reconnecting with the fresh token it
-carries is not implemented.
+(default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever.
+
+Re-fetching the configuration to obtain a fresh token is **not** an available remedy, which is
+worth stating because it is the obvious one to reach for. The configuration route authenticates
+with the very token that has expired, so a client in this state cannot reach it; and the
+configuration it returns carries that same token rather than a new one. Recovering inside the
+browser requires a credential the browser does not have, so any real fix has to change where
+the socket's authorization comes from.
 
 ## Security
 
