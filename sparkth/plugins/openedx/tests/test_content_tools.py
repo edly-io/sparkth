@@ -1,10 +1,16 @@
+from collections.abc import Iterator
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from sparkth.lib.content.exceptions import ContentBuildError
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBlock, ContentContributor
+from sparkth.lib.content.hooks import (
+    LMS_CONTENT_CONTRIBUTORS,
+    ContentBlock,
+    ContentContributor,
+    register_content_contributor,
+)
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import LMSRequestError
 from sparkth.plugins.openedx.schemas import AccessTokenPayload, AddPluginContentArgs
@@ -12,16 +18,28 @@ from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_li
 
 AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
+# Every contributor name this module registers, so the cleanup fixture cannot desync from them.
+CONTRIBUTOR_NAMES = ("fake", "broken", "bare")
+
 
 async def build_fake(course_id: str) -> ContentBlock:
     return ContentBlock("fake", "Fake Activity", {"placement": "p-1", "activity": "mcq"})
 
 
+@pytest.fixture(autouse=True)
+def unregister_contributors() -> Iterator[None]:
+    # The hook is process-global, so a contributor registered by one test would otherwise be
+    # listed by every later one.
+    yield
+    for name in CONTRIBUTOR_NAMES:
+        LMS_CONTENT_CONTRIBUTORS.remove(name)
+
+
 @pytest.fixture
-def fake_contributor(monkeypatch: pytest.MonkeyPatch) -> ContentContributor:
+def fake_contributor() -> ContentContributor:
     # Wraps (rather than replaces) build_fake so tests can assert what it was awaited with.
     contributor = ContentContributor("fake", "A fake contributor", AsyncMock(wraps=build_fake))
-    monkeypatch.setitem(LMS_CONTENT_CONTRIBUTORS._items, "fake", contributor)
+    register_content_contributor(contributor)
     return contributor
 
 
@@ -91,11 +109,9 @@ async def build_broken(course_id: str) -> ContentBlock:
     raise ContentBuildError("disk full")
 
 
-async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing() -> None:
     broken = ContentContributor("broken", "A contributor that cannot build", build_broken)
-    monkeypatch.setitem(LMS_CONTENT_CONTRIBUTORS._items, "broken", broken)
+    register_content_contributor(broken)
 
     with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("broken"))
@@ -109,9 +125,9 @@ async def build_fake_without_settings(course_id: str) -> ContentBlock:
     return ContentBlock("fake", "Fake Activity", {})
 
 
-async def test_a_block_with_no_settings_skips_the_update_call(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_block_with_no_settings_skips_the_update_call() -> None:
     bare = ContentContributor("bare", "A contributor with no settings", build_fake_without_settings)
-    monkeypatch.setitem(LMS_CONTENT_CONTRIBUTORS._items, "bare", bare)
+    register_content_contributor(bare)
 
     with (
         patch(
