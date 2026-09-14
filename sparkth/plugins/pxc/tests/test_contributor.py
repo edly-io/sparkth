@@ -1,11 +1,12 @@
 """Tests for the ``"pxc"`` content contributor.
 
 Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the bundled activity, a
-fresh placement id per call, and the sample seeded under that placement), that it is registered
-on the ``LMS_CONTENT_CONTRIBUTORS`` hook, that storage failures surface as
+fresh placement id per call, and the sample seeded under that placement), that constructing the
+plugin registers it on the ``LMS_CONTENT_CONTRIBUTORS`` hook, that storage failures surface as
 ``ContentBuildError``, and that the ``openedx`` plugin can publish it end to end.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -16,12 +17,23 @@ from sparkth.plugins.pxc.activities import state_file
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block
 from sparkth.plugins.pxc.field_store import SqliteFieldStore
+from sparkth.plugins.pxc.plugin import PxcPlugin
 
 
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", tmp_path)
     return tmp_path
+
+
+@pytest.fixture
+def unregistered() -> Iterator[None]:
+    # Importing this module already registered the contributor, so a test asserting that
+    # *construction* registers it has to start from an empty hook. The hook is process-global,
+    # hence the restore.
+    LMS_CONTENT_CONTRIBUTORS.remove("pxc")
+    yield
+    PxcPlugin()
 
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
@@ -48,10 +60,22 @@ async def test_the_sample_configuration_is_seeded_under_the_placement() -> None:
     assert store.get(*scope, "correct_answers") == [1]
 
 
-async def test_the_contributor_is_registered_on_the_hook() -> None:
-    import sparkth.plugins.pxc.plugin  # noqa: F401 — importing is what registers it
+async def test_constructing_the_plugin_registers_the_contributor(unregistered: None) -> None:
+    PxcPlugin()
 
     assert LMS_CONTENT_CONTRIBUTORS.get("pxc") is not None
+
+
+async def test_constructing_the_plugin_again_keeps_one_registration(unregistered: None) -> None:
+    # The loader constructs the plugin and these tests construct their own instances, so every
+    # construction re-registers the same contributor rather than colliding with itself.
+    PxcPlugin()
+    registered = LMS_CONTENT_CONTRIBUTORS.get("pxc")
+
+    PxcPlugin()
+
+    assert registered is not None
+    assert LMS_CONTENT_CONTRIBUTORS.get("pxc") is registered
 
 
 async def test_an_unwritable_data_dir_raises_content_build_error(
@@ -78,10 +102,10 @@ async def test_an_unbundled_default_activity_raises_content_build_error(
 async def test_the_openedx_tool_publishes_this_contributor() -> None:
     from unittest.mock import AsyncMock, patch
 
-    import sparkth.plugins.pxc.plugin  # noqa: F401
     from sparkth.plugins.openedx.schemas import AccessTokenPayload, AddPluginContentArgs
     from sparkth.plugins.openedx.tools import openedx_add_plugin_content
 
+    PxcPlugin()  # constructing the plugin is what puts the contributor on the hook
     auth = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
     with (
         patch(
