@@ -478,26 +478,31 @@ that redaction cannot recognize. Handlers need no audit code of their own.
 A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
 hand off one piece of it to a plugin that publishes to an LMS, without either plugin importing
 the other. The owning plugin registers a `ContentContributor` — a name, a human-facing
-description, and a `build` callable — on the `LMS_CONTENT_CONTRIBUTORS` hook from
+description, and a `build` callable — with `register_content_contributor` from
 `sparkth.lib.content.hooks`. A publishing plugin resolves a contributor **by name** and awaits
 its `build` with the destination course id to get back the `ContentBlock` to create.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBlock, ContentContributor
+from sparkth.lib.content.hooks import ContentBlock, ContentContributor, register_content_contributor
 
 
 async def build_my_block(course_id: str) -> ContentBlock:
     return ContentBlock("my-category", "My Block", {"course": course_id})
 
 
-LMS_CONTENT_CONTRIBUTORS.add_item(ContentContributor("my-app", "What this contributes", build_my_block))
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self) -> None:
+        super().__init__("my-app")
+        register_content_contributor(ContentContributor("my-app", "What this contributes", build_my_block))
 ```
 
-Unlike the other hooks above, register this one at **module level** in `plugin.py`, not in
-`__init__`: it is a flat hook keyed by name (not by plugin instance), and both the package
-`__init__` and `SparkthPlugin.__init__` run more than once in a pytest session, which would
-raise a duplicate-name error on the second registration.
+Register through `register_content_contributor`, not `LMS_CONTENT_CONTRIBUTORS.add_item`. The
+hook is keyed by name rather than by plugin instance, and a plugin is constructed more than
+once in one process — the loader builds it, and its own tests build their own instances — so
+each construction re-registers the same contributor. The helper treats an equal re-registration
+as a no-op and raises `DuplicateContentContributorError` only when a *different* contributor
+claims a registered name, which is the collision worth failing on.
 
 ## Complete Example
 

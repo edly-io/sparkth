@@ -111,6 +111,14 @@ class SingleNamedItemHook(Generic[N]):
         """Return the item registered under ``name``, or ``default`` if none is registered."""
         return self._items.get(name, default)
 
+    def remove(self, name: str) -> None:
+        """Remove the item registered under ``name`` if present; a no-op otherwise.
+
+        Lets callers undo a registration (e.g. test cleanup) without reaching into
+        the hook's internal storage.
+        """
+        self._items.pop(name, None)
+
 
 class KeyedItemHook(Generic[K, T]):
     """A flat hook keyed by a caller-supplied key function.

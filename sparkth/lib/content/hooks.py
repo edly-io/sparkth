@@ -6,19 +6,19 @@ its ``build``. Neither plugin imports the other, so the producer can be removed 
 without touching the publisher, and a second publisher (Canvas) can consume the same hook
 with no change to the producer.
 
-A plugin registers at module level in its ``plugin.py``::
+A plugin registers from its ``SparkthPlugin.__init__``::
 
-    LMS_CONTENT_CONTRIBUTORS.add_item(ContentContributor("pxc", "...", build_pxc_block))
-
-Module level, not the package ``__init__`` and not ``SparkthPlugin.__init__``: this is a flat
-hook keyed by name, and both of those run more than once in a pytest session, which would
-raise on the second registration.
+    register_content_contributor(ContentContributor("pxc", "...", build_pxc_block))
 """
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
+from sparkth.lib.content.exceptions import DuplicateContentContributorError
 from sparkth.lib.hooks import SingleNamedItemHook
+from sparkth.lib.log import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -54,3 +54,34 @@ class ContentContributor:
 # Content contributors, keyed by name. Consumed by LMS-publishing plugins
 # (sparkth/plugins/openedx/tools.py).
 LMS_CONTENT_CONTRIBUTORS: SingleNamedItemHook[ContentContributor] = SingleNamedItemHook()
+
+
+def register_content_contributor(contributor: ContentContributor) -> None:
+    """Register ``contributor`` on the ``LMS_CONTENT_CONTRIBUTORS`` hook.
+
+    Call this from a plugin's ``__init__``. Registration happens as the plugin is
+    constructed, straight into the hook a publishing tool resolves against.
+
+    A plugin is constructed more than once in a single process — the loader builds it, and
+    its own tests build their own instances — so each construction re-registers the same
+    contributor. Re-registering an *equal* one is therefore a no-op, and the first
+    registration is the one kept. Only a *different* contributor claiming a registered name
+    raises :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`, which
+    is the collision worth failing on: a publishing tool resolves by name, so two unequal
+    contributors sharing one name would silently build whichever registered first.
+
+    Equality is what separates the two cases, so a contributor must stay a value with
+    field-wise equality — that is why ``ContentContributor`` is a frozen dataclass rather
+    than a class with identity semantics.
+    """
+    registered = LMS_CONTENT_CONTRIBUTORS.get(contributor.name)
+    if registered == contributor:
+        return
+    if registered is not None:
+        logger.error(
+            "Content contributor '%s' collides with a different contributor already registered",
+            contributor.name,
+        )
+        raise DuplicateContentContributorError(contributor.name)
+    LMS_CONTENT_CONTRIBUTORS.add_item(contributor)
+    logger.info("Registered content contributor '%s'", contributor.name)
