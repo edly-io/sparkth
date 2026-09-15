@@ -37,6 +37,7 @@ def _lms_error(
     method: str | None = None,
     endpoint: str | None = None,
     prefix: str | None = None,
+    locator: str | None = None,
 ) -> dict[str, Any]:
     message = f"{prefix}: {err.message}" if prefix else err.message
     error: dict[str, Any] = {"status_code": err.status_code, "message": message}
@@ -44,6 +45,8 @@ def _lms_error(
         error["method"] = method
     if endpoint is not None:
         error["endpoint"] = endpoint
+    if locator:
+        error["locator"] = locator
     return {"error": error}
 
 
@@ -756,7 +759,9 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
             `{"error": {...}}` when the contributor is unknown, does not target Open edX, fails
-            to build its block, or Studio rejects the request.
+            to build its block, or Studio rejects the request. An error carries `locator` when
+            the block was created and only the attribute patch failed: that block exists, is
+            missing its attributes, and is the caller's to patch again or delete.
     """
     contributor = LMS_CONTENT_CONTRIBUTORS.get(payload.contributor)
     if contributor is None:
@@ -772,23 +777,19 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
         logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
         return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}
 
+    locator = ""
     try:
         locator = await openedx_create_basic_component(
             payload.auth, payload.course_id, payload.unit_locator, block.kind, block.title
         )
+        if block.attributes:
+            await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.attributes)
     except LMSRequestError as err:
-        return _lms_error(err, method=err.method, endpoint=err.url)
+        return _lms_error(err, method=err.method, endpoint=err.url, locator=locator)
     except ValueError as err:
-        return {"error": {"message": str(err)}}
-
-    if not block.attributes:
-        return {"response": {"locator": locator, "category": block.kind}}
-
-    try:
-        await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.attributes)
-    except LMSRequestError as err:
-        return _lms_error(err, method=err.method, endpoint=err.url)
-    except ValueError as err:
-        return {"error": {"message": str(err)}}
+        error: dict[str, Any] = {"message": str(err)}
+        if locator:
+            error["locator"] = locator
+        return {"error": error}
 
     return {"response": {"locator": locator, "category": block.kind}}

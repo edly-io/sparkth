@@ -188,3 +188,28 @@ async def test_a_contributor_that_targets_nothing_is_refused_and_creates_nothing
 
     create.assert_not_awaited()
     assert "no-targets" in result["error"]["message"]
+
+
+async def test_a_failed_attribute_patch_reports_the_locator_it_created(fake_contributor: ContentContributor) -> None:
+    """The block already exists in Studio by then, so the caller needs its locator to act on it."""
+    failure = LMSRequestError(Method.PATCH, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 500, "Boom")
+    with (
+        patch(
+            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            new=AsyncMock(return_value="block-v1:X+Y+Z+type@fake+block@b1"),
+        ),
+        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock(side_effect=failure)),
+    ):
+        result = await openedx_add_plugin_content(add_args())
+
+    assert result["error"]["status_code"] == 500
+    assert result["error"]["locator"] == "block-v1:X+Y+Z+type@fake+block@b1"
+
+
+async def test_a_failed_create_reports_no_locator(fake_contributor: ContentContributor) -> None:
+    """Nothing was created, so there is nothing for the caller to clean up."""
+    failure = LMSRequestError(Method.POST, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 403, "Forbidden")
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(side_effect=failure)):
+        result = await openedx_add_plugin_content(add_args())
+
+    assert "locator" not in result["error"]
