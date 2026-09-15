@@ -78,14 +78,7 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
 async def test_the_client_connects_a_socket_from_the_configured_url(client: AsyncClient) -> None:
     """Source-level guard: the client must take its socket URL from the config, not the default.
 
-    pxc.js's _getWebsocketUrl() falls back to /api/activity/{activity_id}/ws, which Sparkth
-    does not serve, so a client that never sets _wsUrl connects to nothing and silently
-    receives no events. It reads this._wsUrl at connect time, so the assignment has to precede
-    the connect call: assigning it afterwards leaves the same silent fallback in place while
-    both lines are still present. The connect call must in turn precede the activity script
-    load: _pushAction reads this._ws.readyState, which throws if the activity's own script
-    calls sendAction before a socket object exists. Each pinned line is matched anchored at
-    line-start (not just as a substring) so a commented-out line cannot satisfy it.
+    Order matters: _wsUrl before the connect call, and the connect call before the script load.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
@@ -103,17 +96,8 @@ async def test_the_client_connects_a_socket_from_the_configured_url(client: Asyn
 async def test_the_client_overrides_the_large_payload_post_route(client: AsyncClient) -> None:
     """Source-level guard: the inherited _postAction points at a route Sparkth does not serve.
 
-    pxc.js's own _postAction hardcodes /api/activity/{id}/actions/{name} with cookie
-    credentials. Left inherited, every payload over 512 KiB 404s, _flushQueue breaks out of
-    its loop on the false return, and the action sits in IndexedDB forever — retried on every
-    reconnect and never delivered. Both of _postAction's own failure paths — a rejected response
-    and a network-level throw from fetch itself — must resolve to `false`, never throw:
-    _flushQueue reads the boolean to decide whether to keep draining the queue, and a throw
-    would abort it there, stranding every queued record behind the failing one.
-
-    The failure-path searches run against the text from _postAction's definition onward, not
-    the whole file: connectedCallback has an `if (!response.ok)` branch of its own, earlier in
-    the file, so an unscoped search can be satisfied by a method this test says nothing about.
+    Both its failure paths must return `false`, never throw, or _flushQueue stops draining. The
+    searches are scoped from _postAction onward, since connectedCallback has its own ok branch.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
@@ -249,19 +233,7 @@ async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(clien
 async def test_an_action_body_with_an_over_long_integer_is_unprocessable(client: AsyncClient, token: str) -> None:
     """An integer literal past CPython's int-from-string limit raises a bare ``ValueError``.
 
-    ``json.loads`` refuses to build an ``int`` from more digits than
-    ``sys.get_int_max_str_digits()`` permits, and that refusal is a plain ``ValueError`` rather
-    than a ``JSONDecodeError``: the body is well-formed JSON the parser declines to
-    materialise. This route is reachable by anyone holding a valid token, so the refusal has to
-    be a clean 422 and not a 500 — the same cause closes the socket with 1003 on the other
-    transport.
-
-    The digit count is derived from the live limit instead of hardcoded, because the limit is
-    an interpreter setting (``PYTHONINTMAXSTRDIGITS``, ``-X int_max_str_digits``,
-    ``sys.set_int_max_str_digits``). A hardcoded count would silently stop exercising this
-    cause on any interpreter configured with a different one.
-
-    Unmarked: the body is rejected before build_runtime ever touches the sandbox.
+    The digit count is read from the live limit, which is an interpreter setting, not hardcoded.
     """
     over_long_integer = "1" * (sys.get_int_max_str_digits() + 1)
 
@@ -278,21 +250,7 @@ async def test_an_action_body_with_an_over_long_integer_is_unprocessable(client:
 async def test_a_deeply_nested_action_body_is_unprocessable(client: AsyncClient, token: str) -> None:
     """A body nested past the parser's recursion limit raises ``RecursionError``, not a decode error.
 
-    ``RecursionError`` inherits from ``RuntimeError``, not ``ValueError``, so the clause that
-    covers every decode failure does not reach this one. This route is reachable by anyone
-    holding a valid token, so the refusal has to be a clean 422 and not a 500 — the socket's
-    nested-frame test pins the same cause to a 1003 close.
-
-    Why 200_000: measured end to end. Up to ~50_000 the parser reports a decode error before
-    running out of recursion; from ~60_000 up it raises ``RecursionError``. 200_000 sits
-    comfortably past that boundary at 195 KiB of body.
-
-    The assertion cannot go stale on a machine with more headroom: ``"["`` repeated is invalid
-    JSON at any depth, so it is a 422 either way — by ``RecursionError`` if recursion runs out
-    first, by the decode error if it does not. A bigger stack costs this test its power, never
-    its correctness.
-
-    Unmarked: the bad body is rejected before build_runtime ever touches the sandbox.
+    200_000 is measured: ``RecursionError`` from ~60_000 up, at 195 KiB of body.
     """
     response = await client.post(
         "/api/v1/pxc/actions/answer.submit",
@@ -317,14 +275,7 @@ async def test_config_carries_the_socket_url_for_this_launch(client: AsyncClient
 
 
 def test_socket_url_upgrades_a_tls_request_to_wss() -> None:
-    """The one branch no ``client``-fixture test reaches.
-
-    ``sparkth.lib.testing``'s ``client`` fixture pins every request at
-    ``base_url="http://test"``, so ``_socket_url``'s ``https`` branch is otherwise exercised by
-    nothing — a mapping with its two branches swapped would still pass every other test in this
-    suite. Built directly on a ``Request`` rather than by widening the shared fixture, which
-    every other test also relies on staying plain HTTP.
-    """
+    """The ``https`` branch, which the ``client`` fixture's ``http://test`` base URL never reaches."""
     request = Request(
         {
             "type": "http",

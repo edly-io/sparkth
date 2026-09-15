@@ -1,15 +1,6 @@
 """The learner-facing surface, mounted at ``/api/v1/pxc``.
 
-These requests carry no Sparkth session. They arrive from a learner's browser inside another
-LMS's course page, and the launch token in the query string is what authenticates them — which
-is why they pass the plugin access gate untouched: it fails open for anonymous callers by
-design. The WebSocket route authenticates the same way, and bypasses that gate for a second
-reason too: the gate is HTTP middleware, so non-HTTP ASGI scopes never reach it (L15).
-
-Actions arrive over the socket, and the events they produce are published to every subscriber
-the event addresses rather than returned to the caller — so an action by one learner can update
-another learner's view. The POST action route exists for payloads above the client's 512 KiB
-socket ceiling and publishes the same way.
+These requests carry no Sparkth session; the launch token in the query string authenticates them.
 
 Every call into the PXC runtime is dispatched to a worker thread. The sandbox executes
 WebAssembly synchronously on the calling thread, so running it inline would block the event
@@ -75,15 +66,7 @@ async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse
 
 
 def _socket_url(request: Request, token: str) -> str:
-    """The activity socket's URL for this launch, as a browser must address it.
-
-    ``activity_socket`` is a WebSocket route, so ``request.url_for`` already resolves it to the
-    ``ws``/``wss`` scheme a browser's ``WebSocket`` constructor needs, translating from whatever
-    scheme this very request arrived on (``starlette.datastructures.URLPath.make_absolute_url``
-    maps ``http``/``https`` to ``ws``/``wss`` by ``base_url.is_secure``) — there is no ``http``/
-    ``https`` URL to convert here, and no scheme comparison to get backwards. ``https`` becomes
-    ``wss`` rather than ``ws``, or the handshake would be refused on any TLS deployment.
-    """
+    """The activity socket's URL for this launch, as a browser must address it."""
     return f"{request.url_for('activity_socket')}?token={token}"
 
 
@@ -144,31 +127,7 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
 async def submit_action(action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)) -> None:
     """Run one action through the activity's sandbox, for a payload too large for the socket.
 
-    ``pxc.js`` sends actions over the socket and falls back to this route above 512 KiB, since
-    uvicorn closes an inbound frame over 1 MiB before the server can read it. The events the
-    action produces are published to the bus, exactly as the socket path publishes them —
-    returning them here would send them nowhere, because the client reads only the response's
-    status.
-
-    The request body is read as a raw JSON value, not a typed model, by design: an action's
-    value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
-    generically, so the body is deliberately untyped rather than accidentally so.
-
-    Parse failures are caught as ``(ValueError, RecursionError)``. This route is reachable by
-    anyone holding a valid token, so every body it can be handed must be a 422 rather than a
-    500. ``ValueError`` covers two causes at once: a body that is not JSON at all raises its
-    ``JSONDecodeError`` subclass, and an integer literal longer than
-    ``sys.get_int_max_str_digits()`` allows raises a bare one — well-formed JSON that
-    ``json.loads`` refuses to materialise. ``RecursionError`` is named separately because it
-    inherits from ``RuntimeError``, not from ``ValueError``, so a deeply nested body escapes a
-    clause that names only decode failures.
-
-    That is one exception short of the socket's ``(ValueError, KeyError, RecursionError)``, and
-    the asymmetry is correct rather than an oversight to tidy up: the socket's ``KeyError``
-    comes from ``receive_json(mode="text")`` reading ``message["text"]`` on a binary frame,
-    which is a WebSocket frame type with no HTTP analogue. A request body is always bytes with
-    a content type, so no equivalent cause exists here and naming ``KeyError`` would catch
-    nothing.
+    The events it produces are published to the bus, not returned; the client reads only the status.
 
     Raises:
         PxcActionRejected: if the body is not JSON the parser will read.
@@ -191,17 +150,7 @@ async def submit_action(action_name: str, request: Request, claims: LaunchClaims
 
 @router.websocket("/ws")
 async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
-    """The socket an activity's client keeps open, to send actions and to receive events.
-
-    The events an action produces reach every subscriber that action addresses, not only the
-    client that sent it, which is what lets one learner's move update another's view. This
-    route only authenticates the launch and manages the subscription's lifecycle;
-    ``run_action_frames`` owns every frame from there.
-
-    Refusals are close codes rather than HTTP statuses: this plugin's registered exception
-    handlers render only for HTTP requests, so a domain exception raised from here would render
-    nothing and the socket would simply fail.
-    """
+    """The socket an activity's client keeps open, to send actions and to receive events."""
     try:
         claims = read_launch_token(token)
         runtime = await asyncio.to_thread(build_runtime, claims)

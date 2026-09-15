@@ -1,8 +1,4 @@
-"""The bus's fan-out, its filtering, and the adapter that keeps a fan-out going.
-
-Stub sockets rather than real ones: every property under test is about which subscribers the
-bus selects and what happens when a send fails, none of which needs a transport.
-"""
+"""The bus's fan-out, its filtering, and the adapter that keeps a fan-out going."""
 
 from typing import Any
 
@@ -79,13 +75,7 @@ async def test_a_subscriber_on_another_placement_does_not_receive() -> None:
 
 
 async def test_a_send_that_raises_does_not_stop_the_others_receiving() -> None:
-    """L16: EventBus.publish catches only WebSocketDisconnect and awaits inside its loop.
-
-    The failing subscriber must be subscribed FIRST. With it second, this test passes even
-    with no adapter in place and proves nothing. RuntimeError is the exception to inject: a
-    client disconnect surfaces as WebSocketDisconnect, which the bus already handles, so
-    injecting that would prove nothing either.
-    """
+    """The failing subscriber must subscribe FIRST, and raise RuntimeError, or this proves nothing."""
     dead = StubSocket(fail_with=RuntimeError('Cannot call "send" once a close message has been sent.'))
     alive = StubSocket()
     _subscribe(dead, _claims(Permission.play, user_id="learner-7"))

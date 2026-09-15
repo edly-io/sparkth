@@ -57,13 +57,7 @@ def configured_secret(monkeypatch: pytest.MonkeyPatch) -> str:
 
 @pytest.fixture(autouse=True)
 def _empty_bus() -> Iterator[None]:
-    """Reset the process-wide event bus around every test.
-
-    ``EVENT_BUS`` is a module-level singleton, so a subscriber a test leaves behind would still
-    be there for the next one — receiving its events and failing assertions in a file that
-    never mentioned the bus. Reaching into ``_subscribers`` is the only way to clear it; the
-    library exposes no reset.
-    """
+    """Reset the process-wide event bus around every test, so no subscriber leaks into the next."""
     EVENT_BUS._subscribers.clear()
     yield
     EVENT_BUS._subscribers.clear()
@@ -73,13 +67,7 @@ def _empty_bus() -> Iterator[None]:
 def ws_client() -> Iterator[TestClient]:
     """A client that can open WebSockets, which the suite's httpx ``client`` fixture cannot.
 
-    Built on its own ``assemble_app()`` rather than ``sparkth.main.app``: the module-level app
-    carries the real lifespan, which reaches the database, while ``assemble_app()`` is
-    documented as fully routed and DB-free.
-
-    Entered as a context manager on purpose. That gives the whole client one portal, so every
-    socket opened from it runs on the same event loop — which is what makes a two-subscriber
-    test deterministic instead of a cross-thread race.
+    Entered as a context manager so every socket it opens shares one portal, and one event loop.
     """
     with TestClient(assemble_app()) as client:
         yield client
