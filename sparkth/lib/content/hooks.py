@@ -1,18 +1,17 @@
 """Hook through which a plugin contributes content another plugin publishes to an LMS.
 
 A *content contributor* is a named producer of one LMS content block. A plugin that owns
-content registers one; a plugin that publishes to an LMS resolves it **by name** and awaits
-its ``build``. Neither plugin imports the other, so the producer can be removed or replaced
-without touching the publisher, and a second publisher (Canvas) can consume the same hook
-with no change to the producer.
+content registers one; a plugin that publishes to an LMS resolves it **by name** and awaits the
+builder registered under the publishing plugin's own name.
 
 A plugin registers from its ``SparkthPlugin.__init__``::
 
-    register_content_contributor(ContentContributor("pxc", "...", build_pxc_block))
+    register_content_contributor(ContentContributor("pxc", "...", {"open-edx": build_pxc_block}))
 """
 
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from sparkth.lib.content.exceptions import DuplicateContentContributorError
 from sparkth.lib.hooks import SingleNamedItemHook
@@ -25,34 +24,33 @@ logger = get_logger(__name__)
 class ContentBlock:
     """One content block to create in an LMS course.
 
-    ``category`` is the LMS's block type (Open edX calls it the XBlock category, and it must
-    appear in the course's Advanced Module List for anything but the built-in types).
-    ``settings`` is applied to the block after creation; every value is carried as a string
-    because that is what an XBlock's metadata holds.
+    ``kind`` and ``attributes`` are opaque here; the publishing plugin defines what each means
+    for its own LMS.
     """
 
-    category: str
-    display_name: str
-    settings: dict[str, str] = field(default_factory=dict)
+    title: str
+    kind: str
+    attributes: Any = None
 
 
 @dataclass(frozen=True)
 class ContentContributor:
-    """A named producer of one :class:`ContentBlock`.
+    """A named producer of one :class:`ContentBlock` per LMS it targets.
 
-    ``build`` is awaited with the destination course id and returns the block to create. It is
-    a callable field rather than a method to override, mirroring ``Tool(handler)`` on the
-    ``MCP_TOOLS`` hook. ``description`` is human-facing: it is what a publishing tool lists
+    ``description`` is human-facing: it is what a publishing tool lists
     back to an agent choosing a contributor.
+
+    ``builders`` is keyed by the publishing plugin's own name, so its keys are the LMSes this
+    contributor targets. Each is awaited with the destination course id and reports its own
+    failures.
     """
 
     name: str
     description: str
-    build: Callable[[str], Awaitable[ContentBlock]]
+    builders: Mapping[str, Callable[[str], Awaitable[ContentBlock]]]
 
 
-# Content contributors, keyed by name. Consumed by LMS-publishing plugins
-# (sparkth/plugins/openedx/tools.py).
+# Content contributors, keyed by name. Consumed by LMS-publishing plugins.
 LMS_CONTENT_CONTRIBUTORS: SingleNamedItemHook[ContentContributor] = SingleNamedItemHook()
 
 
