@@ -10,6 +10,7 @@ from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
 from sparkth.plugins.openedx.client import OpenEdxClient
+from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
 from sparkth.plugins.openedx.enums import Component
 from sparkth.plugins.openedx.schemas import (
     AccessTokenPayload,
@@ -713,7 +714,8 @@ async def openedx_list_content_contributors() -> dict[str, Any]:
     List the plugin content contributors available to publish into an Open edX course.
 
     A contributor is a named producer of one course content block, contributed by another
-    plugin. Pass a name from this list as the `contributor` argument of
+    plugin. Only contributors that build a block for Open edX are listed; one targeting
+    another LMS is not offered here. Pass a name from this list as the `contributor` argument of
     `openedx_add_plugin_content`.
 
     Returns:
@@ -722,6 +724,7 @@ async def openedx_list_content_contributors() -> dict[str, Any]:
     contributors = [
         {"name": contributor.name, "description": contributor.description}
         for contributor in LMS_CONTENT_CONTRIBUTORS.iter_values()
+        if OPENEDX_PLUGIN_NAME in contributor.builders
     ]
     return {"response": {"contributors": contributors}}
 
@@ -730,10 +733,14 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     """
     Publish a plugin-contributed content block into an Open edX unit.
 
-    Resolves `contributor` in the content contributor hook, awaits the block it builds for
-    this course, and creates that block in the given unit. If the block declares any
-    settings, they are then patched onto the created block. The contributor owns the block's
-    data; the course holds only the reference.
+    Resolves `contributor` in the content contributor hook, awaits the Open edX builder it
+    registered, and creates the block that builder returns in the given unit. The block's
+    `kind` is the XBlock category and its `attributes` are the XBlock metadata patched onto
+    the created block. The contributor owns the block's data; the course holds only the
+    reference.
+
+    A contributor with no Open edX builder is refused: it targets some other LMS, so the
+    block it would build is not one Studio can create.
 
     The block's category must be listed in the course's Advanced Module List, and the XBlock
     providing it must be installed in the Open edX instance. Publishing to an instance without
@@ -748,36 +755,40 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
 
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
-            `{"error": {...}}` when the contributor is unknown, the contributor fails to build
-            its block, or Studio rejects the request.
+            `{"error": {...}}` when the contributor is unknown, does not target Open edX, fails
+            to build its block, or Studio rejects the request.
     """
     contributor = LMS_CONTENT_CONTRIBUTORS.get(payload.contributor)
     if contributor is None:
         return {"error": {"message": f"Unknown content contributor: {payload.contributor}"}}
 
+    builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)
+    if builder is None:
+        return {"error": {"message": f"Content contributor {payload.contributor!r} does not target Open edX"}}
+
     try:
-        block = await contributor.build(payload.course_id)
+        block = await builder(payload.course_id)
     except ContentBuildError as err:
         logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
         return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}
 
     try:
         locator = await openedx_create_basic_component(
-            payload.auth, payload.course_id, payload.unit_locator, block.category, block.display_name
+            payload.auth, payload.course_id, payload.unit_locator, block.kind, block.title
         )
     except LMSRequestError as err:
         return _lms_error(err, method=err.method, endpoint=err.url)
     except ValueError as err:
         return {"error": {"message": str(err)}}
 
-    if not block.settings:
-        return {"response": {"locator": locator, "category": block.category}}
+    if not block.attributes:
+        return {"response": {"locator": locator, "category": block.kind}}
 
     try:
-        await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.settings)
+        await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.attributes)
     except LMSRequestError as err:
         return _lms_error(err, method=err.method, endpoint=err.url)
     except ValueError as err:
         return {"error": {"message": str(err)}}
 
-    return {"response": {"locator": locator, "category": block.category}}
+    return {"response": {"locator": locator, "category": block.kind}}

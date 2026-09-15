@@ -19,11 +19,11 @@ from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_li
 AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
 # Every contributor name this module registers, so the cleanup fixture cannot desync from them.
-CONTRIBUTOR_NAMES = ("fake", "broken", "bare")
+CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets")
 
 
 async def build_fake(course_id: str) -> ContentBlock:
-    return ContentBlock("fake", "Fake Activity", {"placement": "p-1", "activity": "mcq"})
+    return ContentBlock("Fake Activity", "fake", {"placement": "p-1", "activity": "mcq"})
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +38,7 @@ def unregister_contributors() -> Iterator[None]:
 @pytest.fixture
 def fake_contributor() -> ContentContributor:
     # Wraps (rather than replaces) build_fake so tests can assert what it was awaited with.
-    contributor = ContentContributor("fake", "A fake contributor", AsyncMock(wraps=build_fake))
+    contributor = ContentContributor("fake", "A fake contributor", {"open-edx": AsyncMock(wraps=build_fake)})
     register_content_contributor(contributor)
     return contributor
 
@@ -71,7 +71,7 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
     ):
         result = await openedx_add_plugin_content(add_args())
 
-    cast(AsyncMock, fake_contributor.build).assert_awaited_once_with("course-v1:X+Y+Z")
+    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z")
     create.assert_awaited_once_with(
         AUTH, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
     )
@@ -110,7 +110,7 @@ async def build_broken(course_id: str) -> ContentBlock:
 
 
 async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing() -> None:
-    broken = ContentContributor("broken", "A contributor that cannot build", build_broken)
+    broken = ContentContributor("broken", "A contributor that cannot build", {"open-edx": build_broken})
     register_content_contributor(broken)
 
     with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
@@ -121,12 +121,12 @@ async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing(
     assert "disk full" in result["error"]["message"]
 
 
-async def build_fake_without_settings(course_id: str) -> ContentBlock:
-    return ContentBlock("fake", "Fake Activity", {})
+async def build_fake_without_attributes(course_id: str) -> ContentBlock:
+    return ContentBlock("Fake Activity", "fake", {})
 
 
-async def test_a_block_with_no_settings_skips_the_update_call() -> None:
-    bare = ContentContributor("bare", "A contributor with no settings", build_fake_without_settings)
+async def test_a_block_with_no_attributes_skips_the_update_call() -> None:
+    bare = ContentContributor("bare", "A contributor with no attributes", {"open-edx": build_fake_without_attributes})
     register_content_contributor(bare)
 
     with (
@@ -145,3 +145,46 @@ async def test_a_block_with_no_settings_skips_the_update_call() -> None:
     update.assert_not_awaited()
     assert result["response"]["locator"] == "block-v1:X+Y+Z+type@fake+block@b1"
     assert result["response"]["category"] == "fake"
+
+
+async def build_canvas_only(course_id: str) -> ContentBlock:
+    return ContentBlock("Canvas Only", "Page", "<p>hi</p>")
+
+
+def _register_canvas_only() -> ContentContributor:
+    contributor = ContentContributor("canvas-only", "A canvas contributor", {"canvas": build_canvas_only})
+    register_content_contributor(contributor)
+    return contributor
+
+
+async def test_a_contributor_with_no_openedx_builder_is_not_listed(fake_contributor: ContentContributor) -> None:
+    """A contributor targeting another LMS must not be offered to an agent publishing here."""
+    _register_canvas_only()
+
+    result = await openedx_list_content_contributors()
+
+    names = [entry["name"] for entry in result["response"]["contributors"]]
+    assert "fake" in names
+    assert "canvas-only" not in names
+
+
+async def test_a_contributor_with_no_openedx_builder_is_refused_and_creates_nothing() -> None:
+    """Listing is not the only entry point: the name can be passed to this tool directly."""
+    _register_canvas_only()
+
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("canvas-only"))
+
+    create.assert_not_awaited()
+    assert "canvas-only" in result["error"]["message"]
+
+
+async def test_a_contributor_that_targets_nothing_is_refused_and_creates_nothing() -> None:
+    """An empty builders map registers cleanly, so this tool is what has to refuse it."""
+    register_content_contributor(ContentContributor("no-targets", "A contributor with no builders", {}))
+
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("no-targets"))
+
+    create.assert_not_awaited()
+    assert "no-targets" in result["error"]["message"]

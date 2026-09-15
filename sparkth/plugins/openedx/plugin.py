@@ -8,6 +8,7 @@ from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.openedx import tools as openedx_tools
 from sparkth.plugins.openedx.config import OpenEdxConfig
+from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
 
 
 class OpenEdxPlugin(SparkthPlugin):
@@ -25,7 +26,7 @@ class OpenEdxPlugin(SparkthPlugin):
     """
 
     def __init__(self) -> None:
-        super().__init__("open-edx")
+        super().__init__(OPENEDX_PLUGIN_NAME)
         CONFIG_SCHEMAS.add_item(self, OpenEdxConfig)
         DISPLAY_INFO.add_item(
             self,
