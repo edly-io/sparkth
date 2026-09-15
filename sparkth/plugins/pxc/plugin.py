@@ -53,6 +53,8 @@ class PxcPlugin(SparkthPlugin):
             ContentContributor(
                 "pxc",
                 "A portable, sandboxed PXC learning activity hosted by Sparkth",
-                build_pxc_block,
+                # The key is the publishing plugin's registered name, written as a literal so
+                # this plugin does not import the Open edX plugin.
+                {"open-edx": build_pxc_block},
             )
         )

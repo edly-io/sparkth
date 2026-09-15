@@ -39,21 +39,21 @@ def unregistered() -> Iterator[None]:
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
     block = await build_pxc_block("course-v1:X+Y+Z")
 
-    assert block.category == PXC_BLOCK_CATEGORY
-    assert block.settings["activity"] == "mcq"
+    assert block.kind == PXC_BLOCK_CATEGORY
+    assert block.attributes["activity"] == "mcq"
 
 
 async def test_every_placement_gets_its_own_id() -> None:
     first = await build_pxc_block("course-v1:X+Y+Z")
     second = await build_pxc_block("course-v1:X+Y+Z")
 
-    assert first.settings["placement"] != second.settings["placement"]
+    assert first.attributes["placement"] != second.attributes["placement"]
 
 
 async def test_the_sample_configuration_is_seeded_under_the_placement() -> None:
     block = await build_pxc_block("course-v1:X+Y+Z")
     store = SqliteFieldStore(state_file("mcq"))
-    scope = ("course-v1:X+Y+Z", "mcq", block.settings["placement"], "")
+    scope = ("course-v1:X+Y+Z", "mcq", block.attributes["placement"], "")
 
     assert store.get(*scope, "question")
     assert store.get(*scope, "answers")
