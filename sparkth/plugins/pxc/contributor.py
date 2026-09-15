@@ -57,7 +57,7 @@ async def build_pxc_block(course_id: str) -> ContentBlock:
 
     logger.info("Seeded PXC activity %s placement %s for course %s", PXC_DEFAULT_ACTIVITY, placement, course_id)
     return ContentBlock(
-        PXC_BLOCK_CATEGORY,
         "PXC Activity",
+        PXC_BLOCK_CATEGORY,
         {"activity": PXC_DEFAULT_ACTIVITY, "placement": placement},
     )
