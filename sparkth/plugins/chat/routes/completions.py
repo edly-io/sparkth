@@ -33,6 +33,7 @@ from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
+    live_stream_tasks,
     stream_out_of_scope_refusal,
     streaming_error_message,
 )
@@ -281,7 +282,9 @@ async def chat_completion(
                 analytics=turn_analytics.completion_context(rag_used=rag_search_required),
             )
             return StreamingResponse(
-                processor.stream(),
+                # The stream task outlives this response — it writes its analytics after the
+                # SSE sentinel — so the holder keeps it referenced until it finishes.
+                processor.stream(live_stream_tasks),
                 media_type="text/event-stream",
             )
         else:

@@ -476,7 +476,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
     """DB write must happen even if the SSE consumer stops reading before done."""
     service = _make_service()
 
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     gen = ChatStreamProcessor(
         _make_provider(),
         [{"role": "user", "content": "Hello"}],
@@ -489,7 +489,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
     async for _ in gen:
         break
 
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next((c for c in add_message_calls if c.kwargs.get("role") == "assistant"), None)
@@ -503,7 +503,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
 async def test_document_not_found_persists_error_to_db() -> None:
     """DocumentNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     with (
         patch(
             "sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
@@ -523,7 +523,7 @@ async def test_document_not_found_persists_error_to_db() -> None:
         ).stream(task_holder)
         async for _ in gen:
             pass
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
     assert (
@@ -535,7 +535,7 @@ async def test_document_not_found_persists_error_to_db() -> None:
 async def test_rag_not_ready_persists_error_to_db() -> None:
     """RAGNotReadyError must write an is_error=True message to DB."""
     service = _make_service()
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     with (
         patch(
             "sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
@@ -555,7 +555,7 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
         ).stream(task_holder)
         async for _ in gen:
             pass
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
     assert "processed" in error_calls[0].kwargs["content"].lower() or "wait" in error_calls[0].kwargs["content"].lower()
@@ -565,7 +565,7 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
 async def test_rag_retrieval_error_persists_error_to_db() -> None:
     """RAGRetrievalError must write an is_error=True message to DB."""
     service = _make_service()
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     with (
         patch(
             "sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
@@ -585,7 +585,7 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
         ).stream(task_holder)
         async for _ in gen:
             pass
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
     assert "search" in error_calls[0].kwargs["content"].lower() or "failed" in error_calls[0].kwargs["content"].lower()
@@ -605,7 +605,7 @@ async def test_unexpected_error_persists_error_to_db() -> None:
 
     provider.stream_message = _failing_stream
 
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     gen = ChatStreamProcessor(
         provider,
         [{"role": "user", "content": "Hello"}],
@@ -615,7 +615,7 @@ async def test_unexpected_error_persists_error_to_db() -> None:
     ).stream(task_holder)
     async for _ in gen:
         pass
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
 
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
@@ -674,7 +674,7 @@ async def test_tool_calls_saved_in_metadata() -> None:
 
     provider.stream_message = stream_gen
 
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     async for _ in ChatStreamProcessor(
         provider,
         [{"role": "user", "content": "search for something"}],
@@ -683,7 +683,7 @@ async def test_tool_calls_saved_in_metadata() -> None:
         None,
     ).stream(task_holder):
         pass
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next(
@@ -710,7 +710,7 @@ async def test_tool_calls_in_done_payload() -> None:
     provider.stream_message = stream_gen
 
     events = []
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     async for chunk in ChatStreamProcessor(
         provider,
         [{"role": "user", "content": "run a tool"}],
@@ -720,7 +720,7 @@ async def test_tool_calls_in_done_payload() -> None:
     ).stream(task_holder):
         if chunk.startswith("data:"):
             events.append(json.loads(chunk[5:].strip()))
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
 
     done_event = next((e for e in events if e.get("done")), None)
     assert done_event is not None
@@ -733,7 +733,7 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
     """When no tools are invoked, tool_calls is absent from the message metadata."""
     service = _make_service()
 
-    task_holder: list[asyncio.Task[None]] = []
+    task_holder: set[asyncio.Task[None]] = set()
     async for _ in ChatStreamProcessor(
         _make_provider(),
         [{"role": "user", "content": "Hello"}],
@@ -742,7 +742,7 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
         None,
     ).stream(task_holder):
         pass
-    await task_holder[0]
+    await asyncio.gather(*task_holder)
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next(
