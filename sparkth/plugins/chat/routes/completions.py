@@ -20,7 +20,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import ChatTurnAnalytics
+from sparkth.plugins.chat.analytics import ChatTurnAnalytics, tool_names
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -302,6 +302,18 @@ async def chat_completion(
                 metadata=response.get("metadata"),
                 message_type="text",
             )
+
+            # Executions live under metadata: response["tool_calls"] is hard-coded to None
+            # by every provider, so reading it would count zero forever.
+            response_metadata = response.get("metadata") or {}
+            executions = response_metadata.get("tool_executions") or []
+            turn_analytics.schedule_completion_served(
+                rag_used=rag_search_required,
+                tool_call_count=response_metadata.get("num_executions", 0),
+                streamed=False,
+            )
+            for executed_tool in tool_names(executions):
+                turn_analytics.schedule_tool_invoked(executed_tool)
 
             return ChatCompletionResponse(
                 message=ChatMessage(

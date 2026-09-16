@@ -12,7 +12,7 @@ so one path passing proves nothing about the other.
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest  # noqa: F401 -- used by the propagation test added in Task 3
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -343,3 +343,175 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len("Add a consent module")
+
+
+async def test_non_streaming_completion_emits_completion_served(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch(
+            "sparkth.plugins.chat.routes.completions.get_provider",
+            return_value=_non_streaming_provider("Outline ready."),
+        ),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    served = await _events(analytics_session, "chat.completion_served")
+    assert len(served) == 1
+    assert served[0]["streamed"] is False
+    assert served[0]["rag_used"] is False
+    assert served[0]["tool_call_count"] == 0
+    assert served[0]["provider"] == "openai"
+    assert served[0]["model"] == "gpt-4o"
+    assert served[0]["conversation_id"] == str(response.json()["conversation_id"])
+
+    # No executions → no authoring-output events.
+    assert await _events(analytics_session, "chat.tool_invoked") == []
+
+
+async def test_non_streaming_tool_executions_emit_tool_invoked(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """The non-streaming path reads metadata["tool_executions"], keyed "tool"."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _non_streaming_provider(
+        "Created the course run and an xblock.",
+        {
+            "num_executions": 2,
+            "tool_executions": [
+                {
+                    "tool": "openedx_create_course_run",
+                    "tool_input": {"title": "Data Privacy"},
+                    "output": "course-v1:X+Y+Z",
+                },
+                {
+                    "tool": "openedx_create_xblock",
+                    "tool_input": {"category": "html"},
+                    "output": "block-v1:...",
+                },
+            ],
+        },
+    )
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    served = await _events(analytics_session, "chat.completion_served")
+    assert served[0]["tool_call_count"] == 2
+
+    invoked = await _events(analytics_session, "chat.tool_invoked")
+    assert [event["tool_name"] for event in invoked] == [
+        "openedx_create_course_run",
+        "openedx_create_xblock",
+    ]
+    # Tool arguments and outputs must never reach a payload.
+    for event in invoked:
+        assert set(event) == {"conversation_id", "tool_name", "tool_category"}
+        assert "Data Privacy" not in str(event)
+
+
+async def test_refused_query_emits_no_completion_served(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """A refusal never reaches the LLM, so it is not a completion."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
+
+    refusing = AsyncMock()
+    refusing.in_scope = AsyncMock(return_value=False)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider"),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+    ):
+        mock_scope_cls.return_value = refusing
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "conversation_id": conversation_uuid,
+                "messages": [{"role": "user", "content": "what is 2+2?"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+    assert await _events(analytics_session, "chat.completion_served") == []
+
+
+async def test_analytics_emission_failure_propagates_from_the_completion(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+) -> None:
+    """The error-handling contract: a failed analytics write is never hidden.
+
+    Emission runs in a background task, so in production the completion response is
+    already on the wire and this surfaces as a logged unhandled task error. Under the
+    httpx ASGI test transport the background task runs inside the request, so the
+    exception is re-raised here — which is exactly what lets us assert it was not
+    swallowed.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch(
+            "sparkth.plugins.chat.routes.completions.get_provider",
+            return_value=_non_streaming_provider("Outline ready."),
+        ),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.lib.analytics.ingest_event", side_effect=RuntimeError("analytics exploded")),
+        pytest.raises(RuntimeError, match="analytics exploded"),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
