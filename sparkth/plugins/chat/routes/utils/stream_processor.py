@@ -37,6 +37,13 @@ from sparkth.plugins.chat.service import ChatService
 
 logger = get_logger(__name__)
 
+# asyncio holds only a weak reference to a running task, so a stream task detached from the
+# request that spawned it can be garbage-collected mid-flight — and it outlives its response,
+# because the analytics emits are attempted after the SSE sentinel has closed the stream. The
+# route hands this set to ``stream()`` as the holder that keeps every live task referenced
+# until it finishes; each task removes itself when it is done, so the set never grows.
+live_stream_tasks: set[asyncio.Task[None]] = set()
+
 
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
     """Yield a single SSE done-event carrying the refusal message as content.
@@ -431,14 +438,17 @@ class ChatStreamProcessor:
                 actor_id=self.analytics.actor_id,
             )
 
-    async def stream(self, _task_holder: list[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
+    async def stream(self, task_holder: set[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
         """Processing runs in a separate task so a client disconnect (CancelledError on the generator)
-        does not cancel the DB write mid-flight. _task_holder lets the caller hold a reference
-        to prevent the task from being garbage-collected before it finishes.
+        does not cancel the DB write mid-flight. ``task_holder`` — ``live_stream_tasks`` for the chat
+        route — keeps a strong reference to that task so it is not garbage-collected before it
+        finishes, and is also what lets a caller join the task after the stream has closed. The task
+        discards itself from the holder once it completes.
         """
         task = asyncio.create_task(self._process_and_stream())
-        if _task_holder is not None:
-            _task_holder.append(task)
+        if task_holder is not None:
+            task_holder.add(task)
+            task.add_done_callback(task_holder.discard)
         try:
             while True:
                 payload = await self.queue.get()

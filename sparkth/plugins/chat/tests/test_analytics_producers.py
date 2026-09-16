@@ -26,6 +26,7 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation, Message
+from sparkth.plugins.chat.routes.utils.stream_processor import live_stream_tasks
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -95,13 +96,16 @@ def _in_scope_classifier() -> AsyncMock:
     return classifier
 
 
-def _ingest_failing_only_for(event_type: str) -> Callable[..., Awaitable[None]]:
+def _ingest_failing_only_for(event_type: str, attempted: list[str] | None = None) -> Callable[..., Awaitable[None]]:
     """An ``ingest_event`` stand-in that fails one event type and lands every other.
 
     A side effect that raised unconditionally would be satisfied by whichever analytics
     write happens to run first — ``chat.conversation_started`` — so such a test would
     still pass with the seam under test deleted. Failing exactly one event type makes
     the assertion about that seam.
+
+    ``attempted`` collects the event type of every call, so a test whose other assertions
+    are all absences can still prove the failing emit was reached rather than skipped.
     """
 
     async def _side_effect(
@@ -111,6 +115,8 @@ def _ingest_failing_only_for(event_type: str) -> Callable[..., Awaitable[None]]:
         payload: dict[str, Any],
         **kwargs: Any,
     ) -> None:
+        if attempted is not None:
+            attempted.append(called_event_type)
         if called_event_type == event_type:
             raise RuntimeError("analytics exploded")
         await real_ingest_event(session, called_event_type, version, payload, **kwargs)
@@ -118,14 +124,20 @@ def _ingest_failing_only_for(event_type: str) -> Callable[..., Awaitable[None]]:
     return _side_effect
 
 
-async def _settle_stream_task() -> None:
-    """Yield control so the detached stream task's post-sentinel analytics writes run.
+async def _join_stream_tasks() -> None:
+    """Await every detached stream task the request left running.
 
-    The streaming seam emits after the SSE sentinel, so the response can already be
-    complete by the time those writes are attempted.
+    The SSE generator returns as soon as it pops the sentinel, and the streaming analytics
+    writes are attempted only after that — so a complete response body is no evidence that
+    they have landed, and yielding to the loop is no guarantee either (the writes go through
+    aiosqlite worker threads). The route registers each stream task in ``live_stream_tasks``;
+    joining them here is what makes an assertion on analytics rows deterministic.
+
+    Outcomes are ignored on purpose: a failed streaming emit is unhandled on that task by
+    design, and these tests assert on the rows that landed and on what was attempted.
     """
-    for _ in range(50):
-        await asyncio.sleep(0)
+    while live_stream_tasks:
+        await asyncio.gather(*tuple(live_stream_tasks), return_exceptions=True)
 
 
 async def _error_message_count(session: AsyncSession) -> int:
@@ -622,10 +634,12 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
                 "tools": "none",
             },
         )
+        # The response is complete once the SSE sentinel is popped, but the analytics writes
+        # are attempted after that, on the detached stream task. Joining that task — not the
+        # body — is what makes the row assertions below deterministic.
+        await _join_stream_tasks()
 
     assert response.status_code == 200
-    # Reading the body drains the SSE generator, which only returns once the detached
-    # stream task has emitted its done event — so the analytics writes have happened.
     assert "data: " in response.text
 
     served = await _events(analytics_session, "chat.completion_served")
@@ -669,6 +683,8 @@ async def test_streaming_completion_without_tools_emits_zero_count(
                 "tools": "none",
             },
         )
+        # The streaming emits run after the sentinel, so join the task before asserting.
+        await _join_stream_tasks()
 
     assert response.status_code == 200
     assert "data: " in response.text
@@ -694,10 +710,15 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
     message in the conversation forever. The emits therefore run after the guard and
     after the stream has closed, where a failure is unhandled on that task and reaches
     neither the client nor the database.
+
+    ``attempted`` carries the one positive assertion: without it every check here is an
+    absence, and a seam that never emitted at all would satisfy them just as well as one
+    that emitted safely outside the guard.
     """
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
     provider = _streaming_provider([{"type": "token", "content": "Here is an outline."}])
+    attempted: list[str] = []
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
@@ -705,7 +726,7 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
         patch(
             "sparkth.lib.analytics.ingest_event",
-            side_effect=_ingest_failing_only_for("chat.completion_served"),
+            side_effect=_ingest_failing_only_for("chat.completion_served", attempted),
         ),
     ):
         mock_scope_cls.return_value = _in_scope_classifier()
@@ -720,9 +741,12 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
         )
         assert response.status_code == 200
         body = response.text
-        # The emits are attempted only once the stream is closed, so give that task a turn.
-        await _settle_stream_task()
+        # The emits are attempted only once the stream is closed, on the detached task.
+        await _join_stream_tasks()
 
+    # The streaming seam really did try to write, and failed — the absences below are the
+    # consequences of that failure being contained, not of nothing having happened.
+    assert "chat.completion_served" in attempted
     assert '"error"' not in body
     assert "Here is an outline." in body
     assert await _error_message_count(session) == 0
