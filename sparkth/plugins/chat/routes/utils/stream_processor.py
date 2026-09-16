@@ -22,6 +22,12 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
+from sparkth.plugins.chat.analytics import (
+    CompletionAnalyticsContext,
+    emit_completion_served,
+    emit_tool_invoked,
+    tool_names,
+)
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
@@ -124,6 +130,7 @@ class ChatStreamProcessor:
         llm: Any | None = None,
         rag_search_required: bool = False,
         rag_search_declined: bool = False,
+        analytics: CompletionAnalyticsContext | None = None,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -134,6 +141,9 @@ class ChatStreamProcessor:
         self.llm = llm
         self.rag_search_required = rag_search_required
         self.rag_search_declined = rag_search_declined
+        # None keeps the processor constructible without analytics — its own unit tests
+        # build it with four arguments and have no request to take a context from.
+        self.analytics = analytics
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -316,8 +326,10 @@ class ChatStreamProcessor:
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
     ) -> None:
-        """The done SSE payload includes the full message object so the client can
-        update its state without a separate fetch after the stream closes.
+        """Persist the assistant message, emit the done SSE, and record the completion.
+
+        The done payload includes the full message object so the client can update its
+        state without a separate fetch after the stream closes.
         """
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
@@ -348,6 +360,24 @@ class ChatStreamProcessor:
                 },
             }
         )
+        if self.analytics is None:
+            return
+        # Awaited, not queued: this method already runs in the detached task created by
+        # stream(), off the request's critical path. Nothing is caught — a failed
+        # analytics write surfaces as an unhandled error on that task rather than being
+        # hidden.
+        await emit_completion_served(
+            conversation_id=self.conversation_uuid,
+            context=self.analytics,
+            tool_call_count=len(completed_tool_calls),
+            streamed=True,
+        )
+        for executed_tool in tool_names(completed_tool_calls):
+            await emit_tool_invoked(
+                conversation_id=self.conversation_uuid,
+                tool_name=executed_tool,
+                actor_id=self.analytics.actor_id,
+            )
 
     async def _run_llm_phase(
         self,
