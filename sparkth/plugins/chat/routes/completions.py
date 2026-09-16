@@ -20,7 +20,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import emit_conversation_started
+from sparkth.plugins.chat.analytics import emit_conversation_started, emit_message_sent
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -176,7 +176,21 @@ async def chat_completion(
 
     if request.document_ids:
         await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
-    await service.add_incoming_messages(session, conversation_id, request.messages)
+    incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
+    for stored in incoming_messages:
+        # Instructor turns only: an assistant turn in the request is history the client
+        # replayed, and assistant output is counted by chat.completion_served instead.
+        if stored.role != "user":
+            continue
+        background_tasks.add_task(
+            emit_message_sent,
+            conversation_id=str(conversation.uuid),
+            provider=provider_name,
+            model=model,
+            message_length=len(stored.content),
+            has_attachment=stored.message_type == "attachment",
+            actor_id=str(user_id),
+        )
 
     db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
 

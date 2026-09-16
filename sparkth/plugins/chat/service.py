@@ -369,19 +369,29 @@ class ChatService:
         session: AsyncSession,
         conversation_id: int,
         messages: list[ChatMessage],
-    ) -> None:
-        """Store the turns a request carries, so reopening the conversation shows them."""
+    ) -> list[Message]:
+        """Store the turns a request carries, so reopening the conversation shows them.
+
+        Returns the stored rows. This is the only place a request's content blocks are
+        flattened into message text, so a caller that needs to measure what was stored —
+        analytics does — reads it from here rather than re-deriving it from the request
+        and drifting from this flattening.
+        """
+        stored: list[Message] = []
         for message in messages:
-            await self.add_message(
-                session=session,
-                conversation_id=conversation_id,
-                role=message.role,
-                # A turn of attachments alone still needs a body, or the transcript shows a blank.
-                content=text_of(message) or "[Document attachment]",
-                message_type="attachment" if message.attachment else "text",
-                attachment_name=message.attachment.name if message.attachment else None,
-                attachment_size=message.attachment.size if message.attachment else None,
+            stored.append(
+                await self.add_message(
+                    session=session,
+                    conversation_id=conversation_id,
+                    role=message.role,
+                    # A turn of attachments alone still needs a body, or the transcript shows a blank.
+                    content=text_of(message) or "[Document attachment]",
+                    message_type="attachment" if message.attachment else "text",
+                    attachment_name=message.attachment.name if message.attachment else None,
+                    attachment_size=message.attachment.size if message.attachment else None,
+                )
             )
+        return stored
 
     async def record_error_message(
         self,

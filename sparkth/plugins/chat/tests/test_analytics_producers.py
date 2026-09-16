@@ -189,3 +189,114 @@ async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
 
     assert response.status_code == 200
     assert await _events(analytics_session, "chat.conversation_started") == []
+
+
+async def test_instructor_turn_emits_message_sent(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    question = "Create a course on data privacy"
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": question}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    sent = await _events(analytics_session, "chat.message_sent")
+    assert len(sent) == 1
+    assert sent[0]["message_length"] == len(question)
+    assert sent[0]["has_attachment"] is False
+    assert sent[0]["provider"] == "openai"
+    assert sent[0]["model"] == "gpt-4o"
+    assert sent[0]["conversation_id"] == str(response.json()["conversation_id"])
+
+
+async def test_message_sent_payload_carries_no_message_text(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """A length, never the words. Course content must not reach the analytics store."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    question = "Draft a lesson about the Schrems II ruling"
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": question}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    sent = await _events(analytics_session, "chat.message_sent")
+    assert set(sent[0]) == {
+        "conversation_id",
+        "provider",
+        "model",
+        "message_length",
+        "has_attachment",
+    }
+    assert "Schrems" not in str(sent[0])
+
+
+async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """A client replaying history sends assistant turns too; only instructor turns count."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "conversation_id": conversation_uuid,
+                "messages": [
+                    {"role": "assistant", "content": "Here is the outline so far."},
+                    {"role": "user", "content": "Add a consent module"},
+                ],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    sent = await _events(analytics_session, "chat.message_sent")
+    assert len(sent) == 1
+    assert sent[0]["message_length"] == len("Add a consent module")
