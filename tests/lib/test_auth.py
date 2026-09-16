@@ -69,3 +69,38 @@ class TestGetUserByUsername:
 
     async def test_returns_none_when_no_user_matches(self, session: AsyncSession) -> None:
         assert await lib_auth.get_user_by_username("nobody-here", session) is None
+
+
+class TestGetCurrentUserBindsAuditActor:
+    """Every authenticated request attributes its audit events to the caller."""
+
+    async def test_full_lookup_binds_the_actor(self, session: AsyncSession) -> None:
+        from fastapi import Request
+        from fastapi.security import HTTPAuthorizationCredentials
+
+        from sparkth.lib.audit.context import AuditRequestContext, UserActor, audit_context, current_audit_context
+
+        user = await _seed_user(session, "actoruser")
+        request = Request({"type": "http", "headers": [], "state": {}})
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer", credentials=create_access_token({"sub": user.username})
+        )
+
+        with audit_context(AuditRequestContext(request_id="r1")):
+            await lib_auth.get_current_user(request, credentials, session)
+            assert current_audit_context().actor == UserActor(id=str(user.id), label=user.username)
+
+    async def test_cached_gate_user_binds_the_actor(self, session: AsyncSession) -> None:
+        from fastapi import Request
+        from fastapi.security import HTTPAuthorizationCredentials
+
+        from sparkth.lib.audit.context import AuditRequestContext, UserActor, audit_context, current_audit_context
+
+        user = await _seed_user(session, "cacheduser")
+        request = Request({"type": "http", "headers": [], "state": {}})
+        request.state.user = user
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="ignored")
+
+        with audit_context(AuditRequestContext(request_id="r2")):
+            await lib_auth.get_current_user(request, credentials, session)
+            assert current_audit_context().actor == UserActor(id=str(user.id), label=user.username)

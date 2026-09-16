@@ -11,6 +11,9 @@ from sparkth.core.config import get_settings
 from sparkth.core.email import send_email
 from sparkth.core.models.email_verification import EmailVerificationToken
 from sparkth.core.models.user import User
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.context import UserActor
+from sparkth.lib.audit.events import AuditOutcome, AuditTarget, EmailVerifiedAuditEvent
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
@@ -69,6 +72,11 @@ class EmailVerificationService:
 
     @staticmethod
     async def verify_token(session: AsyncSession, *, raw_token: str) -> User:
+        """Redeem ``raw_token``, marking the user verified. Does not commit.
+
+        Records an ``auth.email_verified`` success event in the caller's
+        transaction; rejections raise before anything is recorded.
+        """
         token_hash = _hash_token(raw_token)
         result = await session.exec(
             select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash)
@@ -88,6 +96,14 @@ class EmailVerificationService:
         token.used_at = now
         session.add(user)
         session.add(token)
+        await record_event(
+            session,
+            EmailVerifiedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                actor=UserActor(id=str(user.id), label=user.username),
+                target=AuditTarget(type="user", id=str(user.id)),
+            ),
+        )
         await session.flush()
         return user
 

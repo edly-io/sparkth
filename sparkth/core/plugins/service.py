@@ -2,12 +2,21 @@ from collections.abc import Sequence
 from typing import Any
 
 import pydantic
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    UserPluginConfigCreatedAuditEvent,
+    UserPluginConfigUpdatedAuditEvent,
+    UserPluginEnabledChangedAuditEvent,
+)
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import session_scope
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
@@ -312,6 +321,8 @@ class PluginService:
             plugin_id,
         )
 
+        # A missing row means the plugin was enabled by default.
+        previously_enabled = user_plugin.enabled if user_plugin else True
         if user_plugin:
             user_plugin.enabled = enabled
         else:
@@ -322,11 +333,38 @@ class PluginService:
                 config={},
             )
             session.add(user_plugin)
+        await session.flush()
+        plugin_name = await self._plugin_name(session, plugin_id)
+        await record_event(
+            session,
+            UserPluginEnabledChangedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
+                change=AuditChange(
+                    old={"plugin": plugin_name, "enabled": previously_enabled},
+                    new={"plugin": plugin_name, "enabled": enabled},
+                ),
+            ),
+        )
 
         await session.commit()
         await session.refresh(user_plugin)
 
         return user_plugin
+
+    @staticmethod
+    async def _plugin_name(session: AsyncSession, plugin_id: int) -> str | None:
+        return (await session.exec(select(Plugin.name).where(col(Plugin.id) == plugin_id))).first()
+
+    @staticmethod
+    def _config_snapshot(plugin_name: str | None, config: dict[str, Any]) -> dict[str, Any]:
+        """What an audit event records about a plugin config: the key names only.
+
+        Plugin configs are mostly credentials under plugin-specific key names
+        (``lms_password``, ``api_key``, ...) that key-based redaction cannot be
+        trusted to recognise, so no value is ever snapshotted.
+        """
+        return {"plugin": plugin_name, "keys": sorted(config)}
 
     async def create_user_plugin(
         self, session: AsyncSession, user_id: int, plugin_id: int, user_config: dict[str, Any]
@@ -334,6 +372,16 @@ class PluginService:
         user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin_id, enabled=True, config=user_config)
 
         session.add(user_plugin)
+        await session.flush()
+        plugin_name = await self._plugin_name(session, plugin_id)
+        await record_event(
+            session,
+            UserPluginConfigCreatedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
+                change=AuditChange(new=self._config_snapshot(plugin_name, user_config)),
+            ),
+        )
         await session.commit()
         await session.refresh(user_plugin)
         return user_plugin
@@ -372,6 +420,7 @@ class PluginService:
 
         validated_config = self.validate_user_config(plugin, merged_config)
 
+        previous_config = user_plugin.config if user_plugin else {}
         if user_plugin:
             user_plugin.config = validated_config
         else:
@@ -384,6 +433,17 @@ class PluginService:
             session.add(user_plugin)
 
         await session.flush()
+        await record_event(
+            session,
+            UserPluginConfigUpdatedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
+                change=AuditChange(
+                    old=self._config_snapshot(plugin.name, previous_config),
+                    new=self._config_snapshot(plugin.name, validated_config),
+                ),
+            ),
+        )
         await session.refresh(user_plugin)
 
         return user_plugin
