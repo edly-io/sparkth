@@ -175,8 +175,9 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
 
 APPEND_ONLY_MESSAGE = "audit_events is append-only"
 
-# Per dialect: the statements that make the table append-only, and the ones
-# that undo it (for the migration's downgrade). SQLite has no TRUNCATE; its
+# Per dialect: the statements that make the table append-only, run by ``create_all``
+# on a fresh database. Migration a282a83eec61 carries its own frozen copy for existing
+# databases; a change here needs a new migration. SQLite has no TRUNCATE; its
 # truncate optimization is disabled by the presence of a DELETE trigger, so a
 # bare ``DELETE FROM audit_events`` is caught row by row.
 # ponytail: triggers, not role separation; a retention job (#507) will need a
@@ -200,18 +201,6 @@ FOR EACH STATEMENT EXECUTE FUNCTION audit_events_append_only()""",
 BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
         f"""CREATE TRIGGER audit_events_no_delete BEFORE DELETE ON audit_events
 BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
-    ],
-}
-
-APPEND_ONLY_DROP_DDL: dict[str, list[str]] = {
-    "postgresql": [
-        "DROP TRIGGER IF EXISTS audit_events_no_truncate ON audit_events",
-        "DROP TRIGGER IF EXISTS audit_events_no_update_delete ON audit_events",
-        "DROP FUNCTION IF EXISTS audit_events_append_only()",
-    ],
-    "sqlite": [
-        "DROP TRIGGER IF EXISTS audit_events_no_delete",
-        "DROP TRIGGER IF EXISTS audit_events_no_update",
     ],
 }
 
