@@ -278,6 +278,12 @@ async def chat_completion(
                 rag_llm,
                 rag_search_required,
                 rag_search_declined,
+                analytics=CompletionAnalyticsContext(
+                    provider=provider_name,
+                    model=model,
+                    rag_used=rag_search_required,
+                    actor_id=str(user_id),
+                ),
             )
             return StreamingResponse(
                 processor.stream(),
