@@ -21,9 +21,17 @@ from sparkth.core.google_auth import (
 from sparkth.core.models.base import utc_now
 from sparkth.core.models.user import User
 from sparkth.lib.analytics import emit_event
-from sparkth.lib.audit import record_event_now
+from sparkth.lib.audit import record_event, record_event_now
 from sparkth.lib.audit.context import AnonymousActor, UserActor
-from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    EmailVerifiedAuditEvent,
+    GoogleLinkedAuditEvent,
+    LoginAuditEvent,
+    RegisteredAuditEvent,
+)
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.schemas import (
@@ -86,6 +94,7 @@ async def register_user(
     if db_user.id is None:
         raise RuntimeError("user.id unexpectedly None after flush")
     raw_token = await EmailVerificationService.create_token(session, user_id=db_user.id)
+    await record_event(session, _registered_event(db_user, method="password"))
     await session.commit()
     await session.refresh(db_user)
 
@@ -96,6 +105,17 @@ async def register_user(
         raw_token=raw_token,
     )
     return db_user
+
+
+def _registered_event(user: User, *, method: str) -> RegisteredAuditEvent:
+    """The ``auth.registered`` event for a freshly flushed ``user``."""
+    actor = UserActor(id=str(user.id), label=user.username)
+    return RegisteredAuditEvent(
+        outcome=AuditOutcome.SUCCESS,
+        actor=actor,
+        target=AuditTarget(type="user", id=str(user.id)),
+        change=AuditChange(new={"username": user.username, "method": method}),
+    )
 
 
 async def _emit_login_event(username: str, user_id: str | None) -> None:
@@ -250,6 +270,14 @@ async def google_callback(
                     user.email_verified = True
                     user.email_verified_at = utc_now()
                 session.add(user)
+                await record_event(
+                    session,
+                    GoogleLinkedAuditEvent(
+                        outcome=AuditOutcome.SUCCESS,
+                        actor=UserActor(id=str(user.id), label=user.username),
+                        target=AuditTarget(type="user", id=str(user.id)),
+                    ),
+                )
                 await session.commit()
                 await session.refresh(user)
             else:
@@ -279,8 +307,14 @@ async def google_callback(
                     email_verified_at=utc_now(),
                 )
                 session.add(user)
+                await session.flush()
+                await record_event(session, _registered_event(user, method="google"))
                 await session.commit()
                 await session.refresh(user)
+
+        await record_event_now(
+            LoginAuditEvent(outcome=AuditOutcome.SUCCESS, actor=UserActor(id=str(user.id), label=user.username))
+        )
 
         # Generate JWT token
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -304,12 +338,17 @@ async def verify_email(
 ) -> None:
     # Unauthenticated endpoint: deliberately returns no body so we don't leak
     # account state (verified flag, id, name) to anyone holding a token.
+    # The success event is recorded by the service in this transaction; a
+    # rejection is committed on its own (the request ends in a 400) and names
+    # the reason, never the token.
     try:
         await EmailVerificationService.verify_token(session, raw_token=body.token)
-    except TokenExpiredError:
-        raise HTTPException(status_code=400, detail="expired_token")  # i18n-exempt: machine-read code
-    except TokenInvalidError:
-        raise HTTPException(status_code=400, detail="invalid_token")  # i18n-exempt: machine-read code
+    except (TokenExpiredError, TokenInvalidError) as exc:
+        await record_event_now(
+            EmailVerifiedAuditEvent(outcome=AuditOutcome.FAILURE, actor=AnonymousActor(), error_detail=str(exc))
+        )
+        code = "expired_token" if isinstance(exc, TokenExpiredError) else "invalid_token"
+        raise HTTPException(status_code=400, detail=code)  # i18n-exempt: machine-read code
     await session.commit()
 
 

@@ -21,6 +21,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core import security
 from sparkth.core.models.user import User
+from sparkth.lib.audit.context import UserActor, bind_audit_actor
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _, bind_locale
 from sparkth.lib.language import is_supported_language
@@ -60,6 +61,18 @@ async def get_user_by_username(username: str, session: AsyncSession) -> User | N
     """Return the user with this username, or ``None`` when no user has it."""
     result = await session.exec(select(User).where(User.username == username))
     return result.one_or_none()
+
+
+def bind_request_user(user: User) -> None:
+    """Apply everything a resolved caller implies for the rest of the request.
+
+    Installs the user's interface locale and binds them as the audit actor, so
+    every audit event the request records is attributed to them. Called from
+    both exits of ``get_current_user``; the plugin gate binds the locale on its
+    own because its 403 never reaches a route.
+    """
+    bind_interface_locale(user)
+    bind_audit_actor(UserActor(id=str(user.id), label=user.username))
 
 
 def bind_interface_locale(user: User) -> None:
@@ -106,7 +119,7 @@ async def get_current_user(
     """
     cached_user = getattr(request.state, "user", None)
     if isinstance(cached_user, User):
-        bind_interface_locale(cached_user)
+        bind_request_user(cached_user)
         return cached_user
 
     username = decode_token_username(credentials.credentials)
@@ -125,6 +138,6 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    bind_interface_locale(user)
+    bind_request_user(user)
 
     return user

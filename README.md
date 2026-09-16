@@ -228,7 +228,12 @@ surfaces as a logged error rather than blocking the request), audit writes are f
 mutating or AI action whose audit record cannot be written does not proceed. Every AI tool
 execution, on every surface (the MCP server, chat, RAG), is recorded as a `tool.invoked` event
 committed before the handler runs plus a `tool.completed` or `tool.failed` outcome event, with
-redacted arguments and the model identity that drove the call.
+redacted arguments and the model identity that drove the call. Account and credential lifecycle
+events are captured too: registration, Google sign-up and account linking, email verification,
+every stored LLM API key operation including each decrypted read (`llm_config.key_read`), and
+per-user plugin enablement and configuration changes (recorded by config key name only, never
+by value). The authentication dependency binds the caller as the audit actor, so every event a
+request records is attributed to the authenticated user.
 
 ## Analytics Event Schemas
 

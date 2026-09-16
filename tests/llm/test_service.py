@@ -82,8 +82,8 @@ async def test_create_stores_encrypted_key() -> None:
     )
 
     enc.encrypt.assert_called_once_with("sk-real")
-    session.add.assert_called_once()
-    added = session.add.call_args[0][0]
+    # The config row is added first; the llm_config.created audit row follows.
+    added = session.add.call_args_list[0][0][0]
     assert added.encrypted_key == "enc-secret"
     assert added.user_id == 1
     assert added.name == "My Key"
