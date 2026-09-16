@@ -9,19 +9,23 @@ emitted from genuinely different seams reading differently shaped execution reco
 so one path passing proves nothing about the other.
 """
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
+from sparkth.lib.analytics import ingest_event as real_ingest_event
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.models import Conversation, Message
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -89,6 +93,45 @@ def _in_scope_classifier() -> AsyncMock:
     classifier = AsyncMock()
     classifier.in_scope = AsyncMock(return_value=True)
     return classifier
+
+
+def _ingest_failing_only_for(event_type: str) -> Callable[..., Awaitable[None]]:
+    """An ``ingest_event`` stand-in that fails one event type and lands every other.
+
+    A side effect that raised unconditionally would be satisfied by whichever analytics
+    write happens to run first — ``chat.conversation_started`` — so such a test would
+    still pass with the seam under test deleted. Failing exactly one event type makes
+    the assertion about that seam.
+    """
+
+    async def _side_effect(
+        session: AsyncSession,
+        called_event_type: str,
+        version: int,
+        payload: dict[str, Any],
+        **kwargs: Any,
+    ) -> None:
+        if called_event_type == event_type:
+            raise RuntimeError("analytics exploded")
+        await real_ingest_event(session, called_event_type, version, payload, **kwargs)
+
+    return _side_effect
+
+
+async def _settle_stream_task() -> None:
+    """Yield control so the detached stream task's post-sentinel analytics writes run.
+
+    The streaming seam emits after the SSE sentinel, so the response can already be
+    complete by the time those writes are attempted.
+    """
+    for _ in range(50):
+        await asyncio.sleep(0)
+
+
+async def _error_message_count(session: AsyncSession) -> int:
+    """Count the assistant messages stored with ``is_error`` set."""
+    rows = (await session.execute(select(Message).where(col(Message.is_error).is_(True)))).scalars().all()
+    return len(rows)
 
 
 async def test_new_conversation_emits_conversation_started(
@@ -484,6 +527,7 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
+    analytics_session: AsyncSession,
 ) -> None:
     """The error-handling contract: a failed analytics write is never hidden.
 
@@ -492,6 +536,11 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
     httpx ASGI test transport the background task runs inside the request, so the
     exception is re-raised here — which is exactly what lets us assert it was not
     swallowed.
+
+    Only ``chat.completion_served`` is made to fail, so the error that surfaces can only
+    have come from the non-streaming completion seam. Failing every event instead would
+    let the earlier ``chat.conversation_started`` write satisfy the assertion, and the
+    test would still pass with this seam deleted.
     """
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
@@ -502,7 +551,10 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
         ),
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.lib.analytics.ingest_event", side_effect=RuntimeError("analytics exploded")),
+        patch(
+            "sparkth.lib.analytics.ingest_event",
+            side_effect=_ingest_failing_only_for("chat.completion_served"),
+        ),
         pytest.raises(RuntimeError, match="analytics exploded"),
     ):
         mock_scope_cls.return_value = _in_scope_classifier()
@@ -625,3 +677,52 @@ async def test_streaming_completion_without_tools_emits_zero_count(
     assert len(served) == 1
     assert served[0]["tool_call_count"] == 0
     assert await _events(analytics_session, "chat.tool_invoked") == []
+
+
+async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """A failed streaming analytics write stays off the stream and out of the transcript.
+
+    The streaming emits run on the detached stream task, which wraps the whole response
+    in ``except BaseException`` and turns anything caught into an ``is_error`` assistant
+    row plus an error SSE. Emitted inside that guard, a broken analytics database would
+    make a successfully delivered reply render as a failure and leave a fake error
+    message in the conversation forever. The emits therefore run after the guard and
+    after the stream has closed, where a failure is unhandled on that task and reaches
+    neither the client nor the database.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _streaming_provider([{"type": "token", "content": "Here is an outline."}])
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+        patch(
+            "sparkth.lib.analytics.ingest_event",
+            side_effect=_ingest_failing_only_for("chat.completion_served"),
+        ),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on ethics"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+        assert response.status_code == 200
+        body = response.text
+        # The emits are attempted only once the stream is closed, so give that task a turn.
+        await _settle_stream_task()
+
+    assert '"error"' not in body
+    assert "Here is an outline." in body
+    assert await _error_message_count(session) == 0

@@ -9,6 +9,26 @@ measure authoring *activity* (conversations, turns, completions) and authoring
 Payloads carry identifiers, lengths, flags and names only. No message content,
 conversation title, prompt, tool argument, or tool output ever enters an analytics
 payload.
+
+Known gaps
+----------
+
+Two deliberate limitations of the producer seams, recorded here so consumers do not
+read more into these rows than they carry:
+
+**Ordering.** ``occurred_at`` is stamped when the row is written, not when the seam
+fires. The route's events run as Starlette background tasks after the response has
+completed, while the streaming completion event is awaited inside the stream's
+detached task — so on a streamed turn ``chat.completion_served`` is timestamped
+*before* the ``chat.conversation_started`` and ``chat.message_sent`` of that same
+turn, skewed by the duration of the stream. Consumers must not infer per-turn
+ordering from ``occurred_at``.
+
+**Dropped events.** Events queued on ``background_tasks`` are discarded when the
+route raises — the 502 and 500 handlers — and a client disconnecting mid-stream
+yields a ``chat.completion_served`` with no ``chat.conversation_started`` or
+``chat.message_sent``. The conversation and message rows are committed regardless, so
+these counts are lower bounds: failed turns are systematically under-counted.
 """
 
 from dataclasses import dataclass
@@ -60,7 +80,13 @@ class ChatMessageSent(AnalyticsEventSchema):
 
 
 class ChatCompletionServed(AnalyticsEventSchema):
-    """An assistant reply was delivered.
+    """A completion the LLM actually produced was served.
+
+    Not every delivered assistant reply emits this. Two streaming branches persist and
+    deliver a reply without one, because no LLM completion was generated: the
+    RAG-no-results branch, which answers with a fixed "nothing matched your query"
+    message, and the streaming-error branch, which stores the provider failure as an
+    ``is_error`` assistant message.
 
     ``rag_used`` records that the intent router *decided* to retrieve, not that
     retrieval returned anything. ``tool_call_count`` counts executions attempted,

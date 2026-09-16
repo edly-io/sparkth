@@ -148,6 +148,10 @@ class ChatStreamProcessor:
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
         self.disconnected: asyncio.Event = asyncio.Event()
+        # Completion facts stashed by _persist_and_emit_done for _process_and_stream to emit
+        # once the stream is closed: the tool-execution count and the executed tool names.
+        # None means no completion was produced, so nothing is emitted.
+        self._completion: tuple[int, list[str]] | None = None
 
     def _build_rag_context(self, all_chunks: list[RetrievedChunk]) -> tuple[str, list[dict[str, str | None]]]:
         """Section deduplication prevents the same section appearing twice in the
@@ -326,7 +330,7 @@ class ChatStreamProcessor:
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
     ) -> None:
-        """Persist the assistant message, emit the done SSE, and record the completion.
+        """Persist the assistant message, emit the done SSE, and record the completion facts.
 
         The done payload includes the full message object so the client can update its
         state without a separate fetch after the stream closes.
@@ -360,24 +364,13 @@ class ChatStreamProcessor:
                 },
             }
         )
-        if self.analytics is None:
-            return
-        # Awaited, not queued: this method already runs in the detached task created by
-        # stream(), off the request's critical path. Nothing is caught — a failed
-        # analytics write surfaces as an unhandled error on that task rather than being
-        # hidden.
-        await emit_completion_served(
-            conversation_id=self.conversation_uuid,
-            context=self.analytics,
-            tool_call_count=len(completed_tool_calls),
-            streamed=True,
-        )
-        for executed_tool in tool_names(completed_tool_calls):
-            await emit_tool_invoked(
-                conversation_id=self.conversation_uuid,
-                tool_name=executed_tool,
-                actor_id=self.analytics.actor_id,
-            )
+        # Recorded, not emitted here. Everything in this method runs inside _run(), which
+        # _process_and_stream wraps in `except BaseException` — a failed analytics write
+        # there would be turned into an is_error assistant row and an error SSE, so a
+        # successful reply would render as a failure and permanently pollute the
+        # transcript. _process_and_stream emits these after that guard, and after the
+        # stream has closed.
+        self._completion = (len(completed_tool_calls), tool_names(completed_tool_calls))
 
     async def _run_llm_phase(
         self,
@@ -401,6 +394,15 @@ class ChatStreamProcessor:
         """BaseException (not Exception) is caught so the None sentinel always reaches
         the generator even on KeyboardInterrupt or SystemExit, while non-Exception
         subclasses are still re-raised after cleanup.
+
+        The analytics emits run after that guard and after the sentinel, deliberately.
+        Inside the guard a failed analytics write would be caught as an unhandled stream
+        error, writing an is_error assistant row and pushing an error SSE — turning a
+        delivered reply into a visible failure and a permanently corrupted transcript.
+        Out here nothing catches them: a failure surfaces as an unhandled error on this
+        detached task, reaching neither the stream nor the conversation. Emitting after
+        the sentinel also stops a multi-tool turn from holding the SSE connection open
+        for one analytics round-trip per tool.
         """
         async with session_scope() as bg_session:
             try:
@@ -412,6 +414,22 @@ class ChatStreamProcessor:
                     raise
             finally:
                 await self._put(None)
+
+        if self.analytics is None or self._completion is None:
+            return
+        tool_call_count, executed_tools = self._completion
+        await emit_completion_served(
+            conversation_id=self.conversation_uuid,
+            context=self.analytics,
+            tool_call_count=tool_call_count,
+            streamed=True,
+        )
+        for executed_tool in executed_tools:
+            await emit_tool_invoked(
+                conversation_id=self.conversation_uuid,
+                tool_name=executed_tool,
+                actor_id=self.analytics.actor_id,
+            )
 
     async def stream(self, _task_holder: list[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
         """Processing runs in a separate task so a client disconnect (CancelledError on the generator)
