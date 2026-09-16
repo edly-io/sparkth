@@ -213,7 +213,10 @@ class LLMConfigDeletedAuditEvent(MutationAuditEvent):
 class LLMConfigKeyReadAuditEvent(BaseAuditEvent):
     """A stored API key was decrypted for use: the credential access trail.
 
-    Recorded on every :meth:`LLMConfigService.resolve`, cache hit or not.
+    Recorded on every :meth:`LLMConfigService.resolve`, cache hit or not, and
+    committed independently of the caller's transaction: the key was handed
+    out the moment it was decrypted, so the access stays on record even if
+    the surrounding request rolls back.
     """
 
     event_type: ClassVar[str] = "llm_config.key_read"

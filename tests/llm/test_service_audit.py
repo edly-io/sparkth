@@ -135,3 +135,20 @@ async def test_resolve_records_key_read_on_cold_and_cached_paths(
         assert event.target_id == str(config.id)
         assert event.old_values is None and event.new_values is None
         _assert_no_key_material(event)
+
+
+async def test_key_read_survives_rollback_of_the_callers_transaction(
+    service: LLMConfigService, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    """The key was handed out the moment it was decrypted, so the access is on
+    record even when the surrounding request (a failed provider call, say)
+    rolls back."""
+    config = await service.create(session, user_id=1, name="main", provider="openai", model="gpt-4o", api_key=PLAINTEXT)
+    await session.commit()
+    assert config.id is not None
+
+    await service.resolve(session, user_id=1, config_id=config.id)
+    await session.rollback()
+
+    _, event = await audit_events()
+    assert (event.category, event.action) == ("llm_config", "key_read")

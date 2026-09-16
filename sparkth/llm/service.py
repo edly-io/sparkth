@@ -7,7 +7,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.llm import LLMConfig
-from sparkth.lib.audit import record_event
+from sparkth.lib.audit import record_event, record_event_now
 from sparkth.lib.audit.events import (
     AuditChange,
     AuditOutcome,
@@ -268,7 +268,11 @@ class LLMConfigService:
         """Return (config, decrypted_api_key). Caches by (user_id, config_id). Updates last_used_at.
 
         Every decrypted read, cache hit or miss, records an ``llm_config.key_read``
-        audit event in the caller's transaction: the credential access trail.
+        audit event: the credential access trail. The record is committed on its
+        own (``record_event_now``), not in the caller's transaction: the plaintext
+        key has already been handed out by the time this returns, so the access
+        must stay on record even if the caller's request later rolls back, for
+        example when the provider call fails.
         """
         config = await self.get(session, user_id, config_id)
         if config is None:
@@ -289,15 +293,13 @@ class LLMConfigService:
                 logger.warning("Cached key for config_id=%s invalid, evicting: %s", config_id, exc)
                 await self.cache.delete(cache_key)
             else:
-                await record_event(
-                    session, LLMConfigKeyReadAuditEvent(outcome=AuditOutcome.SUCCESS, target=_target(config))
-                )
+                await record_event_now(LLMConfigKeyReadAuditEvent(outcome=AuditOutcome.SUCCESS, target=_target(config)))
                 return config, decrypted
 
         decrypted = self.encryption.decrypt(config.encrypted_key)
         await self.cache.set(cache_key, config.encrypted_key)
         config.last_used_at = datetime.now(timezone.utc)
         session.add(config)
-        await record_event(session, LLMConfigKeyReadAuditEvent(outcome=AuditOutcome.SUCCESS, target=_target(config)))
+        await record_event_now(LLMConfigKeyReadAuditEvent(outcome=AuditOutcome.SUCCESS, target=_target(config)))
         await session.flush()
         return config, decrypted
