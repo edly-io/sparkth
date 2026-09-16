@@ -20,6 +20,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.plugins.chat.analytics import emit_conversation_started
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -160,6 +161,17 @@ async def chat_completion(
             api_key=api_key,
             model=model,
             config=config,
+        )
+        # Queued after the title task, not before. Starlette runs the background queue as a
+        # plain sequential loop with no per-task isolation, and analytics emits propagate
+        # their failures by design, so an emit queued first would let an analytics outage
+        # silently cost the conversation its title. Keep analytics last in this queue.
+        background_tasks.add_task(
+            emit_conversation_started,
+            conversation_id=str(conversation.uuid),
+            provider=provider_name,
+            model=model,
+            actor_id=str(user_id),
         )
 
     if request.document_ids:
