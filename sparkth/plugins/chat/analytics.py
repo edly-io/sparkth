@@ -291,3 +291,36 @@ class ChatTurnAnalytics:
             has_attachment=has_attachment,
             actor_id=self.actor_id,
         )
+
+    def schedule_completion_served(self, *, rag_used: bool, tool_call_count: int, streamed: bool) -> None:
+        """Queue ``chat.completion_served`` for a reply the LLM actually produced."""
+        self.background_tasks.add_task(
+            emit_completion_served,
+            conversation_id=self.conversation_id,
+            context=self.completion_context(rag_used=rag_used),
+            tool_call_count=tool_call_count,
+            streamed=streamed,
+        )
+
+    def schedule_tool_invoked(self, tool_name: str) -> None:
+        """Queue ``chat.tool_invoked`` for one execution."""
+        self.background_tasks.add_task(
+            emit_tool_invoked,
+            conversation_id=self.conversation_id,
+            tool_name=tool_name,
+            actor_id=self.actor_id,
+        )
+
+    def completion_context(self, *, rag_used: bool) -> CompletionAnalyticsContext:
+        """The same turn facts in the shape a seam that emits for itself needs.
+
+        The streaming seam emits from inside its own detached task rather than from
+        this queue, so it takes the facts and awaits the helper directly. Handing it
+        a context built here keeps the two seams reading one definition of the turn.
+        """
+        return CompletionAnalyticsContext(
+            provider=self.provider,
+            model=self.model,
+            rag_used=rag_used,
+            actor_id=self.actor_id,
+        )
