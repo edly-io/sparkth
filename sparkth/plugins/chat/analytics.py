@@ -35,10 +35,17 @@ class ChatConversationStarted(AnalyticsEventSchema):
 
 
 class ChatMessageSent(AnalyticsEventSchema):
-    """An instructor turn was persisted. ``message_length`` is a character count.
+    """An instructor turn was persisted.
 
-    The count is non-negative, so a producer bug fails validation here instead of
-    landing a row that skews every aggregate built on it.
+    ``message_length`` is the character count of the *stored* message row, which is
+    the only place a request's content blocks are flattened into text. On a turn that
+    carries attachments but no text the stored body is the placeholder
+    ``"[Document attachment]"``, so such a turn records that placeholder's length
+    rather than zero. The count is non-negative, so a producer bug fails validation
+    here instead of landing a row that skews every aggregate built on it.
+
+    ``has_attachment`` reflects only an inline upload on the turn itself. Documents
+    attached to the conversation by ``document_ids`` do not set it.
     """
 
     event_type = "chat.message_sent"

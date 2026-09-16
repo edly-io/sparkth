@@ -166,7 +166,11 @@ async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
     session: AsyncSession,
     analytics_session: AsyncSession,
 ) -> None:
-    """An out-of-scope opening message is refused before any conversation is written."""
+    """An out-of-scope opening message is refused before any conversation is written.
+
+    Nothing at all is emitted for such a turn, so the whole raw-events table stays empty
+    rather than just the conversation-started rows.
+    """
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
     refusing = AsyncMock()
@@ -188,7 +192,7 @@ async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
         )
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.conversation_started") == []
+    assert (await analytics_session.execute(select(raw_events))).mappings().all() == []
 
 
 async def test_instructor_turn_emits_message_sent(
@@ -225,6 +229,45 @@ async def test_instructor_turn_emits_message_sent(
     assert sent[0]["provider"] == "openai"
     assert sent[0]["model"] == "gpt-4o"
     assert sent[0]["conversation_id"] == str(response.json()["conversation_id"])
+
+
+async def test_attachment_turn_emits_message_sent_with_has_attachment(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """An inline upload on the turn sets ``has_attachment`` on the landed row."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "conversation_id": conversation_uuid,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Build a quiz from this syllabus",
+                        "attachment": {"name": "syllabus.pdf", "size": 2048},
+                    }
+                ],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    sent = await _events(analytics_session, "chat.message_sent")
+    assert len(sent) == 1
+    assert sent[0]["has_attachment"] is True
 
 
 async def test_message_sent_payload_carries_no_message_text(
