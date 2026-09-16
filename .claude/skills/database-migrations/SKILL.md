@@ -56,7 +56,14 @@ view and pre-migration history is lost.
 The backfill full-refreshes every registered aggregate (`refresh_continuous_aggregate` over the
 whole range); it is idempotent and a no-op on SQLite. The `migrate` CLI command (and therefore
 `make migrations` and the production migration step in the README) runs it automatically after
-applying migrations. To refresh a single aggregate by name, use:
+applying migrations.
+
+TimescaleDB allows one refresh of an aggregate at a time, and an aggregate's refresh policy
+runs the moment the migration creates it. A backfill that follows straight after can therefore
+find the lock taken (`lock_not_available`, SQLSTATE 55P03); the backfill retries a few times
+with a short pause rather than failing, and the TimescaleDB test lane refreshes its scratch
+database through the same function for the same reason. To refresh a single aggregate by name,
+use:
 
 ```bash
 make analytics-backfill

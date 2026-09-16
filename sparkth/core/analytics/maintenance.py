@@ -6,7 +6,11 @@ the one-off backfill of continuous aggregates. Exposed to the CLI via
 ``sparkth.lib.analytics``.
 """
 
+import asyncio
+
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from sparkth.core.analytics.db import get_analytics_engine
 from sparkth.core.analytics.exceptions import ContinuousAggregateNotFound
@@ -28,8 +32,43 @@ _LIST_CONTINUOUS_AGGREGATES = text(
 # into SQL.
 _REFRESH_AGGREGATE = text("CALL refresh_continuous_aggregate(CAST(:name AS regclass), NULL, NULL)")
 
+# TimescaleDB allows one refresh of a given aggregate at a time and reports a second one
+# with SQLSTATE 55P03 (lock_not_available). The aggregate's own refresh policy runs the
+# moment the migration creates it, so a backfill that follows straight after can collide
+# with that first policy run. It is transient: the policy run over its trailing window
+# takes milliseconds, so a short wait and another attempt is enough.
+_LOCK_NOT_AVAILABLE = "55P03"
+REFRESH_LOCK_ATTEMPTS = 10
+REFRESH_LOCK_RETRY_SECONDS = 0.5
 
-async def backfill_continuous_aggregates(name: str | None = None) -> list[str] | None:
+
+def _is_concurrent_refresh(exc: DBAPIError) -> bool:
+    return getattr(exc.orig, "pgcode", None) == _LOCK_NOT_AVAILABLE
+
+
+async def _refresh_aggregate(conn: AsyncConnection, name: str) -> None:
+    """Full-refresh one aggregate, waiting out a concurrent refresh of the same one."""
+    for attempt in range(1, REFRESH_LOCK_ATTEMPTS + 1):
+        try:
+            await conn.execute(_REFRESH_AGGREGATE, {"name": name})
+        except DBAPIError as exc:
+            if not _is_concurrent_refresh(exc) or attempt == REFRESH_LOCK_ATTEMPTS:
+                logger.error("Refreshing continuous aggregate %s failed on attempt %d: %s", name, attempt, exc)
+                raise
+            logger.warning(
+                "Continuous aggregate %s is being refreshed concurrently; retrying (%d/%d)",
+                name,
+                attempt,
+                REFRESH_LOCK_ATTEMPTS,
+            )
+            await asyncio.sleep(REFRESH_LOCK_RETRY_SECONDS)
+        else:
+            return
+
+
+async def backfill_continuous_aggregates(
+    name: str | None = None, engine: AsyncEngine | None = None
+) -> list[str] | None:
     """Materialize the full history of continuous aggregates (all, or one by ``name``).
 
     Continuous aggregates are created ``WITH NO DATA`` (so creation does not backfill
@@ -40,9 +79,15 @@ async def backfill_continuous_aggregates(name: str | None = None) -> list[str] |
     once after applying an aggregate's migration on PostgreSQL/TimescaleDB; it is
     idempotent and safe to re-run.
 
+    A refresh that finds another refresh of the same aggregate already running (typically
+    the aggregate's own policy job, which fires as soon as the migration creates it) is
+    retried a few times rather than failed: see :data:`REFRESH_LOCK_ATTEMPTS`.
+
     Args:
         name: Refresh only this aggregate. When ``None`` (default), refresh every
             continuous aggregate discovered in the TimescaleDB catalog.
+        engine: The analytics engine to refresh through. Defaults to the configured
+            analytics database; the TimescaleDB test lane passes its own.
 
     Returns:
         The list of aggregate names refreshed (possibly empty if none are registered), or
@@ -52,8 +97,11 @@ async def backfill_continuous_aggregates(name: str | None = None) -> list[str] |
 
     Raises:
         ContinuousAggregateNotFound: if ``name`` is given but no such aggregate exists.
+        sqlalchemy.exc.DBAPIError: if a refresh fails, or is still locked out by a
+            concurrent refresh after the retry budget is spent.
     """
-    engine = get_analytics_engine()
+    if engine is None:
+        engine = get_analytics_engine()
     if engine.dialect.name != "postgresql":
         logger.info(
             "Skipping continuous-aggregate backfill: analytics dialect is '%s', not 'postgresql'",
@@ -70,6 +118,6 @@ async def backfill_continuous_aggregates(name: str | None = None) -> list[str] |
         else:
             targets = available
         for target in targets:
-            await conn.execute(_REFRESH_AGGREGATE, {"name": target})
+            await _refresh_aggregate(conn, target)
     logger.info("Refreshed %d continuous aggregate(s): %s", len(targets), ", ".join(targets) or "(none)")
     return targets

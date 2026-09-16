@@ -26,12 +26,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.analytics import backfill_continuous_aggregates
+
 _PG_URL_ENV = "ANALYTICS_TEST_PG_URL"
 # tests/analytics/pg/conftest.py -> repo root is three parents up from the file's dir.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-
-_LIST_CAGGS = text("SELECT view_name FROM timescaledb_information.continuous_aggregates ORDER BY view_name")
-_REFRESH_CAGG = text("CALL refresh_continuous_aggregate(CAST(:name AS regclass), NULL, NULL)")
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -45,10 +44,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 async def _refresh_all_caggs(engine: AsyncEngine) -> None:
-    # AUTOCOMMIT: refresh_continuous_aggregate cannot run inside a transaction block.
-    async with engine.execution_options(isolation_level="AUTOCOMMIT").connect() as conn:
-        for row in (await conn.execute(_LIST_CAGGS)).all():
-            await conn.execute(_REFRESH_CAGG, {"name": row.view_name})
+    # The production backfill, pointed at the scratch database. Besides not duplicating
+    # the Timescale SQL, this is what makes the lane deterministic: the aggregate's policy
+    # job fires the moment the migration creates it, and on a slow runner it is still
+    # holding the refresh lock when the next test's reset asks for a full refresh. The
+    # backfill waits that out instead of erroring with lock_not_available.
+    await backfill_continuous_aggregates(engine=engine)
 
 
 @pytest.fixture(scope="session")

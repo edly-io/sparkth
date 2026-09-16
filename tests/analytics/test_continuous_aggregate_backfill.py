@@ -7,9 +7,14 @@ and — via a stub engine — that the Postgres branch discovers aggregates from
 and issues a full-range refresh for each on an AUTOCOMMIT connection.
 """
 
+import asyncio
 import types
+from collections.abc import Iterator
+from typing import cast
 
 import pytest
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncEngine
 from typer.testing import CliRunner
 
 import sparkth.core.analytics.maintenance as maintenance
@@ -27,10 +32,33 @@ class _FakeResult:
         return self._rows
 
 
+class _PgError(Exception):
+    """A driver error carrying the SQLSTATE the way asyncpg's SQLAlchemy adapter does."""
+
+    def __init__(self, pgcode: str, message: str) -> None:
+        super().__init__(message)
+        self.pgcode = pgcode
+
+
+def _lock_not_available() -> DBAPIError:
+    """The error TimescaleDB raises when another refresh of the same aggregate is running."""
+    orig = _PgError(
+        "55P03", 'could not refresh continuous aggregate "login_activity_daily" due to a concurrent refresh'
+    )
+    return DBAPIError("CALL refresh_continuous_aggregate(...)", {}, orig)
+
+
 class _FakeConn:
-    def __init__(self, caggs: list[str], executed: list[tuple[str, object]]) -> None:
+    def __init__(
+        self,
+        caggs: list[str],
+        executed: list[tuple[str, object]],
+        failures: Iterator[Exception] | None = None,
+    ) -> None:
         self._caggs = caggs
         self._executed = executed
+        # Exceptions to raise from successive refresh CALLs, then succeed once exhausted.
+        self._failures = failures if failures is not None else iter(())
 
     async def __aenter__(self) -> "_FakeConn":
         return self
@@ -43,24 +71,28 @@ class _FakeConn:
         self._executed.append((sql, params))
         if sql.startswith(_LIST_PREFIX):
             return _FakeResult([types.SimpleNamespace(view_name=name) for name in self._caggs])
+        failure = next(self._failures, None)
+        if failure is not None:
+            raise failure
         return None
 
 
 class _FakeEngine:
     """Stands in for the Postgres analytics engine so the PG branch is reachable on SQLite."""
 
-    def __init__(self, caggs: list[str]) -> None:
+    def __init__(self, caggs: list[str], failures: list[Exception] | None = None) -> None:
         self.dialect = types.SimpleNamespace(name="postgresql")
         self.caggs = caggs
         self.executed: list[tuple[str, object]] = []
         self.recorded_options: dict[str, object] = {}
+        self._failures = iter(failures or [])
 
     def execution_options(self, **options: object) -> "_FakeEngine":
         self.recorded_options.update(options)
         return self
 
     def connect(self) -> _FakeConn:
-        return _FakeConn(self.caggs, self.executed)
+        return _FakeConn(self.caggs, self.executed, self._failures)
 
 
 def _refresh_calls(engine: _FakeEngine) -> list[object]:
@@ -94,6 +126,68 @@ async def test_backfill_named_aggregate_refreshes_only_that_one(monkeypatch: pyt
 
     assert result == ["login_activity_daily"]
     assert _refresh_calls(engine) == [{"name": "login_activity_daily"}]
+
+
+@pytest.fixture
+def no_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record the backoff sleeps instead of waiting them out."""
+    slept: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", _sleep)
+    return slept
+
+
+async def test_backfill_retries_when_a_concurrent_refresh_holds_the_lock(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]
+) -> None:
+    """The aggregate's own policy job runs the moment the migration creates it, so a
+    backfill (or the test lane's reset) that follows straight after can find the lock
+    taken. That is a transient condition, not a failure: wait and try again."""
+    engine = _FakeEngine(["login_activity_daily"], failures=[_lock_not_available(), _lock_not_available()])
+    monkeypatch.setattr(maintenance, "get_analytics_engine", lambda: engine)
+
+    result = await backfill_continuous_aggregates()
+
+    assert result == ["login_activity_daily"]
+    assert _refresh_calls(engine) == [{"name": "login_activity_daily"}] * 3
+    assert len(no_sleep) == 2
+
+
+async def test_backfill_gives_up_after_the_retry_budget(monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]) -> None:
+    engine = _FakeEngine(["login_activity_daily"], failures=[_lock_not_available()] * 50)
+    monkeypatch.setattr(maintenance, "get_analytics_engine", lambda: engine)
+
+    with pytest.raises(DBAPIError):
+        await backfill_continuous_aggregates()
+
+    assert len(_refresh_calls(engine)) == maintenance.REFRESH_LOCK_ATTEMPTS
+
+
+async def test_backfill_does_not_retry_other_database_errors(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]
+) -> None:
+    orig = _PgError("42P01", "relation does not exist")
+    engine = _FakeEngine(["login_activity_daily"], failures=[DBAPIError("CALL ...", {}, orig)])
+    monkeypatch.setattr(maintenance, "get_analytics_engine", lambda: engine)
+
+    with pytest.raises(DBAPIError):
+        await backfill_continuous_aggregates()
+
+    assert len(_refresh_calls(engine)) == 1
+    assert no_sleep == []
+
+
+async def test_backfill_accepts_an_explicit_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The TimescaleDB test lane refreshes its own scratch database through this function."""
+    engine = _FakeEngine(["login_activity_daily"])
+    monkeypatch.setattr(maintenance, "get_analytics_engine", lambda: pytest.fail("must use the given engine"))
+
+    result = await backfill_continuous_aggregates(engine=cast(AsyncEngine, engine))
+
+    assert result == ["login_activity_daily"]
 
 
 async def test_backfill_unknown_name_raises(monkeypatch: pytest.MonkeyPatch) -> None:
