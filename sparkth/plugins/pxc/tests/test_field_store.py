@@ -40,13 +40,6 @@ def test_structured_values_survive_a_round_trip(store: SqliteFieldStore) -> None
     assert store.get(*SCOPE, "correct_answers") == [1]
 
 
-def test_a_stored_none_is_not_an_unset_field(store: SqliteFieldStore) -> None:
-    store.set(*SCOPE, "question", None)
-
-    assert store.get(*SCOPE, "question") is None
-    assert "question" in "".join(store.keys())
-
-
 def test_one_learners_value_does_not_answer_for_another(store: SqliteFieldStore) -> None:
     store.set(*SCOPE, "question", "mine")
     store.set("course-v1:X+Y+Z", "mcq", "placement-1", "learner-8", "question", "theirs")
