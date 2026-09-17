@@ -14,6 +14,7 @@ payload.
 from dataclasses import dataclass
 from typing import Any
 
+from fastapi import BackgroundTasks
 from pydantic import NonNegativeInt
 
 from sparkth.lib.analytics import AnalyticsEventSchema, emit_event
@@ -235,3 +236,58 @@ async def emit_tool_invoked(conversation_id: str, tool_name: str, actor_id: str)
         ),
         actor_id,
     )
+
+
+@dataclass(frozen=True)
+class ChatTurnAnalytics:
+    """The scheduling surface for one request's chat events.
+
+    Built once, from the facts every chat event of a turn shares, and handed the
+    request's background queue. Each ``schedule_*`` method queues exactly one event,
+    so a route seam names what happened and nothing else: the shared identity, the
+    per-event payload and the fact that emission is deferred all live here rather
+    than being spelled out at four call sites.
+
+    **Queued, never awaited.** These helpers construct their schemas, and
+    ``message_length`` and ``tool_call_count`` are ``NonNegativeInt``, so
+    construction itself can raise ``ValidationError``; emission propagates every
+    failure by design. Both only reach a caller safely once the response is flushed,
+    which is what the background queue guarantees.
+
+    **Queue analytics after functional background work.** Starlette runs the queue as
+    a plain sequential loop with no per-task isolation, so an emit queued ahead of
+    real work lets an analytics outage silently stop that work. The methods here
+    cannot enforce that — only the order a route calls them in can.
+    """
+
+    background_tasks: BackgroundTasks
+    conversation_id: str
+    provider: str
+    model: str
+    actor_id: str
+
+    def schedule_conversation_started(self) -> None:
+        """Queue ``chat.conversation_started`` — the create branch only.
+
+        A conversation resolved by uuid has already been started, and re-emitting
+        would make every continued turn look like a new conversation.
+        """
+        self.background_tasks.add_task(
+            emit_conversation_started,
+            conversation_id=self.conversation_id,
+            provider=self.provider,
+            model=self.model,
+            actor_id=self.actor_id,
+        )
+
+    def schedule_message_sent(self, *, message_length: int, has_attachment: bool) -> None:
+        """Queue ``chat.message_sent`` for one instructor turn."""
+        self.background_tasks.add_task(
+            emit_message_sent,
+            conversation_id=self.conversation_id,
+            provider=self.provider,
+            model=self.model,
+            message_length=message_length,
+            has_attachment=has_attachment,
+            actor_id=self.actor_id,
+        )

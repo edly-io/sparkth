@@ -20,7 +20,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import emit_conversation_started, emit_message_sent
+from sparkth.plugins.chat.analytics import ChatTurnAnalytics
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -150,6 +150,13 @@ async def chat_completion(
         title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
     )
     conversation_id = cast(int, conversation.id)
+    turn_analytics = ChatTurnAnalytics(
+        background_tasks=background_tasks,
+        conversation_id=str(conversation.uuid),
+        provider=provider_name,
+        model=model,
+        actor_id=str(user_id),
+    )
     if conversation_was_created:
         schedule_title_generation(
             background_tasks,
@@ -166,13 +173,7 @@ async def chat_completion(
         # plain sequential loop with no per-task isolation, and analytics emits propagate
         # their failures by design, so an emit queued first would let an analytics outage
         # silently cost the conversation its title. Keep analytics last in this queue.
-        background_tasks.add_task(
-            emit_conversation_started,
-            conversation_id=str(conversation.uuid),
-            provider=provider_name,
-            model=model,
-            actor_id=str(user_id),
-        )
+        turn_analytics.schedule_conversation_started()
 
     if request.document_ids:
         await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
@@ -182,14 +183,9 @@ async def chat_completion(
         # replayed, and assistant output is counted by chat.completion_served instead.
         if stored.role != "user":
             continue
-        background_tasks.add_task(
-            emit_message_sent,
-            conversation_id=str(conversation.uuid),
-            provider=provider_name,
-            model=model,
+        turn_analytics.schedule_message_sent(
             message_length=len(stored.content),
             has_attachment=stored.message_type == "attachment",
-            actor_id=str(user_id),
         )
 
     db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
