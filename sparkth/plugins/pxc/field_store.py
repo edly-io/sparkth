@@ -8,8 +8,8 @@ application schema.
 Values are JSON-encoded rather than stored in typed columns, which keeps arrays and objects
 (the sample's ``answers``) in one column alongside the scalars.
 
-The connection runs in WAL mode with short transactions (L4): every learner of one activity
-type writes to this one file, and WAL is what lets readers proceed while one of them writes.
+The file runs in WAL mode with short transactions (L4): every learner of one activity type
+writes to this one file, and WAL is what lets readers proceed while one of them writes.
 """
 
 import json
@@ -66,14 +66,22 @@ class SqliteFieldStore(FieldStore):
         self._path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
+            # Journal mode is a property of the file, so setting it once here covers every
+            # later connection.
+            connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(_SCHEMA)
 
     def _connect(self) -> closing[sqlite3.Connection]:
-        """A closing context manager over a connection with WAL enabled.
+        """A closing context manager over a connection to the store's file.
 
-        Opened per operation rather than kept: the store is handed to a runtime built per
-        request and used from a worker thread, and a connection is not safe to share across
-        threads.
+        Opened per operation rather than kept. The store is built per request and handed to a
+        runtime the routes drive through two separate ``asyncio.to_thread`` calls, which the
+        default executor does not pin to one thread — so a connection cached here would raise
+        ``sqlite3.ProgrammingError`` as soon as two learners act at once. Connecting to a
+        local file costs far less than the sandbox call it serves.
+
+        Only ``busy_timeout`` is set here, because it is per-connection; WAL is set once in
+        ``__init__``.
 
         Wrapped in ``contextlib.closing`` deliberately. ``sqlite3.Connection.__exit__``
         commits or rolls back but **never closes**, and the runtime calls ``get_field`` /
@@ -81,7 +89,6 @@ class SqliteFieldStore(FieldStore):
         dozens of open connections per action.
         """
         connection = sqlite3.connect(self._path, isolation_level=None)
-        connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=5000")
         return closing(connection)
 
