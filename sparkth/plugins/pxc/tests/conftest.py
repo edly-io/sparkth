@@ -15,4 +15,4 @@ SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
     if "wasm" in item.keywords and not SANDBOX_WASM.exists():
-        pytest.skip("sandbox.wasm is not built; run `make pxc.activity.build`")
+        pytest.skip("sandbox.wasm is not built; run `make pxc.activities.build`")

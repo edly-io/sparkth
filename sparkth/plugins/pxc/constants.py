@@ -5,9 +5,9 @@ from pathlib import Path
 # One file per activity type holds every course and every learner for that type (D1).
 PXC_DATA_DIR = Path(os.getenv("PXC_DATA_DIR", "./data/pxc"))
 
-# The activity sources bundled inside this plugin. One sample ships today and is served for
-# every request; an authoring module comes later.
-PXC_ACTIVITY_ROOT = Path(__file__).parent
+# Where the bundled activity sources live, one directory per activity type. One sample ships
+# today and is served for every request; an authoring module comes later.
+PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
 # Shared with the Open edX XBlock. The XBlock signs a launch token with it and this plugin
 # verifies that signature, which is what makes the learner's identity trustworthy rather than

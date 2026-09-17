@@ -69,10 +69,10 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: sparkth/plugins/pxc/activity/package-lock.json
+          cache-dependency-path: sparkth/plugins/pxc/activities/mcq/package-lock.json
 
       - name: Build the PXC sample activity
-        run: make pxc.activity.build
+        run: make pxc.activities.build
 
       # Single high-level target so a CI failure reproduces locally with
       # exactly `make test.backend` (lint + mypy + pytest + format check).
