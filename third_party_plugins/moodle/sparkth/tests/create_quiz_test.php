@@ -169,6 +169,15 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
         create_quiz::execute($course->id, 1, 'Q', '', $this->two_questions());
     }
 
+    public function test_rejects_a_sectionnum_the_course_does_not_have(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+
+        $this->expectException(\dml_missing_record_exception::class);
+        create_quiz::execute($course->id, 47, 'Q', '', $this->two_questions());
+    }
+
     public function test_rejects_a_multichoice_correctindex_out_of_range(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
@@ -190,6 +199,21 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
 
         $question = $this->two_questions()[0];
         $question['answers'] = [];
+
+        $this->expectException(\invalid_parameter_exception::class);
+        create_quiz::execute($course->id, $section['sectionnum'], 'Q', '', [$question]);
+    }
+
+    public function test_rejects_a_multichoice_with_only_one_answer(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+        $section = create_section::execute($course->id, 'Module 1', '');
+
+        // In range on its own (0 < 1), so only the count check can catch this.
+        $question = $this->two_questions()[0];
+        $question['answers'] = ['4'];
+        $question['correctindex'] = 0;
 
         $this->expectException(\invalid_parameter_exception::class);
         create_quiz::execute($course->id, $section['sectionnum'], 'Q', '', [$question]);
