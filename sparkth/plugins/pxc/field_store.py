@@ -5,9 +5,8 @@ and every learner who answered, keyed the way PXC's runtime already keys state â
 placement and learner. There is no Alembic migration, because these tables are not part of the
 application schema.
 
-Values are JSON-encoded rather than stored in typed columns. A field's value may legitimately
-be ``null``, and JSON keeps that distinguishable from an absent row; it also keeps arrays and
-objects (the sample's ``answers``) in one column.
+Values are JSON-encoded rather than stored in typed columns, which keeps arrays and objects
+(the sample's ``answers``) in one column alongside the scalars.
 
 The connection runs in WAL mode with short transactions (L4): every learner of one activity
 type writes to this one file, and WAL is what lets readers proceed while one of them writes.
@@ -60,7 +59,7 @@ def _log_scope(
     return (course_id, activity_name, activity_id, user_id, key)
 
 
-class SqliteFieldStore(FieldStore):  # type: ignore[misc]  # pxc-lib ships no py.typed marker
+class SqliteFieldStore(FieldStore):
     """Field persistence for one activity type, in one SQLite file."""
 
     def __init__(self, path: Path) -> None:
