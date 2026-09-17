@@ -11,11 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends make \
 
 WORKDIR /build
 
-COPY package.json package-lock.json ./
+COPY sparkth/plugins/pxc/activity/package.json sparkth/plugins/pxc/activity/package-lock.json ./
 RUN npm ci
 
-COPY sparkth/plugins/pxc/activity/ ./sparkth/plugins/pxc/activity/
-RUN make -C sparkth/plugins/pxc/activity build
+COPY sparkth/plugins/pxc/activity/ ./
+RUN make build
 
 # -------------------
 # Stage 1: Build frontend
@@ -89,7 +89,7 @@ COPY --from=builder      --chown=nonroot:nonroot /app            /app
 COPY --from=catalog-builder --chown=nonroot:nonroot /app/sparkth /app/sparkth
 COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 COPY --from=pxc-activity-builder --chown=nonroot:nonroot \
-     /build/sparkth/plugins/pxc/activity/sandbox.wasm \
+     /build/sandbox.wasm \
      /app/sparkth/plugins/pxc/activity/sandbox.wasm
 
 ENV PATH="/app/.venv/bin:$PATH"

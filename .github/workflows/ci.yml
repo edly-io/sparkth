@@ -69,6 +69,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: sparkth/plugins/pxc/activity/package-lock.json
 
       - name: Build the PXC sample activity
         run: make pxc.activity.build
