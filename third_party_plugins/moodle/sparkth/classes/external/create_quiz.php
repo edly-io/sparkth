@@ -79,13 +79,10 @@ class create_quiz extends external_api {
         self::validate_context($context);
         require_capability('moodle/course:manageactivities', $context);
         require_capability('moodle/question:add', $context);
+        $DB->get_record('course_sections',
+            ['course' => $course->id, 'section' => $sectionnum], 'id', MUST_EXIST);
 
-        foreach ($questions as $question) {
-            if (!in_array($question['qtype'], self::SUPPORTED_QTYPES, true)) {
-                throw new invalid_parameter_exception(
-                    "Unsupported question type: {$question['qtype']}");
-            }
-        }
+        self::validate_questions($questions);
 
         $moduleinfo = (object) array_merge(self::quiz_defaults(), [
             'modulename'  => 'quiz',
@@ -96,6 +93,8 @@ class create_quiz extends external_api {
             'intro'       => $intro,
             'introformat' => FORMAT_HTML,
             'visible'     => 1,
+            // edit_module_post_actions() reads cmidnumber unguarded for graded
+            // activities, so quiz needs it set and page does not.
             'cmidnumber'  => '',
         ]);
         $created = add_moduleinfo($moduleinfo, $course);
@@ -117,6 +116,29 @@ class create_quiz extends external_api {
             'instanceid'    => (int) $created->instance,
             'questioncount' => count($questions),
         ];
+    }
+
+    /**
+     * Reject any question this plugin cannot author, before anything is written.
+     *
+     * @param array<int, array<string, mixed>> $questions
+     */
+    private static function validate_questions(array $questions): void {
+        foreach ($questions as $question) {
+            if (!in_array($question['qtype'], self::SUPPORTED_QTYPES, true)) {
+                throw new invalid_parameter_exception(
+                    "Unsupported question type: {$question['qtype']}");
+            }
+
+            if ($question['qtype'] === 'multichoice') {
+                $count = count($question['answers']);
+                if ($count < 2 || $question['correctindex'] < 0 || $question['correctindex'] >= $count) {
+                    throw new invalid_parameter_exception(
+                        "multichoice question '{$question['name']}' needs 2+ answers " .
+                        "and an in-range correctindex");
+                }
+            }
+        }
     }
 
     /**

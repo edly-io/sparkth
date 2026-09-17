@@ -27,6 +27,12 @@ class create_page extends external_api {
     }
 
     /**
+     * Create the Page activity and return its identifiers.
+     *
+     * page_add_instance() only reads the editor array when called from a form. Called
+     * programmatically it inserts the record as-is, which is why the content and
+     * contentformat columns are populated on the module info object here.
+     *
      * @return array{cmid: int, instanceid: int}
      */
     public static function execute(
@@ -52,10 +58,10 @@ class create_page extends external_api {
         $context = context_course::instance($course->id);
         self::validate_context($context);
         require_capability('moodle/course:manageactivities', $context);
+        $DB->get_record('course_sections',
+            ['course' => $course->id, 'section' => $sectionnum], 'id', MUST_EXIST);
 
-        // page_add_instance() only reads the editor array when called from a form.
-        // Called programmatically it inserts the record as-is, so the content and
-        // contentformat columns are set directly.
+        // Content and contentformat are set directly on the record.
         $moduleinfo = new stdClass();
         $moduleinfo->modulename        = 'page';
         $moduleinfo->module            = $DB->get_field('modules', 'id', ['name' => 'page'], MUST_EXIST);

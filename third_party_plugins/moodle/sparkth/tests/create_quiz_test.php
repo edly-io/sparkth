@@ -101,7 +101,7 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
     }
 
     public function test_questions_land_in_the_bank_this_moodle_version_uses(): void {
-        global $DB;
+        global $CFG, $DB;
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
         $this->setAdminUser();
@@ -112,8 +112,7 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
 
         $level = $DB->get_field('context', 'contextlevel',
             ['id' => $this->category_of('Q2')->contextid], MUST_EXIST);
-        $expected = $DB->record_exists('modules', ['name' => 'qbank'])
-            ? CONTEXT_MODULE : CONTEXT_COURSE;
+        $expected = (int) $CFG->branch >= 500 ? CONTEXT_MODULE : CONTEXT_COURSE;
         $this->assertSame($expected, (int) $level);
     }
 
@@ -153,5 +152,50 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
 
         $this->expectException(\required_capability_exception::class);
         create_quiz::execute($course->id, 1, 'Q', '', $this->two_questions());
+    }
+
+    public function test_rejects_a_multichoice_correctindex_out_of_range(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+        $section = create_section::execute($course->id, 'Module 1', '');
+
+        $question = $this->two_questions()[0];
+        $question['correctindex'] = 7;
+
+        $this->expectException(\invalid_parameter_exception::class);
+        create_quiz::execute($course->id, $section['sectionnum'], 'Q', '', [$question]);
+    }
+
+    public function test_rejects_a_multichoice_without_enough_answers(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+        $section = create_section::execute($course->id, 'Module 1', '');
+
+        $question = $this->two_questions()[0];
+        $question['answers'] = [];
+
+        $this->expectException(\invalid_parameter_exception::class);
+        create_quiz::execute($course->id, $section['sectionnum'], 'Q', '', [$question]);
+    }
+
+    public function test_requires_question_add_capability(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+        $section = create_section::execute($course->id, 'Module 1', '');
+
+        $user = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $roleid = $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        $context = \context_course::instance($course->id);
+        assign_capability('moodle/question:add', CAP_PROHIBIT, $roleid, $context->id, true);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->setUser($user);
+
+        $this->expectException(\required_capability_exception::class);
+        create_quiz::execute($course->id, $section['sectionnum'], 'Q', '',
+            $this->two_questions());
     }
 }

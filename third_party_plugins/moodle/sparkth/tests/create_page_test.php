@@ -48,4 +48,13 @@ final class create_page_test extends \core_external\tests\externallib_testcase {
         $this->expectException(\required_capability_exception::class);
         create_page::execute($course->id, 1, 'L', '<p>x</p>', '');
     }
+
+    public function test_rejects_a_sectionnum_the_course_does_not_have(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+
+        $this->expectException(\dml_missing_record_exception::class);
+        create_page::execute($course->id, 47, 'L', '<p>x</p>', '');
+    }
 }
