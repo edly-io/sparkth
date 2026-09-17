@@ -135,7 +135,6 @@ mypy: ## Run mypy type checking
 
 .PHONY: pxc.activity.build
 pxc.activity.build: ## Build the bundled PXC sample activity's WASM sandbox
-	npm ci
 	$(MAKE) -C sparkth/plugins/pxc/activity build
 
 ##@ Internationalization

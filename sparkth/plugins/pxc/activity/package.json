@@ -1,6 +1,6 @@
 {
-  "//": "Node toolchain for building the PXC activity's WASM sandbox (make pxc.activity.build), not an app.",
-  "name": "sparkth",
+  "//": "Node toolchain for building this activity's WASM sandbox (make build), not an app.",
+  "name": "pxc-activity",
   "private": true,
   "devDependencies": {
     "esbuild": "^0.25.0"
