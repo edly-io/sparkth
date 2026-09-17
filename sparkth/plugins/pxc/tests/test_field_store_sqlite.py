@@ -1,11 +1,11 @@
-"""Tests for :class:`~sparkth.plugins.pxc.field_store.SqliteFieldStore`."""
+"""Tests for :class:`~sparkth.plugins.pxc.field_store.sqlite.SqliteFieldStore`."""
 
 import sqlite3
 from pathlib import Path
 
 import pytest
 
-from sparkth.plugins.pxc.field_store import SqliteFieldStore
+from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
 
 SCOPE = ("course-v1:X+Y+Z", "mcq", "placement-1", "learner-7")
 
