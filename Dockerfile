@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends make \
 
 WORKDIR /build
 
-COPY sparkth/plugins/pxc/activity/package.json sparkth/plugins/pxc/activity/package-lock.json ./
+COPY sparkth/plugins/pxc/activities/mcq/package.json sparkth/plugins/pxc/activities/mcq/package-lock.json ./
 RUN npm ci
 
-COPY sparkth/plugins/pxc/activity/ ./
+COPY sparkth/plugins/pxc/activities/mcq/ ./
 RUN make build
 
 # -------------------
@@ -90,7 +90,7 @@ COPY --from=catalog-builder --chown=nonroot:nonroot /app/sparkth /app/sparkth
 COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 COPY --from=pxc-activity-builder --chown=nonroot:nonroot \
      /build/sandbox.wasm \
-     /app/sparkth/plugins/pxc/activity/sandbox.wasm
+     /app/sparkth/plugins/pxc/activities/mcq/sandbox.wasm
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
