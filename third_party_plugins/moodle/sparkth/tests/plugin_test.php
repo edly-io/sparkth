@@ -16,4 +16,21 @@ final class plugin_test extends \advanced_testcase {
         $this->assertTrue($DB->record_exists('external_functions',
             ['name' => 'local_sparkth_create_section']));
     }
+
+    public function test_service_exposes_all_declared_functions(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $service = $DB->get_record('external_services', ['shortname' => 'local_sparkth']);
+        $this->assertNotEmpty($service);
+        foreach ([
+            'local_sparkth_create_section',
+            'local_sparkth_create_page',
+            'local_sparkth_create_quiz',
+        ] as $functionname) {
+            $this->assertTrue($DB->record_exists('external_services_functions', [
+                'externalserviceid' => $service->id,
+                'functionname'      => $functionname,
+            ]));
+        }
+    }
 }

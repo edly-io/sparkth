@@ -24,3 +24,16 @@ $functions = [
         'ajax'        => false,
     ],
 ];
+
+$services = [
+    'Sparkth publishing' => [
+        'shortname'       => 'local_sparkth',
+        'functions'       => [
+            'local_sparkth_create_section',
+            'local_sparkth_create_page',
+            'local_sparkth_create_quiz',
+        ],
+        'restrictedusers' => 1,
+        'enabled'         => 1,
+    ],
+];
