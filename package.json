@@ -1,4 +1,5 @@
 {
+  "//": "Node toolchain for building the PXC activity's WASM sandbox (make pxc.activity.build), not an app.",
   "name": "sparkth",
   "private": true,
   "devDependencies": {
