@@ -155,10 +155,6 @@ class ChatStreamProcessor:
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
         self.disconnected: asyncio.Event = asyncio.Event()
-        # Completion facts stashed by _persist_and_emit_done for _process_and_stream to emit
-        # once the stream is closed: the tool-execution count and the executed tool names.
-        # None means no completion was produced, so nothing is emitted.
-        self._completion: tuple[int, list[str]] | None = None
 
     def _build_rag_context(self, all_chunks: list[RetrievedChunk]) -> tuple[str, list[dict[str, str | None]]]:
         """Section deduplication prevents the same section appearing twice in the
@@ -336,11 +332,16 @@ class ChatStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
-    ) -> None:
-        """Persist the assistant message, emit the done SSE, and record the completion facts.
+    ) -> tuple[int, list[str]]:
+        """Persist the assistant message, emit the done SSE, and return the completion facts.
 
         The done payload includes the full message object so the client can update its
         state without a separate fetch after the stream closes.
+
+        Returns:
+            The tool-execution count and the executed tool names, for the caller to emit
+            once the stream is closed. See :meth:`_process_and_stream` for why they are
+            returned rather than emitted here.
         """
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
@@ -371,31 +372,35 @@ class ChatStreamProcessor:
                 },
             }
         )
-        # Recorded, not emitted here. Everything in this method runs inside _run(), which
+        # Returned, not emitted here. Everything in this method runs inside _run(), which
         # _process_and_stream wraps in `except BaseException` — a failed analytics write
         # there would be turned into an is_error assistant row and an error SSE, so a
         # successful reply would render as a failure and permanently pollute the
         # transcript. _process_and_stream emits these after that guard, and after the
         # stream has closed.
-        self._completion = (len(completed_tool_calls), tool_names(completed_tool_calls))
+        return len(completed_tool_calls), tool_names(completed_tool_calls)
 
     async def _run_llm_phase(
         self,
         confirmed_rag_sections: list[dict[str, str | None]],
         bg_session: AsyncSession,
-    ) -> None:
+    ) -> tuple[int, list[str]] | None:
+        """None when the turn produced no completion — a handled streaming error."""
         result = await self._collect_stream_response(bg_session)
         if result is None:
-            return
+            return None
         full_response, completed_tool_calls = result
-        await self._persist_and_emit_done(full_response, confirmed_rag_sections, completed_tool_calls, bg_session)
+        return await self._persist_and_emit_done(
+            full_response, confirmed_rag_sections, completed_tool_calls, bg_session
+        )
 
-    async def _run(self, bg_session: AsyncSession) -> None:
+    async def _run(self, bg_session: AsyncSession) -> tuple[int, list[str]] | None:
+        """None when the turn produced no completion — RAG answered it, or it failed."""
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
-            return
+            return None
         self._strip_unresolved_document_blocks()
-        await self._run_llm_phase(confirmed_rag_sections, bg_session)
+        return await self._run_llm_phase(confirmed_rag_sections, bg_session)
 
     async def _process_and_stream(self) -> None:
         """BaseException (not Exception) is caught so the None sentinel always reaches
@@ -411,9 +416,10 @@ class ChatStreamProcessor:
         the sentinel also stops a multi-tool turn from holding the SSE connection open
         for one analytics round-trip per tool.
         """
+        completion: tuple[int, list[str]] | None = None
         async with session_scope() as bg_session:
             try:
-                await self._run(bg_session)
+                completion = await self._run(bg_session)
             except BaseException as exc:
                 logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
                 await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
@@ -422,9 +428,9 @@ class ChatStreamProcessor:
             finally:
                 await self._put(None)
 
-        if self.analytics is None or self._completion is None:
+        if self.analytics is None or completion is None:
             return
-        tool_call_count, executed_tools = self._completion
+        tool_call_count, executed_tools = completion
         await emit_completion_served(
             conversation_id=self.conversation_uuid,
             context=self.analytics,
