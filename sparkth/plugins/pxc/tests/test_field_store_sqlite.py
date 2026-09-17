@@ -1,4 +1,4 @@
-"""Tests for :class:`~sparkth.plugins.pxc.field_store.SqliteFieldStore`."""
+"""Tests for :class:`~sparkth.plugins.pxc.field_store.sqlite.SqliteFieldStore`."""
 
 import sqlite3
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""PXC's :class:`~pxc.lib.field_store.FieldStore` over one SQLite file per activity type.
+"""The SQLite field-store backend: one file per activity type.
 
 The file is the activity type's boundary (D1): one file holds every course the type appears in
 and every learner who answered, keyed the way PXC's runtime already keys state — by course,
