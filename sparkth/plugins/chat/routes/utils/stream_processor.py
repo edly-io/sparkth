@@ -22,12 +22,7 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.analytics import (
-    CompletionAnalyticsContext,
-    emit_completion_served,
-    emit_tool_invoked,
-    tool_names,
-)
+from sparkth.plugins.chat.analytics import AnalyticsAttribution, emit_completion, tool_names
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
@@ -137,7 +132,7 @@ class ChatStreamProcessor:
         llm: Any | None = None,
         rag_search_required: bool = False,
         rag_search_declined: bool = False,
-        analytics: CompletionAnalyticsContext | None = None,
+        analytics: AnalyticsAttribution | None = None,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -148,8 +143,10 @@ class ChatStreamProcessor:
         self.llm = llm
         self.rag_search_required = rag_search_required
         self.rag_search_declined = rag_search_declined
-        # None keeps the processor constructible without analytics — its own unit tests
-        # build it with four arguments and have no request to take a context from.
+        # Only who acted and through which provider: the model and whether RAG ran are
+        # already on self, and taking them again would be two sources of truth. None
+        # keeps the processor constructible without analytics — its own unit tests build
+        # it with four arguments and have no request to attribute to.
         self.analytics = analytics
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
@@ -332,16 +329,16 @@ class ChatStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
-    ) -> tuple[int, list[str]]:
-        """Persist the assistant message, emit the done SSE, and return the completion facts.
+    ) -> list[str]:
+        """Persist the assistant message, emit the done SSE, and return the tools it ran.
 
         The done payload includes the full message object so the client can update its
         state without a separate fetch after the stream closes.
 
         Returns:
-            The tool-execution count and the executed tool names, for the caller to emit
-            once the stream is closed. See :meth:`_process_and_stream` for why they are
-            returned rather than emitted here.
+            The names of the tools this completion executed, in order, for the caller to
+            emit once the stream is closed. See :meth:`_process_and_stream` for why they
+            are returned rather than emitted here.
         """
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
@@ -378,14 +375,17 @@ class ChatStreamProcessor:
         # successful reply would render as a failure and permanently pollute the
         # transcript. _process_and_stream emits these after that guard, and after the
         # stream has closed.
-        return len(completed_tool_calls), tool_names(completed_tool_calls)
+        return tool_names(completed_tool_calls)
 
     async def _run_llm_phase(
         self,
         confirmed_rag_sections: list[dict[str, str | None]],
         bg_session: AsyncSession,
-    ) -> tuple[int, list[str]] | None:
-        """None when the turn produced no completion — a handled streaming error."""
+    ) -> list[str] | None:
+        """None when the turn produced no completion — a handled streaming error.
+
+        An empty list is a completion that ran no tools, which is not the same thing.
+        """
         result = await self._collect_stream_response(bg_session)
         if result is None:
             return None
@@ -394,8 +394,9 @@ class ChatStreamProcessor:
             full_response, confirmed_rag_sections, completed_tool_calls, bg_session
         )
 
-    async def _run(self, bg_session: AsyncSession) -> tuple[int, list[str]] | None:
-        """None when the turn produced no completion — RAG answered it, or it failed."""
+    async def _run(self, bg_session: AsyncSession) -> list[str] | None:
+        """The tools the completion ran, or None when it produced no completion at all —
+        RAG answered the turn, or it failed."""
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
             return None
@@ -416,10 +417,10 @@ class ChatStreamProcessor:
         the sentinel also stops a multi-tool turn from holding the SSE connection open
         for one analytics round-trip per tool.
         """
-        completion: tuple[int, list[str]] | None = None
+        executed_tools: list[str] | None = None
         async with session_scope() as bg_session:
             try:
-                completion = await self._run(bg_session)
+                executed_tools = await self._run(bg_session)
             except BaseException as exc:
                 logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
                 await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
@@ -428,21 +429,16 @@ class ChatStreamProcessor:
             finally:
                 await self._put(None)
 
-        if self.analytics is None or completion is None:
+        if self.analytics is None or executed_tools is None:
             return
-        tool_call_count, executed_tools = completion
-        await emit_completion_served(
+        await emit_completion(
             conversation_id=self.conversation_uuid,
-            context=self.analytics,
-            tool_call_count=tool_call_count,
+            attribution=self.analytics,
+            model=self.provider.model,
+            rag_used=self.rag_search_required,
             streamed=True,
+            executed_tools=executed_tools,
         )
-        for executed_tool in executed_tools:
-            await emit_tool_invoked(
-                conversation_id=self.conversation_uuid,
-                tool_name=executed_tool,
-                actor_id=self.analytics.actor_id,
-            )
 
     async def stream(self, task_holder: set[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
         """Processing runs in a separate task so a client disconnect (CancelledError on the generator)

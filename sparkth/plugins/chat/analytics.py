@@ -37,7 +37,7 @@ from typing import Any
 from fastapi import BackgroundTasks
 from pydantic import NonNegativeInt
 
-from sparkth.lib.analytics import AnalyticsEventSchema, emit_event
+from sparkth.lib.analytics import AnalyticsEventSchema, PendingEvent, emit_event, emit_events
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.tools import get_tool_registry
 
@@ -122,18 +122,18 @@ class ChatToolInvoked(AnalyticsEventSchema):
 
 
 @dataclass(frozen=True)
-class CompletionAnalyticsContext:
-    """Completion facts the route owns, passed to whichever seam emits.
+class AnalyticsAttribution:
+    """Who acted, and through which provider — the only completion facts a seam
+    cannot work out from its own state.
 
-    ``model`` is the model actually used, which can differ from the conversation's
-    stored model when the request sets ``model_override``. ``actor_id`` travels here
-    rather than being read off the stream processor, whose ``user_id`` is only
-    populated when RAG runs.
+    The stream processor already holds the model it is streaming from
+    (``provider.model``) and whether RAG ran (``rag_search_required``); handing it
+    those again would be two sources of truth for one fact. It has no way to know the
+    provider's *name* or the acting user, though: its ``user_id`` is populated only
+    when RAG runs, so reading the actor off it would drop them from most events.
     """
 
     provider: str
-    model: str
-    rag_used: bool
     actor_id: str
 
 
@@ -224,43 +224,53 @@ async def emit_message_sent(
     )
 
 
-async def emit_completion_served(
+async def emit_completion(
     conversation_id: str,
-    context: CompletionAnalyticsContext,
-    tool_call_count: int,
+    attribution: AnalyticsAttribution,
+    model: str,
+    rag_used: bool,
     streamed: bool,
+    executed_tools: list[str],
 ) -> None:
-    """Emit ``chat.completion_served``.
+    """Emit one completion and one ``chat.tool_invoked`` per tool it executed.
 
-    ``streamed`` is passed by the seam rather than read from the context, because it
-    is the one fact determined by *which* seam emits.
+    The whole group goes through a single :func:`emit_events` call so the completion
+    and its tool events share one analytics session. Emitting them one at a time cost
+    a session per event, and — because they land in sequence — a failed completion
+    write dropped every tool event behind it.
+
+    ``streamed`` is passed by the seam rather than derived, because it is the one
+    fact determined by *which* seam emits. Tool categories are resolved from the
+    registry here so no call site has to know that LangChain tools carry none.
     """
-    await _emit(
+    events = [
         ChatCompletionServed(
             conversation_id=conversation_id,
-            provider=context.provider,
-            model=context.model,
+            provider=attribution.provider,
+            model=model,
             streamed=streamed,
-            rag_used=context.rag_used,
-            tool_call_count=tool_call_count,
+            rag_used=rag_used,
+            tool_call_count=len(executed_tools),
         ),
-        context.actor_id,
-    )
-
-
-async def emit_tool_invoked(conversation_id: str, tool_name: str, actor_id: str) -> None:
-    """Emit ``chat.tool_invoked`` for one tool execution.
-
-    The category is resolved from the tool registry here so no call site has to
-    know that LangChain tools carry no category.
-    """
-    await _emit(
-        ChatToolInvoked(
-            conversation_id=conversation_id,
-            tool_name=tool_name,
-            tool_category=get_tool_registry().category_for(tool_name),
+        *(
+            ChatToolInvoked(
+                conversation_id=conversation_id,
+                tool_name=tool_name,
+                tool_category=get_tool_registry().category_for(tool_name),
+            )
+            for tool_name in executed_tools
         ),
-        actor_id,
+    ]
+    await emit_events(
+        [
+            PendingEvent(
+                event_type=event.event_type,
+                version=event.version,
+                payload=event.model_dump(mode="json"),
+                actor_id=attribution.actor_id,
+            )
+            for event in events
+        ]
     )
 
 
@@ -318,35 +328,27 @@ class ChatTurnAnalytics:
             actor_id=self.actor_id,
         )
 
-    def schedule_completion_served(self, *, rag_used: bool, tool_call_count: int, streamed: bool) -> None:
-        """Queue ``chat.completion_served`` for a reply the LLM actually produced."""
-        self.background_tasks.add_task(
-            emit_completion_served,
-            conversation_id=self.conversation_id,
-            context=self.completion_context(rag_used=rag_used),
-            tool_call_count=tool_call_count,
-            streamed=streamed,
-        )
+    def schedule_completion(self, *, rag_used: bool, streamed: bool, executed_tools: list[str]) -> None:
+        """Queue the completion and its tool events as one task.
 
-    def schedule_tool_invoked(self, tool_name: str) -> None:
-        """Queue ``chat.tool_invoked`` for one execution."""
-        self.background_tasks.add_task(
-            emit_tool_invoked,
-            conversation_id=self.conversation_id,
-            tool_name=tool_name,
-            actor_id=self.actor_id,
-        )
-
-    def completion_context(self, *, rag_used: bool) -> CompletionAnalyticsContext:
-        """The same turn facts in the shape a seam that emits for itself needs.
-
-        The streaming seam emits from inside its own detached task rather than from
-        this queue, so it takes the facts and awaits the helper directly. Handing it
-        a context built here keeps the two seams reading one definition of the turn.
+        One task, not one per event: they land through a single analytics session,
+        and a caller cannot queue the completion and forget the tools it executed.
         """
-        return CompletionAnalyticsContext(
-            provider=self.provider,
+        self.background_tasks.add_task(
+            emit_completion,
+            conversation_id=self.conversation_id,
+            attribution=self.attribution,
             model=self.model,
             rag_used=rag_used,
-            actor_id=self.actor_id,
+            streamed=streamed,
+            executed_tools=executed_tools,
         )
+
+    @property
+    def attribution(self) -> AnalyticsAttribution:
+        """The two facts a seam emitting for itself cannot derive.
+
+        The streaming seam emits from inside its own detached task rather than from
+        this queue, so it takes these and works out the rest from its own state.
+        """
+        return AnalyticsAttribution(provider=self.provider, actor_id=self.actor_id)

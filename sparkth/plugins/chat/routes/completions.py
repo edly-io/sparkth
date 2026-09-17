@@ -279,7 +279,7 @@ async def chat_completion(
                 rag_llm,
                 rag_search_required,
                 rag_search_declined,
-                analytics=turn_analytics.completion_context(rag_used=rag_search_required),
+                analytics=turn_analytics.attribution,
             )
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
@@ -311,15 +311,11 @@ async def chat_completion(
             # by every provider, so reading it would count zero forever.
             response_metadata = response.get("metadata") or {}
             executions = response_metadata.get("tool_executions") or []
-            turn_analytics.schedule_completion_served(
+            turn_analytics.schedule_completion(
                 rag_used=rag_search_required,
-                # Counted from the execution records themselves, exactly as the streaming
-                # seam counts its own, so both seams derive the number from what they read.
-                tool_call_count=len(executions),
                 streamed=False,
+                executed_tools=tool_names(executions),
             )
-            for executed_tool in tool_names(executions):
-                turn_analytics.schedule_tool_invoked(executed_tool)
 
             return ChatCompletionResponse(
                 message=ChatMessage(
