@@ -1,3 +1,9 @@
+"""Unit tests for the Moodle tools; the Moodle web service is mocked throughout.
+
+A mock answers exactly as these tests specify, so a payload a real Moodle would reject still
+passes here — target-side validation and web service configuration errors are out of reach.
+"""
+
 import logging
 from typing import Any
 from unittest.mock import AsyncMock, patch
