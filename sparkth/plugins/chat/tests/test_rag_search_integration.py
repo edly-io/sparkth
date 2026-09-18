@@ -1,6 +1,7 @@
 """Integration tests for the RAG search classifier wired into the chat completion flow."""
 
 import json
+from datetime import datetime, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -86,6 +87,8 @@ class TestIntentRouterIntegration:
         mock_msg = MagicMock()
         mock_msg.id = 1
 
+        mock_msg.created_at = datetime.now(timezone.utc)
+
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
@@ -163,6 +166,8 @@ class TestIntentRouterIntegration:
 
         mock_msg = MagicMock()
         mock_msg.id = 1
+
+        mock_msg.created_at = datetime.now(timezone.utc)
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
@@ -245,6 +250,8 @@ class TestIntentRouterIntegration:
         mock_msg = MagicMock()
         mock_msg.id = 1
 
+        mock_msg.created_at = datetime.now(timezone.utc)
+
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
@@ -319,6 +326,8 @@ class TestIntentRouterIntegration:
 
         mock_msg = MagicMock()
         mock_msg.id = 1
+
+        mock_msg.created_at = datetime.now(timezone.utc)
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
@@ -465,6 +474,7 @@ def _configure_base_mocks(
     mock_get_msgs.return_value = []
     mock_msg = MagicMock()
     mock_msg.id = 99
+    mock_msg.created_at = datetime.now(timezone.utc)
     mock_add_msg.return_value = mock_msg
 
     mock_provider = MagicMock()
@@ -653,6 +663,7 @@ class TestProviderApiErrorPersistence:
         seed = await _seed(session, current_user.id or 1)
         mock_msg = MagicMock()
         mock_msg.id = 99
+        mock_msg.created_at = datetime.now(timezone.utc)
 
         mock_request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
         overloaded_exc = anthropic.APIStatusError(
@@ -721,6 +732,7 @@ class TestProviderApiErrorPersistence:
         seed = await _seed(session, current_user.id or 1)
         mock_msg = MagicMock()
         mock_msg.id = 99
+        mock_msg.created_at = datetime.now(timezone.utc)
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,

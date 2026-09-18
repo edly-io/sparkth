@@ -7,6 +7,7 @@ still actually writes.
 """
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import patch
 
@@ -73,3 +74,32 @@ async def test_session_acquisition_failure_propagates() -> None:
         pytest.raises(SQLAlchemyError),
     ):
         await emit_event("user.logged_in", 1, {"username": "instructor"})
+
+
+async def test_an_explicit_occurred_at_is_stored_rather_than_now(analytics_session: AsyncSession) -> None:
+    """Producers emit from tasks that run after the thing they describe.
+
+    Without this, every event would be stamped when its row was written, which for a
+    streamed chat turn is minutes after the turn began — and puts a conversation's start
+    after the reply it produced.
+    """
+    happened = datetime(2026, 9, 18, 9, 15, tzinfo=timezone.utc)
+
+    await emit_event("user.logged_in", 1, {"username": "instructor"}, actor_id="7", occurred_at=happened)
+
+    row = (await analytics_session.execute(select(raw_events))).mappings().one()
+    stored = row["occurred_at"]
+    assert (stored if stored.tzinfo else stored.replace(tzinfo=timezone.utc)) == happened
+
+
+async def test_occurred_at_defaults_to_now_when_the_caller_omits_it(analytics_session: AsyncSession) -> None:
+    """The default is only right for an event emitted where it happens; it stays available
+    so a producer with nothing better to offer is not forced to invent a time."""
+    before = datetime.now(timezone.utc)
+
+    await emit_event("user.logged_in", 1, {"username": "instructor"}, actor_id="7")
+
+    row = (await analytics_session.execute(select(raw_events))).mappings().one()
+    stored = row["occurred_at"]
+    stored = stored if stored.tzinfo else stored.replace(tzinfo=timezone.utc)
+    assert before <= stored <= datetime.now(timezone.utc)

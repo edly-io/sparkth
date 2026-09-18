@@ -11,8 +11,10 @@ so one path passing proves nothing about the other.
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
@@ -76,6 +78,21 @@ async def _actors(analytics_session: AsyncSession, event_type: str) -> list[str]
     """Return the actor_id of every landed row of one event type, in insertion order."""
     rows = (await analytics_session.execute(select(raw_events))).mappings().all()
     return [row["actor_id"] for row in rows if row["event_type"] == event_type]
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Read a stored timestamp back as UTC-aware.
+
+    SQLite round-trips a ``timezone=True`` column as a naive value, so comparing what
+    landed against what was stored would otherwise compare naive with aware and raise.
+    """
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+async def _occurred_at(analytics_session: AsyncSession, event_type: str) -> list[datetime]:
+    """Return the occurred_at of every landed row of one event type, in insertion order."""
+    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    return [_as_utc(row["occurred_at"]) for row in rows if row["event_type"] == event_type]
 
 
 def _non_streaming_provider(
@@ -750,3 +767,106 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
     assert '"error"' not in body
     assert "Here is an outline." in body
     assert await _error_message_count(session) == 0
+
+
+async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """occurred_at is when the thing happened, not when the row was written.
+
+    This is the regression test for the ordering the events used to land in. Route
+    events are queued on Starlette's background queue, which runs only after the whole
+    response has been sent — so on a streamed turn they were written *after* the
+    completion event that the stream's own task wrote the moment the stream closed. Every
+    row was stamped at write time, so a conversation appeared to start after the reply it
+    produced.
+
+    The assertion is on ordering rather than exact values because the seams read their
+    times from the rows they just wrote, and those are the times under test.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _streaming_provider(
+        [
+            {"type": "tool_end", "name": "canvas_create_quiz"},
+            {"type": "token", "content": "Quiz created."},
+        ]
+    )
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a quiz on data privacy"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+        await _join_stream_tasks()
+
+    assert response.status_code == 200
+
+    (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
+    (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
+    (served,) = await _occurred_at(analytics_session, "chat.completion_served")
+    (invoked,) = await _occurred_at(analytics_session, "chat.tool_invoked")
+
+    assert started <= sent < served, (
+        f"a conversation must not start after the reply it produced: started={started} sent={sent} served={served}"
+    )
+    # The tool ran during the completion; it shares the completion's time because the
+    # streaming path records no per-tool timestamp of its own.
+    assert invoked == served
+
+
+async def test_event_times_come_from_the_rows_they_describe(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """Not `now()` at the emit site: the conversation and message rows already know when
+    they were created, and those are the authoritative times."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    conversation_uuid = UUID(response.json()["conversation_id"])
+    conversation = (
+        (await session.execute(select(Conversation).where(col(Conversation.uuid) == conversation_uuid))).scalars().one()
+    )
+    stored_messages = (
+        (await session.execute(select(Message).where(col(Message.conversation_id) == conversation.id))).scalars().all()
+    )
+    instructor_turn = next(message for message in stored_messages if message.role == "user")
+
+    (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
+    (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
+
+    assert started == _as_utc(conversation.created_at)
+    assert sent == _as_utc(instructor_turn.created_at)

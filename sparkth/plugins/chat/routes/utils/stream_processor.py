@@ -1,6 +1,8 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
 import anthropic
@@ -31,6 +33,20 @@ from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class StreamedCompletion:
+    """What a finished stream leaves for its analytics to be emitted from.
+
+    ``occurred_at`` is the assistant message's own ``created_at`` rather than the time the
+    emit runs: the emits deliberately happen after the stream has closed, so timing them
+    there would place the completion later than it was.
+    """
+
+    executed_tools: list[str]
+    occurred_at: datetime
+
 
 # asyncio holds only a weak reference to a running task, so a stream task detached from the
 # request that spawned it can be garbage-collected mid-flight — and it outlives its response,
@@ -329,16 +345,16 @@ class ChatStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
-    ) -> list[str]:
-        """Persist the assistant message, emit the done SSE, and return the tools it ran.
+    ) -> StreamedCompletion:
+        """Persist the assistant message, emit the done SSE, and return what it completed.
 
         The done payload includes the full message object so the client can update its
         state without a separate fetch after the stream closes.
 
         Returns:
-            The names of the tools this completion executed, in order, for the caller to
-            emit once the stream is closed. See :meth:`_process_and_stream` for why they
-            are returned rather than emitted here.
+            The tools this completion executed and when the reply was stored, for the
+            caller to emit once the stream is closed. See :meth:`_process_and_stream` for
+            why they are returned rather than emitted here.
         """
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
@@ -375,16 +391,19 @@ class ChatStreamProcessor:
         # successful reply would render as a failure and permanently pollute the
         # transcript. _process_and_stream emits these after that guard, and after the
         # stream has closed.
-        return tool_names(completed_tool_calls)
+        return StreamedCompletion(
+            executed_tools=tool_names(completed_tool_calls),
+            occurred_at=assistant_message.created_at,
+        )
 
     async def _run_llm_phase(
         self,
         confirmed_rag_sections: list[dict[str, str | None]],
         bg_session: AsyncSession,
-    ) -> list[str] | None:
+    ) -> StreamedCompletion | None:
         """None when the turn produced no completion — a handled streaming error.
 
-        An empty list is a completion that ran no tools, which is not the same thing.
+        A completion with no executed tools is not the same thing, and is not None.
         """
         result = await self._collect_stream_response(bg_session)
         if result is None:
@@ -394,9 +413,9 @@ class ChatStreamProcessor:
             full_response, confirmed_rag_sections, completed_tool_calls, bg_session
         )
 
-    async def _run(self, bg_session: AsyncSession) -> list[str] | None:
-        """The tools the completion ran, or None when it produced no completion at all —
-        RAG answered the turn, or it failed."""
+    async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
+        """What the turn completed, or None when it produced no completion at all — RAG
+        answered the turn, or it failed."""
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
             return None
@@ -417,10 +436,10 @@ class ChatStreamProcessor:
         the sentinel also stops a multi-tool turn from holding the SSE connection open
         for one analytics round-trip per tool.
         """
-        executed_tools: list[str] | None = None
+        completion: StreamedCompletion | None = None
         async with session_scope() as bg_session:
             try:
-                executed_tools = await self._run(bg_session)
+                completion = await self._run(bg_session)
             except BaseException as exc:
                 logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
                 await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
@@ -429,7 +448,7 @@ class ChatStreamProcessor:
             finally:
                 await self._put(None)
 
-        if self.analytics is None or executed_tools is None:
+        if self.analytics is None or completion is None:
             return
         await emit_completion(
             conversation_id=self.conversation_uuid,
@@ -437,7 +456,8 @@ class ChatStreamProcessor:
             model=self.provider.model,
             rag_used=self.rag_search_required,
             streamed=True,
-            executed_tools=executed_tools,
+            executed_tools=completion.executed_tools,
+            occurred_at=completion.occurred_at,
         )
 
     async def stream(self, task_holder: set[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
