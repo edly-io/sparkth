@@ -60,7 +60,7 @@ class TestMoodleClientEnvelope:
         session = _mock_session('{"sitename": "Sparkth Moodle Dev"}')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             async with MoodleClient("https://moodle.example.com", "tok") as client:
-                result = await client.call("core_webservice_get_site_info")
+                result = await client.call_dict("core_webservice_get_site_info")
         assert result == {"sitename": "Sparkth Moodle Dev"}
 
     @pytest.mark.asyncio
@@ -70,7 +70,7 @@ class TestMoodleClientEnvelope:
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(AuthenticationError) as exc_info:
                 async with MoodleClient("https://moodle.example.com", "bad") as client:
-                    await client.call("core_webservice_get_site_info")
+                    await client.call_dict("core_webservice_get_site_info")
         assert "Invalid token" in exc_info.value.message
 
     @pytest.mark.asyncio
@@ -80,7 +80,7 @@ class TestMoodleClientEnvelope:
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(LMSRequestError) as exc_info:
                 async with MoodleClient("https://moodle.example.com", "tok") as client:
-                    await client.call("local_sparkth_create_section", {"courseid": 1})
+                    await client.call_dict("local_sparkth_create_section", {"courseid": 1})
         assert "No permission" in exc_info.value.message
 
     @pytest.mark.asyncio
@@ -88,5 +88,31 @@ class TestMoodleClientEnvelope:
         session = _mock_session('{"errorcode": "unused", "id": 7}')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             async with MoodleClient("https://moodle.example.com", "tok") as client:
-                result = await client.call("local_sparkth_create_section")
+                result = await client.call_dict("local_sparkth_create_section")
         assert result == {"errorcode": "unused", "id": 7}
+
+
+class TestMoodleClientTypedAccessors:
+    @pytest.mark.asyncio
+    async def test_call_list_returns_the_parsed_array(self) -> None:
+        session = _mock_session('[{"id": 1}, {"id": 2}]')
+        with patch("sparkth.lib.http.ClientSession", return_value=session):
+            async with MoodleClient("https://moodle.example.com", "tok") as client:
+                result = await client.call_list("core_course_get_courses")
+        assert result == [{"id": 1}, {"id": 2}]
+
+    @pytest.mark.asyncio
+    async def test_call_dict_raises_value_error_on_an_array_body(self) -> None:
+        session = _mock_session('[{"id": 1}]')
+        with patch("sparkth.lib.http.ClientSession", return_value=session):
+            with pytest.raises(ValueError, match="core_webservice_get_site_info"):
+                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                    await client.call_dict("core_webservice_get_site_info")
+
+    @pytest.mark.asyncio
+    async def test_call_list_raises_value_error_on_an_object_body(self) -> None:
+        session = _mock_session('{"id": 1}')
+        with patch("sparkth.lib.http.ClientSession", return_value=session):
+            with pytest.raises(ValueError, match="core_course_get_courses"):
+                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                    await client.call_list("core_course_get_courses")

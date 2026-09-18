@@ -70,8 +70,12 @@ class MoodleClient(BaseHttpClient):
     def token(self) -> str | None:
         return self.api_token or None
 
-    async def call(self, wsfunction: str, params: dict[str, Any] | None = None) -> Any:
-        """Invoke a web service function and return its parsed response body."""
+    async def _call(self, wsfunction: str, params: dict[str, Any] | None = None) -> Any:
+        """Post a web service call and return its parsed, envelope-checked response body.
+
+        Shared by ``call_dict``/``call_list``, which assert the shape their caller
+        needs; nothing outside this class should consume this method's untyped result.
+        """
         body = {
             "wstoken": self.api_token,
             "wsfunction": wsfunction,
@@ -81,4 +85,18 @@ class MoodleClient(BaseHttpClient):
 
         result = await self._request(Method.POST, MOODLE_WS_ENDPOINT, data=body)
         _raise_on_ws_exception(wsfunction, result)
+        return result
+
+    async def call_dict(self, wsfunction: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Invoke a web service function and assert its response is a JSON object."""
+        result = await self._call(wsfunction, params)
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected JSON object from {wsfunction}, got {type(result).__name__}")
+        return result
+
+    async def call_list(self, wsfunction: str, params: dict[str, Any] | None = None) -> list[Any]:
+        """Invoke a web service function and assert its response is a JSON array."""
+        result = await self._call(wsfunction, params)
+        if not isinstance(result, list):
+            raise ValueError(f"Expected JSON array from {wsfunction}, got {type(result).__name__}")
         return result
