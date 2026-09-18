@@ -405,14 +405,19 @@ The Moodle plugin's course, page and quiz tools call web service functions on th
 Moodle, not on Sparkth, so a misconfigured Moodle fails in a way that otherwise reads as a
 Sparkth bug. Before pointing the plugin at a Moodle site:
 
-- Install the `local_sparkth` companion plugin, which adds the `local_sparkth_create_section`,
-  `local_sparkth_create_page` and `local_sparkth_create_quiz` functions the tools depend on.
-- Expose those three functions, plus `core_webservice_get_site_info`,
-  `core_enrol_get_users_courses` and `core_course_create_courses`, on an external service (e.g.
-  "Sparkth publishing") and mint a token for the authoring user against it.
-- That service is declared `restrictedusers => 1`, so a token alone is not enough: an admin
-  must explicitly authorise the token's user on the service in Moodle's admin UI. Skipping this
-  step is the most likely first-install failure — every call returns an `accessexception`.
+- Enable web services and the REST protocol on the target site.
+- Install the `local_sparkth` companion plugin. Its `db/services.php` declares the
+  `Sparkth publishing` external service itself — installing the plugin creates the service with
+  `enabled => 1`, `restrictedusers => 1`, and all six functions the tools need
+  (`local_sparkth_create_section`, `local_sparkth_create_page`, `local_sparkth_create_quiz`,
+  `core_webservice_get_site_info`, `core_enrol_get_users_courses` and
+  `core_course_create_courses`). No admin step creates or configures the service itself.
+- Because the service is `restrictedusers => 1`, a token alone is not enough: an admin must
+  explicitly authorise the token's user on the `Sparkth publishing` service in Moodle's admin
+  UI. Skipping this step is the most likely first-install failure — every call returns an
+  `accessexception`.
+- Mint a token for a user holding `moodle/course:create`, `moodle/course:manageactivities` and
+  `moodle/question:add`.
 - On Moodle 5.x, `local_sparkth_create_quiz` creates questions in a `Sparkth question bank` that
   the companion creates for itself, not the course's default question bank, so authored
   questions will not appear there.
