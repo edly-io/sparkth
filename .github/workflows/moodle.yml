@@ -8,9 +8,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The PHPUnit job below builds two full Moodle stacks, so it is scoped to PRs that
+  # actually touch the plugin. This job always reports, keeping the check present.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - third_party_plugins/moodle/**
+              - .github/workflows/moodle.yml
+
   phpunit:
     name: local_sparkth PHPUnit
-    if: github.event.pull_request.draft == false
+    needs: changes
+    if: ${{ github.event.pull_request.draft == false && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
