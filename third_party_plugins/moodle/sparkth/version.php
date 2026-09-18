@@ -19,7 +19,7 @@ defined('MOODLE_INTERNAL') || die();
 $plugin->component = 'local_sparkth';
 // Bump whenever db/services.php declarations or lang/ strings change; installed sites
 // only pick those up when the version increases.
-$plugin->version   = 2026091701;
+$plugin->version   = 2026091702;
 $plugin->requires  = 2024100700;   // Moodle 4.5 LTS
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->release   = '0.1.0';
