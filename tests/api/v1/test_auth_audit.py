@@ -142,7 +142,7 @@ async def test_registration_records_registered_event(client: AsyncClient, sessio
     assert event.actor_id == str(user_id)
     assert event.target_type == "user"
     assert event.target_id == str(user_id)
-    assert event.new_values == {"username": username, "method": "password"}
+    assert event.new_values == {"method": "password"}
 
 
 async def test_email_verification_records_success_event(client: AsyncClient, session: AsyncSession) -> None:
@@ -204,7 +204,7 @@ async def test_google_signup_records_registration_and_login(client: AsyncClient,
     (registered,) = await _events(session, "registered")
     assert registered.actor_id == str(user.id)
     assert registered.target_id == str(user.id)
-    assert registered.new_values == {"username": user.username, "method": "google"}
+    assert registered.new_values == {"method": "google"}
 
     (login,) = await _login_events(session)
     assert login.outcome == "success"
