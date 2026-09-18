@@ -7,6 +7,17 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.llm import LLMConfig
+from sparkth.lib.audit import record_event, record_event_now
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    LLMConfigCreatedAuditEvent,
+    LLMConfigDeletedAuditEvent,
+    LLMConfigKeyReadAuditEvent,
+    LLMConfigKeyRotatedAuditEvent,
+    LLMConfigUpdatedAuditEvent,
+)
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.llm.exceptions import (
@@ -22,6 +33,24 @@ from sparkth.llm.providers import get_models_for_provider
 logger = get_logger(__name__)
 
 _CACHE_PREFIX = "llm_config"
+
+
+def _identity(config: LLMConfig) -> dict[str, str]:
+    """The non-secret description of a config used in create/delete snapshots."""
+    return {"name": config.name, "provider": config.provider, "model": config.model}
+
+
+def _mutable(config: LLMConfig) -> dict[str, str | bool]:
+    """The fields ``update``/``set_active`` may change, for before/after snapshots."""
+    return {"name": config.name, "model": config.model, "is_active": config.is_active}
+
+
+def _target(config: LLMConfig) -> AuditTarget:
+    """The audit target every ``llm_config.*`` event points at.
+
+    Snapshots never include ``encrypted_key``; key rotation records the masked keys.
+    """
+    return AuditTarget(type="llm_config", id=str(config.id))
 
 
 class LLMConfigService:
@@ -76,6 +105,12 @@ class LLMConfigService:
         except IntegrityError as exc:
             raise LLMConfigDuplicateNameError(name) from exc
         await session.refresh(config)
+        await record_event(
+            session,
+            LLMConfigCreatedAuditEvent(
+                outcome=AuditOutcome.SUCCESS, target=_target(config), change=AuditChange(new=_identity(config))
+            ),
+        )
         logger.info("Created LLMConfig id=%s for user_id=%s provider=%s", config.id, user_id, provider)
         return config
 
@@ -117,6 +152,7 @@ class LLMConfigService:
         config = await self.get(session, user_id, config_id)
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
+        before = _mutable(config)
         if name is not None:
             await self._assert_name_available(session, user_id, name, exclude_id=config_id)
             config.name = name
@@ -136,6 +172,14 @@ class LLMConfigService:
         except IntegrityError as exc:
             raise LLMConfigDuplicateNameError(config.name) from exc
         await session.refresh(config)
+        await record_event(
+            session,
+            LLMConfigUpdatedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(config),
+                change=AuditChange(old=before, new=_mutable(config)),
+            ),
+        )
         logger.info("Updated LLMConfig id=%s for user_id=%s", config.id, user_id)
         return config
 
@@ -150,12 +194,21 @@ class LLMConfigService:
         config = await self.get(session, user_id, config_id)
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
+        previous_masked_key = config.masked_key
         config.encrypted_key = self.encryption.encrypt(api_key)
         config.masked_key = self.mask_key(api_key)
         config.update_timestamp()
         session.add(config)
         await session.flush()
         await session.refresh(config)
+        await record_event(
+            session,
+            LLMConfigKeyRotatedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(config),
+                change=AuditChange(old={"masked_key": previous_masked_key}, new={"masked_key": config.masked_key}),
+            ),
+        )
         cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
         await self.cache.delete(cache_key)
         return config
@@ -168,6 +221,12 @@ class LLMConfigService:
         config.soft_delete()
         session.add(config)
         await session.flush()
+        await record_event(
+            session,
+            LLMConfigDeletedAuditEvent(
+                outcome=AuditOutcome.SUCCESS, target=_target(config), change=AuditChange(old=_identity(config))
+            ),
+        )
         cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
         await self.cache.delete(cache_key)
         logger.info("Soft-deleted LLMConfig id=%s for user_id=%s", config_id, user_id)
@@ -185,11 +244,20 @@ class LLMConfigService:
         config = result.first()
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
+        before = _mutable(config)
         config.is_active = is_active
         config.update_timestamp()
         session.add(config)
         await session.flush()
         await session.refresh(config)
+        await record_event(
+            session,
+            LLMConfigUpdatedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(config),
+                change=AuditChange(old=before, new=_mutable(config)),
+            ),
+        )
         if not is_active:
             cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
             await self.cache.delete(cache_key)
@@ -197,7 +265,15 @@ class LLMConfigService:
         return config
 
     async def resolve(self, session: AsyncSession, user_id: int, config_id: int) -> tuple[LLMConfig, str]:
-        """Return (config, decrypted_api_key). Caches by (user_id, config_id). Updates last_used_at."""
+        """Return (config, decrypted_api_key). Caches by (user_id, config_id). Updates last_used_at.
+
+        Every decrypted read, cache hit or miss, records an ``llm_config.key_read``
+        audit event: the credential access trail. The record is committed on its
+        own (``record_event_now``), not in the caller's transaction: the plaintext
+        key has already been handed out by the time this returns, so the access
+        must stay on record even if the caller's request later rolls back, for
+        example when the provider call fails.
+        """
         config = await self.get(session, user_id, config_id)
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
@@ -212,14 +288,18 @@ class LLMConfigService:
         cached = await self.cache.get(cache_key)
         if cached:
             try:
-                return config, self.encryption.decrypt(cached)
+                decrypted = self.encryption.decrypt(cached)
             except ValueError as exc:
                 logger.warning("Cached key for config_id=%s invalid, evicting: %s", config_id, exc)
                 await self.cache.delete(cache_key)
+            else:
+                await record_event_now(LLMConfigKeyReadAuditEvent(outcome=AuditOutcome.SUCCESS, target=_target(config)))
+                return config, decrypted
 
         decrypted = self.encryption.decrypt(config.encrypted_key)
         await self.cache.set(cache_key, config.encrypted_key)
         config.last_used_at = datetime.now(timezone.utc)
         session.add(config)
+        await record_event_now(LLMConfigKeyReadAuditEvent(outcome=AuditOutcome.SUCCESS, target=_target(config)))
         await session.flush()
         return config, decrypted
