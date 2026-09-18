@@ -46,11 +46,13 @@ async def moodle_list_courses(auth: Auth) -> dict[str, Any]:
     site: an author publishing a course wants their own, and a large site would
     return thousands.
     """
-    wsfunction = "core_enrol_get_users_courses"
+    wsfunction = "core_webservice_get_site_info"
     try:
         async with MoodleClient(auth.api_url, auth.api_token) as client:
-            info = await client.call_dict("core_webservice_get_site_info")
-            courses = await client.call_list(wsfunction, {"userid": info["userid"]})
+            info = await client.call_dict(wsfunction)
+            userid = info["userid"]
+            wsfunction = "core_enrol_get_users_courses"
+            courses = await client.call_list(wsfunction, {"userid": userid})
         return {"courses": courses}
     except (LMSRequestError, AuthenticationError) as e:
         return _lms_error(e, wsfunction)
@@ -72,7 +74,7 @@ async def moodle_create_course(payload: CoursePayload) -> dict[str, Any]:
         "summary": payload.summary,
         "summaryformat": 1,
         "format": "topics",
-        "lang": payload.lang,
+        "lang": payload.lang or None,
     }
     try:
         async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:

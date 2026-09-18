@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -6,6 +7,8 @@ import pytest
 from sparkth.lib.exceptions import AuthenticationError
 from sparkth.plugins.moodle.schemas import Auth, CoursePayload
 from sparkth.plugins.moodle.tools import moodle_authenticate, moodle_create_course, moodle_list_courses
+
+_LOGGER = "sparkth.plugins.moodle.tools"
 
 AUTH = Auth(api_url="https://moodle.example.com", api_token="tok")
 
@@ -85,7 +88,35 @@ class TestMoodleCreateCourse:
 
         wsfunction, params = client.call_list.call_args.args
         assert wsfunction == "core_course_create_courses"
+        assert len(params["courses"]) == 1
         assert params["courses"][0]["fullname"] == "Intro"
+        assert "numsections" not in params["courses"][0]
+
+    @pytest.mark.asyncio
+    async def test_omits_lang_when_left_at_the_default(self) -> None:
+        client = _client_returning([{"id": 4}])
+        payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            await moodle_create_course(payload)
+
+        _, params = client.call_list.call_args.args
+        assert params["courses"][0]["lang"] is None
+
+    @pytest.mark.asyncio
+    async def test_passes_through_a_supplied_lang(self) -> None:
+        client = _client_returning([{"id": 4}])
+        payload = CoursePayload(
+            auth=AUTH,
+            fullname="Intro",
+            shortname="intro",
+            categoryid=1,
+            lang="fr",
+        )
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            await moodle_create_course(payload)
+
+        _, params = client.call_list.call_args.args
+        assert params["courses"][0]["lang"] == "fr"
 
     @pytest.mark.asyncio
     async def test_authentication_failure_becomes_an_error_dict(self) -> None:
@@ -153,3 +184,19 @@ class TestMoodleListCourses:
 
         assert result["error"]["status_code"] == 502
         assert "core_enrol_get_users_courses" in result["error"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_a_site_info_failure_is_reported_under_its_own_operation(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _client_returning(None)
+        client.call_dict = AsyncMock(side_effect=AuthenticationError(401, "Invalid token"))
+        with (
+            caplog.at_level(logging.WARNING, logger=_LOGGER),
+            patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client),
+        ):
+            result = await moodle_list_courses(AUTH)
+
+        assert result["error"]["status_code"] == 401
+        assert "core_webservice_get_site_info" in caplog.text
+        assert "core_enrol_get_users_courses" not in caplog.text
