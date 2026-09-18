@@ -58,15 +58,24 @@ class question_bank_resolver {
 
     /**
      * Find this plugin's qbank instance for the course, creating it on first use.
+     *
+     * A freshly created bank is made visible so its activity link works, but kept off the
+     * course page so learners do not see it listed alongside lessons and quizzes.
      */
     private static function bank_context(stdClass $course): context_module {
+        global $CFG;
+
         foreach (get_fast_modinfo($course)->get_instances_of('qbank') as $bank) {
             if ($bank->name === self::BANK_NAME) {
                 return context_module::instance($bank->id);
             }
         }
 
+        require_once($CFG->dirroot . '/course/lib.php');
+
         $created = question_bank_helper::create_default_open_instance($course, self::BANK_NAME);
+        // Make the bank reachable while keeping it off the course page.
+        set_coursemodule_visible($created->id, 1, 0);
 
         return context_module::instance($created->id);
     }
