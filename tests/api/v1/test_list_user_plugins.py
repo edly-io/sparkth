@@ -19,6 +19,8 @@ from sparkth.lib.frontend.hooks import (
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.testing import AddTranslation
 
+from .conftest import add_user_plugin
+
 
 def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_core: bool) -> dict[str, object]:
     """Expected response entry for a plugin that declared no frontend metadata."""
@@ -120,3 +122,32 @@ async def test_list_user_plugins_empty(client: AsyncClient, session: AsyncSessio
     assert response.json() == []
 
     app.dependency_overrides.clear()
+
+
+async def test_list_user_plugins_fills_schema_keys_for_empty_config(
+    client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
+) -> None:
+    """Enabling a plugin stores an empty config; the schema keys must still be reported.
+
+    The settings UI renders one field per key it receives, so dropping them leaves the
+    user with no way to configure the plugin.
+    """
+    await add_user_plugin(session, current_user, schema_plugin, config={})
+
+    response = await client.get("/api/v1/user-plugins/")
+    assert response.status_code == 200
+
+    entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
+    assert entry["config"] == {"api_url": None, "api_key": None}
+
+
+async def test_list_user_plugins_fills_schema_keys_missing_from_config(
+    client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
+) -> None:
+    await add_user_plugin(session, current_user, schema_plugin, config={"api_url": "https://lms.example.com"})
+
+    response = await client.get("/api/v1/user-plugins/")
+    assert response.status_code == 200
+
+    entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
+    assert entry["config"] == {"api_url": "https://lms.example.com", "api_key": None}

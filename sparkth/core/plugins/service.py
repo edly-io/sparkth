@@ -106,13 +106,18 @@ class PluginService:
     """
 
     @staticmethod
-    def initial_config(schema: dict[str, Any]) -> dict[str, Any]:
+    def config_with_schema_keys(schema: dict[str, Any], config: dict[str, Any] | None) -> dict[str, Any]:
         """
-        Populate config dict with all keys from schema set to None.
+        Stored config, with every schema key it lacks present as None.
+
+        The settings UI renders one field per key it receives, so a plugin whose config
+        was never saved -- an empty dict, as created by enabling it -- must still report
+        its declared fields.
         """
-        if not schema or "properties" not in schema:
-            return {}
-        return {key: None for key in schema["properties"].keys()}
+        initial_config: dict[str, Any] = {}
+        if "properties" in schema:
+            initial_config = {key: None for key in schema["properties"].keys()}
+        return {**initial_config, **(config or {})}
 
     @staticmethod
     def validate_user_config(plugin: Plugin, user_config: dict[str, Any]) -> dict[str, Any]:

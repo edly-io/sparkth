@@ -88,9 +88,9 @@ async def list_user_plugins(
 
     for plugin in all_plugins:
         user_plugin = user_plugin_map.get(plugin.name)
-        config_keys = PluginService.initial_config(plugin.config_schema)
-
-        base_config = user_plugin.config if user_plugin and user_plugin.config is not None else config_keys
+        base_config = PluginService.config_with_schema_keys(
+            plugin.config_schema, user_plugin.config if user_plugin else None
+        )
 
         safe_config = await PluginService.apply_postprocess(
             plugin.name,
@@ -169,21 +169,21 @@ async def get_user_plugin(
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
 
     user_plugin = await plugin_service.get_user_plugin(session, current_user.id, plugin.id)
-    config_keys = PluginService.initial_config(plugin.config_schema)
+    config = PluginService.config_with_schema_keys(plugin.config_schema, user_plugin.config if user_plugin else None)
 
     if user_plugin:
         safe_config = await PluginService.apply_postprocess(
             plugin_name,
             session,
             current_user.id,  # type: ignore[arg-type]
-            user_plugin.config or config_keys,
+            config,
         )
         return UserPluginResponse.for_plugin(
             plugin_name=plugin_name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
         )
     else:
         return UserPluginResponse.for_plugin(
-            plugin_name=plugin_name, enabled=True, config=config_keys, is_core=plugin.is_core
+            plugin_name=plugin_name, enabled=True, config=config, is_core=plugin.is_core
         )
 
 
@@ -211,7 +211,10 @@ async def update_user_plugin(
         request.enabled,
     )
     return UserPluginResponse.for_plugin(
-        plugin_name=plugin_name, enabled=user_plugin.enabled, config=user_plugin.config, is_core=plugin.is_core
+        plugin_name=plugin_name,
+        enabled=user_plugin.enabled,
+        config=PluginService.config_with_schema_keys(plugin.config_schema, user_plugin.config),
+        is_core=plugin.is_core,
     )
 
 
