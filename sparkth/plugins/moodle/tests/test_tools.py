@@ -376,4 +376,4 @@ class TestMoodleCreateQuiz:
 
     def test_an_unsupported_question_type_is_rejected_at_the_boundary(self) -> None:
         with pytest.raises(ValidationError):
-            Question(qtype="essay", name="E", questiontext="<p>Discuss.</p>")  # type: ignore[arg-type]
+            Question.model_validate({"qtype": "essay", "name": "E", "questiontext": "<p>Discuss.</p>"})
