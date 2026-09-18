@@ -415,16 +415,35 @@ Sparkth bug. Before pointing the plugin at a Moodle site:
 - Because the service is `restrictedusers => 1`, a token alone is not enough: an admin must
   explicitly authorise the token's user on the `Sparkth publishing` service in Moodle's admin
   UI. Skipping this step is the most likely first-install failure — every call returns an
-  `accessexception`.
+  `accessexception` (the tools append a hint saying so to Moodle's own wording, which names no
+  cause).
 - Mint a token for a user holding `moodle/course:create`, `moodle/course:manageactivities` and
-  `moodle/question:add`.
+  `moodle/question:add` — and **not** for an admin. A Moodle web service token is site-wide and
+  does not expire by default, and `MoodleConfig.to_lms_credentials_hint()` puts it in the LLM
+  system prompt, so it is transmitted to the configured LLM provider in plaintext on every chat
+  request (see the SECURITY NOTE in `sparkth/core/plugins/config_base.py`). Use a dedicated
+  non-admin account — a `coursecreator` at system context holds all three capabilities — so a
+  leaked token is bounded by that role.
+- `local_sparkth_create_section` gates on `moodle/course:manageactivities`, where core gates the
+  same operation on `moodle/course:update` and additionally enforces the site's
+  `get_max_sections()` limit. A caller looping on `moodle_create_section` — which is what an LLM
+  agent does — can therefore take a course past the section limit the site's admin set.
 - On Moodle 5.x, `local_sparkth_create_quiz` creates questions in a `Sparkth question bank` that
   the companion creates for itself, not the course's default question bank, so authored
   questions will not appear there.
 
-See `sparkth/plugins/moodle/tests/test_live_moodle.py` for an opt-in end-to-end test against a
-real Moodle (set `MOODLE_TEST_URL` and `MOODLE_TEST_TOKEN` in `.env.local`, run with
-`uv run pytest -m moodle`).
+`sparkth/plugins/moodle/tests/test_live_moodle.py` is an opt-in end-to-end publish against a real
+Moodle, run with:
+
+```bash
+MOODLE_TEST_URL=http://localhost:8000 MOODLE_TEST_TOKEN=<token> make test.backend.moodle
+```
+
+Both variables are read with `os.getenv`, which neither `.env` nor `.env.local` reaches — they
+must arrive as real environment variables (exported in your shell, or passed to the make target
+as above, which keeps the token out of every tracked file). Setting them in `.env.local` leaves
+the lane silently skipped. Without them a plain `uv run pytest` skips the lane, so the default
+suite needs no Moodle.
 
 ## Adding Database Models (Optional)
 

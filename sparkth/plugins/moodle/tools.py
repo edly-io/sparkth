@@ -33,12 +33,19 @@ def _malformed_response_error(e: ValueError | KeyError | IndexError, operation: 
 
 
 async def moodle_authenticate(auth: Auth) -> dict[str, Any]:
-    """Verify the provided Moodle site URL and web service token."""
+    """Verify the provided Moodle site URL and web service token.
+
+    Returns the site name plus the token user's username and ``userid``.
+    """
     wsfunction = "core_webservice_get_site_info"
     try:
         async with MoodleClient(auth.api_url, auth.api_token) as client:
             info = await client.call_dict(wsfunction)
-        return {"sitename": info.get("sitename"), "username": info.get("username")}
+        return {
+            "sitename": info.get("sitename"),
+            "username": info.get("username"),
+            "userid": info.get("userid"),
+        }
     except (LMSRequestError, AuthenticationError) as e:
         return _lms_error(e, wsfunction)
     except ValueError as e:
@@ -46,11 +53,12 @@ async def moodle_authenticate(auth: Auth) -> dict[str, Any]:
 
 
 async def moodle_list_courses(auth: Auth) -> dict[str, Any]:
-    """Retrieve the courses the authenticated user is enrolled in.
+    """List the courses the token's user is enrolled in, to pick an existing one to add to.
 
-    Deliberately not ``core_course_get_courses``, which returns every course on the
-    site: an author publishing a course wants their own, and a large site would
-    return thousands.
+    Creating a course over web services does not enrol the creator, so a course just
+    created by ``moodle_create_course`` will NOT appear here. To add content to a course
+    you created, use the ``id`` returned by ``moodle_create_course`` — never look it up
+    with this tool.
     """
     wsfunction = "core_webservice_get_site_info"
     try:
