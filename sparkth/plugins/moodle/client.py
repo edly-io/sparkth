@@ -3,7 +3,12 @@ from typing import Any
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.http import BaseHttpClient
-from sparkth.plugins.moodle.constants import MOODLE_AUTH_ERROR_CODES, MOODLE_WS_ENDPOINT
+from sparkth.plugins.moodle.constants import (
+    MOODLE_ACCESS_EXCEPTION_CODE,
+    MOODLE_ACCESS_EXCEPTION_HINT,
+    MOODLE_AUTH_ERROR_CODES,
+    MOODLE_WS_ENDPOINT,
+)
 
 
 def flatten_ws_params(value: Any, prefix: str = "") -> dict[str, str]:
@@ -41,13 +46,18 @@ def _raise_on_ws_exception(wsfunction: str, body: Any) -> None:
     Moodle answers a failed call with HTTP 200 and a body describing the failure, so
     the status line carries no information and the body must be inspected. The
     reported status is chosen here rather than echoed: 401 when the token itself is
-    rejected, 400 otherwise, since the remaining codes are caller-side faults.
+    rejected, 400 otherwise, since the remaining codes are caller-side faults. Moodle's
+    own wording is always preserved; ``accessexception`` alone gains a hint, because its
+    message names no cause and its likeliest one is a missing service authorisation.
     """
     if not isinstance(body, dict) or "exception" not in body:
         return
 
     errorcode = str(body.get("errorcode", ""))
     message = str(body.get("message") or errorcode or "Moodle web service call failed")
+
+    if errorcode == MOODLE_ACCESS_EXCEPTION_CODE:
+        raise AuthenticationError(401, f"{message} {MOODLE_ACCESS_EXCEPTION_HINT}")
 
     if errorcode in MOODLE_AUTH_ERROR_CODES:
         raise AuthenticationError(401, message)

@@ -1,16 +1,32 @@
+"""Unit tests for the Moodle tools; the Moodle web service is mocked throughout.
+
+A mock answers exactly as these tests specify, so a payload a real Moodle would reject still
+passes here — target-side validation and web service configuration errors are out of reach.
+"""
+
 import logging
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.plugins.moodle.schemas import Auth, CoursePayload, PagePayload, SectionPayload
+from sparkth.plugins.moodle.enums import QuestionType
+from sparkth.plugins.moodle.schemas import (
+    Auth,
+    CoursePayload,
+    PagePayload,
+    Question,
+    QuizPayload,
+    SectionPayload,
+)
 from sparkth.plugins.moodle.tools import (
     moodle_authenticate,
     moodle_create_course,
     moodle_create_page,
+    moodle_create_quiz,
     moodle_create_section,
     moodle_list_courses,
 )
@@ -32,11 +48,11 @@ def _client_returning(value: Any) -> AsyncMock:
 class TestMoodleAuthenticate:
     @pytest.mark.asyncio
     async def test_returns_the_site_and_user(self) -> None:
-        client = _client_returning({"sitename": "Sparkth Moodle Dev", "username": "author"})
+        client = _client_returning({"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3})
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
             result = await moodle_authenticate(AUTH)
 
-        assert result == {"sitename": "Sparkth Moodle Dev", "username": "author"}
+        assert result == {"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3}
         assert client.call_dict.call_args.args[0] == "core_webservice_get_site_info"
 
     @pytest.mark.asyncio
@@ -62,10 +78,16 @@ class TestMoodleAuthenticate:
         assert "core_webservice_get_site_info" in result["error"]["message"]
 
 
+def _course_client(course: dict[str, Any], enrol_result: dict[str, Any]) -> AsyncMock:
+    client = _client_returning([course])
+    client.call_dict = AsyncMock(return_value=enrol_result)
+    return client
+
+
 class TestMoodleCreateCourse:
     @pytest.mark.asyncio
     async def test_returns_the_created_course(self) -> None:
-        client = _client_returning([{"id": 4, "shortname": "intro"}])
+        client = _course_client({"id": 4, "shortname": "intro"}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(
             auth=AUTH,
             fullname="Intro",
@@ -77,11 +99,11 @@ class TestMoodleCreateCourse:
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
             result = await moodle_create_course(payload)
 
-        assert result == {"course": {"id": 4, "shortname": "intro"}}
+        assert result == {"course": {"id": 4, "shortname": "intro"}, "enrolled": True}
 
     @pytest.mark.asyncio
     async def test_sends_the_course_as_a_single_item_list(self) -> None:
-        client = _client_returning([{"id": 4}])
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(
             auth=AUTH,
             fullname="Intro",
@@ -101,7 +123,7 @@ class TestMoodleCreateCourse:
 
     @pytest.mark.asyncio
     async def test_omits_lang_when_left_at_the_default(self) -> None:
-        client = _client_returning([{"id": 4}])
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
             await moodle_create_course(payload)
@@ -111,7 +133,7 @@ class TestMoodleCreateCourse:
 
     @pytest.mark.asyncio
     async def test_passes_through_a_supplied_lang(self) -> None:
-        client = _client_returning([{"id": 4}])
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(
             auth=AUTH,
             fullname="Intro",
@@ -162,6 +184,36 @@ class TestMoodleCreateCourse:
 
         assert result["error"]["status_code"] == 502
         assert "core_course_create_courses" in result["error"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_calls_both_wsfunctions_in_order_and_enrols(self) -> None:
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
+        payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_course(payload)
+
+        assert result == {"course": {"id": 4}, "enrolled": True}
+        assert client.call_list.call_args.args[0] == "core_course_create_courses"
+        wsfunction, params = client.call_dict.call_args.args
+        assert wsfunction == "local_sparkth_enrol_creator"
+        assert params == {"courseid": 4}
+
+    @pytest.mark.asyncio
+    async def test_still_returns_the_course_when_enrolment_raises(self, caplog: pytest.LogCaptureFixture) -> None:
+        client = _client_returning([{"id": 4}])
+        client.call_dict = AsyncMock(
+            side_effect=LMSRequestError(Method.POST, "local_sparkth_enrol_creator", 400, "Can not find data record.")
+        )
+        payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
+        with (
+            caplog.at_level(logging.WARNING, logger=_LOGGER),
+            patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client),
+        ):
+            result = await moodle_create_course(payload)
+
+        assert result == {"course": {"id": 4}, "enrolled": False}
+        assert "error" not in result
+        assert "local_sparkth_enrol_creator" in caplog.text
 
 
 class TestMoodleListCourses:
@@ -222,6 +274,19 @@ class TestMoodleCreateSection:
         assert wsfunction == "local_sparkth_create_section"
         assert params == {"courseid": 4, "name": "Module 1", "summary": "<p>i</p>"}
 
+    @pytest.mark.asyncio
+    async def test_a_malformed_response_becomes_an_error_dict_with_a_status_code(self) -> None:
+        client = _client_returning(None)
+        client.call_dict = AsyncMock(
+            side_effect=ValueError("Expected JSON object from local_sparkth_create_section, got list")
+        )
+        payload = SectionPayload(auth=AUTH, courseid=4, name="Module 1", summary="<p>i</p>")
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_section(payload)
+
+        assert result["error"]["status_code"] == 502
+        assert "local_sparkth_create_section" in result["error"]["message"]
+
 
 class TestMoodleCreatePage:
     @pytest.mark.asyncio
@@ -267,3 +332,54 @@ class TestMoodleCreatePage:
 
         assert result["error"]["status_code"] == 400
         assert "external_functions" in result["error"]["message"]
+
+
+def _quiz_payload() -> QuizPayload:
+    return QuizPayload(
+        auth=AUTH,
+        courseid=4,
+        sectionnum=1,
+        name="Section Quiz",
+        intro="<p>Check.</p>",
+        questions=[
+            Question(
+                qtype=QuestionType.MULTICHOICE,
+                name="Q1",
+                questiontext="<p>What is 2+2?</p>",
+                answers=["3", "4"],
+                correctindex=1,
+            ),
+            Question(
+                qtype=QuestionType.TRUEFALSE,
+                name="Q2",
+                questiontext="<p>The sky is blue.</p>",
+                correcttrue=True,
+            ),
+        ],
+    )
+
+
+class TestMoodleCreateQuiz:
+    @pytest.mark.asyncio
+    async def test_returns_the_created_quiz(self) -> None:
+        client = _client_returning({"cmid": 11, "instanceid": 3, "questioncount": 2})
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_quiz(_quiz_payload())
+
+        assert result == {"cmid": 11, "instanceid": 3, "questioncount": 2}
+
+    @pytest.mark.asyncio
+    async def test_questions_are_sent_as_plain_dicts(self) -> None:
+        client = _client_returning({"cmid": 11, "instanceid": 3, "questioncount": 2})
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            await moodle_create_quiz(_quiz_payload())
+
+        wsfunction, params = client.call_dict.call_args.args
+        assert wsfunction == "local_sparkth_create_quiz"
+        assert params["questions"][0]["qtype"] == "multichoice"
+        assert params["questions"][0]["answers"] == ["3", "4"]
+        assert params["questions"][1]["qtype"] == "truefalse"
+
+    def test_an_unsupported_question_type_is_rejected_at_the_boundary(self) -> None:
+        with pytest.raises(ValidationError):
+            Question.model_validate({"qtype": "essay", "name": "E", "questiontext": "<p>Discuss.</p>"})
