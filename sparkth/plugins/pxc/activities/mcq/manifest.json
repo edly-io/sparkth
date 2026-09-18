@@ -1,0 +1,84 @@
+{
+  "name": "mcq",
+  "fields": {
+    "question": {
+      "type": "string",
+      "scope": "activity",
+      "default": ""
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "scope": "activity",
+      "default": []
+    },
+    "correct_answers": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "scope": "activity",
+      "default": []
+    }
+  },
+  "actions": {
+    "config.save": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "correct_answers": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "answer.submit": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    }
+  },
+  "events": {
+    "answer.result": {
+      "type": "object",
+      "properties": {
+        "correct": {
+          "type": "boolean"
+        },
+        "feedback": {
+          "type": "string"
+        }
+      }
+    },
+    "fields.change.question": {
+      "type": "string"
+    },
+    "fields.change.answers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fields.change.correct_answers": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    }
+  },
+  "ui": "ui.js",
+  "sandbox": "sandbox.wasm"
+}

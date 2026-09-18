@@ -33,6 +33,10 @@ tests/
 frontend/node_modules
 frontend/.next
 frontend/out
-node_modules/
+# PXC sample activity build products (D2: built at build time, never committed)
+sparkth/plugins/pxc/activities/*/node_modules
+sparkth/plugins/pxc/activities/*/sandbox.bundle.js
+sparkth/plugins/pxc/activities/*/sandbox.wasm
+sparkth/plugins/pxc/activities/*/sandbox.wasm.bin
 # Repo tooling
 .claude
