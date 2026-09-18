@@ -174,7 +174,9 @@ async def chat_completion(
         # plain sequential loop with no per-task isolation, and analytics emits propagate
         # their failures by design, so an emit queued first would let an analytics outage
         # silently cost the conversation its title. Keep analytics last in this queue.
-        turn_analytics.schedule_conversation_started()
+        # Timed by the row, not by this call: this task runs only after the response has
+        # completed, which for a streamed turn is after the whole stream.
+        turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
     if request.document_ids:
         await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
@@ -187,6 +189,7 @@ async def chat_completion(
         turn_analytics.schedule_message_sent(
             message_length=len(stored.content),
             has_attachment=stored.message_type == "attachment",
+            occurred_at=stored.created_at,
         )
 
     db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
@@ -297,7 +300,7 @@ async def chat_completion(
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
             tool_calls = response.get("tool_calls")
 
-            await service.add_message(
+            assistant_message = await service.add_message(
                 session=session,
                 conversation_id=conversation_id,
                 role="assistant",
@@ -315,6 +318,7 @@ async def chat_completion(
                 rag_used=rag_search_required,
                 streamed=False,
                 executed_tools=tool_names(executions),
+                occurred_at=assistant_message.created_at,
             )
 
             return ChatCompletionResponse(

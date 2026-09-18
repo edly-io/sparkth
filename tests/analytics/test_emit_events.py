@@ -10,6 +10,7 @@ events belonging to it.
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import patch
 
@@ -106,3 +107,25 @@ async def test_a_failure_part_way_lands_nothing(analytics_session: AsyncSession)
         )
 
     assert await _landed(analytics_session) == []
+
+
+async def test_each_event_keeps_its_own_occurred_at(analytics_session: AsyncSession) -> None:
+    """A group is landed together but did not happen together.
+
+    A chat completion and the tools it ran share a moment today, but nothing about
+    batching should force that — the group shares a transaction, not a timestamp.
+    """
+    first = datetime(2026, 9, 18, 9, 0, tzinfo=timezone.utc)
+    second = datetime(2026, 9, 18, 9, 5, tzinfo=timezone.utc)
+
+    await emit_events(
+        [
+            PendingEvent(event_type="user.logged_in", version=1, payload={"username": "a"}, occurred_at=first),
+            PendingEvent(event_type="user.logged_in", version=1, payload={"username": "b"}, occurred_at=second),
+        ]
+    )
+
+    landed = await _landed(analytics_session)
+    stored = [row["occurred_at"] for row in landed]
+    stored = [value if value.tzinfo else value.replace(tzinfo=timezone.utc) for value in stored]
+    assert stored == [first, second]

@@ -15,6 +15,7 @@ Plugins:
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sparkth.core.analytics import ANALYTICS_EVENTS, get_event_schema
@@ -57,6 +58,7 @@ async def emit_event(
     version: int,
     payload: dict[str, Any],
     actor_id: str | None = None,
+    occurred_at: datetime | None = None,
 ) -> None:
     """Validate and land an analytics event, propagating any failure.
 
@@ -78,6 +80,11 @@ async def emit_event(
         version: The schema version, e.g. ``1``.
         payload: The event body, validated against the registered schema.
         actor_id: The acting user's id as a string, stored for provenance.
+        occurred_at: When the event happened — producers emit from background
+            tasks that run after the response, so a turn's events would otherwise
+            all be stamped at the end of it and lose their order. Pass the
+            moment the thing being recorded actually happened. Defaults to now,
+            which is only right for an event emitted where it happened.
 
     Raises:
         UnknownEventTypeError: No schema is registered for this type and version.
@@ -85,21 +92,23 @@ async def emit_event(
         SQLAlchemyError: The analytics database could not be reached or written.
     """
     async with analytics_session_scope() as session:
-        await ingest_event(session, event_type, version, payload, actor_id=actor_id)
+        await ingest_event(session, event_type, version, payload, actor_id=actor_id, occurred_at=occurred_at)
 
 
 @dataclass(frozen=True)
 class PendingEvent:
     """One event waiting to be landed, for :func:`emit_events`.
 
-    The same four values :func:`emit_event` takes, bundled so a caller can hand over
-    a group at once.
+    The same values :func:`emit_event` takes, bundled so a caller can hand over a group
+    at once. ``occurred_at`` is per-event rather than per-group: events landed together
+    did not necessarily happen together.
     """
 
     event_type: str
     version: int
     payload: dict[str, Any]
     actor_id: str | None = None
+    occurred_at: datetime | None = None
 
 
 async def emit_events(events: Sequence[PendingEvent]) -> None:
@@ -139,6 +148,7 @@ async def emit_events(events: Sequence[PendingEvent]) -> None:
                 event.version,
                 event.payload,
                 actor_id=event.actor_id,
+                occurred_at=event.occurred_at,
                 commit=False,
             )
         await session.commit()

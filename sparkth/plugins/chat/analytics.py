@@ -10,19 +10,14 @@ Payloads carry identifiers, lengths, flags and names only. No message content,
 conversation title, prompt, tool argument, or tool output ever enters an analytics
 payload.
 
-Known gaps
-----------
+Every event carries ``occurred_at`` — when the thing happened, taken from the row that
+records it — while ``received_at`` is stamped by the database when the row lands. The two
+differ by however long the emission took, which for a streamed turn is the length of the
+stream, so order these events by ``occurred_at`` and read ``received_at`` only as a measure
+of that lag.
 
-Two deliberate limitations of the producer seams, recorded here so consumers do not
-read more into these rows than they carry:
-
-**Ordering.** ``occurred_at`` is stamped when the row is written, not when the seam
-fires. The route's events run as Starlette background tasks after the response has
-completed, while the streaming completion event is awaited inside the stream's
-detached task — so on a streamed turn ``chat.completion_served`` is timestamped
-*before* the ``chat.conversation_started`` and ``chat.message_sent`` of that same
-turn, skewed by the duration of the stream. Consumers must not infer per-turn
-ordering from ``occurred_at``.
+Known gap
+---------
 
 **Dropped events.** Events queued on ``background_tasks`` are discarded when the
 route raises — the 502 and 500 handlers — and a client disconnecting mid-stream
@@ -32,6 +27,7 @@ these counts are lower bounds: failed turns are systematically under-counted.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from fastapi import BackgroundTasks
@@ -179,7 +175,7 @@ def tool_names(records: list[dict[str, Any]]) -> list[str]:
     return names
 
 
-async def _emit(event: AnalyticsEventSchema, actor_id: str) -> None:
+async def _emit(event: AnalyticsEventSchema, actor_id: str, occurred_at: datetime) -> None:
     """Hand one already-constructed event to the emission primitive.
 
     The payload is dumped from the event rather than hand-listed at each call site,
@@ -187,12 +183,23 @@ async def _emit(event: AnalyticsEventSchema, actor_id: str) -> None:
     fails type-checking instead of the analytics write failing at runtime. The
     ``event_type``/``version`` identity travels with the instance for the same reason.
     ``ClassVar`` keeps both out of the dumped payload.
+
+    ``occurred_at`` is required rather than defaulted as defaulting
+    to now would stamp a whole turn's events at the end of it and lose their order.
     """
-    await emit_event(event.event_type, event.version, event.model_dump(mode="json"), actor_id=actor_id)
+    await emit_event(
+        event.event_type,
+        event.version,
+        event.model_dump(mode="json"),
+        actor_id=actor_id,
+        occurred_at=occurred_at,
+    )
 
 
-async def emit_conversation_started(conversation_id: str, provider: str, model: str, actor_id: str) -> None:
-    """Emit ``chat.conversation_started``."""
+async def emit_conversation_started(
+    conversation_id: str, provider: str, model: str, actor_id: str, occurred_at: datetime
+) -> None:
+    """Emit ``chat.conversation_started``, timed by when the conversation row was created."""
     await _emit(
         ChatConversationStarted(
             conversation_id=conversation_id,
@@ -200,6 +207,7 @@ async def emit_conversation_started(conversation_id: str, provider: str, model: 
             model=model,
         ),
         actor_id,
+        occurred_at,
     )
 
 
@@ -210,8 +218,9 @@ async def emit_message_sent(
     message_length: int,
     has_attachment: bool,
     actor_id: str,
+    occurred_at: datetime,
 ) -> None:
-    """Emit ``chat.message_sent`` for one instructor turn."""
+    """Emit ``chat.message_sent`` for one instructor turn, timed by when it was stored."""
     await _emit(
         ChatMessageSent(
             conversation_id=conversation_id,
@@ -221,6 +230,7 @@ async def emit_message_sent(
             has_attachment=has_attachment,
         ),
         actor_id,
+        occurred_at,
     )
 
 
@@ -231,6 +241,7 @@ async def emit_completion(
     rag_used: bool,
     streamed: bool,
     executed_tools: list[str],
+    occurred_at: datetime,
 ) -> None:
     """Emit one completion and one ``chat.tool_invoked`` per tool it executed.
 
@@ -268,6 +279,7 @@ async def emit_completion(
                 version=event.version,
                 payload=event.model_dump(mode="json"),
                 actor_id=attribution.actor_id,
+                occurred_at=occurred_at,
             )
             for event in events
         ]
@@ -302,7 +314,7 @@ class ChatTurnAnalytics:
     model: str
     actor_id: str
 
-    def schedule_conversation_started(self) -> None:
+    def schedule_conversation_started(self, *, occurred_at: datetime) -> None:
         """Queue ``chat.conversation_started`` — the create branch only.
 
         A conversation resolved by uuid has already been started, and re-emitting
@@ -314,9 +326,10 @@ class ChatTurnAnalytics:
             provider=self.provider,
             model=self.model,
             actor_id=self.actor_id,
+            occurred_at=occurred_at,
         )
 
-    def schedule_message_sent(self, *, message_length: int, has_attachment: bool) -> None:
+    def schedule_message_sent(self, *, message_length: int, has_attachment: bool, occurred_at: datetime) -> None:
         """Queue ``chat.message_sent`` for one instructor turn."""
         self.background_tasks.add_task(
             emit_message_sent,
@@ -326,9 +339,12 @@ class ChatTurnAnalytics:
             message_length=message_length,
             has_attachment=has_attachment,
             actor_id=self.actor_id,
+            occurred_at=occurred_at,
         )
 
-    def schedule_completion(self, *, rag_used: bool, streamed: bool, executed_tools: list[str]) -> None:
+    def schedule_completion(
+        self, *, rag_used: bool, streamed: bool, executed_tools: list[str], occurred_at: datetime
+    ) -> None:
         """Queue the completion and its tool events as one task.
 
         One task, not one per event: they land through a single analytics session,
@@ -342,6 +358,7 @@ class ChatTurnAnalytics:
             rag_used=rag_used,
             streamed=streamed,
             executed_tools=executed_tools,
+            occurred_at=occurred_at,
         )
 
     @property
