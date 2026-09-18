@@ -41,6 +41,13 @@ class MoodlePlugin(SparkthPlugin):
                     moodle_tools.moodle_create_course,
                 ],
             ),
+            (
+                "moodle-content",
+                [
+                    moodle_tools.moodle_create_section,
+                    moodle_tools.moodle_create_page,
+                ],
+            ),
         ]
         for category, handlers in tools_per_category:
             MCP_TOOLS.add_items(self, [Tool(handler, category=category) for handler in handlers])
