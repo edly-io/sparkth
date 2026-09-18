@@ -41,8 +41,8 @@ class ContentContributor:
     back to an agent choosing a contributor.
 
     ``builders`` is keyed by the publishing plugin's own name, so its keys are the LMSes this
-    contributor targets. Each is awaited with the destination course id and reports its own
-    failures.
+    contributor targets. Each is awaited with the destination course id and reports a failure
+    to build by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
     """
 
     name: str
