@@ -12,6 +12,10 @@ and (on PostgreSQL) ``TRUNCATE`` on the table. The statements run from the
 table's ``after_create`` event, so ``create_all`` (the test database) and
 the Alembic migration that installs them on existing databases share one
 definition.
+
+Two maintenance operations are allowed past the guard, and only for the
+duration of their own transaction (:data:`APPEND_ONLY_UNLOCK_DDL`): the
+retention purge and GDPR erasure in :mod:`sparkth.core.audit.maintenance`.
 """
 
 from datetime import datetime
@@ -40,7 +44,11 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
 
     ``canonical_bytes`` holds the pinned canonical serialization of the event
     (see :mod:`sparkth.core.audit.canonical`) so the tamper-evidence sealer can
-    later hash exactly what was written, byte for byte.
+    later hash exactly what was written, byte for byte. The seal deliberately
+    leaves out ``actor_label``, ``request_ip`` and ``user_agent``: they are the
+    personal data a GDPR erasure blanks (``actor_id`` stays, as a pseudonym
+    that only the ``user`` table can resolve), and they must be erasable
+    without touching the sealed content.
     """
 
     __tablename__ = "audit_events"
@@ -127,7 +135,7 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
                 "event_type": event.event_type,
                 "occurred_at": occurred_at.isoformat(),
                 "source": context.source.value,
-                "actor": {"type": actor.type.value, "id": actor.id, "label": actor.label},
+                "actor": {"type": actor.type.value, "id": actor.id},
                 "outcome": event.outcome.value,
                 "target": {
                     "type": target.type if target is not None else None,
@@ -176,16 +184,27 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
 APPEND_ONLY_MESSAGE = "audit_events is append-only"
 
 # Per dialect: the statements that make the table append-only, run by ``create_all``
-# on a fresh database. Migration a282a83eec61 carries its own frozen copy for existing
-# databases; a change here needs a new migration. SQLite has no TRUNCATE; its
-# truncate optimization is disabled by the presence of a DELETE trigger, so a
-# bare ``DELETE FROM audit_events`` is caught row by row.
-# ponytail: triggers, not role separation; a retention job (#507) will need a
-# privileged path (SECURITY DEFINER function or a role that may disable them).
+# on a fresh database. Migrations a282a83eec61 and its successor carry their own
+# frozen copies for existing databases; a change here needs a new migration. SQLite
+# has no TRUNCATE; its truncate optimization is disabled by the presence of a DELETE
+# trigger, so a bare ``DELETE FROM audit_events`` is caught row by row.
+# On PostgreSQL the row trigger stands down while the transaction-local setting
+# ``sparkth.audit_maintenance`` is on (see APPEND_ONLY_UNLOCK_DDL); TRUNCATE is
+# never allowed.
+# ponytail: triggers plus a session flag, not role separation. The guard stops the
+# application, a SQL injection, and accidents; anyone holding the database owner
+# credentials could drop the triggers anyway. Add a separate maintenance role if
+# the app credentials must be unable to purge.
 APPEND_ONLY_DDL: dict[str, list[str]] = {
     "postgresql": [
         f"""CREATE OR REPLACE FUNCTION audit_events_append_only() RETURNS trigger AS $$
 BEGIN
+    IF TG_OP <> 'TRUNCATE' AND current_setting('sparkth.audit_maintenance', true) = 'on' THEN
+        IF TG_OP = 'DELETE' THEN
+            RETURN OLD;
+        END IF;
+        RETURN NEW;
+    END IF;
     RAISE EXCEPTION '{APPEND_ONLY_MESSAGE}' USING ERRCODE = 'restrict_violation';
 END;
 $$ LANGUAGE plpgsql""",
@@ -202,6 +221,20 @@ BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
         f"""CREATE TRIGGER audit_events_no_delete BEFORE DELETE ON audit_events
 BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
     ],
+}
+
+
+# Per dialect: how a maintenance transaction gets past the guard, and how it re-arms
+# it. PostgreSQL flips a transaction-local setting (SET LOCAL ends with the
+# transaction, so nothing to undo); SQLite (tests only) has no session settings, so
+# the update/delete triggers are dropped and recreated instead.
+APPEND_ONLY_UNLOCK_DDL: dict[str, list[str]] = {
+    "postgresql": ["SET LOCAL sparkth.audit_maintenance = 'on'"],
+    "sqlite": ["DROP TRIGGER audit_events_no_update", "DROP TRIGGER audit_events_no_delete"],
+}
+APPEND_ONLY_RELOCK_DDL: dict[str, list[str]] = {
+    "postgresql": [],
+    "sqlite": APPEND_ONLY_DDL["sqlite"],
 }
 
 

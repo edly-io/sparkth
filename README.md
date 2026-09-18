@@ -234,6 +234,19 @@ migration `a282a83eec61` on existing databases) reject `UPDATE`, `DELETE`, and `
 `audit_events`, so corrections are new events and no code path holding the application's database
 credentials can rewrite history.
 
+Two maintenance operations are allowed past that guard, each inside its own transaction and each
+leaving an audit event of its own behind (`make cli -- audit --help`):
+
+- **Retention** (`audit purge`): deletes events older than their category's window,
+  `AUDIT_RETENTION_DAYS` by default and `AUDIT_RETENTION_OVERRIDES` per category (0 keeps a category
+  forever). There is no built-in scheduler; run it from cron.
+- **Erasure** (`audit erase-user <id>`): honours a GDPR Art. 17 request without deleting anything.
+  It blanks the personal-data columns kept outside the sealed canonical bytes (`actor_label`,
+  `request_ip`, `user_agent`) on that user's events; the pseudonymous `actor_id` and the sealed
+  content stay, so the trail keeps its shape and, once the account is gone, points at nobody.
+  Capture sites must therefore never put the actor's own identity (username, email, name, IP) into
+  a sealed payload: the actor is `actor_id`, and the label column carries the display name.
+
 ## Analytics Event Schemas
 
 Analytics events are validated against **versioned schemas** before they are stored. Each

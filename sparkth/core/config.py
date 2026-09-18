@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     # means X-Forwarded-For is ignored entirely (the header is client-forgeable)
     # and the socket peer address is used, e.g. for the audit trail's request_ip.
     TRUSTED_PROXY_HOPS: int = 0
+    # Audit retention (NIST AU-11): how many days audit events are kept before the
+    # `audit purge` CLI command deletes them, by default and per event category
+    # (the part of the event type before the dot, e.g. {"tool": 365}). 0 keeps a
+    # category forever. Retention is the only sanctioned deletion of audit rows.
+    AUDIT_RETENTION_DAYS: int = 3 * 365
+    AUDIT_RETENTION_OVERRIDES: dict[str, int] = {}
     # The platform-wide language preference: what applies to a user who has not
     # picked one, and the value reported as the default to clients.
     # Must be a key of SUPPORTED_LANGUAGES; validated below so an unsupported value

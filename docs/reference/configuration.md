@@ -64,3 +64,25 @@ any request (background tasks, CLI). See the [translations guide](../guides/tran
 This governs interface text only. The language of AI-generated replies and course content
 is inferred from the conversation and is not constrained by this setting or by the
 supported-languages list.
+
+## Audit trail
+
+### `AUDIT_RETENTION_DAYS`
+
+- Type: `integer (days)`
+- Default: `1095` (three years)
+
+How long audit events are kept before `make cli -- audit purge` deletes them. Applies to every
+event category without an entry in `AUDIT_RETENTION_OVERRIDES`. `0` keeps events forever. The
+purge is the only sanctioned deletion of audit events and has no built-in scheduler: run it from
+cron. Regulatory floors to respect before shortening it: the EU AI Act asks for at least six
+months of AI-action logs, US Title IV audits for three years or more.
+
+### `AUDIT_RETENTION_OVERRIDES`
+
+- Type: `JSON object, category to days`
+- Default: `{}`
+
+Per-category retention windows, keyed by the part of the event type before the dot (`tool`,
+`auth`, `rag`, ...). `{"tool": 365, "auth": 0}` keeps AI tool executions for a year and
+authentication events forever, everything else for `AUDIT_RETENTION_DAYS`.
