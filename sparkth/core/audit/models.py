@@ -5,13 +5,20 @@ They are never updated or deleted by application code: corrections are new
 events, and the model deliberately does not subclass ``SoftDeleteModel``.
 Writes go through :func:`sparkth.lib.audit.record_event`, never direct ORM
 inserts, so redaction and canonicalization cannot be skipped.
+
+The convention is enforced by the database too (NIST AU-9, 21 CFR 11.10(e)):
+:data:`APPEND_ONLY_DDL` installs triggers that reject ``UPDATE``, ``DELETE``,
+and (on PostgreSQL) ``TRUNCATE`` on the table. The statements run from the
+table's ``after_create`` event, so ``create_all`` (the test database) and
+the Alembic migration that installs them on existing databases share one
+definition.
 """
 
 from datetime import datetime
 from typing import Any
 
 from pydantic import ConfigDict
-from sqlalchemy import JSON, Column, DateTime, LargeBinary, Text
+from sqlalchemy import JSON, Column, Connection, DateTime, LargeBinary, Text, event, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -164,3 +171,42 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
             purpose=purpose,
             canonical_bytes=canonical_bytes,
         )
+
+
+APPEND_ONLY_MESSAGE = "audit_events is append-only"
+
+# Per dialect: the statements that make the table append-only, run by ``create_all``
+# on a fresh database. Migration a282a83eec61 carries its own frozen copy for existing
+# databases; a change here needs a new migration. SQLite has no TRUNCATE; its
+# truncate optimization is disabled by the presence of a DELETE trigger, so a
+# bare ``DELETE FROM audit_events`` is caught row by row.
+# ponytail: triggers, not role separation; a retention job (#507) will need a
+# privileged path (SECURITY DEFINER function or a role that may disable them).
+APPEND_ONLY_DDL: dict[str, list[str]] = {
+    "postgresql": [
+        f"""CREATE OR REPLACE FUNCTION audit_events_append_only() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION '{APPEND_ONLY_MESSAGE}' USING ERRCODE = 'restrict_violation';
+END;
+$$ LANGUAGE plpgsql""",
+        """CREATE TRIGGER audit_events_no_update_delete
+BEFORE UPDATE OR DELETE ON audit_events
+FOR EACH ROW EXECUTE FUNCTION audit_events_append_only()""",
+        """CREATE TRIGGER audit_events_no_truncate
+BEFORE TRUNCATE ON audit_events
+FOR EACH STATEMENT EXECUTE FUNCTION audit_events_append_only()""",
+    ],
+    "sqlite": [
+        f"""CREATE TRIGGER audit_events_no_update BEFORE UPDATE ON audit_events
+BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
+        f"""CREATE TRIGGER audit_events_no_delete BEFORE DELETE ON audit_events
+BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
+    ],
+}
+
+
+@event.listens_for(SQLModel.metadata.tables[AuditEvent.__tablename__], "after_create")
+def _install_append_only_triggers(target: object, connection: Connection, **kw: object) -> None:
+    """Run the dialect's :data:`APPEND_ONLY_DDL` right after the table is created."""
+    for statement in APPEND_ONLY_DDL.get(connection.dialect.name, []):
+        connection.execute(text(statement))

@@ -229,6 +229,10 @@ mutating or AI action whose audit record cannot be written does not proceed. Eve
 execution, on every surface (the MCP server, chat, RAG), is recorded as a `tool.invoked` event
 committed before the handler runs plus a `tool.completed` or `tool.failed` outcome event, with
 redacted arguments and the model identity that drove the call.
+The table is append-only at the database level too: triggers installed with the table (and by
+migration `a282a83eec61` on existing databases) reject `UPDATE`, `DELETE`, and `TRUNCATE` on
+`audit_events`, so corrections are new events and no code path holding the application's database
+credentials can rewrite history.
 
 ## Analytics Event Schemas
 
