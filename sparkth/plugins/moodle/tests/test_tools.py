@@ -72,10 +72,16 @@ class TestMoodleAuthenticate:
         assert "core_webservice_get_site_info" in result["error"]["message"]
 
 
+def _course_client(course: dict[str, Any], enrol_result: dict[str, Any]) -> AsyncMock:
+    client = _client_returning([course])
+    client.call_dict = AsyncMock(return_value=enrol_result)
+    return client
+
+
 class TestMoodleCreateCourse:
     @pytest.mark.asyncio
     async def test_returns_the_created_course(self) -> None:
-        client = _client_returning([{"id": 4, "shortname": "intro"}])
+        client = _course_client({"id": 4, "shortname": "intro"}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(
             auth=AUTH,
             fullname="Intro",
@@ -87,11 +93,11 @@ class TestMoodleCreateCourse:
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
             result = await moodle_create_course(payload)
 
-        assert result == {"course": {"id": 4, "shortname": "intro"}}
+        assert result == {"course": {"id": 4, "shortname": "intro"}, "enrolled": True}
 
     @pytest.mark.asyncio
     async def test_sends_the_course_as_a_single_item_list(self) -> None:
-        client = _client_returning([{"id": 4}])
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(
             auth=AUTH,
             fullname="Intro",
@@ -111,7 +117,7 @@ class TestMoodleCreateCourse:
 
     @pytest.mark.asyncio
     async def test_omits_lang_when_left_at_the_default(self) -> None:
-        client = _client_returning([{"id": 4}])
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
             await moodle_create_course(payload)
@@ -121,7 +127,7 @@ class TestMoodleCreateCourse:
 
     @pytest.mark.asyncio
     async def test_passes_through_a_supplied_lang(self) -> None:
-        client = _client_returning([{"id": 4}])
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
         payload = CoursePayload(
             auth=AUTH,
             fullname="Intro",
@@ -172,6 +178,36 @@ class TestMoodleCreateCourse:
 
         assert result["error"]["status_code"] == 502
         assert "core_course_create_courses" in result["error"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_calls_both_wsfunctions_in_order_and_enrols(self) -> None:
+        client = _course_client({"id": 4}, {"enrolled": True, "roleid": 3})
+        payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_course(payload)
+
+        assert result == {"course": {"id": 4}, "enrolled": True}
+        assert client.call_list.call_args.args[0] == "core_course_create_courses"
+        wsfunction, params = client.call_dict.call_args.args
+        assert wsfunction == "local_sparkth_enrol_creator"
+        assert params == {"courseid": 4}
+
+    @pytest.mark.asyncio
+    async def test_still_returns_the_course_when_enrolment_raises(self, caplog: pytest.LogCaptureFixture) -> None:
+        client = _client_returning([{"id": 4}])
+        client.call_dict = AsyncMock(
+            side_effect=LMSRequestError(Method.POST, "local_sparkth_enrol_creator", 400, "Can not find data record.")
+        )
+        payload = CoursePayload(auth=AUTH, fullname="Intro", shortname="intro", categoryid=1)
+        with (
+            caplog.at_level(logging.WARNING, logger=_LOGGER),
+            patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client),
+        ):
+            result = await moodle_create_course(payload)
+
+        assert result == {"course": {"id": 4}, "enrolled": False}
+        assert "error" not in result
+        assert "local_sparkth_enrol_creator" in caplog.text
 
 
 class TestMoodleListCourses:
