@@ -55,10 +55,10 @@ async def moodle_authenticate(auth: Auth) -> dict[str, Any]:
 async def moodle_list_courses(auth: Auth) -> dict[str, Any]:
     """List the courses the token's user is enrolled in, to pick an existing one to add to.
 
-    Creating a course over web services does not enrol the creator, so a course just
-    created by ``moodle_create_course`` will NOT appear here. To add content to a course
-    you created, use the ``id`` returned by ``moodle_create_course`` — never look it up
-    with this tool.
+    ``moodle_create_course`` enrols its caller as the new course's creator, so a course
+    it just created normally appears here too. To add content to a course you just
+    created, use the ``id`` returned by ``moodle_create_course`` directly rather than
+    looking it up with this tool.
     """
     wsfunction = "core_webservice_get_site_info"
     try:
@@ -74,11 +74,33 @@ async def moodle_list_courses(auth: Auth) -> dict[str, Any]:
         return _malformed_response_error(e, wsfunction)
 
 
+async def _enrol_creator(client: MoodleClient, wsfunction: str, courseid: int) -> bool:
+    """Enrol the token's user into a just-created course; a failure here never fails it.
+
+    The course already exists by the time this runs, so an enrolment failure is
+    logged and reported through the return value rather than raised.
+    """
+    try:
+        result = await client.call_dict(wsfunction, {"courseid": courseid})
+        return bool(result.get("enrolled", False))
+    except (LMSRequestError, AuthenticationError) as e:
+        _lms_error(e, wsfunction)
+        return False
+    except ValueError as e:
+        _malformed_response_error(e, wsfunction)
+        return False
+
+
 async def moodle_create_course(payload: CoursePayload) -> dict[str, Any]:
-    """Create a new course on Moodle.
+    """Create a new course on Moodle and enrol the token's user as its creator.
 
     Sections are not pre-allocated here: ``numsections`` is deliberately unset so
     that ``moodle_create_section`` is the only thing that creates sections.
+
+    Creating a course over web services does not enrol the creator, unlike Moodle's
+    own UI, so the local_sparkth companion plugin is called immediately after to
+    enrol the token's user. See ``_enrol_creator`` for why that call cannot fail
+    course creation.
     """
     wsfunction = "core_course_create_courses"
     course = {
@@ -93,7 +115,10 @@ async def moodle_create_course(payload: CoursePayload) -> dict[str, Any]:
     try:
         async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
             created = await client.call_list(wsfunction, {"courses": [course]})
-        return {"course": created[0]}
+            course_data = created[0]
+            wsfunction = "local_sparkth_enrol_creator"
+            enrolled = await _enrol_creator(client, wsfunction, course_data["id"])
+        return {"course": course_data, "enrolled": enrolled}
     except (LMSRequestError, AuthenticationError) as e:
         return _lms_error(e, wsfunction)
     except (ValueError, IndexError, KeyError) as e:
