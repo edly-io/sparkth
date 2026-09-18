@@ -3,14 +3,24 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.plugins.moodle.schemas import Auth, CoursePayload, PagePayload, SectionPayload
+from sparkth.plugins.moodle.enums import QuestionType
+from sparkth.plugins.moodle.schemas import (
+    Auth,
+    CoursePayload,
+    PagePayload,
+    Question,
+    QuizPayload,
+    SectionPayload,
+)
 from sparkth.plugins.moodle.tools import (
     moodle_authenticate,
     moodle_create_course,
     moodle_create_page,
+    moodle_create_quiz,
     moodle_create_section,
     moodle_list_courses,
 )
@@ -267,3 +277,54 @@ class TestMoodleCreatePage:
 
         assert result["error"]["status_code"] == 400
         assert "external_functions" in result["error"]["message"]
+
+
+def _quiz_payload() -> QuizPayload:
+    return QuizPayload(
+        auth=AUTH,
+        courseid=4,
+        sectionnum=1,
+        name="Section Quiz",
+        intro="<p>Check.</p>",
+        questions=[
+            Question(
+                qtype=QuestionType.MULTICHOICE,
+                name="Q1",
+                questiontext="<p>What is 2+2?</p>",
+                answers=["3", "4"],
+                correctindex=1,
+            ),
+            Question(
+                qtype=QuestionType.TRUEFALSE,
+                name="Q2",
+                questiontext="<p>The sky is blue.</p>",
+                correcttrue=True,
+            ),
+        ],
+    )
+
+
+class TestMoodleCreateQuiz:
+    @pytest.mark.asyncio
+    async def test_returns_the_created_quiz(self) -> None:
+        client = _client_returning({"cmid": 11, "instanceid": 3, "questioncount": 2})
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_quiz(_quiz_payload())
+
+        assert result == {"cmid": 11, "instanceid": 3, "questioncount": 2}
+
+    @pytest.mark.asyncio
+    async def test_questions_are_sent_as_plain_dicts(self) -> None:
+        client = _client_returning({"cmid": 11, "instanceid": 3, "questioncount": 2})
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            await moodle_create_quiz(_quiz_payload())
+
+        wsfunction, params = client.call_dict.call_args.args
+        assert wsfunction == "local_sparkth_create_quiz"
+        assert params["questions"][0]["qtype"] == "multichoice"
+        assert params["questions"][0]["answers"] == ["3", "4"]
+        assert params["questions"][1]["qtype"] == "truefalse"
+
+    def test_an_unsupported_question_type_is_rejected_at_the_boundary(self) -> None:
+        with pytest.raises(ValidationError):
+            Question(qtype="essay", name="E", questiontext="<p>Discuss.</p>")  # type: ignore[arg-type]

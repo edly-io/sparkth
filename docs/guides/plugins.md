@@ -392,11 +392,34 @@ creates its per-language catalogs, and so on); the containment is enforced by
 PLUGINS = [
     "sparkth.plugins.canvas.plugin:CanvasPlugin",
     "sparkth.plugins.openedx.plugin:OpenEdxPlugin",
+    "sparkth.plugins.moodle.plugin:MoodlePlugin",
     # add your plugin here
 ]
 ```
 
 Format: `"path.to.module:ClassName"`
+
+### Moodle: target-site prerequisites
+
+The Moodle plugin's course, page and quiz tools call web service functions on the target
+Moodle, not on Sparkth, so a misconfigured Moodle fails in a way that otherwise reads as a
+Sparkth bug. Before pointing the plugin at a Moodle site:
+
+- Install the `local_sparkth` companion plugin, which adds the `local_sparkth_create_section`,
+  `local_sparkth_create_page` and `local_sparkth_create_quiz` functions the tools depend on.
+- Expose those three functions, plus `core_webservice_get_site_info`,
+  `core_enrol_get_users_courses` and `core_course_create_courses`, on an external service (e.g.
+  "Sparkth publishing") and mint a token for the authoring user against it.
+- That service is declared `restrictedusers => 1`, so a token alone is not enough: an admin
+  must explicitly authorise the token's user on the service in Moodle's admin UI. Skipping this
+  step is the most likely first-install failure — every call returns an `accessexception`.
+- On Moodle 5.x, `local_sparkth_create_quiz` creates questions in a `Sparkth question bank` that
+  the companion creates for itself, not the course's default question bank, so authored
+  questions will not appear there.
+
+See `sparkth/plugins/moodle/tests/test_live_moodle.py` for an opt-in end-to-end test against a
+real Moodle (set `MOODLE_TEST_URL` and `MOODLE_TEST_TOKEN` in `.env.local`, run with
+`uv run pytest -m moodle`).
 
 ## Adding Database Models (Optional)
 

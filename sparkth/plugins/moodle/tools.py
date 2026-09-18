@@ -6,7 +6,13 @@ from typing import Any
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.plugins.moodle.client import MoodleClient
 from sparkth.plugins.moodle.constants import MOODLE_MALFORMED_RESPONSE_STATUS_CODE
-from sparkth.plugins.moodle.schemas import Auth, CoursePayload, PagePayload, SectionPayload
+from sparkth.plugins.moodle.schemas import (
+    Auth,
+    CoursePayload,
+    PagePayload,
+    QuizPayload,
+    SectionPayload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +124,29 @@ async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
         "name": payload.name,
         "content": payload.content,
         "intro": payload.intro,
+    }
+    try:
+        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
+            return await client.call_dict(wsfunction, params)
+    except (LMSRequestError, AuthenticationError) as e:
+        return _lms_error(e, wsfunction)
+    except ValueError as e:
+        return _malformed_response_error(e, wsfunction)
+
+
+async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
+    """Create a Quiz activity with its questions in a Moodle course section.
+
+    Supports multichoice and truefalse questions. Requires the local_sparkth
+    plugin on the target Moodle.
+    """
+    wsfunction = "local_sparkth_create_quiz"
+    params = {
+        "courseid": payload.courseid,
+        "sectionnum": payload.sectionnum,
+        "name": payload.name,
+        "intro": payload.intro,
+        "questions": [question.model_dump(mode="json") for question in payload.questions],
     }
     try:
         async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
