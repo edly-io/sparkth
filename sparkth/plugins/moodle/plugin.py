@@ -34,6 +34,13 @@ class MoodlePlugin(SparkthPlugin):
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             ("moodle-auth", [moodle_tools.moodle_authenticate]),
+            (
+                "moodle-courses",
+                [
+                    moodle_tools.moodle_list_courses,
+                    moodle_tools.moodle_create_course,
+                ],
+            ),
         ]
         for category, handlers in tools_per_category:
             MCP_TOOLS.add_items(self, [Tool(handler, category=category) for handler in handlers])
