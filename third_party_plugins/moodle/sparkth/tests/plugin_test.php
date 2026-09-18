@@ -41,6 +41,9 @@ final class plugin_test extends \advanced_testcase {
             'local_sparkth_create_section',
             'local_sparkth_create_page',
             'local_sparkth_create_quiz',
+            'core_webservice_get_site_info',
+            'core_enrol_get_users_courses',
+            'core_course_create_courses',
         ] as $functionname) {
             $this->assertTrue($DB->record_exists('external_services_functions', [
                 'externalserviceid' => $service->id,
