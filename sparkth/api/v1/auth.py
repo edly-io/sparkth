@@ -114,7 +114,7 @@ def _registered_event(user: User, *, method: str) -> RegisteredAuditEvent:
         outcome=AuditOutcome.SUCCESS,
         actor=actor,
         target=AuditTarget(type="user", id=str(user.id)),
-        change=AuditChange(new={"username": user.username, "method": method}),
+        change=AuditChange(new={"method": method}),
     )
 
 

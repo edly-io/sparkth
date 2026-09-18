@@ -147,8 +147,10 @@ class LoginAuditEvent(BaseAuditEvent):
 class RegisteredAuditEvent(MutationAuditEvent):
     """An account was created, by password registration or Google sign-up.
 
-    The new user is both actor and target; ``change.new`` carries the
-    username and the ``method`` (``password`` or ``google``).
+    The new user is both actor and target; ``change.new`` carries only the
+    ``method`` (``password`` or ``google``). The username rides on the actor
+    label, which a GDPR erasure can blank; a sealed payload never carries the
+    actor's own identity.
     """
 
     event_type: ClassVar[str] = "auth.registered"
