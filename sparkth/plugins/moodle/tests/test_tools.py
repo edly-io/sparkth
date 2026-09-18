@@ -268,6 +268,19 @@ class TestMoodleCreateSection:
         assert wsfunction == "local_sparkth_create_section"
         assert params == {"courseid": 4, "name": "Module 1", "summary": "<p>i</p>"}
 
+    @pytest.mark.asyncio
+    async def test_a_malformed_response_becomes_an_error_dict_with_a_status_code(self) -> None:
+        client = _client_returning(None)
+        client.call_dict = AsyncMock(
+            side_effect=ValueError("Expected JSON object from local_sparkth_create_section, got list")
+        )
+        payload = SectionPayload(auth=AUTH, courseid=4, name="Module 1", summary="<p>i</p>")
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_section(payload)
+
+        assert result["error"]["status_code"] == 502
+        assert "local_sparkth_create_section" in result["error"]["message"]
+
 
 class TestMoodleCreatePage:
     @pytest.mark.asyncio

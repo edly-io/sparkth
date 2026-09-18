@@ -32,6 +32,22 @@ def _malformed_response_error(e: ValueError | KeyError | IndexError, operation: 
     return {"error": {"status_code": MOODLE_MALFORMED_RESPONSE_STATUS_CODE, "message": str(e)}}
 
 
+async def _single_call(auth: Auth, wsfunction: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Run a tool that is one web service call, mapping both failure modes to an error dict.
+
+    The tools whose whole body is a single ``call_dict`` share this; the ones that chain
+    calls keep their own bodies, because the operation an error is reported under changes
+    partway through.
+    """
+    try:
+        async with MoodleClient(auth.api_url, auth.api_token) as client:
+            return await client.call_dict(wsfunction, params)
+    except (LMSRequestError, AuthenticationError) as e:
+        return _lms_error(e, wsfunction)
+    except ValueError as e:
+        return _malformed_response_error(e, wsfunction)
+
+
 async def moodle_authenticate(auth: Auth) -> dict[str, Any]:
     """Verify the provided Moodle site URL and web service token.
 
@@ -130,19 +146,12 @@ async def moodle_create_section(payload: SectionPayload) -> dict[str, Any]:
 
     Requires the local_sparkth companion plugin installed on the target Moodle.
     """
-    wsfunction = "local_sparkth_create_section"
     params = {
         "courseid": payload.courseid,
         "name": payload.name,
         "summary": payload.summary,
     }
-    try:
-        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
-            return await client.call_dict(wsfunction, params)
-    except (LMSRequestError, AuthenticationError) as e:
-        return _lms_error(e, wsfunction)
-    except ValueError as e:
-        return _malformed_response_error(e, wsfunction)
+    return await _single_call(payload.auth, "local_sparkth_create_section", params)
 
 
 async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
@@ -150,7 +159,6 @@ async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
 
     Requires the local_sparkth companion plugin installed on the target Moodle.
     """
-    wsfunction = "local_sparkth_create_page"
     params = {
         "courseid": payload.courseid,
         "sectionnum": payload.sectionnum,
@@ -158,13 +166,7 @@ async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
         "content": payload.content,
         "intro": payload.intro,
     }
-    try:
-        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
-            return await client.call_dict(wsfunction, params)
-    except (LMSRequestError, AuthenticationError) as e:
-        return _lms_error(e, wsfunction)
-    except ValueError as e:
-        return _malformed_response_error(e, wsfunction)
+    return await _single_call(payload.auth, "local_sparkth_create_page", params)
 
 
 async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
@@ -173,7 +175,6 @@ async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
     Supports multichoice and truefalse questions. Requires the local_sparkth
     plugin on the target Moodle.
     """
-    wsfunction = "local_sparkth_create_quiz"
     params = {
         "courseid": payload.courseid,
         "sectionnum": payload.sectionnum,
@@ -181,10 +182,4 @@ async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
         "intro": payload.intro,
         "questions": [question.model_dump(mode="json") for question in payload.questions],
     }
-    try:
-        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
-            return await client.call_dict(wsfunction, params)
-    except (LMSRequestError, AuthenticationError) as e:
-        return _lms_error(e, wsfunction)
-    except ValueError as e:
-        return _malformed_response_error(e, wsfunction)
+    return await _single_call(payload.auth, "local_sparkth_create_quiz", params)
