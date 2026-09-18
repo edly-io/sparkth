@@ -16,8 +16,6 @@
 
 namespace local_sparkth\external;
 
-use context_course;
-use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
@@ -28,7 +26,7 @@ use core_external\external_value;
  * @package    local_sparkth
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_section extends external_api {
+class create_section extends course_external {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
@@ -42,7 +40,7 @@ class create_section extends external_api {
      * @return array{id: int, sectionnum: int}
      */
     public static function execute(int $courseid, string $name, string $summary = ''): array {
-        global $CFG, $DB;
+        global $CFG;
         require_once($CFG->dirroot . '/course/lib.php');
 
         ['courseid' => $courseid, 'name' => $name, 'summary' => $summary] =
@@ -50,10 +48,7 @@ class create_section extends external_api {
                 'courseid' => $courseid, 'name' => $name, 'summary' => $summary,
             ]);
 
-        $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-        $context = context_course::instance($course->id);
-        self::validate_context($context);
-        require_capability('moodle/course:manageactivities', $context);
+        $course = self::require_course_access($courseid);
 
         $section = course_create_section($course->id);
         course_update_section($course, $section, [

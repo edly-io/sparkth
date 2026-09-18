@@ -17,7 +17,6 @@
 namespace local_sparkth\external;
 
 use context_course;
-use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
@@ -34,7 +33,7 @@ use stdClass;
  * @package    local_sparkth
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_quiz extends external_api {
+class create_quiz extends course_external {
 
     /** Question types this plugin can author. */
     private const SUPPORTED_QTYPES = ['multichoice', 'truefalse'];
@@ -89,13 +88,8 @@ class create_quiz extends external_api {
             'intro' => $intro, 'questions' => $questions,
         ]);
 
-        $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-        $context = context_course::instance($course->id);
-        self::validate_context($context);
-        require_capability('moodle/course:manageactivities', $context);
-        require_capability('moodle/question:add', $context);
-        $DB->get_record('course_sections',
-            ['course' => $course->id, 'section' => $sectionnum], 'id', MUST_EXIST);
+        $course = self::require_course_access($courseid, $sectionnum);
+        require_capability('moodle/question:add', context_course::instance($course->id));
 
         self::validate_questions($questions);
 

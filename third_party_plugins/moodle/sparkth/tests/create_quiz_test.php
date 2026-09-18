@@ -265,4 +265,5 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
         create_quiz::execute($course->id, $section['sectionnum'], 'Q', '',
             $this->two_questions());
     }
+
 }
