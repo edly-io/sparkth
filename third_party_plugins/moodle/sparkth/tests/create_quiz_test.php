@@ -131,6 +131,34 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
         $this->assertSame($expected, (int) $level);
     }
 
+    public function test_bank_is_visible_but_off_the_course_page(): void {
+        global $CFG, $DB;
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+        $section = create_section::execute($course->id, 'Module 1', '');
+
+        create_quiz::execute($course->id, $section['sectionnum'], 'Q', '',
+            [$this->two_questions()[1]]);
+
+        $cms = $DB->get_records_sql(
+            "SELECT cm.id, cm.visible, cm.visibleoncoursepage
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.course = :courseid AND m.name = 'qbank'",
+            ['courseid' => $course->id]);
+
+        if ((int) $CFG->branch < 500) {
+            $this->assertSame([], $cms);
+            return;
+        }
+
+        $cm = reset($cms);
+        $this->assertSame(1, (int) $cm->visible);
+        $this->assertSame(0, (int) $cm->visibleoncoursepage);
+    }
+
     public function test_a_second_quiz_reuses_the_same_question_category(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
