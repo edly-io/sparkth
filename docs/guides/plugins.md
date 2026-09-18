@@ -473,6 +473,59 @@ messages recorded on failure are scrubbed of secret-keyed values and length
 bounded, but do not put secrets or free-text PII in argument names or values
 that redaction cannot recognize. Handlers need no audit code of their own.
 
+## Content contributors
+
+A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
+hand off one piece of it to a plugin that publishes to an LMS, without either plugin importing
+the other. The owning plugin registers a `ContentContributor` — a name, a human-facing
+description, and a map of builders — with `register_content_contributor` from
+`sparkth.lib.content.hooks`. A publishing plugin resolves a contributor **by name** and awaits
+the builder registered under its own plugin name, with the destination course id, to get back
+the `ContentBlock` to create.
+
+`builders` is keyed by the publishing plugin's registered name — `open-edx` and `canvas` for
+the two shipped publishers — so its keys are the LMSes a contributor targets. Register one
+builder per LMS you can produce a block for; a publishing plugin skips any contributor that
+has no builder for it, so a misspelled key reads as "does not target that LMS".
+
+A `ContentBlock` carries a `title`, a `kind` and `attributes`. Only `title` means the same
+thing everywhere: `kind` and `attributes` are interpreted by the publishing plugin, so
+`sparkth/lib` never needs to know about any particular LMS. Open edX reads `kind` as the XBlock
+category and `attributes` as a dict of XBlock metadata; another plugin is free to read them as
+its own module item type and HTML body.
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.content.hooks import ContentBlock, ContentContributor, register_content_contributor
+
+
+async def build_my_openedx_block(course_id: str) -> ContentBlock:
+    return ContentBlock("My Block", "my-category", {"course": course_id})
+
+
+async def build_my_canvas_block(course_id: str) -> ContentBlock:
+    return ContentBlock("My Block", "Page", f"<p>{course_id}</p>")
+
+
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self) -> None:
+        super().__init__("my-app")
+        register_content_contributor(
+            ContentContributor(
+                "my-app",
+                "What this contributes",
+                {"open-edx": build_my_openedx_block, "canvas": build_my_canvas_block},
+            )
+        )
+```
+
+Register through `register_content_contributor`, not `LMS_CONTENT_CONTRIBUTORS.add_item`. The
+hook is keyed by name rather than by plugin instance, and a plugin is constructed more than
+once in one process — the loader builds it, and its own tests build their own instances — so
+each construction re-registers the same contributor. The helper treats an equal re-registration
+as a no-op and raises `DuplicateContentContributorError` only when a *different* contributor
+claims a registered name, which is the collision worth failing on.
+
 ## Complete Example
 
 ```python
