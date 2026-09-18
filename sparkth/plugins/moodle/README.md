@@ -44,16 +44,3 @@ before pointing the plugin at a site.
   the companion creates for itself, not the course's default question bank, so authored
   questions will not appear there.
 
-## Live test lane
-
-`tests/test_live_moodle.py` is an opt-in end-to-end publish against a real Moodle, run with:
-
-```bash
-MOODLE_TEST_URL=http://localhost:8000 MOODLE_TEST_TOKEN=<token> make test.backend.moodle
-```
-
-Both variables are read with `os.getenv`, which neither `.env` nor `.env.local` reaches — they
-must arrive as real environment variables (exported in your shell, or passed to the make target
-as above, which keeps the token out of every tracked file). Setting them in `.env.local` leaves
-the lane silently skipped. Without them a plain `uv run pytest` skips the lane, so the default
-suite needs no Moodle.
