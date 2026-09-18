@@ -8,6 +8,7 @@ register it on the hook from :mod:`sparkth.lib.audit.hooks`.
 
 from sparkth.core.audit.enums import AuditOutcome
 from sparkth.core.audit.events import (
+    ActorErasedAuditEvent,
     AIActionAuditEvent,
     BaseAuditEvent,
     EmailVerifiedAuditEvent,
@@ -23,6 +24,7 @@ from sparkth.core.audit.events import (
     RAGDocumentDeletedAuditEvent,
     RAGDocumentIngestedAuditEvent,
     RegisteredAuditEvent,
+    RetentionPurgedAuditEvent,
     ToolCompletedAuditEvent,
     ToolFailedAuditEvent,
     ToolInvokedAuditEvent,
@@ -34,6 +36,7 @@ from sparkth.core.audit.types import AuditChange, AuditModelInfo, AuditTarget, A
 
 __all__ = [
     "AIActionAuditEvent",
+    "ActorErasedAuditEvent",
     "AuditChange",
     "AuditModelInfo",
     "AuditOutcome",
@@ -53,6 +56,7 @@ __all__ = [
     "RAGDocumentDeletedAuditEvent",
     "RAGDocumentIngestedAuditEvent",
     "RegisteredAuditEvent",
+    "RetentionPurgedAuditEvent",
     "ToolCompletedAuditEvent",
     "ToolFailedAuditEvent",
     "ToolInvokedAuditEvent",
