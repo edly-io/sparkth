@@ -18,6 +18,7 @@ async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: 
         name="plugin_a",
         enabled=True,
         is_core=True,
+        config_schema={},
     )
 
     mock_user_plugin = SimpleNamespace(

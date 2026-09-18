@@ -61,18 +61,31 @@ class UserPluginResponse(pydantic.BaseModel):
     frontend-facing metadata the plugin declared through the
     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
     so they are always populated.
+
+    ``config_schema`` is the plugin's declared JSON schema, which the settings
+    UI renders its form from -- field types, labels, defaults, and the widget
+    hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
+    that registered no config class.
     """
 
     plugin_name: str
     enabled: bool
     config: dict[str, Any]
     is_core: bool
+    config_schema: dict[str, Any] = {}
     display: DisplayInfo | None = None
     sidebar: SidebarEntry | None = None
     has_frontend: bool = False
 
     @classmethod
-    def for_plugin(cls, plugin_name: str, enabled: bool, config: dict[str, Any], is_core: bool) -> "UserPluginResponse":
+    def for_plugin(
+        cls,
+        plugin_name: str,
+        enabled: bool,
+        config: dict[str, Any],
+        is_core: bool,
+        config_schema: dict[str, Any] | None = None,
+    ) -> "UserPluginResponse":
         """Build a response carrying the frontend metadata declared for ``plugin_name``.
 
         The declared display and sidebar strings are ``gettext_noop``-marked
@@ -90,6 +103,7 @@ class UserPluginResponse(pydantic.BaseModel):
             enabled=enabled,
             config=config,
             is_core=is_core,
+            config_schema=config_schema or {},
             display=display,
             sidebar=sidebar,
             has_frontend=plugin_has_frontend(plugin_name),

@@ -105,6 +105,7 @@ async def list_user_plugins(
                 enabled=user_plugin.enabled if user_plugin else True,
                 config=safe_config,
                 is_core=plugin.is_core,
+                config_schema=plugin.config_schema,
             )
         )
     return result
@@ -152,7 +153,11 @@ async def create_user_plugin(
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
     return UserPluginResponse.for_plugin(
-        plugin_name=plugin.name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
+        plugin_name=plugin.name,
+        enabled=user_plugin.enabled,
+        config=safe_config,
+        is_core=plugin.is_core,
+        config_schema=plugin.config_schema,
     )
 
 
@@ -179,11 +184,19 @@ async def get_user_plugin(
             config,
         )
         return UserPluginResponse.for_plugin(
-            plugin_name=plugin_name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
+            plugin_name=plugin_name,
+            enabled=user_plugin.enabled,
+            config=safe_config,
+            is_core=plugin.is_core,
+            config_schema=plugin.config_schema,
         )
     else:
         return UserPluginResponse.for_plugin(
-            plugin_name=plugin_name, enabled=True, config=config, is_core=plugin.is_core
+            plugin_name=plugin_name,
+            enabled=True,
+            config=config,
+            is_core=plugin.is_core,
+            config_schema=plugin.config_schema,
         )
 
 
@@ -215,6 +228,7 @@ async def update_user_plugin(
         enabled=user_plugin.enabled,
         config=PluginService.config_with_schema_keys(plugin.config_schema, user_plugin.config),
         is_core=plugin.is_core,
+        config_schema=plugin.config_schema,
     )
 
 
@@ -253,7 +267,11 @@ async def update_user_plugin_config(
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
     return UserPluginResponse.for_plugin(
-        plugin_name=plugin_name, enabled=user_plugin.enabled, config=safe_config, is_core=plugin.is_core
+        plugin_name=plugin_name,
+        enabled=user_plugin.enabled,
+        config=safe_config,
+        is_core=plugin.is_core,
+        config_schema=plugin.config_schema,
     )
 
 

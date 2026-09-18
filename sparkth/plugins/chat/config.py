@@ -3,7 +3,7 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from sparkth.lib.plugins import PluginConfig
+from sparkth.lib.plugins import ConfigWidget, PluginConfig, widget
 from sparkth.lib.settings import ENV_FILES
 
 
@@ -24,10 +24,15 @@ class ChatSettings(BaseSettings):
 
 
 class ChatUserConfig(PluginConfig):
-    llm_config_id: int = Field(..., description="Reference to an LLMConfig row")
+    llm_config_id: int = Field(
+        ...,
+        description="Reference to an LLMConfig row",
+        json_schema_extra=widget(ConfigWidget.LLM_CONFIG),
+    )
     llm_model_override: str | None = Field(
         default=None,
         description="Overrides the default model in the selected LLMConfig",
+        json_schema_extra=widget(ConfigWidget.LLM_MODEL),
     )
 
 

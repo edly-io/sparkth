@@ -14,6 +14,5 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 export const chatPlugin: PluginDefinition = {
   name: "chat",
   loadComponent: () => import("./ChatInterface"),
-  loadSettingsComponent: () => import("./components/ChatConfigModal"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };

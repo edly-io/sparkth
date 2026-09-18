@@ -25,6 +25,7 @@ describe("PluginListItem", () => {
       plugin_name: "canvas",
       enabled: true,
       config: {},
+      config_schema: {},
       is_core: true,
       display: {
         display_name: "Canvas",
@@ -44,6 +45,7 @@ describe("PluginListItem", () => {
       plugin_name: "mystery",
       enabled: false,
       config: {},
+      config_schema: {},
       is_core: true,
       display: null,
       sidebar: null,
