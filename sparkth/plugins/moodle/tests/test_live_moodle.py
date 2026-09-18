@@ -53,12 +53,13 @@ async def test_publishes_a_whole_course() -> None:
             lang="",
         )
     )
-    assert "error" not in course
+    assert "error" not in course, course.get("error")
     courseid = course["course"]["id"]
 
     section = await moodle_create_section(
         SectionPayload(auth=auth, courseid=courseid, name="Module 1", summary="<p>i</p>")
     )
+    assert "error" not in section, section.get("error")
     assert section["sectionnum"] == 1
 
     page = await moodle_create_page(
@@ -71,6 +72,7 @@ async def test_publishes_a_whole_course() -> None:
             intro="",
         )
     )
+    assert "error" not in page, page.get("error")
     assert page["cmid"] > 0
 
     quiz = await moodle_create_quiz(
@@ -97,4 +99,5 @@ async def test_publishes_a_whole_course() -> None:
             ],
         )
     )
+    assert "error" not in quiz, quiz.get("error")
     assert quiz["questioncount"] == 2
