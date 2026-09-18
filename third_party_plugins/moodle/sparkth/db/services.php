@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
@@ -23,6 +38,13 @@ $functions = [
         'type'        => 'write',
         'ajax'        => false,
     ],
+    'local_sparkth_enrol_creator' => [
+        'classname'   => 'local_sparkth\external\enrol_creator',
+        'methodname'  => 'execute',
+        'description' => 'Enrol the token user into a course using the site creator role.',
+        'type'        => 'write',
+        'ajax'        => false,
+    ],
 ];
 
 $services = [
@@ -32,6 +54,10 @@ $services = [
             'local_sparkth_create_section',
             'local_sparkth_create_page',
             'local_sparkth_create_quiz',
+            'local_sparkth_enrol_creator',
+            'core_webservice_get_site_info',
+            'core_enrol_get_users_courses',
+            'core_course_create_courses',
         ],
         'restrictedusers' => 1,
         'enabled'         => 1,

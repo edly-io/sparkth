@@ -16,54 +16,58 @@
 
 namespace local_sparkth\external;
 
+use context_course;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * Append a section to a course and set its name and summary.
+ * Enrol the token's user into a course using the site's configured creator role.
+ *
+ * core_course_external::create_courses() does not enrol the creator; course/edit.php
+ * does, via enrol_try_internal_enrol() with $CFG->creatornewroleid. This mirrors that
+ * guard for a course created over web services.
  *
  * @package    local_sparkth
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_section extends course_external {
+class enrol_creator extends course_external {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'courseid' => new external_value(PARAM_INT, 'course id', VALUE_REQUIRED),
-            'name'     => new external_value(PARAM_TEXT, 'section name', VALUE_REQUIRED),
-            'summary'  => new external_value(PARAM_RAW, 'section summary HTML', VALUE_DEFAULT, ''),
         ]);
     }
 
     /**
-     * @return array{id: int, sectionnum: int}
+     * Enrol the current user into $courseid with the site's creator role, if configured.
+     *
+     * @return array{enrolled: bool, roleid: int}
      */
-    public static function execute(int $courseid, string $name, string $summary = ''): array {
-        global $CFG;
-        require_once($CFG->dirroot . '/course/lib.php');
+    public static function execute(int $courseid): array {
+        global $CFG, $USER;
+        require_once($CFG->libdir . '/enrollib.php');
 
-        ['courseid' => $courseid, 'name' => $name, 'summary' => $summary] =
-            self::validate_parameters(self::execute_parameters(), [
-                'courseid' => $courseid, 'name' => $name, 'summary' => $summary,
-            ]);
+        ['courseid' => $courseid] = self::validate_parameters(
+            self::execute_parameters(), ['courseid' => $courseid]);
 
         $course = self::require_course_access($courseid);
+        $context = context_course::instance($course->id);
 
-        $section = course_create_section($course->id);
-        course_update_section($course, $section, [
-            'name'          => $name,
-            'summary'       => $summary,
-            'summaryformat' => FORMAT_HTML,
-        ]);
+        $roleid = (int) ($CFG->creatornewroleid ?? 0);
+        if ($roleid <= 0 || is_enrolled($context, null, 'moodle/role:assign')) {
+            return ['enrolled' => false, 'roleid' => 0];
+        }
 
-        return ['id' => (int) $section->id, 'sectionnum' => (int) $section->section];
+        $enrolled = enrol_try_internal_enrol($course->id, $USER->id, $roleid);
+
+        return ['enrolled' => $enrolled, 'roleid' => $enrolled ? $roleid : 0];
     }
 
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'id'         => new external_value(PARAM_INT, 'course_sections row id'),
-            'sectionnum' => new external_value(PARAM_INT, 'section number within the course'),
+            'enrolled' => new external_value(PARAM_BOOL, 'whether this call enrolled the user'),
+            'roleid'   => new external_value(PARAM_INT, 'role used to enrol; 0 when not enrolled'),
         ]);
     }
 }
