@@ -42,11 +42,11 @@ def _client_returning(value: Any) -> AsyncMock:
 class TestMoodleAuthenticate:
     @pytest.mark.asyncio
     async def test_returns_the_site_and_user(self) -> None:
-        client = _client_returning({"sitename": "Sparkth Moodle Dev", "username": "author"})
+        client = _client_returning({"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3})
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
             result = await moodle_authenticate(AUTH)
 
-        assert result == {"sitename": "Sparkth Moodle Dev", "username": "author"}
+        assert result == {"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3}
         assert client.call_dict.call_args.args[0] == "core_webservice_get_site_info"
 
     @pytest.mark.asyncio
