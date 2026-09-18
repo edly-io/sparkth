@@ -417,12 +417,20 @@ Sparkth bug. Before pointing the plugin at a Moodle site:
   UI. Skipping this step is the most likely first-install failure — every call returns an
   `accessexception` (the tools append a hint saying so to Moodle's own wording, which names no
   cause).
-- Mint a token for a user holding `moodle/course:create`, `moodle/course:manageactivities` and
-  `moodle/question:add` — and **not** for an admin. A Moodle web service token is site-wide and
-  does not expire by default, and `MoodleConfig.to_lms_credentials_hint()` puts it in the LLM
-  system prompt, so it is transmitted to the configured LLM provider in plaintext on every chat
-  request (see the SECURITY NOTE in `sparkth/core/plugins/config_base.py`). Use a dedicated
-  non-admin account — a `coursecreator` at system context holds all three capabilities — so a
+- Mint a token for a user holding all **five** required capabilities: `webservice/rest:use`,
+  `moodle/course:view`, `moodle/course:create`, `moodle/course:manageactivities` and
+  `moodle/question:add` — and **not** for an admin. The stock `coursecreator` role is **not**
+  sufficient: it holds only `moodle/course:create`. No stock role holds `webservice/rest:use`
+  (a site admin has it implicitly, which hides the gap) — without it every call fails with a
+  `401 Access control exception`. `moodle/course:view` is required too, because creating a
+  course over web services does not enrol the creator, so its absence surfaces as `400 Course
+  or activity not accessible` on the call right after course creation. Verified working recipe:
+  assign the stock **Manager** role at system context (covers `course:view`, `course:create`,
+  `course:manageactivities` and `question:add`) plus `webservice/rest:use` granted explicitly,
+  to a non-admin user. A Moodle web service token is site-wide and does not expire by default,
+  and `MoodleConfig.to_lms_credentials_hint()` puts it in the LLM system prompt, so it is
+  transmitted to the configured LLM provider in plaintext on every chat request (see the
+  SECURITY NOTE in `sparkth/core/plugins/config_base.py`) — keep the account non-admin so a
   leaked token is bounded by that role.
 - `local_sparkth_create_section` gates on `moodle/course:manageactivities`, where core gates the
   same operation on `moodle/course:update` and additionally enforces the site's
