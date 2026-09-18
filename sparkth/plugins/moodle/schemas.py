@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from sparkth.plugins.moodle.enums import QuestionType
+
 
 class Auth(BaseModel):
     api_url: str = Field(..., description="Moodle site URL")
@@ -29,3 +31,21 @@ class PagePayload(BaseModel):
     name: str = Field(..., description="Activity name")
     content: str = Field(..., description="Page body HTML")
     intro: str = Field("", description="Activity description HTML")
+
+
+class Question(BaseModel):
+    qtype: QuestionType = Field(..., description="Question type")
+    name: str = Field(..., description="Question name")
+    questiontext: str = Field(..., description="Question text HTML")
+    answers: list[str] = Field(default_factory=list, description="Options; multichoice only")
+    correctindex: int = Field(0, description="Index into answers that is correct; multichoice only")
+    correcttrue: bool = Field(True, description="Whether True is correct; truefalse only")
+
+
+class QuizPayload(BaseModel):
+    auth: Auth
+    courseid: int = Field(..., description="Course containing the section")
+    sectionnum: int = Field(..., description="Section number returned by moodle_create_section")
+    name: str = Field(..., description="Quiz name")
+    intro: str = Field("", description="Quiz description HTML")
+    questions: list[Question] = Field(..., description="Questions to create in the quiz")
