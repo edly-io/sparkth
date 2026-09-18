@@ -41,6 +41,7 @@ final class plugin_test extends \advanced_testcase {
             'local_sparkth_create_section',
             'local_sparkth_create_page',
             'local_sparkth_create_quiz',
+            'local_sparkth_enrol_creator',
             'core_webservice_get_site_info',
             'core_enrol_get_users_courses',
             'core_course_create_courses',
