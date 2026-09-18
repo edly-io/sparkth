@@ -16,8 +16,6 @@
 
 namespace local_sparkth\external;
 
-use context_course;
-use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
@@ -29,7 +27,7 @@ use stdClass;
  * @package    local_sparkth
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_page extends external_api {
+class create_page extends course_external {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
@@ -69,12 +67,7 @@ class create_page extends external_api {
             'content' => $content, 'intro' => $intro,
         ]);
 
-        $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-        $context = context_course::instance($course->id);
-        self::validate_context($context);
-        require_capability('moodle/course:manageactivities', $context);
-        $DB->get_record('course_sections',
-            ['course' => $course->id, 'section' => $sectionnum], 'id', MUST_EXIST);
+        $course = self::require_course_access($courseid, $sectionnum);
 
         // Content and contentformat are set directly on the record.
         $moduleinfo = new stdClass();
