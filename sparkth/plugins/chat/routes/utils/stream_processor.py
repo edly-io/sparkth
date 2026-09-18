@@ -1,6 +1,8 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
 import anthropic
@@ -22,6 +24,7 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
+from sparkth.plugins.chat.analytics import AnalyticsAttribution, emit_completion, tool_names
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
@@ -30,6 +33,27 @@ from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class StreamedCompletion:
+    """What a finished stream leaves for its analytics to be emitted from.
+
+    ``occurred_at`` is the assistant message's own ``created_at`` rather than the time the
+    emit runs: the emits deliberately happen after the stream has closed, so timing them
+    there would place the completion later than it was.
+    """
+
+    executed_tools: list[str]
+    occurred_at: datetime
+
+
+# asyncio holds only a weak reference to a running task, so a stream task detached from the
+# request that spawned it can be garbage-collected mid-flight — and it outlives its response,
+# because the analytics emits are attempted after the SSE sentinel has closed the stream. The
+# route hands this set to ``stream()`` as the holder that keeps every live task referenced
+# until it finishes; each task removes itself when it is done, so the set never grows.
+live_stream_tasks: set[asyncio.Task[None]] = set()
 
 
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
@@ -124,6 +148,7 @@ class ChatStreamProcessor:
         llm: Any | None = None,
         rag_search_required: bool = False,
         rag_search_declined: bool = False,
+        analytics: AnalyticsAttribution | None = None,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -134,6 +159,11 @@ class ChatStreamProcessor:
         self.llm = llm
         self.rag_search_required = rag_search_required
         self.rag_search_declined = rag_search_declined
+        # Only who acted and through which provider: the model and whether RAG ran are
+        # already on self, and taking them again would be two sources of truth. None
+        # keeps the processor constructible without analytics — its own unit tests build
+        # it with four arguments and have no request to attribute to.
+        self.analytics = analytics
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -315,9 +345,16 @@ class ChatStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
-    ) -> None:
-        """The done SSE payload includes the full message object so the client can
-        update its state without a separate fetch after the stream closes.
+    ) -> StreamedCompletion:
+        """Persist the assistant message, emit the done SSE, and return what it completed.
+
+        The done payload includes the full message object so the client can update its
+        state without a separate fetch after the stream closes.
+
+        Returns:
+            The tools this completion executed and when the reply was stored, for the
+            caller to emit once the stream is closed. See :meth:`_process_and_stream` for
+            why they are returned rather than emitted here.
         """
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
@@ -348,33 +385,61 @@ class ChatStreamProcessor:
                 },
             }
         )
+        # Returned, not emitted here. Everything in this method runs inside _run(), which
+        # _process_and_stream wraps in `except BaseException` — a failed analytics write
+        # there would be turned into an is_error assistant row and an error SSE, so a
+        # successful reply would render as a failure and permanently pollute the
+        # transcript. _process_and_stream emits these after that guard, and after the
+        # stream has closed.
+        return StreamedCompletion(
+            executed_tools=tool_names(completed_tool_calls),
+            occurred_at=assistant_message.created_at,
+        )
 
     async def _run_llm_phase(
         self,
         confirmed_rag_sections: list[dict[str, str | None]],
         bg_session: AsyncSession,
-    ) -> None:
+    ) -> StreamedCompletion | None:
+        """None when the turn produced no completion — a handled streaming error.
+
+        A completion with no executed tools is not the same thing, and is not None.
+        """
         result = await self._collect_stream_response(bg_session)
         if result is None:
-            return
+            return None
         full_response, completed_tool_calls = result
-        await self._persist_and_emit_done(full_response, confirmed_rag_sections, completed_tool_calls, bg_session)
+        return await self._persist_and_emit_done(
+            full_response, confirmed_rag_sections, completed_tool_calls, bg_session
+        )
 
-    async def _run(self, bg_session: AsyncSession) -> None:
+    async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
+        """What the turn completed, or None when it produced no completion at all — RAG
+        answered the turn, or it failed."""
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
-            return
+            return None
         self._strip_unresolved_document_blocks()
-        await self._run_llm_phase(confirmed_rag_sections, bg_session)
+        return await self._run_llm_phase(confirmed_rag_sections, bg_session)
 
     async def _process_and_stream(self) -> None:
         """BaseException (not Exception) is caught so the None sentinel always reaches
         the generator even on KeyboardInterrupt or SystemExit, while non-Exception
         subclasses are still re-raised after cleanup.
+
+        The analytics emits run after that guard and after the sentinel, deliberately.
+        Inside the guard a failed analytics write would be caught as an unhandled stream
+        error, writing an is_error assistant row and pushing an error SSE — turning a
+        delivered reply into a visible failure and a permanently corrupted transcript.
+        Out here nothing catches them: a failure surfaces as an unhandled error on this
+        detached task, reaching neither the stream nor the conversation. Emitting after
+        the sentinel also stops a multi-tool turn from holding the SSE connection open
+        for one analytics round-trip per tool.
         """
+        completion: StreamedCompletion | None = None
         async with session_scope() as bg_session:
             try:
-                await self._run(bg_session)
+                completion = await self._run(bg_session)
             except BaseException as exc:
                 logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
                 await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
@@ -383,14 +448,29 @@ class ChatStreamProcessor:
             finally:
                 await self._put(None)
 
-    async def stream(self, _task_holder: list[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
+        if self.analytics is None or completion is None:
+            return
+        await emit_completion(
+            conversation_id=self.conversation_uuid,
+            attribution=self.analytics,
+            model=self.provider.model,
+            rag_used=self.rag_search_required,
+            streamed=True,
+            executed_tools=completion.executed_tools,
+            occurred_at=completion.occurred_at,
+        )
+
+    async def stream(self, task_holder: set[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
         """Processing runs in a separate task so a client disconnect (CancelledError on the generator)
-        does not cancel the DB write mid-flight. _task_holder lets the caller hold a reference
-        to prevent the task from being garbage-collected before it finishes.
+        does not cancel the DB write mid-flight. ``task_holder`` — ``live_stream_tasks`` for the chat
+        route — keeps a strong reference to that task so it is not garbage-collected before it
+        finishes, and is also what lets a caller join the task after the stream has closed. The task
+        discards itself from the holder once it completes.
         """
         task = asyncio.create_task(self._process_and_stream())
-        if _task_holder is not None:
-            _task_holder.append(task)
+        if task_holder is not None:
+            task_holder.add(task)
+            task.add_done_callback(task_holder.discard)
         try:
             while True:
                 payload = await self.queue.get()

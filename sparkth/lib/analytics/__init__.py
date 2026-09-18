@@ -8,10 +8,14 @@ Plugins:
   - subclass ``AnalyticsEventSchema`` to define an event payload schema (declaring
     ``event_type``/``version``),
   - register it from their ``__init__`` via ``register_event_schema(self, MyEvent)``,
-  - emit it through ``emit_event`` (reach for the lower-level
+  - emit it through ``emit_event``, or ``emit_events`` for a group of related
+    events that should share one session (reach for the lower-level
     ``ingest_event`` only when the caller already holds an analytics session).
 """
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sparkth.core.analytics import ANALYTICS_EVENTS, get_event_schema
@@ -39,6 +43,8 @@ __all__ = [
     "UnknownEventTypeError",
     "backfill_continuous_aggregates",
     "emit_event",
+    "emit_events",
+    "PendingEvent",
     "get_event_schema",
     "LoginActivityPoint",
     "get_login_activity",
@@ -52,6 +58,7 @@ async def emit_event(
     version: int,
     payload: dict[str, Any],
     actor_id: str | None = None,
+    occurred_at: datetime | None = None,
 ) -> None:
     """Validate and land an analytics event, propagating any failure.
 
@@ -73,6 +80,11 @@ async def emit_event(
         version: The schema version, e.g. ``1``.
         payload: The event body, validated against the registered schema.
         actor_id: The acting user's id as a string, stored for provenance.
+        occurred_at: When the event happened — producers emit from background
+            tasks that run after the response, so a turn's events would otherwise
+            all be stamped at the end of it and lose their order. Pass the
+            moment the thing being recorded actually happened. Defaults to now,
+            which is only right for an event emitted where it happened.
 
     Raises:
         UnknownEventTypeError: No schema is registered for this type and version.
@@ -80,7 +92,66 @@ async def emit_event(
         SQLAlchemyError: The analytics database could not be reached or written.
     """
     async with analytics_session_scope() as session:
-        await ingest_event(session, event_type, version, payload, actor_id=actor_id)
+        await ingest_event(session, event_type, version, payload, actor_id=actor_id, occurred_at=occurred_at)
+
+
+@dataclass(frozen=True)
+class PendingEvent:
+    """One event waiting to be landed, for :func:`emit_events`.
+
+    The same values :func:`emit_event` takes, bundled so a caller can hand over a group
+    at once. ``occurred_at`` is per-event rather than per-group: events landed together
+    did not necessarily happen together.
+    """
+
+    event_type: str
+    version: int
+    payload: dict[str, Any]
+    actor_id: str | None = None
+    occurred_at: datetime | None = None
+
+
+async def emit_events(events: Sequence[PendingEvent]) -> None:
+    """Land a group of related events, sharing one analytics session.
+
+    :func:`emit_event` opens a session per call, so a producer with a variable number
+    of related events — a completion and one event per tool it executed, say — pays
+    one session acquisition per event, and, because emitting them in sequence stops
+    at the first failure, loses every event behind a failed one.
+
+    This acquires the session once and lands the whole group in one transaction,
+    committed once at the end. Ordering is preserved, and an empty sequence is a
+    no-op.
+
+    The group is therefore all-or-nothing: a failure on any event — an unregistered
+    type, an invalid payload, a database error — leaves none of them landed, so a
+    completion never appears without the tool events that belong to it.
+
+    Catches nothing, exactly like :func:`emit_event`: the failure propagates to the
+    caller.
+
+    Args:
+        events: The events to land, in the order they should appear.
+
+    Raises:
+        UnknownEventTypeError: No schema is registered for one of the events.
+        ValidationError: One payload does not match its registered schema.
+        SQLAlchemyError: The analytics database could not be reached or written.
+    """
+    if not events:
+        return
+    async with analytics_session_scope() as session:
+        for event in events:
+            await ingest_event(
+                session,
+                event.event_type,
+                event.version,
+                event.payload,
+                actor_id=event.actor_id,
+                occurred_at=event.occurred_at,
+                commit=False,
+            )
+        await session.commit()
 
 
 def register_event_schema(plugin: SparkthPlugin, schema: type[AnalyticsEventSchema]) -> None:

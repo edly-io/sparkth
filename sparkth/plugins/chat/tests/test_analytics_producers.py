@@ -9,19 +9,26 @@ emitted from genuinely different seams reading differently shaped execution reco
 so one path passing proves nothing about the other.
 """
 
+import asyncio
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
-import pytest  # noqa: F401 -- used by the propagation test added in Task 3
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
+from sparkth.lib.analytics import ingest_event as real_ingest_event
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.models import Conversation, Message
+from sparkth.plugins.chat.routes.utils.stream_processor import live_stream_tasks
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -73,6 +80,21 @@ async def _actors(analytics_session: AsyncSession, event_type: str) -> list[str]
     return [row["actor_id"] for row in rows if row["event_type"] == event_type]
 
 
+def _as_utc(value: datetime) -> datetime:
+    """Read a stored timestamp back as UTC-aware.
+
+    SQLite round-trips a ``timezone=True`` column as a naive value, so comparing what
+    landed against what was stored would otherwise compare naive with aware and raise.
+    """
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+async def _occurred_at(analytics_session: AsyncSession, event_type: str) -> list[datetime]:
+    """Return the occurred_at of every landed row of one event type, in insertion order."""
+    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    return [_as_utc(row["occurred_at"]) for row in rows if row["event_type"] == event_type]
+
+
 def _non_streaming_provider(
     content: str = "Here is your course outline.", metadata: dict[str, Any] | None = None
 ) -> MagicMock:
@@ -89,6 +111,56 @@ def _in_scope_classifier() -> AsyncMock:
     classifier = AsyncMock()
     classifier.in_scope = AsyncMock(return_value=True)
     return classifier
+
+
+def _ingest_failing_only_for(event_type: str, attempted: list[str] | None = None) -> Callable[..., Awaitable[None]]:
+    """An ``ingest_event`` stand-in that fails one event type and lands every other.
+
+    A side effect that raised unconditionally would be satisfied by whichever analytics
+    write happens to run first — ``chat.conversation_started`` — so such a test would
+    still pass with the seam under test deleted. Failing exactly one event type makes
+    the assertion about that seam.
+
+    ``attempted`` collects the event type of every call, so a test whose other assertions
+    are all absences can still prove the failing emit was reached rather than skipped.
+    """
+
+    async def _side_effect(
+        session: AsyncSession,
+        called_event_type: str,
+        version: int,
+        payload: dict[str, Any],
+        **kwargs: Any,
+    ) -> None:
+        if attempted is not None:
+            attempted.append(called_event_type)
+        if called_event_type == event_type:
+            raise RuntimeError("analytics exploded")
+        await real_ingest_event(session, called_event_type, version, payload, **kwargs)
+
+    return _side_effect
+
+
+async def _join_stream_tasks() -> None:
+    """Await every detached stream task the request left running.
+
+    The SSE generator returns as soon as it pops the sentinel, and the streaming analytics
+    writes are attempted only after that — so a complete response body is no evidence that
+    they have landed, and yielding to the loop is no guarantee either (the writes go through
+    aiosqlite worker threads). The route registers each stream task in ``live_stream_tasks``;
+    joining them here is what makes an assertion on analytics rows deterministic.
+
+    Outcomes are ignored on purpose: a failed streaming emit is unhandled on that task by
+    design, and these tests assert on the rows that landed and on what was attempted.
+    """
+    while live_stream_tasks:
+        await asyncio.gather(*tuple(live_stream_tasks), return_exceptions=True)
+
+
+async def _error_message_count(session: AsyncSession) -> int:
+    """Count the assistant messages stored with ``is_error`` set."""
+    rows = (await session.execute(select(Message).where(col(Message.is_error).is_(True)))).scalars().all()
+    return len(rows)
 
 
 async def test_new_conversation_emits_conversation_started(
@@ -343,3 +415,458 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len("Add a consent module")
+
+
+async def test_non_streaming_completion_emits_completion_served(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch(
+            "sparkth.plugins.chat.routes.completions.get_provider",
+            return_value=_non_streaming_provider("Outline ready."),
+        ),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    served = await _events(analytics_session, "chat.completion_served")
+    assert len(served) == 1
+    assert served[0]["streamed"] is False
+    assert served[0]["rag_used"] is False
+    assert served[0]["tool_call_count"] == 0
+    assert served[0]["provider"] == "openai"
+    assert served[0]["model"] == "gpt-4o"
+    assert served[0]["conversation_id"] == str(response.json()["conversation_id"])
+
+    # No executions → no authoring-output events.
+    assert await _events(analytics_session, "chat.tool_invoked") == []
+
+
+async def test_non_streaming_tool_executions_emit_tool_invoked(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """The non-streaming path reads metadata["tool_executions"], keyed "tool"."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _non_streaming_provider(
+        "Created the course run and an xblock.",
+        {
+            "num_executions": 2,
+            "tool_executions": [
+                {
+                    "tool": "openedx_create_course_run",
+                    "tool_input": {"title": "Data Privacy"},
+                    "output": "course-v1:X+Y+Z",
+                },
+                {
+                    "tool": "openedx_create_xblock",
+                    "tool_input": {"category": "html"},
+                    "output": "block-v1:...",
+                },
+            ],
+        },
+    )
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    served = await _events(analytics_session, "chat.completion_served")
+    assert served[0]["tool_call_count"] == 2
+
+    invoked = await _events(analytics_session, "chat.tool_invoked")
+    assert [event["tool_name"] for event in invoked] == [
+        "openedx_create_course_run",
+        "openedx_create_xblock",
+    ]
+    # Tool arguments and outputs must never reach a payload.
+    for event in invoked:
+        assert set(event) == {"conversation_id", "tool_name", "tool_category"}
+        assert "Data Privacy" not in str(event)
+
+
+async def test_refused_query_emits_no_completion_served(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """A refusal never reaches the LLM, so it is not a completion."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
+
+    refusing = AsyncMock()
+    refusing.in_scope = AsyncMock(return_value=False)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider"),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+    ):
+        mock_scope_cls.return_value = refusing
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "conversation_id": conversation_uuid,
+                "messages": [{"role": "user", "content": "what is 2+2?"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+    assert await _events(analytics_session, "chat.completion_served") == []
+
+
+async def test_analytics_emission_failure_propagates_from_the_completion(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """The error-handling contract: a failed analytics write is never hidden.
+
+    Emission runs in a background task, so in production the completion response is
+    already on the wire and this surfaces as a logged unhandled task error. Under the
+    httpx ASGI test transport the background task runs inside the request, so the
+    exception is re-raised here — which is exactly what lets us assert it was not
+    swallowed.
+
+    Only ``chat.completion_served`` is made to fail, so the error that surfaces can only
+    have come from the non-streaming completion seam. Failing every event instead would
+    let the earlier ``chat.conversation_started`` write satisfy the assertion, and the
+    test would still pass with this seam deleted.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch(
+            "sparkth.plugins.chat.routes.completions.get_provider",
+            return_value=_non_streaming_provider("Outline ready."),
+        ),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+        patch(
+            "sparkth.lib.analytics.ingest_event",
+            side_effect=_ingest_failing_only_for("chat.completion_served"),
+        ),
+        pytest.raises(RuntimeError, match="analytics exploded"),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+
+def _streaming_provider(events: list[dict[str, Any]]) -> MagicMock:
+    """A provider mock whose stream_message yields the given SSE-source events."""
+
+    async def _stream(*args: Any, **kwargs: Any) -> Any:
+        for event in events:
+            yield event
+
+    provider = MagicMock()
+    provider.model = "gpt-4o"
+    provider.system_prompt = ""
+    provider.stream_message = _stream
+    return provider
+
+
+async def test_streaming_completion_emits_served_and_tool_invoked(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """The streaming seam reads tool_end records, keyed "name".
+
+    That is a different shape from the non-streaming path's {"tool", "tool_input",
+    "output"}, so this path gets its own end-to-end assertion rather than trusting
+    Task 3's.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _streaming_provider(
+        [
+            {"type": "tool_start", "name": "canvas_create_quiz"},
+            {"type": "tool_end", "name": "canvas_create_quiz"},
+            {"type": "tool_start", "name": "canvas_create_question"},
+            {"type": "tool_end", "name": "canvas_create_question"},
+            {"type": "token", "content": "Quiz created."},
+        ]
+    )
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a quiz on data privacy"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+        # The response is complete once the SSE sentinel is popped, but the analytics writes
+        # are attempted after that, on the detached stream task. Joining that task — not the
+        # body — is what makes the row assertions below deterministic.
+        await _join_stream_tasks()
+
+    assert response.status_code == 200
+    assert "data: " in response.text
+
+    served = await _events(analytics_session, "chat.completion_served")
+    assert len(served) == 1
+    assert served[0]["streamed"] is True
+    assert served[0]["rag_used"] is False
+    assert served[0]["tool_call_count"] == 2
+    assert served[0]["provider"] == "openai"
+    assert served[0]["model"] == "gpt-4o"
+
+    invoked = await _events(analytics_session, "chat.tool_invoked")
+    assert [event["tool_name"] for event in invoked] == [
+        "canvas_create_quiz",
+        "canvas_create_question",
+    ]
+    assert await _actors(analytics_session, "chat.completion_served") == [str(current_user.id)]
+
+
+async def test_streaming_completion_without_tools_emits_zero_count(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _streaming_provider([{"type": "token", "content": "Here is an outline."}])
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on ethics"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+        # The streaming emits run after the sentinel, so join the task before asserting.
+        await _join_stream_tasks()
+
+    assert response.status_code == 200
+    assert "data: " in response.text
+
+    served = await _events(analytics_session, "chat.completion_served")
+    assert len(served) == 1
+    assert served[0]["tool_call_count"] == 0
+    assert await _events(analytics_session, "chat.tool_invoked") == []
+
+
+async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """A failed streaming analytics write stays off the stream and out of the transcript.
+
+    The streaming emits run on the detached stream task, which wraps the whole response
+    in ``except BaseException`` and turns anything caught into an ``is_error`` assistant
+    row plus an error SSE. Emitted inside that guard, a broken analytics database would
+    make a successfully delivered reply render as a failure and leave a fake error
+    message in the conversation forever. The emits therefore run after the guard and
+    after the stream has closed, where a failure is unhandled on that task and reaches
+    neither the client nor the database.
+
+    ``attempted`` carries the one positive assertion: without it every check here is an
+    absence, and a seam that never emitted at all would satisfy them just as well as one
+    that emitted safely outside the guard.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _streaming_provider([{"type": "token", "content": "Here is an outline."}])
+    attempted: list[str] = []
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+        patch(
+            "sparkth.lib.analytics.ingest_event",
+            side_effect=_ingest_failing_only_for("chat.completion_served", attempted),
+        ),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on ethics"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+        assert response.status_code == 200
+        body = response.text
+        # The emits are attempted only once the stream is closed, on the detached task.
+        await _join_stream_tasks()
+
+    # The streaming seam really did try to write, and failed — the absences below are the
+    # consequences of that failure being contained, not of nothing having happened.
+    assert "chat.completion_served" in attempted
+    assert '"error"' not in body
+    assert "Here is an outline." in body
+    assert await _error_message_count(session) == 0
+
+
+async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """occurred_at is when the thing happened, not when the row was written.
+
+    This is the regression test for the ordering the events used to land in. Route
+    events are queued on Starlette's background queue, which runs only after the whole
+    response has been sent — so on a streamed turn they were written *after* the
+    completion event that the stream's own task wrote the moment the stream closed. Every
+    row was stamped at write time, so a conversation appeared to start after the reply it
+    produced.
+
+    The assertion is on ordering rather than exact values because the seams read their
+    times from the rows they just wrote, and those are the times under test.
+    """
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    provider = _streaming_provider(
+        [
+            {"type": "tool_end", "name": "canvas_create_quiz"},
+            {"type": "token", "content": "Quiz created."},
+        ]
+    )
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a quiz on data privacy"}],
+                "stream": True,
+                "tools": "none",
+            },
+        )
+        await _join_stream_tasks()
+
+    assert response.status_code == 200
+
+    (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
+    (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
+    (served,) = await _occurred_at(analytics_session, "chat.completion_served")
+    (invoked,) = await _occurred_at(analytics_session, "chat.tool_invoked")
+
+    assert started <= sent < served, (
+        f"a conversation must not start after the reply it produced: started={started} sent={sent} served={served}"
+    )
+    # The tool ran during the completion; it shares the completion's time because the
+    # streaming path records no per-tool timestamp of its own.
+    assert invoked == served
+
+
+async def test_event_times_come_from_the_rows_they_describe(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """Not `now()` at the emit site: the conversation and message rows already know when
+    they were created, and those are the authoritative times."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    conversation_uuid = UUID(response.json()["conversation_id"])
+    conversation = (
+        (await session.execute(select(Conversation).where(col(Conversation.uuid) == conversation_uuid))).scalars().one()
+    )
+    stored_messages = (
+        (await session.execute(select(Message).where(col(Message.conversation_id) == conversation.id))).scalars().all()
+    )
+    instructor_turn = next(message for message in stored_messages if message.role == "user")
+
+    (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
+    (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
+
+    assert started == _as_utc(conversation.created_at)
+    assert sent == _as_utc(instructor_turn.created_at)

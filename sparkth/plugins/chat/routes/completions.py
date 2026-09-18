@@ -20,7 +20,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import ChatTurnAnalytics
+from sparkth.plugins.chat.analytics import ChatTurnAnalytics, tool_names
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -33,6 +33,7 @@ from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
+    live_stream_tasks,
     stream_out_of_scope_refusal,
     streaming_error_message,
 )
@@ -173,7 +174,9 @@ async def chat_completion(
         # plain sequential loop with no per-task isolation, and analytics emits propagate
         # their failures by design, so an emit queued first would let an analytics outage
         # silently cost the conversation its title. Keep analytics last in this queue.
-        turn_analytics.schedule_conversation_started()
+        # Timed by the row, not by this call: this task runs only after the response has
+        # completed, which for a streamed turn is after the whole stream.
+        turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
     if request.document_ids:
         await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
@@ -186,6 +189,7 @@ async def chat_completion(
         turn_analytics.schedule_message_sent(
             message_length=len(stored.content),
             has_attachment=stored.message_type == "attachment",
+            occurred_at=stored.created_at,
         )
 
     db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
@@ -278,9 +282,12 @@ async def chat_completion(
                 rag_llm,
                 rag_search_required,
                 rag_search_declined,
+                analytics=turn_analytics.attribution,
             )
             return StreamingResponse(
-                processor.stream(),
+                # The stream task outlives this response — it writes its analytics after the
+                # SSE sentinel — so the holder keeps it referenced until it finishes.
+                processor.stream(live_stream_tasks),
                 media_type="text/event-stream",
             )
         else:
@@ -293,7 +300,7 @@ async def chat_completion(
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
             tool_calls = response.get("tool_calls")
 
-            await service.add_message(
+            assistant_message = await service.add_message(
                 session=session,
                 conversation_id=conversation_id,
                 role="assistant",
@@ -301,6 +308,17 @@ async def chat_completion(
                 tokens_used=tokens_used,
                 metadata=response.get("metadata"),
                 message_type="text",
+            )
+
+            # Executions live under metadata: response["tool_calls"] is hard-coded to None
+            # by every provider, so reading it would count zero forever.
+            response_metadata = response.get("metadata") or {}
+            executions = response_metadata.get("tool_executions") or []
+            turn_analytics.schedule_completion(
+                rag_used=rag_search_required,
+                streamed=False,
+                executed_tools=tool_names(executions),
+                occurred_at=assistant_message.created_at,
             )
 
             return ChatCompletionResponse(
