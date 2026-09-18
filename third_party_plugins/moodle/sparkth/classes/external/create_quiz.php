@@ -26,6 +26,7 @@ use local_sparkth\question_bank_resolver;
 use mod_quiz\quiz_settings;
 use question_bank;
 use stdClass;
+use Throwable;
 
 /**
  * Create a Quiz activity with its questions.
@@ -106,19 +107,28 @@ class create_quiz extends course_external {
             // activities, so quiz needs it set and page does not.
             'cmidnumber'  => '',
         ]);
-        $created = add_moduleinfo($moduleinfo, $course);
-        $quiz = $DB->get_record('quiz', ['id' => $created->instance], '*', MUST_EXIST);
+        // The quiz, its questions and its sumgrades are one unit: a question that fails
+        // partway would otherwise leave a half-filled quiz the caller cannot see or undo.
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            $created = add_moduleinfo($moduleinfo, $course);
+            $quiz = $DB->get_record('quiz', ['id' => $created->instance], '*', MUST_EXIST);
 
-        $category = question_bank_resolver::default_category_for_course($course);
+            $category = question_bank_resolver::default_category_for_course($course);
 
-        foreach ($questions as $question) {
-            $form = self::question_form($question, "{$category->id},{$category->contextid}");
-            $saved = question_bank::get_qtype($question['qtype'])
-                ->save_question((object) ['qtype' => $question['qtype']], $form);
-            quiz_add_quiz_question($saved->id, $quiz, 0, 1.0);
+            foreach ($questions as $question) {
+                $form = self::question_form($question, "{$category->id},{$category->contextid}");
+                $saved = question_bank::get_qtype($question['qtype'])
+                    ->save_question((object) ['qtype' => $question['qtype']], $form);
+                quiz_add_quiz_question($saved->id, $quiz, 0, 1.0);
+            }
+
+            quiz_settings::create($quiz->id)->get_grade_calculator()->recompute_quiz_sumgrades();
+            $transaction->allow_commit();
+        } catch (Throwable $e) {
+            // Marks the whole stack for rollback and rethrows, so nothing written here commits.
+            $transaction->rollback($e);
         }
-
-        quiz_settings::create($quiz->id)->get_grade_calculator()->recompute_quiz_sumgrades();
 
         return [
             'cmid'          => (int) $created->coursemodule,

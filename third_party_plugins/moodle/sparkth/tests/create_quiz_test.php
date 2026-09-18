@@ -266,4 +266,33 @@ final class create_quiz_test extends \core_external\tests\externallib_testcase {
             $this->two_questions());
     }
 
+    public function test_a_question_failing_partway_commits_nothing(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->setAdminUser();
+        $section = create_section::execute($course->id, 'Module 1', '');
+
+        // question.name is varchar(255), so the oversized second question fails its
+        // insert after the first one has already been written.
+        $questions = $this->two_questions();
+        $questions[1]['name'] = str_repeat('x', 300);
+
+        $failed = false;
+        try {
+            create_quiz::execute($course->id, $section['sectionnum'], 'Doomed Quiz', '', $questions);
+        } catch (\Throwable $e) {
+            $failed = true;
+        }
+        $this->assertTrue($failed, 'the oversized question name should have failed the call');
+
+        // save_question() runs its own delegated transaction, and the failure abandons it,
+        // so our rollback() can only poison the stack rather than issue the ROLLBACK itself.
+        // Reads on this connection still see inside the open transaction until it is
+        // discarded, which is what a real request does on the way out.
+        $DB->force_transaction_rollback();
+
+        $this->assertFalse($DB->record_exists('quiz', ['name' => 'Doomed Quiz']));
+        $this->assertFalse($DB->record_exists('question', ['name' => 'Q1']));
+    }
 }
