@@ -12,6 +12,9 @@ dependencies = [
     "XBlock>=1.5",
     "Django>=4.2",
     "web-fragments>=2.1",
+    # Open edX already installs PyJWT, but a dependency that is merely present in the host
+    # environment is not a declared one — this package imports it directly.
+    "PyJWT>=2.10.1",
 ]
 
 [project.entry-points."xblock.v1"]
