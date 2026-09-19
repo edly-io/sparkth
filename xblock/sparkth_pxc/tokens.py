@@ -1,26 +1,18 @@
 """The minting half of Sparkth's launch token: how a learner's identity travels to Sparkth.
 
-``sparkth/plugins/pxc/tokens.py`` verifies what this module mints; the two live in
+``sparkth/plugins/pxc/tokens.py`` verifies what this module mints. The two live in
 independently installed distributions on different servers and cannot import each other, so
-this is a deliberate ~30-line duplication of that module's signing half rather than a shared
-import. ``tests/test_tokens.py`` pins the exact wire format — claim names and signature
-construction — because a drift between the two would fail every learner's launch with a 401
-instead of failing a test.
+the claim names and the algorithm are duplicated here by necessity; PyJWT carries everything
+below them. ``tests/test_tokens.py`` pins what is left of the shared wire format, because a
+drift between the two would fail every learner's launch with a 401 instead of failing a test.
 """
 
-import hashlib
-import hmac
-import json
-from base64 import urlsafe_b64encode
 from time import time
 
+import jwt
 
-def _b64encode(data: bytes) -> str:
-    return urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def _sign(payload: str, secret: str) -> str:
-    return _b64encode(hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest())
+# Must stay in step with the algorithm Sparkth's verifier accepts.
+LAUNCH_TOKEN_ALGORITHM = "HS256"
 
 
 def mint_launch_token(
@@ -39,5 +31,4 @@ def mint_launch_token(
         "uid": user_id,
         "exp": int(time()) + ttl,
     }
-    payload = _b64encode(json.dumps(claims, separators=(",", ":"), sort_keys=True).encode())
-    return f"{payload}.{_sign(payload, secret)}"
+    return jwt.encode(claims, secret, algorithm=LAUNCH_TOKEN_ALGORITHM)

@@ -8,7 +8,7 @@ from django.conf import settings
 
 settings.configure(
     SPARKTH_PXC_BASE_URL="https://sparkth.example",
-    SPARKTH_PXC_LAUNCH_SECRET="s",
+    SPARKTH_PXC_LAUNCH_SECRET="a-shared-secret-of-at-least-32-bytes",
     SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS=300,
 )
 django.setup()

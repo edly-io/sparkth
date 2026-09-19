@@ -7,10 +7,13 @@ iframe URL is built by a module-level function that takes plain ids and is testa
 
 from sparkth_pxc.xblock import build_embed_iframe
 
+# Long enough that PyJWT does not warn about the HMAC key on every mint.
+SECRET = "a-shared-secret-of-at-least-32-bytes"
+
 
 def test_the_iframe_points_at_sparkths_embed_route_with_a_token() -> None:
     html = build_embed_iframe(
-        "https://sparkth.example/", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "s", 300
+        "https://sparkth.example/", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
     )
 
     assert 'src="https://sparkth.example/api/v1/pxc/embed?token=' in html
@@ -18,14 +21,16 @@ def test_the_iframe_points_at_sparkths_embed_route_with_a_token() -> None:
 
 
 def test_the_iframe_is_sandboxed() -> None:
-    html = build_embed_iframe("https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "s", 300)
+    html = build_embed_iframe(
+        "https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
+    )
 
     assert 'sandbox="allow-scripts allow-forms allow-same-origin"' in html
 
 
 def test_a_trailing_slash_on_the_base_url_does_not_double_up() -> None:
     html = build_embed_iframe(
-        "https://sparkth.example/", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "s", 300
+        "https://sparkth.example/", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
     )
 
     assert "example//api" not in html
