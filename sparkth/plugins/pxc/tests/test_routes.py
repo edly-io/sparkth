@@ -6,7 +6,7 @@ from httpx import AsyncClient
 
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
-SECRET = "shared-secret"
+SECRET = "a-shared-secret-of-at-least-32-bytes"
 
 
 def _extract_attr(html: str, attr: str) -> str:
@@ -111,11 +111,24 @@ async def test_config_returns_the_state_and_the_learners_context(client: AsyncCl
 
 
 async def test_the_activitys_ui_script_is_served(client: AsyncClient, token: str) -> None:
-    # Unmarked deliberately: serving ui.js builds a runtime and reads manifest.ui, neither of
-    # which touches the sandbox. Only get_state() and on_action() need the wasm.
+    # Unmarked deliberately: the asset route resolves the path from the manifest and never
+    # constructs a runtime, so nothing here can reach the sandbox.
     response = await client.get("/api/v1/pxc/assets/ui.js", params={"token": token})
 
     assert response.status_code == 200
+
+
+async def test_serving_an_asset_does_not_open_the_activitys_state_file(
+    client: AsyncClient, token: str, tmp_path: Path
+) -> None:
+    # An asset URL resolves to a path under the activity directory; whose state it is has no
+    # bearing on it. Building a runtime to answer one creates the SQLite file, sets its journal
+    # mode and runs the schema — on every asset of every page load. The absent file is the
+    # evidence, because nothing else about the response would change.
+    response = await client.get("/api/v1/pxc/assets/ui.js", params={"token": token})
+
+    assert response.status_code == 200
+    assert not (tmp_path / "mcq.sqlite3").exists()
 
 
 # Unmarked deliberately: ActivityRuntime.on_action validates the action name against the

@@ -15,18 +15,21 @@ from json import JSONDecodeError
 from pathlib import Path
 
 import pxc.lib
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from pxc.lib.runtime import AssetAccessError
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.activities import asset_path
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcAssetNotFound
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
 from sparkth.plugins.pxc.schemas import ActionResult, ActivityConfig, LaunchContext
-from sparkth.plugins.pxc.tokens import read_launch_token
+from sparkth.plugins.pxc.tokens import LaunchClaims, read_launch_token
 
 logger = get_logger(__name__)
 
+# The launch token is the only credential these routes have, so verifying it is declared as a
+# dependency rather than repeated as the first line of each handler. `client_script` is the one
+# exception and declares none: it serves the same two scripts to everyone and reads no state.
 router = APIRouter()
 
 # The two client scripts the activity page loads: PXC's own component, served from the installed
@@ -38,10 +41,13 @@ _CLIENT_FILES = {
 }
 
 
-@router.get("/embed", response_class=HTMLResponse)
+@router.get("/embed", response_class=HTMLResponse, dependencies=[Depends(read_launch_token)])
 async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse:
-    """The document an LMS iframes to show one activity to one learner."""
-    read_launch_token(token)
+    """The document an LMS iframes to show one activity to one learner.
+
+    Gated by the dependency rather than a claims parameter: the shell hands the raw token to the
+    client and reads nothing out of it.
+    """
     base = str(request.url_for("embed_activity")).rsplit("/embed", 1)[0]
     return HTMLResponse(
         "<!DOCTYPE html>"
@@ -55,9 +61,13 @@ async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse
 
 
 @router.get("/config")
-async def activity_config(request: Request, token: str = Query()) -> ActivityConfig:
-    """This activity's state, context and asset URLs for the launching learner."""
-    claims = read_launch_token(token)
+async def activity_config(
+    request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
+) -> ActivityConfig:
+    """This activity's state, context and asset URLs for the launching learner.
+
+    Takes the raw token as well as the claims, because the URLs it hands back carry it.
+    """
     runtime = await asyncio.to_thread(build_runtime, claims)
     state = await asyncio.to_thread(read_state, runtime)
     base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
@@ -88,27 +98,23 @@ async def client_script(file_name: str) -> FileResponse:
 
 
 @router.get("/assets/{file_path:path}")
-async def activity_asset(file_path: str, token: str = Query()) -> FileResponse:
+async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_launch_token)) -> FileResponse:
     """Serve the activity's UI script or one of its declared assets.
+
+    Resolved from the manifest, not from a runtime. Which learner is asking does not change
+    where a file lives, and building a runtime to answer would create the activity's state file
+    and run its schema on every asset of every page load.
 
     Raises:
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
     """
-    claims = read_launch_token(token)
-    runtime = await asyncio.to_thread(build_runtime, claims)
-    try:
-        if file_path == runtime.ui_path:
-            path = runtime.get_ui_path()
-        else:
-            path = runtime.get_asset_path(file_path)
-    except AssetAccessError as err:
-        logger.warning("Refused asset %s of activity %s: %s", file_path, claims.activity, err)
-        raise PxcAssetNotFound(f"No such asset: {file_path}") from err
-    return FileResponse(path)
+    return FileResponse(asset_path(claims.activity, file_path))
 
 
 @router.post("/actions/{action_name}")
-async def submit_action(action_name: str, request: Request, token: str = Query()) -> ActionResult:
+async def submit_action(
+    action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)
+) -> ActionResult:
     """Run one action through the activity's sandbox and return the events it produced.
 
     The request body is read as a raw JSON value, not a typed model, by design: an action's
@@ -121,7 +127,6 @@ async def submit_action(action_name: str, request: Request, token: str = Query()
     Raises:
         PxcActionRejected: if the body is not valid JSON.
     """
-    claims = read_launch_token(token)
     try:
         action_value = await request.json()
     except JSONDecodeError as err:
