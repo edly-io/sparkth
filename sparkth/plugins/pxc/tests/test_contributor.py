@@ -1,9 +1,9 @@
 """Tests for the ``"pxc"`` content contributor.
 
-Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the bundled activity, a
-fresh placement id per call, and the sample seeded under that placement), that constructing the
-plugin registers it on the ``LMS_CONTENT_CONTRIBUTORS`` hook, that storage failures surface as
-``ContentBuildError``, and that the ``openedx`` plugin can publish it end to end.
+Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the bundled activity and a
+fresh placement id per call), that it writes nothing, that a placement it mints launches with
+the activity's own configuration, that constructing the plugin registers it on the
+``LMS_CONTENT_CONTRIBUTORS`` hook, and that the ``openedx`` plugin can publish it end to end.
 """
 
 from collections.abc import Iterator
@@ -13,11 +13,11 @@ import pytest
 
 from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
-from sparkth.plugins.pxc.activities import state_file
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block
-from sparkth.plugins.pxc.field_store import SqliteFieldStore
 from sparkth.plugins.pxc.plugin import PxcPlugin
+from sparkth.plugins.pxc.runtime import build_runtime, read_state
+from sparkth.plugins.pxc.tokens import LaunchClaims
 
 
 @pytest.fixture(autouse=True)
@@ -50,14 +50,28 @@ async def test_every_placement_gets_its_own_id() -> None:
     assert first.attributes["placement"] != second.attributes["placement"]
 
 
-async def test_the_sample_configuration_is_seeded_under_the_placement() -> None:
-    block = await build_pxc_block("course-v1:X+Y+Z")
-    store = SqliteFieldStore(state_file("mcq"))
-    scope = ("course-v1:X+Y+Z", "mcq", block.attributes["placement"], "")
+async def test_building_a_block_writes_nothing(data_dir: Path) -> None:
+    # The decoupling this contributor rests on: it names an activity and mints an id for it, and
+    # knows nothing else about it. Writing a configuration would mean knowing which fields that
+    # activity declares, which is true of exactly one of them. The absent state file is the
+    # evidence, since nothing about the returned block would differ either way.
+    await build_pxc_block("course-v1:X+Y+Z")
 
-    assert store.get(*scope, "question")
-    assert store.get(*scope, "answers")
-    assert store.get(*scope, "correct_answers") == [1]
+    assert list(data_dir.iterdir()) == []
+
+
+@pytest.mark.wasm
+async def test_a_minted_placement_launches_with_the_activitys_own_configuration() -> None:
+    # What the seeding was for: a learner opening a freshly placed activity sees a question
+    # rather than a blank. The activity declares it as its fields' defaults, and the runtime
+    # serves those for any placement nobody has configured yet.
+    block = await build_pxc_block("course-v1:X+Y+Z")
+    claims = LaunchClaims("mcq", block.attributes["placement"], "course-v1:X+Y+Z", "learner-7")
+
+    state = read_state(build_runtime(claims))
+
+    assert state["question"] == "What is 2 + 2?"
+    assert state["answers"] == ["3", "4", "5"]
 
 
 async def test_constructing_the_plugin_registers_the_contributor(unregistered: None) -> None:
@@ -76,18 +90,6 @@ async def test_constructing_the_plugin_again_keeps_one_registration(unregistered
 
     assert registered is not None
     assert LMS_CONTENT_CONTRIBUTORS.get("pxc") is registered
-
-
-async def test_an_unwritable_data_dir_raises_content_build_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A file where a directory is expected makes `mkdir(parents=True)` raise `NotADirectoryError`.
-    blocked = tmp_path / "not-a-dir"
-    blocked.write_text("")
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", blocked / "nested")
-
-    with pytest.raises(ContentBuildError):
-        await build_pxc_block("course-v1:X+Y+Z")
 
 
 async def test_an_unbundled_default_activity_raises_content_build_error(
