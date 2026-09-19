@@ -55,6 +55,8 @@ class PxcPlugin(SparkthPlugin):
                 "A portable, sandboxed PXC learning activity hosted by Sparkth",
                 # The key is the publishing plugin's registered name, written as a literal so
                 # this plugin does not import the Open edX plugin.
+                # This is the only place where the pxc plugin is coupled with an LMS plugin.
+                # The PXC plugin needs to know about the LMS plugin it is contributing to.
                 {"open-edx": build_pxc_block},
             )
         )
