@@ -10,13 +10,6 @@ from sparkth.plugins.pxc.tokens import LaunchClaims
 CLAIMS = LaunchClaims("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7")
 
 
-@pytest.fixture(autouse=True)
-def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", tmp_path)
-    monkeypatch.setattr("sparkth.plugins.pxc.runtime.PXC_DATA_DIR", tmp_path)
-    return tmp_path
-
-
 def test_the_runtime_is_built_for_the_claimed_placement_and_learner() -> None:
     runtime = build_runtime(CLAIMS)
 
@@ -35,10 +28,10 @@ def test_an_unknown_activity_is_rejected() -> None:
         build_runtime(LaunchClaims("absent", "placement-1", "course-v1:X+Y+Z", "learner-7"))
 
 
-def test_the_state_file_is_the_activity_types_own(data_dir: Path) -> None:
+def test_the_state_file_is_the_activity_types_own(tmp_path: Path) -> None:
     build_runtime(CLAIMS)
 
-    assert (data_dir / "mcq.sqlite3").exists()
+    assert (tmp_path / "mcq.sqlite3").exists()
 
 
 @pytest.mark.wasm

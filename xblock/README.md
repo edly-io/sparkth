@@ -59,17 +59,14 @@ blank iframe and no server-side error at either end.
 
 ### Getting the secret to Sparkth
 
-Sparkth reads `PXC_LAUNCH_SECRET` from its **process environment**, and refuses every launch
-with `401 Launch tokens are not configured` when it is empty. Putting the value in `.env` or
-`.env.local` alone is not enough for a natively-run server: those files are loaded by
-pydantic-settings into the `Settings` object, which never exports to `os.environ`, while
-`sparkth/plugins/pxc/constants.py` reads the secret with `os.getenv`. Export it:
+Set `PXC_LAUNCH_SECRET` in Sparkth's `.env.local` (git-ignored, and where the sensitive
+values belong) to the same string as `SPARKTH_PXC_LAUNCH_SECRET` here. An environment
+variable of the same name overrides it, which is how a containerised deployment supplies it.
 
-```bash
-export PXC_LAUNCH_SECRET=<the same value as SPARKTH_PXC_LAUNCH_SECRET>
-```
-
-A containerised deployment that injects real environment variables is unaffected.
+An empty secret fails closed: Sparkth refuses every launch with
+`401 Launch tokens are not configured`. A secret that is set but does not match this side
+gives `401 Bad launch token signature` instead — the two messages are worth telling apart when
+a learner reports a launch failure.
 
 ## Scores and grading
 
