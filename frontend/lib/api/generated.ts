@@ -903,6 +903,10 @@ export interface paths {
          * Activity Asset
          * @description Serve the activity's UI script or one of its declared assets.
          *
+         *     Resolved from the manifest, not from a runtime. Which learner is asking does not change
+         *     where a file lives, and building a runtime to answer would create the activity's state file
+         *     and run its schema on every asset of every page load.
+         *
          *     Raises:
          *         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
          */
@@ -948,6 +952,8 @@ export interface paths {
         /**
          * Activity Config
          * @description This activity's state, context and asset URLs for the launching learner.
+         *
+         *     Takes the raw token as well as the claims, because the URLs it hands back carry it.
          */
         get: operations["activity_config_api_v1_pxc_config_get"];
         put?: never;
@@ -968,6 +974,9 @@ export interface paths {
         /**
          * Embed Activity
          * @description The document an LMS iframes to show one activity to one learner.
+         *
+         *     Gated by the dependency rather than a claims parameter: the shell hands the raw token to the
+         *     client and reads nothing out of it.
          */
         get: operations["embed_activity_api_v1_pxc_embed_get"];
         put?: never;
