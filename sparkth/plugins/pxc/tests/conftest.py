@@ -10,9 +10,12 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from sparkth.main import assemble_app
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.event_bus import EVENT_BUS
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
 
@@ -50,3 +53,21 @@ def configured_secret(monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setenv("PXC_LAUNCH_SECRET", LAUNCH_SECRET)
     get_pxc_settings.cache_clear()
     return LAUNCH_SECRET
+
+
+@pytest.fixture(autouse=True)
+def _empty_bus() -> Iterator[None]:
+    """Reset the process-wide event bus around every test, so no subscriber leaks into the next."""
+    EVENT_BUS._subscribers.clear()
+    yield
+    EVENT_BUS._subscribers.clear()
+
+
+@pytest.fixture
+def ws_client() -> Iterator[TestClient]:
+    """A client that can open WebSockets, which the suite's httpx ``client`` fixture cannot.
+
+    Entered as a context manager so every socket it opens shares one portal, and one event loop.
+    """
+    with TestClient(assemble_app()) as client:
+        yield client

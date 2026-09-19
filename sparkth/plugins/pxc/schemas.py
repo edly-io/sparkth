@@ -21,9 +21,4 @@ class ActivityConfig(BaseModel):
     ui_url: str
     asset_base_url: str
     action_base_url: str
-
-
-class ActionResult(BaseModel):
-    """The events one action produced, returned in the same response that submitted it."""
-
-    events: list[dict[str, Any]]
+    ws_url: str

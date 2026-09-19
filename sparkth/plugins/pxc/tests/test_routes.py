@@ -1,9 +1,13 @@
 import re
+import sys
 from pathlib import Path
 
 import pytest
+from fastapi import Request
 from httpx import AsyncClient
 
+from sparkth.main import assemble_app
+from sparkth.plugins.pxc.routes import _socket_url
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
 
@@ -71,22 +75,51 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
-async def test_a_rejected_action_throws_rather_than_returning(client: AsyncClient) -> None:
-    """Guards ``sparkth-pxc.js``'s ``sendAction()`` against reverting to a silent ``return``.
+async def test_the_client_connects_a_socket_from_the_configured_url(client: AsyncClient) -> None:
+    """Source-level guard: the client must take its socket URL from the config, not the default.
 
-    No JS test runner covers this backend-served static asset (extending one here would need a
-    DOM shim, a module-resolution shim for ``./pxc.js``, or bending frontend/tests/'s vitest
-    include to reach a backend plugin's asset — all disproportionate to a one-line guard), so
-    this is a source-level guard rather than an executed test: it does not run the script, only
-    pins that its rejection branch still reads ``throw``. Before this fix, ``sendAction()``
-    returned normally on a rejected action, so the caller's ``await`` resolved as if the save or
-    submit had succeeded — ``ui.js``'s config-save handler reports "Configuration saved!" from
-    its try block, not its catch, because the catch never fired.
+    Order matters: _wsUrl before the connect call, and the connect call before the script load.
     """
     response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
 
-    assert response.status_code == 200
-    assert re.search(r"if\s*\(!response\.ok\)\s*\{\s*throw\s", response.text)
+    ws_url_assignment = re.search(r"^\s*this\._wsUrl = config\.ws_url;\s*$", response.text, re.MULTILINE)
+    connect_call = re.search(r"^\s*this\._connectWebSocket\(\);\s*$", response.text, re.MULTILINE)
+    load_script_call = re.search(r"^\s*await this\._loadScript\(", response.text, re.MULTILINE)
+
+    assert ws_url_assignment, "this._wsUrl must be assigned from config.ws_url"
+    assert connect_call, "the socket must actually be connected"
+    assert load_script_call, "the activity script must still be loaded"
+    assert ws_url_assignment.start() < connect_call.start(), "_wsUrl must be set before the socket connects"
+    assert connect_call.start() < load_script_call.start(), "the socket must connect before the script loads"
+
+
+async def test_the_client_overrides_the_large_payload_post_route(client: AsyncClient) -> None:
+    """Source-level guard: the inherited _postAction points at a route Sparkth does not serve.
+
+    Both its failure paths must return `false`, never throw, or _flushQueue stops draining. The
+    searches are scoped from _postAction onward, since connectedCallback has its own ok branch.
+    """
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    post_action_def = re.search(r"^\s*async _postAction\(", response.text, re.MULTILINE)
+    assert post_action_def, "_postAction must still be defined"
+
+    post_action_onward = response.text[post_action_def.start() :]
+    action_url_ref = re.search(r"^\s*const url = .*this\._actionUrl", post_action_onward, re.MULTILINE)
+    ok_branch_returns_false = re.search(r"if\s*\(!response\.ok\)\s*\{[^}]*return false", post_action_onward)
+    catch_branch_returns_false = re.search(r"catch\s*\(error\)\s*\{[^}]*return false", post_action_onward)
+
+    assert action_url_ref, "the POST url must be built from this._actionUrl"
+    assert ok_branch_returns_false, "a rejected response must return false, not throw"
+    assert catch_branch_returns_false, "a network-level fetch failure must return false, not throw"
+
+
+async def test_the_client_does_not_import_the_private_database_helper(client: AsyncClient) -> None:
+    # pxc.js exports only PXC; _openDB is module-private, so importing it does not resolve and
+    # the module fails to load. _pushAction and _flushQueue each open the database themselves.
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    assert "_openDB" not in response.text
 
 
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
@@ -162,12 +195,12 @@ async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token:
 @pytest.mark.wasm
 async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClient, token: str) -> None:
     # Every other test in this file injects the token via params={"token": ...} by hand, so none
-    # of them ever consumed the embed shell's own markup. That is how routes.py shipped
-    # data-action-url and action_base_url without the token they need: submit_action declares
-    # token as a required query parameter, but nothing built the URL the way the browser does.
+    # of them consumes the embed shell's own markup. That leaves data-action-url and
+    # action_base_url unchecked for the token they need: submit_action declares token as a
+    # required query parameter, and nothing else here builds the URL the way the browser does.
     #
     # This test drives the shell's own output instead: it extracts data-action-url and
-    # data-pxc-token exactly as sparkth-pxc.js's sendAction() does — appending
+    # data-pxc-token exactly as sparkth-pxc.js's _postAction() does — appending
     # "/{action}?token={token}" to the base — and POSTs to that composed URL. The JS
     # composition itself has no test harness here (it is a backend-served static asset, outside
     # frontend/tests/'s vitest include), so this pins the server half of the contract: the shell
@@ -179,12 +212,13 @@ async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClien
     action_url = f"{action_base_url}/answer.submit?token={shell_token}"
     response = await client.post(action_url, json=[0])
 
-    assert response.status_code == 200
+    assert response.status_code == 204
 
 
 async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(client: AsyncClient, token: str) -> None:
-    # request.json() raises json.JSONDecodeError (a ValueError) on a body that is not valid
-    # JSON, and this is a public route any browser can reach with nothing but a valid token.
+    # request.json() raises JSONDecodeError on a body that is not valid JSON at all, and this is
+    # a public route any browser can reach with nothing but a valid token. The over-long-integer
+    # sibling below covers the other ValueError the same call can raise.
     # Unmarked: the bad body is rejected before build_runtime ever touches the sandbox.
     response = await client.post(
         "/api/v1/pxc/actions/answer.submit",
@@ -194,3 +228,78 @@ async def test_a_malformed_action_body_is_unprocessable_not_a_server_error(clien
     )
 
     assert response.status_code == 422
+
+
+async def test_an_action_body_with_an_over_long_integer_is_unprocessable(client: AsyncClient, token: str) -> None:
+    """An integer literal past CPython's int-from-string limit raises a bare ``ValueError``.
+
+    The digit count is read from the live limit, which is an interpreter setting, not hardcoded.
+    """
+    over_long_integer = "1" * (sys.get_int_max_str_digits() + 1)
+
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit",
+        params={"token": token},
+        content=over_long_integer.encode(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_a_deeply_nested_action_body_is_unprocessable(client: AsyncClient, token: str) -> None:
+    """A body nested past the parser's recursion limit raises ``RecursionError``, not a decode error.
+
+    200_000 is measured: ``RecursionError`` from ~60_000 up, at 195 KiB of body.
+    """
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit",
+        params={"token": token},
+        content=b"[" * 200_000,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.wasm
+async def test_config_carries_the_socket_url_for_this_launch(client: AsyncClient, token: str) -> None:
+    # The client sets this on pxc.js's this._wsUrl. Without it, _getWebsocketUrl() falls back
+    # to the upstream default of /api/activity/{activity_id}/ws, which Sparkth does not serve.
+    response = await client.get("/api/v1/pxc/config", params={"token": token})
+
+    ws_url = response.json()["ws_url"]
+
+    assert ws_url.startswith("ws://")
+    assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
+
+
+def test_socket_url_upgrades_a_tls_request_to_wss() -> None:
+    """The ``https`` branch, which the ``client`` fixture's ``http://test`` base URL never reaches."""
+    request = Request(
+        {
+            "type": "http",
+            "scheme": "https",
+            "method": "GET",
+            "path": "/api/v1/pxc/config",
+            "query_string": b"",
+            "headers": [(b"host", b"example.com")],
+            "server": ("example.com", 443),
+            "router": assemble_app().router,
+        }
+    )
+
+    ws_url = _socket_url(request, "tok-123")
+
+    assert ws_url.startswith("wss://")
+    assert ws_url.endswith("/api/v1/pxc/ws?token=tok-123")
+
+
+@pytest.mark.wasm
+async def test_an_action_returns_no_content(client: AsyncClient, token: str) -> None:
+    # The events go to the socket, so there is no body to return. pxc.js's _postAction
+    # reads only response.ok.
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+    assert response.status_code == 204
+    assert response.content == b""

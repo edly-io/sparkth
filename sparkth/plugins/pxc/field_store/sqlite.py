@@ -74,11 +74,8 @@ class SqliteFieldStore(FieldStore):
     def _connect(self) -> closing[sqlite3.Connection]:
         """A closing context manager over a connection to the store's file.
 
-        Opened per operation rather than kept. The store is built per request and handed to a
-        runtime the routes drive through two separate ``asyncio.to_thread`` calls, which the
-        default executor does not pin to one thread — so a connection cached here would raise
-        ``sqlite3.ProgrammingError`` as soon as two learners act at once. Connecting to a
-        local file costs far less than the sandbox call it serves.
+        Opened per operation rather than kept: the store is used from a worker thread, which may
+        be a different thread per call, and a connection is not safe to share across threads.
 
         Only ``busy_timeout`` is set here, because it is per-connection; WAL is set once in
         ``__init__``.

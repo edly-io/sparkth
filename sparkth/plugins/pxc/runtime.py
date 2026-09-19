@@ -1,10 +1,5 @@
 """Assemble a PXC :class:`~pxc.lib.runtime.ActivityRuntime` for one launch.
 
-The runtime is built per request from the launch token's claims: which activity type, which
-placement, which learner. ``pxc-lib``'s runtime is used unmodified — the plugin only supplies
-the two backends it depends on, a :class:`~sparkth.plugins.pxc.field_store.SqliteFieldStore`
-over the activity type's state file and a local file storage directory.
-
 Every entry point here is synchronous and CPU-bound: the sandbox runs WebAssembly on the
 calling thread. Routes must call these from a worker thread, never on the event loop.
 """
@@ -71,19 +66,11 @@ def read_state(runtime: ActivityRuntime) -> dict[str, FieldType]:
 def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldType) -> list[PendingEvent]:
     """Run one action through the sandbox and return the events it produced.
 
-    The events come back from the same call, which is why this slice needs no polling route and
-    no WebSocket.
+    Callers hand the returned list to ``publish_events``; this function does no fan-out of its own.
 
     Raises:
         PxcActionRejected: if the manifest does not accept this action or value.
-        PxcSandboxFailure: if the sandbox itself failed — currently unreachable, see below.
-
-    The ``SandboxRuntimeError`` clause is dormant, not dead. ``ActivityRuntime.on_action``
-    catches that exception internally and only logs it, carrying the upstream comment "It's OK
-    to ignore on-action errors, but we should report errors to the frontend". So a sandbox that
-    crashes mid-action currently yields no events and no error rather than a 502. ``get_state``
-    does re-raise, so ``read_state``'s equivalent clause is live. Keep this one: it costs
-    nothing and becomes correct the moment upstream acts on that comment.
+        PxcSandboxFailure: if the sandbox itself failed — currently unreachable.
     """
     try:
         runtime.on_action(action_name, action_value)
