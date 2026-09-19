@@ -875,31 +875,7 @@ export interface paths {
          * Submit Action
          * @description Run one action through the activity's sandbox, for a payload too large for the socket.
          *
-         *     ``pxc.js`` sends actions over the socket and falls back to this route above 512 KiB, since
-         *     uvicorn closes an inbound frame over 1 MiB before the server can read it. The events the
-         *     action produces are published to the bus, exactly as the socket path publishes them —
-         *     returning them here would send them nowhere, because the client reads only the response's
-         *     status.
-         *
-         *     The request body is read as a raw JSON value, not a typed model, by design: an action's
-         *     value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
-         *     generically, so the body is deliberately untyped rather than accidentally so.
-         *
-         *     Parse failures are caught as ``(ValueError, RecursionError)``. This route is reachable by
-         *     anyone holding a valid token, so every body it can be handed must be a 422 rather than a
-         *     500. ``ValueError`` covers two causes at once: a body that is not JSON at all raises its
-         *     ``JSONDecodeError`` subclass, and an integer literal longer than
-         *     ``sys.get_int_max_str_digits()`` allows raises a bare one — well-formed JSON that
-         *     ``json.loads`` refuses to materialise. ``RecursionError`` is named separately because it
-         *     inherits from ``RuntimeError``, not from ``ValueError``, so a deeply nested body escapes a
-         *     clause that names only decode failures.
-         *
-         *     That is one exception short of the socket's ``(ValueError, KeyError, RecursionError)``, and
-         *     the asymmetry is correct rather than an oversight to tidy up: the socket's ``KeyError``
-         *     comes from ``receive_json(mode="text")`` reading ``message["text"]`` on a binary frame,
-         *     which is a WebSocket frame type with no HTTP analogue. A request body is always bytes with
-         *     a content type, so no equivalent cause exists here and naming ``KeyError`` would catch
-         *     nothing.
+         *     The events it produces are published to the bus, not returned; the client reads only the status.
          *
          *     Raises:
          *         PxcActionRejected: if the body is not JSON the parser will read.
