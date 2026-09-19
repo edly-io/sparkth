@@ -4,6 +4,8 @@ Synchronous: ``TestClient.websocket_connect`` drives its own event loop, so an a
 """
 
 import sys
+from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from fastapi import status
@@ -185,7 +187,10 @@ def test_an_action_after_the_token_lapses_closes_the_socket(
 
     with pytest.raises(WebSocketDisconnect) as refusal:
         with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
-            monkeypatch.setattr("sparkth.plugins.pxc.tokens.time", lambda: 2_000_000_000)
+            # Expiry is checked by PyJWT against its own clock, so the token is lapsed by moving
+            # that one. Advancing this plugin's `time` would only affect minting.
+            an_hour_later = SimpleNamespace(now=lambda tz=None: datetime.now(tz) + timedelta(hours=1))
+            monkeypatch.setattr("jwt.api_jwt.datetime", an_hour_later)
             socket.send_json({"action": "answer.submit", "value": [0], "permission": "play"})
             socket.receive_json()
 
