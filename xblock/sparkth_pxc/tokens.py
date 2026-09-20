@@ -4,8 +4,7 @@ from time import time
 
 import jwt
 
-# Must stay in step with the algorithm Sparkth's verifier accepts.
-LAUNCH_TOKEN_ALGORITHM = "HS256"
+from sparkth_pxc.constants import LAUNCH_TOKEN_ALGORITHM
 
 
 def mint_launch_token(
