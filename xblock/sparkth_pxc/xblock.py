@@ -66,7 +66,7 @@ class SparkthPxcXBlock(XBlock):
                 str(self.activity),
                 str(self.placement),
                 self._course_id(),
-                # An anonymous Open edX learner has no user id, so this collapses to the string
+                # TODO: An anonymous Open edX learner has no user id, so this collapses to the string
                 # "None" and every anonymous visitor to a placement shares one identity. Latent
                 # today because the bundled sample activity uses activity scope only; closing it
                 # needs a product decision on what an anonymous visitor should see.

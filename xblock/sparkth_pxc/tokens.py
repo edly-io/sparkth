@@ -1,11 +1,4 @@
-"""The minting half of Sparkth's launch token: how a learner's identity travels to Sparkth.
-
-``sparkth/plugins/pxc/tokens.py`` verifies what this module mints. The two live in
-independently installed distributions on different servers and cannot import each other, so
-the claim names and the algorithm are duplicated here by necessity; PyJWT carries everything
-below them. ``tests/test_tokens.py`` pins what is left of the shared wire format, because a
-drift between the two would fail every learner's launch with a 401 instead of failing a test.
-"""
+"""The minting half of Sparkth's launch token: how a learner's identity travels to Sparkth."""
 
 from time import time
 
