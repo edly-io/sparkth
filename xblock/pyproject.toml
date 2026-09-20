@@ -39,3 +39,12 @@ strict = true
 [[tool.mypy.overrides]]
 module = ["django.*", "web_fragments.*", "xblock.*"]
 ignore_missing_imports = true
+
+# `XBlock` therefore reaches us as `Any`, and a strict run refuses to subclass it. Following the
+# package instead of ignoring it is not an option: `xblock.core` and `xblock.fields` carry no
+# return annotation on any of their ~146 functions, so mypy would check nothing it does not
+# check today and would reject every `String(...)` field declaration as an untyped call.
+# Scoped to the one module that subclasses, so the rest of the package keeps the check.
+[[tool.mypy.overrides]]
+module = ["sparkth_pxc.xblock"]
+disallow_subclassing_any = false

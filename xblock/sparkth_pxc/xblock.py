@@ -41,7 +41,7 @@ def build_embed_iframe(
     )
 
 
-class SparkthPxcXBlock(XBlock):  # type: ignore[misc]
+class SparkthPxcXBlock(XBlock):
     """A PXC activity hosted by Sparkth. Holds a reference to it, never its data."""
 
     display_name = String(display_name="Display Name", default="PXC Activity", scope=Scope.settings)
