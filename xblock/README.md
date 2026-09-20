@@ -10,10 +10,15 @@ with that token. Sparkth verifies the token's signature, resolves the learner's 
 its claims, and serves the activity; all activity state (answers, scores, progress) is stored
 and stays in Sparkth, and never reaches the Open edX gradebook.
 
-This package is a separate Django distribution. Sparkth's own application never installs it and
-never imports it — it is built and iterated here for convenience while the integration is under
-development. Whether it eventually moves into the `edly-io/pxc` repository as a remote-backend
-mode of the existing `pxc-xblock`, or stays a standalone package, is not yet decided.
+This package is a separate Python distribution, installed into the Open edX instance rather than
+into Sparkth. It is not a Django app — no models, no migrations, no `INSTALLED_APPS` entry — and
+neither `XBlock` nor `web-fragments` requires Django; it is depended on only to read the settings
+below through `django.conf.settings`, which is how anything inside Open edX is configured.
+
+Sparkth's own application never installs it and never imports it: it is built and iterated here
+for convenience while the integration is under development. Whether it eventually moves into the
+`edly-io/pxc` repository as a remote-backend mode of the existing `pxc-xblock`, or stays a
+standalone package, is not yet decided.
 
 ## Installing
 

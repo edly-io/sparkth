@@ -7,7 +7,7 @@ course holds only a reference to the activity.
 ## This plugin is one half of an integration
 
 Enabling it in Sparkth is not enough to put an activity in a course. The other half is
-[`sparkth-pxc-xblock`](../../../xblock/README.md), a separate Django distribution that **must be
+[`sparkth-pxc-xblock`](../../../xblock/README.md), a separate Python distribution that **must be
 installed into the Open edX instance**. It is what renders the activity inside a unit and what
 mints the signed launch token this plugin verifies. Without it, Studio cannot resolve the `pxc`
 block a published activity refers to and a learner sees nothing at all.
