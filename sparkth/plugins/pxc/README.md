@@ -27,6 +27,15 @@ side needs. This one covers only the Sparkth side.
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
 
+## Placing one in a course
+
+An authoring agent calls the `openedx` plugin's `openedx_add_plugin_content` tool with
+`contributor: "pxc"`. That mints a placement here and asks Studio to create a block of category
+`pxc`, which the installed XBlock provides. Studio creates it on the draft branch, so the unit
+must be published before a learner sees anything — [`xblock/README.md`](../../../xblock/README.md)
+covers that and the Advanced Module List, which is optional and only affects Studio's component
+picker.
+
 ## Adding an activity
 
 One directory per activity under `activities/`, each holding a `manifest.json` that declares the
