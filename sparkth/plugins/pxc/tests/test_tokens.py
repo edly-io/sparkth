@@ -30,7 +30,7 @@ def test_a_signature_mismatch_is_logged_with_the_claimed_activity_and_placement(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     # A secret mismatch between Sparkth and the XBlock — the most likely production failure per
-    # xblock/README.md — produces a genuine token signed with the wrong secret. Without the hint,
+    # the XBlock's README — produces a genuine token signed with the wrong secret. Without the hint,
     # an operator sees learners failing with 401s and has no server-side trace of why.
     monkeypatch.setattr("sparkth.plugins.pxc.tokens.PXC_LAUNCH_SECRET", SECRET)
     token = mint_launch_token(*CLAIMS, "a-different-secret-of-32-plus-bytes", 300)

@@ -257,6 +257,6 @@ sparkth/plugins/pxc/activities/*/sandbox.bundle.js
 sparkth/plugins/pxc/activities/*/sandbox.wasm
 sparkth/plugins/pxc/activities/*/sandbox.wasm.bin
 
-# xblock is a separate distribution with its own lockfile; the root uv.lock above is the one
-# tracked. `uv run --with ... --directory xblock pytest` regenerates this one on every run.
-xblock/uv.lock
+# The Open edX XBlock is a separate distribution with its own lockfile; the root uv.lock above
+# is the one tracked. Running that package's suite through uv regenerates this one every time.
+third_party_plugins/openedx/xblock/uv.lock

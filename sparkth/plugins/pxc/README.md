@@ -7,7 +7,7 @@ course holds only a reference to the activity.
 ## This plugin is one half of an integration
 
 Enabling it in Sparkth is not enough to put an activity in a course. The other half is
-[`sparkth-pxc-xblock`](../../../xblock/README.md), a separate Python distribution that **must be
+[`sparkth-pxc-xblock`](../../../third_party_plugins/openedx/xblock/README.md), a separate Python distribution that **must be
 installed into the Open edX instance**. It is what renders the activity inside a unit and what
 mints the signed launch token this plugin verifies. Without it, Studio cannot resolve the `pxc`
 block a published activity refers to and a learner sees nothing at all.
@@ -32,7 +32,7 @@ does not repeat the list.
 An authoring agent calls the `openedx` plugin's `openedx_add_plugin_content` tool with
 `contributor: "pxc"`. That mints a placement here and asks Studio to create a block of category
 `pxc`, which the installed XBlock provides. Studio creates it on the draft branch, so the unit
-must be published before a learner sees anything — [`xblock/README.md`](../../../xblock/README.md)
+must be published before a learner sees anything — [`third_party_plugins/openedx/xblock/README.md`](../../../third_party_plugins/openedx/xblock/README.md)
 covers that and the Advanced Module List, which is optional and only affects Studio's component
 picker.
 

@@ -22,7 +22,7 @@ standalone package, is not yet decided.
 
 ## Installing
 
-Install this distribution into the Open edX instance (e.g. `pip install ./xblock`). That is
+Install this distribution into the Open edX instance (e.g. `pip install ./third_party_plugins/openedx/xblock`). That is
 what registers the `pxc` entry point, and it is the only step Sparkth's publishing tool needs
 — verify it resolved with:
 
