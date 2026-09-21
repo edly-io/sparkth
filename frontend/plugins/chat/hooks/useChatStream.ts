@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { requestChatCompletionStream } from "@/lib/chat";
-import { ChatMessage, TextAttachment } from "../types";
+import { ChatMessage, StreamStatusPhase, TextAttachment } from "../types";
 
 interface SendPayload {
   message: string;
@@ -22,6 +22,13 @@ interface UseChatStreamOptions {
 const FIELD_MESSAGES: Record<string, string> = {
   llm_config_id: "No AI Key selected. Go to chat settings to configure one.",
 };
+
+const STATUS_PHASES: StreamStatusPhase[] = [
+  "scanning_attachments",
+  "searching_documents",
+  "skipping_rag",
+  "generating",
+];
 
 function friendlyFieldMessage(error: ApiRequestError): string | undefined {
   const field = Object.keys(error.fieldErrors).find((name) => FIELD_MESSAGES[name]);
@@ -91,7 +98,7 @@ function applyStatusEvent(
         msg.id === assistantId
           ? {
               ...msg,
-              statusText: undefined,
+              statusPhase: undefined,
               ragSections: [...(msg.ragSections ?? []), { ...section, state: "scanning" as const }],
             }
           : msg,
@@ -111,23 +118,10 @@ function applyStatusEvent(
           : msg,
       ),
     );
-  } else if (parsed.status === "section_removed" && parsed.section) {
-    const sectionName = (parsed.section as { name: string }).name;
+  } else if (STATUS_PHASES.includes(parsed.status as StreamStatusPhase)) {
+    const phase = parsed.status as StreamStatusPhase;
     setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId
-          ? {
-              ...msg,
-              ragSections: (msg.ragSections ?? []).filter((s) => s.name !== sectionName),
-            }
-          : msg,
-      ),
-    );
-  } else if (parsed.status === "searching_document") {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId ? { ...msg, statusText: "Scanning document sections..." } : msg,
-      ),
+      prev.map((msg) => (msg.id === assistantId ? { ...msg, statusPhase: phase } : msg)),
     );
   } else if (parsed.status === "tool_call" && parsed.tool_name) {
     const toolName = parsed.tool_name as string;
@@ -258,7 +252,7 @@ async function readStream(
         if (parsed.status) {
           // Persist the current RAG phase so a mid-stream refresh can show a
           // meaningful message ("Scanning documents…") rather than a generic one.
-          if (parsed.status === "scanning_attachments" || parsed.status === "searching_document") {
+          if (parsed.status === "scanning_attachments" || parsed.status === "searching_documents") {
             saveStreamProgress(conversationId, assistantText, parsed.status as string);
           }
           applyStatusEvent(parsed, assistantId, setMessages);
@@ -278,7 +272,7 @@ async function readStream(
                 ? {
                     ...msg,
                     streamedContent: assistantText,
-                    statusText: undefined,
+                    statusPhase: undefined,
                   }
                 : msg,
             ),
@@ -434,7 +428,7 @@ export function useChatStream({
                     content: assistantText,
                     streamedContent: undefined,
                     isTyping: false,
-                    statusText: undefined,
+                    statusPhase: undefined,
                     ...(doneOptions.length > 0 && { options: doneOptions }),
                     ...(doneRagSections && {
                       ragSections: doneRagSections.map((s) => ({

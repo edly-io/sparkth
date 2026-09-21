@@ -10,6 +10,13 @@ export interface TextAttachment {
 
 export type ChatRole = "user" | "assistant";
 
+// The status names the chat stream sends; stored verbatim so a rename cannot go unnoticed.
+export type StreamStatusPhase =
+  | "scanning_attachments"
+  | "searching_documents"
+  | "skipping_rag"
+  | "generating";
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -21,7 +28,7 @@ export interface ChatMessage {
   isPending?: boolean;
   options?: string[];
   pillAttachment?: TextAttachment | null;
-  statusText?: string;
+  statusPhase?: StreamStatusPhase;
   ragSections?: { type: string; name: string; source?: string; state: "scanning" | "confirmed" }[];
   toolCalls?: { name: string; status: "running" | "done" }[];
 }

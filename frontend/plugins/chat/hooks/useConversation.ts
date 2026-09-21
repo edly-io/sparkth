@@ -157,7 +157,7 @@ export function useConversation(
           } else if (
             hasAttachments ||
             saved?.phase === "scanning_attachments" ||
-            saved?.phase === "searching_document"
+            saved?.phase === "searching_documents"
           ) {
             // Attachments are present (RAG was likely running) or the phase was
             // explicitly saved — either way, scanning is the right framing.

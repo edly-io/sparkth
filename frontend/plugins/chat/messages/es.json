@@ -3,6 +3,10 @@
     "inputPlaceholder": "Describe el curso que quieres crear...",
     "working": "Decidiendo qué hacer…",
     "toolCallCount": "{count, plural, one {# llamada a herramienta realizada} other {# llamadas a herramientas realizadas}}",
-    "toolExecuting": "en ejecución"
+    "toolExecuting": "en ejecución",
+    "statusScanningAttachments": "Leyendo tus archivos adjuntos…",
+    "statusSearchingDocuments": "Analizando las secciones del documento…",
+    "statusSkippingRag": "Respondiendo sin los archivos adjuntos…",
+    "statusGenerating": "Escribiendo la respuesta…"
   }
 }

@@ -3,6 +3,10 @@
     "inputPlaceholder": "Décrivez le cours que vous souhaitez créer...",
     "working": "Détermination des prochaines actions…",
     "toolCallCount": "{count, plural, one {# appel d'outil effectué} other {# appels d'outils effectués}}",
-    "toolExecuting": "en cours"
+    "toolExecuting": "en cours",
+    "statusScanningAttachments": "Lecture de vos fichiers joints…",
+    "statusSearchingDocuments": "Analyse des sections du document…",
+    "statusSkippingRag": "Réponse sans les fichiers joints…",
+    "statusGenerating": "Rédaction de la réponse…"
   }
 }
