@@ -1,8 +1,21 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 namespace local_sparkth\external;
 
-use context_course;
-use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
@@ -14,7 +27,7 @@ use stdClass;
  * @package    local_sparkth
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_page extends external_api {
+class create_page extends course_external {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
@@ -27,6 +40,12 @@ class create_page extends external_api {
     }
 
     /**
+     * Create the Page activity and return its identifiers.
+     *
+     * page_add_instance() only reads the editor array when called from a form. Called
+     * programmatically it inserts the record as-is, which is why the content and
+     * contentformat columns are populated on the module info object here.
+     *
      * @return array{cmid: int, instanceid: int}
      */
     public static function execute(
@@ -48,14 +67,9 @@ class create_page extends external_api {
             'content' => $content, 'intro' => $intro,
         ]);
 
-        $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-        $context = context_course::instance($course->id);
-        self::validate_context($context);
-        require_capability('moodle/course:manageactivities', $context);
+        $course = self::require_course_access($courseid, $sectionnum);
 
-        // page_add_instance() only reads the editor array when called from a form.
-        // Called programmatically it inserts the record as-is, so the content and
-        // contentformat columns are set directly.
+        // Content and contentformat are set directly on the record.
         $moduleinfo = new stdClass();
         $moduleinfo->modulename        = 'page';
         $moduleinfo->module            = $DB->get_field('modules', 'id', ['name' => 'page'], MUST_EXIST);

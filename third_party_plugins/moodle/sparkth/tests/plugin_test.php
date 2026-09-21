@@ -1,8 +1,23 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 namespace local_sparkth;
 
 /**
- * @covers \local_sparkth
+ * Installation-level checks: the plugin registers itself and its web service functions.
  */
 final class plugin_test extends \advanced_testcase {
     public function test_plugin_is_installed(): void {
@@ -26,6 +41,10 @@ final class plugin_test extends \advanced_testcase {
             'local_sparkth_create_section',
             'local_sparkth_create_page',
             'local_sparkth_create_quiz',
+            'local_sparkth_enrol_creator',
+            'core_webservice_get_site_info',
+            'core_enrol_get_users_courses',
+            'core_course_create_courses',
         ] as $functionname) {
             $this->assertTrue($DB->record_exists('external_services_functions', [
                 'externalserviceid' => $service->id,
