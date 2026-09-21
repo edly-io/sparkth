@@ -13,10 +13,11 @@ Read this once the developer has decided which events to add. Deciding *what* to
 | A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ChatTurnAnalytics` in `sparkth/plugins/chat/analytics.py`. Never `await` inline in a request path |
 
 **One seam per set of events that share their identity fields.** `ChatTurnAnalytics` carries
-provider and model because every turn event needs them. Events that do not — the attachment
-events carry neither, and the routes emitting them have no LLM config to read them from — get a
-sibling seam (`ChatAttachmentAnalytics`), not optional fields bolted onto the existing one. A
-seam whose fields are half-populated tells a reader nothing about which events it serves.
+provider and model because every turn event needs them. Events that do not should get a sibling
+seam rather than optional fields bolted onto that one: a seam whose fields are half-populated
+tells a reader nothing about which events it serves. (The attachment events in #677 are the
+worked example — they carry neither field, and the CRUD routes emitting them have no LLM config
+to read one from.)
 
 Two traps worth stating explicitly, because both have shipped as bugs here:
 
@@ -44,10 +45,11 @@ not a call added. That is the right change and it is worth making: a method that
 one of two different things is hard to reason about regardless of analytics.
 
 But price it honestly. A return-type change reaches every caller **and every test double**.
-Widening `list_conversation_attachments` from a list to a ready/unusable split broke sixteen
-mocks across five test files that had nothing to do with attachments. Search for stubs of the
-method before you start, and change them by their patch target — a blunt find-and-replace on
-`return_value=[]` will silently rewrite a neighbouring mock of a different method.
+When #677 widened `list_conversation_attachments` from a list to a ready/unusable split, it
+reached sixteen mocks across five test files that had nothing to do with attachments — more work
+than the events themselves. Search for stubs of the method before you start, and change them by
+their patch target: a blunt find-and-replace on `return_value=[]` silently rewrote a
+neighbouring mock of a different method when that change was made.
 
 ## Emitting more than one event at once
 
