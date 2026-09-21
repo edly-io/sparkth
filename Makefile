@@ -217,14 +217,14 @@ test.backend.analytics: services.up ## Run the TimescaleDB test lane (starts bac
 	ANALYTICS_TEST_PG_URL="$${ANALYTICS_TEST_PG_URL:-postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics_test}" \
 		uv run pytest -m pg $(ARGS)
 
-# The Open edX XBlock is a separate Python distribution (see conftest.py's collect_ignore) with
+# `sparkth-pxc-xblock` is a separate Python distribution (see conftest.py's collect_ignore) with
 # its own pyproject.toml, so it is not covered by `make test.backend` — everything it needs
 # (pytest, mypy, ruff) is run explicitly here instead, on the same footing as the main package.
 # Only the test tools come from `--with`; `--directory` installs the package's own declared
 # dependencies from its pyproject.toml, so naming them again here would resolve them twice.
 XBLOCK_DIR := third_party_plugins/openedx/xblock
-.PHONY: test.xblock
-test.xblock: ## Run the Open edX XBlock package's tests, mypy and ruff (separate distribution)
+.PHONY: test.pxc.xblock
+test.pxc.xblock: ## Run the sparkth-pxc-xblock distribution's tests, mypy and ruff
 	uv run --with pytest --directory $(XBLOCK_DIR) pytest -q
 	uv run --with mypy --directory $(XBLOCK_DIR) mypy sparkth_pxc
 	uv run ruff check $(XBLOCK_DIR)
