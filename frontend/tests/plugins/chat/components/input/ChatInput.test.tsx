@@ -48,6 +48,7 @@ describe("ChatInput", () => {
         onSend={vi.fn()}
         conversationId={null}
         isStreaming={false}
+        isStopping={false}
         onStop={vi.fn()}
       />,
       chatEn,
@@ -66,12 +67,33 @@ describe("ChatInput", () => {
         onSend={vi.fn()}
         conversationId={null}
         isStreaming
+        isStopping={false}
         onStop={onStop}
       />,
       { chat: chatEn.chat },
     );
     await userEvent.click(screen.getByRole("button", { name: /stop/i }));
     expect(onStop).toHaveBeenCalledOnce();
+  });
+
+  it("stops offering the stop button once a stop is already on its way", async () => {
+    const onStop = vi.fn();
+    renderWithIntl(
+      <ChatInput
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming
+        isStopping
+        onStop={onStop}
+      />,
+      { chat: chatEn.chat },
+    );
+    const stop = screen.getByRole("button", { name: /stop/i });
+    expect(stop).toBeDisabled();
+    await userEvent.click(stop);
+    expect(onStop).not.toHaveBeenCalled();
   });
 
   it("offers the send button when nothing is streaming", () => {
@@ -82,6 +104,7 @@ describe("ChatInput", () => {
         onSend={vi.fn()}
         conversationId={null}
         isStreaming={false}
+        isStopping={false}
         onStop={vi.fn()}
       />,
       { chat: chatEn.chat },
@@ -97,6 +120,7 @@ describe("ChatInput", () => {
         onSend={vi.fn()}
         conversationId={null}
         isStreaming
+        isStopping={false}
         onStop={vi.fn()}
       />,
       { chat: chatEn.chat },
@@ -113,6 +137,7 @@ describe("ChatInput", () => {
         onSend={vi.fn()}
         conversationId={null}
         isStreaming={false}
+        isStopping={false}
         onStop={vi.fn()}
       />,
       { chat: chatEn.chat },

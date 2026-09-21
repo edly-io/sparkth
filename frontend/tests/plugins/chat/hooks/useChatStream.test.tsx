@@ -57,6 +57,7 @@ function runStream(payloads: Record<string, unknown>[]) {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
     stopGeneration: () => result.current.stopGeneration(),
     optionClick: (text: string) => result.current.handleOptionClick(text),
+    isStopping: () => result.current.isStopping,
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
     assistant: () => messages.find((m) => m.role === "assistant"),
@@ -154,6 +155,22 @@ describe("useChatStream — stopping", () => {
       await stream.stopGeneration();
     });
     expect(stopChatTurn).not.toHaveBeenCalled();
+  });
+
+  it("clears the stopping flag once the turn has ended", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await Promise.all([stream.send(), stream.stopGeneration()]);
+    });
+    expect(stream.isStopping()).toBe(false);
+  });
+
+  it("does not enter the stopping state when no turn is live", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.stopGeneration();
+    });
+    expect(stream.isStopping()).toBe(false);
   });
 
   it("ignores an option click while a turn is still streaming", async () => {

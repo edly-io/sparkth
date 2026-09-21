@@ -22,6 +22,7 @@ interface ChatInputProps {
   }) => void;
   conversationId: string | null;
   isStreaming: boolean;
+  isStopping: boolean;
   onStop: () => void;
 }
 
@@ -31,6 +32,7 @@ export function ChatInput({
   onSend,
   conversationId,
   isStreaming,
+  isStopping,
   onStop,
 }: ChatInputProps) {
   const t = useTranslations("chat");
@@ -119,6 +121,7 @@ export function ChatInput({
                   size="icon"
                   aria-label={t("stopGenerating")}
                   onClick={onStop}
+                  disabled={isStopping}
                   className="rounded-full bg-foreground text-background"
                 >
                   <Square className="w-4 h-4" />

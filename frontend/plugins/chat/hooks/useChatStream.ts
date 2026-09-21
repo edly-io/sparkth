@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { requestChatCompletionStream, stopChatTurn } from "@/lib/chat";
 import { ChatMessage, STREAM_STATUS_PHASES, StreamStatusPhase, TextAttachment } from "../types";
@@ -335,6 +335,8 @@ export function useChatStream({
     attachments: [],
   });
   const lastSentThresholdRef = useRef<number>(0.45);
+  // The backend only notices a stop between provider events, so the button has to say it heard.
+  const [isStopping, setIsStopping] = useState(false);
   const turnIdRef = useRef<string | null>(null);
 
   const failAssistantMessage = useCallback(
@@ -390,6 +392,7 @@ export function useChatStream({
 
       const turnId = crypto.randomUUID();
       turnIdRef.current = turnId;
+      setIsStopping(false);
 
       try {
         const res = await requestChatCompletionStream(token, {
@@ -425,6 +428,7 @@ export function useChatStream({
           failAssistantMessage(assistantId, text),
         );
         turnIdRef.current = null;
+        setIsStopping(false);
 
         if (!hasError) {
           setMessages((prev) =>
@@ -462,6 +466,8 @@ export function useChatStream({
         if (err instanceof ApiRequestError) {
           errorMsg = friendlyFieldMessage(err) ?? err.message;
         }
+        turnIdRef.current = null;
+        setIsStopping(false);
         failAssistantMessage(assistantId, errorMsg);
       }
     },
@@ -479,6 +485,7 @@ export function useChatStream({
   const stopGeneration = useCallback(async () => {
     const turnId = turnIdRef.current;
     if (!turnId) return;
+    setIsStopping(true);
     await stopChatTurn(token, turnId).catch((err) =>
       console.error("Failed to stop chat turn:", err),
     );
@@ -505,5 +512,5 @@ export function useChatStream({
     [handleSend],
   );
 
-  return { handleSend, handleOptionClick, stopGeneration };
+  return { handleSend, handleOptionClick, stopGeneration, isStopping };
 }

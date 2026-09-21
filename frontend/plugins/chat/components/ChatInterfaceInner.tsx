@@ -56,7 +56,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, handleOptionClick, stopGeneration } = useChatStream({
+  const { handleSend, handleOptionClick, stopGeneration, isStopping } = useChatStream({
     token,
     llmConfigId,
     modelOverride,
@@ -98,6 +98,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
         onSend={handleSend}
         conversationId={conversationId}
         isStreaming={isStreaming}
+        isStopping={isStopping}
         onStop={stopGeneration}
       />
 
