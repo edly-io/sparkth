@@ -21,8 +21,10 @@ from sparkth.lib.analytics import (
     get_event_schema,
     ingest_event,
     register_event_schema,
+    register_event_schemas,
 )
 from sparkth.lib.plugins import SparkthPlugin
+from tests.analytics import fake_event_module
 
 # Single source of truth for the fake plugin's identity, so the cleanup fixture's
 # key can never desync from the event the tests register.
@@ -132,3 +134,34 @@ async def test_plugin_event_round_trips_through_gateway(analytics_session: Async
 def test_unregistered_plugin_event_is_unknown() -> None:
     with pytest.raises(UnknownEventTypeError):
         get_event_schema("never.registered", 1)
+
+
+class TestRegisteringAWholeModule:
+    """
+    ``register_event_schemas`` sweeps a plugin's analytics module.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cleanup_swept_registrations(self) -> Generator[None, None, None]:
+        yield
+        for schema in (fake_event_module.SweptFirst, fake_event_module.SweptSecond):
+            ANALYTICS_EVENTS.remove((schema.event_type, schema.version))
+
+    def test_every_schema_the_module_defines_is_registered(self) -> None:
+        plugin = SparkthPlugin(fake_event_module.SWEEP_PLUGIN_NAME)
+
+        register_event_schemas(plugin, fake_event_module)
+
+        assert get_event_schema("fake-sweep-plugin.first_happened", 1) is fake_event_module.SweptFirst
+        assert get_event_schema("fake-sweep-plugin.second_happened", 1) is fake_event_module.SweptSecond
+
+    def test_non_schemas_and_imported_schemas_are_left_alone(self) -> None:
+        """A seam class sharing the module must not be registered, and neither must the
+        base class the module imports — it is defined elsewhere and has no event_type."""
+        plugin = SparkthPlugin(fake_event_module.SWEEP_PLUGIN_NAME)
+
+        register_event_schemas(plugin, fake_event_module)
+
+        registered = {schema.__name__ for schema in ANALYTICS_EVENTS.iter_values()}
+        assert "SweptAnalytics" not in registered
+        assert "AnalyticsEventSchema" not in registered

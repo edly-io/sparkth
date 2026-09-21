@@ -153,6 +153,17 @@ class TestAttachingRequestedDocuments:
         assert await _attached_document_ids(session, conversation.id or 0) == {mine}
 
     @pytest.mark.asyncio
+    async def test_a_repeated_id_is_counted_once(self, session: AsyncSession, current_user: User) -> None:
+        """Both counts are over distinct ids, so a repeat cannot make the skip rate lie."""
+        user_id = current_user.id or 1
+        conversation = await _seed_conversation(session, user_id)
+        theirs = await _seed_document(session, user_id + 99, "theirs.pdf")
+
+        outcome = await ChatService().attach_owned_documents(session, conversation.id or 0, [theirs, theirs], user_id)
+
+        assert (outcome.requested_count, outcome.skipped_count) == (1, 1)
+
+    @pytest.mark.asyncio
     async def test_a_skipped_document_is_logged(self, session: AsyncSession, current_user: User) -> None:
         user_id = current_user.id or 1
         conversation = await _seed_conversation(session, user_id)

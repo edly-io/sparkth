@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import BackgroundTasks
 from pydantic import ValidationError
 
 from sparkth.lib.analytics import AnalyticsEventSchema, get_event_schema
@@ -21,9 +22,8 @@ from sparkth.plugins.chat.analytics import (
     ChatConversationStarted,
     ChatMessageSent,
     ChatToolInvoked,
+    ChatTurnAnalytics,
     emit_completion,
-    emit_conversation_started,
-    emit_message_sent,
     tool_names,
 )
 
@@ -215,19 +215,34 @@ class TestToolNames:
 MOMENT = datetime(2026, 9, 18, 12, 30, tzinfo=timezone.utc)
 
 
-class TestEmitHelpers:
-    """Each helper builds one payload and hands it to the emission primitive.
+def _turn_seam(background_tasks: BackgroundTasks) -> ChatTurnAnalytics:
+    return ChatTurnAnalytics(
+        background_tasks=background_tasks,
+        conversation_id="conv-1",
+        provider="openai",
+        model="gpt-4o",
+        actor_id="7",
+    )
 
-    Every helper forwards ``occurred_at`` rather than letting the write path default it:
+
+class TestSchedulingATurnEvent:
+    """A seam queues one event and builds its payload when the queue runs.
+
+    Driven through the seam rather than a per-event emit helper: the seam is the only
+    surface a call site touches, and building inside the task is the property that keeps
+    a bad payload from reaching the request. Both are only visible from here.
+
+    Every event carries ``occurred_at`` rather than letting the write path default it:
     these all run from tasks that fire after the turn they describe, so a defaulted time
     would stamp a whole turn at the end of it.
     """
 
-    async def test_emit_conversation_started(self) -> None:
+    async def test_conversation_started_is_emitted_when_the_queue_runs(self) -> None:
+        background_tasks = BackgroundTasks()
         with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
-            await emit_conversation_started(
-                conversation_id="conv-1", provider="openai", model="gpt-4o", actor_id="7", occurred_at=MOMENT
-            )
+            _turn_seam(background_tasks).schedule_conversation_started(occurred_at=MOMENT)
+            emit.assert_not_awaited()  # queued, not awaited: nothing happens until the response is flushed
+            await background_tasks()
 
         emit.assert_awaited_once_with(
             "chat.conversation_started",
@@ -237,17 +252,13 @@ class TestEmitHelpers:
             occurred_at=MOMENT,
         )
 
-    async def test_emit_message_sent(self) -> None:
+    async def test_message_sent_is_emitted_when_the_queue_runs(self) -> None:
+        background_tasks = BackgroundTasks()
         with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
-            await emit_message_sent(
-                conversation_id="conv-1",
-                provider="openai",
-                model="gpt-4o",
-                message_length=12,
-                has_attachment=True,
-                actor_id="7",
-                occurred_at=MOMENT,
+            _turn_seam(background_tasks).schedule_message_sent(
+                message_length=12, has_attachment=True, occurred_at=MOMENT
             )
+            await background_tasks()
 
         emit.assert_awaited_once_with(
             "chat.message_sent",
@@ -328,23 +339,22 @@ class TestEmitHelpers:
         assert landed[0].payload["tool_call_count"] == 0
         assert landed[0].occurred_at == MOMENT
 
-    async def test_a_negative_count_is_rejected_before_anything_is_emitted(self) -> None:
-        """The non-negative guard fires at the producer, so no skewed row can be written.
+    async def test_a_negative_count_raises_in_the_task_and_not_at_the_seam(self) -> None:
+        """The non-negative guard fires at the producer, so no skewed row can be written —
+        but it must fire in the background task, not while the request is still running.
 
-        Every call site queues these helpers through ``background_tasks.add_task``, so the
-        raise lands in the background task after the response has been sent — the same place
-        a ``ValidationError`` raised inside ``emit_event`` would have surfaced.
+        The schema is built by the queued task rather than by ``schedule_*``, so scheduling
+        a bad count is silent and the ``ValidationError`` surfaces once the response has been
+        sent — the same place a ``ValidationError`` raised inside ``emit_event`` would. Were
+        the event built at the seam, a skewed count would destroy the turn it only measures.
         """
+        background_tasks = BackgroundTasks()
         with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+            _turn_seam(background_tasks).schedule_message_sent(
+                message_length=-1, has_attachment=False, occurred_at=MOMENT
+            )
+
             with pytest.raises(ValidationError):
-                await emit_message_sent(
-                    conversation_id="conv-1",
-                    provider="openai",
-                    model="gpt-4o",
-                    message_length=-1,
-                    has_attachment=False,
-                    actor_id="7",
-                    occurred_at=MOMENT,
-                )
+                await background_tasks()
 
         emit.assert_not_awaited()

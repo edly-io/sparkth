@@ -26,9 +26,10 @@ yields a ``chat.completion_served`` with no ``chat.conversation_started`` or
 these counts are lower bounds: failed turns are systematically under-counted.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import BackgroundTasks
 from pydantic import NonNegativeInt
@@ -117,6 +118,80 @@ class ChatToolInvoked(AnalyticsEventSchema):
     tool_category: str
 
 
+class ChatDocumentAttached(AnalyticsEventSchema):
+    """An instructor put a document in play for a conversation.
+
+    ``source`` separates a deliberate attach through the attachments API from documents
+    named on a completion request, which are different user behaviours. Re-attaching a
+    document already attached emits nothing: the write is upsert-safe, so a repeat is a
+    no-op rather than an action.
+    """
+
+    event_type = "chat.document_attached"
+    version = 1
+
+    conversation_id: str
+    document_id: int
+    source: Literal["explicit", "completion_request"]
+
+
+class ChatDocumentDetached(AnalyticsEventSchema):
+    """An instructor removed a document from a conversation.
+
+    ``seconds_attached`` is what makes abandonment legible — a document dropped within a
+    minute reads very differently from one removed after a working session. It is measured
+    from the attachment row's ``attached_at``, and is the one fact the row carries that
+    outlives it.
+    """
+
+    event_type = "chat.document_detached"
+    version = 1
+
+    conversation_id: str
+    document_id: int
+    seconds_attached: NonNegativeInt
+
+
+class ChatDocumentsSkipped(AnalyticsEventSchema):
+    """A completion request named documents that were silently dropped from the turn.
+
+    The instructor asked for documents to be used and some were not, with nothing in the
+    response saying so. Counts only, never ids: a skipped id may belong to a different
+    user, and recording one against this actor is not something a payload should carry.
+    """
+
+    event_type = "chat.documents_skipped"
+    version = 1
+
+    conversation_id: str
+    requested_count: NonNegativeInt
+    skipped_count: NonNegativeInt
+
+
+class ChatAttachmentUnusable(AnalyticsEventSchema):
+    """A turn ran while an attached document was not ingestible, so it was ignored.
+
+    Chat reads only READY attachments, so a document still ingesting — or one that failed
+    — is indistinguishable in every other metric from no document at all: the search
+    classifier is never consulted and the reply is generated without the file. The
+    instructor sees an answer that ignores what they attached.
+
+    Emitted once per unusable document per turn. Re-emitting across turns is intended: it
+    says the instructor asked again and it still was not ready, which is the frustration
+    this event exists to size.
+    """
+
+    event_type = "chat.attachment_unusable"
+    version = 1
+
+    conversation_id: str
+    document_id: int
+    status: Literal["queued", "processing", "failed", "deleted"]
+
+
+AnalyticsEventBuilder = Callable[[], AnalyticsEventSchema]
+
+
 @dataclass(frozen=True)
 class AnalyticsAttribution:
     """Who acted, and through which provider — the only completion facts a seam
@@ -175,62 +250,20 @@ def tool_names(records: list[dict[str, Any]]) -> list[str]:
     return names
 
 
-async def _emit(event: AnalyticsEventSchema, actor_id: str, occurred_at: datetime) -> None:
-    """Hand one already-constructed event to the emission primitive.
+async def _emit(build: AnalyticsEventBuilder, actor_id: str, occurred_at: datetime) -> None:
+    """Build one event and hand it to the emission primitive.
 
-    The payload is dumped from the event rather than hand-listed at each call site,
-    so a field added to a schema cannot be silently omitted: the constructor call
-    fails type-checking instead of the analytics write failing at runtime. The
-    ``event_type``/``version`` identity travels with the instance for the same reason.
-    ``ClassVar`` keeps both out of the dumped payload.
 
     ``occurred_at`` is required rather than defaulted as defaulting
     to now would stamp a whole turn's events at the end of it and lose their order.
     """
+    event = build()
     await emit_event(
         event.event_type,
         event.version,
         event.model_dump(mode="json"),
         actor_id=actor_id,
         occurred_at=occurred_at,
-    )
-
-
-async def emit_conversation_started(
-    conversation_id: str, provider: str, model: str, actor_id: str, occurred_at: datetime
-) -> None:
-    """Emit ``chat.conversation_started``, timed by when the conversation row was created."""
-    await _emit(
-        ChatConversationStarted(
-            conversation_id=conversation_id,
-            provider=provider,
-            model=model,
-        ),
-        actor_id,
-        occurred_at,
-    )
-
-
-async def emit_message_sent(
-    conversation_id: str,
-    provider: str,
-    model: str,
-    message_length: int,
-    has_attachment: bool,
-    actor_id: str,
-    occurred_at: datetime,
-) -> None:
-    """Emit ``chat.message_sent`` for one instructor turn, timed by when it was stored."""
-    await _emit(
-        ChatMessageSent(
-            conversation_id=conversation_id,
-            provider=provider,
-            model=model,
-            message_length=message_length,
-            has_attachment=has_attachment,
-        ),
-        actor_id,
-        occurred_at,
     )
 
 
@@ -321,25 +354,27 @@ class ChatTurnAnalytics:
         would make every continued turn look like a new conversation.
         """
         self.background_tasks.add_task(
-            emit_conversation_started,
-            conversation_id=self.conversation_id,
-            provider=self.provider,
-            model=self.model,
-            actor_id=self.actor_id,
-            occurred_at=occurred_at,
+            _emit,
+            lambda: ChatConversationStarted(
+                conversation_id=self.conversation_id, provider=self.provider, model=self.model
+            ),
+            self.actor_id,
+            occurred_at,
         )
 
     def schedule_message_sent(self, *, message_length: int, has_attachment: bool, occurred_at: datetime) -> None:
         """Queue ``chat.message_sent`` for one instructor turn."""
         self.background_tasks.add_task(
-            emit_message_sent,
-            conversation_id=self.conversation_id,
-            provider=self.provider,
-            model=self.model,
-            message_length=message_length,
-            has_attachment=has_attachment,
-            actor_id=self.actor_id,
-            occurred_at=occurred_at,
+            _emit,
+            lambda: ChatMessageSent(
+                conversation_id=self.conversation_id,
+                provider=self.provider,
+                model=self.model,
+                message_length=message_length,
+                has_attachment=has_attachment,
+            ),
+            self.actor_id,
+            occurred_at,
         )
 
     def schedule_completion(
@@ -369,3 +404,77 @@ class ChatTurnAnalytics:
         this queue, so it takes these and works out the rest from its own state.
         """
         return AnalyticsAttribution(provider=self.provider, actor_id=self.actor_id)
+
+
+@dataclass(frozen=True)
+class ChatAttachmentAnalytics:
+    """The scheduling surface for one conversation's document events.
+
+    A sibling to :class:`ChatTurnAnalytics` rather than part of it. These events describe
+    what happened to a conversation's *documents*, not to a turn, so they carry no
+    provider or model — and the attachments routes that emit most of them are plain CRUD
+    with no LLM config to take those from.
+
+    Same contract as the turn seam: every method queues, never awaits, and takes the
+    moment its event happened. Where a row records that moment (an attachment's
+    ``attached_at``) the caller passes it; a removal has no row left to read, so there the
+    seam's own clock is the only honest answer.
+    """
+
+    background_tasks: BackgroundTasks
+    conversation_id: str
+    actor_id: str
+
+    def schedule_document_attached(
+        self, *, document_id: int, source: Literal["explicit", "completion_request"], occurred_at: datetime
+    ) -> None:
+        """Queue ``chat.document_attached``. Only for a row that was actually created."""
+        self.background_tasks.add_task(
+            _emit,
+            lambda: ChatDocumentAttached(conversation_id=self.conversation_id, document_id=document_id, source=source),
+            self.actor_id,
+            occurred_at,
+        )
+
+    def schedule_document_detached(self, *, document_id: int, seconds_attached: int, occurred_at: datetime) -> None:
+        """Queue ``chat.document_detached``. Only when a row was actually removed."""
+        self.background_tasks.add_task(
+            _emit,
+            lambda: ChatDocumentDetached(
+                conversation_id=self.conversation_id,
+                document_id=document_id,
+                seconds_attached=seconds_attached,
+            ),
+            self.actor_id,
+            occurred_at,
+        )
+
+    def schedule_documents_skipped(self, *, requested_count: int, skipped_count: int, occurred_at: datetime) -> None:
+        """Queue ``chat.documents_skipped``. Only when something was actually skipped."""
+        self.background_tasks.add_task(
+            _emit,
+            lambda: ChatDocumentsSkipped(
+                conversation_id=self.conversation_id,
+                requested_count=requested_count,
+                skipped_count=skipped_count,
+            ),
+            self.actor_id,
+            occurred_at,
+        )
+
+    def schedule_attachment_unusable(
+        self,
+        *,
+        document_id: int,
+        status: Literal["queued", "processing", "failed", "deleted"],
+        occurred_at: datetime,
+    ) -> None:
+        """Queue ``chat.attachment_unusable`` for one document this turn could not use."""
+        self.background_tasks.add_task(
+            _emit,
+            lambda: ChatAttachmentUnusable(
+                conversation_id=self.conversation_id, document_id=document_id, status=status
+            ),
+            self.actor_id,
+            occurred_at,
+        )

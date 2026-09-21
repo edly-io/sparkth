@@ -1,4 +1,5 @@
-from typing import Any, cast
+from datetime import datetime, timezone
+from typing import Any, Literal, assert_never, cast
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -9,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
@@ -20,7 +22,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import ChatTurnAnalytics, tool_names
+from sparkth.plugins.chat.analytics import ChatAttachmentAnalytics, ChatTurnAnalytics, tool_names
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -49,6 +51,24 @@ from sparkth.plugins.chat.tools import get_tool_registry
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _unusable_status(document: Document) -> Literal["queued", "processing", "failed", "deleted"]:
+    """Why this turn could not read an attached document."""
+    if document.is_deleted:
+        return "deleted"
+    match document.status:
+        case DocumentStatus.QUEUED:
+            return "queued"
+        case DocumentStatus.PROCESSING:
+            return "processing"
+        case DocumentStatus.FAILED:
+            return "failed"
+        case DocumentStatus.READY:
+            logger.warning("READY document %s listed unusable while not deleted", document.id)
+            return "failed"
+        case _ as unhandled:
+            assert_never(unhandled)
 
 
 def _refusal_response(
@@ -158,6 +178,11 @@ async def chat_completion(
         model=model,
         actor_id=str(user_id),
     )
+    attachment_analytics = ChatAttachmentAnalytics(
+        background_tasks=background_tasks,
+        conversation_id=str(conversation.uuid),
+        actor_id=str(user_id),
+    )
     if conversation_was_created:
         schedule_title_generation(
             background_tasks,
@@ -179,7 +204,22 @@ async def chat_completion(
         turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
     if request.document_ids:
-        await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
+        attached = await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
+        for attachment in attached.created:
+            attachment_analytics.schedule_document_attached(
+                document_id=attachment.document_id,
+                source="completion_request",
+                occurred_at=attachment.attached_at,
+            )
+        if attached.skipped_count:
+            # The instructor named documents that were dropped and the reply says nothing
+            # about it, so this is the only record that their turn was not what they asked
+            # for. Nothing records the moment, so it is stamped here.
+            attachment_analytics.schedule_documents_skipped(
+                requested_count=attached.requested_count,
+                skipped_count=attached.skipped_count,
+                occurred_at=datetime.now(timezone.utc),
+            )
     incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
     for stored in incoming_messages:
         # Instructor turns only: an assistant turn in the request is history the client
@@ -197,10 +237,20 @@ async def chat_completion(
     try:
         # Both classifiers need these: scope, to know documents are in play, and search, to
         # judge the message against them.
-        attached_documents = await service.list_conversation_attachments(
+        conversation_documents = await service.list_conversation_attachments(
             session=session, conversation_id=conversation_id
         )
+        attached_documents = conversation_documents.ready
         attached_document_names = [document.name for document in attached_documents]
+        for unusable in conversation_documents.unusable:
+            # Attached as far as the instructor is concerned, but not ingestible, so this
+            # turn runs as though it were not there. Stamped here: nothing records the
+            # moment a document was passed over.
+            attachment_analytics.schedule_attachment_unusable(
+                document_id=cast(int, unusable.id),
+                status=_unusable_status(unusable),
+                occurred_at=datetime.now(timezone.utc),
+            )
 
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
