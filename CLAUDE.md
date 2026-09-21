@@ -217,4 +217,5 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 | User management guide | [docs/guides/user-management.md](docs/guides/user-management.md) |
 | GitHub project management (issues, PRs, LLM notices) | [.claude/skills/sparkth-project-management/SKILL.md](.claude/skills/sparkth-project-management/SKILL.md) |
 | Database migrations (Alembic, split heads, backfill) | [.claude/skills/database-migrations/SKILL.md](.claude/skills/database-migrations/SKILL.md) |
-| Analytics events (what to record, which seam, payload safety) | [.claude/skills/analytics-events/SKILL.md](.claude/skills/analytics-events/SKILL.md) |
+| Analytics events (what to record, which seam, payload safety) | [docs/guides/analytics-events.md](docs/guides/analytics-events.md) |
+| Analytics events: proposing them (agent workflow) | [.claude/skills/analytics-events/SKILL.md](.claude/skills/analytics-events/SKILL.md) |
