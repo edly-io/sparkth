@@ -22,7 +22,14 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import ChatAttachmentAnalytics, ChatTurnAnalytics, tool_names
+from sparkth.plugins.chat.analytics import (
+    ChatAttachmentAnalytics,
+    ChatClassifierAnalytics,
+    ChatTurnAnalytics,
+    TurnFailureCause,
+    record_turn_failed,
+    tool_names,
+)
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
@@ -36,7 +43,6 @@ from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
-    live_stream_tasks,
     stream_out_of_scope_refusal,
     streaming_error_message,
 )
@@ -141,13 +147,26 @@ async def chat_completion(
             "LLMConfig %s unusable for user %s: %s: %s", request.llm_config_id, user_id, type(exc).__name__, exc
         )
         await service.record_error_message(session, request.conversation_id, user_id, detail)
+        record_turn_failed(
+            conversation_id=str(request.conversation_id) if request.conversation_id else None,
+            provider=None,
+            model=None,
+            cause=TurnFailureCause.LLM_CONFIG_UNUSABLE,
+            streamed=request.stream,
+            actor_id=str(user_id),
+        )
         raise HTTPException(status_code=status_code, detail=detail) from exc
 
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
     query_text = get_last_user_text(request.messages)
-    scope_classifier = MessageScopeClassifier(provider_name, api_key, user_id)
+    classifier_analytics = ChatClassifierAnalytics(
+        background_tasks=background_tasks,
+        provider=provider_name,
+        actor_id=str(user_id),
+    )
+    scope_classifier = MessageScopeClassifier(provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -292,7 +311,7 @@ async def chat_completion(
         # Only asked when there is something to search and something to search for.
         rag_search_required = False
         if attached_documents and query_text:
-            search_classifier = RAGSearchClassifier(provider_name, api_key, user_id)
+            search_classifier = RAGSearchClassifier(provider_name, api_key, user_id, classifier_analytics)
             rag_search_required = await search_classifier.requires_search(
                 query_text, attached_documents, conversation.uuid
             )
@@ -342,7 +361,7 @@ async def chat_completion(
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
                 # SSE sentinel — so the holder keeps it referenced until it finishes.
-                processor.stream(live_stream_tasks),
+                processor.stream(),
                 media_type="text/event-stream",
             )
         else:
@@ -405,9 +424,29 @@ async def chat_completion(
             content=detail,
             is_error=True,
         )
+        record_turn_failed(
+            conversation_id=str(conversation.uuid),
+            provider=provider_name,
+            model=model,
+            cause=(
+                TurnFailureCause.RAG_SEARCH_ERROR
+                if isinstance(exc, RAGSearchError)
+                else TurnFailureCause.PROVIDER_API_ERROR
+            ),
+            streamed=request.stream,
+            actor_id=str(user_id),
+        )
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail) from exc
     except (ValueError, RuntimeError, ValidationError, LangChainException) as e:
         logger.error("Chat completion failed: %s", e)
+        record_turn_failed(
+            conversation_id=str(conversation.uuid),
+            provider=provider_name,
+            model=model,
+            cause=TurnFailureCause.UNEXPECTED,
+            streamed=request.stream,
+            actor_id=str(user_id),
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=_("Chat completion failed"),

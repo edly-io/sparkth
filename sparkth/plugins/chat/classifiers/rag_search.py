@@ -6,6 +6,7 @@ the route persists an error rather than guessing.
 """
 
 import asyncio
+from datetime import datetime, timezone
 from typing import cast
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from sparkth.lib.documents import Document
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import get_rag_ingested_document_structure
+from sparkth.plugins.chat.analytics import ChatClassifierAnalytics
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
 from sparkth.plugins.chat.constants import RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT
 from sparkth.plugins.chat.exceptions import ClassifierError, RAGSearchError
@@ -40,7 +42,7 @@ async def gather_document_headings(documents: list[Document]) -> list[DocumentHe
     for document, sections in zip(saved, results):
         if isinstance(sections, BaseException):
             logger.warning("No section headings for document %s: %s", document.id, sections)
-            headings.append(DocumentHeadings(name=document.name))
+            headings.append(DocumentHeadings(name=document.name, structure_unavailable=True))
             continue
         paths = [
             " / ".join(part for part in (s.chapter, s.section, s.subsection) if part is not None) for s in sections
@@ -52,9 +54,16 @@ async def gather_document_headings(documents: list[Document]) -> list[DocumentHe
 class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
     """Decides whether a chat turn needs content retrieved from the conversation's documents."""
 
-    def __init__(self, provider_name: str, api_key: str, user_id: int) -> None:
-        """``user_id`` never reaches the model; it is logged on a declined search, which the client
-        is told about but not given a reason for."""
+    def __init__(
+        self,
+        provider_name: str,
+        api_key: str,
+        user_id: int,
+        analytics: ChatClassifierAnalytics | None = None,
+    ) -> None:
+        """``user_id`` never reaches the model; it is logged on a declined search.
+        ``analytics`` is optional: without it a decision is simply not measured.
+        """
         super().__init__(
             RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT,
             RAGSearchVerdict,
@@ -62,6 +71,7 @@ class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
             api_key,
         )
         self._user_id = user_id
+        self._analytics = analytics
 
     def _build_messages(self, payload: RAGSearchInput) -> list[BaseMessage]:
         """Put the message to the model alongside what each document actually contains.
@@ -108,5 +118,15 @@ class RAGSearchClassifier(BaseClassifier[RAGSearchInput, RAGSearchVerdict]):
                 self.model,
                 verdict.refusal_reason,
                 len(documents),
+            )
+        if self._analytics is not None and conversation_uuid is not None:
+            self._analytics.schedule_rag_search_classified(
+                conversation_id=str(conversation_uuid),
+                classifier_model=self.model,
+                requires_search=verdict.requires_search,
+                document_count=len(documents),
+                documents_with_unreadable_structure=sum(1 for h in headings if h.structure_unavailable),
+                # Records the moment the decision is made, not when the classification started.
+                occurred_at=datetime.now(timezone.utc),
             )
         return verdict.requires_search

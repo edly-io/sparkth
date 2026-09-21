@@ -1,6 +1,5 @@
 """Tests for SSE status events during RAG retrieval."""
 
-import asyncio
 import inspect
 import json
 import uuid
@@ -16,6 +15,7 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
+from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.routes.utils import parse_metadata_list
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
@@ -476,20 +476,19 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
     """DB write must happen even if the SSE consumer stops reading before done."""
     service = _make_service()
 
-    task_holder: set[asyncio.Task[None]] = set()
     gen = ChatStreamProcessor(
         _make_provider(),
         [{"role": "user", "content": "Hello"}],
         _make_conversation(),
         service,
         None,
-    ).stream(task_holder)
+    ).stream()
 
     # Consume only the first event then abandon the generator
     async for _ in gen:
         break
 
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next((c for c in add_message_calls if c.kwargs.get("role") == "assistant"), None)
@@ -503,7 +502,6 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
 async def test_document_not_found_persists_error_to_db() -> None:
     """DocumentNotFoundError must write an is_error=True message to DB."""
     service = _make_service()
-    task_holder: set[asyncio.Task[None]] = set()
     with (
         patch(
             "sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
@@ -520,10 +518,10 @@ async def test_document_not_found_persists_error_to_db() -> None:
             1,
             MagicMock(),
             True,
-        ).stream(task_holder)
+        ).stream()
         async for _ in gen:
             pass
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
     assert (
@@ -535,7 +533,6 @@ async def test_document_not_found_persists_error_to_db() -> None:
 async def test_rag_not_ready_persists_error_to_db() -> None:
     """RAGNotReadyError must write an is_error=True message to DB."""
     service = _make_service()
-    task_holder: set[asyncio.Task[None]] = set()
     with (
         patch(
             "sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
@@ -552,10 +549,10 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
             1,
             MagicMock(),
             True,
-        ).stream(task_holder)
+        ).stream()
         async for _ in gen:
             pass
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
     assert "processed" in error_calls[0].kwargs["content"].lower() or "wait" in error_calls[0].kwargs["content"].lower()
@@ -565,7 +562,6 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
 async def test_rag_retrieval_error_persists_error_to_db() -> None:
     """RAGRetrievalError must write an is_error=True message to DB."""
     service = _make_service()
-    task_holder: set[asyncio.Task[None]] = set()
     with (
         patch(
             "sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new_callable=AsyncMock
@@ -582,10 +578,10 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
             1,
             MagicMock(),
             True,
-        ).stream(task_holder)
+        ).stream()
         async for _ in gen:
             pass
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
     assert "search" in error_calls[0].kwargs["content"].lower() or "failed" in error_calls[0].kwargs["content"].lower()
@@ -605,17 +601,16 @@ async def test_unexpected_error_persists_error_to_db() -> None:
 
     provider.stream_message = _failing_stream
 
-    task_holder: set[asyncio.Task[None]] = set()
     gen = ChatStreamProcessor(
         provider,
         [{"role": "user", "content": "Hello"}],
         _make_conversation(),
         service,
         None,
-    ).stream(task_holder)
+    ).stream()
     async for _ in gen:
         pass
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
 
     error_calls = [c for c in service.add_message.call_args_list if c.kwargs.get("is_error") is True]
     assert len(error_calls) == 1
@@ -674,16 +669,15 @@ async def test_tool_calls_saved_in_metadata() -> None:
 
     provider.stream_message = stream_gen
 
-    task_holder: set[asyncio.Task[None]] = set()
     async for _ in ChatStreamProcessor(
         provider,
         [{"role": "user", "content": "search for something"}],
         _make_conversation(),
         service,
         None,
-    ).stream(task_holder):
+    ).stream():
         pass
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next(
@@ -710,17 +704,16 @@ async def test_tool_calls_in_done_payload() -> None:
     provider.stream_message = stream_gen
 
     events = []
-    task_holder: set[asyncio.Task[None]] = set()
     async for chunk in ChatStreamProcessor(
         provider,
         [{"role": "user", "content": "run a tool"}],
         _make_conversation(),
         _make_service(),
         None,
-    ).stream(task_holder):
+    ).stream():
         if chunk.startswith("data:"):
             events.append(json.loads(chunk[5:].strip()))
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
 
     done_event = next((e for e in events if e.get("done")), None)
     assert done_event is not None
@@ -733,16 +726,15 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
     """When no tools are invoked, tool_calls is absent from the message metadata."""
     service = _make_service()
 
-    task_holder: set[asyncio.Task[None]] = set()
     async for _ in ChatStreamProcessor(
         _make_provider(),
         [{"role": "user", "content": "Hello"}],
         _make_conversation(),
         service,
         None,
-    ).stream(task_holder):
+    ).stream():
         pass
-    await asyncio.gather(*task_holder)
+    await join_live_tasks()
 
     add_message_calls = service.add_message.call_args_list
     assistant_call = next(

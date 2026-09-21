@@ -199,7 +199,7 @@ class TestToolNames:
         Only the record's keys may be logged — its values can hold course content.
         """
         record = {"tool_input": {"secret": "pii"}, "output": "learner data"}
-        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.analytics"):
+        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.analytics.utils"):
             assert tool_names([record]) == []
 
         assert "tool_input" in caplog.text
@@ -239,7 +239,7 @@ class TestSchedulingATurnEvent:
 
     async def test_conversation_started_is_emitted_when_the_queue_runs(self) -> None:
         background_tasks = BackgroundTasks()
-        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+        with patch("sparkth.plugins.chat.analytics.utils.emit_event", new_callable=AsyncMock) as emit:
             _turn_seam(background_tasks).schedule_conversation_started(occurred_at=MOMENT)
             emit.assert_not_awaited()  # queued, not awaited: nothing happens until the response is flushed
             await background_tasks()
@@ -254,7 +254,7 @@ class TestSchedulingATurnEvent:
 
     async def test_message_sent_is_emitted_when_the_queue_runs(self) -> None:
         background_tasks = BackgroundTasks()
-        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+        with patch("sparkth.plugins.chat.analytics.utils.emit_event", new_callable=AsyncMock) as emit:
             _turn_seam(background_tasks).schedule_message_sent(
                 message_length=12, has_attachment=True, occurred_at=MOMENT
             )
@@ -278,8 +278,8 @@ class TestSchedulingATurnEvent:
         """One emit_events call, so the group shares a session and cannot half-queue."""
         attribution = AnalyticsAttribution(provider="anthropic", actor_id="9")
         with (
-            patch("sparkth.plugins.chat.analytics.emit_events", new_callable=AsyncMock) as emit,
-            patch("sparkth.plugins.chat.analytics.get_tool_registry") as get_registry,
+            patch("sparkth.plugins.chat.analytics.utils.emit_events", new_callable=AsyncMock) as emit,
+            patch("sparkth.plugins.chat.analytics.utils.get_tool_registry") as get_registry,
         ):
             get_registry.return_value.category_for.return_value = "openedx-course"
             await emit_completion(
@@ -321,7 +321,7 @@ class TestSchedulingATurnEvent:
 
     async def test_emit_completion_without_tools_emits_only_the_completion(self) -> None:
         attribution = AnalyticsAttribution(provider="openai", actor_id="7")
-        with patch("sparkth.plugins.chat.analytics.emit_events", new_callable=AsyncMock) as emit:
+        with patch("sparkth.plugins.chat.analytics.utils.emit_events", new_callable=AsyncMock) as emit:
             await emit_completion(
                 conversation_id="conv-4",
                 attribution=attribution,
@@ -349,7 +349,7 @@ class TestSchedulingATurnEvent:
         the event built at the seam, a skewed count would destroy the turn it only measures.
         """
         background_tasks = BackgroundTasks()
-        with patch("sparkth.plugins.chat.analytics.emit_event", new_callable=AsyncMock) as emit:
+        with patch("sparkth.plugins.chat.analytics.utils.emit_event", new_callable=AsyncMock) as emit:
             _turn_seam(background_tasks).schedule_message_sent(
                 message_length=-1, has_attachment=False, occurred_at=MOMENT
             )

@@ -4,11 +4,13 @@ A negative verdict ends the turn — the chat model is never reached and the use
 refusal sentence — so this module fails open and logs every refusal it decides.
 """
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.chat.analytics import ChatClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
 from sparkth.plugins.chat.constants import (
     MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY,
@@ -23,10 +25,17 @@ logger = get_logger(__name__)
 class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdict]):
     """Decides whether a chat turn falls within the assistant's learning-design scope."""
 
-    def __init__(self, provider_name: str, api_key: str, user_id: int) -> None:
-        """``user_id`` never reaches the model. It is logged on every decision this classifier
-        records, because the first message of a chat is judged before a conversation exists and the
-        user is then the only thing a refusal can be traced by."""
+    def __init__(
+        self,
+        provider_name: str,
+        api_key: str,
+        user_id: int,
+        analytics: ChatClassifierAnalytics | None = None,
+    ) -> None:
+        """``user_id`` never reaches the model; it is logged, and is all a refusal on a first
+        message can be traced by. ``analytics`` is optional: without it a decision is simply
+        not measured.
+        """
         super().__init__(
             MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
             MessageScopeVerdict,
@@ -34,6 +43,7 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
             api_key,
         )
         self._user_id = user_id
+        self._analytics = analytics
 
     def _build_messages(self, payload: MessageScopeInput) -> list[BaseMessage]:
         """Replay the recent conversation as real turns, then the current message.
@@ -100,6 +110,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
                 conversation_uuid,
                 exc,
             )
+            # Recorded, not silent: the rate of turns admitted unjudged is invisible otherwise.
+            self._record(ScopeVerdict.NOT_JUDGED, conversation_uuid, history, attached_document_names, query)
             return True
 
         if not verdict.in_scope:
@@ -116,4 +128,36 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
                 len(attached_document_names or []),
                 len(query),
             )
+        self._record(
+            ScopeVerdict.IN_SCOPE if verdict.in_scope else ScopeVerdict.OUT_OF_SCOPE,
+            conversation_uuid,
+            history,
+            attached_document_names,
+            query,
+        )
         return verdict.in_scope
+
+    def _record(
+        self,
+        verdict: ScopeVerdict,
+        conversation_uuid: UUID | None,
+        history: list[HistoryTurn] | None,
+        attached_document_names: list[str] | None,
+        query: str,
+    ) -> None:
+        """Queue the decision, measuring the message rather than carrying it.
+
+        ``refusal_reason`` is omitted: it can quote course content, so it stays in the log.
+        """
+        if self._analytics is None:
+            return
+        self._analytics.schedule_scope_classified(
+            conversation_id=str(conversation_uuid) if conversation_uuid else None,
+            classifier_model=self.model,
+            verdict=verdict,
+            history_turns=len(history or []),
+            attachment_count=len(attached_document_names or []),
+            query_length=len(query),
+            # Records the moment the decision is made, not when the classification started.
+            occurred_at=datetime.now(timezone.utc),
+        )
