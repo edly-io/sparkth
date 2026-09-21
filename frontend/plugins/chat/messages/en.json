@@ -1,5 +1,6 @@
 {
   "chat": {
-    "inputPlaceholder": "Describe the course you want to create..."
+    "inputPlaceholder": "Describe the course you want to create...",
+    "working": "Working out what to do…"
   }
 }

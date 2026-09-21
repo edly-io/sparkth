@@ -1,4 +1,5 @@
 import { AlertCircle, Bot } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ChatMessage, TextAttachment } from "../../types";
@@ -9,7 +10,7 @@ import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 
 function ThinkingDots() {
   return (
-    <div className="flex items-center gap-1 py-1">
+    <div data-testid="thinking-dots" className="flex items-center gap-1 py-1">
       <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:0ms]" />
       <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:150ms]" />
       <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:300ms]" />
@@ -34,12 +35,16 @@ export function AssistantMessage({
   setPreviewAttachment,
   onOptionClick,
 }: AssistantMessageProps) {
+  const t = useTranslations("chat");
   const displayText = message.streamedContent ?? message.content;
   const toolCalls = message.toolCalls ?? [];
-  const hasRunningTools = toolCalls.some((t) => t.status === "running");
+  const hasRunningTools = toolCalls.some((tool) => tool.status === "running");
   const isThinking = message.isTyping && !displayText && !hasRunningTools;
   // While tools are running and no response text yet, suppress the card entirely
   const showCard = !hasRunningTools || !!displayText || message.isError || !message.isTyping;
+  // The sentence belongs to the start of a turn: once any tool call exists the count
+  // line above the card carries the state, so the card falls back to the dots.
+  const statusLine = message.statusText ?? (toolCalls.length === 0 ? t("working") : null);
   // TODO: visibility logic depends on toolCalls, hasRunningTools, isThinking, showCard, and
   // the inline tool-call JSX below. Any new state (e.g. tool error, tools-only response)
   // must be reasoned against all of these — consider a state machine if this grows further.
@@ -182,10 +187,10 @@ export function AssistantMessage({
           ) : (
             <Card variant="outlined" className="p-4">
               {isThinking ? (
-                message.statusText ? (
+                statusLine ? (
                   <div className="flex items-center gap-2 py-1">
                     <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
-                    <p className="text-sm text-muted-foreground">{message.statusText}</p>
+                    <p className="text-sm text-muted-foreground">{statusLine}</p>
                   </div>
                 ) : (
                   <ThinkingDots />

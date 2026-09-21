@@ -1,5 +1,6 @@
 {
   "chat": {
-    "inputPlaceholder": "Décrivez le cours que vous souhaitez créer..."
+    "inputPlaceholder": "Décrivez le cours que vous souhaitez créer...",
+    "working": "Détermination des prochaines actions…"
   }
 }
