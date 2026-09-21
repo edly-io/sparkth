@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { ApiRequestError } from "@/lib/api";
-import { requestChatCompletionStream } from "@/lib/chat";
+import { requestChatCompletionStream, stopChatTurn } from "@/lib/chat";
 import { ChatMessage, STREAM_STATUS_PHASES, StreamStatusPhase, TextAttachment } from "../types";
 
 interface SendPayload {
@@ -220,6 +220,7 @@ async function readStream(
   let doneOptions: string[] = [];
   let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
   let doneToolCalls: { name: string }[] | null = null;
+  let doneStopped = false;
   let lastSaveTime = 0;
   const SAVE_INTERVAL_MS = 500;
 
@@ -293,6 +294,7 @@ async function readStream(
           if (Array.isArray(toolCallsFromDone) && toolCallsFromDone.length > 0) {
             doneToolCalls = toolCallsFromDone as { name: string }[];
           }
+          doneStopped = parsed.stopped === true;
           break outer;
         }
       } catch {
@@ -313,6 +315,7 @@ async function readStream(
     doneOptions,
     doneRagSections,
     doneToolCalls,
+    doneStopped,
   };
 }
 
@@ -332,6 +335,7 @@ export function useChatStream({
     attachments: [],
   });
   const lastSentThresholdRef = useRef<number>(0.45);
+  const turnIdRef = useRef<string | null>(null);
 
   const failAssistantMessage = useCallback(
     (id: string, errorText: string) => {
@@ -384,6 +388,9 @@ export function useChatStream({
         },
       ]);
 
+      const turnId = crypto.randomUUID();
+      turnIdRef.current = turnId;
+
       try {
         const res = await requestChatCompletionStream(token, {
           // May be undefined at runtime; the backend then 422s and the catch
@@ -396,6 +403,7 @@ export function useChatStream({
           tools: "*",
           tool_choice: "auto",
           include_system_tools_message: true,
+          turn_id: turnId,
           ...(conversationId && { conversation_id: conversationId }),
           ...(documentIds && documentIds.length > 0 && { document_ids: documentIds }),
         });
@@ -412,9 +420,11 @@ export function useChatStream({
           doneOptions,
           doneRagSections,
           doneToolCalls,
+          doneStopped,
         } = await readStream(res.body, assistantId, conversationId, setMessages, (text) =>
           failAssistantMessage(assistantId, text),
         );
+        turnIdRef.current = null;
 
         if (!hasError) {
           setMessages((prev) =>
@@ -436,6 +446,7 @@ export function useChatStream({
                     ...(doneToolCalls && {
                       toolCalls: doneToolCalls.map((t) => ({ ...t, status: "done" as const })),
                     }),
+                    ...(doneStopped && { stopped: true }),
                   }
                 : msg,
             ),
@@ -465,6 +476,12 @@ export function useChatStream({
     ],
   );
 
+  const stopGeneration = useCallback(async () => {
+    const turnId = turnIdRef.current;
+    if (!turnId) return;
+    await stopChatTurn(token, turnId);
+  }, [token]);
+
   const handleOptionClick = useCallback(
     (text: string) => {
       if (text === "Try with less strict matching") {
@@ -483,5 +500,5 @@ export function useChatStream({
     [handleSend],
   );
 
-  return { handleSend, handleOptionClick };
+  return { handleSend, handleOptionClick, stopGeneration };
 }

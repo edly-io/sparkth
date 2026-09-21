@@ -34,4 +34,5 @@ export interface ChatMessage {
   statusPhase?: StreamStatusPhase;
   ragSections?: { type: string; name: string; source?: string; state: "scanning" | "confirmed" }[];
   toolCalls?: { name: string; status: "running" | "done" }[];
+  stopped?: boolean;
 }

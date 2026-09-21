@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatStream } from "@/plugins/chat/hooks/useChatStream";
@@ -55,6 +55,7 @@ function runStream(payloads: Record<string, unknown>[]) {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
+    assistant: () => messages.find((m) => m.role === "assistant"),
   };
 }
 
@@ -94,5 +95,41 @@ describe("useChatStream — status phases", () => {
       await stream.send();
     });
     expect(stream.phases().filter(Boolean)).toEqual([]);
+  });
+});
+
+describe("useChatStream — stopping", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks the message stopped when the done event says so", async () => {
+    const stream = runStream([
+      { token: "Half a sentence", done: false },
+      { token: "", done: true, stopped: true, conversation_id: "conv-1" },
+    ]);
+    await act(async () => {
+      await stream.send();
+    });
+    await waitFor(() => expect(stream.assistant()?.stopped).toBe(true));
+  });
+
+  it("leaves an uninterrupted message unmarked", async () => {
+    const stream = runStream([
+      { token: "All of it", done: false },
+      { token: "", done: true, conversation_id: "conv-1" },
+    ]);
+    await act(async () => {
+      await stream.send();
+    });
+    await waitFor(() => expect(stream.assistant()?.stopped).toBeFalsy());
+  });
+
+  it("sends a turn id the stop call can name", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.send();
+    });
+    const body = requestChatCompletionStream.mock.calls[0][1];
+    expect(typeof body.turn_id).toBe("string");
+    expect(body.turn_id.length).toBeGreaterThan(0);
   });
 });

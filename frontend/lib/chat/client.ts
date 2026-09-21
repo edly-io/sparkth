@@ -45,6 +45,19 @@ export async function requestChatCompletionStream(
   }
 }
 
+// A 404 means the turn already finished, which is the same outcome the caller wanted.
+export async function stopChatTurn(token: string | null, turnId: string): Promise<void> {
+  try {
+    await api.POST("/api/v1/chat/turns/{turn_id}/stop", {
+      params: { path: { turn_id: turnId } },
+      headers: authHeader(token),
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) return;
+    passOrWrapNetworkError(error);
+  }
+}
+
 export async function getConversation(
   token: string | null,
   conversationId: string,
