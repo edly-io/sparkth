@@ -82,8 +82,7 @@ async def activity_config(
     state = await asyncio.to_thread(read_state, runtime)
     base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
     # Neither base URL below carries the token: the embed shell already gave the client one,
-    # and the client appends it itself in SparkthPXC's methods. ui_url and ws_url do carry one,
-    # because pxc.js uses each directly with nothing appending a token afterward.
+    # and the client appends it itself in SparkthPXC's methods.
     return ActivityConfig(
         activity=claims.activity,
         context=LaunchContext(activity_id=claims.placement, course_id=claims.course_id, user_id=claims.user_id),
