@@ -24,8 +24,15 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
-from sparkth.plugins.chat.analytics import AnalyticsAttribution, emit_completion, tool_names
+from sparkth.plugins.chat.analytics import (
+    AnalyticsAttribution,
+    TurnFailureCause,
+    emit_completion,
+    record_turn_failed,
+    tool_names,
+)
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
+from sparkth.plugins.chat.detached import detach
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.utils.live_turns import register_turn, release_turn
@@ -47,14 +54,6 @@ class StreamedCompletion:
 
     executed_tools: list[str]
     occurred_at: datetime
-
-
-# asyncio holds only a weak reference to a running task, so a stream task detached from the
-# request that spawned it can be garbage-collected mid-flight — and it outlives its response,
-# because the analytics emits are attempted after the SSE sentinel has closed the stream. The
-# route hands this set to ``stream()`` as the holder that keeps every live task referenced
-# until it finishes; each task removes itself when it is done, so the set never grows.
-live_stream_tasks: set[asyncio.Task[None]] = set()
 
 
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
@@ -241,8 +240,21 @@ class ChatStreamProcessor:
         """Whether the author has asked for this turn to stop."""
         return self.stop_requested is not None and self.stop_requested.is_set()
 
-    async def _persist_and_emit_error(self, error_text: str, bg_session: AsyncSession) -> None:
-        """Persists the error to DB before emitting the SSE so the failure is saved even if the client has dropped."""
+    async def _persist_and_emit_error(
+        self,
+        error_text: str,
+        bg_session: AsyncSession,
+        cause: TurnFailureCause = TurnFailureCause.UNEXPECTED,
+    ) -> None:
+        """Persists the error to DB before emitting the SSE so the failure is saved even if the client has dropped.
+
+        Only three causes can reach here — ``PROVIDER_API_ERROR``, ``RAG_RETRIEVAL_ERROR``
+        and ``UNEXPECTED``.
+
+        Records through the detached task, never awaited: most callers sit inside
+        ``_process_and_stream``'s ``except BaseException``, which would catch a failed
+        analytics write and persist it as a second, fake error message.
+        """
         await self.service.add_message(
             session=bg_session,
             conversation_id=self.conversation_id,
@@ -251,6 +263,15 @@ class ChatStreamProcessor:
             is_error=True,
         )
         await self._emit({"error": error_text, "done": True})
+        if self.analytics is not None:
+            record_turn_failed(
+                conversation_id=self.conversation_uuid,
+                provider=self.analytics.provider,
+                model=self.provider.model,
+                cause=cause,
+                streamed=True,
+                actor_id=self.analytics.actor_id,
+            )
 
     async def _retrieve_rag_chunks(
         self,
@@ -267,7 +288,9 @@ class ChatStreamProcessor:
             return await agentic_retrieve_context(query_text, document_ids, self.llm)
         except (DocumentNotFoundError, RAGNotReadyError, RAGRetrievalError) as exc:
             logger.error("Agentic RAG failed for document_ids=%s: %s", document_ids, exc)
-            await self._persist_and_emit_error(rag_retrieval_error_message(exc), bg_session)
+            await self._persist_and_emit_error(
+                rag_retrieval_error_message(exc), bg_session, TurnFailureCause.RAG_RETRIEVAL_ERROR
+            )
             return None
 
     async def _emit_no_rag_results_response(self, bg_session: AsyncSession) -> None:
@@ -362,7 +385,9 @@ class ChatStreamProcessor:
             return full_response, completed_tool_calls, stopped
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
-            await self._persist_and_emit_error(streaming_error_message(e), bg_session)
+            await self._persist_and_emit_error(
+                streaming_error_message(e), bg_session, TurnFailureCause.PROVIDER_API_ERROR
+            )
             return None
         except (OSError, LangChainException) as e:
             logger.exception("Unexpected streaming error: %s", e)
@@ -518,17 +543,12 @@ class ChatStreamProcessor:
             occurred_at=completion.occurred_at,
         )
 
-    async def stream(self, task_holder: set[asyncio.Task[None]] | None = None) -> AsyncGenerator[str, None]:
-        """Processing runs in a separate task so a client disconnect (CancelledError on the generator)
-        does not cancel the DB write mid-flight. ``task_holder`` — ``live_stream_tasks`` for the chat
-        route — keeps a strong reference to that task so it is not garbage-collected before it
-        finishes, and is also what lets a caller join the task after the stream has closed. The task
-        discards itself from the holder once it completes.
+    async def stream(self) -> AsyncGenerator[str, None]:
+        """Processing runs on a detached task so a client disconnect (CancelledError on the generator)
+        does not cancel the DB write mid-flight. The task outlives the stream — the analytics emits
+        run after the SSE sentinel — so callers join it with ``join_live_tasks``.
         """
-        task = asyncio.create_task(self._process_and_stream())
-        if task_holder is not None:
-            task_holder.add(task)
-            task.add_done_callback(task_holder.discard)
+        detach(self._process_and_stream())
         try:
             while True:
                 payload = await self.queue.get()

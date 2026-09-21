@@ -201,10 +201,15 @@ class MessageScopeVerdict(ClassifierVerdict):
 
 
 class DocumentHeadings(BaseModel):
-    """One attached document as the search classifier sees it: a name and its section paths."""
+    """One attached document as the search classifier sees it: a name and its section paths.
+
+    ``structure_unavailable`` separates headings that could not be read from a document that
+    genuinely has none; both arrive with empty ``sections``.
+    """
 
     name: str
     sections: list[str] = Field(default_factory=list)
+    structure_unavailable: bool = False
 
 
 class RAGSearchInput(BaseModel):

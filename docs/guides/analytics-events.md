@@ -39,7 +39,7 @@ costs a hard dependency on a write. Analytics runs against a **separate** databa
 pipeline's maintenance window.
 
 Analytics counts are lower bounds by design: events queued on `background_tasks` are discarded
-whenever a route raises (see the "Known gap" note in `sparkth/plugins/chat/analytics.py`). An
+whenever a route raises (see the "Known gap" note in `sparkth/plugins/chat/analytics/utils.py`). An
 event that cannot tolerate that is audit-grade — route it to audit rather than hardening
 analytics.
 
@@ -109,7 +109,7 @@ a loud failure for a silent one.
 | A route that **returns** | `background_tasks.add_task(...)`, queued after all functional background work |
 | A route that **raises** (`HTTPException`) | Background tasks are **discarded** — FastAPI only attaches them to a response that is returned. Needs a detached task or an exception-handler seam |
 | Inside a detached task (e.g. the stream processor) | `await` the helper directly, outside any `try`/`except` guard |
-| A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ChatTurnAnalytics` in `sparkth/plugins/chat/analytics.py`. Never `await` inline in a request path |
+| A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ChatTurnAnalytics` in `sparkth/plugins/chat/analytics/utils.py`. Never `await` inline in a request path |
 | A `try`/`except` handling the request's **own** failure | Detached task, never `await` — see *Recording a failure* below |
 
 **One seam per set of events that share their identity fields.** `ChatTurnAnalytics` carries
@@ -143,7 +143,7 @@ The task runs outside the guard, so nothing it does can be caught and re-reporte
 error, and nothing it does can delay or replace the error they are already getting. A failure
 propagates as an unhandled error on that task, which is the usual contract.
 
-`record_turn_failed` in `sparkth/plugins/chat/analytics.py` is the shape to copy:
+`record_turn_failed` in `sparkth/plugins/chat/analytics/utils.py` is the shape to copy:
 `asyncio.create_task` plus a module-level set holding the reference until it finishes, because
 asyncio only weakly references a task nothing awaits.
 
@@ -202,7 +202,7 @@ check is mandatory — a test written against the happy path passes while the fe
 broken.
 
 A test that asserts on rows written from a detached task must join that task first, not yield to
-the event loop and hope. The streaming tests use `live_stream_tasks` for this; a fixed number of
+the event loop and hope. The chat tests use `join_live_tasks` for this; a fixed number of
 `asyncio.sleep(0)` calls is not a substitute, because the writes go through database worker
 threads rather than loop turns.
 

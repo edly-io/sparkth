@@ -9,7 +9,6 @@ emitted from genuinely different seams reading differently shaped execution reco
 so one path passing proves nothing about the other.
 """
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -27,8 +26,8 @@ from sparkth.lib.analytics import ingest_event as real_ingest_event
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.models import Conversation, Message
-from sparkth.plugins.chat.routes.utils.stream_processor import live_stream_tasks
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -139,22 +138,6 @@ def _ingest_failing_only_for(event_type: str, attempted: list[str] | None = None
         await real_ingest_event(session, called_event_type, version, payload, **kwargs)
 
     return _side_effect
-
-
-async def _join_stream_tasks() -> None:
-    """Await every detached stream task the request left running.
-
-    The SSE generator returns as soon as it pops the sentinel, and the streaming analytics
-    writes are attempted only after that — so a complete response body is no evidence that
-    they have landed, and yielding to the loop is no guarantee either (the writes go through
-    aiosqlite worker threads). The route registers each stream task in ``live_stream_tasks``;
-    joining them here is what makes an assertion on analytics rows deterministic.
-
-    Outcomes are ignored on purpose: a failed streaming emit is unhandled on that task by
-    design, and these tests assert on the rows that landed and on what was attempted.
-    """
-    while live_stream_tasks:
-        await asyncio.gather(*tuple(live_stream_tasks), return_exceptions=True)
 
 
 async def _error_message_count(session: AsyncSession) -> int:
@@ -654,7 +637,7 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
         # The response is complete once the SSE sentinel is popped, but the analytics writes
         # are attempted after that, on the detached stream task. Joining that task — not the
         # body — is what makes the row assertions below deterministic.
-        await _join_stream_tasks()
+        await join_live_tasks()
 
     assert response.status_code == 200
     assert "data: " in response.text
@@ -701,7 +684,7 @@ async def test_streaming_completion_without_tools_emits_zero_count(
             },
         )
         # The streaming emits run after the sentinel, so join the task before asserting.
-        await _join_stream_tasks()
+        await join_live_tasks()
 
     assert response.status_code == 200
     assert "data: " in response.text
@@ -759,7 +742,7 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
         assert response.status_code == 200
         body = response.text
         # The emits are attempted only once the stream is closed, on the detached task.
-        await _join_stream_tasks()
+        await join_live_tasks()
 
     # The streaming seam really did try to write, and failed — the absences below are the
     # consequences of that failure being contained, not of nothing having happened.
@@ -811,7 +794,7 @@ async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
                 "tools": "none",
             },
         )
-        await _join_stream_tasks()
+        await join_live_tasks()
 
     assert response.status_code == 200
 
