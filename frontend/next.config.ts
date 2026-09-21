@@ -10,6 +10,10 @@ const isProduction = process.env.NODE_ENV === "production";
 const nextConfig: NextConfig = {
   output: isProduction ? "export" : undefined,
   trailingSlash: true,
+  // The dev server gzips proxied responses, and gzip holds an SSE stream until it closes, so
+  // the chat's live status and tool-call events only reached the browser once the turn ended.
+  // Production serves a static export from the backend, so this only affects `next dev`.
+  compress: false,
   // Rewrites require the Next server and are unsupported under `output: "export"`,
   // so register the dev proxy only outside production.
   ...(isProduction
