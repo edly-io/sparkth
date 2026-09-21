@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Literal, assert_never, cast
 from uuid import UUID
@@ -32,6 +33,7 @@ from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import get_course_design_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
+from sparkth.plugins.chat.routes.utils.live_turns import register_turn, release_turn, request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
@@ -321,25 +323,39 @@ async def chat_completion(
             rag_unresolved = unresolved_messages if rag_search_required else None
             rag_user_id = user_id if rag_search_required else None
             rag_llm = provider.create_llm() if rag_search_required else None
-            processor = ChatStreamProcessor(
-                provider,
-                messages,
-                conversation,
-                service,
-                tools,
-                rag_unresolved,
-                rag_user_id,
-                rag_llm,
-                rag_search_required,
-                rag_search_declined,
-                analytics=turn_analytics.attribution,
-            )
-            return StreamingResponse(
-                # The stream task outlives this response — it writes its analytics after the
-                # SSE sentinel — so the holder keeps it referenced until it finishes.
-                processor.stream(live_stream_tasks),
-                media_type="text/event-stream",
-            )
+            # A turn is stoppable only if the caller named it; scripts and the MCP surface do not.
+            turn_key = str(request.turn_id) if request.turn_id else None
+            stop_requested: asyncio.Event | None = register_turn(turn_key, user_id) if turn_key else None
+            try:
+                processor = ChatStreamProcessor(
+                    provider,
+                    messages,
+                    conversation,
+                    service,
+                    tools,
+                    rag_unresolved,
+                    rag_user_id,
+                    rag_llm,
+                    rag_search_required,
+                    rag_search_declined,
+                    analytics=turn_analytics.attribution,
+                    stop_requested=stop_requested,
+                    turn_id=turn_key,
+                )
+                return StreamingResponse(
+                    # The stream task outlives this response — it writes its analytics after the
+                    # SSE sentinel — so the holder keeps it referenced until it finishes.
+                    processor.stream(live_stream_tasks),
+                    media_type="text/event-stream",
+                )
+            except TypeError, ValueError:
+                # register_turn ran above; release only happens inside the task the processor
+                # spawns, so a failure here — before that task exists — would otherwise leave
+                # the turn in the registry forever.
+                if turn_key:
+                    release_turn(turn_key)
+                logger.exception("Failed to start chat stream for conversation %s", conversation_id)
+                raise
         else:
             response = await provider.send_message(
                 messages=messages,
@@ -407,3 +423,13 @@ async def chat_completion(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=_("Chat completion failed"),
         ) from e
+
+
+@router.post("/turns/{turn_id}/stop", status_code=status.HTTP_204_NO_CONTENT)
+async def stop_turn(turn_id: UUID, current_user: User = Depends(get_current_user)) -> None:
+    """Ask a streaming turn to stop. 404 covers both an unknown turn and another user's."""
+    if not request_stop(str(turn_id), cast(int, current_user.id)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_("No generation is running for this turn."),
+        )
