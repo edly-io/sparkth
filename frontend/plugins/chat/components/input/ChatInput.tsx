@@ -77,6 +77,7 @@ export function ChatInput({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
+                if (isStreaming) return;
                 handleSend();
               }
             }}

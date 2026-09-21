@@ -5,9 +5,11 @@ import { useChatStream } from "@/plugins/chat/hooks/useChatStream";
 import type { ChatMessage } from "@/plugins/chat/types";
 
 const requestChatCompletionStream = vi.fn();
+const stopChatTurn = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/chat", () => ({
   requestChatCompletionStream: (...args: unknown[]) => requestChatCompletionStream(...args),
+  stopChatTurn: (...args: unknown[]) => stopChatTurn(...args),
 }));
 
 // Serves the payloads exactly as sparkth/plugins/chat/routes/utils/stream_processor.py writes
@@ -53,6 +55,7 @@ function runStream(payloads: Record<string, unknown>[]) {
   );
   return {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
+    stopGeneration: () => result.current.stopGeneration(),
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
     assistant: () => messages.find((m) => m.role === "assistant"),
@@ -131,5 +134,24 @@ describe("useChatStream — stopping", () => {
     const body = requestChatCompletionStream.mock.calls[0][1];
     expect(typeof body.turn_id).toBe("string");
     expect(body.turn_id.length).toBeGreaterThan(0);
+  });
+
+  it("stops the turn it sent, by the same turn id", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      // Fired back-to-back so the stop call runs while the turn id ref still
+      // holds the id handleSend set, before the stream resolves and clears it.
+      await Promise.all([stream.send(), stream.stopGeneration()]);
+    });
+    const body = requestChatCompletionStream.mock.calls[0][1];
+    expect(stopChatTurn).toHaveBeenCalledWith("test-token", body.turn_id);
+  });
+
+  it("does nothing when no turn has been sent", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.stopGeneration();
+    });
+    expect(stopChatTurn).not.toHaveBeenCalled();
   });
 });

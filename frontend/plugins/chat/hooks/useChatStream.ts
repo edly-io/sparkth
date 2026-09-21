@@ -479,7 +479,9 @@ export function useChatStream({
   const stopGeneration = useCallback(async () => {
     const turnId = turnIdRef.current;
     if (!turnId) return;
-    await stopChatTurn(token, turnId);
+    await stopChatTurn(token, turnId).catch((err) =>
+      console.error("Failed to stop chat turn:", err),
+    );
   }, [token]);
 
   const handleOptionClick = useCallback(

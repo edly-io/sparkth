@@ -1,10 +1,12 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ChatInput } from "@/plugins/chat/components/input/ChatInput";
 import chatEn from "@/plugins/chat/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
+
+const handleSend = vi.fn();
 
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -31,11 +33,13 @@ vi.mock("@/plugins/chat/hooks/useChatInput", () => ({
     handleUploadAsText: vi.fn(),
     handleDriveFileSelected: vi.fn(),
     handleRemoveAttachment: vi.fn(),
-    handleSend: vi.fn(),
+    handleSend,
   }),
 }));
 
 describe("ChatInput", () => {
+  beforeEach(() => handleSend.mockClear());
+
   it("reads its placeholder from the chat plugin catalog", () => {
     renderWithIntl(
       <ChatInput
@@ -83,5 +87,37 @@ describe("ChatInput", () => {
       { chat: chatEn.chat },
     );
     expect(screen.queryByRole("button", { name: /stop/i })).not.toBeInTheDocument();
+  });
+
+  it("does not send on Enter while a turn is streaming", () => {
+    renderWithIntl(
+      <ChatInput
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming
+        onStop={vi.fn()}
+      />,
+      { chat: chatEn.chat },
+    );
+    fireEvent.keyDown(screen.getByPlaceholderText(chatEn.chat.inputPlaceholder), { key: "Enter" });
+    expect(handleSend).not.toHaveBeenCalled();
+  });
+
+  it("sends on Enter when nothing is streaming", () => {
+    renderWithIntl(
+      <ChatInput
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming={false}
+        onStop={vi.fn()}
+      />,
+      { chat: chatEn.chat },
+    );
+    fireEvent.keyDown(screen.getByPlaceholderText(chatEn.chat.inputPlaceholder), { key: "Enter" });
+    expect(handleSend).toHaveBeenCalledOnce();
   });
 });

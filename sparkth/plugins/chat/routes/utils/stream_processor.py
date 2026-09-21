@@ -357,7 +357,7 @@ class ChatStreamProcessor:
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
                     )
-                if stopping:
+                if self._stop_is_requested():
                     stopped = True
                     break
             return full_response, completed_tool_calls, stopped
