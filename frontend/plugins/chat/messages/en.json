@@ -1,6 +1,8 @@
 {
   "chat": {
     "inputPlaceholder": "Describe the course you want to create...",
-    "working": "Working out what to do…"
+    "working": "Working out what to do…",
+    "toolCallCount": "{count, plural, one {# tool call made} other {# tool calls made}}",
+    "toolExecuting": "executing"
   }
 }

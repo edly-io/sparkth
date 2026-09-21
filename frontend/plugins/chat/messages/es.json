@@ -1,6 +1,8 @@
 {
   "chat": {
     "inputPlaceholder": "Describe el curso que quieres crear...",
-    "working": "Decidiendo qué hacer…"
+    "working": "Decidiendo qué hacer…",
+    "toolCallCount": "{count, plural, one {# llamada a herramienta realizada} other {# llamadas a herramientas realizadas}}",
+    "toolExecuting": "en ejecución"
   }
 }

@@ -45,9 +45,8 @@ export function AssistantMessage({
   // The sentence belongs to the start of a turn: once any tool call exists the count
   // line above the card carries the state, so the card falls back to the dots.
   const statusLine = message.statusText ?? (toolCalls.length === 0 ? t("working") : null);
-  // TODO: visibility logic depends on toolCalls, hasRunningTools, isThinking, showCard, and
-  // the inline tool-call JSX below. Any new state (e.g. tool error, tools-only response)
-  // must be reasoned against all of these — consider a state machine if this grows further.
+  // Card and count line split the turn: the sentence and the dots live in the card, the
+  // count line above it owns everything tool-related from the first tool_start onward.
 
   const openPreview = (attachment: TextAttachment) => {
     setPreviewAttachment(attachment);
@@ -130,47 +129,36 @@ export function AssistantMessage({
           </div>
         )}
 
-        {/* Tool call progress — outside bubble, above response */}
+        {/* Tool call progress — outside bubble, above response; same shape live and after */}
         {toolCalls.length > 0 && (
-          <div className="px-1 space-y-0.5">
-            {message.isTyping ? (
-              // Live progress: show last 8 entries so users see recent activity
-              <ul className="space-y-0.5">
-                {toolCalls.slice(-8).map((tool, i) => (
-                  <li
-                    key={`${tool.name}-${i}`}
-                    className="text-xs text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5"
-                  >
-                    {tool.status === "running" ? (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse" />
-                    ) : (
-                      <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
-                    )}
-                    <span>{formatToolName(tool.name)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              // After response: compact summary with hover tooltip
-              <div className="relative group w-fit">
-                <p className="text-xs text-neutral-400 dark:text-neutral-500 cursor-default underline decoration-dotted decoration-neutral-300 dark:decoration-neutral-600">
-                  {toolCalls.length} operation{toolCalls.length !== 1 ? "s" : ""} completed
-                </p>
-                <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
-                  <ul className="space-y-1">
-                    {toolCalls.map((tool, i) => (
-                      <li
-                        key={`${tool.name}-${i}`}
-                        className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"
-                      >
+          <div className="px-1">
+            <div className="relative group w-fit">
+              <p className="text-xs text-neutral-400 dark:text-neutral-500 cursor-default underline decoration-dotted decoration-neutral-300 dark:decoration-neutral-600">
+                {t("toolCallCount", { count: toolCalls.length })}
+              </p>
+              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
+                <ul className="space-y-1">
+                  {toolCalls.map((tool, i) => (
+                    <li
+                      key={`${tool.name}-${i}`}
+                      className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"
+                    >
+                      {tool.status === "running" ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse" />
+                      ) : (
                         <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
-                        <span>{formatToolName(tool.name)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      )}
+                      <span>{formatToolName(tool.name)}</span>
+                      {tool.status === "running" && (
+                        <span className="text-neutral-400 dark:text-neutral-500">
+                          — {t("toolExecuting")}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            )}
+            </div>
           </div>
         )}
 

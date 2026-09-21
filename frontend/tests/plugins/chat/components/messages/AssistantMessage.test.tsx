@@ -85,3 +85,72 @@ describe("AssistantMessage — status sentence", () => {
     expect(screen.queryByTestId("thinking-dots")).not.toBeInTheDocument();
   });
 });
+
+describe("AssistantMessage — tool call count", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("counts a single running tool call while the turn streams", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      toolCalls: [{ name: "moodle_create_course", status: "running" }],
+    });
+    expect(screen.getByText("1 tool call made")).toBeInTheDocument();
+  });
+
+  it("counts every call once the tools have finished and no text has arrived", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      toolCalls: [
+        { name: "moodle_create_course", status: "done" },
+        { name: "moodle_create_section", status: "done" },
+      ],
+    });
+    expect(screen.getByText("2 tool calls made")).toBeInTheDocument();
+  });
+
+  it("keeps the same count line beside the finished reply", () => {
+    renderMessage({
+      content: "Here are your courses",
+      isTyping: false,
+      toolCalls: [
+        { name: "moodle_create_course", status: "done" },
+        { name: "moodle_create_section", status: "done" },
+      ],
+    });
+    expect(screen.getByText("2 tool calls made")).toBeInTheDocument();
+    expect(screen.getByText("Here are your courses")).toBeInTheDocument();
+    expect(screen.queryByText(/operations completed/)).not.toBeInTheDocument();
+  });
+
+  it("names every tool and marks the one still executing", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      toolCalls: [
+        { name: "moodle_create_course", status: "done" },
+        { name: "moodle_create_section", status: "running" },
+      ],
+    });
+    expect(screen.getByText("moodle create course")).toBeInTheDocument();
+    expect(screen.getByText("moodle create section")).toBeInTheDocument();
+    expect(screen.getByText(/executing/)).toBeInTheDocument();
+  });
+
+  it("shows no count line when the turn called no tools", () => {
+    renderMessage({ content: "Here are your courses", isTyping: false });
+    expect(screen.queryByText(/tool calls? made/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the record of what ran when the turn failed", () => {
+    renderMessage({
+      content: "An error occurred while generating a response. Please try again.",
+      isTyping: false,
+      isError: true,
+      toolCalls: [{ name: "moodle_create_course", status: "done" }],
+    });
+    expect(screen.getByText("1 tool call made")).toBeInTheDocument();
+    expect(screen.getByText(/an error occurred/i)).toBeInTheDocument();
+  });
+});
