@@ -95,8 +95,8 @@ describe("AssistantMessage — tool call count", () => {
       toolCalls: [{ name: "moodle_create_course", status: "running" }],
     });
     expect(screen.getByText("1 tool call made")).toBeInTheDocument();
-    // Card is suppressed when tools run with no reply text yet
-    expect(screen.queryByTestId("thinking-dots")).not.toBeInTheDocument();
+    // The dots stay up while a tool runs; the sentence gives way to the count line
+    expect(screen.getByTestId("thinking-dots")).toBeInTheDocument();
     expect(screen.queryByText("Working out what to do…")).not.toBeInTheDocument();
   });
 
@@ -109,13 +109,13 @@ describe("AssistantMessage — tool call count", () => {
     expect(screen.getByTestId("tool-activity-indicator")).toBeInTheDocument();
   });
 
-  it("keeps the card hidden between two tool calls", () => {
+  it("keeps the dots up between two tool calls", () => {
     renderMessage({
       content: "",
       isTyping: true,
       toolCalls: [{ name: "moodle_create_course", status: "done" }],
     });
-    expect(screen.queryByTestId("thinking-dots")).not.toBeInTheDocument();
+    expect(screen.getByTestId("thinking-dots")).toBeInTheDocument();
     expect(screen.getByText("1 tool call made")).toBeInTheDocument();
   });
 

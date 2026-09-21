@@ -38,12 +38,9 @@ export function AssistantMessage({
   const t = useTranslations("chat");
   const displayText = message.streamedContent ?? message.content;
   const toolCalls = message.toolCalls ?? [];
-  const hasRunningTools = toolCalls.some((tool) => tool.status === "running");
-  const isThinking = message.isTyping && !displayText && !hasRunningTools;
-  // The whole tool phase, not just a call in flight: showing the card between two calls made
-  // the dots flash back on for every gap the model spent deciding its next one.
-  const inToolPhase = !!message.isTyping && toolCalls.length > 0 && !displayText;
-  const showCard = !inToolPhase || !!message.isError;
+  // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
+  // turn moves between calls; the count line above the card says what has run.
+  const isThinking = message.isTyping && !displayText;
   // The sentence belongs to the start of a turn: once any tool call exists the count
   // line above the card carries the state, so the card falls back to the dots.
   const statusLine = message.statusText ?? (toolCalls.length === 0 ? t("working") : null);
@@ -133,11 +130,11 @@ export function AssistantMessage({
         {toolCalls.length > 0 && (
           <div className="px-1">
             <div className="relative group w-fit flex items-center gap-1.5">
-              {/* The card is hidden through the tool phase, so this dot carries the motion */}
+              {/* Pulses for as long as the turn runs, so the count line is not static */}
               {message.isTyping && (
                 <span
                   data-testid="tool-activity-indicator"
-                  className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse"
+                  className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 animate-pulse"
                 />
               )}
               <p className="text-xs text-neutral-400 dark:text-neutral-500 cursor-default underline decoration-dotted decoration-neutral-300 dark:decoration-neutral-600">
@@ -151,7 +148,7 @@ export function AssistantMessage({
                       className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"
                     >
                       {tool.status === "running" ? (
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 animate-pulse" />
                       ) : (
                         <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
                       )}
@@ -169,67 +166,64 @@ export function AssistantMessage({
           </div>
         )}
 
-        {showCard &&
-          (message.isError ? (
-            <Card variant="outlined" className="p-4 border-error bg-error-50">
-              <div className="flex items-start gap-2 text-error-500">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p className="text-sm">
-                  {displayText || "Something went wrong. Please try again."}
-                </p>
-              </div>
-            </Card>
-          ) : (
-            <Card variant="outlined" className="p-4">
-              {isThinking ? (
-                statusLine ? (
-                  <div className="flex items-center gap-2 py-1">
-                    <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
-                    <p className="text-sm text-muted-foreground">{statusLine}</p>
-                  </div>
-                ) : (
-                  <ThinkingDots />
-                )
-              ) : message.isPending ? (
-                <div className="flex items-start gap-2">
-                  <span
-                    data-testid="pending-indicator"
-                    className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
-                  />
-                  <div className="prose prose-neutral dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
-                  </div>
+        {message.isError ? (
+          <Card variant="outlined" className="p-4 border-error bg-error-50">
+            <div className="flex items-start gap-2 text-error-500">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <p className="text-sm">{displayText || "Something went wrong. Please try again."}</p>
+            </div>
+          </Card>
+        ) : (
+          <Card variant="outlined" className="p-4">
+            {isThinking ? (
+              statusLine ? (
+                <div className="flex items-center gap-2 py-1">
+                  <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
+                  <p className="text-sm text-muted-foreground">{statusLine}</p>
                 </div>
               ) : (
+                <ThinkingDots />
+              )
+            ) : message.isPending ? (
+              <div className="flex items-start gap-2">
+                <span
+                  data-testid="pending-indicator"
+                  className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
+                />
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
                 </div>
-              )}
+              </div>
+            ) : (
+              <div className="prose prose-neutral dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
+              </div>
+            )}
 
-              {!message.isTyping && (
-                <Pill
-                  attachments={message.pillAttachment ? [message.pillAttachment] : []}
-                  onPreview={openPreview}
-                />
-              )}
+            {!message.isTyping && (
+              <Pill
+                attachments={message.pillAttachment ? [message.pillAttachment] : []}
+                onPreview={openPreview}
+              />
+            )}
 
-              {!message.isTyping && message.options && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {message.options.map((opt) => (
-                    <Button
-                      key={opt}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onOptionClick(opt)}
-                      className="bg-surface-variant"
-                    >
-                      {opt}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
+            {!message.isTyping && message.options && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {message.options.map((opt) => (
+                  <Button
+                    key={opt}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onOptionClick(opt)}
+                    className="bg-surface-variant"
+                  >
+                    {opt}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
       </div>
     </div>
   );
