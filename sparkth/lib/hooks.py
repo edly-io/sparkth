@@ -5,9 +5,9 @@ from sparkth.lib.plugins import SparkthPlugin
 
 
 class HasName(Protocol):
-    # Structural bound for SingleNamedItemHook's type var, so the generic hook can read
-    # ``item.name`` under mypy --strict. Any object with a ``name: str`` satisfies it.
-    name: str
+    # Structural bound for SingleNamedItemHook; a read-only property so frozen-dataclass items satisfy it too.
+    @property
+    def name(self) -> str: ...
 
 
 N = TypeVar("N", bound=HasName)
@@ -110,6 +110,14 @@ class SingleNamedItemHook(Generic[N]):
     def get(self, name: str, default: N | None = None) -> N | None:
         """Return the item registered under ``name``, or ``default`` if none is registered."""
         return self._items.get(name, default)
+
+    def remove(self, name: str) -> None:
+        """Remove the item registered under ``name`` if present; a no-op otherwise.
+
+        Lets callers undo a registration (e.g. test cleanup) without reaching into
+        the hook's internal storage.
+        """
+        self._items.pop(name, None)
 
 
 class KeyedItemHook(Generic[K, T]):

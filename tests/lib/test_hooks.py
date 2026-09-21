@@ -161,6 +161,24 @@ def test_single_named_item_hook_get_returns_default_for_unknown_name() -> None:
     assert hook.get("missing", fallback) is fallback
 
 
+def test_single_named_item_hook_remove_deletes_item() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
+    hook.add_item(_Named("course.grade"))
+
+    hook.remove("course.grade")
+
+    assert hook.get("course.grade") is None
+    # Removal frees the name, so the same name can be registered again.
+    hook.add_item(_Named("course.grade"))
+
+
+def test_single_named_item_hook_remove_is_noop_for_unknown_name() -> None:
+    hook: SingleNamedItemHook[_Named] = SingleNamedItemHook()
+
+    # No KeyError for a name that was never registered.
+    hook.remove("missing")
+
+
 def test_keyed_item_hook_get_returns_added_item() -> None:
     hook = _keyed_hook()
     item = _Keyed("thing_happened", 1)
