@@ -64,4 +64,6 @@ Both are explained in the guide; neither is a judgement call.
   titles, filenames, prompts, model-authored reason strings, tool arguments or exception
   messages. If a human or a model wrote the string, it does not go in a payload.
 - **Never catch around an emit.** No `try`/`except` around an emit, no bare `except Exception` in
-  the write path. A failed analytics write propagates by design.
+  the write path. A failed analytics write propagates by design. Recording a *failure* is the
+  exception that proves this: the emit sits inside the handler that caught the user's error, so
+  it is handed to a detached task rather than awaited — see *Recording a failure* in the guide.

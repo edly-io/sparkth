@@ -110,6 +110,7 @@ a loud failure for a silent one.
 | A route that **raises** (`HTTPException`) | Background tasks are **discarded** — FastAPI only attaches them to a response that is returned. Needs a detached task or an exception-handler seam |
 | Inside a detached task (e.g. the stream processor) | `await` the helper directly, outside any `try`/`except` guard |
 | A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ChatTurnAnalytics` in `sparkth/plugins/chat/analytics.py`. Never `await` inline in a request path |
+| A `try`/`except` handling the request's **own** failure | Detached task, never `await` — see *Recording a failure* below |
 
 **One seam per set of events that share their identity fields.** `ChatTurnAnalytics` carries
 provider and model because every turn event needs them. Events that do not should get a sibling
@@ -123,9 +124,40 @@ Two traps worth stating explicitly, because both have shipped as bugs here:
 - **Queue analytics last.** Starlette runs the background queue as a plain sequential loop with
   no per-task isolation. An emit queued *ahead* of real work lets an analytics outage silently
   stop that work.
-- **Never emit inside a `try`/`except` that handles the request's own failures.** A failed
-  analytics write caught by that handler becomes the user's error. In the streaming path this
-  wrote a fake error into the instructor's transcript.
+- **Never `await` an emit inside a `try`/`except` that handles the request's own failures.** A
+  failed analytics write caught by that handler becomes the user's error. In the streaming path
+  this wrote a fake error into the instructor's transcript.
+
+## Recording a failure
+
+An event *about* a failure has to be emitted from inside the handler that handles it, which is
+the one place the rule above forbids awaiting. That is not a contradiction and the event is not
+impossible: **hand the write to a detached task instead of awaiting it.**
+
+```python
+record_turn_failed(conversation_id=..., cause="provider_api_error", ...)
+raise HTTPException(...)
+```
+
+The task runs outside the guard, so nothing it does can be caught and re-reported as the user's
+error, and nothing it does can delay or replace the error they are already getting. A failure
+propagates as an unhandled error on that task, which is the usual contract.
+
+`record_turn_failed` in `sparkth/plugins/chat/analytics.py` is the shape to copy:
+`asyncio.create_task` plus a module-level set holding the reference until it finishes, because
+asyncio only weakly references a task nothing awaits.
+
+The same mechanism covers the two failure seams that look different but are not:
+
+- **a route that raises** — FastAPI attaches `background_tasks` only to a response it *returns*,
+  so a queued emit is discarded on exactly the paths a failure event exists for
+- **a handler inside an already-detached task** — the streaming path, where awaiting would put
+  the write inside the `except BaseException` that turns any error into a persisted error message
+
+Both take the detached task. Prefer one funnel where the failures already converge — every
+streaming failure passes through `_persist_and_emit_error`, so that is one call site rather than
+four — and **the test must prove the row lands anyway**, because a test written against the happy
+path passes while the event never fires.
 
 ## The seam may not know what happened yet
 
