@@ -45,8 +45,6 @@ export function AssistantMessage({
   // The sentence belongs to the start of a turn: once any tool call exists the count
   // line above the card carries the state, so the card falls back to the dots.
   const statusLine = message.statusText ?? (toolCalls.length === 0 ? t("working") : null);
-  // Card and count line split the turn: the sentence and the dots live in the card, the
-  // count line above it owns everything tool-related from the first tool_start onward.
 
   const openPreview = (attachment: TextAttachment) => {
     setPreviewAttachment(attachment);

@@ -96,6 +96,9 @@ describe("AssistantMessage — tool call count", () => {
       toolCalls: [{ name: "moodle_create_course", status: "running" }],
     });
     expect(screen.getByText("1 tool call made")).toBeInTheDocument();
+    // Card is suppressed when tools run with no reply text yet
+    expect(screen.queryByTestId("thinking-dots")).not.toBeInTheDocument();
+    expect(screen.queryByText("Working out what to do…")).not.toBeInTheDocument();
   });
 
   it("counts every call once the tools have finished and no text has arrived", () => {
