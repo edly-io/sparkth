@@ -91,7 +91,7 @@ describe("AssistantMessage — status sentence", () => {
       toolCalls: [{ name: "moodle_create_course", status: "done" }],
     });
     expect(screen.queryByText("Scanning document sections…")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("thinking-dots")).not.toBeInTheDocument();
+    expect(screen.getByTestId("thinking-dots")).toBeInTheDocument();
   });
 
   it("drops the sentence once a tool call has been recorded", () => {

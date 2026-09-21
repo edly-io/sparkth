@@ -37,6 +37,7 @@ export function AssistantMessage({
 }: AssistantMessageProps) {
   const t = useTranslations("chat");
 
+  // Keys must stay literal t("...") calls — i18n-check only traces literal calls, not computed keys.
   const statusTexts: Record<StreamStatusPhase, string> = {
     scanning_attachments: t("statusScanningAttachments"),
     searching_documents: t("statusSearchingDocuments"),

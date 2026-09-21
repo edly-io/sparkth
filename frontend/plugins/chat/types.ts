@@ -11,11 +11,14 @@ export interface TextAttachment {
 export type ChatRole = "user" | "assistant";
 
 // The status names the chat stream sends; stored verbatim so a rename cannot go unnoticed.
-export type StreamStatusPhase =
-  | "scanning_attachments"
-  | "searching_documents"
-  | "skipping_rag"
-  | "generating";
+export const STREAM_STATUS_PHASES = [
+  "scanning_attachments",
+  "searching_documents",
+  "skipping_rag",
+  "generating",
+] as const;
+
+export type StreamStatusPhase = (typeof STREAM_STATUS_PHASES)[number];
 
 export interface ChatMessage {
   id: string;

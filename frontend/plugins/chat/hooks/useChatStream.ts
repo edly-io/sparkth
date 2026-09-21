@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { requestChatCompletionStream } from "@/lib/chat";
-import { ChatMessage, StreamStatusPhase, TextAttachment } from "../types";
+import { ChatMessage, STREAM_STATUS_PHASES, StreamStatusPhase, TextAttachment } from "../types";
 
 interface SendPayload {
   message: string;
@@ -22,13 +22,6 @@ interface UseChatStreamOptions {
 const FIELD_MESSAGES: Record<string, string> = {
   llm_config_id: "No AI Key selected. Go to chat settings to configure one.",
 };
-
-const STATUS_PHASES: StreamStatusPhase[] = [
-  "scanning_attachments",
-  "searching_documents",
-  "skipping_rag",
-  "generating",
-];
 
 function friendlyFieldMessage(error: ApiRequestError): string | undefined {
   const field = Object.keys(error.fieldErrors).find((name) => FIELD_MESSAGES[name]);
@@ -118,7 +111,7 @@ function applyStatusEvent(
           : msg,
       ),
     );
-  } else if (STATUS_PHASES.includes(parsed.status as StreamStatusPhase)) {
+  } else if (STREAM_STATUS_PHASES.includes(parsed.status as StreamStatusPhase)) {
     const phase = parsed.status as StreamStatusPhase;
     setMessages((prev) =>
       prev.map((msg) => (msg.id === assistantId ? { ...msg, statusPhase: phase } : msg)),
@@ -160,7 +153,11 @@ const STREAM_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // responses rather than throwing QuotaExceededError silently.
 const STREAM_STORAGE_MAX_BYTES = 4 * 1024 * 1024;
 
-function saveStreamProgress(conversationId: string | null, content: string, phase?: string): void {
+function saveStreamProgress(
+  conversationId: string | null,
+  content: string,
+  phase?: StreamStatusPhase,
+): void {
   if (!conversationId) return;
   try {
     const payload = JSON.stringify({ content, phase, timestamp: Date.now() });
@@ -186,7 +183,7 @@ export const RECOVERY_PLACEHOLDER_IDS = new Set(["restored-stream", "pending-res
 
 export interface StreamProgressData {
   content: string;
-  phase?: string;
+  phase?: StreamStatusPhase;
 }
 
 export function getRestoredStreamData(conversationId: string): StreamProgressData | null {
@@ -195,7 +192,7 @@ export function getRestoredStreamData(conversationId: string): StreamProgressDat
     if (!raw) return null;
     const { content, phase, timestamp } = JSON.parse(raw) as {
       content: string;
-      phase?: string;
+      phase?: StreamStatusPhase;
       timestamp: number;
     };
     if (Date.now() - timestamp > STREAM_STORAGE_TTL_MS) return null;
@@ -253,7 +250,7 @@ async function readStream(
           // Persist the current RAG phase so a mid-stream refresh can show a
           // meaningful message ("Scanning documents…") rather than a generic one.
           if (parsed.status === "scanning_attachments" || parsed.status === "searching_documents") {
-            saveStreamProgress(conversationId, assistantText, parsed.status as string);
+            saveStreamProgress(conversationId, assistantText, parsed.status as StreamStatusPhase);
           }
           applyStatusEvent(parsed, assistantId, setMessages);
           continue;
