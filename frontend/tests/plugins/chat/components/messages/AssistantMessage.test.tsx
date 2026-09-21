@@ -101,6 +101,24 @@ describe("AssistantMessage — tool call count", () => {
     expect(screen.queryByText("Working out what to do…")).not.toBeInTheDocument();
   });
 
+  it("keeps activity visible without hovering while a tool runs", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      toolCalls: [{ name: "moodle_create_course", status: "running" }],
+    });
+    expect(screen.getByTestId("tool-activity-indicator")).toBeInTheDocument();
+  });
+
+  it("drops the activity indicator once every tool has finished", () => {
+    renderMessage({
+      content: "Here are your courses",
+      isTyping: false,
+      toolCalls: [{ name: "moodle_create_course", status: "done" }],
+    });
+    expect(screen.queryByTestId("tool-activity-indicator")).not.toBeInTheDocument();
+  });
+
   it("counts every call once the tools have finished and no text has arrived", () => {
     renderMessage({
       content: "",

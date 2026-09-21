@@ -130,7 +130,14 @@ export function AssistantMessage({
         {/* Tool call progress — outside bubble, above response; same shape live and after */}
         {toolCalls.length > 0 && (
           <div className="px-1">
-            <div className="relative group w-fit">
+            <div className="relative group w-fit flex items-center gap-1.5">
+              {/* The card is hidden while a tool runs, so this dot is the only motion on screen */}
+              {hasRunningTools && (
+                <span
+                  data-testid="tool-activity-indicator"
+                  className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse"
+                />
+              )}
               <p className="text-xs text-neutral-400 dark:text-neutral-500 cursor-default underline decoration-dotted decoration-neutral-300 dark:decoration-neutral-600">
                 {t("toolCallCount", { count: toolCalls.length })}
               </p>
