@@ -29,4 +29,6 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 
 ::: sparkth.lib.content.hooks
 
+## Content contributor exceptions
+
 ::: sparkth.lib.content.exceptions
