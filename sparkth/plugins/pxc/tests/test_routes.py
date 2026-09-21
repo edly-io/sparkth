@@ -75,58 +75,12 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
-# TODO: cover `sparkth-pxc.js`'s `sendAction()` with a vitest. A rejected action must throw
-# rather than return, or `ui.js`'s config-save handler reports "Configuration saved!" from its
-# try block over an edit the server discarded. Reaching a backend-served static asset needs a
-# DOM shim, a module-resolution shim for `./pxc.js`, and a vitest include that frontend/tests/
-# does not currently extend to this plugin.
-
-
-async def test_the_client_connects_a_socket_from_the_configured_url(client: AsyncClient) -> None:
-    """Source-level guard: the client must take its socket URL from the config, not the default.
-
-    Order matters: _wsUrl before the connect call, and the connect call before the script load.
-    """
-    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
-
-    ws_url_assignment = re.search(r"^\s*this\._wsUrl = config\.ws_url;\s*$", response.text, re.MULTILINE)
-    connect_call = re.search(r"^\s*this\._connectWebSocket\(\);\s*$", response.text, re.MULTILINE)
-    load_script_call = re.search(r"^\s*await this\._loadScript\(", response.text, re.MULTILINE)
-
-    assert ws_url_assignment, "this._wsUrl must be assigned from config.ws_url"
-    assert connect_call, "the socket must actually be connected"
-    assert load_script_call, "the activity script must still be loaded"
-    assert ws_url_assignment.start() < connect_call.start(), "_wsUrl must be set before the socket connects"
-    assert connect_call.start() < load_script_call.start(), "the socket must connect before the script loads"
-
-
-async def test_the_client_overrides_the_large_payload_post_route(client: AsyncClient) -> None:
-    """Source-level guard: the inherited _postAction points at a route Sparkth does not serve.
-
-    Both its failure paths must return `false`, never throw, or _flushQueue stops draining. The
-    searches are scoped from _postAction onward, since connectedCallback has its own ok branch.
-    """
-    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
-
-    post_action_def = re.search(r"^\s*async _postAction\(", response.text, re.MULTILINE)
-    assert post_action_def, "_postAction must still be defined"
-
-    post_action_onward = response.text[post_action_def.start() :]
-    action_url_ref = re.search(r"^\s*const url = .*this\._actionUrl", post_action_onward, re.MULTILINE)
-    ok_branch_returns_false = re.search(r"if\s*\(!response\.ok\)\s*\{[^}]*return false", post_action_onward)
-    catch_branch_returns_false = re.search(r"catch\s*\(error\)\s*\{[^}]*return false", post_action_onward)
-
-    assert action_url_ref, "the POST url must be built from this._actionUrl"
-    assert ok_branch_returns_false, "a rejected response must return false, not throw"
-    assert catch_branch_returns_false, "a network-level fetch failure must return false, not throw"
-
-
-async def test_the_client_does_not_import_the_private_database_helper(client: AsyncClient) -> None:
-    # pxc.js exports only PXC; _openDB is module-private, so importing it does not resolve and
-    # the module fails to load. _pushAction and _flushQueue each open the database themselves.
-    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
-
-    assert "_openDB" not in response.text
+# TODO (#680): `sparkth-pxc.js` needs a vitest suite that executes it. Nothing here can: a
+# route test reads the served source as text, and asserting on that text pins formatting rather
+# than behaviour — it breaks on a reformat that changes nothing and passes on a rewrite that
+# breaks the client. The socket URL coming from the configuration, `_postAction` returning
+# false rather than throwing, the launch token on every asset URL, and the reconnect ceiling
+# and its notice are all unguarded until then.
 
 
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
