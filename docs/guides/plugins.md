@@ -392,6 +392,7 @@ creates its per-language catalogs, and so on); the containment is enforced by
 PLUGINS = [
     "sparkth.plugins.canvas.plugin:CanvasPlugin",
     "sparkth.plugins.openedx.plugin:OpenEdxPlugin",
+    "sparkth.plugins.moodle.plugin:MoodlePlugin",
     # add your plugin here
 ]
 ```

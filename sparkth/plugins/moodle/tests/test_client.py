@@ -74,6 +74,21 @@ class TestMoodleClientEnvelope:
         assert "Invalid token" in exc_info.value.message
 
     @pytest.mark.asyncio
+    async def test_access_exception_keeps_moodles_message_and_adds_a_service_hint(self) -> None:
+        body = (
+            '{"exception": "webservice_access_exception", "errorcode": "accessexception",'
+            ' "message": "Access control exception"}'
+        )
+        session = _mock_session(body)
+        with patch("sparkth.lib.http.ClientSession", return_value=session):
+            with pytest.raises(AuthenticationError) as exc_info:
+                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                    await client.call_dict("local_sparkth_create_page", {"courseid": 1})
+
+        assert exc_info.value.message.startswith("Access control exception")
+        assert "Sparkth publishing" in exc_info.value.message
+
+    @pytest.mark.asyncio
     async def test_other_exception_codes_raise_lms_request_error(self) -> None:
         body = '{"exception": "moodle_exception", "errorcode": "nopermissions", "message": "No permission"}'
         session = _mock_session(body)

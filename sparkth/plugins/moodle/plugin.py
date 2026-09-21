@@ -46,6 +46,7 @@ class MoodlePlugin(SparkthPlugin):
                 [
                     moodle_tools.moodle_create_section,
                     moodle_tools.moodle_create_page,
+                    moodle_tools.moodle_create_quiz,
                 ],
             ),
         ]
