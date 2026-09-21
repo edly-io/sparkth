@@ -26,6 +26,7 @@ async def ingest_event(
     payload: dict[str, Any],
     actor_id: str | None = None,
     occurred_at: datetime | None = None,
+    commit: bool = True,
 ) -> None:
     """Validate ``payload`` against the registered schema and land it in ``raw_events``.
 
@@ -36,6 +37,9 @@ async def ingest_event(
         payload: The raw event body to validate.
         actor_id: The authenticated user id, stored for provenance.
         occurred_at: When the event happened; defaults to ``now(UTC)``.
+        commit: Whether to commit the insert. Pass ``False`` to land a group of events
+            in one transaction — the caller then owns the commit, and a failure on any
+            event rolls back the whole group.
 
     Raises:
         UnknownEventTypeError: No schema is registered for ``(event_type, version)``.
@@ -55,7 +59,8 @@ async def ingest_event(
                 payload=validated.model_dump(mode="json"),
             )
         )
-        await session.commit()
+        if commit:
+            await session.commit()
     except SQLAlchemyError:
         logger.exception("Failed to land analytics event %s v%s", event_type, version)
         await session.rollback()
