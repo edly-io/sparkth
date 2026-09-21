@@ -56,6 +56,7 @@ function runStream(payloads: Record<string, unknown>[]) {
   return {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
     stopGeneration: () => result.current.stopGeneration(),
+    optionClick: (text: string) => result.current.handleOptionClick(text),
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
     assistant: () => messages.find((m) => m.role === "assistant"),
@@ -153,5 +154,25 @@ describe("useChatStream — stopping", () => {
       await stream.stopGeneration();
     });
     expect(stopChatTurn).not.toHaveBeenCalled();
+  });
+
+  it("ignores an option click while a turn is still streaming", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      // An earlier message keeps its buttons on screen, so the click lands mid-turn.
+      await Promise.all([stream.send(), stream.optionClick("Yes")]);
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledOnce();
+  });
+
+  it("sends an option click once the turn has ended", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.send();
+    });
+    await act(async () => {
+      await stream.optionClick("Yes");
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
   });
 });

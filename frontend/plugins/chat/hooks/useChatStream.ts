@@ -486,6 +486,9 @@ export function useChatStream({
 
   const handleOptionClick = useCallback(
     (text: string) => {
+      // An earlier message keeps its option buttons while a new turn streams, and a second turn
+      // would overwrite the id the live one is stopped by.
+      if (turnIdRef.current) return;
       if (text === "Try with less strict matching") {
         const { message, attachments } = lastSentRef.current;
         const last = lastSentThresholdRef.current;
