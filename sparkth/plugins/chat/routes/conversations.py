@@ -10,7 +10,7 @@ from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Message
-from sparkth.plugins.chat.routes.utils import parse_metadata_list
+from sparkth.plugins.chat.routes.utils import parse_metadata_flag, parse_metadata_list
 from sparkth.plugins.chat.schemas import (
     ConversationDetailResponse,
     ConversationListResponse,
@@ -103,6 +103,7 @@ async def get_conversation(
             rag_sections=parse_metadata_list(msg.model_metadata, "rag_sections"),
             tool_calls=parse_metadata_list(msg.model_metadata, "tool_calls"),
             is_error=msg.is_error,
+            stopped=parse_metadata_flag(msg.model_metadata, "stopped"),
         )
         for msg in messages
     ]
@@ -153,4 +154,5 @@ async def get_last_conversation_message(
         rag_sections=parse_metadata_list(msg.model_metadata, "rag_sections"),
         tool_calls=parse_metadata_list(msg.model_metadata, "tool_calls"),
         is_error=msg.is_error,
+        stopped=parse_metadata_flag(msg.model_metadata, "stopped"),
     )

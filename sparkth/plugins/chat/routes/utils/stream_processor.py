@@ -28,6 +28,7 @@ from sparkth.plugins.chat.analytics import AnalyticsAttribution, emit_completion
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.routes.utils.live_turns import release_turn
 from sparkth.plugins.chat.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
@@ -134,6 +135,11 @@ class ChatStreamProcessor:
 
     Processing runs inside a background asyncio task so a client disconnect
     does not interrupt the DB write; the generator side only drains a queue.
+
+    ``stop_requested``, when given, is polled between steps (never mid-tool-call) so a stop
+    lands at a safe boundary; a turn that ends this way still persists what it produced, with
+    a ``stopped`` marker. ``turn_id`` is released from the live-turns registry once the
+    background task ends, whatever the reason.
     """
 
     def __init__(
@@ -149,6 +155,8 @@ class ChatStreamProcessor:
         rag_search_required: bool = False,
         rag_search_declined: bool = False,
         analytics: AnalyticsAttribution | None = None,
+        stop_requested: asyncio.Event | None = None,
+        turn_id: str | None = None,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -164,6 +172,10 @@ class ChatStreamProcessor:
         # keeps the processor constructible without analytics — its own unit tests build
         # it with four arguments and have no request to attribute to.
         self.analytics = analytics
+        # None when the turn was never registered (no turn_id on the request) — such a
+        # turn cannot be stopped, so the poll below simply never fires for it.
+        self.stop_requested = stop_requested
+        self.turn_id = turn_id
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -225,6 +237,10 @@ class ChatStreamProcessor:
     async def _emit(self, payload: dict[str, Any]) -> None:
         """Serialise an SSE payload onto the queue; every status/token/error event flows through here."""
         await self._put(json.dumps(payload))
+
+    def _stop_is_requested(self) -> bool:
+        """Whether the author has asked for this turn to stop."""
+        return self.stop_requested is not None and self.stop_requested.is_set()
 
     async def _persist_and_emit_error(self, error_text: str, bg_session: AsyncSession) -> None:
         """Persists the error to DB before emitting the SSE so the failure is saved even if the client has dropped."""
@@ -308,12 +324,26 @@ class ChatStreamProcessor:
         await self._emit_rag_section_events(confirmed_rag_sections)
         return confirmed_rag_sections
 
-    async def _collect_stream_response(self, bg_session: AsyncSession) -> tuple[str, list[dict[str, Any]]] | None:
-        """Returns None when a streaming error is handled; the error SSE and DB write are already done."""
+    async def _collect_stream_response(self, bg_session: AsyncSession) -> tuple[str, list[dict[str, Any]], bool] | None:
+        """Returns None when a streaming error is handled; the error SSE and DB write are already done.
+
+        The stop check reads the event *before* deciding whether to act on it. A ``tool_start``
+        is not yet in flight — the provider is suspended at that very ``yield``, before it awaits
+        the execution — so a stop pending there breaks before the event is processed at all,
+        which is what keeps the next tool from ever starting. A ``tool_end`` or ``token``, by
+        contrast, already happened: the provider awaited (and the tool's writes already landed,
+        for a ``tool_end``) before yielding it, so that event is still recorded before breaking.
+        Either way, the loop never calls the generator again after this iteration.
+        """
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
+        stopped = False
         try:
             async for event in self.provider.stream_message(self.messages, tools=self.tools):
+                stopping = self._stop_is_requested()
+                if stopping and event["type"] == "tool_start":
+                    stopped = True
+                    break
                 if event["type"] == "token":
                     token = event["content"]
                     full_response += token
@@ -327,7 +357,10 @@ class ChatStreamProcessor:
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
                     )
-            return full_response, completed_tool_calls
+                if stopping:
+                    stopped = True
+                    break
+            return full_response, completed_tool_calls, stopped
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
             await self._persist_and_emit_error(streaming_error_message(e), bg_session)
@@ -345,11 +378,14 @@ class ChatStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
+        stopped: bool = False,
     ) -> StreamedCompletion:
         """Persist the assistant message, emit the done SSE, and return what it completed.
 
         The done payload includes the full message object so the client can update its
-        state without a separate fetch after the stream closes.
+        state without a separate fetch after the stream closes. ``stopped`` marks a turn
+        that ended early because the author asked it to, so it is written into the message
+        metadata (for a page reload to still show it) and onto the done payload itself.
 
         Returns:
             The tools this completion executed and when the reply was stored, for the
@@ -361,6 +397,8 @@ class ChatStreamProcessor:
             metadata["rag_sections"] = confirmed_rag_sections
         if completed_tool_calls:
             metadata["tool_calls"] = completed_tool_calls
+        if stopped:
+            metadata["stopped"] = True
         assistant_message = await self.service.add_message(
             session=bg_session,
             conversation_id=self.conversation_id,
@@ -372,6 +410,7 @@ class ChatStreamProcessor:
             {
                 "token": "",
                 "done": True,
+                "stopped": stopped,
                 "conversation_id": self.conversation_uuid,
                 "message": {
                     "id": assistant_message.id,
@@ -382,6 +421,7 @@ class ChatStreamProcessor:
                     "attachment_size": None,
                     "rag_sections": confirmed_rag_sections or None,
                     "tool_calls": completed_tool_calls or None,
+                    "stopped": stopped,
                 },
             }
         )
@@ -408,17 +448,26 @@ class ChatStreamProcessor:
         result = await self._collect_stream_response(bg_session)
         if result is None:
             return None
-        full_response, completed_tool_calls = result
+        full_response, completed_tool_calls, stopped = result
         return await self._persist_and_emit_done(
-            full_response, confirmed_rag_sections, completed_tool_calls, bg_session
+            full_response, confirmed_rag_sections, completed_tool_calls, bg_session, stopped
         )
 
     async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
         """What the turn completed, or None when it produced no completion at all — RAG
-        answered the turn, or it failed."""
+        answered the turn, or it failed.
+
+        A stop is checked before each phase starts, not mid-phase (the LLM phase polls its
+        own loop internally) — a stop that lands before RAG or before the LLM call still
+        persists a turn, just an empty one carrying the ``stopped`` marker.
+        """
+        if self._stop_is_requested():
+            return await self._persist_and_emit_done("", [], [], bg_session, True)
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
             return None
+        if self._stop_is_requested():
+            return await self._persist_and_emit_done("", confirmed_rag_sections, [], bg_session, True)
         self._strip_unresolved_document_blocks()
         return await self._run_llm_phase(confirmed_rag_sections, bg_session)
 
@@ -446,6 +495,8 @@ class ChatStreamProcessor:
                 if not isinstance(exc, Exception):
                     raise
             finally:
+                if self.turn_id:
+                    release_turn(self.turn_id)
                 await self._put(None)
 
         if self.analytics is None or completion is None:
