@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
@@ -36,6 +36,7 @@ export function ChatInput({
   onStop,
 }: ChatInputProps) {
   const t = useTranslations("chat");
+  const boxRef = useRef<HTMLTextAreaElement>(null);
   const { token } = useAuth();
 
   const {
@@ -54,6 +55,15 @@ export function ChatInput({
   } = useChatInput({ token, conversationId, attachments, setAttachments, onSend });
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
+
+  // Grow with the text. The reset lets the box shrink again when lines are removed, and CSS caps
+  // it at five lines, so the cap and the scrollbar cannot disagree.
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${box.scrollHeight}px`;
+  }, [message]);
 
   return (
     <div className="border-t border-border p-4">
@@ -74,6 +84,7 @@ export function ChatInput({
         {/* Input box */}
         <div className="relative bg-input border border-border rounded-2xl p-3">
           <textarea
+            ref={boxRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => {
@@ -85,7 +96,7 @@ export function ChatInput({
             }}
             placeholder={t("inputPlaceholder")}
             rows={1}
-            className="w-full bg-transparent resize-none focus:outline-none"
+            className="w-full bg-transparent resize-none focus:outline-none leading-6 max-h-30 overflow-y-auto"
           />
 
           <div className="flex justify-between mt-2">
