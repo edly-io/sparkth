@@ -17,6 +17,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.types import ConversationDocuments
 
 
 def _parse_sse_events(content: bytes) -> list[dict[str, Any]]:
@@ -117,7 +118,7 @@ class TestIntentRouterIntegration:
             mock_router_cls.return_value = mock_router
 
             # One READY attachment exists
-            mock_list_attachments.return_value = [_mock_document()]
+            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
 
             # RAG resolution returns the original messages unchanged
             mock_resolve.return_value = [MagicMock(role="user", content="Summarize the document")]
@@ -198,7 +199,7 @@ class TestIntentRouterIntegration:
             mock_router.requires_search = AsyncMock(return_value=False)
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_document()]
+            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
             mock_get_msgs.return_value = []
 
             mock_provider = MagicMock()
@@ -276,7 +277,7 @@ class TestIntentRouterIntegration:
             mock_router.requires_search = AsyncMock(return_value=True)
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_document()]
+            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
@@ -347,7 +348,7 @@ class TestIntentRouterIntegration:
             mock_cls_cls.return_value = mock_scope
 
             mock_router_cls.return_value = MagicMock()
-            mock_list_attachments.return_value = []  # no attachments
+            mock_list_attachments.return_value = ConversationDocuments(ready=[], unusable=[])
 
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
@@ -414,7 +415,7 @@ class TestIntentRouterIntegration:
             mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("LLM call failed"))
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_document()]
+            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
             mock_get_msgs.return_value = []
 
             mock_provider = MagicMock()
@@ -448,12 +449,26 @@ async def _seed_document(session: AsyncSession, user_id: int, name: str = "test.
     return document_id
 
 
+def _mock_attachment(document_id: int = 1) -> MagicMock:
+    """A stand-in for ConversationAttachment with the fields the route reads."""
+    attachment = MagicMock()
+    attachment.document_id = document_id
+    attachment.attached_at = datetime.now(timezone.utc)
+    return attachment
+
+
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier"),
         patch("sparkth.plugins.chat.service.ChatService.list_conversation_attachments", new_callable=AsyncMock),
-        patch("sparkth.plugins.chat.service.ChatService.attach_document", new_callable=AsyncMock),
+        patch(
+            "sparkth.plugins.chat.service.ChatService.attach_document",
+            new_callable=AsyncMock,
+            # Shaped like the real return: the attachment plus whether this call created
+            # it, with a real attached_at, which is what times the analytics event.
+            return_value=(_mock_attachment(), True),
+        ),
         patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.service.ChatService.get_conversation_messages", new_callable=AsyncMock),
         patch("sparkth.plugins.chat.routes.completions.get_provider"),
@@ -470,7 +485,7 @@ def _configure_base_mocks(
     mock_scope = MagicMock()
     mock_scope.in_scope = AsyncMock(return_value=True)
     mock_cls_cls.return_value = mock_scope
-    mock_list.return_value = []
+    mock_list.return_value = ConversationDocuments(ready=[], unusable=[])
     mock_get_msgs.return_value = []
     mock_msg = MagicMock()
     mock_msg.id = 99
@@ -520,6 +535,7 @@ class TestDocumentIdsOwnershipCheck:
             patch(
                 "sparkth.plugins.chat.service.ChatService.attach_document",
                 new_callable=AsyncMock,
+                return_value=(_mock_attachment(), True),
             ) as mock_attach,
             patch(
                 "sparkth.plugins.chat.service.ChatService.add_message",
@@ -570,6 +586,7 @@ class TestDocumentIdsOwnershipCheck:
             patch(
                 "sparkth.plugins.chat.service.ChatService.attach_document",
                 new_callable=AsyncMock,
+                return_value=(_mock_attachment(), True),
             ) as mock_attach,
             patch(
                 "sparkth.plugins.chat.service.ChatService.add_message",
@@ -619,6 +636,7 @@ class TestDocumentIdsOwnershipCheck:
             patch(
                 "sparkth.plugins.chat.service.ChatService.attach_document",
                 new_callable=AsyncMock,
+                return_value=(_mock_attachment(), True),
             ) as mock_attach,
             patch(
                 "sparkth.plugins.chat.service.ChatService.add_message",
@@ -697,7 +715,7 @@ class TestProviderApiErrorPersistence:
             mock_router.requires_search = AsyncMock(side_effect=overloaded_exc)
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_document()]
+            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
             mock_get_msgs.return_value = []
             mock_add_msg.return_value = mock_msg
 
@@ -759,7 +777,7 @@ class TestProviderApiErrorPersistence:
             mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("router failed"))
             mock_router_cls.return_value = mock_router
 
-            mock_list_attachments.return_value = [_mock_document()]
+            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
             mock_get_msgs.return_value = []
             mock_add_msg.return_value = mock_msg
 

@@ -13,9 +13,11 @@ Plugins:
     ``ingest_event`` only when the caller already holds an analytics session).
 """
 
+import inspect
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from types import ModuleType
 from typing import Any
 
 from sparkth.core.analytics import ANALYTICS_EVENTS, get_event_schema
@@ -50,6 +52,7 @@ __all__ = [
     "get_login_activity",
     "ingest_event",
     "register_event_schema",
+    "register_event_schemas",
 ]
 
 
@@ -202,3 +205,14 @@ def register_event_schema(plugin: SparkthPlugin, schema: type[AnalyticsEventSche
         schema.version,
         plugin.name,
     )
+
+
+def register_event_schemas(plugin: SparkthPlugin, module: ModuleType) -> None:
+    """Register every event schema ``module`` defines, in one call.
+
+    Each schema goes through :func:`register_event_schema`, so the namespace and
+    collision guards apply unchanged.
+    """
+    for _name, schema in inspect.getmembers(module, inspect.isclass):
+        if issubclass(schema, AnalyticsEventSchema) and schema.__module__ == module.__name__:
+            register_event_schema(plugin, schema)

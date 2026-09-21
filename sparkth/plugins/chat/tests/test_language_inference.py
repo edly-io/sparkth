@@ -21,6 +21,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.types import ConversationDocuments
 
 
 class _Seeded:
@@ -95,7 +96,7 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
         patch(
             "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=ConversationDocuments(ready=[], unusable=[]),
         ),
         patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
     ):
@@ -151,7 +152,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         patch(
             "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=ConversationDocuments(ready=[], unusable=[]),
         ),
         patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
         patch("sparkth.plugins.chat.conversation_title.generate_conversation_title") as mock_generate_title,

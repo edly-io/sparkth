@@ -22,6 +22,7 @@ from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
+from sparkth.plugins.chat.types import ConversationDocuments
 
 
 class TestStreamOutOfScopeRefusal:
@@ -276,7 +277,7 @@ class TestOutOfScopeConversationCreation:
             patch(
                 "sparkth.plugins.chat.service.ChatService.list_conversation_attachments",
                 new_callable=AsyncMock,
-                return_value=[],
+                return_value=ConversationDocuments(ready=[], unusable=[]),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.add_message",

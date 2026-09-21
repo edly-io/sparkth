@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFou
 from sparkth.plugins.chat.messages import text_of
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
 from sparkth.plugins.chat.schemas import ChatMessage
+from sparkth.plugins.chat.types import AttachOutcome, ConversationDocuments
 
 logger = get_logger(__name__)
 
@@ -245,8 +247,14 @@ class ChatService:
         session: AsyncSession,
         conversation_id: int,
         document_id: int,
-    ) -> ConversationAttachment:
-        """Attach a document to a conversation (upsert-safe)."""
+    ) -> tuple[ConversationAttachment, bool]:
+        """Attach a document to a conversation (upsert-safe).
+
+        Returns:
+            The attachment, and whether this call created it. A caller that records
+            attaching as an action needs the flag: this method is upsert-safe, so a
+            repeat returns the existing row and nothing happened.
+        """
         # Check if already exists
         stmt = select(ConversationAttachment).where(
             ConversationAttachment.conversation_id == conversation_id,
@@ -260,7 +268,7 @@ class ChatService:
                 document_id,
                 conversation_id,
             )
-            return existing
+            return existing, False
 
         # Try to insert new
         attachment = ConversationAttachment(
@@ -277,7 +285,7 @@ class ChatService:
                 document_id,
                 conversation_id,
             )
-            return attachment
+            return attachment, True
         except IntegrityError:
             # Race condition — another process inserted between our check and insert
             await session.rollback()
@@ -291,29 +299,39 @@ class ChatService:
                     document_id,
                 )
                 raise
-            return existing
+            # Another request won the race, so this call did not create it.
+            return existing, False
 
     async def detach_document(
         self,
         session: AsyncSession,
         conversation_id: int,
         document_id: int,
-    ) -> None:
-        """Detach a document from a conversation."""
+    ) -> datetime | None:
+        """Detach a document from a conversation.
+
+        Returns:
+            When the removed attachment was attached, or ``None`` if there was nothing to
+            remove. The row is gone afterwards, so a caller that wants to know how long
+            the document had been in play can only learn it here.
+        """
         stmt = select(ConversationAttachment).where(
             ConversationAttachment.conversation_id == conversation_id,
             ConversationAttachment.document_id == document_id,
         )
         result = await session.exec(stmt)
         attachment = result.first()
-        if attachment:
-            await session.delete(attachment)
-            await session.commit()
-            logger.info(
-                "Document %s detached from conversation %s",
-                document_id,
-                conversation_id,
-            )
+        if attachment is None:
+            return None
+        attached_at = attachment.attached_at
+        await session.delete(attachment)
+        await session.commit()
+        logger.info(
+            "Document %s detached from conversation %s",
+            document_id,
+            conversation_id,
+        )
+        return attached_at
 
     async def require_owned_document(
         self,
@@ -344,11 +362,17 @@ class ChatService:
         conversation_id: int,
         document_ids: list[int],
         user_id: int,
-    ) -> None:
+    ) -> AttachOutcome:
         """Attach the documents the user owns, skipping and logging the ids they do not.
 
         A request names ids, so it can name one belonging to someone else. Skipping keeps the
         rest of a legitimate request working; a bulk lookup keeps it to one query.
+
+        Returns:
+            What actually happened: the attachments this call created, and how many distinct
+            ids were asked for against how many were dropped. Both counts are over distinct ids,
+            so a repeated id cannot make the two disagree. The instructor is told none of
+            this, so the caller is the only place it can be recorded.
         """
         owned_result = await session.exec(
             select(Document.id).where(
@@ -358,11 +382,20 @@ class ChatService:
             )
         )
         owned_ids = {document_id for document_id in owned_result.all() if document_id is not None}
-        skipped = set(document_ids) - owned_ids
+        requested = set(document_ids)
+        skipped = requested - owned_ids
         if skipped:
             logger.warning("Skipped %d unowned/deleted document IDs for user %s: %s", len(skipped), user_id, skipped)
+        created: list[ConversationAttachment] = []
         for document_id in owned_ids:
-            await self.attach_document(session, conversation_id, document_id)
+            attachment, was_created = await self.attach_document(session, conversation_id, document_id)
+            if was_created:
+                created.append(attachment)
+        return AttachOutcome(
+            created=created,
+            requested_count=len(requested),
+            skipped_count=len(skipped),
+        )
 
     async def add_incoming_messages(
         self,
@@ -426,22 +459,31 @@ class ChatService:
         self,
         session: AsyncSession,
         conversation_id: int,
-    ) -> list[Document]:
-        """List READY documents attached to a conversation."""
+    ) -> ConversationDocuments:
+        """List the documents attached to a conversation, split by whether chat can use them.
+
+        Chat can only work from READY documents, but the ones it cannot use are the more
+        interesting half: an instructor whose document is still ingesting gets a reply that
+        ignores it, with nothing to say why. Filtering them out inside the query threw that
+        away before any caller could see it, so the split is returned instead of applied.
+        """
         stmt = (
             select(Document)
             .join(
                 ConversationAttachment,
                 ConversationAttachment.document_id == Document.id,  # type: ignore[arg-type]
             )
-            .where(
-                ConversationAttachment.conversation_id == conversation_id,
-                col(Document.status) == DocumentStatus.READY,
-                Document.is_deleted == False,  # noqa: E712
-            )
+            .where(ConversationAttachment.conversation_id == conversation_id)
         )
         result = await session.exec(stmt)
-        return list(result.all())
+        ready: list[Document] = []
+        unusable: list[Document] = []
+        for document in result.all():
+            if document.status == DocumentStatus.READY and not document.is_deleted:
+                ready.append(document)
+            else:
+                unusable.append(document)
+        return ConversationDocuments(ready=ready, unusable=unusable)
 
 
 def get_chat_service() -> ChatService:

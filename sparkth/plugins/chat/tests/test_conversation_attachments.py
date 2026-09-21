@@ -86,8 +86,9 @@ class TestChatServiceAttach:
         _, document_id = await _seed_document(session)
         service = ChatService()
 
-        attachment = await service.attach_document(session, conversation_id, document_id)
+        attachment, was_created = await service.attach_document(session, conversation_id, document_id)
 
+        assert was_created is True
         assert attachment.id is not None
         assert attachment.conversation_id == conversation_id
         assert attachment.document_id == document_id
@@ -98,10 +99,13 @@ class TestChatServiceAttach:
         _, document_id = await _seed_document(session)
         service = ChatService()
 
-        first = await service.attach_document(session, conversation_id, document_id)
-        second = await service.attach_document(session, conversation_id, document_id)
+        first, first_created = await service.attach_document(session, conversation_id, document_id)
+        second, second_created = await service.attach_document(session, conversation_id, document_id)
 
         assert first.id == second.id
+        # The second call wrote nothing, which is what stops a repeat being recorded as
+        # an action.
+        assert (first_created, second_created) == (True, False)
 
     @pytest.mark.asyncio
     async def test_detach_document_removes_row(self, session: AsyncSession) -> None:
@@ -113,7 +117,8 @@ class TestChatServiceAttach:
         await service.detach_document(session, conversation_id, document_id)
 
         attachments = await service.list_conversation_attachments(session, conversation_id)
-        assert attachments == []
+        assert attachments.ready == []
+        assert attachments.unusable == []
 
     @pytest.mark.asyncio
     async def test_detach_nonexistent_is_silent(self, session: AsyncSession) -> None:
@@ -133,8 +138,10 @@ class TestChatServiceAttach:
 
         attachments = await service.list_conversation_attachments(session, conversation_id)
 
-        assert len(attachments) == 1
-        assert attachments[0].id == ready_id
+        assert [document.id for document in attachments.ready] == [ready_id]
+        # The failed one is no longer discarded: it is the half that explains why a turn
+        # ignored a document the instructor attached.
+        assert [document.id for document in attachments.unusable] == [failed_id]
 
 
 class TestAttachmentEndpoints:
