@@ -40,8 +40,10 @@ export function AssistantMessage({
   const toolCalls = message.toolCalls ?? [];
   const hasRunningTools = toolCalls.some((tool) => tool.status === "running");
   const isThinking = message.isTyping && !displayText && !hasRunningTools;
-  // While tools are running and no response text yet, suppress the card entirely
-  const showCard = !hasRunningTools || !!displayText || message.isError || !message.isTyping;
+  // The whole tool phase, not just a call in flight: showing the card between two calls made
+  // the dots flash back on for every gap the model spent deciding its next one.
+  const inToolPhase = !!message.isTyping && toolCalls.length > 0 && !displayText;
+  const showCard = !inToolPhase || !!message.isError;
   // The sentence belongs to the start of a turn: once any tool call exists the count
   // line above the card carries the state, so the card falls back to the dots.
   const statusLine = message.statusText ?? (toolCalls.length === 0 ? t("working") : null);
@@ -131,8 +133,8 @@ export function AssistantMessage({
         {toolCalls.length > 0 && (
           <div className="px-1">
             <div className="relative group w-fit flex items-center gap-1.5">
-              {/* The card is hidden while a tool runs, so this dot is the only motion on screen */}
-              {hasRunningTools && (
+              {/* The card is hidden through the tool phase, so this dot carries the motion */}
+              {message.isTyping && (
                 <span
                   data-testid="tool-activity-indicator"
                   className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500 flex-shrink-0 animate-pulse"

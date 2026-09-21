@@ -69,14 +69,13 @@ describe("AssistantMessage — status sentence", () => {
     expect(screen.queryByText("Working out what to do…")).not.toBeInTheDocument();
   });
 
-  it("drops the sentence for bouncing dots once a tool call has been recorded", () => {
+  it("drops the sentence once a tool call has been recorded", () => {
     renderMessage({
       content: "",
       isTyping: true,
       toolCalls: [{ name: "moodle_create_course", status: "done" }],
     });
     expect(screen.queryByText("Working out what to do…")).not.toBeInTheDocument();
-    expect(screen.getByTestId("thinking-dots")).toBeInTheDocument();
   });
 
   it("shows neither the sentence nor the dots once the reply has text", () => {
@@ -106,6 +105,25 @@ describe("AssistantMessage — tool call count", () => {
       content: "",
       isTyping: true,
       toolCalls: [{ name: "moodle_create_course", status: "running" }],
+    });
+    expect(screen.getByTestId("tool-activity-indicator")).toBeInTheDocument();
+  });
+
+  it("keeps the card hidden between two tool calls", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      toolCalls: [{ name: "moodle_create_course", status: "done" }],
+    });
+    expect(screen.queryByTestId("thinking-dots")).not.toBeInTheDocument();
+    expect(screen.getByText("1 tool call made")).toBeInTheDocument();
+  });
+
+  it("keeps the activity dot between two tool calls, while the model decides", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      toolCalls: [{ name: "moodle_create_course", status: "done" }],
     });
     expect(screen.getByTestId("tool-activity-indicator")).toBeInTheDocument();
   });
