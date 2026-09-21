@@ -1,0 +1,94 @@
+name: Moodle plugin
+
+on:
+  pull_request:
+
+concurrency:
+  group: moodle-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The PHPUnit job below builds two full Moodle stacks, so it is scoped to PRs that
+  # actually touch the plugin. This job always reports, keeping the check present.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - third_party_plugins/moodle/**
+              - .github/workflows/moodle.yml
+
+  phpunit:
+    name: local_sparkth PHPUnit
+    needs: changes
+    if: ${{ github.event.pull_request.draft == false && needs.changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - moodle-branch: MOODLE_405_STABLE
+            plugin-path: local/sparkth
+            phpunit-init: admin/tool/phpunit/cli/init.php
+          - moodle-branch: MOODLE_502_STABLE
+            plugin-path: public/local/sparkth
+            phpunit-init: public/admin/tool/phpunit/cli/init.php
+    steps:
+      - name: Checkout Sparkth
+        uses: actions/checkout@v6
+        with:
+          path: sparkth
+
+      - name: Checkout moodle-docker
+        uses: actions/checkout@v6
+        with:
+          repository: moodlehq/moodle-docker
+          path: moodle-docker
+
+      - name: Checkout Moodle ${{ matrix.moodle-branch }}
+        uses: actions/checkout@v6
+        with:
+          repository: moodle/moodle
+          ref: ${{ matrix.moodle-branch }}
+          path: moodle
+
+      - name: Place the plugin in the Moodle tree
+        run: |
+          mkdir -p "moodle/$(dirname ${{ matrix.plugin-path }})"
+          cp -r sparkth/third_party_plugins/moodle/sparkth \
+                "moodle/${{ matrix.plugin-path }}"
+
+      - name: Start the stack
+        env:
+          MOODLE_DOCKER_DB: pgsql
+          MOODLE_DOCKER_WWWROOT: ${{ github.workspace }}/moodle
+        run: |
+          cp moodle-docker/config.docker-template.php moodle/config.php
+          moodle-docker/bin/moodle-docker-compose up -d webserver
+          moodle-docker/bin/moodle-docker-wait-for-db
+
+      - name: Initialise PHPUnit
+        env:
+          MOODLE_DOCKER_DB: pgsql
+          MOODLE_DOCKER_WWWROOT: ${{ github.workspace }}/moodle
+        run: |
+          moodle-docker/bin/moodle-docker-compose exec -T webserver \
+            php ${{ matrix.phpunit-init }}
+
+      - name: Run the suite
+        env:
+          MOODLE_DOCKER_DB: pgsql
+          MOODLE_DOCKER_WWWROOT: ${{ github.workspace }}/moodle
+        run: |
+          moodle-docker/bin/moodle-docker-compose exec -T webserver \
+            vendor/bin/phpunit --testsuite local_sparkth_testsuite
