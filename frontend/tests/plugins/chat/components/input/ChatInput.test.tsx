@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 
 import { ChatInput } from "@/plugins/chat/components/input/ChatInput";
@@ -42,11 +43,45 @@ describe("ChatInput", () => {
         setAttachments={vi.fn()}
         onSend={vi.fn()}
         conversationId={null}
+        isStreaming={false}
+        onStop={vi.fn()}
       />,
       chatEn,
     );
 
     expect(chatEn.chat.inputPlaceholder).toBeTruthy();
     expect(screen.getByPlaceholderText(chatEn.chat.inputPlaceholder)).toBeInTheDocument();
+  });
+
+  it("offers a stop button while a turn is streaming", async () => {
+    const onStop = vi.fn();
+    renderWithIntl(
+      <ChatInput
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming
+        onStop={onStop}
+      />,
+      { chat: chatEn.chat },
+    );
+    await userEvent.click(screen.getByRole("button", { name: /stop/i }));
+    expect(onStop).toHaveBeenCalledOnce();
+  });
+
+  it("offers the send button when nothing is streaming", () => {
+    renderWithIntl(
+      <ChatInput
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming={false}
+        onStop={vi.fn()}
+      />,
+      { chat: chatEn.chat },
+    );
+    expect(screen.queryByRole("button", { name: /stop/i })).not.toBeInTheDocument();
   });
 });

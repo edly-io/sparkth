@@ -2,7 +2,7 @@
 
 import { Dispatch, SetStateAction } from "react";
 import { useTranslations } from "next-intl";
-import { Paperclip, ArrowUp, X } from "lucide-react";
+import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
@@ -21,9 +21,18 @@ interface ChatInputProps {
     documentIds?: number[];
   }) => void;
   conversationId: string | null;
+  isStreaming: boolean;
+  onStop: () => void;
 }
 
-export function ChatInput({ attachments, setAttachments, onSend, conversationId }: ChatInputProps) {
+export function ChatInput({
+  attachments,
+  setAttachments,
+  onSend,
+  conversationId,
+  isStreaming,
+  onStop,
+}: ChatInputProps) {
   const t = useTranslations("chat");
   const { token } = useAuth();
 
@@ -103,15 +112,27 @@ export function ChatInput({ attachments, setAttachments, onSend, conversationId 
               </Button>
               */}
 
-              <Button
-                variant="primary"
-                size="icon"
-                onClick={handleSend}
-                disabled={!message.trim() && attachments.every((a) => a.documentId !== undefined)}
-                className="rounded-full bg-foreground text-background"
-              >
-                <ArrowUp className="w-5 h-5" />
-              </Button>
+              {isStreaming ? (
+                <Button
+                  variant="primary"
+                  size="icon"
+                  aria-label={t("stopGenerating")}
+                  onClick={onStop}
+                  className="rounded-full bg-foreground text-background"
+                >
+                  <Square className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="icon"
+                  onClick={handleSend}
+                  disabled={!message.trim() && attachments.every((a) => a.documentId !== undefined)}
+                  className="rounded-full bg-foreground text-background"
+                >
+                  <ArrowUp className="w-5 h-5" />
+                </Button>
+              )}
             </div>
           </div>
         </div>

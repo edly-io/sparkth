@@ -7,6 +7,8 @@
     "statusScanningAttachments": "Reading your attached files…",
     "statusSearchingDocuments": "Scanning document sections…",
     "statusSkippingRag": "Answering without the attachments…",
-    "statusGenerating": "Writing the answer…"
+    "statusGenerating": "Writing the answer…",
+    "stopped": "Stopped",
+    "stopGenerating": "Stop generating"
   }
 }

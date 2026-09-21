@@ -213,6 +213,10 @@ export function AssistantMessage({
               </div>
             )}
 
+            {message.stopped && (
+              <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">{t("stopped")}</p>
+            )}
+
             {!message.isTyping && (
               <Pill
                 attachments={message.pillAttachment ? [message.pillAttachment] : []}
