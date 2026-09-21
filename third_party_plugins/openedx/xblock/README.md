@@ -81,15 +81,17 @@ The launch token's lifetime also bounds how long an editing session can run: it 
 after it lapses. The socket re-verifies the token on every action, so this bound applies to a
 socket session exactly as it applies to the HTTP routes.
 
-A refused save is not reported to the author as an error, though. `sendAction` resolves as soon
-as the action reaches the browser's IndexedDB queue, before any network round-trip, so the
-activity's own "Configuration saved!" message can appear for an edit the server went on to
-discard. Nothing contradicts it: the author is told the save succeeded and receives no signal
-that it did not. A lapsed token does close the already-open socket with code 1008, and `pxc.js`
-dispatches a `pxc:connection` event on that close, but nothing in this deployment renders that
-event — neither `pxc.js` itself, nor `sparkth-pxc.js`, nor the bundled activity UI registers a
-listener, and the socket lives inside the sandboxed embed iframe, so a Studio-side listener
-could not receive it either. Losing an edit this way is silent.
+A refused save is not reported as an error at the moment it is refused. `sendAction` resolves as
+soon as the action reaches the browser's IndexedDB queue, before any network round-trip, so the
+activity's own "Configuration saved!" message appears for an edit the server has not seen yet.
+Nothing in the transport can contradict it: actions are not acknowledged individually.
+
+What the author does get is a notice once the edit is known to be undeliverable. A lapsed token
+closes the socket with code 1008, every reconnect presents that same token and is refused, and
+after a bounded number of attempts `sparkth-pxc.js` stops retrying and puts a message at the top
+of the embed saying the connection is gone and the page needs reloading. The queued edit is
+still lost — the notice is what makes the loss visible rather than silent, and it is worth
+knowing that the earlier success message was about the queue, not the server.
 
 ## Django settings
 
@@ -151,18 +153,22 @@ an equivalent middleware). This is not unique to the socket — `ui_url`, `asset
 matters more here, because a blocked WebSocket kills the activity outright rather than one
 asset.
 
-### A socket that drops after the token expires does not reconnect on its own
+### A socket that drops after the token expires cannot be restored without a reload
 
 `pxc.js`'s `_getWebsocketUrl` returns the cached socket URL unconditionally once one is set,
 and its reconnect loop simply reopens that same URL, so every reconnect presents the same
 launch token. Once that token has expired, the server refuses the reconnect's handshake
-outright — the client never reaches an open socket to receive a proper close code — and
-`pxc.js` retries anyway, on a backoff that caps at 2000 ms. That is a refused handshake every
-two seconds, indefinitely, with the offline banner stuck on. The learner has to reload the
-unit to mint a fresh token.
+outright and the client never reaches an open socket at all.
+
+`sparkth-pxc.js` gives up after 30 consecutive failures — roughly a minute, on `pxc.js`'s
+backoff — and shows a notice telling the viewer to reload. A reload mints a fresh token and
+recovers; nothing inside the page can. The ceiling is what keeps a forgotten tab from costing a
+refused handshake every two seconds for as long as it stays open, and it is generous enough
+that an ordinary network blip reconnects and flushes the queue instead of tripping it.
 
 The trigger is any network interruption more than `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`
-(default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever.
+(default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever on
+how long a session can survive one.
 
 Re-fetching the configuration to obtain a fresh token is **not** an available remedy, which is
 worth stating because it is the obvious one to reach for. The configuration route authenticates

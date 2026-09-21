@@ -11,6 +11,13 @@
 //   * _postAction, which _flushQueue uses for payloads above its 512 KiB socket ceiling, is
 //     overridden to address Sparkth's route and carry the token
 //
+// A third difference is not about the token: reconnection gives up, and says so. pxc.js retries
+// a dropped socket forever on a backoff capped at two seconds, and the launch token is baked
+// into the socket URL, so once it lapses every reconnect's handshake is refused and the retry
+// never ends. Nothing tells the viewer, and nothing tells an author that the save they were
+// just told succeeded is sitting in a queue the server will never receive — sendAction resolves
+// as soon as the action reaches IndexedDB, well before any round-trip.
+//
 // Reads two data-* attributes beyond the ones _initFromAttrs() handles:
 //   data-config-url   GET endpoint returning this activity's configuration
 //   data-action-url   POST endpoint for actions, one path segment short of the action name
@@ -23,11 +30,20 @@
 
 import { PXC } from "./pxc.js";
 
+// How many consecutive failed connections to accept before giving up. pxc.js's backoff caps at
+// two seconds, so this is roughly a minute of retrying: long enough to ride out an ordinary
+// network blip, after which the queued actions flush and nothing is lost, and short enough that
+// a lapsed token stops costing the server a refused handshake every two seconds per stale tab.
+const MAX_RECONNECT_ATTEMPTS = 30;
+
 export class SparkthPXC extends PXC {
   constructor() {
     super();
     this._configUrl = null;
     this._actionUrl = null;
+    this._reconnectAttempts = 0;
+    this._notice = null;
+    this._onSocketOpen = this._onSocketOpen.bind(this);
   }
 
   async connectedCallback() {
@@ -85,6 +101,50 @@ export class SparkthPXC extends PXC {
   // appended after this one, so the token can go on as a trailing query string.
   getAssetUrl(path) {
     return `${super.getAssetUrl(path)}?token=${encodeURIComponent(this._pxcToken)}`;
+  }
+
+  // Listens on the socket rather than on pxc.js's own `pxc:connection` window event, which
+  // every activity on a page would share, and rather than reassigning the onopen handler the
+  // base class sets in _connectWebSocket().
+  _connectWebSocket() {
+    super._connectWebSocket();
+    this._ws.addEventListener("open", this._onSocketOpen);
+  }
+
+  // A socket that opens means the queue is draining again, so the count starts over and the
+  // notice comes down. Reached only on a real handshake: a refused one closes without opening.
+  _onSocketOpen() {
+    this._reconnectAttempts = 0;
+    this._removeNotice();
+  }
+
+  // Overrides PXC's own _scheduleReconnect(), which retries without a ceiling.
+  _scheduleReconnect() {
+    this._reconnectAttempts += 1;
+    if (this._reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      this._showNotice();
+      return;
+    }
+    super._scheduleReconnect();
+  }
+
+  // Into the document rather than the shadow root: an activity's UI owns that root and rewrites
+  // its innerHTML on every render, which would take the notice with it.
+  _showNotice() {
+    if (this._notice) return;
+    this._notice = document.createElement("div");
+    this._notice.setAttribute("role", "alert");
+    this._notice.textContent =
+      "Disconnected from Sparkth. Anything changed since may not have been saved. Reload this page to continue.";
+    this._notice.style.cssText =
+      "padding:0.75em 1em;background:#fdecea;color:#611a15;font:inherit;border-bottom:1px solid #f5c6cb";
+    document.body.prepend(this._notice);
+  }
+
+  _removeNotice() {
+    if (!this._notice) return;
+    this._notice.remove();
+    this._notice = null;
   }
 }
 
