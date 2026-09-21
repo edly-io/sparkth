@@ -4,9 +4,16 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from sparkth.lib.exceptions import AuthenticationError
-from sparkth.plugins.moodle.schemas import Auth, CoursePayload
-from sparkth.plugins.moodle.tools import moodle_authenticate, moodle_create_course, moodle_list_courses
+from sparkth.lib.enums import Method
+from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
+from sparkth.plugins.moodle.schemas import Auth, CoursePayload, PagePayload, SectionPayload
+from sparkth.plugins.moodle.tools import (
+    moodle_authenticate,
+    moodle_create_course,
+    moodle_create_page,
+    moodle_create_section,
+    moodle_list_courses,
+)
 
 _LOGGER = "sparkth.plugins.moodle.tools"
 
@@ -200,3 +207,63 @@ class TestMoodleListCourses:
         assert result["error"]["status_code"] == 401
         assert "core_webservice_get_site_info" in caplog.text
         assert "core_enrol_get_users_courses" not in caplog.text
+
+
+class TestMoodleCreateSection:
+    @pytest.mark.asyncio
+    async def test_returns_the_new_section_number(self) -> None:
+        client = _client_returning({"id": 6, "sectionnum": 1})
+        payload = SectionPayload(auth=AUTH, courseid=4, name="Module 1", summary="<p>i</p>")
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_section(payload)
+
+        assert result == {"id": 6, "sectionnum": 1}
+        wsfunction, params = client.call_dict.call_args.args
+        assert wsfunction == "local_sparkth_create_section"
+        assert params == {"courseid": 4, "name": "Module 1", "summary": "<p>i</p>"}
+
+
+class TestMoodleCreatePage:
+    @pytest.mark.asyncio
+    async def test_returns_the_created_module_ids(self) -> None:
+        client = _client_returning({"cmid": 9, "instanceid": 2})
+        payload = PagePayload(
+            auth=AUTH,
+            courseid=4,
+            sectionnum=1,
+            name="Lesson One",
+            content="<h2>Hi</h2>",
+            intro="",
+        )
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_page(payload)
+
+        assert result == {"cmid": 9, "instanceid": 2}
+        wsfunction, params = client.call_dict.call_args.args
+        assert wsfunction == "local_sparkth_create_page"
+        assert params["content"] == "<h2>Hi</h2>"
+
+    @pytest.mark.asyncio
+    async def test_missing_companion_plugin_becomes_an_error_dict(self) -> None:
+        client = _client_returning(None)
+        client.call_dict = AsyncMock(
+            side_effect=LMSRequestError(
+                Method.POST,
+                "local_sparkth_create_page",
+                400,
+                "Can not find data record in database table external_functions.",
+            )
+        )
+        payload = PagePayload(
+            auth=AUTH,
+            courseid=4,
+            sectionnum=1,
+            name="L",
+            content="<p>x</p>",
+            intro="",
+        )
+        with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
+            result = await moodle_create_page(payload)
+
+        assert result["error"]["status_code"] == 400
+        assert "external_functions" in result["error"]["message"]

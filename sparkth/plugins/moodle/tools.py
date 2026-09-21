@@ -6,7 +6,7 @@ from typing import Any
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.plugins.moodle.client import MoodleClient
 from sparkth.plugins.moodle.constants import MOODLE_MALFORMED_RESPONSE_STATUS_CODE
-from sparkth.plugins.moodle.schemas import Auth, CoursePayload
+from sparkth.plugins.moodle.schemas import Auth, CoursePayload, PagePayload, SectionPayload
 
 logger = logging.getLogger(__name__)
 
@@ -83,4 +83,46 @@ async def moodle_create_course(payload: CoursePayload) -> dict[str, Any]:
     except (LMSRequestError, AuthenticationError) as e:
         return _lms_error(e, wsfunction)
     except (ValueError, IndexError, KeyError) as e:
+        return _malformed_response_error(e, wsfunction)
+
+
+async def moodle_create_section(payload: SectionPayload) -> dict[str, Any]:
+    """Append a section to a Moodle course and set its name and summary.
+
+    Requires the local_sparkth companion plugin installed on the target Moodle.
+    """
+    wsfunction = "local_sparkth_create_section"
+    params = {
+        "courseid": payload.courseid,
+        "name": payload.name,
+        "summary": payload.summary,
+    }
+    try:
+        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
+            return await client.call_dict(wsfunction, params)
+    except (LMSRequestError, AuthenticationError) as e:
+        return _lms_error(e, wsfunction)
+    except ValueError as e:
+        return _malformed_response_error(e, wsfunction)
+
+
+async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
+    """Create a Page activity carrying lesson HTML in a Moodle course section.
+
+    Requires the local_sparkth companion plugin installed on the target Moodle.
+    """
+    wsfunction = "local_sparkth_create_page"
+    params = {
+        "courseid": payload.courseid,
+        "sectionnum": payload.sectionnum,
+        "name": payload.name,
+        "content": payload.content,
+        "intro": payload.intro,
+    }
+    try:
+        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
+            return await client.call_dict(wsfunction, params)
+    except (LMSRequestError, AuthenticationError) as e:
+        return _lms_error(e, wsfunction)
+    except ValueError as e:
         return _malformed_response_error(e, wsfunction)
