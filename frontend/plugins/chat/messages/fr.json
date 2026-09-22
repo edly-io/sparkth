@@ -9,6 +9,10 @@
     "statusSkippingRag": "Réponse sans les fichiers joints…",
     "statusGenerating": "Rédaction de la réponse…",
     "stopped": "Arrêté",
-    "stopGenerating": "Arrêter la génération"
+    "stopGenerating": "Arrêter la génération",
+    "aiKeyMissing": "Vous n'avez pas encore ajouté de clé d'IA à Sparkth. Ajoutez-en une, puis sélectionnez-la dans la configuration de Composer.",
+    "aiKeyMissingAction": "Ajouter une clé d'IA",
+    "aiKeyNotSelected": "Sélectionnez votre clé d'IA dans la configuration de Composer pour commencer à créer.",
+    "aiKeyNotSelectedAction": "Ouvrir les paramètres du plugin"
   }
 }
