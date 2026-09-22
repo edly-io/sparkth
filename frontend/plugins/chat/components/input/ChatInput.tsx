@@ -4,7 +4,7 @@ import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
-import { TextAttachment } from "../../types";
+import { AiKeyProblem, TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
@@ -24,6 +24,8 @@ interface ChatInputProps {
   isStreaming: boolean;
   isStopping: boolean;
   onStop: () => void;
+  checkAiKeyReady?: () => Promise<AiKeyProblem | null>;
+  onAiKeySetupNeeded?: (problem: AiKeyProblem) => void;
 }
 
 export function ChatInput({
@@ -34,6 +36,8 @@ export function ChatInput({
   isStreaming,
   isStopping,
   onStop,
+  checkAiKeyReady,
+  onAiKeySetupNeeded,
 }: ChatInputProps) {
   const t = useTranslations("chat");
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -52,7 +56,15 @@ export function ChatInput({
     handleDriveFileSelected,
     handleRemoveAttachment,
     handleSend,
-  } = useChatInput({ token, conversationId, attachments, setAttachments, onSend });
+  } = useChatInput({
+    token,
+    conversationId,
+    attachments,
+    setAttachments,
+    onSend,
+    checkAiKeyReady,
+    onAiKeySetupNeeded,
+  });
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 

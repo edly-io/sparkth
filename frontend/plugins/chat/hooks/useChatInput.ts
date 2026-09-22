@@ -1,7 +1,7 @@
 "use client";
 
 import { Dispatch, SetStateAction, useState } from "react";
-import { TextAttachment } from "@/plugins/chat/types";
+import { AiKeyProblem, TextAttachment } from "@/plugins/chat/types";
 import { attachDocument, detachDocument } from "@/lib/chat";
 import { uploadFile, UploadResponse } from "@/lib/file-upload";
 import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
@@ -18,6 +18,8 @@ interface UseChatInputProps {
     attachments: TextAttachment[];
     documentIds?: number[];
   }) => void;
+  checkAiKeyReady?: () => Promise<AiKeyProblem | null>;
+  onAiKeySetupNeeded?: (problem: AiKeyProblem) => void;
 }
 
 export function useChatInput({
@@ -26,6 +28,8 @@ export function useChatInput({
   attachments,
   setAttachments,
   onSend,
+  checkAiKeyReady,
+  onAiKeySetupNeeded,
 }: UseChatInputProps) {
   const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
@@ -131,9 +135,16 @@ export function useChatInput({
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
     if (!message.trim() && sendableAttachments.length === 0) return;
+
+    // Refused before anything is cleared, so the author keeps what they typed.
+    const problem = checkAiKeyReady ? await checkAiKeyReady() : null;
+    if (problem) {
+      onAiKeySetupNeeded?.(problem);
+      return;
+    }
 
     const documentAttachments = attachments.filter((a) => a.documentId !== undefined);
     const documentIds = documentAttachments.map((a) => a.documentId!);
