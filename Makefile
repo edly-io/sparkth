@@ -133,6 +133,10 @@ cli: ## Run CLI tool (make cli -- users --help)
 mypy: ## Run mypy type checking
 	uv run mypy --strict sparkth/ tests/ scripts/
 
+.PHONY: pxc.activities.build
+pxc.activities.build: ## Build the bundled mcq activity's WASM sandbox
+	$(MAKE) -C sparkth/plugins/pxc/activities/mcq build
+
 ##@ Internationalization
 # Static-translation workflow for the backend (see docs/guides/translations.md).
 # `.po` catalogs are committed; the `.pot` template and compiled `.mo` files are
