@@ -137,12 +137,11 @@ async def test_resolve_records_key_read_on_cold_and_cached_paths(
         _assert_no_key_material(event)
 
 
-async def test_key_read_survives_rollback_of_the_callers_transaction(
+async def test_key_read_rides_the_callers_transaction(
     service: LLMConfigService, session: AsyncSession, audit_events: AuditEventsFetcher
 ) -> None:
-    """The key was handed out the moment it was decrypted, so the access is on
-    record even when the surrounding request (a failed provider call, say)
-    rolls back."""
+    """The read is recorded on the caller's session, not committed on its own: no
+    second pooled connection per chat turn, and the record lands with the turn."""
     config = await service.create(session, user_id=1, name="main", provider="openai", model="gpt-4o", api_key=PLAINTEXT)
     await session.commit()
     assert config.id is not None
@@ -150,5 +149,5 @@ async def test_key_read_survives_rollback_of_the_callers_transaction(
     await service.resolve(session, user_id=1, config_id=config.id)
     await session.rollback()
 
-    _, event = await audit_events()
-    assert (event.category, event.action) == ("llm_config", "key_read")
+    (created,) = await audit_events()
+    assert (created.category, created.action) == ("llm_config", "created")
