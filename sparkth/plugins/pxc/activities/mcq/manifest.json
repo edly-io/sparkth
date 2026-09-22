@@ -4,7 +4,7 @@
     "question": {
       "type": "string",
       "scope": "activity",
-      "default": ""
+      "default": "What is 2 + 2?"
     },
     "answers": {
       "type": "array",
@@ -12,7 +12,11 @@
         "type": "string"
       },
       "scope": "activity",
-      "default": []
+      "default": [
+        "3",
+        "4",
+        "5"
+      ]
     },
     "correct_answers": {
       "type": "array",
@@ -20,7 +24,9 @@
         "type": "integer"
       },
       "scope": "activity",
-      "default": []
+      "default": [
+        1
+      ]
     }
   },
   "actions": {
