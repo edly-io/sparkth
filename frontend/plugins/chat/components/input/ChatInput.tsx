@@ -24,8 +24,8 @@ interface ChatInputProps {
   isStreaming: boolean;
   isStopping: boolean;
   onStop: () => void;
-  checkAiKeyReady?: () => Promise<AiKeyProblem | null>;
-  onAiKeySetupNeeded?: (problem: AiKeyProblem) => void;
+  checkAiKeyReady: () => Promise<AiKeyProblem | null>;
+  onAiKeySetupNeeded: (problem: AiKeyProblem) => void;
 }
 
 export function ChatInput({

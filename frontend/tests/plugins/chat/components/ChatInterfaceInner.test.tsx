@@ -46,10 +46,13 @@ vi.mock("@/plugins/chat/hooks/useConversation", () => ({
   }),
 }));
 
+const mockHandleSend = vi.fn();
+const mockHandleOptionClick = vi.fn();
+
 vi.mock("@/plugins/chat/hooks/useChatStream", () => ({
   useChatStream: () => ({
-    handleSend: vi.fn(),
-    handleOptionClick: vi.fn(),
+    handleSend: mockHandleSend,
+    handleOptionClick: mockHandleOptionClick,
     stopGeneration: vi.fn(),
     isStopping: false,
   }),
@@ -57,6 +60,14 @@ vi.mock("@/plugins/chat/hooks/useChatStream", () => ({
 
 vi.mock("@/lib/llm/client", () => ({
   fetchLLMConfigs: vi.fn(),
+}));
+
+// ChatMessages renders no options for an empty message list (the mocked useConversation
+// above always returns []), so the option-click path is reached through this stub instead.
+vi.mock("@/plugins/chat/components/messages/ChatMessages", () => ({
+  ChatMessages: ({ onOptionClick }: { onOptionClick?: (text: string) => void }) => (
+    <button onClick={() => onOptionClick?.("Try again")}>Option</button>
+  ),
 }));
 
 const mockedFetchLLMConfigs = vi.mocked(fetchLLMConfigs);
@@ -166,5 +177,18 @@ describe("ChatInterfaceInner — AI key guidance", () => {
     });
 
     expect(mockedFetchLLMConfigs).toHaveBeenCalledOnce();
+  });
+
+  it("guards a suggested-option click the same as a typed send", async () => {
+    pluginConfig = {};
+    mockedFetchLLMConfigs.mockResolvedValue({ configs: [], total: 0 });
+
+    renderChat();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Option"));
+    });
+
+    expect(await screen.findByText(/have not added an AI key to Sparkth yet/i)).toBeInTheDocument();
+    expect(mockHandleOptionClick).not.toHaveBeenCalled();
   });
 });

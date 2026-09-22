@@ -13,6 +13,7 @@ function setup(overrides: Partial<Parameters<typeof useChatInput>[0]> = {}) {
       attachments: [],
       setAttachments: vi.fn(),
       onSend,
+      checkAiKeyReady: () => Promise.resolve(null),
       onAiKeySetupNeeded,
       ...overrides,
     }),
@@ -51,16 +52,5 @@ describe("useChatInput — the AI key guard", () => {
     expect(onSend).toHaveBeenCalledOnce();
     expect(onAiKeySetupNeeded).not.toHaveBeenCalled();
     expect(result.current.message).toBe("");
-  });
-
-  it("sends when no guard is supplied at all", async () => {
-    const { result, onSend } = setup();
-    act(() => result.current.setMessage("a course about chess"));
-
-    await act(async () => {
-      await result.current.handleSend();
-    });
-
-    expect(onSend).toHaveBeenCalledOnce();
   });
 });

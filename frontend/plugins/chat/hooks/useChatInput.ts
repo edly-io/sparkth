@@ -18,8 +18,8 @@ interface UseChatInputProps {
     attachments: TextAttachment[];
     documentIds?: number[];
   }) => void;
-  checkAiKeyReady?: () => Promise<AiKeyProblem | null>;
-  onAiKeySetupNeeded?: (problem: AiKeyProblem) => void;
+  checkAiKeyReady: () => Promise<AiKeyProblem | null>;
+  onAiKeySetupNeeded: (problem: AiKeyProblem) => void;
 }
 
 export function useChatInput({
@@ -140,9 +140,9 @@ export function useChatInput({
     if (!message.trim() && sendableAttachments.length === 0) return;
 
     // Refused before anything is cleared, so the author keeps what they typed.
-    const problem = checkAiKeyReady ? await checkAiKeyReady() : null;
+    const problem = await checkAiKeyReady();
     if (problem) {
-      onAiKeySetupNeeded?.(problem);
+      onAiKeySetupNeeded(problem);
       return;
     }
 
