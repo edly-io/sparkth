@@ -256,3 +256,7 @@ sparkth/locale/messages.pot
 sparkth/plugins/pxc/activities/*/sandbox.bundle.js
 sparkth/plugins/pxc/activities/*/sandbox.wasm
 sparkth/plugins/pxc/activities/*/sandbox.wasm.bin
+
+# The Open edX XBlock is a separate distribution with its own lockfile; the root uv.lock above
+# is the one tracked. Running that package's suite through uv regenerates this one every time.
+third_party_plugins/openedx/xblock/uv.lock
