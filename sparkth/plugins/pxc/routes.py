@@ -1,9 +1,6 @@
-"""The learner-facing HTTP surface, mounted at ``/api/v1/pxc``.
+"""The learner-facing surface, mounted at ``/api/v1/pxc``.
 
-These requests carry no Sparkth session. They arrive from a learner's browser inside another
-LMS's course page, and the launch token in the query string is what authenticates them — which
-is why they pass the plugin access gate untouched: it fails open for anonymous callers by
-design.
+These requests carry no Sparkth session; the launch token in the query string authenticates them.
 
 Every call into the PXC runtime is dispatched to a worker thread. The sandbox executes
 WebAssembly synchronously on the calling thread, so running it inline would block the event
@@ -11,30 +8,38 @@ loop for every other request in the process.
 """
 
 import asyncio
-from json import JSONDecodeError
 from pathlib import Path
 
 import pxc.lib
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, WebSocket, status
 from fastapi.responses import FileResponse, HTMLResponse
+from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
-from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcAssetNotFound
+from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
+from sparkth.plugins.pxc.exceptions import (
+    PxcActionRejected,
+    PxcActivityNotFound,
+    PxcAssetNotFound,
+    PxcInvalidLaunchToken,
+)
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
-from sparkth.plugins.pxc.schemas import ActionResult, ActivityConfig, LaunchContext
+from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import LaunchClaims, read_launch_token
+from sparkth.plugins.pxc.websocket import run_action_frames
 
 logger = get_logger(__name__)
 
 # The launch token is the only credential these routes have, so verifying it is declared as a
-# dependency rather than repeated as the first line of each handler. `client_script` is the one
-# exception and declares none: it serves the same two scripts to everyone and reads no state.
+# dependency rather than repeated as the first line of each handler. Two routes do not declare
+# it: `client_script`, which serves the same two scripts to everyone and reads no state, and
+# `activity_socket`, which has to turn a refusal into a close code and so verifies inline.
 router = APIRouter()
 
 # The two client scripts the activity page loads: PXC's own component, served from the installed
-# pxc-lib distribution, and Sparkth's HTTP transport subclass of it. An explicit map rather than
-# a directory: it is the whole allowlist, so no path can escape it.
+# pxc-lib distribution, and Sparkth's subclass of it. An explicit map rather than a directory: it
+# is the whole allowlist, so no path can escape it.
 _CLIENT_FILES = {
     "pxc.js": Path(pxc.lib.__file__).parent / "static" / "js" / "pxc.js",
     "sparkth-pxc.js": Path(__file__).parent / "static" / "sparkth-pxc.js",
@@ -60,6 +65,11 @@ async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse
     )
 
 
+def _socket_url(request: Request, token: str) -> str:
+    """The activity socket's URL for this launch, as a browser must address it."""
+    return f"{request.url_for('activity_socket')}?token={token}"
+
+
 @router.get("/config")
 async def activity_config(
     request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
@@ -71,8 +81,8 @@ async def activity_config(
     runtime = await asyncio.to_thread(build_runtime, claims)
     state = await asyncio.to_thread(read_state, runtime)
     base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
-    # Neither base URL below carries the token: the embed shell already gave the client one.
-    # The client appends it itself in SparkthPXC's methods.
+    # Neither base URL below carries the token: the embed shell already gave the client one,
+    # and the client appends it itself in SparkthPXC's methods.
     return ActivityConfig(
         activity=claims.activity,
         context=LaunchContext(activity_id=claims.placement, course_id=claims.course_id, user_id=claims.user_id),
@@ -81,6 +91,7 @@ async def activity_config(
         ui_url=f"{base}/assets/{runtime.ui_path}?token={token}",
         asset_base_url=f"{base}/assets",
         action_base_url=f"{base}/actions",
+        ws_url=_socket_url(request, token),
     )
 
 
@@ -111,27 +122,52 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
     return FileResponse(asset_path(claims.activity, file_path))
 
 
-@router.post("/actions/{action_name}")
-async def submit_action(
-    action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)
-) -> ActionResult:
-    """Run one action through the activity's sandbox and return the events it produced.
+@router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)
+async def submit_action(action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)) -> None:
+    """Run one action through the activity's sandbox, for a payload too large for the socket.
 
-    The request body is read as a raw JSON value, not a typed model, by design: an action's
-    value is a manifest-defined ``FieldType``, a JSON union no Pydantic model can express
-    generically, so the body is deliberately untyped rather than accidentally so.
-
-    A sandbox crash during the action is swallowed upstream and comes back as a 200 with an
-    empty event list, not an error — see ``run_action``'s docstring for why.
+    The events it produces are published to the bus, not returned; the client reads only the status.
 
     Raises:
-        PxcActionRejected: if the body is not valid JSON.
+        PxcActionRejected: if the body is not JSON the parser will read.
     """
     try:
         action_value = await request.json()
-    except JSONDecodeError as err:
-        logger.warning("Malformed action body for %s of activity %s: %s", action_name, claims.activity, err)
-        raise PxcActionRejected("Request body is not valid JSON") from err
+    except (ValueError, RecursionError) as err:
+        # Logged with %r so the exception type says which cause arrived.
+        logger.warning(
+            "Refusing a PXC action body the parser cannot read for %s of activity %s: %r",
+            action_name,
+            claims.activity,
+            err,
+        )
+        raise PxcActionRejected("Request body is not JSON this server can read") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
-    return ActionResult(events=[dict(event) for event in events])
+    await publish_events(claims.activity, claims.placement, events)
+
+
+@router.websocket("/ws")
+async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
+    """The socket an activity's client keeps open, to send actions and to receive events."""
+    try:
+        claims = read_launch_token(token)
+        runtime = await asyncio.to_thread(build_runtime, claims)
+    except (PxcInvalidLaunchToken, PxcActivityNotFound) as err:
+        logger.warning("Refused a PXC activity socket: %s", err)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await websocket.accept()
+    subscriber = subscribe_socket(claims.activity, websocket, claims)
+    try:
+        await run_action_frames(websocket, runtime, token)
+    except WebSocketDisconnect:
+        # The ordinary way a socket ends: the learner navigated away or closed the tab.
+        pass
+    finally:
+        # Always, but not before every close: the frame loop's refusal paths close the socket
+        # and then return into this clause, so a publish landing in that window still walks a
+        # closed socket — L16's first defect. _SubscriberSocket absorbs the RuntimeError that
+        # causes, which is what keeps the window harmless.
+        EVENT_BUS.unsubscribe(claims.activity, subscriber)

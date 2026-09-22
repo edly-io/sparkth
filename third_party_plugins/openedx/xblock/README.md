@@ -78,8 +78,20 @@ token.
 
 The launch token's lifetime also bounds how long an editing session can run: it defaults to
 300 seconds (`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`), and Sparkth refuses a save submitted
-after it lapses. The activity reports that refusal to the author as an error, rather than
-reporting success.
+after it lapses. The socket re-verifies the token on every action, so this bound applies to a
+socket session exactly as it applies to the HTTP routes.
+
+A refused save is not reported as an error at the moment it is refused. `sendAction` resolves as
+soon as the action reaches the browser's IndexedDB queue, before any network round-trip, so the
+activity's own "Configuration saved!" message appears for an edit the server has not seen yet.
+Nothing in the transport can contradict it: actions are not acknowledged individually.
+
+What the author does get is a notice once the edit is known to be undeliverable. A lapsed token
+closes the socket with code 1008, every reconnect presents that same token and is refused, and
+after a bounded number of attempts `sparkth-pxc.js` stops retrying and puts a message at the top
+of the embed saying the connection is gone and the page needs reloading. The queued edit is
+still lost — the notice is what makes the loss visible rather than silent, and it is worth
+knowing that the earlier success message was about the queue, not the server.
 
 ## Django settings
 
@@ -111,6 +123,59 @@ a learner reports a launch failure.
 
 Scores and all other activity state live in Sparkth's own storage. This block does not report a
 grade to Open edX's gradebook — that integration does not exist yet.
+
+## Deployment limits
+
+### One worker, for now
+
+An activity's clients exchange events through an in-memory bus inside a single Sparkth
+process. Two learners on one activity therefore have to be served by the same process: run
+Sparkth with **one** uvicorn worker and one replica, or route by placement so that both
+parties land together.
+
+With more than one worker the failure is silent. Each learner's actions succeed, each sees
+their own events, and neither sees the other's — no error appears at either end. Sharing the
+bus across processes (Redis pub/sub) is the way out and is not built.
+
+### The socket URL's scheme follows the request's, trusted or not
+
+`request.url_for` derives `ws` versus `wss` from the scheme of the incoming request, and
+nothing in this application trusts a forwarded-proto header: there is no
+`ProxyHeadersMiddleware` and no `X-Forwarded-Proto` handling anywhere in `sparkth/`, the
+Dockerfile, or the Makefile. Behind a TLS-terminating proxy or ingress whose address is not in
+uvicorn's trusted `forwarded_allow_ips` (default `127.0.0.1`), an HTTPS learner is seen as
+`http`, so the config's `ws_url` comes back `ws://` and the browser refuses it as mixed
+content.
+
+Configure the proxy-header trust for any TLS deployment (uvicorn's `--forwarded-allow-ips`, or
+an equivalent middleware). This is not unique to the socket — `ui_url`, `asset_base_url` and
+`action_base_url` are all built from `request.url_for` and share the same dependency — but it
+matters more here, because a blocked WebSocket kills the activity outright rather than one
+asset.
+
+### A socket that drops after the token expires cannot be restored without a reload
+
+`pxc.js`'s `_getWebsocketUrl` returns the cached socket URL unconditionally once one is set,
+and its reconnect loop simply reopens that same URL, so every reconnect presents the same
+launch token. Once that token has expired, the server refuses the reconnect's handshake
+outright and the client never reaches an open socket at all.
+
+`sparkth-pxc.js` gives up after 30 consecutive failures — roughly a minute, on `pxc.js`'s
+backoff — and shows a notice telling the viewer to reload. A reload mints a fresh token and
+recovers; nothing inside the page can. The ceiling is what keeps a forgotten tab from costing a
+refused handshake every two seconds for as long as it stays open, and it is generous enough
+that an ordinary network blip reconnects and flushes the queue instead of tripping it.
+
+The trigger is any network interruption more than `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`
+(default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever on
+how long a session can survive one.
+
+Re-fetching the configuration to obtain a fresh token is **not** an available remedy, which is
+worth stating because it is the obvious one to reach for. The configuration route authenticates
+with the very token that has expired, so a client in this state cannot reach it; and the
+configuration it returns carries that same token rather than a new one. Recovering inside the
+browser requires a credential the browser does not have, so any real fix has to change where
+the socket's authorization comes from.
 
 ## Security
 
