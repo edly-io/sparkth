@@ -1,4 +1,3 @@
-import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -13,7 +12,7 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-from sparkth.plugins.chat.routes.utils.live_turns import register_turn, request_stop
+from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatMessage
 
@@ -21,8 +20,8 @@ from sparkth.plugins.chat.schemas import ChatMessage
 def _make_processor(
     messages: list[dict[str, Any]] | None = None,
     provider: Any = None,
-    stop_requested: asyncio.Event | None = None,
     turn_id: str | None = None,
+    user_id: int | None = None,
 ) -> ChatStreamProcessor:
     conversation = MagicMock()
     conversation.id = 1
@@ -34,7 +33,7 @@ def _make_processor(
         messages=messages if messages is not None else [],
         conversation=conversation,
         service=service,
-        stop_requested=stop_requested,
+        user_id=user_id,
         turn_id=turn_id,
     )
 
@@ -445,7 +444,6 @@ class TestStopHonoured:
     async def test_a_stopped_turn_runs_no_further_tools(self) -> None:
         """The stop lands between events, so the first tool completes and the second never starts."""
         executed: list[str] = []
-        stop_requested = asyncio.Event()
 
         class StoppingProvider:
             model = "test-model"
@@ -456,13 +454,13 @@ class TestStopHonoured:
                 yield {"type": "tool_start", "name": "first_tool"}
                 executed.append("first_tool")
                 yield {"type": "tool_end", "name": "first_tool"}
-                stop_requested.set()
+                request_stop("turn-1", 1)
                 yield {"type": "tool_start", "name": "second_tool"}
                 executed.append("second_tool")
                 yield {"type": "tool_end", "name": "second_tool"}
                 yield {"type": "token", "content": "done"}
 
-        processor = _make_processor(provider=StoppingProvider(), stop_requested=stop_requested, turn_id="turn-1")
+        processor = _make_processor(provider=StoppingProvider(), turn_id="turn-1", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -477,7 +475,6 @@ class TestStopHonoured:
         """Stop requested while a tool is executing (between its tool_start and tool_end): the
         in-flight tool's result is still kept, and only the next tool is skipped."""
         executed: list[str] = []
-        stop_requested = asyncio.Event()
 
         class StoppingDuringExecutionProvider:
             model = "test-model"
@@ -488,7 +485,7 @@ class TestStopHonoured:
                 yield {"type": "tool_start", "name": "first_tool"}
                 # The stop lands here — inside the window where the real provider is
                 # awaiting `_execute_tool`, between yielding tool_start and tool_end.
-                stop_requested.set()
+                request_stop("turn-6", 1)
                 executed.append("first_tool")
                 yield {"type": "tool_end", "name": "first_tool"}
                 yield {"type": "tool_start", "name": "second_tool"}
@@ -496,9 +493,7 @@ class TestStopHonoured:
                 yield {"type": "tool_end", "name": "second_tool"}
                 yield {"type": "token", "content": "done"}
 
-        processor = _make_processor(
-            provider=StoppingDuringExecutionProvider(), stop_requested=stop_requested, turn_id="turn-6"
-        )
+        processor = _make_processor(provider=StoppingDuringExecutionProvider(), turn_id="turn-6", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -515,7 +510,6 @@ class TestStopHonoured:
         ``if stopping: break`` — the generator would just run out on its own. A fourth token
         that must never be requested is what a deleted break would let leak through.
         """
-        stop_requested = asyncio.Event()
 
         class StoppingProvider:
             model = "test-model"
@@ -525,11 +519,11 @@ class TestStopHonoured:
             ) -> AsyncGenerator[dict[str, Any], None]:
                 yield {"type": "token", "content": "Half a "}
                 yield {"type": "token", "content": "sentence"}
-                stop_requested.set()
+                request_stop("turn-2", 1)
                 yield {"type": "token", "content": " that still arrives"}
                 yield {"type": "token", "content": " but this one never does"}
 
-        processor = _make_processor(provider=StoppingProvider(), stop_requested=stop_requested, turn_id="turn-2")
+        processor = _make_processor(provider=StoppingProvider(), turn_id="turn-2", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -539,7 +533,7 @@ class TestStopHonoured:
 
     @pytest.mark.asyncio
     async def test_an_uninterrupted_turn_is_not_marked_stopped(self) -> None:
-        processor = _make_processor(provider=SimpleProvider(), stop_requested=asyncio.Event(), turn_id="turn-3")
+        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-3", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -548,10 +542,17 @@ class TestStopHonoured:
     @pytest.mark.asyncio
     async def test_release_turn_called_when_stream_ends(self) -> None:
         """The turn is released from the live-turns registry once the stream finishes."""
-        register_turn("turn-4", 1)
-        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-4")
+        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-4", user_id=1)
 
         async for _ in processor.stream():
             pass
 
         assert request_stop("turn-4", 1) is False
+
+    @pytest.mark.asyncio
+    async def test_a_turn_is_not_registered_until_its_stream_runs(self) -> None:
+        """Registering inside the stream is what keeps a turn whose stream never runs out of
+        the registry: there is nothing to release, so nothing can be left behind."""
+        _make_processor(provider=SimpleProvider(), turn_id="turn-7", user_id=1)
+
+        assert request_stop("turn-7", 1) is False

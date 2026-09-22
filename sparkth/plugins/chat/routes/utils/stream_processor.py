@@ -28,7 +28,7 @@ from sparkth.plugins.chat.analytics import AnalyticsAttribution, emit_completion
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.routes.utils.live_turns import release_turn
+from sparkth.plugins.chat.routes.utils.live_turns import register_turn, release_turn
 from sparkth.plugins.chat.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.chat.schemas import ChatMessage
 from sparkth.plugins.chat.service import ChatService
@@ -136,10 +136,10 @@ class ChatStreamProcessor:
     Processing runs inside a background asyncio task so a client disconnect
     does not interrupt the DB write; the generator side only drains a queue.
 
-    ``stop_requested``, when given, is polled between steps (never mid-tool-call) so a stop
-    lands at a safe boundary; a turn that ends this way still persists what it produced, with
-    a ``stopped`` marker. ``turn_id`` is released from the live-turns registry once the
-    background task ends, whatever the reason.
+    ``turn_id`` makes the turn stoppable: the background task registers it with the
+    live-turns registry, polls the event it gets back between steps (never mid-tool-call) so
+    a stop lands at a safe boundary, and releases it when the task ends, whatever the reason.
+    A turn stopped this way still persists what it produced, with a ``stopped`` marker.
     """
 
     def __init__(
@@ -155,7 +155,6 @@ class ChatStreamProcessor:
         rag_search_required: bool = False,
         rag_search_declined: bool = False,
         analytics: AnalyticsAttribution | None = None,
-        stop_requested: asyncio.Event | None = None,
         turn_id: str | None = None,
     ) -> None:
         self.provider = provider
@@ -172,10 +171,10 @@ class ChatStreamProcessor:
         # keeps the processor constructible without analytics — its own unit tests build
         # it with four arguments and have no request to attribute to.
         self.analytics = analytics
-        # None when the turn was never registered (no turn_id on the request) — such a
-        # turn cannot be stopped, so the poll below simply never fires for it.
-        self.stop_requested = stop_requested
-        self.turn_id = turn_id
+        # A turn is stoppable only when the caller named it and its owner is known; the
+        # pair is its key in the live-turns registry. None leaves the stop poll never firing.
+        self.stoppable_turn: tuple[str, int] | None = (turn_id, user_id) if turn_id and user_id is not None else None
+        self.stop_requested: asyncio.Event | None = None
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -484,20 +483,28 @@ class ChatStreamProcessor:
         detached task, reaching neither the stream nor the conversation. Emitting after
         the sentinel also stops a multi-tool turn from holding the SSE connection open
         for one analytics round-trip per tool.
+
+        A stoppable turn is registered here, so the registry gains an entry only once this
+        task exists. The release sits with the sentinel outside the session, where both run
+        however the task ends — including a failure to open the session — and the release
+        runs first, so a stream that has closed can no longer be stopped.
         """
+        if self.stoppable_turn:
+            self.stop_requested = register_turn(*self.stoppable_turn)
         completion: StreamedCompletion | None = None
-        async with session_scope() as bg_session:
-            try:
-                completion = await self._run(bg_session)
-            except BaseException as exc:
-                logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
-                await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
-                if not isinstance(exc, Exception):
-                    raise
-            finally:
-                if self.turn_id:
-                    release_turn(self.turn_id)
-                await self._put(None)
+        try:
+            async with session_scope() as bg_session:
+                try:
+                    completion = await self._run(bg_session)
+                except BaseException as exc:
+                    logger.exception("Unhandled error in stream task for conversation %s", self.conversation_id)
+                    await self._persist_and_emit_error("An unexpected error occurred. Please try again.", bg_session)
+                    if not isinstance(exc, Exception):
+                        raise
+        finally:
+            if self.stoppable_turn:
+                release_turn(*self.stoppable_turn)
+            await self._put(None)
 
         if self.analytics is None or completion is None:
             return

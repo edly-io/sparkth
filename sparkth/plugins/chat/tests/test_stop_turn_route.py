@@ -23,7 +23,7 @@ async def test_stopping_a_live_turn_returns_204(client: AsyncClient, current_use
         assert response.status_code == 204
         assert stop_requested.is_set()
     finally:
-        release_turn("11111111-1111-4111-8111-111111111111")
+        release_turn("11111111-1111-4111-8111-111111111111", cast(int, current_user.id))
 
 
 @pytest.mark.asyncio
@@ -41,7 +41,7 @@ async def test_stopping_another_users_turn_returns_404(client: AsyncClient, curr
         assert response.status_code == 404
         assert not stop_requested.is_set()
     finally:
-        release_turn("33333333-3333-4333-8333-333333333333")
+        release_turn("33333333-3333-4333-8333-333333333333", other_user_id)
 
 
 async def _seed_llm_config_and_conversation(session: AsyncSession, user_id: int) -> tuple[int, str]:
@@ -69,16 +69,16 @@ async def _seed_llm_config_and_conversation(session: AsyncSession, user_id: int)
     return llm_config_id, conversation_uuid
 
 
-class TestTurnReleasedWhenStreamNeverStarts:
-    """A failure between registering a turn and the stream task starting must not leak it.
+class TestTurnNotLeakedWhenStreamNeverStarts:
+    """A turn that never streams must leave nothing behind in the registry.
 
-    ``register_turn`` runs in the route; the normal release only happens inside the task the
-    processor spawns. If construction of the processor (or the response wrapping it) raises,
-    nothing would ever call ``release_turn`` — the turn would sit in the registry forever.
+    Registering and releasing both happen inside the task the stream spawns, so a request
+    that fails before that task exists — or a response whose body is never read — has
+    nothing to release.
     """
 
     @pytest.mark.asyncio
-    async def test_a_construction_failure_releases_the_registered_turn(
+    async def test_a_construction_failure_leaves_no_registered_turn(
         self,
         client: AsyncClient,
         current_user: User,
@@ -122,6 +122,6 @@ class TestTurnReleasedWhenStreamNeverStarts:
                     },
                 )
 
-        # request_stop returning False proves the id is no longer in the registry — a leaked
-        # turn would still be there and this would return True instead.
+        # request_stop returning False proves the id is not in the registry — a leaked turn
+        # would still be there and this would return True instead.
         assert request_stop(turn_id, user_id) is False
